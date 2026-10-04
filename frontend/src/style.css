@@ -1,0 +1,125 @@
+:root {
+  font-family: "Trebuchet MS", sans-serif;
+  color: #edf1e7;
+  background: #161b18;
+  font-synthesis: none;
+  --accent: #c6f27c;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 280px;
+}
+main {
+  width: min(440px, calc(100% - 40px));
+  margin: clamp(32px, 10vh, 110px) auto;
+}
+.brand {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  font-size: 26px;
+  letter-spacing: -1px;
+}
+.brand small {
+  display: block;
+  font-size: 12px;
+  color: #a2afa5;
+  letter-spacing: 0.5px;
+  margin-top: 3px;
+}
+.mark {
+  background: var(--accent);
+  color: #1c2816;
+  font-weight: bold;
+  font-size: 35px;
+  width: 53px;
+  height: 53px;
+  padding: 5px 15px;
+  border-radius: 4px 16px 4px 4px;
+}
+section {
+  margin-top: 54px;
+  padding-top: 25px;
+  border-top: 1px solid #475244;
+}
+.eyebrow {
+  font-family: monospace;
+  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+h1 {
+  font-family: Georgia, serif;
+  font-weight: normal;
+  font-size: 38px;
+  letter-spacing: -1px;
+  margin: 14px 0;
+}
+.intro {
+  color: #b4beb6;
+  line-height: 1.6;
+  margin: 0 0 29px;
+}
+form {
+  display: grid;
+  gap: 10px;
+}
+label {
+  font-size: 13px;
+  margin-top: 7px;
+}
+input {
+  width: 100%;
+  background: #202822;
+  color: #edf1e7;
+  border: 1px solid #5d695d;
+  padding: 13px;
+  border-radius: 5px;
+  font: inherit;
+}
+button {
+  display: flex;
+  justify-content: space-between;
+  border: 0;
+  background: var(--accent);
+  color: #1c2816;
+  padding: 14px 17px;
+  border-radius: 5px;
+  font: inherit;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 15px;
+  min-height: 48px;
+}
+button:disabled,
+input:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+button:hover:enabled {
+  background: #d9ff9e;
+}
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+}
+.error {
+  border-left: 3px solid #efad90;
+  background: #312b25;
+  color: #f7c3aa;
+  padding: 12px;
+  line-height: 1.5;
+}
+footer {
+  font-family: monospace;
+  font-size: 11px;
+  color: #9ca99d;
+  margin-top: 42px;
+}
+::selection {
+  color: #161b18;
+  background: var(--accent);
+}
