@@ -1,0 +1,14 @@
+/target/
+__pycache__/
+*.pyc
+.venv/
+
+/dist/
+/frontend/dist/
+/frontend/node_modules/
+/.ruff_cache/
+/.cache/
+.env
+*.sqlite*
+
+frontend/.test-build/

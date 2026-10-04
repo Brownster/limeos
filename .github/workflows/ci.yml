@@ -1,0 +1,89 @@
+name: P01 foundation gates
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+      - name: Toolchain and native validation tools
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal --component clippy,rustfmt
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y shellcheck systemd
+          cargo install --locked cargo-deny --version 0.20.2
+          cargo install --locked cargo-audit --version 0.22.2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      - run: cargo deny check
+      - run: cargo audit
+      - run: shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh
+      - name: Unit validation
+        run: |
+          sudo install -d /usr/lib/limeos /var/lib/limeos/core
+          cargo build --locked -p limeos-core -p limeos-executor -p limeosctl
+          sudo install -m 0755 target/debug/limeos-core target/debug/limeos-executor /usr/lib/limeos/
+          systemd-analyze verify packaging/systemd/*.service
+      - run: python3 scripts/check_repository.py
+      - run: python3 scripts/check_contracts.py
+      - run: npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high
+        working-directory: frontend
+      - name: Deliberate release-gate rejection probes
+        run: python3 scripts/test_gates.py
+      - name: Debian 12 release builds on native architecture
+        run: |
+          docker build -t limeos-builder -f packaging/Containerfile .
+          docker run --rm -v "$PWD:/build" limeos-builder cargo build --locked --release -p limeos-core -p limeos-executor -p limeosctl
+          arch=$(dpkg --print-architecture)
+          python3 packaging/build.py --arch "$arch" --binaries target/release
+          python3 packaging/build.py --arch "$arch" --binaries target/release --version 0.1.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: debian-${{ matrix.runner }}
+          path: dist/*.deb
+
+  debian-vm:
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: debian-ubuntu-24.04
+          path: dist
+      - name: Disposable Debian signed-apt and systemd acceptance
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y qemu-system-x86 qemu-utils genisoimage apt-utils gnupg
+          mkdir -p .cache/p01-vm
+          curl --fail --location https://cloud.debian.org/images/cloud/bookworm/latest/SHA512SUMS -o .cache/p01-vm/SHA512SUMS
+          curl --fail --location https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2 -o .cache/p01-vm/debian-12-genericcloud-amd64.qcow2
+          export GNUPGHOME
+          GNUPGHOME=$(mktemp -d)
+          trap 'rm -rf "$GNUPGHOME"' EXIT
+          gpg --batch --passphrase '' --quick-generate-key 'LimeOS disposable CI key' ed25519 sign 1d
+          key=$(gpg --batch --with-colons --list-keys | awk -F: '$1=="fpr" {print $10; exit}')
+          packaging/repository.sh "$PWD/dist/test-repo" "$key" dist/*.deb
+          python3 tests/privileged_vm/run.py --repository dist/test-repo
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: debian-vm-evidence
+          path: docs/rewrite-evidence/p01/vm-result.json

@@ -1,0 +1,14 @@
+target
+.git
+.agents
+.aws
+.codex
+__pycache__
+docs
+
+frontend/node_modules
+frontend/dist
+dist
+.cache
+.ruff_cache
+.venv
