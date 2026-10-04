@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Event",
+  "type": "object",
+  "properties": {
+    "created": {
+      "type": "integer",
+      "format": "int64"
+    },
+    "cursor": {
+      "type": "integer",
+      "format": "int64"
+    },
+    "event": {
+      "$ref": "#/$defs/EventKind"
+    },
+    "job": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "principal": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "cursor",
+    "event",
+    "created"
+  ],
+  "$defs": {
+    "EventKind": {
+      "description": "Authority events contain stable types and identifiers, never credentials.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "bootstrap_issued"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "administrator_enrolled"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "legacy_identity_imported"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "session_created"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "session_revoked"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "grants_revised"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "task_issued"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "task_revoked"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "job_queued"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "job_recovery_required"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "job_transition"
+            },
+            "state": {
+              "$ref": "#/$defs/JobState"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "state"
+          ]
+        }
+      ]
+    },
+    "JobState": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "waiting_approval",
+        "queued",
+        "running",
+        "verifying",
+        "succeeded",
+        "failed",
+        "canceled",
+        "precondition_changed",
+        "outcome_unknown",
+        "needs_intervention"
+      ]
+    }
+  }
+}

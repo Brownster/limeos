@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Request",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "health"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version"
+      ]
+    }
+  ]
+}

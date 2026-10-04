@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CoreResponse",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "generation": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "response": {
+          "type": "string",
+          "const": "health"
+        },
+        "schema_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "response",
+        "version",
+        "generation",
+        "schema_version",
+        "ready"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "response": {
+          "type": "string",
+          "const": "bootstrap"
+        },
+        "token": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "response",
+        "token",
+        "expires_at"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "string",
+          "const": "enrolled"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "response"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "string",
+          "const": "authorized"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "response"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "audit_id": {
+          "type": "string"
+        },
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "response": {
+          "type": "string",
+          "const": "error"
+        },
+        "retry": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "response",
+        "code",
+        "message",
+        "retry",
+        "audit_id"
+      ]
+    }
+  ],
+  "$defs": {
+    "ErrorCode": {
+      "type": "string",
+      "enum": [
+        "invalid_input",
+        "unauthenticated",
+        "forbidden",
+        "conflict",
+        "expired",
+        "overloaded",
+        "unavailable",
+        "corrupt_configuration",
+        "state_not_durable",
+        "not_found"
+      ]
+    }
+  }
+}

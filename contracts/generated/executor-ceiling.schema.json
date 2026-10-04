@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ceiling",
+  "type": "object",
+  "properties": {
+    "allow_health": {
+      "type": "boolean"
+    },
+    "core_uid": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "version": {
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "core_uid",
+    "allow_health"
+  ]
+}

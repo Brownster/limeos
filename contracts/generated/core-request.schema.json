@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CoreRequest",
+  "description": "No principal name or role is accepted from a local caller. Privileged local\nenrollment is gated by kernel credentials in the composition root.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "request": {
+          "type": "string",
+          "const": "health"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "request": {
+          "type": "string",
+          "const": "issue_bootstrap"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "enrollment": {
+          "$ref": "#/$defs/Enrollment"
+        },
+        "request": {
+          "type": "string",
+          "const": "enroll"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version",
+        "enrollment"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/Operation"
+        },
+        "request": {
+          "type": "string",
+          "const": "check_task"
+        },
+        "resource": {
+          "type": "string"
+        },
+        "task": {
+          "type": "string"
+        },
+        "token": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version",
+        "token",
+        "task",
+        "operation",
+        "resource"
+      ]
+    }
+  ],
+  "$defs": {
+    "Enrollment": {
+      "type": "object",
+      "properties": {
+        "password": {
+          "type": "string"
+        },
+        "token": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "token",
+        "username",
+        "password"
+      ]
+    },
+    "Operation": {
+      "type": "string",
+      "enum": [
+        "health_read",
+        "media_request",
+        "container_manage",
+        "storage_manage",
+        "identity_manage"
+      ]
+    }
+  }
+}

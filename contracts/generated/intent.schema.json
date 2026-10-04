@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Intent",
+  "description": "P01 has no effectful operation. Later phases add closed typed variants here.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "health_probe"
+        },
+        "resource": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "resource"
+      ]
+    }
+  ]
+}

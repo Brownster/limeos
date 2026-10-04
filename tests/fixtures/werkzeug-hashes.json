@@ -1,0 +1,10 @@
+[
+  {
+    "password": "legacy-password",
+    "hash": "scrypt:32768:8:1$vdYT4OKICpm89RVk$04c86b2538e3f92ba1e4d2b9a2423d3f75bda2c7be27d67f30cda40d7638089134fee1f549b2968273fe31fbf30da2b9b3f0a4d5560077b0376cfca0ab2f2397"
+  },
+  {
+    "password": "legacy-password",
+    "hash": "pbkdf2:sha256:1000000$IgjABokZwwl2gggv$686315920b24fb807abeb0a436ce6385be3f3026e35d934ffbaf15be1a0e7ce1"
+  }
+]

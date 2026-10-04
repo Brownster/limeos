@@ -1,0 +1,19 @@
+[package]
+name = "limeos-schema"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+limeos-contracts = { path = "../../crates/contracts", version = "=0.1.0" }
+limeos-domain = { path = "../../crates/domain", version = "=0.1.0" }
+limeos-executor-protocol = { path = "../../crates/executor-protocol", version = "=0.1.0" }
+tokio.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+ts-rs.workspace = true
