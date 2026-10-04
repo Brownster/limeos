@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-04",
+  "compiler": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+  "base_image": "rust:1.88.0-bookworm",
+  "base_image_digest": "sha256:af306cfa71d987911a781c37b59d7d67d934f49684058f96cf72079c3626bfe0",
+  "build_image_config_digest": "sha256:b7d3e641c612c979fe8cd7cef3ad69c14ba7a3738134dab8c6ef6788f7b36691",
+  "build_image_manifest_digest": "sha256:af684f63adae359e95f9082cc3235bcc76208baaa9cd1a48b553784e226d5ba5",
+  "targets": [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu"
+  ],
+  "release_profile": {
+    "optimization": 3,
+    "lto": "thin",
+    "codegen_units": 1,
+    "strip": "symbols",
+    "panic": "abort"
+  },
+  "direct_dependencies": {
+    "axum": "0.8.9",
+    "reqwest": "0.12.28",
+    "rusqlite": "0.40.2",
+    "serde": "1.0.229",
+    "serde_json": "1.0.151",
+    "tokio": "1.53.2"
+  },
+  "native_dependencies": {
+    "sqlite": "bundled via libsqlite3-sys 0.38.2",
+    "tls_crypto": "ring 0.17.14",
+    "runtime_libraries": [
+      "libgcc_s.so.1",
+      "libm.so.6",
+      "libc.so.6"
+    ]
+  },
+  "binary_sha256": {
+    "aarch64": "e252890d9e13cc2f482f6fb54d5ac6cba3071572f1ce3a75595be4dc0ff585d2",
+    "x86_64": "21f0424a27d254a01e859d54969fcf173afadcc5eb5fc22cfb4869d84f913fff"
+  },
+  "source_sha256": {
+    "Cargo.toml": "6b7bf036e49efec594f381aa1540c8b9f1bd4a995ee1436dea2deeaf2183e77b",
+    "Cargo.lock": "74a732143fb2255632753cf3851d30aaf8ca32ef6473ea5185d95087fe96b19d",
+    "rust-toolchain.toml": "980c9752cb40dca3265ce4e3e31de1c369b469c9837be059b806ea93fe76799d",
+    ".cargo/config.toml": "c14d91a09686c17e2b7f8cab0b11acbf9441f905e00631ee26503a0d2d3db99e",
+    "spikes/footprint/Cargo.toml": "18b33e794768ddea91950e4358f93d5df7e5da4ddd2a0d41248e6d4b192c778f",
+    "spikes/footprint/src/main.rs": "898aea1346ca9ed39b77cf94b7dc86a5a0a1438588cd952a5c1100e1bc3af1e7",
+    "spikes/footprint/Containerfile": "e0340f1e09b4ded7e4a7713adcf1568d1eac0f872f8b95c284ba5631890058b7",
+    "spikes/footprint/measure.py": "6d3aa0a1a125d8b0615105762e77724128689c2eb741d36c5a2b2c45938e42ef",
+    "spikes/footprint/test_probe.py": "81f7c9136ebec198786fb04cc6b2662720491a7542343bd4903c7aa1ec1e6d76"
+  },
+  "commands": [
+    "docker build -f spikes/footprint/Containerfile -t limeos-footprint:rw005 .",
+    "cargo +stable fmt --all --check",
+    "CARGO_HOME=/tmp/limeos-cargo cargo +stable clippy --locked --all-targets -- -D warnings",
+    "uv run --no-project spikes/footprint/test_probe.py",
+    "ruff check spikes/footprint/measure.py spikes/footprint/test_probe.py",
+    "PYTHONDONTWRITEBYTECODE=1 LIMEOS_SPIKE_TEST_BINARY=/tmp/limeos-rw005-KI4eU2PU/limeos-footprint-aarch64 python3 /tmp/limeos-rw005-KI4eU2PU/test_probe.py",
+    "PYTHONDONTWRITEBYTECODE=1 python3 /tmp/limeos-rw005-KI4eU2PU/measure.py --binary /tmp/limeos-rw005-KI4eU2PU/limeos-footprint-aarch64 --output /tmp/limeos-rw005-KI4eU2PU/result.json"
+  ]
+}

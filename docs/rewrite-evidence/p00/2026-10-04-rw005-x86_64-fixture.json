@@ -1,0 +1,408 @@
+{
+  "schema_version": 1,
+  "measured_utc": "2026-10-04T18:09:30.489118+00:00",
+  "host": {
+    "architecture": "x86_64",
+    "model": null,
+    "kernel": "7.0.14-101.fc43.x86_64",
+    "logical_cpus": 8,
+    "os_release": "NAME=\"Fedora Linux\"\nVERSION=\"43 (KDE Plasma Desktop Edition)\"\nRELEASE_TYPE=stable\nID=fedora\nVERSION_ID=43\nVERSION_CODENAME=\"\"\nPRETTY_NAME=\"Fedora Linux 43 (KDE Plasma Desktop Edition)\"\nANSI_COLOR=\"0;38;2;60;110;180\"\nLOGO=fedora-logo-icon\nCPE_NAME=\"cpe:/o:fedoraproject:fedora:43\"\nDEFAULT_HOSTNAME=\"fedora\"\nHOME_URL=\"https://fedoraproject.org/\"\nDOCUMENTATION_URL=\"https://docs.fedoraproject.org/en-US/fedora/f43/\"\nSUPPORT_URL=\"https://ask.fedoraproject.org/\"\nBUG_REPORT_URL=\"https://bugzilla.redhat.com/\"\nREDHAT_BUGZILLA_PRODUCT=\"Fedora\"\nREDHAT_BUGZILLA_PRODUCT_VERSION=43\nREDHAT_SUPPORT_PRODUCT=\"Fedora\"\nREDHAT_SUPPORT_PRODUCT_VERSION=43\nSUPPORT_END=2026-12-02\nVARIANT=\"KDE Plasma Desktop Edition\"\nVARIANT_ID=kde\n",
+    "clock_ticks_per_second": 100
+  },
+  "build": {
+    "binary_sha256": "742ad6b477ed5dd290d5d7662d1e4534d72770653cef2bb2e4403b36406dd29b",
+    "binary_bytes": 5378720
+  },
+  "workload": {
+    "docker_source": "fixture",
+    "inventory": {
+      "response_bytes": 792,
+      "running": 18,
+      "total": 19
+    },
+    "runtime_workers": 2,
+    "database_workers": 1,
+    "startup_runs": 10,
+    "startup_conditions": "warm OS page cache; fresh SQLite database per start",
+    "latency_requests_per_client": 300,
+    "concurrent_clients": 3,
+    "http_connections": "one new loopback HTTP/1 connection per request",
+    "tls": "Rustls client initialized; no external TLS handshake or model request"
+  },
+  "startup_ms": {
+    "samples": [
+      4.420380981173366,
+      2.8733109938912094,
+      2.8090410050936043,
+      4.576449980959296,
+      4.866002011112869,
+      4.5194550184533,
+      3.8044649991206825,
+      5.384218995459378,
+      3.7011029780842364,
+      5.224093038123101
+    ],
+    "min": 2.8090410050936043,
+    "p50": 4.420380981173366,
+    "p95": 5.384218995459378,
+    "max": 5.384218995459378
+  },
+  "latency_ms": {
+    "sequential": {
+      "min": 0.31652499455958605,
+      "p50": 0.49895700067281723,
+      "p95": 1.3571849558502436,
+      "max": 4.021711996756494
+    },
+    "concurrent": {
+      "min": 0.26889704167842865,
+      "p50": 0.9642649674788117,
+      "p95": 2.318197046406567,
+      "max": 7.593358983285725
+    }
+  },
+  "load": {
+    "elapsed_seconds": 0.5543178350199014,
+    "cpu_seconds": 0.21,
+    "write_bytes": 0,
+    "memory_after": {
+      "rss_kib": 7004,
+      "pss_kib": 4634,
+      "swap_kib": 0,
+      "cpu_ticks": 21,
+      "threads": 4,
+      "write_bytes": 0,
+      "cancelled_write_bytes": 0
+    }
+  },
+  "idle": {
+    "elapsed_seconds": 30.00063130899798,
+    "cpu_seconds": 0.0,
+    "cpu_percent_one_core": 0.0,
+    "pss_max_mib": 4.525390625,
+    "rss_max_mib": 6.83984375,
+    "swap_max_mib": 0.0,
+    "write_bytes": 0,
+    "cancelled_write_bytes": 0,
+    "samples": [
+      {
+        "elapsed_seconds": 0.0,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 1.000291385978926,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 2.000735626963433,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 3.0012365019647405,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 4.00172764697345,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 5.002194794011302,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 6.002636196964886,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 7.003114564984571,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 8.003728726005647,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 9.004222619987559,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 10.004647223977372,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 11.005157429957762,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 12.005641480966005,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 13.006113577983342,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 14.006781507981941,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 15.007262056984473,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 16.007707880984526,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 17.008248392958194,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 18.008851455990225,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 19.009354429959785,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 20.009884297964163,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 21.010357067978475,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 22.010788495012093,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 23.0112496939837,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 24.011699980997946,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 25.012390974967275,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 26.013057874981314,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 27.013737678993493,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 28.01433251297567,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 29.015037500998005,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      },
+      {
+        "elapsed_seconds": 30.000073727976996,
+        "rss_kib": 7004,
+        "pss_kib": 4634,
+        "swap_kib": 0,
+        "cpu_ticks": 21,
+        "threads": 4,
+        "write_bytes": 0,
+        "cancelled_write_bytes": 0
+      }
+    ]
+  },
+  "gates": {
+    "reference_pi5_live_docker": false,
+    "readiness_all_under_1_second": true,
+    "idle_pss_under_15_mib_without_swap": true,
+    "ten_starts_and_ten_minute_idle": false,
+    "rw005_footprint_pass": false,
+    "idle_cpu_under_0_1_percent": false
+  }
+}

@@ -1,0 +1,2 @@
+e252890d9e13cc2f482f6fb54d5ac6cba3071572f1ce3a75595be4dc0ff585d2  /artifacts/limeos-footprint-aarch64
+21f0424a27d254a01e859d54969fcf173afadcc5eb5fc22cfb4869d84f913fff  /artifacts/limeos-footprint-x86_64
