@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Stop before replacing binaries, preserving all state.
+set -Eeuo pipefail
+fct_on_error() { printf '%s\n' 'LimeOS services could not be stopped; package removal has stopped.' >&2; }
+trap fct_on_error ERR
+fct_main() {
+    case "${1:-}" in
+        remove|deconfigure|upgrade)
+            if [[ -d /run/systemd/system ]]; then systemctl stop limeos-core.service limeos-containerd.service limeos-storaged.service; fi
+            ;;
+    esac
+}
+fct_main "$@"

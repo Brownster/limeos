@@ -1,0 +1,5 @@
+# Build-only image; the application is distributed exclusively as Debian packages.
+FROM rust:1.88.0-bookworm
+RUN apt-get update && apt-get install --no-install-recommends -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross shellcheck apt-utils dpkg-dev systemd gnupg ca-certificates python3 && rm -rf /var/lib/apt/lists/*
+RUN rustup target add aarch64-unknown-linux-gnu && rustup component add clippy rustfmt
+WORKDIR /build

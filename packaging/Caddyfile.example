@@ -1,0 +1,16 @@
+# Install Caddy separately; import its local CA into each browser's trust store.
+# Set /etc/limeos/core.json origin to the exact HTTPS origin used here.
+https://localhost {
+    tls internal
+    @api path /api/*
+    handle @api {
+        reverse_proxy 127.0.0.1:8003
+    }
+    handle {
+        root * /usr/lib/limeos/ui
+        try_files {path} /index.html
+        file_server
+        header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'"
+        header X-Content-Type-Options nosniff
+    }
+}

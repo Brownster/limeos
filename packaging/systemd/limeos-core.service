@@ -1,0 +1,45 @@
+[Unit]
+Description=LimeOS core
+After=network.target limeos-containerd.service limeos-storaged.service
+Wants=limeos-containerd.service limeos-storaged.service
+[Service]
+Type=exec
+User=limeos-core
+Group=limeos-rpc
+SupplementaryGroups=limeos-host-access limeos-container-access
+ExecStart=/usr/lib/limeos/limeos-core
+RuntimeDirectory=limeos-core
+RuntimeDirectoryMode=0750
+UMask=0077
+LimitCORE=0
+MemorySwapMax=0
+ProtectProc=invisible
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=15s
+TimeoutStopSec=15s
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/limeos/core
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+LimitNOFILE=1024
+TasksMax=32
+MemoryMax=128M
+CPUQuota=200%
+[Install]
+WantedBy=multi-user.target

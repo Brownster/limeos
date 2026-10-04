@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Never delete authority databases, users, or credentials on removal.
+set -Eeuo pipefail
+fct_main() {
+    case "${1:-}" in
+        remove|purge)
+            if [[ -d /run/systemd/system ]]; then
+                systemctl disable limeos-core.service limeos-containerd.service limeos-storaged.service
+                systemctl daemon-reload
+            fi
+            ;;
+    esac
+}
+fct_main "$@"

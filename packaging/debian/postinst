@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Validate preserved configuration before activating dedicated service accounts.
+set -Eeuo pipefail
+fct_on_error() { printf '%s\n' 'LimeOS configuration failed; correct the named problem, then run dpkg --configure limeos.' >&2; }
+trap fct_on_error ERR
+fct_account() {
+    local account="${1}" uid account_shell
+    if getent passwd "${account}" >/dev/null; then
+        uid="$(id -u "${account}")"
+        if (( uid < 100 || uid >= 1000 )); then printf 'Refusing non-system account: %s\n' "${account}" >&2; return 1; fi
+        account_shell="$(getent passwd "${account}" | cut -d: -f7)"
+        if [[ "${account_shell}" != /usr/sbin/nologin ]]; then printf 'Refusing login-enabled service account: %s\n' "${account}" >&2; return 1; fi
+        if [[ "${account}" != limeos-containerd && " $(id -nG "${account}") " == *' docker '* ]]; then
+            printf 'Refusing Docker access for service account: %s\n' "${account}" >&2; return 1
+        fi
+    else
+        adduser --system --group --no-create-home --home /nonexistent --shell /usr/sbin/nologin "${account}"
+    fi
+}
+fct_directory() {
+    local directory="${1}" owner="${2}" mode="${3}"
+    if [[ -L "${directory}" ]]; then printf 'Refusing symlink: %s\n' "${directory}" >&2; return 1; fi
+    install -d -o "${owner}" -g "${owner}" -m "${mode}" "${directory}"
+}
+fct_execute_this() {
+    [[ "${1:-}" == configure ]] || return 0
+    /usr/lib/limeos/limeosctl check-config /etc/limeos/core.json
+    local account group core_uid
+    for account in limeos-core limeos-containerd limeos-assistant; do fct_account "${account}"; done
+    for group in limeos-rpc limeos-host-access limeos-container-access docker; do
+        getent group "${group}" >/dev/null || addgroup --system "${group}"
+    done
+    if [[ -L /var/lib/limeos || -L /etc/limeos/system-policy ]]; then printf '%s\n' 'Refusing symlink in managed state paths.' >&2; return 1; fi
+    fct_directory /var/lib/limeos root 0755
+    fct_directory /etc/limeos root 0755
+    fct_directory /var/lib/limeos/core limeos-core 0700
+    fct_directory /var/lib/limeos/assistant limeos-assistant 0700
+    fct_directory /var/lib/limeos/executors root 0700
+    fct_directory /etc/limeos/system-policy root 0755
+    core_uid="$(id -u limeos-core)"
+    local target temporary
+    for target in host container; do
+        if [[ -e "/etc/limeos/system-policy/${target}.json" || -L "/etc/limeos/system-policy/${target}.json" ]]; then
+            /usr/lib/limeos/limeosctl check-ceiling "/etc/limeos/system-policy/${target}.json" "${core_uid}"
+            continue
+        fi
+        temporary="$(mktemp "/etc/limeos/system-policy/.${target}.XXXXXX")"
+        printf '{"version":1,"core_uid":%s,"allow_health":true}\n' "${core_uid}" >"${temporary}"
+        chown root:root "${temporary}"
+        chmod 0644 "${temporary}"
+        sync -f "${temporary}"
+        mv -fT "${temporary}" "/etc/limeos/system-policy/${target}.json"
+        sync -f /etc/limeos/system-policy
+    done
+    if [[ -d /run/systemd/system ]]; then
+        systemctl daemon-reload
+        systemctl enable limeos-core.service limeos-containerd.service limeos-storaged.service
+        systemctl restart limeos-storaged.service limeos-containerd.service limeos-core.service
+        local attempt
+        for (( attempt=0; attempt<75; attempt++ )); do
+            if systemctl is-active --quiet limeos-core.service limeos-containerd.service limeos-storaged.service && /usr/lib/limeos/limeosctl status >/dev/null 2>&1; then return 0; fi
+            sleep 0.2
+        done
+        printf '%s\n' 'LimeOS did not become ready within 15 seconds; inspect journalctl -u limeos-core.' >&2
+        return 1
+    fi
+}
+fct_main() { fct_execute_this "$@"; }
+fct_main "$@"
