@@ -1,0 +1,31 @@
+
+> limeos-foundation-ui@0.1.0 test
+> node --experimental-strip-types --test tests/*.mjs
+
+TAP version 13
+# (node:3455134) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: login sends credentials in the body with same-origin cookies and a deadline
+ok 1 - login sends credentials in the body with same-origin cookies and a deadline
+  ---
+  duration_ms: 31.284512
+  ...
+# Subtest: logout supplies CSRF over POST, and session reads have no mutation body
+ok 2 - logout supplies CSRF over POST, and session reads have no mutation body
+  ---
+  duration_ms: 0.934094
+  ...
+# Subtest: safe API errors retain their details; malformed proxy responses get a fixed message
+ok 3 - safe API errors retain their details; malformed proxy responses get a fixed message
+  ---
+  duration_ms: 2.732363
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 171.85411

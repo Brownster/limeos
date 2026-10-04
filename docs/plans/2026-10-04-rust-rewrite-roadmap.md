@@ -1,6 +1,6 @@
 # LimeOS Rust rewrite: delivery roadmap
 
-Status: delivery roadmap, revised 2026-10-04 after review and the reference-host baseline. P00 spikes are in progress; production implementation has not started.
+Status: P01 foundation implementation delivered 2026-10-04; local acceptance passes. Remaining P00 assumptions, native ARM64/remote CI and hardware/soak qualification stay open.
 Current build baseline: [Brownster/pi-health@80593b2](https://github.com/Brownster/pi-health/tree/80593b2). The reference host runs `618ce92`.
 
 This is the entry point for the rewrite. Read the [target architecture](2026-10-04-rust-rewrite-architecture.md) for processes, permissions, storage, jobs, and packaging; the [assistant/model-routing design](2026-10-04-assistant-model-routing.md) for subscription support, native APIs, cost controls, and assistant workflows; and the [defect register](2026-10-04-rust-rewrite-defect-register.md) for every known defect in the current build and the rule that keeps it out of the new one.
@@ -114,6 +114,8 @@ The RW-005 ARM64 binary also tests the footprint argument. Built with the planne
 Evidence directory: `docs/rewrite-evidence/p00/` with redacted inventory, benchmark method/results, threat model, ADRs, and VM/provider reports. Add evidence as it is produced, not as empty placeholders.
 
 ### P01 — Secure Rust foundation
+
+Implementation delivered 2026-10-04 under the operator's authorization to proceed from the positive P00 result. [P01 evidence](../rewrite-evidence/p01/2026-10-04-execution-tracker.md) records local validation and outstanding native ARM64, hardware and soak qualifications. Remaining P00 assumptions stay open and block the affected production effects, not this health-only foundation.
 
 Work packages:
 

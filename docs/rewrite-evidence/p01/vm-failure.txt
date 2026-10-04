@@ -1,0 +1,84 @@
+Result=start-limit-hit
+NRestarts=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+Oct 04 20:44:35 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 20:44:35 limeos-p01-test limeos-core[1131]: {"timestamp":"2026-10-04T20:44:35.647014Z","level":"INFO","fields":{"message":"core ready","generation":2}}
+Oct 04 20:44:36 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 04 20:44:36 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 04 20:44:36 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 04 20:44:36 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 04 20:44:36 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 20:44:36 limeos-p01-test limeos-core[1282]: {"timestamp":"2026-10-04T20:44:36.615656Z","level":"INFO","fields":{"message":"core ready","generation":3}}
+Oct 04 20:44:37 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 04 20:44:37 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 04 20:44:37 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 04 20:44:37 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 04 20:44:37 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 20:44:37 limeos-p01-test limeos-core[1385]: {"timestamp":"2026-10-04T20:44:37.361282Z","level":"INFO","fields":{"message":"core ready","generation":4}}
+Oct 04 20:44:38 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 04 20:44:38 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 04 20:44:38 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 04 20:44:38 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 04 20:44:38 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 20:44:38 limeos-p01-test limeos-core[1523]: {"timestamp":"2026-10-04T20:44:38.161775Z","level":"INFO","fields":{"message":"core ready","generation":5}}
+Oct 04 20:44:38 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 04 20:44:38 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 04 20:44:38 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 04 20:44:38 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 04 20:44:38 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 20:44:38 limeos-p01-test limeos-core[1624]: {"timestamp":"2026-10-04T20:44:38.948624Z","level":"INFO","fields":{"message":"core ready","generation":6}}
+Oct 04 20:44:39 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 04 20:44:39 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 04 20:44:39 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 04 20:44:39 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 04 20:44:39 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 20:44:39 limeos-p01-test limeos-core[1725]: {"timestamp":"2026-10-04T20:44:39.691795Z","level":"INFO","fields":{"message":"core ready","generation":7}}
+Oct 04 20:44:41 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 04 20:44:41 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 04 20:44:41 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 04 20:44:41 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 04 20:44:41 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 20:44:41 limeos-p01-test limeos-core[2011]: {"timestamp":"2026-10-04T20:44:41.156660Z","level":"INFO","fields":{"message":"core ready","generation":8}}
+Oct 04 20:44:42 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 04 20:44:42 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 04 20:44:42 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 04 20:44:43 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 04 20:44:43 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 20:44:43 limeos-p01-test limeos-core[2159]: {"timestamp":"2026-10-04T20:44:43.100830Z","level":"INFO","fields":{"message":"core ready","generation":9}}
+Oct 04 20:44:44 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 04 20:44:44 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 04 20:44:44 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 04 20:44:44 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 04 20:44:44 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 20:44:45 limeos-p01-test limeos-core[2298]: {"timestamp":"2026-10-04T20:44:45.005813Z","level":"INFO","fields":{"message":"core ready","generation":10}}
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 04 20:44:45 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 20:44:45 limeos-p01-test limeos-core[2321]: {"timestamp":"2026-10-04T20:44:45.481152Z","level":"INFO","fields":{"message":"core ready","generation":11}}
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 04 20:44:45 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 20:44:45 limeos-p01-test limeos-core[2333]: {"timestamp":"2026-10-04T20:44:45.576051Z","level":"INFO","fields":{"message":"core ready","generation":12}}
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 04 20:44:45 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 20:44:45 limeos-p01-test limeos-core[2345]: {"timestamp":"2026-10-04T20:44:45.669003Z","level":"INFO","fields":{"message":"core ready","generation":13}}
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 04 20:44:45 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 20:44:45 limeos-p01-test limeos-core[2357]: {"timestamp":"2026-10-04T20:44:45.760091Z","level":"INFO","fields":{"message":"core ready","generation":14}}
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 04 20:44:45 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 04 20:44:45 limeos-p01-test systemd[1]: limeos-core.service: Start request repeated too quickly.
+Oct 04 20:44:45 limeos-p01-test systemd[1]: limeos-core.service: Failed with result 'start-limit-hit'.
+Oct 04 20:44:45 limeos-p01-test systemd[1]: Failed to start limeos-core.service - LimeOS core.

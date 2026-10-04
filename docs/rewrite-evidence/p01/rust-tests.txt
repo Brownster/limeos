@@ -1,0 +1,154 @@
+   Compiling limeos-persistence v0.1.0 (/build/crates/persistence)
+   Compiling limeos-core v0.1.0 (/build/bins/core)
+   Compiling limeosctl v0.1.0 (/build/bins/ctl)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 20.44s
+     Running unittests src/lib.rs (target/debug/deps/limeos_api-5fc35cbc7bc6a6e0)
+
+running 2 tests
+test tests::no_default_login_cross_site_or_get_mutation ... ok
+test tests::malformed_and_oversized_body_and_rate_limit ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_contracts-11753bfbee3c2bfa)
+
+running 1 test
+test tests::oversized_frame_rejected_before_body_and_forged_actor_rejected ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/main.rs (target/debug/deps/limeos_core-5c7e231f8f43db07)
+
+running 1 test
+test tests::imported_hash_upgrades_only_after_successful_login_and_session_is_durable ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.66s
+
+     Running unittests src/password_worker.rs (target/debug/deps/limeos_password_worker-eb1912d805b09385)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/worker.rs (target/debug/deps/worker-ddfb379618b18cd9)
+
+running 1 test
+test password_worker_is_bounded_and_has_no_command_or_actor_protocol ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_domain-d616d3c5a8379181)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/limeos_executor-c1890cebb47501af)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_executor_protocol-6355043b70324a48)
+
+running 1 test
+test tests::peer_and_ceiling_are_independent_and_no_content_or_command_is_accepted ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/limeos_footprint-97fddf2aa334fafc)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_identity-31dde3f6a2d89537)
+
+running 2 tests
+test tests::argon_round_trip_wrong_password_and_bounded_hostile_parameters ... ok
+test tests::verifies_hashes_generated_by_werkzeug ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.16s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_persistence-25904235a454cd3f)
+
+running 13 tests
+test tests::crash_helper ... ok
+
+running 1 test
+test config::tests::public_cleartext_and_symlink_config_are_rejected ... ok
+test config::tests::corrupt_config_is_preserved_reads_do_not_write_and_atomic_write_is_valid ... ok
+test tests::enrollment_once_expiry_and_no_default_user ... ok
+test tests::failures_rollback_intent_events_and_never_report_a_queued_operation ... ok
+test tests::budget_reservation_unknown_usage_retains_maximum_and_settlement_is_unique ... ok
+test tests::process_crash_preserves_committed_intent_and_requires_reconciliation ... ok
+test tests::sessions_csrf_expiry_revoke_and_grant_change ... ok
+test tests::single_core_and_future_schema_refuse_startup ... ok
+test tests::committed_intent_idempotency_resource_lock_deadline_and_revocation ... ok
+test tests::bounded_worker_serializes_concurrent_budget_reservations ... ok
+test tests::startup_refuses_recovery_without_audit_capacity ... ok
+test tests::task_uid_task_scope_expiry_revocation_revision_and_restart ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_policy-c968a3275aa93461)
+
+running 2 tests
+test tests::even_admin_needs_an_explicit_grant_and_task_cannot_expand_it ... ok
+test tests::household_cannot_turn_media_grant_into_storage_or_deployment_authority ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/limeos_schema-9545afee0ee7e6c8)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/limeosctl-15c8cad876476166)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_api
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_contracts
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_domain
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_executor_protocol
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_identity
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_persistence
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_policy
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

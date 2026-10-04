@@ -1,0 +1,68 @@
+{
+  "platform": "Debian 12 x86-64 KVM",
+  "date_utc": "2026-10-04T21:12:57.312247+00:00",
+  "kernel": "6.1.0-53-cloud-amd64",
+  "vcpus": 2,
+  "ram_mib": 1024,
+  "tests": [
+    "signed apt install and systemd activation",
+    "root-owned payload and dedicated non-login accounts",
+    "no default login and one-use local root enrollment",
+    "secure cookies, origin, CSRF, GET safety and revocation",
+    "forged authority, oversized RPC and socket access denied",
+    "slow and oversized HTTP headers bounded",
+    "root/sudo rerun identity and corrupt configuration preserved",
+    "activation and removal failures surface and rerun recovers",
+    "upgrade/downgrade preserve identity/configuration and package payload",
+    "actual space pressure refuses state changes and preserves reads",
+    "five core restarts reach readiness below one second",
+    "post-authentication idle footprint stays below 30 MiB",
+    "idle health reads do not write and logs contain no credentials",
+    "remove/reinstall preserves authority and existing login"
+  ],
+  "measurements": {
+    "limeos-core": {
+      "pss_kib": 3876,
+      "rss_kib": 5740,
+      "memory_peak_bytes": 21610496,
+      "memory_swap_current_bytes": 0
+    },
+    "limeos-containerd": {
+      "pss_kib": 710,
+      "rss_kib": 2656,
+      "memory_peak_bytes": 1212416,
+      "memory_swap_current_bytes": 0
+    },
+    "limeos-storaged": {
+      "pss_kib": 733,
+      "rss_kib": 2728,
+      "memory_peak_bytes": 835584,
+      "memory_swap_current_bytes": 0
+    }
+  },
+  "startup_ms": [
+    99.628,
+    104.47,
+    132.35,
+    121.674,
+    93.489
+  ],
+  "status_cli_ms": [
+    1.397,
+    1.309,
+    1.354,
+    1.671,
+    1.686,
+    1.93,
+    1.57,
+    1.379,
+    1.157,
+    1.124
+  ],
+  "combined_pss_kib": 5319,
+  "result": "pass",
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "3d94c9dd66d8a283fde060b8810373b7ae04038b956ee00d553d1ae564f6fbdeaa2fd6e7404e87e53348b5a9509170f3ea7c0731ba737590c5c4cb8d559a47f8"
+  }
+}

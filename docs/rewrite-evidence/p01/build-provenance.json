@@ -1,0 +1,142 @@
+{
+  "date_utc": "2026-10-04T21:15:49.822068+00:00",
+  "source_digest": "49f45a0e658dd173836f9e2f52216068d9753ce42836fa61939932d1a484609a",
+  "implementation_commit": "d98e4726a8791dfe4152e68969323fc4826185aa",
+  "toolchain": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+  "builder_image_id": "sha256:af684f63adae359e95f9082cc3235bcc76208baaa9cd1a48b553784e226d5ba5",
+  "sqlite": "3.53.2",
+  "protocol_version": 1,
+  "schema_version": 1,
+  "source_files_sha256": {
+    ".cargo/config.toml": "c14d91a09686c17e2b7f8cab0b11acbf9441f905e00631ee26503a0d2d3db99e",
+    ".github/workflows/ci.yml": "41982d20ea63e7f78af3fbc55258881fd1a28444e1edb10c0377d6cba2914f3c",
+    "Cargo.lock": "487de684e694a047fb8892ef8e622d1063b4d7687505876818beaccbb1d0889e",
+    "Cargo.toml": "a520af43ca434f435e759f5954c0ac4a0f2d4e68de2dcb55d1217f0fafe9a10e",
+    "bins/core/Cargo.toml": "7636c18afc6253c93005be8f2b33688c4bbe674757c77e6722ce924079bd65b6",
+    "bins/core/src/main.rs": "fd33a89cdf92747643b9f408f6b46542587e5a2e1f863a57803e9a376bf48522",
+    "bins/core/src/password_worker.rs": "495af9bd83aa2a6cd6a3a848d30e74ad7685101a899391b3dcaab0f646b2d9fa",
+    "bins/core/tests/worker.rs": "6c9bf6b640b410c215d2ca683ca386dd7db512b7d868ded6b02bf44bc426c70f",
+    "bins/ctl/Cargo.toml": "e8856f9b0e61e82a3da2a24e49a771a79c4b91fa594b5b2fe8abf6e0bccf3f8d",
+    "bins/ctl/src/main.rs": "85329b91b0460e53ff5b969314e0e866027cead900b22d4002663a57d0799427",
+    "bins/executor/Cargo.toml": "334430db7fbe0974554ab059ea7e6c9360bbeb5e6913792cd25ea6c840296a13",
+    "bins/executor/src/main.rs": "d218a2e2a8bf92399d18294e10ff3215f0743b3919a980618a5d195fb9a17a6b",
+    "bins/schema/Cargo.toml": "7ae772722fdc885099766c4252f2fa7537c7de31e73841b8703cf43bb7c64343",
+    "bins/schema/src/main.rs": "6ad485be6aa01a437877b27137cf5a862947dc1188fb8c99f4ba100242a0920a",
+    "contracts/generated/authority-v1.sql": "1e91fe17b555fd635af084c2411efeeb7180b33e57dfddc963d3c8433b3dc0a0",
+    "contracts/generated/core-request.schema.json": "75bc25c324a371f47b35ee90256376d654d54ea90a37a5f9c93f5fc55ab52889",
+    "contracts/generated/core-response.schema.json": "50e31b9b31860a7cdb93bb68bae7cacfebe5a2f3b2a75f87a4c1acb5d09f9bd8",
+    "contracts/generated/event.schema.json": "f92349e2dd54145bd09792581b68ef822c0dcc45e3224410d6c8ad349b6c03e6",
+    "contracts/generated/executor-ceiling.schema.json": "efd224d3e527a42dc95745a557ceefec57caa5705dab46793f11cff1b5fdf3db",
+    "contracts/generated/executor-request.schema.json": "55b170cc516e68ce87fb59f99a09261d918d1077b60218a38d1d31b5c540d5b6",
+    "contracts/generated/intent.schema.json": "5e598dc3a08c71d895f8bcb9b6fb166c108c993a315b8e7fee944be3154a6727",
+    "contracts/generated/openapi.json": "ec92c1743ffbf1593a1750f01517299809560a4d87a76b39ac88bbb3a73486ed",
+    "contracts/generated/types.ts": "7f5d999d292c82ca05e2b76170fd233280f9c1f683c89b2f2deaf2787f89ed9c",
+    "crates/api/Cargo.toml": "5265e0b6bb990e3d9cbb9bb0b59f2fd7cb1c3f03fa20e5a2e26018e90b31c12e",
+    "crates/api/src/lib.rs": "70f01fb09ebc782bc8e48aec4341be79d76fcb6444d7afee82f2b27c51bf2365",
+    "crates/contracts/Cargo.toml": "85c06c2bbd50669c94d46d82dcb7c322ad9dd59b4e0477539ced51f687372e38",
+    "crates/contracts/src/lib.rs": "83f5bd4af5d53b8eb06183594a625ae1ff35ce7e35ec69b4b2785349755461e7",
+    "crates/domain/Cargo.toml": "e0ebbc11d43c0458c721e895681d4241b61a9065bc817d1674954486d33bcb97",
+    "crates/domain/src/lib.rs": "f075abd485837e45bda1093266d663e5265e04c982c6c5876dd7848bcc358adc",
+    "crates/executor-protocol/Cargo.toml": "94a2a32e33bc74379c66e7f45cba93239472ca791abe7e815de7f279e7f7886c",
+    "crates/executor-protocol/src/lib.rs": "e0c3124277b4235a85a26660ab21951d124a20e9df8db3590ed9a466641d3e6a",
+    "crates/identity/Cargo.toml": "f128f9e8bf84d1d6b3d4391960dd9c95735239908dc45871cbc2ba0b04920867",
+    "crates/identity/src/lib.rs": "e7d00c03feaa8f27c0614ba26149d2e083491336b395f21b8bac521215867e54",
+    "crates/persistence/Cargo.toml": "c3d8890597aefc10f3cbbd74383c37bd29b846ac34d658054ac2f8ea1d4a5c4b",
+    "crates/persistence/src/budgets.rs": "9119e159d8dc42fb049203947efb93216148003cb9bcfbffa72f002cd6511122",
+    "crates/persistence/src/config.rs": "82aa175638eb1493307be6cfd89d9d7f0dda6f358dc9b963159b2e925ee5a57e",
+    "crates/persistence/src/identity_store.rs": "c6f3c37543bd030d74f27417eebe66ed46e23775b2c2cb4c563cafbd099c7159",
+    "crates/persistence/src/jobs.rs": "d5f397d83d6264a85545f1bba5333b28683c0ec72a601679a150724daed0ddae",
+    "crates/persistence/src/lib.rs": "ce42fa8683b1aa41214f9662893fc7babd0262eccaf91e01a6ab11a886194b91",
+    "crates/persistence/src/schema.sql": "1e91fe17b555fd635af084c2411efeeb7180b33e57dfddc963d3c8433b3dc0a0",
+    "crates/persistence/src/tests.rs": "dca207367f2337384029527e7247af56e85ca87cb4650a26661d17ffab122928",
+    "crates/policy/Cargo.toml": "678e471cb0af8e977f73e5db6ae09dc3800ce767e671bad57339e9b7c2c42247",
+    "crates/policy/src/lib.rs": "b080348f54b60d3c74fd88655a48d5034c0dc9d644da7b15cd29c810c1c667a2",
+    "deny.toml": "55280f07e6d289fcc66eca864ca0e0e178be4a9006fa087decb7322aae180a1f",
+    "docs/p01-operations.md": "803f15d6c8127aebfbc8e1cbbf17a257718f1847d08e2daadd9e7c63ae9eda81",
+    "frontend/index.html": "fd14a711943df0af50a91f5f64649f3df45dccc64a7bfdc6b44b3cc1b1ac6ac3",
+    "frontend/package-lock.json": "45e038f91c1c99f2944228478cb5957a3890497c41ade9b73d667942cedc28f0",
+    "frontend/package.json": "9b113f09d068a3c4c7c158191397726a22eb24ce8e07a423b73698d69dd8389c",
+    "frontend/src/api.ts": "79ef4dd914f078292e13548ad6a895335de89db7efe5a75024374d11cbaec401",
+    "frontend/src/main.tsx": "2d17cfed66af5be404b33f2f3976b960fedc8bf344951463f57952d8e9543569",
+    "frontend/src/style.css": "2d90f66484c44d51d58c4c8bb9b3f54365bf352bb415af2642fd1916814d2432",
+    "frontend/tests/api.mjs": "a2016a59f0f10c6cd8fb0d1444f1f91931c24d3284355053d3381254f83ae19b",
+    "frontend/tsconfig.json": "a013e29d0a24a46bfb4843c172736d5ea745b39f6b5f5e3429e6a306a99f6283",
+    "packaging/Caddyfile.example": "7d8596271423cf77f57023c29014346d020aa75976b38b6a2c9e628ff7d6a941",
+    "packaging/Containerfile": "5ff45cc73ae22e80e58dce126c71fa71c0fcfd11ba73c0b706b36167f2a52f32",
+    "packaging/build.py": "cb6c96936c4d5a60d5cbf70f0e21b41936c9df9029fba2d962cf524dbec7ebeb",
+    "packaging/config/core.json": "89a02a9e56b9bd46f35dbef3fe669c830563415ffec07d418b3bcf39a97ef59b",
+    "packaging/debian/postinst": "023a29460dad66642ce7cb667407e7e27f5a25495145c668e9c5b4b05e99687a",
+    "packaging/debian/postrm": "16e1da02dade9de55685c3797ec10d8f9d50476f053e8a796c9654ec01c7b5b4",
+    "packaging/debian/prerm": "e0d00746ba90d84ccb7c6af26f463fadfd500ef28ace35efb01ab7e72b0c9dfc",
+    "packaging/repository.sh": "f2e751526b0b5139ff416b15fad35db99716cee745893e7d12ba376aebad1d2e",
+    "packaging/systemd/limeos-containerd.service": "a4af7659ab76880266753c640f6101ea8dba0718a0ba3d4b093f93de8d4e6d7e",
+    "packaging/systemd/limeos-core.service": "210f1b1c611bf3b1c9b9a72e1659b6136b2c89fc0396501152f6323414492d72",
+    "packaging/systemd/limeos-storaged.service": "93a6cf98b9818376e2020a13bcbe99d435d3ed3cdef00371f07e761a83f6ba0f",
+    "rust-toolchain.toml": "980c9752cb40dca3265ce4e3e31de1c369b469c9837be059b806ea93fe76799d",
+    "scripts/check_contracts.py": "66263a1d524041cc5020535ac5db4ece20e058e3caa85e9c3822e4a5392842c8",
+    "scripts/check_repository.py": "2e57da58236690ec3c48a732ccfceec13a1020bd8bbe839a36217291156c0d44",
+    "scripts/test_gates.py": "4e57806ecdd9c3bf1c860c5cb81d8eb44512da93f19f5697a78fe86bded9f633",
+    "tests/fixtures/werkzeug-hashes.json": "752d73d9cbc3730902d571c2958875eeb3985c3ac35ccf604ee4f1035d7e8daf",
+    "tests/privileged_vm/guest.py": "d948b6132716343c3b60dff5e17a791cdfbc3dc9e287d66ba793117920366112",
+    "tests/privileged_vm/run.py": "a8f8f3523229a480636f85265b45763b096f85b5bc2ae060701d1561560b7c39"
+  },
+  "binaries": {
+    "x86_64-unknown-linux-gnu": {
+      "limeos-core": {
+        "sha256": "cae09e3cb8a820a5e6d1508968eabe804a3f4fea66e16a48c1d3db071da763a3",
+        "bytes": 3517624
+      },
+      "limeos-password-worker": {
+        "sha256": "66a211da79e455ac73718929aaa9c9892063dcb6e9f1cb999aa928e8fd8cfe82",
+        "bytes": 537376
+      },
+      "limeos-executor": {
+        "sha256": "076aa5f9a14c9e527fa8bc6b2589bac77627515b86df4946ce589f7787791631",
+        "bytes": 861248
+      },
+      "limeosctl": {
+        "sha256": "4fd62b8dbe9fd7a1ceadf23c62782fb5a4db89741a9112d2aa42f682545441d2",
+        "bytes": 717664
+      }
+    },
+    "aarch64-unknown-linux-gnu": {
+      "limeos-core": {
+        "sha256": "7a508a4d222e7b6cc1a67a72d9a899d8398dbc49e6c493427a86c1209bc940fa",
+        "bytes": 3231448
+      },
+      "limeos-password-worker": {
+        "sha256": "7910673f4bbc93c39551f0e2dc831d10701676f949ca98959c86eb2791e5f428",
+        "bytes": 463488
+      },
+      "limeos-executor": {
+        "sha256": "c0fae8570b4682785468074785f8ea96fed6ecdb132417682ef54a390a5ad994",
+        "bytes": 791472
+      },
+      "limeosctl": {
+        "sha256": "c13747c1d57920ccf6653c98100da966399703013a474afe6e30050a65346b6d",
+        "bytes": 660176
+      }
+    }
+  },
+  "packages": {
+    "limeos_0.1.0_amd64.deb": {
+      "sha256": "de1e80d8edbebf2be9e14d32877c05ea9cecc03e52586af4144e4dc5f8b51f0c",
+      "bytes": 1664716
+    },
+    "limeos_0.1.0_arm64.deb": {
+      "sha256": "7420835e47b2cd0d766529aa14ed99caf571da3e3e6f41409b088802b147c0c8",
+      "bytes": 1464032
+    },
+    "limeos_0.1.1_amd64.deb": {
+      "sha256": "fc5017cfa5a8aa76cf026c9bba0ef602865126657333f90317ac2c336fcb27db",
+      "bytes": 1664624
+    },
+    "limeos_0.1.1_arm64.deb": {
+      "sha256": "4ec15d2a7ee6d2d4a30a8c4fabd0c3225bbd3cfedbad0af1ccb9dede03637e5f",
+      "bytes": 1463940
+    }
+  },
+  "repository_test_signing_fingerprint": "5046FB0972B8DF0DCD7A225B54D35B8B21AE1BF1",
+  "arm64_validation": "cross build plus qemu-user CLI smoke; native CI not yet run",
+  "repository_published": false
+}
