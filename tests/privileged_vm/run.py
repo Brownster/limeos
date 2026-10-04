@@ -1,0 +1,216 @@
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
+"""Boot a disposable Debian 12 KVM guest and run package/security failure tests.
+
+Requires qemu-system-x86_64, qemu-img, genisoimage, ssh, scp and /dev/kvm.
+Image SHA512 is verified against Debian's HTTPS-published checksum list.
+Only a throwaway SSH key is accepted; no passwords, host mounts or host services.
+"""
+
+import argparse
+import hashlib
+import json
+import socket
+import subprocess
+import tempfile
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def run(*args: str, **kwargs):
+    return subprocess.run(args, check=True, **kwargs)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repository", type=Path, required=True)
+    parser.add_argument(
+        "--image",
+        type=Path,
+        default=ROOT / ".cache/p01-vm/debian-12-genericcloud-amd64.qcow2",
+    )
+    parser.add_argument(
+        "--checksums", type=Path, default=ROOT / ".cache/p01-vm/SHA512SUMS"
+    )
+    parser.add_argument(
+        "--output", type=Path, default=ROOT / "docs/rewrite-evidence/p01/vm-result.json"
+    )
+    args = parser.parse_args()
+    expected = next(
+        line.split()[0]
+        for line in args.checksums.read_text().splitlines()
+        if line.split()[-1].lstrip("*") == args.image.name
+    )
+    with args.image.open("rb") as stream:
+        actual = hashlib.file_digest(stream, "sha512").hexdigest()
+    if actual != expected:
+        raise SystemExit("Debian cloud image checksum mismatch")
+    with tempfile.TemporaryDirectory(prefix="limeos-p01-vm-") as tmp:
+        directory = Path(tmp)
+        key = directory / "key"
+        run("ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key))
+        public = key.with_suffix(".pub").read_text().strip()
+        (directory / "user-data").write_text(
+            "#cloud-config\ndisable_root: false\nssh_pwauth: false\nusers:\n  - name: root\n    ssh_authorized_keys:\n      - "
+            + public
+            + "\n"
+        )
+        (directory / "meta-data").write_text(
+            "instance-id: limeos-p01-test\nlocal-hostname: limeos-p01-test\n"
+        )
+        run(
+            "genisoimage",
+            "-quiet",
+            "-output",
+            str(directory / "seed.iso"),
+            "-volid",
+            "cidata",
+            "-joliet",
+            "-rock",
+            str(directory / "user-data"),
+            str(directory / "meta-data"),
+        )
+        run(
+            "qemu-img",
+            "create",
+            "-q",
+            "-f",
+            "qcow2",
+            "-F",
+            "qcow2",
+            "-b",
+            str(args.image.resolve()),
+            str(directory / "disk.qcow2"),
+            "8G",
+        )
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        common = [
+            "-i",
+            str(key),
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            f"UserKnownHostsFile={directory / 'known_hosts'}",
+            "-o",
+            "ConnectTimeout=2",
+            "-o",
+            "LogLevel=ERROR",
+        ]
+        ssh = ["ssh", *common, "-p", str(port), "root@127.0.0.1"]
+        with (directory / "console.log").open("wb") as console:
+            vm = subprocess.Popen(
+                [
+                    "qemu-system-x86_64",
+                    "-enable-kvm",
+                    "-cpu",
+                    "host",
+                    "-smp",
+                    "2",
+                    "-m",
+                    "1024",
+                    "-display",
+                    "none",
+                    "-serial",
+                    "stdio",
+                    "-drive",
+                    f"file={directory / 'disk.qcow2'},format=qcow2,if=virtio",
+                    "-drive",
+                    f"file={directory / 'seed.iso'},media=cdrom,readonly=on",
+                    "-netdev",
+                    f"user,id=n1,hostfwd=tcp:127.0.0.1:{port}-:22",
+                    "-device",
+                    "virtio-net-pci,netdev=n1",
+                ],
+                stdout=console,
+                stderr=console,
+            )
+            try:
+                deadline = time.monotonic() + 180
+                while time.monotonic() < deadline:
+                    result = subprocess.run(
+                        [*ssh, "true"], capture_output=True, check=False
+                    )
+                    if result.returncode == 0:
+                        break
+                    if vm.poll() is not None:
+                        raise RuntimeError(
+                            "Guest exited: "
+                            + (directory / "console.log").read_text()[-4000:]
+                        )
+                    time.sleep(1)
+                else:
+                    raise RuntimeError("Guest SSH readiness timeout")
+                print(
+                    "Debian guest ready; testing signed apt installation and failure recovery.",
+                    flush=True,
+                )
+                run(
+                    "scp",
+                    *common,
+                    "-P",
+                    str(port),
+                    "-r",
+                    str(args.repository.resolve()),
+                    "root@127.0.0.1:/opt/limeos-repo",
+                )
+                run(
+                    "scp",
+                    *common,
+                    "-P",
+                    str(port),
+                    str(ROOT / "tests/privileged_vm/guest.py"),
+                    "root@127.0.0.1:/root/guest.py",
+                )
+                try:
+                    run(
+                        *ssh,
+                        "python3 /root/guest.py /opt/limeos-repo /root/result.json",
+                    )
+                except subprocess.CalledProcessError:
+                    diagnostics = subprocess.run(
+                        [
+                            *ssh,
+                            "systemctl show limeos-core -p Result -p NRestarts -p StartLimitBurst -p StartLimitIntervalUSec; journalctl -u limeos-core --no-pager -n 80",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    failure = args.output.with_name("vm-failure.txt")
+                    failure.parent.mkdir(parents=True, exist_ok=True)
+                    failure.write_text(
+                        diagnostics.stdout[-16384:] + diagnostics.stderr[-4096:]
+                    )
+                    print("Guest failure diagnostics: " + str(failure), flush=True)
+                    raise
+                args.output.parent.mkdir(parents=True, exist_ok=True)
+                run(
+                    "scp",
+                    *common,
+                    "-P",
+                    str(port),
+                    "root@127.0.0.1:/root/result.json",
+                    str(args.output),
+                )
+                evidence = json.loads(args.output.read_text())
+                evidence["image"] = {"name": args.image.name, "sha512": actual}
+                args.output.write_text(json.dumps(evidence, indent=2) + "\n")
+                print("VM checks passed; evidence: " + str(args.output), flush=True)
+            finally:
+                vm.terminate()
+                try:
+                    vm.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    vm.kill()
+                    vm.wait()
+
+
+if __name__ == "__main__":
+    main()
