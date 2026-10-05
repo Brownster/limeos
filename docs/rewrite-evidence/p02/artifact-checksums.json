@@ -1,0 +1,16 @@
+{
+  "recorded_at_utc": "2026-10-05T07:05:46.436015+00:00",
+  "package_origin": "Inherited P02 signed test repository; no fresh build claimed during recovery.",
+  "acceptance_guest_sha256": "569913b247581db04a2292ab651430dda5367dd887da46f91f6b5cb6f2ba16db",
+  "vm_result_sha256": "3e9c9915c3ad6fc55557a789a6af4b19fde85f8f0e4ca2c5b7b18fe58f187917",
+  "artifacts": {
+    "dist/p02-test-repo/pool/main/limeos-shadow_0.2.0_amd64.deb": {
+      "bytes": 1872516,
+      "sha256": "38dff29f9a6bb3c8df3078fcaa95dcd77e763e077580b8602f0c27d7369167b2"
+    },
+    "dist/p02-test-repo/pool/main/limeos_0.2.0_amd64.deb": {
+      "bytes": 1873588,
+      "sha256": "0dd03efd1b7db77fa0d96fb7624ce0efd2bbe07b1933632ad751198a3255f425"
+    }
+  }
+}

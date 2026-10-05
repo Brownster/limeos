@@ -1,0 +1,7 @@
+Result=success
+NRestarts=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+Oct 04 22:20:18 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 04 22:20:18 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 04 22:20:18 limeos-p01-test limeos-core[918]: {"timestamp":"2026-10-04T22:20:18.414763Z","level":"INFO","fields":{"message":"core ready","generation":1}}

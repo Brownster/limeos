@@ -1,0 +1,53 @@
+
+> limeos-foundation-ui@0.1.0 test
+> node --experimental-strip-types --test tests/*.mjs
+
+TAP version 13
+# (node:3509527) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: login sends credentials in the body with same-origin cookies and a deadline
+ok 1 - login sends credentials in the body with same-origin cookies and a deadline
+  ---
+  duration_ms: 49.810072
+  ...
+# Subtest: logout supplies CSRF over POST, and session reads have no mutation body
+ok 2 - logout supplies CSRF over POST, and session reads have no mutation body
+  ---
+  duration_ms: 0.97049
+  ...
+# Subtest: safe API errors retain their details; malformed proxy responses get a fixed message
+ok 3 - safe API errors retain their details; malformed proxy responses get a fixed message
+  ---
+  duration_ms: 3.445618
+  ...
+# (node:3509528) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: missing evidence is never displayed as zero or a complete inventory
+ok 4 - missing evidence is never displayed as zero or a complete inventory
+  ---
+  duration_ms: 74.081744
+  ...
+# Subtest: pagination, stale timestamps and legitimate zero metrics remain distinct
+ok 5 - pagination, stale timestamps and legitimate zero metrics remain distinct
+  ---
+  duration_ms: 0.465946
+  ...
+# Subtest: history explicitly preserves the separate legacy view
+ok 6 - history explicitly preserves the separate legacy view
+  ---
+  duration_ms: 1.088936
+  ...
+# Subtest: inventory requests use bounded pagination and propagate server details
+ok 7 - inventory requests use bounded pagination and propagate server details
+  ---
+  duration_ms: 19.729238
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1628.437611
