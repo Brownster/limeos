@@ -94,7 +94,9 @@ impl ReceiptStore {
             .create(true)
             .truncate(false)
             .mode(0o600)
-            .custom_flags(0x20000 | 0x800)
+            .custom_flags(
+                (rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32,
+            )
             .open(directory.join("receipts.lock"))
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
         let meta = lock
