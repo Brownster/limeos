@@ -98,7 +98,8 @@ jobs:
           packaging/repository.sh "$PWD/dist/test-repo" "$key" dist/*.deb
           python3 tests/privileged_vm/run.py --repository dist/test-repo
           python3 tests/privileged_vm/run.py --repository dist/test-repo --guest-script tests/privileged_vm/p02_guest.py --output docs/rewrite-evidence/p02/vm-result.json
-          python3 tests/privileged_vm/run.py --repository dist/test-repo --guest-script tests/privileged_vm/p03_compose_guest.py --output docs/rewrite-evidence/p03/compose-vm-result.json
+          python3 -m unittest discover -s tests/reference -p 'test_*.py'
+          python3 tests/privileged_vm/run.py --repository dist/test-repo --guest-script tests/privileged_vm/p03_reference_guest.py --output docs/rewrite-evidence/p03/reference-vm-result.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: debian-vm-evidence
