@@ -317,11 +317,11 @@ def main():
         "task": "compose-preview",
         "selection": {"stack": "media", "template": "standard"},
     }
-    model = fixture.task_rpc("limeos-assistant", request)
+    model = fixture.rpc_as("limeos-assistant", request)
     assert model["response"] == "compose_plan", model
     assert model["plan"]["desired"] == proposal["plan"]["desired"]
     assert model["plan"]["impact"] == proposal["plan"]["impact"]
-    assert fixture.task_rpc("limeos-core", request)["code"] == "expired"
+    assert fixture.rpc_as("limeos-core", request)["code"] == "expired"
     assert (
         fixture.http(
             BASE + f"/{identifier}/approval",
@@ -333,7 +333,7 @@ def main():
         == 401
     )
     assert (
-        fixture.task_rpc(
+        fixture.rpc_as(
             "limeos-assistant",
             {
                 "request": "approve_compose",
@@ -375,9 +375,9 @@ def main():
     ]
     token = task(principal["id"], [base])
     request.update(token=token, selection={"stack": "media", "template": "elevated"})
-    assert fixture.task_rpc("limeos-assistant", request)["code"] == "forbidden"
+    assert fixture.rpc_as("limeos-assistant", request)["code"] == "forbidden"
     request["token"] = task(principal["id"], [base, elevated])
-    assert fixture.task_rpc("limeos-assistant", request)["response"] == "compose_plan"
+    assert fixture.rpc_as("limeos-assistant", request)["response"] == "compose_plan"
     fixture.passed(
         "all five elevations require the exact stack/template/content grant; wildcard admins and narrowed tasks cannot broaden it"
     )
