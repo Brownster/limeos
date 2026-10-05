@@ -2,6 +2,11 @@ import type {
   ErrorEnvelope,
   Login,
   SessionView,
+  Overview,
+  ResourcePage,
+  ResourceKind,
+  MetricHistory,
+  HistoryRange,
 } from "../../contracts/generated/types";
 export class ApiError extends Error {
   readonly detail: ErrorEnvelope;
@@ -45,6 +50,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     : ((await response.json()) as T);
 }
 export const api = {
+  overview: () => request<Overview>("/overview"),
+  resources: (kind?: ResourceKind, offset = 0, revision?: number) =>
+    request<ResourcePage>(
+      `/resources?limit=20&offset=${offset}${kind ? `&kind=${kind}` : ""}${revision === undefined ? "" : `&revision=${revision}`}`,
+    ),
+  history: (range: HistoryRange) =>
+    request<MetricHistory>(`/system/history?range=${range}`),
   session: () => request<SessionView>("/auth/session"),
   login: (input: Login) =>
     request<SessionView>("/auth/login", {

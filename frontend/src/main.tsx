@@ -1,12 +1,17 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import type { SessionView } from "../../contracts/generated/types";
 import { api, ApiError } from "./api";
 import "./style.css";
+import { Dashboard } from "./Dashboard";
 function App() {
   const [session, setSession] = useState<SessionView | null>(null);
   const [pending, setPending] = useState(true);
   const [error, setError] = useState("");
+  const expired = useCallback(() => setSession(null), []);
+  useEffect(() => {
+    document.title = session ? "LimeOS · Observations" : "LimeOS · Sign in";
+  }, [session]);
   useEffect(() => {
     void api
       .session()
@@ -51,7 +56,10 @@ function App() {
     }
   }
   return (
-    <main id="main">
+    <main id="main" className={session ? "signed-in" : ""}>
+      <a className="skip-link" href="#content">
+        Skip to content
+      </a>
       <div className="brand">
         <span className="mark" aria-hidden="true">
           L
@@ -60,24 +68,36 @@ function App() {
           LimeOS<small>Your home, in order.</small>
         </span>
       </div>
-      <section aria-labelledby="heading">
-        <p className="eyebrow">LOCAL CONTROL</p>
-        <h1 id="heading">{session ? "You’re signed in." : "Welcome home."}</h1>
-        <p className="intro">
-          {session
-            ? `Connected as ${session.principal.role.replace("_", " ")}.`
-            : "Sign in to your LimeOS host."}
-        </p>
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        )}
-        {session ? (
-          <button onClick={() => void logout()} disabled={pending}>
-            Sign out
-          </button>
-        ) : (
+      {session ? (
+        <>
+          <div className="account">
+            <span>
+              {session.principal.id} ·{" "}
+              {session.principal.role.replace("_", " ")}
+            </span>
+            <button onClick={() => void logout()} disabled={pending}>
+              Sign out
+            </button>
+          </div>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <div id="content" tabIndex={-1}>
+            <Dashboard expired={expired} />
+          </div>
+        </>
+      ) : (
+        <section id="content" aria-labelledby="heading">
+          <p className="eyebrow">LOCAL CONTROL</p>
+          <h1 id="heading">Welcome home.</h1>
+          <p className="intro">Sign in to your LimeOS host.</p>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
           <form onSubmit={(e) => void login(e)} aria-busy={pending}>
             <label htmlFor="username">Username</label>
             <input
@@ -103,8 +123,8 @@ function App() {
               <span aria-hidden="true">↗</span>
             </button>
           </form>
-        )}
-      </section>
+        </section>
+      )}
       <footer>LimeOS · Secure host management</footer>
     </main>
   );
