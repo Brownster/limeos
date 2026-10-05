@@ -7,7 +7,7 @@ use serde::Serialize;
 use std::{
     collections::BTreeMap,
     io::Read,
-    os::{fd::AsRawFd, unix::fs::MetadataExt},
+    os::fd::AsRawFd,
     path::Path,
     time::{Duration, Instant},
 };
@@ -59,7 +59,7 @@ pub struct VerifiedMount {
 }
 #[derive(Debug, Serialize)]
 pub struct Verification {
-    pub mount_namespace_inode: u64,
+    pub host_root_mount_id: u64,
     pub mounts: Vec<VerifiedMount>,
 }
 
@@ -67,12 +67,31 @@ pub fn read_plan(file: &Path) -> Result<StorageMountWaitPlan> {
     path::plan(file)
 }
 fn namespace() -> Result<u64> {
-    let current = std::fs::metadata("/proc/self/ns/mnt").map_err(|_| Failure::Unavailable)?;
-    let host = std::fs::metadata("/proc/1/ns/mnt").map_err(|_| Failure::Unavailable)?;
-    if current.ino() != host.ino() || current.dev() != host.dev() {
+    // Reading PID 1's namespace symlink requires ptrace capability even for
+    // UID 0 with an empty capability set. Its mount table is readable instead.
+    // Cloning a mount namespace allocates distinct kernel mount IDs; equal
+    // device numbers/paths alone would not prove the executor's host view.
+    let current = mounts::parse(&bounded_read(
+        Path::new("/proc/self/mountinfo"),
+        1024 * 1024,
+    )?)?;
+    let host = mounts::parse(&bounded_read(Path::new("/proc/1/mountinfo"), 1024 * 1024)?)?;
+    host_view(&current, &host)
+}
+fn host_view(current: &[mounts::Mount], host: &[mounts::Mount]) -> Result<u64> {
+    let root_id = |table: &[mounts::Mount]| -> Result<u64> {
+        let roots: Vec<_> = table.iter().filter(|m| m.path == "/").collect();
+        if roots.len() != 1 || roots[0].id == 0 {
+            return Err(Failure::Unavailable);
+        }
+        Ok(roots[0].id)
+    };
+    let current = root_id(current)?;
+    let host = root_id(host)?;
+    if current != host {
         return Err(Failure::WrongNamespace);
     }
-    Ok(current.ino())
+    Ok(host)
 }
 fn bounded_read(path: &Path, limit: u64) -> Result<String> {
     let mut text = String::new();
@@ -287,7 +306,7 @@ pub async fn verify(plan: &StorageMountWaitPlan) -> Result<Verification> {
         return Err(Failure::IdentityMismatch);
     }
     Ok(Verification {
-        mount_namespace_inode: ns,
+        host_root_mount_id: ns,
         mounts: verified,
     })
 }

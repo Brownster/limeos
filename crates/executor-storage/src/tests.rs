@@ -62,6 +62,25 @@ fn mount_parser_preserves_literal_paths_and_rejects_ambiguous_evidence() {
         mounts::protected(&mounts::parse("2 1 8:1 / /mnt/data rw - ext4 x rw").unwrap()).is_err()
     );
 }
+
+#[test]
+fn namespace_proof_requires_kernel_mount_identity_not_equal_paths_or_devices() {
+    let host = mounts::parse("27 0 8:1 / / rw - ext4 /dev/sda1 rw").unwrap();
+    let clone = mounts::parse("39 0 8:1 / / rw - ext4 /dev/sda1 rw").unwrap();
+    assert_eq!(host_view(&host, &host).unwrap(), 27);
+    assert_eq!(
+        host_view(&clone, &host).unwrap_err(),
+        Failure::WrongNamespace
+    );
+    assert_eq!(host_view(&[], &host).unwrap_err(), Failure::Unavailable);
+    let duplicate =
+        mounts::parse("27 0 8:1 / / rw - ext4 /dev/sda1 rw\n28 0 8:2 / / rw - ext4 /dev/sda2 rw")
+            .unwrap();
+    assert_eq!(
+        host_view(&duplicate, &host).unwrap_err(),
+        Failure::Unavailable
+    );
+}
 #[test]
 fn descriptor_walk_rejects_writable_ancestors_links_and_escaping_paths() {
     // /tmp's writable ancestor rejects even a protected leaf. The privileged
