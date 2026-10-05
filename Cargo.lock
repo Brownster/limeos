@@ -755,6 +755,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "limeos-executor-container"
+version = "0.2.0"
+dependencies = [
+ "fs2",
+ "limeos-domain",
+ "limeos-identity",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "limeos-executor-protocol"
 version = "0.2.0"
 dependencies = [
