@@ -265,7 +265,7 @@ def main():
     boot = run("findmnt", "-n", "-o", "SOURCE", "/").stdout.strip()
     check_error([assignment("boot-alias", boot, "/mnt/boot-alias")], "boot_device")
     siblings = json.loads(
-        run("lsblk", "--json", "-o", "PATH,FSTYPE", "/dev/vda").stdout
+        run("lsblk", "--tree", "--json", "-o", "PATH,FSTYPE", "/dev/vda").stdout
     )["blockdevices"][0]["children"]
     boot_sibling = next(d["path"] for d in siblings if d.get("fstype") == "vfat")
     check_error(
@@ -389,6 +389,9 @@ def main():
     assert json.loads(value.stderr)["error"] == "wrong_namespace"
     passed("a private mount namespace is refused even when it sees the same filesystem")
 
+    # Device-mapper claims its backing partition exclusively. Model a real
+    # alias before mounting it, rather than attempting to map a mounted FS.
+    run("umount", "/mnt/data")
     sectors = run("blockdev", "--getsz", "/dev/vdb1").stdout.strip()
     run(
         "dmsetup",
@@ -400,6 +403,7 @@ def main():
     run("udevadm", "settle")
     check_error([data], "ambiguous_identity")
     run("dmsetup", "remove", "limeos-data-alias")
+    run("mount", "/dev/vdb1", "/mnt/data")
     passed("a live device-mapper alias cannot broaden or duplicate filesystem identity")
     for name, _, _ in paths:
         assert (
