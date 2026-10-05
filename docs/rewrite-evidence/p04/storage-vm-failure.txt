@@ -1,0 +1,63 @@
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+Oct 05 19:25:46 limeos-p01-test systemd[1]: Starting docker.service - Docker Application Container Engine...
+Oct 05 19:25:46 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:46.953483800Z" level=info msg="Starting up"
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.023267234Z" level=info msg="[core] parsed scheme: \"unix\"" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.023291502Z" level=info msg="[core] scheme \"unix\" not registered, fallback to default scheme" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.023316509Z" level=info msg="[core] ccResolverWrapper: sending update to cc: {[{unix:///run/containerd/containerd.sock  <nil> 0 <nil>}] <nil> <nil>}" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.023338137Z" level=info msg="[core] ClientConn switching balancer to \"pick_first\"" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.023345277Z" level=info msg="[core] Channel switches to new LB policy \"pick_first\"" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.023368660Z" level=info msg="[core] Subchannel Connectivity change to CONNECTING" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.023392374Z" level=info msg="[core] Subchannel picks a new address \"unix:///run/containerd/containerd.sock\" to connect" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.023602434Z" level=info msg="[core] Channel Connectivity change to CONNECTING" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.023665933Z" level=info msg="[core] Subchannel Connectivity change to READY" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.023676525Z" level=info msg="[core] Channel Connectivity change to READY" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.024061795Z" level=info msg="[core] parsed scheme: \"unix\"" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.024077494Z" level=info msg="[core] scheme \"unix\" not registered, fallback to default scheme" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.024092916Z" level=info msg="[core] ccResolverWrapper: sending update to cc: {[{unix:///run/containerd/containerd.sock  <nil> 0 <nil>}] <nil> <nil>}" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.024100030Z" level=info msg="[core] ClientConn switching balancer to \"pick_first\"" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.024105479Z" level=info msg="[core] Channel switches to new LB policy \"pick_first\"" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.024121072Z" level=info msg="[core] Subchannel Connectivity change to CONNECTING" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.024138045Z" level=info msg="[core] Subchannel picks a new address \"unix:///run/containerd/containerd.sock\" to connect" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.024215950Z" level=info msg="[core] Channel Connectivity change to CONNECTING" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.024378272Z" level=info msg="[core] Subchannel Connectivity change to READY" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.024397078Z" level=info msg="[core] Channel Connectivity change to READY" module=grpc
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.032789662Z" level=info msg="Loading containers: start."
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.183391317Z" level=info msg="Default bridge (docker0) is assigned with an IP address 172.17.0.0/16. Daemon option --bip can be used to set a preferred IP address"
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.283158354Z" level=info msg="Loading containers: done."
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.305963981Z" level=info msg="Docker daemon" commit=5d6db84 graphdriver(s)=overlay2 version=20.10.24+dfsg1
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.306060625Z" level=info msg="Daemon has completed initialization"
+Oct 05 19:25:47 limeos-p01-test systemd[1]: Started docker.service - Docker Application Container Engine.
+Oct 05 19:25:47 limeos-p01-test dockerd[2177]: time="2026-10-05T19:25:47.331483782Z" level=info msg="API listen on /run/docker.sock"
+Oct 05 19:28:38 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 19:28:38 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 19:28:38 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 19:28:38 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 19:28:38 limeos-p01-test limeos-core[9103]: {"timestamp":"2026-10-05T19:28:38.873723Z","level":"INFO","fields":{"message":"core ready","generation":1}}
+Oct 05 19:28:40 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 19:28:40 limeos-p01-test limeos-executor[9193]: {"host_root_mount_id":27,"mounts":[{"id":"data","filesystem_uuid":"3ee9393d-1ba2-4313-a5b8-1706bbed25ab","device":{"major":254,"minor":17},"mountpoint":"/mnt/data","mount_id":554}]}
+Oct 05 19:28:40 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 05 19:28:40 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 19:28:40 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 19:28:40 limeos-p01-test limeos-executor[9226]: {"host_root_mount_id":27,"mounts":[{"id":"data","filesystem_uuid":"3ee9393d-1ba2-4313-a5b8-1706bbed25ab","device":{"major":254,"minor":17},"mountpoint":"/mnt/data","mount_id":554},{"id":"downloads","filesystem_uuid":"e5416fe0-8303-4546-b016-a6f6d9e68326","device":{"major":254,"minor":33},"mountpoint":"/mnt/downloads","mount_id":588}]}
+Oct 05 19:28:40 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 05 19:28:40 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 19:28:40 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 19:28:40 limeos-p01-test limeos-executor[9262]: {"host_root_mount_id":27,"mounts":[{"id":"data","filesystem_uuid":"3ee9393d-1ba2-4313-a5b8-1706bbed25ab","device":{"major":254,"minor":17},"mountpoint":"/mnt/data","mount_id":554},{"id":"data2","filesystem_uuid":"6a3fc44f-936a-4654-96e9-5c34fde32ad8","device":{"major":254,"minor":18},"mountpoint":"/mnt/data2","mount_id":571},{"id":"parity","filesystem_uuid":"74ed90fb-7f66-47f2-81e8-d962ee8e18db","device":{"major":254,"minor":49},"mountpoint":"/mnt/parity","mount_id":605},{"id":"backup","filesystem_uuid":"d265a106-1c7e-48cb-b280-a9eecce4045f","device":{"major":254,"minor":65},"mountpoint":"/mnt/backup","mount_id":622}]}
+Oct 05 19:28:40 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 05 19:28:40 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.

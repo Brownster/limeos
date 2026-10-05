@@ -1,0 +1,2 @@
+
+SSH: Connection timed out during banner exchange

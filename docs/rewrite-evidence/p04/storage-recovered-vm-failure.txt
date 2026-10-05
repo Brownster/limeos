@@ -1,0 +1,27 @@
+Result=timeout
+ExecMainStatus=15
+Oct 05 19:33:05 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 19:33:05 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 19:33:05 limeos-p01-test limeos-core[980]: {"timestamp":"2026-10-05T19:33:05.239380Z","level":"INFO","fields":{"message":"core ready","generation":1}}
+Oct 05 19:33:07 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 19:33:07 limeos-p01-test limeos-executor[1056]: {"host_root_mount_id":27,"mounts":[{"id":"data","filesystem_uuid":"7a43e3e3-2a09-498b-84bb-17874a9306f2","device":{"major":254,"minor":17},"mountpoint":"/mnt/data","mount_id":554}]}
+Oct 05 19:33:07 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 05 19:33:07 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 19:33:07 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 19:33:07 limeos-p01-test limeos-executor[1089]: {"host_root_mount_id":27,"mounts":[{"id":"data","filesystem_uuid":"7a43e3e3-2a09-498b-84bb-17874a9306f2","device":{"major":254,"minor":17},"mountpoint":"/mnt/data","mount_id":554},{"id":"downloads","filesystem_uuid":"50bb9a04-1394-47ff-9b45-363a2f120ec1","device":{"major":254,"minor":33},"mountpoint":"/mnt/downloads","mount_id":588}]}
+Oct 05 19:33:07 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 05 19:33:07 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 19:33:07 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 19:33:07 limeos-p01-test limeos-executor[1125]: {"host_root_mount_id":27,"mounts":[{"id":"data","filesystem_uuid":"7a43e3e3-2a09-498b-84bb-17874a9306f2","device":{"major":254,"minor":17},"mountpoint":"/mnt/data","mount_id":554},{"id":"data2","filesystem_uuid":"04c7c536-f3d7-4717-8c7e-df5adcd05fec","device":{"major":254,"minor":18},"mountpoint":"/mnt/data2","mount_id":571},{"id":"parity","filesystem_uuid":"8b4fcc93-7a8c-4bfe-b451-9c184b642938","device":{"major":254,"minor":49},"mountpoint":"/mnt/parity","mount_id":605},{"id":"backup","filesystem_uuid":"9e1cf8f5-9779-4a88-8b88-7b669d39ab0d","device":{"major":254,"minor":65},"mountpoint":"/mnt/backup","mount_id":622}]}
+Oct 05 19:33:07 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 05 19:33:07 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 19:33:08 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 19:33:11 limeos-p01-test limeos-executor[1252]: {"error":"timed_out","message":"The storage readiness deadline expired."}
+Oct 05 19:33:11 limeos-p01-test systemd[1]: limeos-storage-ready.service: Main process exited, code=exited, status=3/NOTIMPLEMENTED
+Oct 05 19:33:11 limeos-p01-test systemd[1]: limeos-storage-ready.service: Failed with result 'exit-code'.
+Oct 05 19:33:11 limeos-p01-test systemd[1]: Failed to start limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 19:33:11 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 19:33:15 limeos-p01-test systemd[1]: limeos-storage-ready.service: start operation timed out. Terminating.
+Oct 05 19:33:15 limeos-p01-test systemd[1]: limeos-storage-ready.service: Main process exited, code=killed, status=15/TERM
+Oct 05 19:33:15 limeos-p01-test systemd[1]: limeos-storage-ready.service: Failed with result 'timeout'.
+Oct 05 19:33:15 limeos-p01-test systemd[1]: Failed to start limeos-storage-ready.service - LimeOS verified device mount readiness.

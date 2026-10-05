@@ -1,0 +1,61 @@
+{
+  "checked_at_utc": "2026-10-05T19:36:23.466003+00:00",
+  "qualified_source_commit": "cd10970",
+  "build": {
+    "host": "disposable Debian 12 KVM guest",
+    "architecture": "amd64",
+    "rust_toolchain": "1.88.0",
+    "cargo": "locked offline release",
+    "bundle_sha256": "f0a9285ab369bfd942aec84c388f3ca09c4bfdba92bf8585252d50ce94faebc5",
+    "bundle_bytes": 258461343,
+    "source_manifest": "storage-readiness-source-sha256.json",
+    "bound_source_files": 141,
+    "binary_sha256": {
+      "limeos-core": "b2ed84da5c4443de79099dbfecb9d02073ad3655b623dcecc281456bd4a58c0c",
+      "limeos-executor": "e9612e377e9b89021228586496d5a65247d6c5927234492ef323ae19bb8bcd97",
+      "limeosctl": "1db2fabf6e950d87ed8606786f57a9a170ba6dc4af95385c178d57eeb7d99b0e",
+      "limeos-password-worker": "ba097b2e5b0e6ac5bb5303e7c2f4d4b97f8f96e9ecfdc9004a6bf2be0e6e6118"
+    },
+    "package_sha256": {
+      "limeos-shadow_0.4.0_amd64.deb": "54bce72ab7c0115a51222611f45c28caaf1b7008fc32dce5a9fedccf00b8310c",
+      "limeos_0.4.0_amd64.deb": "1a88295f9e35268fc171ad71e2f71f46e5760b14b080a29b4c142d5c3d418714"
+    },
+    "signing_key": "test-only private key discarded with the VM"
+  },
+  "rust_workspace_tests": {
+    "passed": 112,
+    "log": "rust-readiness-tests.txt"
+  },
+  "storage_vm": {
+    "acceptance_groups": 17,
+    "result_file": "storage-vm-result.json",
+    "installed_profile": "standard",
+    "shadow_scope": "payload identity and dormant unit only"
+  },
+  "production_frontend_assets_identical_to_qualified_p03": true,
+  "fixture_sha256": {
+    "tests/privileged_vm/run.py": "520fb27c70e8056e1d82578e3272a1f1b5d7c7e09d1b4a9bce955a16e4c38f0d",
+    "tests/privileged_vm/p04_storage_guest.py": "ec6e943d26310711322096c2a0967a8fd91e3cafb77588bef7f7ead53a528221",
+    "tests/privileged_vm/record_storage_evidence.py": "7bed0a0ebf1130946520fb8d986549edf9724ea8885857c6ecd0cf2edf83bd75"
+  },
+  "checks": {
+    "strict_clippy": "pass",
+    "rust_format": "pass",
+    "generated_contracts": "pass",
+    "repository_boundaries": "pass",
+    "python_lint_and_format": "pass",
+    "offline_dependency_policy": "pass",
+    "cached_advisory_audit": "pass"
+  },
+  "advisory_database_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
+  "audited_lockfile_packages": 215,
+  "added_third_party_packages": 0,
+  "production_boundary_change": "Already-locked rustix 1.1.5 is now a direct safe syscall adapter dependency",
+  "limitations": [
+    "P04 remains in progress; no storage effect or live mount-loss monitor is enabled",
+    "Native ARM64 package/reference-host qualification pending",
+    "Btrfs multi-device and FUSE NTFS are refused pending complete backing mappings",
+    "No Pi performance comparison or P04 footprint signoff",
+    "MNT-001 remains open until the full profile startup path uses this mechanism"
+  ]
+}

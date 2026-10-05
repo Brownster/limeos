@@ -1,0 +1,36 @@
+{
+  "passed": [
+    "signed 0.4.0 install, protected executable/libraries and dormant bounded readiness unit",
+    "single_disk: UUID, inherited disk serial, exact descriptor mount and host namespace",
+    "separate_downloads: UUID, inherited disk serial, exact descriptor mount and host namespace",
+    "protected_pool: UUID, inherited disk serial, exact descriptor mount and host namespace",
+    "readiness does not require or create media and downloads subdirectories",
+    "filesystem type and physical serial mismatches are refused without rewriting the plan",
+    "root filesystem alias and another partition on the boot disk are excluded",
+    "fresh raw probes detect an unmounted duplicate UUID without relying on udev",
+    "replacement disk at the same path and a leftover unmounted directory fail readiness",
+    "an unsatisfied installed device wait fails within its three-second plan deadline",
+    "systemd independently kills a longer wait at the configured watchdog bound",
+    "symlink plan/mount aliases and writable ancestors cannot verify storage",
+    "free-form unit text, oversized files and a reader-blocking FIFO are refused without writes",
+    "a private mount namespace is refused even when it sees the same filesystem",
+    "a live device-mapper alias cannot broaden or duplicate filesystem identity",
+    "all synthetic data survives identity, replacement, alias and wait failures",
+    "installed scrypt and PBKDF2 wrong/correct login and successful-only Argon2 upgrade"
+  ],
+  "package_version": "0.4.0",
+  "architecture": "amd64",
+  "plan_wait_seconds": 3.0281527320000023,
+  "watchdog_seconds": 4.035463129,
+  "payload_sha256": "e9612e377e9b89021228586496d5a65247d6c5927234492ef323ae19bb8bcd97",
+  "scope": "disposable virtual disks and read-only verification; no storage mutations registered",
+  "limitations": [
+    "Native ARM64 pending",
+    "Btrfs multi-device and FUSE-backed NTFS fail closed",
+    "Mount/unmount orchestration, dependency shutdown and runtime loss monitor pending"
+  ],
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "3d94c9dd66d8a283fde060b8810373b7ae04038b956ee00d553d1ae564f6fbdeaa2fd6e7404e87e53348b5a9509170f3ea7c0731ba737590c5c4cb8d559a47f8"
+  }
+}

@@ -1,0 +1,27 @@
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=exit-code
+NRestarts=0
+ExecMainStatus=1
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+Oct 05 19:18:47 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 19:18:47 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 19:18:47 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 19:18:47 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 19:18:47 limeos-p01-test limeos-core[936]: {"timestamp":"2026-10-05T19:18:47.267785Z","level":"INFO","fields":{"message":"core ready","generation":1}}
+Oct 05 19:18:49 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 19:18:49 limeos-p01-test limeos-executor[1011]: {"error":"unavailable","message":"Fresh device or mount evidence is unavailable."}
+Oct 05 19:18:49 limeos-p01-test systemd[1]: limeos-storage-ready.service: Main process exited, code=exited, status=1/FAILURE
+Oct 05 19:18:49 limeos-p01-test systemd[1]: limeos-storage-ready.service: Failed with result 'exit-code'.
+Oct 05 19:18:49 limeos-p01-test systemd[1]: Failed to start limeos-storage-ready.service - LimeOS verified device mount readiness.

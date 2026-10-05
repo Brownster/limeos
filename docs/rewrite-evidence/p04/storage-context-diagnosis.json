@@ -1,0 +1,17 @@
+{
+  "scope": "disposable Debian 12 guest, failed initial readiness candidate",
+  "direct_check": "verified the same device plan successfully",
+  "service_check": "unavailable, exit status 1",
+  "diagnostic_context": {
+    "command": "systemd-run --wait --collect --pipe --property CapabilityBoundingSet= --property NoNewPrivileges=yes /usr/bin/python3 -c SYNTHETIC_PROBE",
+    "uid": 0,
+    "capabilities": "empty",
+    "proc_self_namespace_inode": 4026531841,
+    "proc_1_namespace_symlink": "EACCES",
+    "proc_self_root_mount_id": 27,
+    "proc_1_root_mount_id": 27,
+    "descriptor_based_blkid_probe_exit": 0
+  },
+  "correction": "Compare kernel root mount IDs against PID 1's mount table without adding a capability",
+  "required_regression": "Installed readiness succeeds with empty capabilities; unshare --mount still returns wrong_namespace"
+}
