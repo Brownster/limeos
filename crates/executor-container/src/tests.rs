@@ -559,3 +559,12 @@ async fn process_death_after_effect_before_result_persistence_never_replays_the_
         b"1"
     );
 }
+
+#[test]
+fn symlinked_receipt_lock_is_refused_on_every_architecture() {
+    let directory = private_dir();
+    let elsewhere = directory.path().join("elsewhere.lock");
+    std::os::unix::fs::symlink(&elsewhere, directory.path().join("receipts.lock")).unwrap();
+    assert!(ReceiptStore::open(directory.path()).is_err());
+    assert!(!elsewhere.exists());
+}

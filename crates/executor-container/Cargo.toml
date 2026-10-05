@@ -17,6 +17,7 @@ serde_json.workspace = true
 rusqlite.workspace = true
 tokio.workspace = true
 fs2.workspace = true
+rustix.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true
 http-body-util.workspace = true
