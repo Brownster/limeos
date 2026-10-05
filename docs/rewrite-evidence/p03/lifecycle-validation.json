@@ -1,0 +1,84 @@
+{
+  "checked_at_utc": "2026-10-05T13:19:51.822854+00:00",
+  "qualified_source_commit": "40de6ff",
+  "qualification_fixture_commit": "9e65b7e059cc6a1ab202002ac59cd62a906a6264",
+  "backend_commit": "4984d08",
+  "frontend_commit": "26d5fb4",
+  "build": {
+    "host": "disposable Debian 12 KVM guest",
+    "architecture": "amd64",
+    "rust_toolchain": "1.88.0",
+    "cargo": "locked offline release build",
+    "source_bundle_sha256": "b73020461577abebd8c282c8265508627a689cc933a44be3fe870b1c5c89edd7",
+    "source_bundle_bytes": 258390919,
+    "qualified_bundle_files_match_workspace": 111,
+    "source_manifest": "lifecycle-source-sha256.json",
+    "binary_sha256": {
+      "limeos-core": "9a5b8e1155c5a07be3cd38dcf2fd85bd52b9a3eca359a3aa8df82769b0fd793a",
+      "limeos-password-worker": "c0b8863115008f82d647c9a4682ab38491d85586255cc70193dc53d3cb89dcf9",
+      "limeos-executor": "28ba41a817c72b4c164c5e98778e1ce47fe72c5c2e2df220f5481afffc9dc928",
+      "limeosctl": "e4abb6f73c37d24fbd16ffc0f00ea9ca75947c8bb5c69c1508c1e1de40f51641"
+    },
+    "package_sha256": {
+      "limeos-shadow_0.3.1_amd64.deb": "ef550e81e95ccbf2e7dc786d525cbb01b46c4a5ad19853e9b46112d52ae50c4a",
+      "limeos_0.3.1_amd64.deb": "183d9a9e62322df278ed2772c4987690ef36fc5f9e2efad9ffcbf64a5bc975ef"
+    },
+    "signing_key": "test-only key generated in the discarded guest"
+  },
+  "rust_workspace_tests": {
+    "result": "pass",
+    "passed": 81,
+    "log": "rust-lifecycle-tests.txt"
+  },
+  "real_engine_vm": {
+    "result": "pass",
+    "acceptance_groups": 39,
+    "result_file": "lifecycle-vm-result.json",
+    "effect_interruption_cases": 18
+  },
+  "browser": {
+    "result": "pass",
+    "acceptance_groups": 13,
+    "result_file": "lifecycle-browser-result.json",
+    "scope": "qualified production assets with a closed API fixture"
+  },
+  "fixture_sha256": {
+    "tests/privileged_vm/run.py": "3a39d07f0737f3fe1b519bbefe7730db745f6a30fbc7de906a216dfec13f608a",
+    "tests/privileged_vm/p03_guest.py": "ef98c2ba8e0c1f87c1f6da5fc62a4c4ae88afe10bf5238886bcb36bb362d2c94",
+    "tests/privileged_vm/p03_lifecycle_guest.py": "9232cdd2089b951e27e5f6cd9f3c2e6d659c8125b95ba122a73f0e967b9cb24d",
+    "tests/privileged_vm/build_bundle.py": "656c10d40fab6e22492559633e76a776274d505548670c4ae1eb418a781c9be0",
+    "tests/privileged_vm/build_guest.py": "cf65efae8f92c3de8892c9b53877eba27970d0fa74008e43a02076f33854aedf",
+    "tests/frontend/restart.py": "fbda624e5e00c93aa03234c354b262a7cb9c83c0519bf0753afc830801f3e5ed"
+  },
+  "checks": {
+    "formatting": "pass",
+    "strict_clippy": "pass",
+    "generated_contracts": "pass",
+    "repository_boundaries": "pass",
+    "frontend_unit_tests": "pass",
+    "typescript_and_production_assets": "pass",
+    "python_lint_and_format": "pass",
+    "dependency_licenses_and_advisories": "pass",
+    "npm_cached_audit": "pass",
+    "vm_footprint_guardrails": "pass"
+  },
+  "advisory_database_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
+  "dependency_count": 214,
+  "known_vulnerabilities_in_checked_database": 0,
+  "added_third_party_rust_dependencies": 0,
+  "footprint_guardrails": {
+    "combined_pss_kib": 30720,
+    "overview_p95_ms": 20,
+    "swap_kib": 0,
+    "scope": "AMD64 VM only; reference Pi gate remains pending"
+  },
+  "limitations": [
+    "P03 remains in progress: approved Compose plan/diff foundation and representative reference-stack qualification remain",
+    "No reference-host mutation, installation, active benchmark or cutover",
+    "No native ARM64 combined-package qualification in this continuation",
+    "No comparable Python workload or hardware improvement percentage claimed",
+    "Browser and real-Engine transports qualified separately against the same application payload",
+    "GitHub CI changes not executed here",
+    "All 50 defect-register requirements remain open pending their complete acceptance criteria"
+  ]
+}

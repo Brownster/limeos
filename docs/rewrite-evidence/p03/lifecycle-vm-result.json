@@ -1,0 +1,103 @@
+{
+  "checks": [
+    "real 0.3.0 to 0.3.1 upgrade preserves sessions, approved restart bytes and verified receipts",
+    "only the container executor can access Engine and protected receipts",
+    "GET and invalid origin or CSRF cannot initiate an operation",
+    "one real restart, independent verification, durable progress and duplicate request",
+    "changed plans, stale incarnation and independent managed-ID ceiling",
+    "browser and scoped task share policy; task cannot approve; grant revocation is immediate",
+    "expired human approval causes no Engine effect",
+    "queued cancellation prevents effects; in-flight cancellation cannot claim prevention",
+    "kill limeos-core before_prepare: no unjustified second effect",
+    "kill limeos-containerd before_prepare: no unjustified second effect",
+    "kill limeos-core during: no unjustified second effect",
+    "kill limeos-containerd during: no unjustified second effect",
+    "kill limeos-core after_effect: no unjustified second effect",
+    "kill limeos-containerd after_effect: no unjustified second effect",
+    "shadow has isolated state and refuses write-enabled policy",
+    "shadow removal preserves standard services and authenticated reads",
+    "real stop is approved, verified, action-bound and idempotent",
+    "real start is approved, verified, action-bound and idempotent",
+    "start: kill limeos-core before_prepare retains proof and prevents replay",
+    "start: kill limeos-containerd before_prepare retains proof and prevents replay",
+    "start: kill limeos-core during retains proof and prevents replay",
+    "start: kill limeos-containerd during retains proof and prevents replay",
+    "start: kill limeos-core after_effect retains proof and prevents replay",
+    "start: kill limeos-containerd after_effect retains proof and prevents replay",
+    "stop: kill limeos-core before_prepare retains proof and prevents replay",
+    "stop: kill limeos-containerd before_prepare retains proof and prevents replay",
+    "stop: kill limeos-core during retains proof and prevents replay",
+    "stop: kill limeos-containerd during retains proof and prevents replay",
+    "stop: kill limeos-core after_effect retains proof and prevents replay",
+    "stop: kill limeos-containerd after_effect retains proof and prevents replay",
+    "real multiplexed logs are bounded, filtered and have no effect",
+    "real TTY logs are bounded, filtered and have no effect",
+    "logs independently reject an unmanaged ID and a disabled log ceiling",
+    "task logs use the same resource grant and cannot acquire human approval",
+    "viewer inventory authority permits neither browser nor task logs",
+    "real oversized log framing clips within byte and time limits",
+    "start has an independent effect ceiling even with restart enabled",
+    "stop has an independent effect ceiling even with restart enabled",
+    "shadow independently refuses start-enabled and stop-enabled ceilings"
+  ],
+  "engine_version": "20.10.24+dfsg1",
+  "container_fixture": "Debian static busybox, no mounts, redacted label",
+  "restart_posts": 8,
+  "restart_effect_ms": {
+    "08879af92d96a44dcc866ceca9f3f6494d18a9c43fb27f9e24d7530ea87d147e": 10413.788,
+    "f3538ae4e9b53044a7770348fbbe0e8b6f0ebf1c5578b367db792a6bc1d2e008": 10409.561,
+    "ac4d6914d4719fb0f4d59becdfb54597c8917459a7c761354a4fd2f42322621d": 10386.315,
+    "79b51763a8fbb40b4cdf34070c56eebc92c16235664f3e950e0835ae31ffec1a": 10380.87,
+    "88a383a1027f574cd1bad35618361490a48c4aa4037fe0ff3903f1e6cb63c20a": 10368.324,
+    "e668113e5e0fd10f34225e6955301b271e0166a59a752e626cdf6262aee7bbca": 10398.244,
+    "fafc39476374fbfbbb11a5783fbe2c346b932a32677908ccdef2608d8cdfa8bc": 10382.743
+  },
+  "footprint": {
+    "architecture": "amd64",
+    "app_pss_kib": {
+      "limeos-core": 5510,
+      "limeos-containerd": 2997,
+      "limeos-storaged": 1279
+    },
+    "combined_pss_kib": 9786,
+    "overview_p95_ms": 0.768,
+    "overview_median_ms": 0.516,
+    "workload": "after restart/start/stop, log and interruption qualification, 20 cached overview requests",
+    "exclusions": [
+      "Docker daemon",
+      "test proxy",
+      "browser",
+      "Rust build tools"
+    ],
+    "swap_kib": 0
+  },
+  "package_sha256": {
+    "limeos-shadow_0.3.1_amd64.deb": "ef550e81e95ccbf2e7dc786d525cbb01b46c4a5ad19853e9b46112d52ae50c4a",
+    "limeos_0.3.1_amd64.deb": "183d9a9e62322df278ed2772c4987690ef36fc5f9e2efad9ffcbf64a5bc975ef"
+  },
+  "lifecycle_posts": 20,
+  "operations": [
+    "restart",
+    "start",
+    "stop",
+    "logs"
+  ],
+  "schemas": {
+    "authority": 4,
+    "container_receipts": 3
+  },
+  "upgrade": {
+    "from": "0.3.0",
+    "to": "0.3.1",
+    "previous_package_sha256": {
+      "limeos_0.2.0_amd64.deb": "0dd03efd1b7db77fa0d96fb7624ce0efd2bbe07b1933632ad751198a3255f425",
+      "limeos_0.3.0_amd64.deb": "8acefcc579a274d4cdf41080a8faec91b034c6d4560eb405402c6a81bbc86227",
+      "limeos-shadow_0.3.0_amd64.deb": "b006e8873c18d474d4b7861a9a0656e354a5e12651ef00b7e9a4a51f812f6d00",
+      "limeos-shadow_0.2.0_amd64.deb": "38dff29f9a6bb3c8df3078fcaa95dcd77e763e077580b8602f0c27d7369167b2"
+    }
+  },
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "3d94c9dd66d8a283fde060b8810373b7ae04038b956ee00d553d1ae564f6fbdeaa2fd6e7404e87e53348b5a9509170f3ea7c0731ba737590c5c4cb8d559a47f8"
+  }
+}
