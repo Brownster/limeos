@@ -50,7 +50,7 @@ def upgrade(candidate):
     policy = json.loads(policy_path.read_text())
     policy.update(allow_restart=True, managed_containers=[identifier])
     policy_path.write_text(json.dumps(policy))
-    fixture.run("systemctl", "restart", "limeos-containerd")
+    fixture.restart_container()
     proposal, approval = fixture.plan(identifier, cookie, csrf)
     old_job, old_body = fixture.queue(
         proposal, approval, "upgrade-verified", cookie, csrf
@@ -85,7 +85,7 @@ def upgrade(candidate):
         )
     policy.update(allow_restart=False, managed_containers=[])
     policy_path.write_text(json.dumps(policy))
-    fixture.run("systemctl", "restart", "limeos-containerd")
+    fixture.restart_container()
     fixture.run("docker", "rm", "-f", identifier)
     fixture.passed(
         "real 0.3.0 to 0.3.1 upgrade preserves sessions, approved restart bytes and verified receipts"
@@ -124,6 +124,19 @@ def main():
     if os.getuid() != 0 or socket.gethostname() != "limeos-p01-test":
         raise SystemExit("Disposable guest required")
     candidate, output = map(Path, sys.argv[1:])
+    if not Path("/usr/bin/docker").exists() or not Path("/bin/busybox").exists():
+        fixture.run("apt-get", "update", "-qq")
+        fixture.run(
+            "apt-get",
+            "install",
+            "--no-install-recommends",
+            "-y",
+            "docker.io",
+            "busybox-static",
+        )
+    fixture.eventually(
+        lambda: fixture.run("docker", "info", check=False).returncode == 0
+    )
     if Path("/opt/limeos-previous-repo").is_dir():
         upgrade(candidate)
     fixture.PACKAGE_VERSION = "0.3.1"
@@ -148,7 +161,7 @@ def main():
         managed_containers=ids[:9] + extra,
     )
     policy_path.write_text(json.dumps(policy))
-    fixture.run("systemctl", "restart", "limeos-containerd")
+    fixture.restart_container()
     identifier = extra[0]
     for action in ["stop", "start"]:
         before = fixture.inspect(identifier)["State"]
@@ -276,7 +289,7 @@ def main():
         identifier = fixture.docker(*args)
         policy["managed_containers"].append(identifier)
         policy_path.write_text(json.dumps(policy))
-        fixture.run("systemctl", "restart", "limeos-containerd")
+        fixture.restart_container()
         old_posts = sum(fixture.control.posts.values())
         status, _, logs = fixture.http(
             f"/api/v1/containers/{identifier}/logs?tail=100", cookie=cookie
@@ -303,7 +316,7 @@ def main():
     assert fixture.http(f"/api/v1/containers/{ids[9]}/logs", cookie=cookie)[0] == 403
     policy["allow_container_logs"] = False
     policy_path.write_text(json.dumps(policy))
-    fixture.run("systemctl", "restart", "limeos-containerd")
+    fixture.restart_container()
     assert (
         fixture.http(f"/api/v1/containers/{identifier}/logs", cookie=cookie)[0] == 403
     )
@@ -314,7 +327,7 @@ def main():
     # A limited task can read a managed log but cannot create its own approval.
     policy["allow_container_logs"] = True
     policy_path.write_text(json.dumps(policy))
-    fixture.run("systemctl", "restart", "limeos-containerd")
+    fixture.restart_container()
     token = "c" * 64
     with sqlite3.connect(fixture.CORE_DB) as db:
         generation = db.execute("SELECT generation FROM meta").fetchone()[0]
@@ -389,7 +402,7 @@ def main():
     )
     policy["managed_containers"].append(identifier)
     policy_path.write_text(json.dumps(policy))
-    fixture.run("systemctl", "restart", "limeos-containerd")
+    fixture.restart_container()
     started = time.monotonic()
     status, _, logs = fixture.http(
         f"/api/v1/containers/{identifier}/logs?tail=200", cookie=cookie
@@ -409,7 +422,7 @@ def main():
         policy["managed_containers"].append(identifier)
         policy["allow_" + action] = False
         policy_path.write_text(json.dumps(policy))
-        fixture.run("systemctl", "restart", "limeos-containerd")
+        fixture.restart_container()
         proposal, approval = plan(identifier, action, cookie, csrf)
         denied, _ = queue(proposal, approval, "ceiling-" + action, cookie, csrf)
         fixture.eventually(

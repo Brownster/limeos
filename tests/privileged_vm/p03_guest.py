@@ -91,6 +91,39 @@ def inspect(identifier):
     return json.loads(docker("inspect", identifier))[0]
 
 
+def restart_container():
+    run("systemctl", "restart", "limeos-containerd")
+    # Type=exec guarantees execve, not that policy/receipt initialization and
+    # the Unix listener are ready. Probe as the authorized kernel UID.
+    code = "import json,socket,struct; s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect('/run/limeos-containerd/executor.sock'); d=json.dumps({'operation':'health','version':1}).encode(); s.sendall(struct.pack('!I',len(d))+d); n=struct.unpack('!I',s.recv(4))[0]; b=b''\nwhile len(b)<n: b+=s.recv(n-len(b))\nprint(b.decode())"
+
+    last_error = ""
+
+    def ready():
+        nonlocal last_error
+        result = run(
+            "runuser",
+            "-u",
+            "limeos-core",
+            "-g",
+            "limeos-container-access",
+            "--",
+            "python3",
+            "-c",
+            code,
+            check=False,
+        )
+        last_error = result.stderr[-1000:]
+        return result.returncode == 0 and json.loads(result.stdout).get("ready") is True
+
+    try:
+        eventually(ready, timeout=10)
+    except AssertionError as error:
+        raise AssertionError(
+            "Executor readiness probe failed: " + last_error
+        ) from error
+
+
 def enroll(prefix="limeos", port=8003):
     ctl = [f"/usr/lib/{prefix}/limeosctl", "--socket", f"/run/{prefix}-core/core.sock"]
     bootstrap = run(*ctl, "bootstrap", check=False)
@@ -334,7 +367,7 @@ def main():
     assert not policy["allow_restart"] and policy["managed_containers"] == []
     policy.update(allow_restart=True, managed_containers=ids[:9])
     policy_path.write_text(json.dumps(policy))
-    run("systemctl", "restart", "limeos-containerd")
+    restart_container()
     for account in ["limeos-core", "limeos-assistant"]:
         result = run(
             "runuser",

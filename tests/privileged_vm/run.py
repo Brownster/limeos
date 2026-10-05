@@ -30,6 +30,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", type=Path, required=True)
     parser.add_argument(
+        "--previous-repository",
+        type=Path,
+        help="Previously qualified packages for an upgrade test without rebuilding the candidate",
+    )
+    parser.add_argument(
         "--build-bundle",
         type=Path,
         help="Optional trusted local source/toolchain bundle; build only inside the throwaway VM",
@@ -59,6 +64,8 @@ def main():
         "--output", type=Path, default=ROOT / "docs/rewrite-evidence/p01/vm-result.json"
     )
     args = parser.parse_args()
+    if args.previous_repository and args.retain_previous_repository:
+        parser.error("Choose --previous-repository or --retain-previous-repository")
     if args.retain_previous_repository and not args.build_bundle:
         parser.error("--retain-previous-repository requires --build-bundle")
     expected = next(
@@ -180,6 +187,16 @@ def main():
                     str(args.repository.resolve()),
                     "root@127.0.0.1:/opt/limeos-repo",
                 )
+                if args.previous_repository:
+                    run(
+                        "scp",
+                        *common,
+                        "-P",
+                        str(port),
+                        "-r",
+                        str(args.previous_repository.resolve()),
+                        "root@127.0.0.1:/opt/limeos-previous-repo",
+                    )
                 run(
                     "scp",
                     *common,
@@ -261,7 +278,13 @@ def main():
                         text=True,
                         check=False,
                     )
-                    failure = args.output.with_name("vm-failure.txt")
+                    failure_name = (
+                        "vm-failure.txt"
+                        if args.output.name == "vm-result.json"
+                        else args.output.stem.removesuffix("-vm-result")
+                        + "-vm-failure.txt"
+                    )
+                    failure = args.output.with_name(failure_name)
                     failure.parent.mkdir(parents=True, exist_ok=True)
                     failure.write_text(
                         diagnostics.stdout[-16384:] + diagnostics.stderr[-4096:]
