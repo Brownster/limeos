@@ -1,0 +1,16 @@
+cargo fmt --all -- --check
+exit 0
+
+uv run scripts/check_repository.py
+Repository dependency and hygiene checks passed.
+exit 0
+
+uv run scripts/check_contracts.py
+Generated schemas and TypeScript match Rust contracts.
+exit 0
+
+uv run /tmp/rw041_record_evidence.py
+Frozen source hashes verified: 17 files
+Local validation source hashes recorded: 26 files
+Rust test transcript verified: 161 passed; 30 RW-041 regressions
+exit 0
