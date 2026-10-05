@@ -1,0 +1,7 @@
+summary:added:5
+summary:removed:2
+summary:updated:3
+summary:moved:0
+summary:copied:0
+summary:restored:0
+summary:exit:diff

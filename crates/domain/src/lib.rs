@@ -9,6 +9,10 @@ mod compose;
 pub use compose::*;
 mod storage;
 pub use storage::*;
+mod pools;
+pub use pools::*;
+mod protection;
+pub use protection::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
