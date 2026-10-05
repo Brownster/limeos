@@ -28,6 +28,16 @@ def main():
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--source-commit", required=True)
     parser.add_argument(
+        "--vm-result",
+        type=Path,
+        help="Alternate completed P03 VM result; defaults to compose-vm-result.json beside output",
+    )
+    parser.add_argument(
+        "--reference-profile",
+        type=Path,
+        help="Bind the redacted reference layout to its VM result",
+    )
+    parser.add_argument(
         "--checks",
         type=Path,
         required=True,
@@ -40,7 +50,8 @@ def main():
     )
     args = parser.parse_args()
     directory = args.output.parent
-    vm = json.loads((directory / "compose-vm-result.json").read_text())
+    vm_path = args.vm_result or directory / "compose-vm-result.json"
+    vm = json.loads(vm_path.read_text())
     arm = json.loads((directory / "compose-arm64-result.json").read_text())
     checks = json.loads(args.checks.read_text())
     gates = json.loads((directory / "compose-gate-probes.json").read_text())
@@ -81,7 +92,11 @@ def main():
             ).hexdigest()
             assert sha(ROOT / name) == fingerprint, f"Qualified runtime drift: {name}"
             manifest[name] = fingerprint
-    manifest_path = directory / "compose-source-sha256.json"
+    manifest_path = directory / (
+        "reference-source-sha256.json"
+        if args.reference_profile
+        else "compose-source-sha256.json"
+    )
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     binaries = {
         name: sha(args.artifacts / name)
@@ -154,7 +169,7 @@ def main():
             "result": "pass",
             "acceptance_groups": len(vm["checks"]),
             "effect_interruption_cases": interruptions,
-            "result_file": "compose-vm-result.json",
+            "result_file": vm_path.name,
         },
         "browser": {
             "result": "reused identical assets and fixture",
@@ -206,6 +221,26 @@ def main():
             "GitHub CI was updated but not run here; no additional defect-register rows are closed by this milestone",
         ],
     }
+    if args.reference_profile:
+        assert vm["reference"]["profile_sha256"] == sha(args.reference_profile)
+        assert len(vm["reference"]["services"]) == 7
+        assert vm["reference"]["profiled_containers"] >= 24
+        assert vm["reference"]["production_environment_values_copied"] == 0
+        result["reference"] = vm["reference"]
+        for name in [
+            "tests/privileged_vm/p03_reference_guest.py",
+            "tests/reference/capture.py",
+        ]:
+            result["fixture_sha256"][name] = sha(ROOT / name)
+        result["fixture_sha256"]["tests/fixtures/wybie-layout.json"] = sha(
+            args.reference_profile
+        )
+        result["limitations"][0] = (
+            "P03 local representative-layout qualification passed; native ARM64 and P02 reference-host gates remain pending"
+        )
+        result["limitations"][4] = (
+            "No live host changes, benchmark, service restart or cutover; only light read-only SSH inventory and filtered configuration projection"
+        )
     args.output.write_text(json.dumps(result, indent=2) + "\n")
     print(
         f"Bound {len(manifest)} source files and both AMD64 packages to Compose/lifecycle evidence."
