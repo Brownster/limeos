@@ -21,6 +21,39 @@ def run(*args, input=None, check=True, timeout=30):
         args, input=input, text=True, capture_output=True, timeout=timeout, check=False
     )
     if check and value.returncode:
+        if args == ("systemctl", "start", "limeos-storage-ready"):
+            diagnostic = """import os, subprocess
+for p in ['/proc/self/ns/mnt', '/proc/1/ns/mnt']:
+    try: print(p, os.stat(p).st_ino)
+    except OSError as e: print(p, e)
+for p in ['/proc/self/mountinfo', '/proc/1/mountinfo']:
+    try:
+        print(p, next(l.split()[0] for l in open(p) if l.split()[4] == '/'))
+    except OSError as e: print(p, e)
+fd = os.open('/dev/vdb1', os.O_RDONLY)
+r = subprocess.run(['/usr/sbin/blkid', '-p', '-o', 'export', '-s', 'UUID', '-s', 'TYPE', f'/proc/{os.getpid()}/fd/{fd}'], capture_output=True, text=True)
+print('raw-probe', r.returncode, r.stdout, r.stderr)
+"""
+            context = subprocess.run(
+                [
+                    "systemd-run",
+                    "--wait",
+                    "--collect",
+                    "--pipe",
+                    "--property",
+                    "CapabilityBoundingSet=",
+                    "--property",
+                    "NoNewPrivileges=yes",
+                    "/usr/bin/python3",
+                    "-c",
+                    diagnostic,
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+            print("READINESS CONTEXT: " + context.stdout + context.stderr, flush=True)
         raise AssertionError(f"{args[0]} failed: {value.stderr[-2000:]}")
     return value
 
@@ -199,7 +232,12 @@ def main():
         write_plan(subset)
         value = json.loads(run(EXECUTOR, "storage-check", "--plan", str(PLAN)).stdout)
         assert [m["id"] for m in value["mounts"]] == [m["id"] for m in subset]
-        assert value["mount_namespace_inode"] == Path("/proc/1/ns/mnt").stat().st_ino
+        host_root_id = next(
+            int(line.split()[0])
+            for line in Path("/proc/1/mountinfo").read_text().splitlines()
+            if line.split()[4] == "/"
+        )
+        assert value["host_root_mount_id"] == host_root_id
         assert all(
             m["mount_id"] > 0 and m["device"]["major"] > 0 for m in value["mounts"]
         )
@@ -315,6 +353,29 @@ def main():
     check_error([{**data, "mountpoint": "/mnt/writable/data"}], "unsafe_path")
     run("umount", "/mnt/writable/data")
     passed("symlink plan/mount aliases and writable ancestors cannot verify storage")
+    write_plan([data])
+    original_plan = PLAN.read_bytes()
+    for raw in [
+        json.dumps(
+            {**json.loads(original_plan), "unit": "[Service] ExecStart=/bin/sh"}
+        ).encode(),
+        b"{" * 65537,
+    ]:
+        PLAN.write_bytes(raw)
+        value = run(EXECUTOR, "storage-check", "--plan", str(PLAN), check=False)
+        assert (
+            value.returncode == 2
+            and json.loads(value.stderr)["error"] == "invalid_plan"
+        )
+        assert PLAN.read_bytes() == raw
+    fifo = Path("/etc/limeos/plan-fifo")
+    os.mkfifo(fifo, 0o600)
+    start = time.monotonic()
+    value = run(EXECUTOR, "storage-check", "--plan", str(fifo), check=False, timeout=2)
+    assert value.returncode == 2 and time.monotonic() - start < 2
+    passed(
+        "free-form unit text, oversized files and a reader-blocking FIFO are refused without writes"
+    )
     write_plan([data])
     value = run(
         "unshare",

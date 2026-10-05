@@ -155,6 +155,8 @@ def main():
             "-o",
             "ConnectTimeout=2",
             "-o",
+            "BatchMode=yes",
+            "-o",
             "LogLevel=ERROR",
         ]
         ssh = ["ssh", *common, "-p", str(port), "root@127.0.0.1"]
@@ -174,7 +176,9 @@ def main():
                     "-serial",
                     "stdio",
                     "-drive",
-                    f"file={directory / 'disk.qcow2'},format=qcow2,if=virtio",
+                    f"file={directory / 'disk.qcow2'},format=qcow2,if=none,id=system",
+                    "-device",
+                    "virtio-blk-pci,drive=system,bootindex=1",
                     "-drive",
                     f"file={directory / 'seed.iso'},media=cdrom,readonly=on",
                     "-netdev",
@@ -190,7 +194,10 @@ def main():
                 deadline = time.monotonic() + 180
                 while time.monotonic() < deadline:
                     result = subprocess.run(
-                        [*ssh, "true"], capture_output=True, check=False
+                        [*ssh, "test -f /var/lib/cloud/instance/boot-finished"],
+                        capture_output=True,
+                        check=False,
+                        timeout=10,
                     )
                     if result.returncode == 0:
                         break
@@ -201,7 +208,18 @@ def main():
                         )
                     time.sleep(1)
                 else:
-                    raise RuntimeError("Guest SSH readiness timeout")
+                    failure = args.output.with_name(
+                        args.output.stem + "-boot-failure.txt"
+                    )
+                    failure.parent.mkdir(parents=True, exist_ok=True)
+                    failure.write_text(
+                        (directory / "console.log").read_text()[-16384:]
+                        + "\nSSH: "
+                        + result.stderr.decode(errors="replace")[-4096:]
+                    )
+                    raise RuntimeError(
+                        "Guest SSH readiness timeout; console: " + str(failure)
+                    )
                 print(
                     "Debian guest ready; testing signed apt installation and failure recovery.",
                     flush=True,
@@ -353,7 +371,7 @@ def main():
                     diagnostics = subprocess.run(
                         [
                             *ssh,
-                            "systemctl show limeos-core limeos-containerd -p Result -p NRestarts -p StartLimitBurst -p StartLimitIntervalUSec; journalctl -u limeos-core -u limeos-containerd -u docker --no-pager -n 100",
+                            "systemctl show limeos-core limeos-containerd limeos-storage-ready -p Result -p ExecMainStatus -p NRestarts -p StartLimitBurst -p StartLimitIntervalUSec; journalctl -u limeos-core -u limeos-containerd -u limeos-storage-ready -u docker --no-pager -n 100",
                         ],
                         capture_output=True,
                         text=True,
@@ -385,6 +403,17 @@ def main():
                 evidence["image"] = {"name": args.image.name, "sha512": actual}
                 args.output.write_text(json.dumps(evidence, indent=2) + "\n")
                 print("VM checks passed; evidence: " + str(args.output), flush=True)
+            except (
+                RuntimeError,
+                subprocess.CalledProcessError,
+                subprocess.TimeoutExpired,
+            ):
+                startup = args.output.with_name(
+                    args.output.stem + "-startup-console.txt"
+                )
+                startup.parent.mkdir(parents=True, exist_ok=True)
+                startup.write_text((directory / "console.log").read_text()[-32768:])
+                raise
             finally:
                 vm.terminate()
                 try:
