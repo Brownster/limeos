@@ -10,13 +10,39 @@ import { percent, partial, page } from "../src/model.ts";
 import { api, ApiError } from "../src/api.ts";
 
 const require = createRequire(import.meta.url);
+function moduleCode(source) {
+  return ts
+    .transpileModule(source, {
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+        jsx: ts.JsxEmit.ReactJSX,
+      },
+    })
+    .outputText.replace(
+      '"react/jsx-runtime"',
+      JSON.stringify(pathToFileURL(require.resolve("react/jsx-runtime")).href),
+    )
+    .replace(
+      '"react"',
+      JSON.stringify(pathToFileURL(require.resolve("react")).href),
+    );
+}
+const actions = moduleCode(
+  await readFile(
+    new URL("../src/ContainerActions.tsx", import.meta.url),
+    "utf8",
+  ),
+).replace(
+  '"./api"',
+  JSON.stringify(new URL("../src/api.ts", import.meta.url).href),
+);
+const actionsURL = `data:text/javascript;base64,${Buffer.from(actions).toString("base64")}`;
 const source = await readFile(
   new URL("../src/ObservationView.tsx", import.meta.url),
   "utf8",
 );
-let code = ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.ReactJSX },
-}).outputText;
+let code = moduleCode(source);
 code = code
   .replace(
     '"react/jsx-runtime"',
@@ -25,7 +51,8 @@ code = code
   .replace(
     '"./model"',
     JSON.stringify(new URL("../src/model.ts", import.meta.url).href),
-  );
+  )
+  .replace('"./ContainerActions"', JSON.stringify(actionsURL));
 const { ObservationView } = await import(
   `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`
 );

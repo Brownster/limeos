@@ -85,7 +85,7 @@ function App() {
             </p>
           )}
           <div id="content" tabIndex={-1}>
-            <Dashboard expired={expired} />
+            <Dashboard expired={expired} session={session} />
           </div>
         </>
       ) : (

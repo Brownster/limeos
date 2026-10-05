@@ -68,3 +68,22 @@ test("safe API errors retain their details; malformed proxy responses get a fixe
     );
   }
 });
+
+test("restart approval and queue use POST and CSRF, retaining the same retry key", async (t) => {
+  const calls = [];
+  const proposal = { plan: { id: "a".repeat(64) }, digest: "b".repeat(64) };
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push([url, options]);
+    return Response.json({});
+  });
+  await api.planRestart("container:fixture", "csrf");
+  await api.approveRestart(proposal, "csrf");
+  await api.queueRestart(proposal, "private-approval", "same-key", "csrf");
+  await api.queueRestart(proposal, "private-approval", "same-key", "csrf");
+  for (const [url, options] of calls) {
+    assert.equal(options.method, "POST");
+    assert.equal(options.headers["X-CSRF-Token"], "csrf");
+    assert.ok(!url.includes("private-approval"));
+  }
+  assert.deepEqual(JSON.parse(calls[2][1].body), JSON.parse(calls[3][1].body));
+});

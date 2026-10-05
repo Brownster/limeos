@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type {
   Overview,
   ResourceKind,
   MetricHistory,
   HistoryRange,
+  SessionView,
 } from "../../contracts/generated/types";
 import { api, ApiError } from "./api";
 import { page } from "./model";
 import { ObservationView } from "./ObservationView";
+import { ContainerJobs } from "./ContainerActions";
 const views: [string, ResourceKind | undefined][] = [
   ["All resources", undefined],
   ["Containers", "container"],
@@ -16,7 +18,18 @@ const views: [string, ResourceKind | undefined][] = [
   ["Partitions", "partition"],
   ["Pools", "pool"],
 ];
-export function Dashboard({ expired }: { expired: () => void }) {
+export function Dashboard({
+  expired,
+  session,
+}: {
+  expired: () => void;
+  session: SessionView;
+}) {
+  const [operationsRevision, setOperationsRevision] = useState(0);
+  const changed = useCallback(() => setOperationsRevision((v) => v + 1), []);
+  const canManage = ["operator", "administrator"].includes(
+    session.principal.role,
+  );
   const [value, setValue] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const [connected, setConnected] = useState(false);
@@ -166,7 +179,17 @@ export function Dashboard({ expired }: { expired: () => void }) {
             value={value}
             items={page(value.resources, kind, safeOffset)}
             history={history}
+            csrf={session.csrf_token}
+            canManage={canManage}
+            changed={changed}
           />
+          {canManage && (
+            <ContainerJobs
+              csrf={session.csrf_token}
+              revision={operationsRevision}
+              expired={expired}
+            />
+          )}
           <div className="pager">
             <button
               disabled={safeOffset === 0}

@@ -4,14 +4,21 @@ import type {
   MetricHistory,
 } from "../../contracts/generated/types";
 import { percent, sampled, stale, partial } from "./model";
+import { ContainerActions } from "./ContainerActions";
 export function ObservationView({
   value,
   items,
   history,
+  csrf,
+  canManage,
+  changed,
 }: {
   value: Overview;
   items: Resource[];
   history: MetricHistory | null;
+  csrf: string;
+  canManage: boolean;
+  changed: () => void;
 }) {
   const metrics = value.host;
   return (
@@ -94,6 +101,13 @@ export function ObservationView({
                     {r.kind === "container" &&
                       ` · CPU ${percent(r.cpu_percent)} · memory ${percent(r.memory_percent)}`}
                   </small>
+                  {r.kind === "container" && canManage && (
+                    <ContainerActions
+                      resource={r}
+                      csrf={csrf}
+                      changed={changed}
+                    />
+                  )}
                 </td>
               </tr>
             ))}

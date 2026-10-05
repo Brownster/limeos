@@ -7,6 +7,10 @@ import type {
   ResourceKind,
   MetricHistory,
   HistoryRange,
+  PlannedRestart,
+  PlanApproval,
+  RestartJob,
+  JobProgress,
 } from "../../contracts/generated/types";
 export class ApiError extends Error {
   readonly detail: ErrorEnvelope;
@@ -50,6 +54,43 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     : ((await response.json()) as T);
 }
 export const api = {
+  planRestart: (resource: string, csrf: string) =>
+    request<PlannedRestart>("/container/restart/plans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ resource }),
+    }),
+  approveRestart: (proposal: PlannedRestart, csrf: string) =>
+    request<PlanApproval>(
+      `/container/restart/plans/${proposal.plan.id}/approval`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({ digest: proposal.digest }),
+      },
+    ),
+  queueRestart: (
+    proposal: PlannedRestart,
+    approval: string,
+    key: string,
+    csrf: string,
+  ) =>
+    request<RestartJob>("/container/restart/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ proposal, approval, idempotency_key: key }),
+    }),
+  restartJobs: () => request<RestartJob[]>("/container/restart/jobs"),
+  restartProgress: (id: string, after = 0) =>
+    request<JobProgress>(`/container/restart/jobs/${id}?after=${after}`),
+  cancelRestart: (id: string, csrf: string, plan = false) =>
+    request<void>(
+      `/container/restart/${plan ? "plans" : "jobs"}/${id}/cancel`,
+      {
+        method: "POST",
+        headers: { "X-CSRF-Token": csrf },
+      },
+    ),
   overview: () => request<Overview>("/overview"),
   resources: (kind?: ResourceKind, offset = 0, revision?: number) =>
     request<ResourcePage>(

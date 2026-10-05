@@ -284,6 +284,79 @@ th small {
   gap: 15px;
   margin: 20px 0;
 }
+.container-action {
+  background: #473728;
+  color: #ffd3a3;
+  padding: 8px 12px;
+  min-height: 44px;
+  font-size: 13px;
+}
+.operation-dialog {
+  width: min(620px, calc(100% - 32px));
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #202822;
+  color: #edf1e7;
+  border: 1px solid #8a9b7c;
+  border-radius: 8px;
+  padding: 24px;
+}
+.operation-dialog::backdrop {
+  background: #080e0bcc;
+}
+.operation-dialog h2 {
+  font:
+    28px Georgia,
+    serif;
+  margin: 0;
+}
+.operation-dialog p {
+  line-height: 1.6;
+}
+.quiet {
+  background: transparent;
+  color: #d1eab8;
+  border: 1px solid #65745d;
+  margin: 0;
+}
+.quiet:hover:enabled {
+  background: #354532;
+}
+.plan-details {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 10px;
+  border-block: 1px solid #475244;
+  padding: 16px 0;
+}
+.plan-details dt {
+  color: #b4beb6;
+  font-size: 13px;
+}
+.plan-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font: 12px monospace;
+}
+.job-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  padding: 18px 0;
+  border-bottom: 1px solid #475244;
+}
+.job-row > div {
+  flex: 1;
+  min-width: 200px;
+}
+.job-row p {
+  margin: 8px 0;
+}
+.job-events {
+  width: 100%;
+  color: #b4beb6;
+}
 select {
   font: inherit;
   background: #202822;
