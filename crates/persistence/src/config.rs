@@ -8,9 +8,9 @@ use std::{
 };
 
 pub const CONFIG_LIMIT: u64 = 64 * 1024;
-// Linux O_NOFOLLOW; isolated use of the safe standard-library open API.
-const NOFOLLOW: i32 = 0x20000;
-const NONBLOCK: i32 = 0x800;
+// Linux open flags differ across supported CPU architectures.
+const NOFOLLOW: i32 = rustix::fs::OFlags::NOFOLLOW.bits() as i32;
+const NONBLOCK: i32 = rustix::fs::OFlags::NONBLOCK.bits() as i32;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {

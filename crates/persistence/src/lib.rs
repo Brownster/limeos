@@ -110,7 +110,7 @@ impl Store {
             .create(true)
             .truncate(false)
             .mode(0o600)
-            .custom_flags(0x20000)
+            .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
             .open(path.with_extension("lock"))
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
         lock.try_lock_exclusive()

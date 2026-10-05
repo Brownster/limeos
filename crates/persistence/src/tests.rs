@@ -250,6 +250,21 @@ fn single_core_and_future_schema_refuse_startup() {
     assert!(Store::open(&d.path().join("core.sqlite")).is_err());
 }
 #[test]
+fn symlinked_core_lock_is_refused_without_creating_authority_state() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("core.sqlite");
+    let target = dir.path().join("operator-file");
+    std::fs::write(&target, b"preserve operator bytes").unwrap();
+    std::os::unix::fs::symlink(&target, path.with_extension("lock")).unwrap();
+    assert_eq!(
+        Store::open(&path).err().unwrap().0,
+        ErrorCode::StateNotDurable
+    );
+    assert!(!path.exists());
+    assert_eq!(std::fs::read(&target).unwrap(), b"preserve operator bytes");
+}
+
+#[test]
 fn startup_refuses_recovery_without_audit_capacity() {
     let (d, s, _) = setup();
     s.conn
