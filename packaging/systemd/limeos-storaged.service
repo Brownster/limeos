@@ -7,7 +7,7 @@ Type=exec
 User=root
 Group=limeos-host-access
 
-ExecStart=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/host.json /run/limeos-storaged/executor.sock
+ExecStart=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/host.json /run/limeos-storaged/executor.sock host
 RuntimeDirectory=limeos-storaged
 RuntimeDirectoryMode=0750
 UMask=0077

@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -141,9 +142,10 @@ def main():
             "declaration of an `unsafe` function",
         )
         lock = (clone / "Cargo.lock").read_text()
+        version = tomllib.loads((clone / "Cargo.toml").read_text())["workspace"]["package"]["version"]
         stale = lock.replace(
-            'name = "limeos-domain"\nversion = "0.1.0"',
-            'name = "limeos-domain"\nversion = "0.1.1"',
+            f'name = "limeos-domain"\nversion = "{version}"',
+            'name = "limeos-domain"\nversion = "0.0.0"',
         )
         assert stale != lock
         mutate(

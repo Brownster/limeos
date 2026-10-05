@@ -30,6 +30,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", type=Path, required=True)
     parser.add_argument(
+        "--guest-script", type=Path, default=ROOT / "tests/privileged_vm/guest.py"
+    )
+    parser.add_argument(
         "--image",
         type=Path,
         default=ROOT / ".cache/p01-vm/debian-12-genericcloud-amd64.qcow2",
@@ -165,7 +168,7 @@ def main():
                     *common,
                     "-P",
                     str(port),
-                    str(ROOT / "tests/privileged_vm/guest.py"),
+                    str(args.guest_script),
                     "root@127.0.0.1:/root/guest.py",
                 )
                 try:

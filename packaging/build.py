@@ -7,6 +7,8 @@
 
 import argparse
 import hashlib
+import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -15,19 +17,37 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def profile_text(text: str, shadow: bool) -> str:
+    if not shadow:
+        return text
+    for prefix in ["/usr/lib/limeos", "/var/lib/limeos", "/etc/limeos", "/run/limeos-"]:
+        text = text.replace(prefix, prefix.replace("limeos", "limeos-shadow"))
+    # Account/service names, preserving executable basenames following '/'.
+    text = re.sub(
+        r"(?<!/)\blimeos-(core|containerd|storaged|assistant|rpc|host-access|container-access)\b",
+        r"limeos-shadow-\1",
+        text,
+    )
+    text = text.replace("dpkg --configure limeos.", "dpkg --configure limeos-shadow.")
+    return text
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--arch", choices=["amd64", "arm64"], required=True)
     parser.add_argument("--binaries", type=Path, required=True)
     parser.add_argument("--version", default="0.1.0")
+    parser.add_argument("--profile", choices=["standard", "shadow"], default="standard")
     parser.add_argument("--output", type=Path, default=ROOT / "dist")
     args = parser.parse_args()
     if not args.version or not all(c.isalnum() or c in ".+-~" for c in args.version):
         parser.error("invalid Debian version")
     args.output.mkdir(parents=True, exist_ok=True)
+    shadow = args.profile == "shadow"
+    package = "limeos-shadow" if shadow else "limeos"
     with tempfile.TemporaryDirectory(prefix="limeos-package-") as temporary:
         stage = Path(temporary)
-        lib = stage / "usr/lib/limeos"
+        lib = stage / "usr/lib" / package
         lib.mkdir(parents=True)
         for name in [
             "limeos-core",
@@ -44,33 +64,58 @@ def main() -> None:
         units = stage / "lib/systemd/system"
         units.mkdir(parents=True)
         for unit in (ROOT / "packaging/systemd").glob("*.service"):
-            shutil.copyfile(unit, units / unit.name)
-        etc = stage / "etc/limeos"
+            name = (
+                unit.name.replace("limeos-", "limeos-shadow-") if shadow else unit.name
+            )
+            content = profile_text(unit.read_text(), shadow)
+            if shadow and unit.name == "limeos-core.service":
+                content = content.replace(
+                    "ExecStart=/usr/lib/limeos-shadow/limeos-core",
+                    "ExecStart=/usr/lib/limeos-shadow/limeos-core --state-dir /var/lib/limeos-shadow/core --config /etc/limeos-shadow/core.json --socket /run/limeos-shadow-core/core.sock",
+                )
+            (units / name).write_text(content)
+        etc = stage / "etc" / package
         etc.mkdir(parents=True)
-        shutil.copyfile(ROOT / "packaging/config/core.json", etc / "core.json")
-        documentation = stage / "usr/share/doc/limeos"
+        config = json.loads((ROOT / "packaging/config/core.json").read_text())
+        if shadow:
+            config.update(
+                listen="127.0.0.1:8004",
+                origin="https://limeos-shadow.localhost:8444",
+                host_socket="/run/limeos-shadow-storaged/executor.sock",
+                container_socket="/run/limeos-shadow-containerd/executor.sock",
+            )
+        (etc / "core.json").write_text(json.dumps(config, indent=2) + "\n")
+        documentation = stage / "usr/share/doc" / package
         documentation.mkdir(parents=True)
-        shutil.copyfile(
-            ROOT / "packaging/Caddyfile.example", documentation / "Caddyfile.example"
-        )
+        caddy = profile_text((ROOT / "packaging/Caddyfile.example").read_text(), shadow)
+        if shadow:
+            caddy = caddy.replace(
+                "https://localhost {", "https://limeos-shadow.localhost:8444 {"
+            ).replace("127.0.0.1:8003", "127.0.0.1:8004")
+        (documentation / "Caddyfile.example").write_text(caddy)
         shutil.copyfile(
             ROOT / "docs/p01-operations.md", documentation / "p01-operations.md"
         )
+        shutil.copyfile(
+            ROOT / "docs/p02-operations.md", documentation / "p02-operations.md"
+        )
         control = stage / "DEBIAN"
         control.mkdir()
-        (control / "control").write_text(f"""Package: limeos
+        (control / "control").write_text(f"""Package: {package}
 Version: {args.version}
 Architecture: {args.arch}
 Maintainer: LimeOS maintainers <maintainers@limeos.invalid>
-Depends: libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd
+Depends: libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux
 Section: admin
 Priority: optional
-Description: Secure local host-management foundation
- Rust identity, policy, durable state and bounded executor services.
+Description: Secure read-only host observations
+ Rust identity, durable authority, shared observations and bounded executors.
 """)
-        (control / "conffiles").write_text("/etc/limeos/core.json\n")
+        (control / "conffiles").write_text(f"/etc/{package}/core.json\n")
         for name in ["postinst", "prerm", "postrm"]:
-            shutil.copyfile(ROOT / "packaging/debian" / name, control / name)
+            (control / name).write_text(
+                profile_text((ROOT / "packaging/debian" / name).read_text(), shadow)
+            )
             (control / name).chmod(0o755)
         for path in stage.rglob("*"):
             if path.is_symlink():
@@ -101,7 +146,7 @@ Description: Secure local host-management foundation
                 "--root-owner-group",
                 "--build",
                 str(stage),
-                str(args.output / f"limeos_{args.version}_{args.arch}.deb"),
+                str(args.output / f"{package}_{args.version}_{args.arch}.deb"),
             ],
             check=True,
         )

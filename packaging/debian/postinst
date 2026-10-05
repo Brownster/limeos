@@ -45,7 +45,11 @@ fct_execute_this() {
             continue
         fi
         temporary="$(mktemp "/etc/limeos/system-policy/.${target}.XXXXXX")"
-        printf '{"version":1,"core_uid":%s,"allow_health":true}\n' "${core_uid}" >"${temporary}"
+        if [[ "${target}" == host ]]; then
+            printf '{"version":1,"core_uid":%s,"allow_health":true,"allow_host_read":true,"allow_container_read":false}\n' "${core_uid}" >"${temporary}"
+        else
+            printf '{"version":1,"core_uid":%s,"allow_health":true,"allow_host_read":false,"allow_container_read":true}\n' "${core_uid}" >"${temporary}"
+        fi
         chown root:root "${temporary}"
         chmod 0644 "${temporary}"
         sync -f "${temporary}"
@@ -58,7 +62,7 @@ fct_execute_this() {
         systemctl restart limeos-storaged.service limeos-containerd.service limeos-core.service
         local attempt
         for (( attempt=0; attempt<75; attempt++ )); do
-            if systemctl is-active --quiet limeos-core.service limeos-containerd.service limeos-storaged.service && /usr/lib/limeos/limeosctl status >/dev/null 2>&1; then return 0; fi
+            if systemctl is-active --quiet limeos-core.service limeos-containerd.service limeos-storaged.service && /usr/lib/limeos/limeosctl --socket /run/limeos-core/core.sock status >/dev/null 2>&1; then return 0; fi
             sleep 0.2
         done
         printf '%s\n' 'LimeOS did not become ready within 15 seconds; inspect journalctl -u limeos-core.' >&2
