@@ -47,6 +47,8 @@ pub async fn inventory() -> Result<StorageInventory> {
     let mount_text = bounded_read(Path::new("/proc/self/mountinfo"), 1024 * 1024)?;
     let mounts = mounts::parse(&mount_text)?;
     let boot = topology.connected(&mounts::protected(&mounts)?)?;
+    let swaps = swaps::Snapshot::collect()?;
+    let swap_backing = topology.connected(&swaps.devices)?;
     let (fstab_handle, fstab_text) = fstab::read()?;
     let fstab_entries = fstab::entries(&fstab_text, &topology)?;
     let mut devices = Vec::new();
@@ -86,6 +88,7 @@ pub async fn inventory() -> Result<StorageInventory> {
                 filesystem: fs.kind.clone(),
                 serial: serial(&topology, *number),
                 boot_backing: boot.contains(number),
+                in_use_as_swap: swap_backing.contains(number),
                 mounts: selected,
             });
         }
@@ -98,7 +101,8 @@ pub async fn inventory() -> Result<StorageInventory> {
             return Err(Failure::IdentityMismatch);
         }
     }
-    if namespace()? != ns
+    if swaps::Snapshot::collect()? != swaps
+        || namespace()? != ns
         || topology::Topology::collect()? != topology
         || mounts::parse(&bounded_read(
             Path::new("/proc/self/mountinfo"),
@@ -112,7 +116,7 @@ pub async fn inventory() -> Result<StorageInventory> {
     let topology_rows: Vec<_> = topology.0.iter().collect();
     let value = StorageInventory {
         host_root_mount_id: ns,
-        topology_digest: digest(&topology_rows)?,
+        topology_digest: digest(&(topology_rows, swaps))?,
         mounts_digest: digest(&mounts)?,
         fstab_digest: limeos_identity::digest(&fstab_text),
         fstab_entries,

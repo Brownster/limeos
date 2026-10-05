@@ -18,6 +18,7 @@ fn fixture() -> (StorageContract, StorageInventory) {
             filesystem: "ext4".into(),
             serial: None,
             boot_backing: false,
+            in_use_as_swap: false,
             mounts: vec![],
         }],
     };
@@ -29,6 +30,9 @@ fn existing_filesystems_only_unique_uuid_boot_and_serial_are_required() {
     storage_managed_fstab(&contract, 10, &inventory).unwrap();
     let mut changed = inventory.clone();
     changed.devices[0].boot_backing = true;
+    assert!(storage_managed_fstab(&contract, 10, &changed).is_err());
+    changed = inventory.clone();
+    changed.devices[0].in_use_as_swap = true;
     assert!(storage_managed_fstab(&contract, 10, &changed).is_err());
     changed = inventory.clone();
     changed.devices.push(StorageObservedDevice {

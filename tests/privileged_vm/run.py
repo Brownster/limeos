@@ -306,6 +306,7 @@ def main():
                 if args.guest_script.name in [
                     "p04_storage_guest.py",
                     "p04_planning_guest.py",
+                    "p04_targets_guest.py",
                 ]:
                     run(
                         "scp",
@@ -315,7 +316,10 @@ def main():
                         str(ROOT / "tests/fixtures/werkzeug-hashes.json"),
                         "root@127.0.0.1:/root/werkzeug-hashes.json",
                     )
-                if args.guest_script.name == "p04_planning_guest.py":
+                if args.guest_script.name in [
+                    "p04_planning_guest.py",
+                    "p04_targets_guest.py",
+                ]:
                     run(
                         "scp",
                         *common,
@@ -323,6 +327,15 @@ def main():
                         str(port),
                         str(args.guest_script.with_name("p04_storage_guest.py")),
                         "root@127.0.0.1:/root/p04_storage_guest.py",
+                    )
+                if args.guest_script.name == "p04_targets_guest.py":
+                    run(
+                        "scp",
+                        *common,
+                        "-P",
+                        str(port),
+                        str(args.guest_script.with_name("p04_planning_guest.py")),
+                        "root@127.0.0.1:/root/p04_planning_guest.py",
                     )
                 if args.build_bundle:
                     if args.retain_previous_repository:

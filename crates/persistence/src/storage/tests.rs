@@ -31,6 +31,7 @@ fn setup() -> (
             filesystem: "ext4".into(),
             serial: None,
             boot_backing: false,
+            in_use_as_swap: false,
             mounts: vec![],
         }],
     };

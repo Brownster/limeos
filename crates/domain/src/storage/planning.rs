@@ -32,6 +32,9 @@ pub struct StorageObservedDevice {
     pub filesystem: String,
     pub serial: Option<String>,
     pub boot_backing: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub in_use_as_swap: bool,
     pub mounts: Vec<StorageObservedMount>,
 }
 /// Only identity/target fields leave the protected reader. Fstab options may
@@ -212,6 +215,7 @@ pub fn storage_managed_fstab(
             _ => return Err(Error(ErrorCode::Unavailable)),
         };
         if actual.boot_backing
+            || actual.in_use_as_swap
             || actual.filesystem != kind
             || d.serial
                 .as_ref()

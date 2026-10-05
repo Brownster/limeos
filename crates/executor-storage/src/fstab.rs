@@ -201,6 +201,7 @@ mod tests {
                 filesystem: "ext4".into(),
                 serial: device.serial.clone(),
                 boot_backing: false,
+                in_use_as_swap: false,
                 mounts: vec![],
             }],
         };

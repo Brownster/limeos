@@ -1336,6 +1336,9 @@
           "filesystem_uuid": {
             "type": "string"
           },
+          "in_use_as_swap": {
+            "type": "boolean"
+          },
           "mounts": {
             "items": {
               "$ref": "#/components/schemas/StorageObservedMount"

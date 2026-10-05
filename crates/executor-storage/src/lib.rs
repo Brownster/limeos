@@ -1,8 +1,10 @@
-//! Fresh read-only storage verification. Snapshots never authorize later effects.
+//! Fresh storage evidence and protected root operator target preparation.
 mod fstab;
 mod inventory;
 mod mounts;
 mod path;
+mod swaps;
+mod targets;
 mod topology;
 pub use fstab::planned_fstab;
 pub use inventory::inventory;
@@ -15,6 +17,10 @@ use std::{
     path::Path,
     time::{Duration, Instant},
 };
+pub use targets::{
+    PreparationState, TargetPreparationPlan, TargetPreparationReceipt, prepare_targets,
+    read_contract, read_target_plan, reconcile_targets, target_plan, target_receipt,
+};
 use tokio::io::AsyncReadExt;
 pub use topology::DeviceNumber;
 
@@ -26,6 +32,9 @@ pub enum Failure {
     UnsafePath,
     WrongNamespace,
     BootDevice,
+    ActiveSwap,
+    Conflict,
+    StateNotDurable,
     IdentityMismatch,
     AmbiguousIdentity,
     NotReady,
@@ -43,6 +52,9 @@ impl Failure {
             Self::BootDevice => {
                 "The assignment shares a backing device with the root or boot filesystem."
             }
+            Self::ActiveSwap => "The assignment shares a backing device with active swap.",
+            Self::Conflict => "Storage evidence changed or a resource requires reconciliation.",
+            Self::StateNotDurable => "Storage preparation requires durable protected receipts.",
             Self::IdentityMismatch => {
                 "The mounted filesystem, UUID or serial differs from the assignment."
             }
@@ -209,6 +221,8 @@ pub async fn verify(plan: &StorageMountWaitPlan) -> Result<Verification> {
         1024 * 1024,
     )?)?;
     let excluded = topology.connected(&mounts::protected(&mounts)?)?;
+    let swaps = swaps::Snapshot::collect()?;
+    let swap_backing = topology.connected(&swaps.devices)?;
     let mut identities = BTreeMap::new();
     let mut handles = BTreeMap::new();
     // Probe all non-virtual block nodes, so duplicate UUIDs fail closed even
@@ -247,6 +261,9 @@ pub async fn verify(plan: &StorageMountWaitPlan) -> Result<Verification> {
         })?;
         if excluded.contains(number) {
             return Err(Failure::BootDevice);
+        }
+        if swap_backing.contains(number) {
+            return Err(Failure::ActiveSwap);
         }
         if !filesystem_matches(assignment.filesystem, &fs.kind)
             || assignment
@@ -300,7 +317,8 @@ pub async fn verify(plan: &StorageMountWaitPlan) -> Result<Verification> {
     }
     // Detect hotplug, overmount and namespace changes during collection. Retain
     // all descriptors until these comparisons finish. Effects must re-verify.
-    if namespace()? != ns
+    if swaps::Snapshot::collect()? != swaps
+        || namespace()? != ns
         || topology::Topology::collect()? != topology
         || mounts::parse(&bounded_read(
             Path::new("/proc/self/mountinfo"),

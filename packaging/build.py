@@ -121,6 +121,10 @@ def main() -> None:
             documentation / "p04-storage-planning.md",
         )
         control = stage / "DEBIAN"
+        shutil.copyfile(
+            ROOT / "docs/p04-storage-targets.md",
+            documentation / "p04-storage-targets.md",
+        )
         control.mkdir()
         (control / "control").write_text(f"""Package: {package}
 Version: {args.version}

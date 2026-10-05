@@ -36,6 +36,7 @@ fct_execute_this() {
     fct_directory /var/lib/limeos/core limeos-core 0700
     fct_directory /var/lib/limeos/assistant limeos-assistant 0700
     fct_directory /var/lib/limeos/executors root 0755
+    fct_directory /var/lib/limeos/executors/storage root 0700
     fct_directory /var/lib/limeos/executors/container limeos-containerd 0700
     fct_directory /etc/limeos/system-policy root 0755
     core_uid="$(id -u limeos-core)"

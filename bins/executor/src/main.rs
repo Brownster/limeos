@@ -10,7 +10,7 @@ async fn main() {
     let args: Vec<_> = std::env::args().collect();
     if args.iter().any(|s| matches!(s.as_str(), "--help" | "-h")) {
         println!(
-            "Usage: limeos-executor POLICY SOCKET host|container|storage [RECEIPT_DIRECTORY [read-only]]\n       limeos-executor storage-check|storage-wait --plan ROOT_OWNED_JSON\n       limeos-executor storage-inventory\n\nStorage commands inspect only; stdout is JSON, errors go to stderr.\nExit: 0 verified, 1 unsafe/unavailable, 2 invalid plan/usage, 3 deadline expired."
+            "Usage: limeos-executor POLICY SOCKET host|container|storage [RECEIPT_DIRECTORY [read-only]]\n       limeos-executor storage-check|storage-wait --plan ROOT_OWNED_JSON\n       limeos-executor storage-inventory\n       limeos-executor storage-target-plan --contract ROOT_OWNED_JSON\n       limeos-executor storage-prepare-targets --plan ROOT_OWNED_JSON\n       limeos-executor storage-target-receipt|storage-reconcile-targets --action ACTION_ID\n\nRoot operator preparation creates empty mount target directories only.\nReconciliation observes targets and updates receipts. Other storage commands inspect.\nStdout is JSON; errors go to stderr.\nExit: 0 verified, 1 unsafe/unavailable/uncertain, 2 invalid plan/usage, 3 deadline expired."
         );
         return;
     }
@@ -31,6 +31,58 @@ async fn main() {
 async fn storage_cli(args: &[String]) {
     use limeos_executor_storage::{Failure, read_plan, verify, wait};
     let result = async {
+        if args.len() == 4 && args[1] == "storage-reconcile-targets" && args[2] == "--action" {
+            if std::env::current_exe().map_err(|_| Failure::Unavailable)?
+                != Path::new("/usr/lib/limeos/limeos-executor")
+            {
+                return Err(Failure::Unavailable);
+            }
+            let value = tokio::time::timeout(
+                std::time::Duration::from_secs(12),
+                limeos_executor_storage::reconcile_targets(&args[3]),
+            )
+            .await
+            .map_err(|_| Failure::TimedOut)??;
+            return serde_json::to_value(value).map_err(|_| Failure::Unavailable);
+        }
+        if args.len() == 4 && args[1] == "storage-target-receipt" && args[2] == "--action" {
+            return serde_json::to_value(limeos_executor_storage::target_receipt(&args[3])?)
+                .map_err(|_| Failure::Unavailable);
+        }
+        if args.len() == 4 && args[1] == "storage-target-plan" && args[2] == "--contract" {
+            let contract = limeos_executor_storage::read_contract(Path::new(&args[3]))?;
+            let value = tokio::time::timeout(
+                std::time::Duration::from_secs(12),
+                limeos_executor_storage::target_plan(&contract),
+            )
+            .await
+            .map_err(|_| Failure::TimedOut)??;
+            return serde_json::to_value(value).map_err(|_| Failure::Unavailable);
+        }
+        if args.len() == 4 && args[1] == "storage-prepare-targets" && args[2] == "--plan" {
+            // The shadow payload is read-only, including root operator commands.
+            if std::env::current_exe().map_err(|_| Failure::Unavailable)?
+                != Path::new("/usr/lib/limeos/limeos-executor")
+            {
+                return Err(Failure::Unavailable);
+            }
+            let plan = limeos_executor_storage::read_target_plan(Path::new(&args[3]))?;
+            let value = tokio::time::timeout(
+                std::time::Duration::from_secs(30),
+                limeos_executor_storage::prepare_targets(&plan),
+            )
+            .await
+            .map_err(|_| Failure::TimedOut)??;
+            let verified = matches!(
+                value.state,
+                limeos_executor_storage::PreparationState::Verified
+            );
+            println!(
+                "{}",
+                serde_json::to_string(&value).map_err(|_| Failure::Unavailable)?
+            );
+            std::process::exit(if verified { 0 } else { 1 });
+        }
         if args.len() == 2 && args[1] == "storage-inventory" {
             let value = tokio::time::timeout(
                 std::time::Duration::from_secs(4),
