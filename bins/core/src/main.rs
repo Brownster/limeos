@@ -274,7 +274,24 @@ impl Backend for Core {
     ) -> Result<limeos_domain::PlannedRestart> {
         self.propose(token, csrf, input.resource).await
     }
-    async fn approve_restart(
+    async fn plan_container(
+        &self,
+        token: String,
+        csrf: String,
+        input: limeos_contracts::ContainerInput,
+    ) -> Result<limeos_domain::PlannedContainerAction> {
+        self.propose_action(token, csrf, input.operation, input.resource)
+            .await
+    }
+    async fn container_logs(
+        &self,
+        token: String,
+        resource: String,
+        options: limeos_domain::LogOptions,
+    ) -> Result<limeos_domain::ContainerLogs> {
+        self.human_logs(token, resource, options).await
+    }
+    async fn approve_container(
         &self,
         token: String,
         csrf: String,
@@ -286,11 +303,11 @@ impl Backend for Core {
         self.db
             .call(move |s| {
                 let principal = s.authenticate(&digest, Some(&csrf), now())?;
-                s.approve_restart(&principal, &id, &plan_digest, now())
+                s.approve_container(&principal, &id, &plan_digest, now())
             })
             .await
     }
-    async fn queue_restart(
+    async fn queue_container(
         &self,
         token: String,
         csrf: String,
@@ -308,15 +325,15 @@ impl Backend for Core {
         self.db
             .call(move |s| {
                 Ok(limeos_contracts::JobProgress {
-                    job: s.restart_job(&principal, &id)?,
-                    events: s.restart_events(&principal, &id, after)?,
+                    job: s.container_job(&principal, &id)?,
+                    events: s.container_events(&principal, &id, after)?,
                 })
             })
             .await
     }
-    async fn restart_jobs(&self, token: String) -> Result<Vec<limeos_domain::RestartJob>> {
+    async fn container_jobs(&self, token: String) -> Result<Vec<limeos_domain::RestartJob>> {
         let principal = self.session(token, None).await?.principal;
-        self.db.call(move |s| s.restart_jobs(&principal)).await
+        self.db.call(move |s| s.container_jobs(&principal)).await
     }
     async fn cancel_restart(
         &self,
@@ -331,9 +348,9 @@ impl Backend for Core {
             .call(move |s| {
                 let principal = s.authenticate(&digest, Some(&csrf), now())?;
                 if plan {
-                    s.cancel_restart_plan(&principal, &id, now())
+                    s.cancel_container_plan(&principal, &id, now())
                 } else {
-                    s.cancel_restart_job(&principal, &id, now())
+                    s.cancel_container_job(&principal, &id, now())
                 }
             })
             .await
@@ -396,23 +413,14 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
                 task,
                 resource,
             } if version == VERSION => {
-                let principal = core
-                    .task_principal(&token, peer.uid(), &task, &resource)
-                    .await?;
-                let snapshot = core.inspect(&resource).await?;
-                // Token and grant revocation still take effect during inspection.
-                let digest = limeos_identity::digest(&token);
-                let uid = peer.uid();
                 let proposal = core
-                    .db
-                    .call(move |s| {
-                        let current =
-                            s.check_task(&digest, uid, &task, &snapshot.scope(), now())?;
-                        if current != principal {
-                            return Err(Error(ErrorCode::Expired));
-                        }
-                        s.plan_restart(&current, &snapshot, now())
-                    })
+                    .propose_task(
+                        token,
+                        peer.uid(),
+                        task,
+                        limeos_domain::ContainerAction::Restart,
+                        resource,
+                    )
                     .await?;
                 CoreResponse::RestartPlan(proposal)
             }
@@ -422,9 +430,40 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
                 task,
                 input,
             } if version == VERSION => {
+                if input.proposal.plan.operation != limeos_domain::ContainerAction::Restart {
+                    return Err(Error(ErrorCode::InvalidInput));
+                }
                 let job = core.submit_task(token, peer.uid(), task, *input).await?;
                 CoreResponse::RestartJob(job)
             }
+            CoreRequest::ProposeContainer {
+                version,
+                token,
+                task,
+                resource,
+                operation,
+            } if version == VERSION => CoreResponse::ContainerPlan(
+                core.propose_task(token, peer.uid(), task, operation, resource)
+                    .await?,
+            ),
+            CoreRequest::QueueContainer {
+                version,
+                token,
+                task,
+                input,
+            } if version == VERSION => {
+                CoreResponse::ContainerJob(core.submit_task(token, peer.uid(), task, *input).await?)
+            }
+            CoreRequest::ReadContainerLogs {
+                version,
+                token,
+                task,
+                resource,
+                options,
+            } if version == VERSION => CoreResponse::ContainerLogs(
+                core.task_logs(token, peer.uid(), task, resource, options)
+                    .await?,
+            ),
             _ => return Err(Error(ErrorCode::Forbidden)),
         };
         Ok(response)

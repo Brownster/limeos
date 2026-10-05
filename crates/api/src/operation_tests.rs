@@ -37,7 +37,16 @@ impl Backend for Mutations {
         self.0.fetch_add(1, Ordering::SeqCst);
         Err(Error(ErrorCode::Unavailable))
     }
-    async fn approve_restart(
+    async fn plan_container(
+        &self,
+        _: String,
+        _: String,
+        _: limeos_contracts::ContainerInput,
+    ) -> Result<limeos_domain::PlannedContainerAction> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(Error(ErrorCode::Unavailable))
+    }
+    async fn approve_container(
         &self,
         _: String,
         _: String,
@@ -57,6 +66,10 @@ async fn every_mutation_rejects_get_origin_csrf_and_untyped_extra_fields() {
     let mutations = Arc::new(AtomicUsize::new(0));
     let router = router(Mutations(mutations.clone()), "https://localhost".into());
     for path in [
+        "/api/v1/container/plans".into(),
+        format!("/api/v1/container/plans/{}/approval", "a".repeat(64)),
+        format!("/api/v1/container/plans/{}/cancel", "a".repeat(64)),
+        format!("/api/v1/container/jobs/{}/cancel", "a".repeat(64)),
         "/api/v1/container/restart/plans".into(),
         format!(
             "/api/v1/container/restart/plans/{}/approval",

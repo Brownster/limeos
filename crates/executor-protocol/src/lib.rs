@@ -17,6 +17,12 @@ pub struct Ceiling {
     #[serde(default)]
     pub allow_restart: bool,
     #[serde(default)]
+    pub allow_start: bool,
+    #[serde(default)]
+    pub allow_stop: bool,
+    #[serde(default)]
+    pub allow_container_logs: bool,
+    #[serde(default)]
     pub managed_containers: Vec<String>,
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
@@ -34,9 +40,18 @@ pub enum Request {
         version: u16,
         resource: String,
     },
+    ContainerLogs {
+        version: u16,
+        resource: String,
+        options: limeos_domain::LogOptions,
+    },
     Restart {
         version: u16,
         request: limeos_domain::RestartRequest,
+    },
+    ExecuteContainer {
+        version: u16,
+        request: limeos_domain::ContainerRequest,
     },
     RestartReceipt {
         version: u16,
@@ -62,6 +77,8 @@ pub struct Receipt {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub restart: Option<limeos_domain::RestartReceipt>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub logs: Option<limeos_domain::ContainerLogs>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<ErrorCode>,
 }
 impl Ceiling {
@@ -72,7 +89,10 @@ impl Ceiling {
                 .managed_containers
                 .iter()
                 .all(|id| limeos_domain::opaque_id(id))
-            && (!self.allow_restart || self.allow_container_read)
+            && (!(self.can_write() || self.allow_container_logs) || self.allow_container_read)
+    }
+    pub fn can_write(&self) -> bool {
+        self.allow_restart || self.allow_start || self.allow_stop
     }
     pub fn validate(&self, peer_uid: u32, request: &Request) -> Result<Receipt> {
         if !self.configuration_valid() || peer_uid != self.core_uid {
@@ -86,6 +106,7 @@ impl Ceiling {
                     observations: None,
                     inspection: None,
                     restart: None,
+                    logs: None,
                     error: None,
                 })
             }
@@ -102,6 +123,7 @@ impl Ceiling {
                     observations: None,
                     inspection: None,
                     restart: None,
+                    logs: None,
                     error: None,
                 })
             }
@@ -115,7 +137,37 @@ impl Ceiling {
                 Ok(Receipt::empty())
             }
             Request::Restart { version, request } if *version == VERSION => {
-                self.authorize_restart(peer_uid, &request.plan.expected.resource)?;
+                if request.plan.operation != limeos_domain::ContainerAction::Restart {
+                    return Err(Error(ErrorCode::InvalidInput));
+                }
+                self.authorize_container(
+                    peer_uid,
+                    &request.plan.expected.resource,
+                    request.plan.operation,
+                )?;
+                Ok(Receipt::empty())
+            }
+            Request::ContainerLogs {
+                version,
+                resource,
+                options,
+            } if *version == VERSION => {
+                options.validate()?;
+                let id = resource.strip_prefix("container:").unwrap_or_default();
+                if !self.allow_container_logs
+                    || !limeos_domain::opaque_id(id)
+                    || !self.managed_containers.iter().any(|allowed| allowed == id)
+                {
+                    return Err(Error(ErrorCode::Forbidden));
+                }
+                Ok(Receipt::empty())
+            }
+            Request::ExecuteContainer { version, request } if *version == VERSION => {
+                self.authorize_container(
+                    peer_uid,
+                    &request.plan.expected.resource,
+                    request.plan.operation,
+                )?;
                 Ok(Receipt::empty())
             }
             Request::RestartReceipt {
@@ -129,7 +181,7 @@ impl Ceiling {
                 digest,
                 ..
             } if *version == VERSION
-                && self.allow_restart
+                && self.can_write()
                 && limeos_domain::opaque_id(action)
                 && limeos_domain::opaque_id(digest) =>
             {
@@ -138,11 +190,20 @@ impl Ceiling {
             _ => Err(Error(ErrorCode::InvalidInput)),
         }
     }
-    pub fn authorize_restart(&self, peer_uid: u32, resource: &str) -> Result<()> {
+    pub fn authorize_container(
+        &self,
+        peer_uid: u32,
+        resource: &str,
+        operation: limeos_domain::ContainerAction,
+    ) -> Result<()> {
         let id = resource.strip_prefix("container:").unwrap_or_default();
         if self.version != VERSION
             || peer_uid != self.core_uid
-            || !self.allow_restart
+            || !match operation {
+                limeos_domain::ContainerAction::Restart => self.allow_restart,
+                limeos_domain::ContainerAction::Start => self.allow_start,
+                limeos_domain::ContainerAction::Stop => self.allow_stop,
+            }
             || !limeos_domain::opaque_id(id)
             || self.managed_containers.len() > 64
             || self
@@ -164,6 +225,7 @@ impl Receipt {
             observations: None,
             inspection: None,
             restart: None,
+            logs: None,
             error: None,
         }
     }
@@ -171,6 +233,48 @@ impl Receipt {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn log_ceiling_is_independent_managed_and_capped() {
+        let id = "a".repeat(64);
+        let mut ceiling = Ceiling {
+            version: VERSION,
+            core_uid: 1001,
+            allow_health: true,
+            allow_host_read: false,
+            allow_container_read: true,
+            allow_restart: false,
+            allow_start: false,
+            allow_stop: false,
+            allow_container_logs: false,
+            managed_containers: vec![id.clone()],
+        };
+        let request = Request::ContainerLogs {
+            version: VERSION,
+            resource: format!("container:{id}"),
+            options: limeos_domain::LogOptions { tail: 100 },
+        };
+        assert!(ceiling.validate(1001, &request).is_err());
+        ceiling.allow_container_logs = true;
+        assert!(ceiling.validate(1001, &request).is_ok());
+        assert!(!ceiling.can_write());
+        assert!(ceiling.validate(1002, &request).is_err());
+        for tail in [0, 201, u16::MAX] {
+            assert!(
+                ceiling
+                    .validate(
+                        1001,
+                        &Request::ContainerLogs {
+                            version: VERSION,
+                            resource: format!("container:{id}"),
+                            options: limeos_domain::LogOptions { tail }
+                        }
+                    )
+                    .is_err()
+            );
+        }
+        ceiling.managed_containers.clear();
+        assert!(ceiling.validate(1001, &request).is_err());
+    }
     #[test]
     fn peer_and_ceiling_are_independent_and_no_content_or_command_is_accepted() {
         let ceiling = Ceiling {
@@ -180,6 +284,9 @@ mod tests {
             allow_host_read: false,
             allow_container_read: false,
             allow_restart: false,
+            allow_start: false,
+            allow_stop: false,
+            allow_container_logs: false,
             managed_containers: Vec::new(),
         };
         assert!(

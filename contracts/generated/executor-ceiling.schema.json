@@ -3,6 +3,10 @@
   "title": "Ceiling",
   "type": "object",
   "properties": {
+    "allow_container_logs": {
+      "type": "boolean",
+      "default": false
+    },
     "allow_container_read": {
       "type": "boolean",
       "default": false
@@ -15,6 +19,14 @@
       "default": false
     },
     "allow_restart": {
+      "type": "boolean",
+      "default": false
+    },
+    "allow_start": {
+      "type": "boolean",
+      "default": false
+    },
+    "allow_stop": {
       "type": "boolean",
       "default": false
     },

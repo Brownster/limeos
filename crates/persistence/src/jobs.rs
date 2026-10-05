@@ -87,7 +87,7 @@ impl Store {
                 .conn
                 .query_row("SELECT intent FROM jobs WHERE id=?", [id], |r| r.get(0))
                 .map_err(durable)?;
-            if matches!(parse::<Intent>(&intent)?, Intent::ContainerRestart { .. }) {
+            if !matches!(parse::<Intent>(&intent)?, Intent::HealthProbe { .. }) {
                 return Err(Error(ErrorCode::Forbidden));
             }
         }

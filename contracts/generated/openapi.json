@@ -10,6 +10,79 @@
         ],
         "type": "string"
       },
+      "ContainerAction": {
+        "enum": [
+          "restart",
+          "start",
+          "stop"
+        ],
+        "type": "string"
+      },
+      "ContainerJob": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/ContainerPlan"
+          },
+          "state": {
+            "$ref": "#/components/schemas/JobState"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "plan"
+        ],
+        "type": "object"
+      },
+      "ContainerPlan": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expected": {
+            "$ref": "#/components/schemas/ContainerSnapshot"
+          },
+          "expires_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "grant_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/ContainerAction"
+          },
+          "principal": {
+            "type": "string"
+          },
+          "version": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "principal",
+          "grant_revision",
+          "expected",
+          "created_at",
+          "expires_at"
+        ],
+        "type": "object"
+      },
       "ContainerSnapshot": {
         "additionalProperties": false,
         "description": "Selected inspection evidence. Environment variables, labels and host paths\nnever enter a plan. The full ID, image and start timestamp identify an instance.",
@@ -436,14 +509,14 @@
         ],
         "type": "object"
       },
-      "PlannedRestart": {
+      "PlannedContainerAction": {
         "additionalProperties": false,
         "properties": {
           "digest": {
             "type": "string"
           },
           "plan": {
-            "$ref": "#/components/schemas/RestartPlan"
+            "$ref": "#/components/schemas/ContainerPlan"
           }
         },
         "required": [
@@ -568,68 +641,6 @@
           "stack"
         ],
         "type": "string"
-      },
-      "RestartJob": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "plan": {
-            "$ref": "#/components/schemas/RestartPlan"
-          },
-          "state": {
-            "$ref": "#/components/schemas/JobState"
-          }
-        },
-        "required": [
-          "id",
-          "state",
-          "plan"
-        ],
-        "type": "object"
-      },
-      "RestartPlan": {
-        "additionalProperties": false,
-        "properties": {
-          "created_at": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "expected": {
-            "$ref": "#/components/schemas/ContainerSnapshot"
-          },
-          "expires_at": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "grant_revision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "id": {
-            "type": "string"
-          },
-          "principal": {
-            "type": "string"
-          },
-          "version": {
-            "format": "uint16",
-            "maximum": 65535,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "version",
-          "principal",
-          "grant_revision",
-          "expected",
-          "created_at",
-          "expires_at"
-        ],
-        "type": "object"
       },
       "Role": {
         "enum": [
@@ -1405,7 +1416,7 @@
         ]
       }
     },
-    "/api/v1/container/restart/jobs": {
+    "/api/v1/container/jobs": {
       "get": {
         "responses": {
           "200": {
@@ -1414,9 +1425,9 @@
                 "schema": {
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "items": {
-                    "$ref": "#/components/schemas/RestartJob"
+                    "$ref": "#/components/schemas/ContainerJob"
                   },
-                  "title": "Array_of_RestartJob",
+                  "title": "Array_of_ContainerJob",
                   "type": "array"
                 }
               }
@@ -1663,7 +1674,7 @@
                     "type": "string"
                   },
                   "proposal": {
-                    "$ref": "#/components/schemas/PlannedRestart"
+                    "$ref": "#/components/schemas/PlannedContainerAction"
                   }
                 },
                 "required": [
@@ -1690,7 +1701,7 @@
                       "type": "string"
                     },
                     "plan": {
-                      "$ref": "#/components/schemas/RestartPlan"
+                      "$ref": "#/components/schemas/ContainerPlan"
                     },
                     "state": {
                       "$ref": "#/components/schemas/JobState"
@@ -1701,7 +1712,1819 @@
                     "state",
                     "plan"
                   ],
-                  "title": "RestartJob",
+                  "title": "ContainerJob",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Durable plan, approval or queued job"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/container/jobs/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "events": {
+                      "items": {
+                        "$ref": "#/components/schemas/Event"
+                      },
+                      "type": "array"
+                    },
+                    "job": {
+                      "$ref": "#/components/schemas/ContainerJob"
+                    }
+                  },
+                  "required": [
+                    "job",
+                    "events"
+                  ],
+                  "title": "JobProgress",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Owner-scoped durable progress, at most 128 events"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/container/jobs/{id}/cancel": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Canceled before dispatch; in-flight cancellation conflicts"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/container/plans": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "operation": {
+                    "$ref": "#/components/schemas/ContainerAction"
+                  },
+                  "resource": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "resource",
+                  "operation"
+                ],
+                "title": "ContainerInput",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "digest": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "$ref": "#/components/schemas/ContainerPlan"
+                    }
+                  },
+                  "required": [
+                    "plan",
+                    "digest"
+                  ],
+                  "title": "PlannedContainerAction",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Durable plan, approval or queued job"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/container/plans/{id}/approval": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "digest": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "digest"
+                ],
+                "title": "ApprovalInput",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "expires_at": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "token": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "expires_at"
+                  ],
+                  "title": "PlanApproval",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Durable plan, approval or queued job"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/container/plans/{id}/cancel": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Canceled before dispatch; in-flight cancellation conflicts"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/container/restart/jobs": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "items": {
+                    "$ref": "#/components/schemas/ContainerJob"
+                  },
+                  "title": "Array_of_ContainerJob",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Latest 32 owned, currently authorized jobs"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "approval": {
+                    "type": "string"
+                  },
+                  "idempotency_key": {
+                    "type": "string"
+                  },
+                  "proposal": {
+                    "$ref": "#/components/schemas/PlannedContainerAction"
+                  }
+                },
+                "required": [
+                  "proposal",
+                  "approval",
+                  "idempotency_key"
+                ],
+                "title": "QueueRestartInput",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "$ref": "#/components/schemas/ContainerPlan"
+                    },
+                    "state": {
+                      "$ref": "#/components/schemas/JobState"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "state",
+                    "plan"
+                  ],
+                  "title": "ContainerJob",
                   "type": "object"
                 }
               }
@@ -1951,7 +3774,7 @@
                       "type": "array"
                     },
                     "job": {
-                      "$ref": "#/components/schemas/RestartJob"
+                      "$ref": "#/components/schemas/ContainerJob"
                     }
                   },
                   "required": [
@@ -2467,14 +4290,14 @@
                       "type": "string"
                     },
                     "plan": {
-                      "$ref": "#/components/schemas/RestartPlan"
+                      "$ref": "#/components/schemas/ContainerPlan"
                     }
                   },
                   "required": [
                     "plan",
                     "digest"
                   ],
-                  "title": "PlannedRestart",
+                  "title": "PlannedContainerAction",
                   "type": "object"
                 }
               }
@@ -3006,6 +4829,267 @@
         "responses": {
           "204": {
             "description": "Canceled before dispatch; in-flight cancellation conflicts"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/containers/{id}/logs": {
+      "get": {
+        "description": "Current management grant and independent log ceiling required. Non-following tail; at most 24 KiB after framing/control/credential filtering.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tail",
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "resource": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "maxLength": 24576,
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "resource",
+                    "text",
+                    "truncated"
+                  ],
+                  "title": "ContainerLogs",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bounded selected-container log text"
           },
           "400": {
             "content": {

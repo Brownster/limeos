@@ -11,6 +11,27 @@ fn credentials<B>(app: &App<B>, headers: &HeaderMap) -> Result<(String, String)>
         .ok_or(Error(ErrorCode::Forbidden))?;
     Ok((token, csrf.into()))
 }
+pub(super) async fn logs<B: Backend>(
+    State(app): State<App<B>>,
+    Path(id): Path<String>,
+    Query(options): Query<limeos_domain::LogOptions>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        options.validate()?;
+        if !limeos_domain::opaque_id(&id) {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
+        app.backend
+            .container_logs(cookie(&headers)?, format!("container:{id}"), options)
+            .await
+    }
+    .await;
+    match result {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(e) => failure(e),
+    }
+}
 async fn input<T: serde::de::DeserializeOwned>(request: Request) -> Result<T> {
     if request
         .headers()
@@ -42,6 +63,25 @@ pub(super) async fn plan<B: Backend>(State(app): State<App<B>>, request: Request
         Err(e) => failure(e),
     }
 }
+pub(super) async fn container_plan<B: Backend>(
+    State(app): State<App<B>>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let (token, csrf) = credentials(&app, request.headers())?;
+        app.backend
+            .session(token.clone(), Some(csrf.clone()))
+            .await?;
+        app.backend
+            .plan_container(token, csrf, input(request).await?)
+            .await
+    }
+    .await;
+    match result {
+        Ok(value) => (StatusCode::CREATED, axum::Json(value)).into_response(),
+        Err(e) => failure(e),
+    }
+}
 pub(super) async fn approve<B: Backend>(
     State(app): State<App<B>>,
     Path(id): Path<String>,
@@ -54,7 +94,7 @@ pub(super) async fn approve<B: Backend>(
             .await?;
         let value: limeos_contracts::ApprovalInput = input(request).await?;
         app.backend
-            .approve_restart(token, csrf, id, value.digest)
+            .approve_container(token, csrf, id, value.digest)
             .await
     }
     .await;
@@ -64,14 +104,25 @@ pub(super) async fn approve<B: Backend>(
     }
 }
 pub(super) async fn queue<B: Backend>(State(app): State<App<B>>, request: Request) -> Response {
+    queue_inner(app, request, true).await
+}
+pub(super) async fn container_queue<B: Backend>(
+    State(app): State<App<B>>,
+    request: Request,
+) -> Response {
+    queue_inner(app, request, false).await
+}
+async fn queue_inner<B: Backend>(app: App<B>, request: Request, legacy: bool) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
         app.backend
             .session(token.clone(), Some(csrf.clone()))
             .await?;
-        app.backend
-            .queue_restart(token, csrf, input(request).await?)
-            .await
+        let value: limeos_contracts::QueueRestartInput = input(request).await?;
+        if legacy && value.proposal.plan.operation != limeos_domain::ContainerAction::Restart {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
+        app.backend.queue_container(token, csrf, value).await
     }
     .await;
     match result {
@@ -80,7 +131,7 @@ pub(super) async fn queue<B: Backend>(State(app): State<App<B>>, request: Reques
     }
 }
 pub(super) async fn jobs<B: Backend>(State(app): State<App<B>>, headers: HeaderMap) -> Response {
-    let result = async { app.backend.restart_jobs(cookie(&headers)?).await }.await;
+    let result = async { app.backend.container_jobs(cookie(&headers)?).await }.await;
     match result {
         Ok(value) => axum::Json(value).into_response(),
         Err(e) => failure(e),

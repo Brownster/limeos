@@ -99,6 +99,26 @@ pub enum CoreRequest {
         task: String,
         input: Box<QueueRestartInput>,
     },
+    ProposeContainer {
+        version: u16,
+        token: String,
+        task: String,
+        resource: String,
+        operation: limeos_domain::ContainerAction,
+    },
+    QueueContainer {
+        version: u16,
+        token: String,
+        task: String,
+        input: Box<QueueRestartInput>,
+    },
+    ReadContainerLogs {
+        version: u16,
+        token: String,
+        task: String,
+        resource: String,
+        options: limeos_domain::LogOptions,
+    },
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "response", rename_all = "snake_case", deny_unknown_fields)]
@@ -113,6 +133,9 @@ pub enum CoreResponse {
     Authorized,
     RestartPlan(limeos_domain::PlannedRestart),
     RestartJob(limeos_domain::RestartJob),
+    ContainerPlan(limeos_domain::PlannedContainerAction),
+    ContainerJob(limeos_domain::ContainerJob),
+    ContainerLogs(limeos_domain::ContainerLogs),
     Error(ErrorEnvelope),
 }
 

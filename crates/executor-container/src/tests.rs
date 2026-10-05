@@ -76,6 +76,7 @@ fn expected() -> ContainerSnapshot {
 }
 fn request() -> RestartRequest {
     let plan = RestartPlan {
+        operation: limeos_domain::ContainerAction::Restart,
         id: "c".repeat(64),
         version: 1,
         principal: "alice".into(),
@@ -95,6 +96,8 @@ fn ceiling() -> RestartCeiling {
         version: 1,
         core_uid: 1001,
         allow_restart: true,
+        allow_start: false,
+        allow_stop: false,
         managed_containers: vec!["a".repeat(64)],
     }
 }
@@ -131,6 +134,115 @@ impl Engine for FakeEngine {
             Mode::Hang => std::future::pending().await,
         }
     }
+    async fn start(&self, id: &str) -> Result<()> {
+        self.restart(id).await
+    }
+    async fn stop(&self, id: &str) -> Result<()> {
+        self.restart(id).await
+    }
+}
+#[tokio::test]
+async fn each_lifecycle_action_requires_its_own_ceiling_and_verified_result() {
+    for operation in [ContainerAction::Start, ContainerAction::Stop] {
+        let directory = private_dir();
+        let mut store = ReceiptStore::open(directory.path()).unwrap();
+        let mut engine = FakeEngine::new(Mode::Accept);
+        engine.snapshot.running = operation != ContainerAction::Start;
+        let mut req = request();
+        req.plan.operation = operation;
+        req.plan.expected = engine.snapshot.clone();
+        req.plan_digest = limeos_identity::digest(&encode(&req.plan).unwrap());
+        assert_eq!(
+            store
+                .execute(&engine, &ceiling(), 1001, &req, || 201)
+                .await
+                .unwrap_err()
+                .0,
+            ErrorCode::Forbidden
+        );
+        assert_eq!(engine.effects.load(Ordering::SeqCst), 0);
+        let enabled = ContainerCeiling {
+            allow_start: operation == ContainerAction::Start,
+            allow_stop: operation == ContainerAction::Stop,
+            ..ceiling()
+        };
+        let receipt = store
+            .execute(&engine, &enabled, 1001, &req, || 201)
+            .await
+            .unwrap();
+        assert_eq!(receipt.operation, operation);
+        assert!(
+            store
+                .verify(
+                    &engine,
+                    &enabled,
+                    1001,
+                    &req.action,
+                    &req.plan_digest,
+                    &engine.snapshot
+                )
+                .await
+                .is_err()
+        );
+        if operation == ContainerAction::Start {
+            engine.snapshot.running = true;
+            engine.snapshot.started_at = "2026-10-05T07:01:00Z".into();
+        } else {
+            engine.snapshot.running = false;
+        }
+        assert_eq!(
+            store
+                .verify(
+                    &engine,
+                    &enabled,
+                    1001,
+                    &req.action,
+                    &req.plan_digest,
+                    &engine.snapshot
+                )
+                .await
+                .unwrap()
+                .state,
+            ExecutionState::Verified
+        );
+        store
+            .execute(&engine, &enabled, 1001, &req, || 999)
+            .await
+            .unwrap();
+        assert_eq!(engine.effects.load(Ordering::SeqCst), 1);
+    }
+}
+#[tokio::test]
+async fn v2_receipt_migration_retains_the_prepared_barrier_without_replay() {
+    let directory = private_dir();
+    let mut store = ReceiptStore::open(directory.path()).unwrap();
+    let req = request();
+    store
+        .prepare(&ContainerReceipt {
+            action: req.action.clone(),
+            plan_digest: req.plan_digest.clone(),
+            operation: ContainerAction::Restart,
+            before: req.plan.expected.clone(),
+            state: ExecutionState::Prepared,
+            error: None,
+        })
+        .unwrap();
+    store
+        .conn
+        .execute_batch("ALTER TABLE actions DROP COLUMN operation; PRAGMA user_version=2;")
+        .unwrap();
+    drop(store);
+    let mut store = ReceiptStore::open(directory.path()).unwrap();
+    let engine = FakeEngine::new(Mode::Accept);
+    assert_eq!(
+        store
+            .execute(&engine, &ceiling(), 1001, &req, || 201)
+            .await
+            .unwrap()
+            .state,
+        ExecutionState::Prepared
+    );
+    assert_eq!(engine.effects.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]

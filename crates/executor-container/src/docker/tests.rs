@@ -96,3 +96,27 @@ async fn lost_post_response_is_an_error_with_exactly_one_post() {
     );
     task.abort();
 }
+#[tokio::test]
+async fn start_and_stop_use_only_the_fixed_selected_endpoints() {
+    let (_dir, engine, calls, task) = server(true).await;
+    engine.start(&"a".repeat(64)).await.unwrap();
+    engine.stop(&"a".repeat(64)).await.unwrap();
+    let posts: Vec<_> = calls
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|line| line.starts_with("POST"))
+        .cloned()
+        .collect();
+    assert_eq!(
+        posts,
+        [
+            format!("POST /v1.41/containers/{}/start HTTP/1.1", "a".repeat(64)),
+            format!(
+                "POST /v1.41/containers/{}/stop?t=10 HTTP/1.1",
+                "a".repeat(64)
+            )
+        ]
+    );
+    task.abort();
+}

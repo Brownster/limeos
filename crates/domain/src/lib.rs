@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 mod operations;
 pub use operations::*;
+mod logs;
+pub use logs::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -173,13 +175,36 @@ pub struct Event {
 pub enum Intent {
     HealthProbe { resource: String },
     ContainerRestart { plan: RestartPlan },
+    ContainerStart { plan: ContainerPlan },
+    ContainerStop { plan: ContainerPlan },
 }
 impl Intent {
     pub fn resource(&self) -> &str {
         match self {
             Self::HealthProbe { resource } => resource,
-            Self::ContainerRestart { plan } => &plan.expected.resource,
+            Self::ContainerRestart { plan }
+            | Self::ContainerStart { plan }
+            | Self::ContainerStop { plan } => &plan.expected.resource,
         }
+    }
+    pub fn container(plan: ContainerPlan) -> Self {
+        match plan.operation {
+            ContainerAction::Restart => Self::ContainerRestart { plan },
+            ContainerAction::Start => Self::ContainerStart { plan },
+            ContainerAction::Stop => Self::ContainerStop { plan },
+        }
+    }
+    pub fn container_plan(self) -> Result<ContainerPlan> {
+        let (expected, plan) = match self {
+            Self::ContainerRestart { plan } => (ContainerAction::Restart, plan),
+            Self::ContainerStart { plan } => (ContainerAction::Start, plan),
+            Self::ContainerStop { plan } => (ContainerAction::Stop, plan),
+            _ => return Err(Error(ErrorCode::InvalidInput)),
+        };
+        if plan.operation != expected {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
+        Ok(plan)
     }
 }
 

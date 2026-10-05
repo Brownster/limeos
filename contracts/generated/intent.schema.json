@@ -28,7 +28,41 @@
           "const": "container_restart"
         },
         "plan": {
-          "$ref": "#/$defs/RestartPlan"
+          "$ref": "#/$defs/ContainerPlan"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "plan"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "container_start"
+        },
+        "plan": {
+          "$ref": "#/$defs/ContainerPlan"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "plan"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "container_stop"
+        },
+        "plan": {
+          "$ref": "#/$defs/ContainerPlan"
         }
       },
       "additionalProperties": false,
@@ -39,6 +73,59 @@
     }
   ],
   "$defs": {
+    "ContainerAction": {
+      "type": "string",
+      "enum": [
+        "restart",
+        "start",
+        "stop"
+      ]
+    },
+    "ContainerPlan": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "expected": {
+          "$ref": "#/$defs/ContainerSnapshot"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "id": {
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/$defs/ContainerAction"
+        },
+        "principal": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "principal",
+        "grant_revision",
+        "expected",
+        "created_at",
+        "expires_at"
+      ]
+    },
     "ContainerSnapshot": {
       "description": "Selected inspection evidence. Environment variables, labels and host paths\nnever enter a plan. The full ID, image and start timestamp identify an instance.",
       "type": "object",
@@ -62,48 +149,6 @@
         "image",
         "started_at",
         "running"
-      ]
-    },
-    "RestartPlan": {
-      "type": "object",
-      "properties": {
-        "created_at": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "expected": {
-          "$ref": "#/$defs/ContainerSnapshot"
-        },
-        "expires_at": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "grant_revision": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "id": {
-          "type": "string"
-        },
-        "principal": {
-          "type": "string"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "version",
-        "principal",
-        "grant_revision",
-        "expected",
-        "created_at",
-        "expires_at"
       ]
     }
   }

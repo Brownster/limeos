@@ -61,7 +61,23 @@ pub trait Backend: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<limeos_domain::PlannedRestart>> + Send {
         async { Err(Error(ErrorCode::Unavailable)) }
     }
-    fn approve_restart(
+    fn plan_container(
+        &self,
+        _token: String,
+        _csrf: String,
+        _input: limeos_contracts::ContainerInput,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedContainerAction>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn container_logs(
+        &self,
+        _token: String,
+        _resource: String,
+        _options: limeos_domain::LogOptions,
+    ) -> impl Future<Output = Result<limeos_domain::ContainerLogs>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn approve_container(
         &self,
         _token: String,
         _csrf: String,
@@ -70,7 +86,7 @@ pub trait Backend: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send {
         async { Err(Error(ErrorCode::Unavailable)) }
     }
-    fn queue_restart(
+    fn queue_container(
         &self,
         _token: String,
         _csrf: String,
@@ -86,7 +102,7 @@ pub trait Backend: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<limeos_contracts::JobProgress>> + Send {
         async { Err(Error(ErrorCode::Unavailable)) }
     }
-    fn restart_jobs(
+    fn container_jobs(
         &self,
         _token: String,
     ) -> impl Future<Output = Result<Vec<limeos_domain::RestartJob>>> + Send {
@@ -152,6 +168,31 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
             "/api/v1/container/restart/plans",
             post(operations::plan::<B>),
         )
+        .route(
+            "/api/v1/container/plans",
+            post(operations::container_plan::<B>),
+        )
+        .route(
+            "/api/v1/container/plans/{id}/approval",
+            post(operations::approve::<B>),
+        )
+        .route(
+            "/api/v1/container/plans/{id}/cancel",
+            post(operations::cancel_plan::<B>),
+        )
+        .route(
+            "/api/v1/container/jobs",
+            post(operations::container_queue::<B>).get(operations::jobs::<B>),
+        )
+        .route(
+            "/api/v1/container/jobs/{id}",
+            get(operations::progress::<B>),
+        )
+        .route(
+            "/api/v1/container/jobs/{id}/cancel",
+            post(operations::cancel_job::<B>),
+        )
+        .route("/api/v1/containers/{id}/logs", get(operations::logs::<B>))
         .route(
             "/api/v1/container/restart/plans/{id}/approval",
             post(operations::approve::<B>),

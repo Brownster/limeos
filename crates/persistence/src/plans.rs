@@ -4,9 +4,9 @@ use limeos_domain::{ContainerSnapshot, PlanApproval, PlannedRestart, RestartJob,
 const PLAN_LIMIT: i64 = 8192;
 
 impl Store {
-    pub fn restart_jobs(&self, principal: &Principal) -> Result<Vec<RestartJob>> {
+    pub fn container_jobs(&self, principal: &Principal) -> Result<Vec<RestartJob>> {
         self.grants(principal)?;
-        let mut stmt=self.conn.prepare("SELECT id FROM jobs WHERE principal=? AND json_extract(intent,'$.operation')='container_restart' ORDER BY rowid DESC LIMIT 32").map_err(durable)?;
+        let mut stmt=self.conn.prepare("SELECT id FROM jobs WHERE principal=? AND json_extract(intent,'$.operation') IN ('container_restart','container_start','container_stop') ORDER BY rowid DESC LIMIT 32").map_err(durable)?;
         let ids = stmt
             .query_map([&principal.id], |r| r.get::<_, String>(0))
             .map_err(durable)?
@@ -14,7 +14,7 @@ impl Store {
             .map_err(durable)?;
         let mut jobs = Vec::new();
         for id in ids {
-            match self.restart_job(principal, &id) {
+            match self.container_job(principal, &id) {
                 Ok(job) => jobs.push(job),
                 Err(Error(ErrorCode::Forbidden | ErrorCode::Expired)) => {}
                 Err(e) => return Err(e),
@@ -23,8 +23,8 @@ impl Store {
         Ok(jobs)
     }
     /// Internal worker discovery is bounded. A caller cannot supply an actor.
-    pub fn restart_candidates(&self) -> Result<Vec<(Principal, RestartJob)>> {
-        let mut stmt = self.conn.prepare("SELECT j.id,j.intent,j.state,u.id,u.role,u.grant_revision FROM jobs j JOIN users u ON u.id=j.principal WHERE j.state IN ('queued','running','verifying','outcome_unknown','needs_intervention') AND json_extract(j.intent,'$.operation')='container_restart' ORDER BY CASE j.state WHEN 'queued' THEN 0 ELSE 1 END,j.rowid LIMIT 64").map_err(durable)?;
+    pub fn container_candidates(&self) -> Result<Vec<(Principal, RestartJob)>> {
+        let mut stmt = self.conn.prepare("SELECT j.id,j.intent,j.state,u.id,u.role,u.grant_revision FROM jobs j JOIN users u ON u.id=j.principal WHERE j.state IN ('queued','running','verifying','outcome_unknown','needs_intervention') AND json_extract(j.intent,'$.operation') IN ('container_restart','container_start','container_stop') ORDER BY CASE j.state WHEN 'queued' THEN 0 ELSE 1 END,j.rowid LIMIT 64").map_err(durable)?;
         stmt.query_map([], |r| {
             Ok((
                 r.get::<_, String>(0)?,
@@ -38,9 +38,7 @@ impl Store {
         .map_err(durable)?
         .map(|r| {
             let (id, intent, state, owner, role, revision) = r.map_err(durable)?;
-            let Intent::ContainerRestart { plan } = parse(&intent)? else {
-                return Err(Error(ErrorCode::StateNotDurable));
-            };
+            let plan = parse::<Intent>(&intent)?.container_plan()?;
             Ok((
                 Principal {
                     id: owner,
@@ -59,7 +57,7 @@ impl Store {
 
     /// The composition root supplies a receipt from authenticated executor IPC,
     /// and an independent selected inspection. Commit proof and state together.
-    pub fn record_restart_result(
+    pub fn record_container_result(
         &mut self,
         job: &RestartJob,
         receipt: &limeos_domain::RestartReceipt,
@@ -70,12 +68,17 @@ impl Store {
         if receipt.action != job.id
             || receipt.plan_digest != limeos_identity::digest(&json(&job.plan)?)
             || receipt.before != job.plan.expected
+            || receipt.operation != job.plan.operation
         {
             return Err(Error(ErrorCode::Conflict));
         }
         let next = match receipt.state {
             ExecutionState::Verified if after.is_some() => {
-                limeos_domain::verify_restart(&receipt.before, after.unwrap())?;
+                limeos_domain::verify_container(
+                    receipt.operation,
+                    &receipt.before,
+                    after.unwrap(),
+                )?;
                 JobState::Succeeded
             }
             ExecutionState::PreconditionChanged => JobState::PreconditionChanged,
@@ -83,12 +86,12 @@ impl Store {
         };
         self.write(|tx| {
             let (state,intent):(String,String) = tx.query_row("SELECT state,intent FROM jobs WHERE id=? AND principal=?", params![job.id,job.plan.principal], |r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(durable)?.ok_or(Error(ErrorCode::NotFound))?;
-            if parse::<Intent>(&intent)? != (Intent::ContainerRestart {plan:job.plan.clone()}) {return Err(Error(ErrorCode::Conflict));}
+            if parse::<Intent>(&intent)? != Intent::container(job.plan.clone()) {return Err(Error(ErrorCode::Conflict));}
             let body=json(receipt)?;let verification=after.map(json).transpose()?;
-            let existing:Option<(String,Option<String>)>=tx.query_row("SELECT receipt,verification FROM restart_results WHERE job=?",[&job.id],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(durable)?;
+            let existing:Option<(String,Option<String>)>=tx.query_row("SELECT receipt,verification FROM container_results WHERE job=?",[&job.id],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(durable)?;
             if state == next.as_str() && existing.as_ref()==Some(&(body.clone(),verification.clone())) {return Ok(());}
             if !matches!(state.as_str(), "running"|"verifying"|"outcome_unknown"|"needs_intervention") { return Err(Error(ErrorCode::Conflict)); }
-            tx.execute("INSERT INTO restart_results VALUES(?,?,?,?) ON CONFLICT(job) DO UPDATE SET receipt=excluded.receipt,verification=excluded.verification,recorded=excluded.recorded", params![job.id,body,verification,now]).map_err(durable)?;
+            tx.execute("INSERT INTO container_results VALUES(?,?,?,?) ON CONFLICT(job) DO UPDATE SET receipt=excluded.receipt,verification=excluded.verification,recorded=excluded.recorded", params![job.id,body,verification,now]).map_err(durable)?;
             if state == next.as_str() {return Ok(());}
             tx.execute("UPDATE jobs SET state=? WHERE id=?", params![next.as_str(),job.id]).map_err(durable)?;
             event(tx, Some(&job.plan.principal), Some(&job.id), EventKind::JobTransition {state:next}, now)
@@ -101,11 +104,26 @@ impl Store {
         expected: &ContainerSnapshot,
         now: i64,
     ) -> Result<PlannedRestart> {
+        self.plan_container(
+            principal,
+            limeos_domain::ContainerAction::Restart,
+            expected,
+            now,
+        )
+    }
+    pub fn plan_container(
+        &mut self,
+        principal: &Principal,
+        operation: limeos_domain::ContainerAction,
+        expected: &ContainerSnapshot,
+        now: i64,
+    ) -> Result<PlannedRestart> {
         expected.validate()?;
-        self.authorize_restart(principal, expected)?;
+        self.authorize_container(principal, expected)?;
         let plan = RestartPlan {
             id: limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?,
             version: limeos_domain::RESTART_VERSION,
+            operation,
             principal: principal.id.clone(),
             grant_revision: principal.grant_revision,
             expected: expected.clone(),
@@ -119,27 +137,31 @@ impl Store {
         let digest = limeos_identity::digest(&body);
         self.write(|tx| {
             // Unqueued proposals expire. Durable jobs retain their original plans.
-            tx.execute("DELETE FROM restart_plans WHERE job IS NULL AND expires<=?", [now]).map_err(durable)?;
-            let count: i64 = tx.query_row("SELECT count(*) FROM restart_plans WHERE job IS NULL", [], |r| r.get(0)).map_err(durable)?;
+            tx.execute("DELETE FROM container_plans WHERE job IS NULL AND expires<=?", [now]).map_err(durable)?;
+            let count: i64 = tx.query_row("SELECT count(*) FROM container_plans WHERE job IS NULL", [], |r| r.get(0)).map_err(durable)?;
             if count >= PLAN_LIMIT { return Err(Error(ErrorCode::Overloaded)); }
-            tx.execute("INSERT INTO restart_plans(id,principal,body,digest,revision,expires) VALUES(?,?,?,?,?,?)", params![plan.id, principal.id, body, digest, principal.grant_revision, plan.expires_at]).map_err(durable)?;
+            tx.execute("INSERT INTO container_plans(id,principal,body,digest,revision,expires) VALUES(?,?,?,?,?,?)", params![plan.id, principal.id, body, digest, principal.grant_revision, plan.expires_at]).map_err(durable)?;
             event(tx, Some(&principal.id), None, EventKind::PlanCreated { plan: plan.id.clone() }, now)
         })?;
         Ok(PlannedRestart { plan, digest })
     }
 
-    fn authorize_restart(&self, principal: &Principal, expected: &ContainerSnapshot) -> Result<()> {
+    fn authorize_container(
+        &self,
+        principal: &Principal,
+        expected: &ContainerSnapshot,
+    ) -> Result<()> {
         limeos_policy::authorize(principal, &self.grants(principal)?, &expected.scope())
     }
 
-    pub fn restart_plan(&self, principal: &Principal, id: &str) -> Result<PlannedRestart> {
+    pub fn container_plan(&self, principal: &Principal, id: &str) -> Result<PlannedRestart> {
         if !limeos_domain::opaque_id(id) {
             return Err(Error(ErrorCode::InvalidInput));
         }
         let row: Option<(String, String)> = self
             .conn
             .query_row(
-                "SELECT body,digest FROM restart_plans WHERE id=? AND principal=? AND canceled=0",
+                "SELECT body,digest FROM container_plans WHERE id=? AND principal=? AND canceled=0",
                 params![id, principal.id],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
@@ -156,20 +178,20 @@ impl Store {
         if plan.grant_revision != principal.grant_revision {
             return Err(Error(ErrorCode::Expired));
         }
-        self.authorize_restart(principal, &plan.expected)?;
+        self.authorize_container(principal, &plan.expected)?;
         Ok(PlannedRestart { plan, digest })
     }
 
     /// The composition root supplies a principal resolved from a human session,
     /// never from a model's claimed actor or a task-token proposal.
-    pub fn approve_restart(
+    pub fn approve_container(
         &mut self,
         principal: &Principal,
         id: &str,
         digest: &str,
         now: i64,
     ) -> Result<PlanApproval> {
-        let proposal = self.restart_plan(principal, id)?;
+        let proposal = self.container_plan(principal, id)?;
         proposal.plan.validate(now)?;
         if !limeos_identity::constant_eq(digest, &proposal.digest) {
             return Err(Error(ErrorCode::Conflict));
@@ -177,7 +199,7 @@ impl Store {
         let token = limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?;
         let token_digest = limeos_identity::digest(&token);
         self.write(|tx| {
-            if tx.execute("UPDATE restart_plans SET approval_digest=? WHERE id=? AND canceled=0 AND job IS NULL", params![token_digest, id]).map_err(durable)? != 1 {
+            if tx.execute("UPDATE container_plans SET approval_digest=? WHERE id=? AND canceled=0 AND job IS NULL", params![token_digest, id]).map_err(durable)? != 1 {
                 return Err(Error(ErrorCode::Conflict));
             }
             event(tx, Some(&principal.id), None, EventKind::PlanApproved { plan: id.into() }, now)
@@ -188,7 +210,7 @@ impl Store {
         })
     }
 
-    pub fn queue_restart(
+    pub fn queue_container(
         &mut self,
         principal: &Principal,
         key: &str,
@@ -200,15 +222,13 @@ impl Store {
         if !limeos_domain::identifier(key) || !limeos_domain::opaque_id(approval) {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        let stored = self.restart_plan(principal, &proposal.plan.id)?;
+        let stored = self.container_plan(principal, &proposal.plan.id)?;
         // Comparing the full normalized body also rejects caller-supplied edits
         // that retain an earlier digest or substitute another resource.
         if stored != *proposal {
             return Err(Error(ErrorCode::Conflict));
         }
-        let encoded = json(&Intent::ContainerRestart {
-            plan: stored.plan.clone(),
-        })?;
+        let encoded = json(&Intent::container(stored.plan.clone()))?;
         let intent_digest = limeos_identity::digest(&encoded);
         let approval_digest = limeos_identity::digest(approval);
         let generation = self.generation;
@@ -216,7 +236,7 @@ impl Store {
         let original = self.write(|tx| {
             let (accepted, consumed): (Option<String>, Option<String>) = tx
                 .query_row(
-                    "SELECT approval_digest,job FROM restart_plans WHERE id=? AND canceled=0",
+                    "SELECT approval_digest,job FROM container_plans WHERE id=? AND canceled=0",
                     [&stored.plan.id],
                     |r| Ok((r.get(0)?, r.get(1)?)),
                 )
@@ -262,7 +282,7 @@ impl Store {
             .map_err(durable)?;
             if tx
                 .execute(
-                    "UPDATE restart_plans SET job=? WHERE id=? AND job IS NULL",
+                    "UPDATE container_plans SET job=? WHERE id=? AND job IS NULL",
                     params![id, stored.plan.id],
                 )
                 .map_err(durable)?
@@ -279,12 +299,12 @@ impl Store {
             )?;
             Ok(id)
         })?;
-        self.restart_job(principal, &original)
+        self.container_job(principal, &original)
     }
 
     /// A lost queue response must remain recoverable even when Engine is down.
     /// The original owner, approval nonce, full plan and key still have to match.
-    pub fn replay_restart(
+    pub fn replay_container(
         &self,
         principal: &Principal,
         key: &str,
@@ -294,7 +314,7 @@ impl Store {
         if !limeos_domain::identifier(key) || !limeos_domain::opaque_id(approval) {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        if self.restart_plan(principal, &proposal.plan.id)? != *proposal {
+        if self.container_plan(principal, &proposal.plan.id)? != *proposal {
             return Err(Error(ErrorCode::Conflict));
         }
         let row: Option<(String, String)> = self
@@ -309,17 +329,15 @@ impl Store {
         let Some((id, intent)) = row else {
             return Ok(None);
         };
-        let expected = Intent::ContainerRestart {
-            plan: proposal.plan.clone(),
-        };
-        let consumed:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM restart_plans WHERE id=? AND job=? AND approval_digest=?)",params![proposal.plan.id,id,limeos_identity::digest(approval)],|r|r.get(0)).map_err(durable)?;
+        let expected = Intent::container(proposal.plan.clone());
+        let consumed:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM container_plans WHERE id=? AND job=? AND approval_digest=?)",params![proposal.plan.id,id,limeos_identity::digest(approval)],|r|r.get(0)).map_err(durable)?;
         if parse::<Intent>(&intent)? != expected || !consumed {
             return Err(Error(ErrorCode::Conflict));
         }
-        Ok(Some(self.restart_job(principal, &id)?))
+        Ok(Some(self.container_job(principal, &id)?))
     }
 
-    pub fn restart_job(&self, principal: &Principal, id: &str) -> Result<RestartJob> {
+    pub fn container_job(&self, principal: &Principal, id: &str) -> Result<RestartJob> {
         let row: Option<(String, String)> = self
             .conn
             .query_row(
@@ -330,10 +348,8 @@ impl Store {
             .optional()
             .map_err(durable)?;
         let (intent, state) = row.ok_or(Error(ErrorCode::NotFound))?;
-        let Intent::ContainerRestart { plan } = parse(&intent)? else {
-            return Err(Error(ErrorCode::InvalidInput));
-        };
-        self.authorize_restart(principal, &plan.expected)?;
+        let plan = parse::<Intent>(&intent)?.container_plan()?;
+        self.authorize_container(principal, &plan.expected)?;
         Ok(RestartJob {
             id: id.into(),
             plan,
@@ -342,14 +358,14 @@ impl Store {
     }
 
     /// Durable dispatch intent precedes IPC. The executor must inspect again.
-    pub fn claim_restart(
+    pub fn claim_container(
         &mut self,
         principal: &Principal,
         id: &str,
         current: &ContainerSnapshot,
         now: i64,
     ) -> Result<RestartJob> {
-        let mut job = self.restart_job(principal, id)?;
+        let mut job = self.container_job(principal, id)?;
         if job.plan.grant_revision != principal.grant_revision {
             return Err(Error(ErrorCode::Expired));
         }
@@ -366,18 +382,28 @@ impl Store {
         Ok(job)
     }
 
-    pub fn cancel_restart_plan(&mut self, principal: &Principal, id: &str, now: i64) -> Result<()> {
-        self.restart_plan(principal, id)?;
+    pub fn cancel_container_plan(
+        &mut self,
+        principal: &Principal,
+        id: &str,
+        now: i64,
+    ) -> Result<()> {
+        self.container_plan(principal, id)?;
         self.write(|tx| {
-            if tx.execute("UPDATE restart_plans SET canceled=1,approval_digest=NULL WHERE id=? AND job IS NULL AND canceled=0", [id]).map_err(durable)? != 1 {
+            if tx.execute("UPDATE container_plans SET canceled=1,approval_digest=NULL WHERE id=? AND job IS NULL AND canceled=0", [id]).map_err(durable)? != 1 {
                 return Err(Error(ErrorCode::Conflict));
             }
             event(tx, Some(&principal.id), None, EventKind::PlanCanceled { plan: id.into() }, now)
         })
     }
 
-    pub fn cancel_restart_job(&mut self, principal: &Principal, id: &str, now: i64) -> Result<()> {
-        let job = self.restart_job(principal, id)?;
+    pub fn cancel_container_job(
+        &mut self,
+        principal: &Principal,
+        id: &str,
+        now: i64,
+    ) -> Result<()> {
+        let job = self.container_job(principal, id)?;
         match job.state {
             JobState::Canceled => Ok(()),
             JobState::Queued => self.transition(id, JobState::Queued, JobState::Canceled, now),
@@ -386,13 +412,13 @@ impl Store {
         }
     }
 
-    pub fn restart_events(
+    pub fn container_events(
         &self,
         principal: &Principal,
         id: &str,
         after: i64,
     ) -> Result<Vec<limeos_domain::Event>> {
-        self.restart_job(principal, id)?;
+        self.container_job(principal, id)?;
         if after < 0 {
             return Err(Error(ErrorCode::InvalidInput));
         }

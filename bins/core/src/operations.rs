@@ -48,6 +48,84 @@ impl Core {
         }
         Ok(value)
     }
+    async fn logs(
+        &self,
+        resource: String,
+        options: limeos_domain::LogOptions,
+    ) -> Result<limeos_domain::ContainerLogs> {
+        options.validate()?;
+        if !limeos_domain::opaque_id(resource.strip_prefix("container:").unwrap_or_default()) {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
+        let value = self
+            .executor(
+                Request::ContainerLogs {
+                    version: VERSION,
+                    resource: resource.clone(),
+                    options,
+                },
+                limeos_contracts::RPC_DEADLINE,
+            )
+            .await?
+            .logs
+            .ok_or(Error(ErrorCode::Unavailable))?;
+        if value.resource != resource || value.text.len() > limeos_domain::CONTAINER_LOG_BYTES {
+            return Err(Error(ErrorCode::Unavailable));
+        }
+        Ok(value)
+    }
+    pub(super) async fn human_logs(
+        &self,
+        token: String,
+        resource: String,
+        options: limeos_domain::LogOptions,
+    ) -> Result<limeos_domain::ContainerLogs> {
+        let principal = self.session(token.clone(), None).await?.principal;
+        self.authorize_resource(principal, resource.clone()).await?;
+        let value = self.logs(resource.clone(), options).await?;
+        let digest = limeos_identity::digest(&token);
+        self.db
+            .call(move |s| {
+                let current = s.authenticate(&digest, None, now())?;
+                limeos_policy::authorize(
+                    &current,
+                    &s.grants(&current)?,
+                    &Scope {
+                        operation: limeos_domain::Operation::ContainerManage,
+                        resource,
+                    },
+                )?;
+                Ok(value)
+            })
+            .await
+    }
+    pub(super) async fn task_logs(
+        &self,
+        token: String,
+        uid: u32,
+        task: String,
+        resource: String,
+        options: limeos_domain::LogOptions,
+    ) -> Result<limeos_domain::ContainerLogs> {
+        self.task_principal(&token, uid, &task, &resource).await?;
+        let value = self.logs(resource.clone(), options).await?;
+        let digest = limeos_identity::digest(&token);
+        self.db
+            .call(move |s| {
+                s.check_task(
+                    &digest,
+                    uid,
+                    &task,
+                    &Scope {
+                        operation: limeos_domain::Operation::ContainerManage,
+                        resource,
+                    },
+                    now(),
+                )?;
+                Ok(value)
+            })
+            .await
+    }
     pub(super) async fn authorize_resource(
         &self,
         principal: Principal,
@@ -72,6 +150,21 @@ impl Core {
         csrf: String,
         resource: String,
     ) -> Result<limeos_domain::PlannedRestart> {
+        self.propose_action(
+            token,
+            csrf,
+            limeos_domain::ContainerAction::Restart,
+            resource,
+        )
+        .await
+    }
+    pub(super) async fn propose_action(
+        &self,
+        token: String,
+        csrf: String,
+        operation: limeos_domain::ContainerAction,
+        resource: String,
+    ) -> Result<limeos_domain::PlannedContainerAction> {
         let principal = self
             .session(token.clone(), Some(csrf.clone()))
             .await?
@@ -84,7 +177,7 @@ impl Core {
         self.db
             .call(move |s| {
                 let principal = s.authenticate(&digest, Some(&csrf), now())?;
-                s.plan_restart(&principal, &snapshot, now())
+                s.plan_container(&principal, operation, &snapshot, now())
             })
             .await
     }
@@ -105,7 +198,7 @@ impl Core {
         let approval = input.approval.clone();
         let replay = self
             .db
-            .call(move |s| s.replay_restart(&p, &key, &proposal, &approval))
+            .call(move |s| s.replay_container(&p, &key, &proposal, &approval))
             .await?;
         if let Some(job) = replay {
             return Ok(job);
@@ -116,7 +209,7 @@ impl Core {
         self.db
             .call(move |s| {
                 let principal = s.authenticate(&digest, Some(&csrf), now())?;
-                s.queue_restart(
+                s.queue_container(
                     &principal,
                     &input.idempotency_key,
                     &input.proposal,
@@ -155,6 +248,27 @@ impl Core {
             })
             .await
     }
+    pub(super) async fn propose_task(
+        &self,
+        token: String,
+        uid: u32,
+        task: String,
+        operation: limeos_domain::ContainerAction,
+        resource: String,
+    ) -> Result<limeos_domain::PlannedContainerAction> {
+        let principal = self.task_principal(&token, uid, &task, &resource).await?;
+        let snapshot = self.inspect(&resource).await?;
+        let digest = limeos_identity::digest(&token);
+        self.db
+            .call(move |s| {
+                let current = s.check_task(&digest, uid, &task, &snapshot.scope(), now())?;
+                if current != principal {
+                    return Err(Error(ErrorCode::Expired));
+                }
+                s.plan_container(&current, operation, &snapshot, now())
+            })
+            .await
+    }
     pub(super) async fn submit_task(
         &self,
         token: String,
@@ -178,7 +292,7 @@ impl Core {
                     &supplied.proposal.plan.expected.scope(),
                     now(),
                 )?;
-                s.replay_restart(
+                s.replay_container(
                     &p,
                     &supplied.idempotency_key,
                     &supplied.proposal,
@@ -193,7 +307,7 @@ impl Core {
         self.db
             .call(move |s| {
                 let p = s.check_task(&digest, uid, &task, &snapshot.scope(), now())?;
-                s.queue_restart(
+                s.queue_container(
                     &p,
                     &input.idempotency_key,
                     &input.proposal,
@@ -242,13 +356,13 @@ impl Core {
             let id = job.id.clone();
             job = self
                 .db
-                .call(move |s| s.claim_restart(&p, &id, &current, now()))
+                .call(move |s| s.claim_container(&p, &id, &current, now()))
                 .await?;
             // Core death from here onward requires receipt reconciliation; it
             // cannot put the job back into the dispatch queue.
             match self
                 .executor(
-                    Request::Restart {
+                    Request::ExecuteContainer {
                         version: VERSION,
                         request: RestartRequest {
                             action: job.id.clone(),
@@ -287,6 +401,7 @@ impl Core {
         if receipt.action != job.id
             || receipt.plan_digest != digest
             || receipt.before != job.plan.expected
+            || receipt.operation != job.plan.operation
         {
             self.mark(&job, JobState::NeedsIntervention).await?;
             return Err(Error(ErrorCode::Conflict));
@@ -301,7 +416,9 @@ impl Core {
                 job.state = JobState::Verifying;
             }
             if let Ok(current) = self.inspect(&job.plan.expected.resource).await {
-                if limeos_domain::verify_restart(&receipt.before, &current).is_ok() {
+                if limeos_domain::verify_container(receipt.operation, &receipt.before, &current)
+                    .is_ok()
+                {
                     if receipt.state == ExecutionState::EffectAccepted {
                         if let Ok(value) = self
                             .executor(
@@ -325,7 +442,7 @@ impl Core {
             }
         }
         self.db
-            .call(move |s| s.record_restart_result(&job, &receipt, after.as_ref(), now()))
+            .call(move |s| s.record_container_result(&job, &receipt, after.as_ref(), now()))
             .await?;
         Ok(())
     }
@@ -337,7 +454,7 @@ impl Core {
         let mut recovery = std::collections::HashMap::<String, Instant>::new();
         loop {
             tick.tick().await;
-            let Ok(jobs) = self.db.call(|s| s.restart_candidates()).await else {
+            let Ok(jobs) = self.db.call(|s| s.container_candidates()).await else {
                 continue;
             };
             recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));

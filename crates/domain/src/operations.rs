@@ -33,6 +33,49 @@ pub const CONTAINER_RESTART: OperationDefinition = OperationDefinition {
     output_limit: 64 * 1024,
     recovery: Recovery::ReconcileBeforeRetry,
 };
+pub const CONTAINER_START: OperationDefinition = OperationDefinition {
+    name: "container.start",
+    ..CONTAINER_RESTART
+};
+pub const CONTAINER_STOP: OperationDefinition = OperationDefinition {
+    name: "container.stop",
+    ..CONTAINER_RESTART
+};
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum ContainerAction {
+    #[default]
+    Restart,
+    Start,
+    Stop,
+}
+impl ContainerAction {
+    pub fn is_restart(&self) -> bool {
+        *self == Self::Restart
+    }
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Restart => "restart",
+            Self::Start => "start",
+            Self::Stop => "stop",
+        }
+    }
+    pub fn definition(self) -> &'static OperationDefinition {
+        match self {
+            Self::Restart => &CONTAINER_RESTART,
+            Self::Start => &CONTAINER_START,
+            Self::Stop => &CONTAINER_STOP,
+        }
+    }
+    pub fn validate_before(self, before: &ContainerSnapshot) -> Result<()> {
+        before.validate()?;
+        if before.running != (self != Self::Start) {
+            return Err(Error(ErrorCode::Conflict));
+        }
+        Ok(())
+    }
+}
 
 pub fn opaque_id(value: &str) -> bool {
     value.len() == 64
@@ -70,9 +113,12 @@ impl ContainerSnapshot {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
-pub struct RestartPlan {
+pub struct ContainerPlan {
     pub id: String,
     pub version: u16,
+    #[serde(default, skip_serializing_if = "ContainerAction::is_restart")]
+    #[ts(as = "Option<ContainerAction>", optional)]
+    pub operation: ContainerAction,
     pub principal: String,
     #[ts(type = "number")]
     pub grant_revision: i64,
@@ -82,7 +128,7 @@ pub struct RestartPlan {
     #[ts(type = "number")]
     pub expires_at: i64,
 }
-impl RestartPlan {
+impl ContainerPlan {
     pub fn validate(&self, now: i64) -> Result<()> {
         self.expected.validate()?;
         if self.version != RESTART_VERSION
@@ -92,10 +138,10 @@ impl RestartPlan {
             || self.created_at < 0
             || self.expires_at <= self.created_at
             || self.expires_at > self.created_at.saturating_add(PLAN_TTL_SECONDS)
-            || !self.expected.running
         {
             return Err(Error(ErrorCode::InvalidInput));
         }
+        self.operation.validate_before(&self.expected)?;
         if now < self.created_at || now >= self.expires_at {
             return Err(Error(ErrorCode::Expired));
         }
@@ -113,8 +159,8 @@ impl RestartPlan {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
-pub struct PlannedRestart {
-    pub plan: RestartPlan,
+pub struct PlannedContainerAction {
+    pub plan: ContainerPlan,
     pub digest: String,
 }
 
@@ -136,18 +182,18 @@ impl std::fmt::Debug for PlanApproval {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
-pub struct RestartJob {
+pub struct ContainerJob {
     pub id: String,
     pub state: crate::JobState,
-    pub plan: RestartPlan,
+    pub plan: ContainerPlan,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
-pub struct RestartRequest {
+pub struct ContainerRequest {
     pub action: String,
     pub plan_digest: String,
-    pub plan: RestartPlan,
+    pub plan: ContainerPlan,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "snake_case")]
@@ -171,9 +217,12 @@ impl ExecutionState {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
-pub struct RestartReceipt {
+pub struct ContainerReceipt {
     pub action: String,
     pub plan_digest: String,
+    #[serde(default, skip_serializing_if = "ContainerAction::is_restart")]
+    #[ts(as = "Option<ContainerAction>", optional)]
+    pub operation: ContainerAction,
     pub before: ContainerSnapshot,
     pub state: ExecutionState,
     pub error: Option<ErrorCode>,
@@ -182,17 +231,41 @@ pub struct RestartReceipt {
 /// A successful Engine response alone is insufficient. Inspect the same image
 /// and container again and require a new running incarnation.
 pub fn verify_restart(before: &ContainerSnapshot, after: &ContainerSnapshot) -> Result<()> {
+    verify_container(ContainerAction::Restart, before, after)
+}
+pub fn verify_container(
+    operation: ContainerAction,
+    before: &ContainerSnapshot,
+    after: &ContainerSnapshot,
+) -> Result<()> {
     before.validate()?;
     after.validate()?;
+    operation.validate_before(before)?;
     if before.resource != after.resource
         || before.image != after.image
-        || !after.running
-        || engine_timestamp(&after.started_at) <= engine_timestamp(&before.started_at)
+        || match operation {
+            ContainerAction::Start | ContainerAction::Restart => {
+                !after.running
+                    || engine_timestamp(&after.started_at) <= engine_timestamp(&before.started_at)
+            }
+            ContainerAction::Stop => {
+                after.running
+                    || engine_timestamp(&after.started_at) != engine_timestamp(&before.started_at)
+            }
+        }
     {
         return Err(Error(ErrorCode::Conflict));
     }
     Ok(())
 }
+
+// Source compatibility for the original restart entry points. Restart JSON
+// retains its original canonical bytes; the new action field is omitted.
+pub type RestartPlan = ContainerPlan;
+pub type PlannedRestart = PlannedContainerAction;
+pub type RestartJob = ContainerJob;
+pub type RestartRequest = ContainerRequest;
+pub type RestartReceipt = ContainerReceipt;
 
 /// Docker emits UTC RFC3339 nanosecond timestamps. Validate calendar fields and
 /// normalize fractional precision before comparing incarnations.
@@ -264,6 +337,65 @@ mod tests {
         }
     }
     #[test]
+    fn lifecycle_preconditions_and_verification_bind_the_selected_incarnation() {
+        let running = snapshot();
+        let stopped = ContainerSnapshot {
+            running: false,
+            ..running.clone()
+        };
+        assert!(ContainerAction::Start.validate_before(&running).is_err());
+        assert!(ContainerAction::Stop.validate_before(&stopped).is_err());
+        verify_container(ContainerAction::Stop, &running, &stopped).unwrap();
+        assert!(verify_container(ContainerAction::Start, &stopped, &running).is_err());
+        let later = ContainerSnapshot {
+            started_at: "2026-10-05T07:01:00Z".into(),
+            ..running.clone()
+        };
+        verify_container(ContainerAction::Start, &stopped, &later).unwrap();
+        assert!(
+            verify_container(
+                ContainerAction::Stop,
+                &running,
+                &ContainerSnapshot {
+                    running: false,
+                    ..later
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            verify_container(
+                ContainerAction::Stop,
+                &running,
+                &ContainerSnapshot {
+                    image: format!("sha256:{}", "f".repeat(64)),
+                    ..stopped
+                }
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn legacy_restart_canonical_bytes_survive_the_new_action_field() {
+        let raw = format!(
+            r#"{{"id":"{}","version":1,"principal":"user","grant_revision":1,"expected":{{"resource":"container:{}","image":"sha256:{}","started_at":"2026-10-05T07:00:00.000000000Z","running":true}},"created_at":100,"expires_at":400}}"#,
+            "c".repeat(64),
+            "a".repeat(64),
+            "b".repeat(64)
+        );
+        let plan: ContainerPlan = serde_json::from_str(&raw).unwrap();
+        assert_eq!(plan.operation, ContainerAction::Restart);
+        assert_eq!(serde_json::to_string(&plan).unwrap(), raw);
+        let mut changed = plan;
+        changed.operation = ContainerAction::Stop;
+        assert!(
+            serde_json::to_string(&changed)
+                .unwrap()
+                .contains("\"operation\":\"stop\"")
+        );
+        assert!(serde_json::from_str::<ContainerAction>("\"remove\"").is_err());
+    }
+    #[test]
     fn selected_identity_requires_full_ids_and_forbids_paths_or_control_characters() {
         let s = snapshot();
         s.validate().unwrap();
@@ -296,6 +428,7 @@ mod tests {
         let plan = RestartPlan {
             id: "c".repeat(64),
             version: RESTART_VERSION,
+            operation: ContainerAction::Restart,
             principal: "user".into(),
             grant_revision: 1,
             expected: s.clone(),

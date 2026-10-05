@@ -10,7 +10,7 @@
       }
     },
     "job": {
-      "$ref": "#/$defs/RestartJob"
+      "$ref": "#/$defs/ContainerJob"
     }
   },
   "additionalProperties": false,
@@ -19,6 +19,79 @@
     "events"
   ],
   "$defs": {
+    "ContainerAction": {
+      "type": "string",
+      "enum": [
+        "restart",
+        "start",
+        "stop"
+      ]
+    },
+    "ContainerJob": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/$defs/ContainerPlan"
+        },
+        "state": {
+          "$ref": "#/$defs/JobState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "state",
+        "plan"
+      ]
+    },
+    "ContainerPlan": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "expected": {
+          "$ref": "#/$defs/ContainerSnapshot"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "id": {
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/$defs/ContainerAction"
+        },
+        "principal": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "principal",
+        "grant_revision",
+        "expected",
+        "created_at",
+        "expires_at"
+      ]
+    },
     "ContainerSnapshot": {
       "description": "Selected inspection evidence. Environment variables, labels and host paths\nnever enter a plan. The full ID, image and start timestamp identify an instance.",
       "type": "object",
@@ -295,68 +368,6 @@
         "precondition_changed",
         "outcome_unknown",
         "needs_intervention"
-      ]
-    },
-    "RestartJob": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "plan": {
-          "$ref": "#/$defs/RestartPlan"
-        },
-        "state": {
-          "$ref": "#/$defs/JobState"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "state",
-        "plan"
-      ]
-    },
-    "RestartPlan": {
-      "type": "object",
-      "properties": {
-        "created_at": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "expected": {
-          "$ref": "#/$defs/ContainerSnapshot"
-        },
-        "expires_at": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "grant_revision": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "id": {
-          "type": "string"
-        },
-        "principal": {
-          "type": "string"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "version",
-        "principal",
-        "grant_revision",
-        "expected",
-        "created_at",
-        "expires_at"
       ]
     }
   }

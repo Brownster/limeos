@@ -23,6 +23,16 @@
         }
       ]
     },
+    "logs": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ContainerLogs"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "observations": {
       "anyOf": [
         {
@@ -39,7 +49,7 @@
     "restart": {
       "anyOf": [
         {
-          "$ref": "#/$defs/RestartReceipt"
+          "$ref": "#/$defs/ContainerReceipt"
         },
         {
           "type": "null"
@@ -66,6 +76,72 @@
         "fresh",
         "stale",
         "unavailable"
+      ]
+    },
+    "ContainerAction": {
+      "type": "string",
+      "enum": [
+        "restart",
+        "start",
+        "stop"
+      ]
+    },
+    "ContainerLogs": {
+      "type": "object",
+      "properties": {
+        "resource": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 24576
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "text",
+        "truncated"
+      ]
+    },
+    "ContainerReceipt": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "before": {
+          "$ref": "#/$defs/ContainerSnapshot"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "operation": {
+          "$ref": "#/$defs/ContainerAction"
+        },
+        "plan_digest": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/ExecutionState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "plan_digest",
+        "before",
+        "state"
       ]
     },
     "ContainerSnapshot": {
@@ -328,40 +404,6 @@
         "pool",
         "container",
         "stack"
-      ]
-    },
-    "RestartReceipt": {
-      "type": "object",
-      "properties": {
-        "action": {
-          "type": "string"
-        },
-        "before": {
-          "$ref": "#/$defs/ContainerSnapshot"
-        },
-        "error": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ErrorCode"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "plan_digest": {
-          "type": "string"
-        },
-        "state": {
-          "$ref": "#/$defs/ExecutionState"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "action",
-        "plan_digest",
-        "before",
-        "state"
       ]
     },
     "Source": {

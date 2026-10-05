@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ContainerLogs",
+  "type": "object",
+  "properties": {
+    "resource": {
+      "type": "string"
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 24576
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "resource",
+    "text",
+    "truncated"
+  ]
+}

@@ -28,7 +28,7 @@ async fn run() -> std::io::Result<()> {
     let ceiling: Ceiling =
         serde_json::from_slice(&std::fs::read(policy)?).map_err(std::io::Error::other)?;
     if !ceiling.configuration_valid()
-        || (args.len() == 6 && (args[5] != "read-only" || ceiling.allow_restart))
+        || (args.len() == 6 && (args[5] != "read-only" || ceiling.can_write()))
     {
         return Err(std::io::Error::other("invalid or writable shadow ceiling"));
     }
@@ -38,7 +38,9 @@ async fn run() -> std::io::Result<()> {
         "container" => limeos_contracts::Source::Docker,
         _ => return Err(std::io::Error::other("invalid executor kind")),
     };
-    if source != limeos_contracts::Source::Docker && ceiling.allow_restart {
+    if source != limeos_contracts::Source::Docker
+        && (ceiling.can_write() || ceiling.allow_container_logs)
+    {
         return Err(std::io::Error::other(
             "host executor cannot mutate containers",
         ));
@@ -47,9 +49,11 @@ async fn run() -> std::io::Result<()> {
         version: ceiling.version,
         core_uid: ceiling.core_uid,
         allow_restart: ceiling.allow_restart,
+        allow_start: ceiling.allow_start,
+        allow_stop: ceiling.allow_stop,
         managed_containers: ceiling.managed_containers.clone(),
     });
-    let receipts = if ceiling.allow_restart {
+    let receipts = if ceiling.can_write() {
         let directory = args
             .get(4)
             .map(String::as_str)
@@ -143,7 +147,13 @@ async fn run() -> std::io::Result<()> {
                             })??,
                         );
                     }
+                    Request::ContainerLogs {
+                        resource, options, ..
+                    } if source == limeos_contracts::Source::Docker => {
+                        receipt.logs = Some(engine.logs(&resource, options).await?);
+                    }
                     Request::Restart { request, .. }
+                    | Request::ExecuteContainer { request, .. }
                         if source == limeos_contracts::Source::Docker =>
                     {
                         let store = receipts
@@ -168,7 +178,11 @@ async fn run() -> std::io::Result<()> {
                         })?;
                         receipt.restart = store.receipt(&action, &digest)?;
                         if let Some(value) = &receipt.restart {
-                            restart_ceiling.authorize(peer.uid(), &value.before.resource)?;
+                            restart_ceiling.authorize(
+                                peer.uid(),
+                                &value.before.resource,
+                                value.operation,
+                            )?;
                         }
                     }
                     Request::VerifyRestart {

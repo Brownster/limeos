@@ -2,7 +2,7 @@
 use crate::Engine;
 use http_body_util::{BodyExt, Empty};
 use hyper::{Request, StatusCode, body::Bytes};
-use limeos_domain::{ContainerSnapshot, Error, ErrorCode, Result, opaque_id};
+use limeos_domain::{ContainerAction, ContainerSnapshot, Error, ErrorCode, Result, opaque_id};
 use serde_json::Value;
 use std::{path::PathBuf, time::Duration};
 use tokio::net::UnixStream;
@@ -17,12 +17,42 @@ impl Docker {
     pub fn new(socket: PathBuf) -> Self {
         Self { socket }
     }
+    pub async fn logs(
+        &self,
+        resource: &str,
+        options: limeos_domain::LogOptions,
+    ) -> Result<limeos_domain::ContainerLogs> {
+        options.validate()?;
+        let id = resource.strip_prefix("container:").unwrap_or_default();
+        if !opaque_id(id) {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
+        tokio::time::timeout(Duration::from_secs(4), async {
+            let version = self.version().await?;
+            let inspect = self.json(format!("/{version}/containers/{id}/json"), 512 * 1024).await?;
+            if inspect["Id"].as_str() != Some(id) {return Err(Error(ErrorCode::Conflict));}
+            let tty = inspect["Config"]["Tty"].as_bool().ok_or(Error(ErrorCode::Unavailable))?;
+            let (status, raw, clipped) = self.request_clipped("GET", format!("/{version}/containers/{id}/logs?stdout=1&stderr=1&follow=0&tail={}&timestamps=1", options.tail), 64 * 1024, true).await?;
+            if status != StatusCode::OK {return Err(Error(ErrorCode::Unavailable));}
+            crate::logs::decode(resource.into(), &raw, tty, clipped)
+        }).await.map_err(|_| Error(ErrorCode::Unavailable))?
+    }
     async fn request(
         &self,
         method: &str,
         path: String,
         limit: usize,
     ) -> Result<(StatusCode, Vec<u8>)> {
+        let (status, bytes, _) = self.request_clipped(method, path, limit, false).await?;
+        Ok((status, bytes))
+    }
+    async fn request_clipped(
+        &self,
+        method: &str,
+        path: String,
+        limit: usize,
+        clip: bool,
+    ) -> Result<(StatusCode, Vec<u8>, bool)> {
         let stream = UnixStream::connect(&self.socket)
             .await
             .map_err(|_| Error(ErrorCode::Unavailable))?;
@@ -62,12 +92,16 @@ impl Docker {
                 .into_data()
             {
                 if bytes.len() + data.len() > limit {
+                    if clip {
+                        bytes.extend_from_slice(&data[..limit - bytes.len()]);
+                        return Ok((status, bytes, true));
+                    }
                     return Err(Error(ErrorCode::Unavailable));
                 }
                 bytes.extend_from_slice(&data);
             }
         }
-        Ok((status, bytes))
+        Ok((status, bytes, false))
     }
     async fn json(&self, path: String, limit: usize) -> Result<Value> {
         tokio::time::timeout(Duration::from_secs(2), async {
@@ -92,6 +126,28 @@ impl Docker {
             return Err(Error(ErrorCode::Unavailable));
         }
         Ok(format!("v1.{max}"))
+    }
+    async fn effect(&self, id: &str, operation: ContainerAction) -> Result<()> {
+        if !opaque_id(id) {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
+        let version = self.version().await?;
+        let query = if operation == ContainerAction::Start {
+            ""
+        } else {
+            "?t=10"
+        };
+        let (status, _) = self
+            .request(
+                "POST",
+                format!("/{version}/containers/{id}/{}{query}", operation.as_str()),
+                8192,
+            )
+            .await?;
+        if status != StatusCode::NO_CONTENT {
+            return Err(Error(ErrorCode::Unavailable));
+        }
+        Ok(())
     }
 }
 impl Engine for Docker {
@@ -127,22 +183,14 @@ impl Engine for Docker {
         Ok(snapshot)
     }
     async fn restart(&self, id: &str) -> Result<()> {
-        if !opaque_id(id) {
-            return Err(Error(ErrorCode::InvalidInput));
-        }
         // Negotiate before POST. A lost/failed response is uncertainty, never a
         // reason to issue a second restart. The 10-second grace is server owned.
-        let version = self.version().await?;
-        let (status, _) = self
-            .request(
-                "POST",
-                format!("/{version}/containers/{id}/restart?t=10"),
-                8192,
-            )
-            .await?;
-        if status != StatusCode::NO_CONTENT {
-            return Err(Error(ErrorCode::Unavailable));
-        }
-        Ok(())
+        self.effect(id, ContainerAction::Restart).await
+    }
+    async fn start(&self, id: &str) -> Result<()> {
+        self.effect(id, ContainerAction::Start).await
+    }
+    async fn stop(&self, id: &str) -> Result<()> {
+        self.effect(id, ContainerAction::Stop).await
     }
 }

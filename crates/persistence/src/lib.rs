@@ -12,7 +12,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 3;
+pub const SCHEMA_VERSION: u32 = 4;
 pub const QUEUE_CAPACITY: usize = 64;
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
@@ -128,33 +128,23 @@ impl Store {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(durable)?;
         match version {
-            0 => {
+            0..=3 => {
                 let tx = conn
                     .transaction_with_behavior(TransactionBehavior::Immediate)
                     .map_err(durable)?;
-                tx.execute_batch(include_str!("schema.sql"))
-                    .map_err(durable)?;
-                tx.execute_batch(include_str!("migration-v2.sql"))
-                    .map_err(durable)?;
-                tx.execute_batch(include_str!("migration-v3.sql"))
-                    .map_err(durable)?;
-                tx.commit().map_err(durable)?;
-            }
-            1 => {
-                let tx = conn
-                    .transaction_with_behavior(TransactionBehavior::Immediate)
-                    .map_err(durable)?;
-                tx.execute_batch(include_str!("migration-v2.sql"))
-                    .map_err(durable)?;
-                tx.execute_batch(include_str!("migration-v3.sql"))
-                    .map_err(durable)?;
-                tx.commit().map_err(durable)?;
-            }
-            2 => {
-                let tx = conn
-                    .transaction_with_behavior(TransactionBehavior::Immediate)
-                    .map_err(durable)?;
-                tx.execute_batch(include_str!("migration-v3.sql"))
+                if version < 1 {
+                    tx.execute_batch(include_str!("schema.sql"))
+                        .map_err(durable)?;
+                }
+                if version < 2 {
+                    tx.execute_batch(include_str!("migration-v2.sql"))
+                        .map_err(durable)?;
+                }
+                if version < 3 {
+                    tx.execute_batch(include_str!("migration-v3.sql"))
+                        .map_err(durable)?;
+                }
+                tx.execute_batch(include_str!("migration-v4.sql"))
                     .map_err(durable)?;
                 tx.commit().map_err(durable)?;
             }

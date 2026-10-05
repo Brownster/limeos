@@ -1,9 +1,12 @@
 //! Bounded container execution and protected receipts.
 //! The executor records uncertainty before a host effect and never blindly replays.
 use fs2::FileExt;
-use limeos_domain::{ContainerSnapshot, Error, ErrorCode, Result, opaque_id};
-pub use limeos_domain::{ExecutionState, RestartReceipt, RestartRequest};
+use limeos_domain::{ContainerAction, ContainerSnapshot, Error, ErrorCode, Result, opaque_id};
+pub use limeos_domain::{
+    ContainerReceipt, ContainerRequest, ExecutionState, RestartReceipt, RestartRequest,
+};
 pub mod docker;
+mod logs;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -17,18 +20,31 @@ use std::{
 /// Core's authorization cannot expand this independently loaded ceiling.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct RestartCeiling {
+pub struct ContainerCeiling {
     pub version: u16,
     pub core_uid: u32,
     pub allow_restart: bool,
+    #[serde(default)]
+    pub allow_start: bool,
+    #[serde(default)]
+    pub allow_stop: bool,
     pub managed_containers: Vec<String>,
 }
-impl RestartCeiling {
-    pub fn authorize(&self, peer_uid: u32, resource: &str) -> Result<()> {
+impl ContainerCeiling {
+    pub fn authorize(
+        &self,
+        peer_uid: u32,
+        resource: &str,
+        operation: ContainerAction,
+    ) -> Result<()> {
         let id = resource.strip_prefix("container:").unwrap_or_default();
         if self.version != 1
             || peer_uid != self.core_uid
-            || !self.allow_restart
+            || !match operation {
+                ContainerAction::Restart => self.allow_restart,
+                ContainerAction::Start => self.allow_start,
+                ContainerAction::Stop => self.allow_stop,
+            }
             || !opaque_id(id)
             || self.managed_containers.len() > 64
             || self.managed_containers.iter().any(|id| !opaque_id(id))
@@ -39,10 +55,17 @@ impl RestartCeiling {
         Ok(())
     }
 }
+pub type RestartCeiling = ContainerCeiling;
 
 pub trait Engine {
     fn inspect(&self, id: &str) -> impl Future<Output = Result<ContainerSnapshot>> + Send;
     fn restart(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
+    fn start(&self, _id: &str) -> impl Future<Output = Result<()>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn stop(&self, _id: &str) -> impl Future<Output = Result<()>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
 }
 
 pub struct ReceiptStore {
@@ -107,11 +130,14 @@ impl ReceiptStore {
             0 => {
                 conn.execute_batch("BEGIN IMMEDIATE; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL); CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','outcome_unknown'); PRAGMA user_version=1; COMMIT;").map_err(durable)?;
             }
-            1 | 2 => {}
+            1..=3 => {}
             _ => return Err(Error(ErrorCode::Conflict)),
         }
         if version < 2 {
             conn.execute_batch("BEGIN IMMEDIATE; ALTER TABLE actions RENAME TO actions_v1; DROP INDEX actions_resource_lock; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL); INSERT INTO actions SELECT * FROM actions_v1; DROP TABLE actions_v1; CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); PRAGMA user_version=2; COMMIT;").map_err(durable)?;
+        }
+        if version < 3 {
+            conn.execute_batch("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN operation TEXT NOT NULL DEFAULT 'restart' CHECK(operation IN ('restart','start','stop')); PRAGMA user_version=3; COMMIT;").map_err(durable)?;
         }
         if conn
             .query_row("PRAGMA quick_check(1)", [], |r| r.get::<_, String>(0))
@@ -122,7 +148,7 @@ impl ReceiptStore {
         }
         // Check the expected schema before any effect can be considered.
         let _ = conn
-            .prepare("SELECT action,digest,resource,state,receipt FROM actions LIMIT 0")
+            .prepare("SELECT action,digest,resource,state,receipt,operation FROM actions LIMIT 0")
             .map_err(durable)?;
         File::open(directory)
             .and_then(|f| f.sync_all())
@@ -138,16 +164,16 @@ impl ReceiptStore {
         if !opaque_id(action) || !opaque_id(digest) {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        let row: Option<(String, String, String, String)> = self
+        let row: Option<(String, String, String, String, String)> = self
             .conn
             .query_row(
-                "SELECT digest,resource,state,receipt FROM actions WHERE action=?",
+                "SELECT digest,resource,state,receipt,operation FROM actions WHERE action=?",
                 [action],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
             )
             .optional()
             .map_err(durable)?;
-        let Some((stored, resource, state, body)) = row else {
+        let Some((stored, resource, state, body, operation)) = row else {
             return Ok(None);
         };
         if stored != digest {
@@ -159,6 +185,7 @@ impl ReceiptStore {
             || receipt.plan_digest != digest
             || receipt.before.resource != resource
             || state != receipt.state.as_str()
+            || operation != receipt.operation.as_str()
         {
             return Err(Error(ErrorCode::StateNotDurable));
         }
@@ -179,13 +206,14 @@ impl ReceiptStore {
             return Err(Error(ErrorCode::Overloaded));
         }
         tx.execute(
-            "INSERT INTO actions VALUES(?,?,?,?,?)",
+            "INSERT INTO actions(action,digest,resource,state,receipt,operation) VALUES(?,?,?,?,?,?)",
             params![
                 receipt.action,
                 receipt.plan_digest,
                 receipt.before.resource,
                 receipt.state.as_str(),
-                encode(receipt)?
+                encode(receipt)?,
+                receipt.operation.as_str()
             ],
         )
         .map_err(|e| match e {
@@ -230,13 +258,20 @@ impl ReceiptStore {
         request: &RestartRequest,
         clock: impl Fn() -> i64,
     ) -> Result<RestartReceipt> {
-        ceiling.authorize(peer_uid, &request.plan.expected.resource)?;
+        ceiling.authorize(
+            peer_uid,
+            &request.plan.expected.resource,
+            request.plan.operation,
+        )?;
         if !opaque_id(&request.action)
             || limeos_identity::digest(&encode(&request.plan)?) != request.plan_digest
         {
             return Err(Error(ErrorCode::InvalidInput));
         }
         if let Some(receipt) = self.receipt(&request.action, &request.plan_digest)? {
+            if receipt.operation != request.plan.operation {
+                return Err(Error(ErrorCode::Conflict));
+            }
             return Ok(receipt);
         }
         request.plan.validate(clock())?;
@@ -253,6 +288,7 @@ impl ReceiptStore {
         let mut receipt = RestartReceipt {
             action: request.action.clone(),
             plan_digest: request.plan_digest.clone(),
+            operation: request.plan.operation,
             before: actual,
             state: ExecutionState::Prepared,
             error: None,
@@ -266,8 +302,14 @@ impl ReceiptStore {
             return Ok(receipt);
         }
         let result = tokio::time::timeout(
-            Duration::from_secs(limeos_domain::CONTAINER_RESTART.timeout_seconds.into()),
-            engine.restart(id),
+            Duration::from_secs(request.plan.operation.definition().timeout_seconds.into()),
+            async {
+                match request.plan.operation {
+                    ContainerAction::Restart => engine.restart(id).await,
+                    ContainerAction::Start => engine.start(id).await,
+                    ContainerAction::Stop => engine.stop(id).await,
+                }
+            },
         )
         .await;
         match result {
@@ -304,14 +346,14 @@ impl ReceiptStore {
         let mut receipt = self
             .receipt(action, digest)?
             .ok_or(Error(ErrorCode::NotFound))?;
-        ceiling.authorize(peer_uid, &receipt.before.resource)?;
+        ceiling.authorize(peer_uid, &receipt.before.resource, receipt.operation)?;
         if receipt.state == ExecutionState::Verified {
             return Ok(receipt);
         }
         if receipt.state != ExecutionState::EffectAccepted {
             return Err(Error(ErrorCode::Conflict));
         }
-        limeos_domain::verify_restart(&receipt.before, after)?;
+        limeos_domain::verify_container(receipt.operation, &receipt.before, after)?;
         let id = receipt
             .before
             .resource

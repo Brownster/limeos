@@ -9,6 +9,12 @@ pub struct RestartInput {
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
+pub struct ContainerInput {
+    pub resource: String,
+    pub operation: limeos_domain::ContainerAction,
+}
+#[derive(Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
 pub struct ApprovalInput {
     pub digest: String,
 }

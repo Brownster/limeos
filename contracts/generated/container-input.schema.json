@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ContainerInput",
+  "type": "object",
+  "properties": {
+    "operation": {
+      "$ref": "#/$defs/ContainerAction"
+    },
+    "resource": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "resource",
+    "operation"
+  ],
+  "$defs": {
+    "ContainerAction": {
+      "type": "string",
+      "enum": [
+        "restart",
+        "start",
+        "stop"
+      ]
+    }
+  }
+}

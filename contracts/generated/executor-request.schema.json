@@ -79,10 +79,62 @@
       "properties": {
         "operation": {
           "type": "string",
+          "const": "container_logs"
+        },
+        "options": {
+          "$ref": "#/$defs/LogOptions"
+        },
+        "resource": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version",
+        "resource",
+        "options"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
           "const": "restart"
         },
         "request": {
-          "$ref": "#/$defs/RestartRequest"
+          "$ref": "#/$defs/ContainerRequest"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version",
+        "request"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "execute_container"
+        },
+        "request": {
+          "$ref": "#/$defs/ContainerRequest"
         },
         "version": {
           "type": "integer",
@@ -160,6 +212,79 @@
     }
   ],
   "$defs": {
+    "ContainerAction": {
+      "type": "string",
+      "enum": [
+        "restart",
+        "start",
+        "stop"
+      ]
+    },
+    "ContainerPlan": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "expected": {
+          "$ref": "#/$defs/ContainerSnapshot"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "id": {
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/$defs/ContainerAction"
+        },
+        "principal": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "principal",
+        "grant_revision",
+        "expected",
+        "created_at",
+        "expires_at"
+      ]
+    },
+    "ContainerRequest": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/$defs/ContainerPlan"
+        },
+        "plan_digest": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "plan_digest",
+        "plan"
+      ]
+    },
     "ContainerSnapshot": {
       "description": "Selected inspection evidence. Environment variables, labels and host paths\nnever enter a plan. The full ID, image and start timestamp identify an instance.",
       "type": "object",
@@ -185,67 +310,18 @@
         "running"
       ]
     },
-    "RestartPlan": {
+    "LogOptions": {
       "type": "object",
       "properties": {
-        "created_at": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "expected": {
-          "$ref": "#/$defs/ContainerSnapshot"
-        },
-        "expires_at": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "grant_revision": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "id": {
-          "type": "string"
-        },
-        "principal": {
-          "type": "string"
-        },
-        "version": {
+        "tail": {
           "type": "integer",
           "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
+          "default": 100,
+          "maximum": 200,
+          "minimum": 1
         }
       },
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "version",
-        "principal",
-        "grant_revision",
-        "expected",
-        "created_at",
-        "expires_at"
-      ]
-    },
-    "RestartRequest": {
-      "type": "object",
-      "properties": {
-        "action": {
-          "type": "string"
-        },
-        "plan": {
-          "$ref": "#/$defs/RestartPlan"
-        },
-        "plan_digest": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "action",
-        "plan_digest",
-        "plan"
-      ]
+      "additionalProperties": false
     },
     "Source": {
       "type": "string",
