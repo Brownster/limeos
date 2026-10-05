@@ -48,14 +48,13 @@ This continuation used approximately three hours of elapsed agent work including
 | --- | --- |
 | RW-030: approved restart path | Implemented and qualified on the disposable AMD64 host, including native control, task-shaped caller and durable progress. |
 | RW-031: narrow executor foundation | Restart, start and stop share framing, peer credentials, separate ceilings, locks, cancellation, protected receipts and independent verification. |
-| RW-032: container/deployment operations | Start/stop and bounded logs are implemented and qualified on the disposable AMD64 host. Approved Compose plan/diff remains. |
+| RW-032: container/deployment operations | Start/stop, bounded logs and the approved Compose plan/diff foundation are implemented and qualified on the disposable AMD64 host. Deployment execution belongs to P04. |
 | RW-033: representative host qualification | Local real-Engine fixtures pass; a redacted representative reference-stack configuration remains. |
 
 ## Remaining phase work
 
-1. Add the approved Compose plan/diff foundation, including the specific elevated deployment grant.
-2. Qualify a redacted representative reference-stack configuration and the combined UI/package payload on ARM64; local lifecycle qualification uses AMD64.
-3. Extend footprint measurements as those operations arrive; qualify reference hardware in an explicitly suitable window separately. P02's hardware comparison and reference-host shadow installation remain pending.
+1. Qualify a redacted representative reference-stack configuration and the combined UI/package payload on native ARM64; cross-build/emulation checks pass, and local lifecycle qualification uses AMD64.
+2. Extend footprint measurements as those operations arrive; qualify reference hardware in an explicitly suitable window separately. P02's hardware comparison and reference-host shadow installation remain pending.
 
 No defect-register row is closed solely by this restart milestone. P03 remains in progress until its remaining operation and qualification work passes.
 
@@ -77,6 +76,34 @@ The [final VM result](lifecycle-vm-result.json) records 39 passing acceptance gr
 
 After those scenarios and shadow removal, the three application services used 9,786 KiB (9.56 MiB) combined PSS: core 5,510 KiB, container executor 2,997 KiB and host executor 1,279 KiB. All had zero swap. Twenty cached authenticated overview requests measured 0.516 ms median and 0.768 ms p95. These meet the local 30 MiB/20 ms guardrails. The Docker daemon, test proxy, browser and build tools are excluded; the assistant is not configured. These are AMD64 VM measurements, not a reference-Pi qualification or a comparison with Python.
 
-[Lifecycle metadata](lifecycle-validation.json) binds the tested binaries and both package hashes to 111 matching runtime/build-source files in the [source manifest](lifecycle-source-sha256.json). Qualification fixture hashes and commit `9e65b7e` are recorded separately from the frozen application payload. Artifacts remain under `dist/p03-lifecycle-debian`; rerun them without compiling with `uv run tests/privileged_vm/run.py --repository dist/p03-lifecycle-debian/limeos-repo --previous-repository dist/p03-debian/limeos-repo --guest-script tests/privileged_vm/p03_lifecycle_guest.py --output docs/rewrite-evidence/p03/lifecycle-vm-result.json` while the test repository signatures remain valid. The evidence recorder verifies the source bundle, actual package binaries, complete interruption count and footprint budgets. CI includes the lifecycle gates, but the GitHub workflow has not been run here.
+[Lifecycle metadata](lifecycle-validation.json) binds the tested binaries and both package hashes to 111 matching runtime/build-source files in the [source manifest](lifecycle-source-sha256.json). Qualification fixture hashes and commit `9e65b7e` are recorded separately from the frozen application payload. Artifacts remain under `dist/p03-lifecycle-debian`; rerun the original lifecycle result with those frozen fixtures and repositories while the test signatures remain valid. Current fixtures target the newer Compose package; the command below qualifies that package without recompiling. The evidence recorder verifies the source bundle, actual package binaries, complete interruption count and footprint budgets. CI includes these gates, but the GitHub workflow has not been run here.
 
-This continuation used approximately two hours of elapsed agent work, including isolated builds and fixture reruns. This is not a human implementer-day measurement; the 96-hour phase estimate and 144-hour scope-review threshold remain unchanged. Wybie and the frozen Python checkout were not changed. The Compose foundation, representative configuration, ARM64 combined-package and reference-hardware gates remain open, as do all fifty defect-register requirements.
+This continuation used approximately two hours of elapsed agent work, including isolated builds and fixture reruns. This is not a human implementer-day measurement; the 96-hour phase estimate and 144-hour scope-review threshold remain unchanged. Wybie and the frozen Python checkout were not changed. At that point the Compose foundation, representative configuration, ARM64 combined-package and reference-hardware gates remained open. No additional defect-register row was closed by the lifecycle milestone.
+
+## Compose preview continuation
+
+The [Compose preview guide](../../p03-compose-planning.md) and [ADR 0005](../../adr/0005-p03-compose-planning.md) describe the remaining RW-032 foundation. Callers select stack/template identifiers from an optional protected catalog. Typed, normalized plans show added, removed and changed services, numeric UID/GID, source fingerprints and a separate managed override filename. Privileged mode, host mounts, devices, Docker socket access and host networking each require the exact stack/template/content deployment grant. Even administrators cannot use a wildcard grant for elevation. Browser and peer-bound task proposals share policy; only a current human session can approve.
+
+Plans, hashed approvals and cancellation are durable in authority schema v5; reads neither write authority nor extend expiry. Catalogs must be bounded, regular, root-owned files beneath protected directories. Missing catalogs disable previews; malformed, writable and symlink catalogs fail closed and are preserved. These approvals authorize a preview only. P04 must produce a new executable plan and fresh approval after checking live paths, mount identities, combined Compose semantics and the stack lock. There is no Compose executor request, deployment job or deployment UI in P03.
+
+The frozen application payload is source commit `ae89a7f`, backend `fdc0ee9`, and frontend `26d5fb4`. Fresh standard/shadow 0.3.2 packages were built offline with Rust 1.88.0 inside a disposable Debian 12 guest. [Validation metadata](compose-validation.json) binds both package payloads and all 127 runtime/build-source files in the [source manifest](compose-source-sha256.json). The thirteen existing browser checks carry forward only after verifying byte-identical production assets and browser fixture. No frontend behavior changed.
+
+The [local checks](compose-local-checks.json) record 98 passing Rust tests, strict Clippy, formatting, generated contracts, repository boundaries, frontend tests/build, Python lint/format and cached dependency audits. The graph remains at 214 dependencies with no new third-party Rust dependency or reported vulnerability in the checked database. All thirteen [release-gate rejection probes](compose-gate-probes.json) pass. A probe exposed a dependency-boundary loophole in dev/build and target-specific dependencies; the checker now validates those sections and renamed packages.
+
+The [VM result](compose-vm-result.json) records 56 passing acceptance groups, including the full eighteen lifecycle interruption cases. A genuine upgrade of the previously qualified 0.3.1 packages retains sessions, a pending approved restart and verified receipts. Compose checks cover exact grants for all five elevations, task/browser parity, kernel UID, human-only approval, expiry/revision/digest binding, durable approval, read-only GETs, cancellation, changed catalog rejection, unsupported fields and protected catalog ownership. All preview scenarios preserve operator files byte-for-byte and produce no host effect. Qualification fixture commit `addbf7f` is recorded independently from the package source. [Failed-run diagnostics](compose-vm-failure.txt) retain a harness-helper failure; the corrected harness passed against the same application binaries.
+
+After lifecycle qualification and before optional catalog ownership scenarios, core and both executors used 10,130 KiB (9.89 MiB) combined PSS: core 5,768 KiB, container executor 3,143 KiB and host executor 1,219 KiB. Twenty cached overview requests measured 0.662 ms median and 0.755 ms p95, with zero swap. This passes the local 30 MiB/20 ms guardrails. The assistant is not configured; Docker, the proxy, browser and build tools are excluded. This AMD64 VM sample does not measure the Pi or performance with an enabled catalog.
+
+Both [ARM64 packages](compose-arm64-result.json) were cross-built offline with the same pinned toolchain. Four emulation smoke groups verify AArch64 executables, Debian 12 glibc compatibility, CLI startup, password hash/verify behavior and exact root-owned package binaries. These are not native ARM64 installation or resident-service measurements. The packages remain under `dist/p03-compose-arm64/packages`; the signed AMD64 test repository is under `dist/p03-compose-debian/limeos-repo`.
+
+Rerun the combined suite without recompiling while test signatures remain valid:
+
+```sh
+uv run tests/privileged_vm/run.py \
+  --repository dist/p03-compose-debian/limeos-repo \
+  --previous-repository dist/p03-lifecycle-debian/limeos-repo \
+  --guest-script tests/privileged_vm/p03_compose_guest.py \
+  --output /tmp/limeos-compose-rerun.json
+```
+
+This continuation used approximately 70 minutes of elapsed agent work after the tool approval completed, including builds and fixture reruns; approximately 110 minutes of approval wait are recorded separately. These are not human implementer-day measurements. The phase estimate remains 96 hours, with scope review at 144 hours. Holly's Pi was confirmed to be wybie by one light read-only SSH inventory. Its offered quiet window elapsed during approval, so no benchmark, package installation, service restart or mutation ran there. The Python checkout remains frozen. No additional defect-register rows are closed; representative-stack qualification, native ARM64/package and reference-hardware gates remain pending before P03 signoff. P04 has not started.
