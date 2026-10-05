@@ -60,41 +60,18 @@ pub fn start_docker(socket: PathBuf) -> Cache {
                 let mut warnings = Vec::new();
                 let mut current = HashMap::new();
                 if c.active() {
-                    let mut tasks = tokio::task::JoinSet::new();
-                    let ids: Vec<_> = resources
-                        .iter()
-                        .filter(|r| r.status == "running")
-                        .map(|r| r.id.trim_start_matches("container:").to_owned())
-                        .collect();
-                    for id in ids {
-                        let a = adapter.clone();
-                        let v = version.clone();
-                        // Four concurrent reads, independent failures, no request-driven probes.
-                        tasks.spawn(async move {
-                            let result = a.stats(&v, &id).await;
-                            (id, result)
-                        });
-                        if tasks.len() >= 4 {
-                            consume(
-                                &mut tasks,
-                                &mut resources,
-                                &previous,
-                                &mut current,
-                                &mut warnings,
-                            )
-                            .await;
-                        }
-                    }
-                    while !tasks.is_empty() {
-                        consume(
-                            &mut tasks,
-                            &mut resources,
-                            &previous,
-                            &mut current,
-                            &mut warnings,
-                        )
-                        .await;
-                    }
+                    sample_metrics(
+                        &mut resources,
+                        &previous,
+                        &mut current,
+                        &mut warnings,
+                        |id| {
+                            let a = adapter.clone();
+                            let v = version.clone();
+                            async move { a.stats(&v, &id).await }
+                        },
+                    )
+                    .await;
                 } else {
                     warnings.push(
                         "Container resource sampling is paused until a dashboard opens".into(),
@@ -114,12 +91,51 @@ pub fn start_docker(socket: PathBuf) -> Cache {
             }
             let duration = Duration::from_secs(if c.active() { 10 } else { 60 });
             tokio::select! {_=tokio::time::sleep(duration)=>{},_=c.notify.notified()=>{}}
-            // Coalesce event storms; reconciliation still happens at least every minute.
+            // Coalesce event storms without starting additional collectors.
             tokio::time::sleep(Duration::from_secs(10)).await;
         }
     });
     cache
 }
+async fn sample_metrics<F, Fut>(
+    resources: &mut [limeos_contracts::Resource],
+    previous: &HashMap<String, (u64, u64, u64)>,
+    current: &mut HashMap<String, (u64, u64, u64)>,
+    warnings: &mut Vec<String>,
+    fetch: F,
+) where
+    F: Fn(String) -> Fut,
+    Fut: std::future::Future<Output = Result<serde_json::Value>> + Send + 'static,
+{
+    let mut tasks = tokio::task::JoinSet::new();
+    let ids: Vec<_> = resources
+        .iter()
+        .filter(|r| r.status == "running")
+        .map(|r| r.id.trim_start_matches("container:").to_owned())
+        .collect();
+    let sampling = async {
+        for id in ids {
+            let future = fetch(id.clone());
+            tasks.spawn(async move { (id, future.await) });
+            if tasks.len() >= 4 {
+                consume(&mut tasks, resources, previous, current, warnings).await;
+            }
+        }
+        while !tasks.is_empty() {
+            consume(&mut tasks, resources, previous, current, warnings).await;
+        }
+    };
+    // Optional stats have their own budget. Slow stats must not consume the
+    // outer inventory deadline and turn successful inventory into unavailable.
+    if tokio::time::timeout(Duration::from_secs(8), sampling)
+        .await
+        .is_err()
+    {
+        tasks.abort_all();
+        warnings.push("Some container metrics exceeded the sampling deadline".into());
+    }
+}
+
 async fn consume(
     tasks: &mut tokio::task::JoinSet<(String, Result<serde_json::Value>)>,
     resources: &mut [limeos_contracts::Resource],
@@ -223,3 +239,6 @@ async fn rpc(path: &std::path::Path, source: Source, active: bool) -> Result<Obs
     .await
     .map_err(|_| Error(ErrorCode::Unavailable))?
 }
+
+#[cfg(test)]
+mod tests;
