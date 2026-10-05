@@ -1,0 +1,120 @@
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=timeout
+NRestarts=0
+ExecMainStatus=15
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+Oct 05 23:05:22 limeos-p01-test systemd[1]: Starting docker.service - Docker Application Container Engine...
+Oct 05 23:05:22 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:22.988725461Z" level=info msg="Starting up"
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.056673792Z" level=info msg="[core] parsed scheme: \"unix\"" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.056809193Z" level=info msg="[core] scheme \"unix\" not registered, fallback to default scheme" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.056901804Z" level=info msg="[core] ccResolverWrapper: sending update to cc: {[{unix:///run/containerd/containerd.sock  <nil> 0 <nil>}] <nil> <nil>}" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.056978071Z" level=info msg="[core] ClientConn switching balancer to \"pick_first\"" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.057021891Z" level=info msg="[core] Channel switches to new LB policy \"pick_first\"" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.057093617Z" level=info msg="[core] Subchannel Connectivity change to CONNECTING" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.057195046Z" level=info msg="[core] Subchannel picks a new address \"unix:///run/containerd/containerd.sock\" to connect" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.057286701Z" level=info msg="[core] Channel Connectivity change to CONNECTING" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.057701089Z" level=info msg="[core] Subchannel Connectivity change to READY" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.057787720Z" level=info msg="[core] Channel Connectivity change to READY" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.058336023Z" level=info msg="[core] parsed scheme: \"unix\"" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.058404211Z" level=info msg="[core] scheme \"unix\" not registered, fallback to default scheme" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.058452957Z" level=info msg="[core] ccResolverWrapper: sending update to cc: {[{unix:///run/containerd/containerd.sock  <nil> 0 <nil>}] <nil> <nil>}" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.058472255Z" level=info msg="[core] ClientConn switching balancer to \"pick_first\"" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.058479737Z" level=info msg="[core] Channel switches to new LB policy \"pick_first\"" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.058492549Z" level=info msg="[core] Subchannel Connectivity change to CONNECTING" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.058505047Z" level=info msg="[core] Subchannel picks a new address \"unix:///run/containerd/containerd.sock\" to connect" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.058582597Z" level=info msg="[core] Channel Connectivity change to CONNECTING" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.058755414Z" level=info msg="[core] Subchannel Connectivity change to READY" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.058810884Z" level=info msg="[core] Channel Connectivity change to READY" module=grpc
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.067884757Z" level=info msg="Loading containers: start."
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.205852545Z" level=info msg="Default bridge (docker0) is assigned with an IP address 172.17.0.0/16. Daemon option --bip can be used to set a preferred IP address"
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.302867415Z" level=info msg="Loading containers: done."
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.325717755Z" level=info msg="Docker daemon" commit=5d6db84 graphdriver(s)=overlay2 version=20.10.24+dfsg1
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.325857188Z" level=info msg="Daemon has completed initialization"
+Oct 05 23:05:23 limeos-p01-test systemd[1]: Started docker.service - Docker Application Container Engine.
+Oct 05 23:05:23 limeos-p01-test dockerd[2220]: time="2026-10-05T23:05:23.358410138Z" level=info msg="API listen on /run/docker.sock"
+Oct 05 23:10:02 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 23:10:02 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 23:10:02 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 23:10:02 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 23:10:03 limeos-p01-test limeos-core[9150]: {"timestamp":"2026-10-05T23:10:03.003221Z","level":"INFO","fields":{"message":"core ready","generation":1}}
+Oct 05 23:10:04 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 05 23:10:04 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 05 23:10:04 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 05 23:10:04 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 23:10:04 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 23:10:15 limeos-p01-test dockerd[2220]: time="2026-10-05T23:10:15.065112123Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=9c02da48350a308af2741cf3066e15fdb7f7e581bc4e7bf146a90dfaeb5bf6f2
+Oct 05 23:10:15 limeos-p01-test dockerd[2220]: time="2026-10-05T23:10:15.114076509Z" level=info msg="ignoring event" container=9c02da48350a308af2741cf3066e15fdb7f7e581bc4e7bf146a90dfaeb5bf6f2 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 05 23:10:15 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 05 23:10:15 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 05 23:10:15 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 05 23:10:17 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 05 23:10:17 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 05 23:10:17 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 05 23:10:18 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 23:10:18 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 23:10:18 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 23:10:18 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 23:10:18 limeos-p01-test limeos-core[9758]: {"timestamp":"2026-10-05T23:10:18.320203Z","level":"INFO","fields":{"message":"core ready","generation":2}}
+Oct 05 23:10:30 limeos-p01-test dockerd[2220]: time="2026-10-05T23:10:30.394251381Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=9c02da48350a308af2741cf3066e15fdb7f7e581bc4e7bf146a90dfaeb5bf6f2
+Oct 05 23:10:30 limeos-p01-test dockerd[2220]: time="2026-10-05T23:10:30.446890710Z" level=info msg="ignoring event" container=9c02da48350a308af2741cf3066e15fdb7f7e581bc4e7bf146a90dfaeb5bf6f2 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 05 23:10:30 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 05 23:10:30 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 05 23:10:30 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 05 23:10:30 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 23:10:30 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 23:10:30 limeos-p01-test dockerd[2220]: time="2026-10-05T23:10:30.993327897Z" level=info msg="ignoring event" container=9c02da48350a308af2741cf3066e15fdb7f7e581bc4e7bf146a90dfaeb5bf6f2 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 05 23:10:33 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 23:10:34 limeos-p01-test limeos-executor[10219]: {"host_root_mount_id":27,"mounts":[{"device":{"major":254,"minor":17},"filesystem_uuid":"0a9bcf0c-a7ee-417b-882e-94ebcb061666","id":"data","mount_id":378,"mountpoint":"/mnt/data"}]}
+Oct 05 23:10:34 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 05 23:10:34 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 23:10:34 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 23:10:34 limeos-p01-test limeos-executor[10252]: {"host_root_mount_id":27,"mounts":[{"device":{"major":254,"minor":17},"filesystem_uuid":"0a9bcf0c-a7ee-417b-882e-94ebcb061666","id":"data","mount_id":378,"mountpoint":"/mnt/data"},{"device":{"major":254,"minor":33},"filesystem_uuid":"33ef5b8e-fbcc-4cb8-921f-1378adb77ba7","id":"downloads","mount_id":582,"mountpoint":"/mnt/downloads"}]}
+Oct 05 23:10:34 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 05 23:10:34 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 23:10:34 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 23:10:34 limeos-p01-test limeos-executor[10288]: {"host_root_mount_id":27,"mounts":[{"device":{"major":254,"minor":17},"filesystem_uuid":"0a9bcf0c-a7ee-417b-882e-94ebcb061666","id":"data","mount_id":378,"mountpoint":"/mnt/data"},{"device":{"major":254,"minor":18},"filesystem_uuid":"25f55025-62c6-4fec-b2d6-ed2e7a7b8430","id":"data2","mount_id":557,"mountpoint":"/mnt/data2"},{"device":{"major":254,"minor":49},"filesystem_uuid":"40a19914-b080-4c9f-9f15-ee2144dbb1e5","id":"parity","mount_id":605,"mountpoint":"/mnt/parity"},{"device":{"major":254,"minor":65},"filesystem_uuid":"985543c8-1038-4b10-a252-ce21c55cab1d","id":"backup","mount_id":622,"mountpoint":"/mnt/backup"}]}
+Oct 05 23:10:34 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 05 23:10:34 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 23:10:34 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 23:10:37 limeos-p01-test limeos-executor[10415]: {"error":"timed_out","message":"The storage readiness deadline expired."}
+Oct 05 23:10:37 limeos-p01-test systemd[1]: limeos-storage-ready.service: Main process exited, code=exited, status=3/NOTIMPLEMENTED
+Oct 05 23:10:37 limeos-p01-test systemd[1]: limeos-storage-ready.service: Failed with result 'exit-code'.
+Oct 05 23:10:37 limeos-p01-test systemd[1]: Failed to start limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 23:10:37 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 23:10:41 limeos-p01-test systemd[1]: limeos-storage-ready.service: start operation timed out. Terminating.
+Oct 05 23:10:41 limeos-p01-test systemd[1]: limeos-storage-ready.service: Main process exited, code=killed, status=15/TERM
+Oct 05 23:10:41 limeos-p01-test systemd[1]: limeos-storage-ready.service: Failed with result 'timeout'.
+Oct 05 23:10:41 limeos-p01-test systemd[1]: Failed to start limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 23:10:42 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 05 23:10:42 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 05 23:10:42 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 05 23:10:42 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 23:10:42 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 23:10:42 limeos-p01-test limeos-core[10893]: {"timestamp":"2026-10-05T23:10:42.520655Z","level":"INFO","fields":{"message":"core ready","generation":3}}
+Oct 05 23:10:44 limeos-p01-test systemd[1]: Starting limeos-storage-reader.service - LimeOS fresh storage inventory (read only)...
+Oct 05 23:10:44 limeos-p01-test systemd[1]: Started limeos-storage-reader.service - LimeOS fresh storage inventory (read only).
+Oct 05 23:10:45 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 05 23:10:45 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 05 23:10:45 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 05 23:10:45 limeos-p01-test systemd[1]: limeos-core.service: Consumed 1.271s CPU time.
+Oct 05 23:10:45 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 23:10:45 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 23:10:45 limeos-p01-test limeos-core[11054]: {"timestamp":"2026-10-05T23:10:45.466967Z","level":"INFO","fields":{"message":"core ready","generation":4}}

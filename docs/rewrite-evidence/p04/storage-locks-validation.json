@@ -1,0 +1,107 @@
+{
+  "checked_at_utc": "2026-10-05T23:28:00.308281+00:00",
+  "qualified_source_commit": "3440b6a0135bbd95981e573025f871095bbb8a7d",
+  "build": {
+    "host": "disposable Debian 12 KVM guest",
+    "architecture": "amd64",
+    "rust_toolchain": "1.88.0",
+    "cargo": "locked offline release",
+    "bundle_sha256": "37ba92464a80b06a465789e9e8b4e5060bb59dbb78f4e67caee5357d150ab662",
+    "bundle_bytes": 258526162,
+    "source_manifest": "storage-locks-source-sha256.json",
+    "bound_source_files": 165,
+    "binary_sha256": {
+      "limeos-core": "99c2c8a2a19919e093476e33fbaae9fc0d4da8559bfa8b5a2151135b23243c33",
+      "limeos-executor": "4b1f2c86254453e9505d7cfe60835881b1c6f1afae59b221e2bf153593429cd3",
+      "limeosctl": "feb30e1a495354c73668c94eef57d3f64730bf6e893427eebcf211fdaeca171f",
+      "limeos-password-worker": "4168f41212a6e121af5c3a5b8020fb6003a26b4ea8c69ef528e1526dc50c8246"
+    },
+    "package_sha256": {
+      "limeos-shadow_0.4.3_amd64.deb": "9db0b964d0541dc751ddfa3e4a4f9f9e4dff7c37575a251c41ae950c564fb4dc",
+      "limeos_0.4.3_amd64.deb": "c5e49b2117a19d0983b5afb9a3ea756f479c2ab9dc67be7001758265737204b6"
+    },
+    "signing_key": "test-only private key discarded with the VM"
+  },
+  "rust_workspace_tests": {
+    "passed": 144,
+    "log": "rust-locks-tests.txt"
+  },
+  "storage_vm": {
+    "acceptance_groups": 43,
+    "result_file": "locks-vm-result.json",
+    "installed_profile": "standard",
+    "shadow_scope": "payload identity and dormant unit only"
+  },
+  "production_frontend_assets_identical_to_qualified_p03": true,
+  "fixture_sha256": {
+    "tests/privileged_vm/run.py": "3e2313a5eca08776f62519abf437a16943eabdcd43dbab1716ce9a1194645954",
+    "tests/privileged_vm/p04_storage_guest.py": "a7b52477e98f3c2285c25bb2d9bac992b738c3ac59e9aaf2d794c798ab85e38f",
+    "tests/privileged_vm/record_storage_evidence.py": "428e78d5ec98307178c08effdc470d2973825c54b89b0012524cde44ff1ffbe1",
+    "tests/privileged_vm/p04_planning_guest.py": "9f117c7c55ce2cc0a20395e5bb4df1a72ffdac074d2f4c0f3ae19c543e8f4ced",
+    "tests/privileged_vm/p04_locks_guest.py": "d9a375d483e8942fa026f6f2cc466a30f01478f4417cd25dcb4cf7546a6b32a8",
+    "tests/privileged_vm/p04_locks_container_guest.py": "8a7a4f3ae68b4325e56235329134d27b9ea9de7563970b6d4d793fe42cc33289",
+    "tests/privileged_vm/p03_guest.py": "ef98c2ba8e0c1f87c1f6da5fc62a4c4ae88afe10bf5238886bcb36bb362d2c94",
+    "tests/privileged_vm/p03_lifecycle_guest.py": "47d03c239ac7d40fedea6ad04948c75fafa0e7e3181f6c8541928ef52de4c2c1",
+    "tests/privileged_vm/p04_targets_guest.py": "332bf5b6062b381b20ec24067735b96478b5b4ff30b5b94e7a46f340b6c430a5"
+  },
+  "checks": {
+    "strict_clippy": "pass",
+    "rust_format": "pass",
+    "generated_contracts": "pass",
+    "repository_boundaries": "pass",
+    "python_lint_and_format": "pass",
+    "offline_dependency_policy": "pass",
+    "cached_advisory_audit": "pass"
+  },
+  "advisory_database_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
+  "audited_lockfile_packages": 215,
+  "added_third_party_packages": 0,
+  "production_boundary_change": "Schema-7 atomic core resource sets; already-locked rustix supplies architecture-aware flags for core/configuration and container receipt opens",
+  "limitations": [
+    "P04 remains in progress; root target preparation is qualified but mount/fstab, core storage jobs and live mount-loss handling remain pending",
+    "Native ARM64 package/reference-host qualification pending",
+    "Btrfs multi-device and FUSE NTFS are refused pending complete backing mappings",
+    "No Pi performance comparison or P04 footprint signoff",
+    "MNT-001 remains open until the full profile startup path uses this mechanism",
+    "Storage jobs, fresh live dependency discovery and shared executor dispatch remain pending; root target receipts still use their separate private journal"
+  ],
+  "core_resource_locks": {
+    "authority_schema": 7,
+    "genuine_package_upgrade": {
+      "from": "0.4.2",
+      "to": "0.4.3",
+      "previous_package_sha256": "468b844cebb12806661a4d757b47b53f0c9d2f3bcbe21bb2d89639b5df656263",
+      "previous_core_sha256": "f868c45731f2b9323843be43b55de638648e1a228e92f29417dfad9ac42a69a9",
+      "current_core_sha256": "99c2c8a2a19919e093476e33fbaae9fc0d4da8559bfa8b5a2151135b23243c33",
+      "preserved": [
+        "human session",
+        "approved canonical bytes and token hash",
+        "verified receipt",
+        "four active primary locks",
+        "queued state"
+      ],
+      "post_upgrade_approved_restart": "verified",
+      "original_queue_response_replay": "same job"
+    },
+    "container_vm": {
+      "result_file": "locks-container-vm-result.json",
+      "acceptance_groups": 38,
+      "operations": [
+        "restart",
+        "start",
+        "stop",
+        "logs"
+      ],
+      "shadow_scope": "installed service ceiling and payload checks",
+      "upgrade": null,
+      "fixture_source_commit": "1f014abe34ba09228339787e2501821aebe2ce6a",
+      "fixture_sha256": {
+        "tests/privileged_vm/run.py": "1643f6216439c726c5af528e08b849e6901a8f329cdd1cddd1c16e8bdfa986a4",
+        "tests/privileged_vm/p03_guest.py": "ef98c2ba8e0c1f87c1f6da5fc62a4c4ae88afe10bf5238886bcb36bb362d2c94",
+        "tests/privileged_vm/p03_lifecycle_guest.py": "47d03c239ac7d40fedea6ad04948c75fafa0e7e3181f6c8541928ef52de4c2c1",
+        "tests/privileged_vm/p04_locks_container_guest.py": "8a7a4f3ae68b4325e56235329134d27b9ea9de7563970b6d4d793fe42cc33289"
+      }
+    },
+    "scope": "durable core lock foundation; synthetic multi-resource dependencies and real approved container effects"
+  }
+}

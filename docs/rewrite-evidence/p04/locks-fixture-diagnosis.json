@@ -1,0 +1,29 @@
+{
+  "runtime_source_commit": "3440b6a0135bbd95981e573025f871095bbb8a7d",
+  "runtime_payload_changed_after_build": false,
+  "storage_fixture_source_commit": "5e9c298fdf186a98be1287388ea2e3134570993d",
+  "container_fixture_source_commit": "1f014abe34ba09228339787e2501821aebe2ce6a",
+  "first_installed_failure": {
+    "file": "locks-vm-failure.txt",
+    "stage": "storage preview restart/approval fixture after genuine upgrade",
+    "cause": "Fixture required an empty jobs table, but the genuine upgrade intentionally retained old jobs and receipts",
+    "correction": "Compare the exact pre-existing job ID/intent/digest rows before and after previews; do not discard historical jobs"
+  },
+  "console_diagnostic_failure": {
+    "cause": "Kernel console contained non-UTF-8 bytes; decoding the failure log masked the original assertion",
+    "correction": "Decode final failure console with replacement characters and preserve the original guest error"
+  },
+  "gate_probe_setup": {
+    "initial_failures": [
+      "Sandbox made the compiler cache read-only",
+      "Second invocation did not put installed cargo-audit on PATH"
+    ],
+    "correction": "Use approved unrestricted execution with the installed validation tools and pinned advisory cache",
+    "final_result": "13 deliberate gate violations rejected"
+  },
+  "source_regression_setup": {
+    "cause": "An existing v5 migration fixture hard-coded schema 6 as the latest schema",
+    "correction": "Retain the failed v5 expectation and use SCHEMA_VERSION for successful migration",
+    "final_result": "144 Rust tests pass"
+  }
+}

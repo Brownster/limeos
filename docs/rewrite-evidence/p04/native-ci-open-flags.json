@@ -1,0 +1,394 @@
+{
+  "checked_at_utc": "2026-10-05 23:31:12 UTC",
+  "original_failure": {
+    "source_commit": "902e4bb564d34b00238964a8546d43d71a021fba",
+    "url": "https://github.com/Brownster/limeos/actions/runs/37383182143",
+    "conclusion": "failure",
+    "failed_job": [
+      {
+        "name": "check (ubuntu-24.04-arm)",
+        "conclusion": "failure",
+        "status": "completed",
+        "started_at": "2026-10-05T22:33:08Z",
+        "completed_at": "2026-10-05T22:38:40Z",
+        "url": "https://github.com/Brownster/limeos/actions/runs/37383182143/job/112009979132",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Toolchain and native validation tools",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo fmt --all -- --check",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo clippy --workspace --all-targets --locked -- -D warnings",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo test --workspace --locked",
+            "conclusion": "failure",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo deny check",
+            "conclusion": "skipped",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo audit",
+            "conclusion": "skipped",
+            "status": "completed"
+          },
+          {
+            "name": "Run shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh",
+            "conclusion": "skipped",
+            "status": "completed"
+          },
+          {
+            "name": "Unit validation",
+            "conclusion": "skipped",
+            "status": "completed"
+          },
+          {
+            "name": "Run python3 scripts/check_repository.py",
+            "conclusion": "skipped",
+            "status": "completed"
+          },
+          {
+            "name": "Run python3 scripts/check_contracts.py",
+            "conclusion": "skipped",
+            "status": "completed"
+          },
+          {
+            "name": "Run npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high",
+            "conclusion": "skipped",
+            "status": "completed"
+          },
+          {
+            "name": "Lifecycle, logs and keyboard-focus browser regression",
+            "conclusion": "skipped",
+            "status": "completed"
+          },
+          {
+            "name": "Deliberate release-gate rejection probes",
+            "conclusion": "skipped",
+            "status": "completed"
+          },
+          {
+            "name": "Debian 12 release builds on native architecture",
+            "conclusion": "skipped",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+            "conclusion": "skipped",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "conclusion": "skipped",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success",
+            "status": "completed"
+          }
+        ]
+      }
+    ],
+    "root_cause": "Numeric x86 O_NOFOLLOW (0x20000) differs from ARM64 (0x8000); config symlink refusal failed on native ARM64",
+    "correction_commit": "1087f24"
+  },
+  "corrected_native_gates": {
+    "source_commit": "f39396b4dcff61240f0e7a4b4328d4747108217e",
+    "url": "https://github.com/Brownster/limeos/actions/runs/37386421570",
+    "jobs": [
+      {
+        "name": "check (ubuntu-24.04-arm)",
+        "conclusion": "success",
+        "status": "completed",
+        "started_at": "2026-10-05T23:05:11Z",
+        "completed_at": "2026-10-05T23:15:26Z",
+        "url": "https://github.com/Brownster/limeos/actions/runs/37386421570/job/112020694609",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Toolchain and native validation tools",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo fmt --all -- --check",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo clippy --workspace --all-targets --locked -- -D warnings",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo test --workspace --locked",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo deny check",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo audit",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Unit validation",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run python3 scripts/check_repository.py",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run python3 scripts/check_contracts.py",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Lifecycle, logs and keyboard-focus browser regression",
+            "conclusion": "skipped",
+            "status": "completed"
+          },
+          {
+            "name": "Deliberate release-gate rejection probes",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Debian 12 release builds on native architecture",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success",
+            "status": "completed"
+          }
+        ]
+      },
+      {
+        "name": "check (ubuntu-24.04)",
+        "conclusion": "success",
+        "status": "completed",
+        "started_at": "2026-10-05T23:05:11Z",
+        "completed_at": "2026-10-05T23:13:54Z",
+        "url": "https://github.com/Brownster/limeos/actions/runs/37386421570/job/112020695004",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Toolchain and native validation tools",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo fmt --all -- --check",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo clippy --workspace --all-targets --locked -- -D warnings",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo test --workspace --locked",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo deny check",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run cargo audit",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Unit validation",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run python3 scripts/check_repository.py",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run python3 scripts/check_contracts.py",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Lifecycle, logs and keyboard-focus browser regression",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Deliberate release-gate rejection probes",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Debian 12 release builds on native architecture",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "conclusion": "success",
+            "status": "completed"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success",
+            "status": "completed"
+          }
+        ]
+      }
+    ],
+    "rust_workspace_tests_per_architecture": 144
+  },
+  "debian_vm_ci": {
+    "run_url": "https://github.com/Brownster/limeos/actions/runs/37386421570",
+    "result": "failed before guest boot",
+    "reason": "CI runner could not open /dev/kvm: Permission denied",
+    "correction_commit": "2bef400",
+    "rerun": "pushed; completion pending",
+    "rerun_url": "https://github.com/Brownster/limeos/actions/runs/37388786973"
+  },
+  "native_arm64_packages": {
+    "artifact_directory": "dist/ci-37386421570-arm64",
+    "version": "0.4.3",
+    "architecture": "arm64",
+    "package_sha256": {
+      "limeos_0.4.3_arm64.deb": "31e8eb3bc92afb713ae7669a16661e9073a6834453265dea4548c4813f4b001b",
+      "limeos-shadow_0.4.3_arm64.deb": "95f2645e6696029c185412650f3dd09f6309a463d4421b2e6e6df2af70278e4c"
+    },
+    "binary_sha256": {
+      "limeos-core": "c41cb4ed34deac5b35b3d7c24afb95e0fd9832fdbcf94bcdc91c624d79793dc1",
+      "limeos-executor": "cf241c844cdfb131df79c68e828575a8959e37d754c29ffccb016fdd6c67ba85",
+      "limeosctl": "47c8b586303303eda77e23d04e9eda97ac94cd7bc769250de31778a957e871bb",
+      "limeos-password-worker": "c67d0d6e20769554e2938a30e4694561e0e2015abbb89626366f1a0aa6e70481"
+    },
+    "standard_and_shadow_binary_identity": "matches",
+    "scope": "native Debian 12 container build on ubuntu-24.04-arm; package metadata and extracted binaries checked; no installed native ARM64 qualification"
+  },
+  "limitations": [
+    "Native ARM64 installed-service, Pi footprint and reference-host comparison remain pending",
+    "The complete GitHub workflow did not pass in this run because KVM access prevented its VM job; local frozen-package VM qualification is recorded separately",
+    "CI's older package labels are current-source payloads and do not prove genuine older-package upgrades"
+  ]
+}
