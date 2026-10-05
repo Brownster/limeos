@@ -24,13 +24,20 @@ ALLOWED = {
 }
 for crate, allowed in ALLOWED.items():
     config = tomllib.loads((ROOT / "crates" / crate / "Cargo.toml").read_text())
-    deps = config.get("dependencies", {})
+    # Tests, build scripts, aliases and target-specific sections must preserve
+    # the same boundary as the production dependency list.
+    deps = {
+        details.get("package", name) if isinstance(details, dict) else name
+        for section in [config, *config.get("target", {}).values()]
+        for kind in ["dependencies", "dev-dependencies", "build-dependencies"]
+        for name, details in section.get(kind, {}).items()
+    }
     actual = {dep.removeprefix("limeos-") for dep in deps if dep.startswith("limeos-")}
     assert actual <= allowed, (
         f"{crate}: dependency direction violation {actual - allowed}"
     )
     if crate in ["domain", "policy", "contracts", "identity"]:
-        assert not {"axum", "rusqlite", "reqwest", "hyper"} & deps.keys(), (
+        assert not {"axum", "rusqlite", "reqwest", "hyper"} & deps, (
             f"{crate}: adapter dependency in domain"
         )
     assert config["lints"]["workspace"], f"{crate}: unsafe-code policy not inherited"
