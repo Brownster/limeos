@@ -492,7 +492,9 @@ def main(package_version="0.3.2", authority_schema=5, qualify_upgrade=True):
     result["checks"] = fixture.checks
     result["lifecycle_posts"] = sum(fixture.control.posts.values())
     result["operations"] = ["restart", "start", "stop", "logs"]
-    result["schemas"] = {"authority": authority_schema, "container_receipts": 3}
+    with sqlite3.connect(fixture.CORE_DB) as db:
+        observed_schema = db.execute("PRAGMA user_version").fetchone()[0]
+    result["schemas"] = {"authority": observed_schema, "container_receipts": 3}
     result["footprint"].update(
         app_pss_kib=memory,
         combined_pss_kib=sum(memory.values()),

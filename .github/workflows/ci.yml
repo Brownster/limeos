@@ -72,6 +72,8 @@ jobs:
           python3 packaging/build.py --arch "$arch" --binaries target/release --version 0.4.1 --profile shadow
           python3 packaging/build.py --arch "$arch" --binaries target/release --version 0.4.2
           python3 packaging/build.py --arch "$arch" --binaries target/release --version 0.4.2 --profile shadow
+          python3 packaging/build.py --arch "$arch" --binaries target/release --version 0.4.3
+          python3 packaging/build.py --arch "$arch" --binaries target/release --version 0.4.3 --profile shadow
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: debian-${{ matrix.runner }}
@@ -107,8 +109,7 @@ jobs:
           python3 -m unittest discover -s tests/reference -p 'test_*.py'
           python3 tests/privileged_vm/run.py --repository dist/test-repo --guest-script tests/privileged_vm/p03_reference_guest.py --output docs/rewrite-evidence/p03/reference-vm-result.json
           python3 tests/privileged_vm/run.py --repository dist/test-repo --storage-disks --guest-script tests/privileged_vm/p04_storage_guest.py --output docs/rewrite-evidence/p04/storage-vm-result.json
-          python3 tests/privileged_vm/run.py --repository dist/test-repo --storage-disks --guest-script tests/privileged_vm/p04_planning_guest.py --output docs/rewrite-evidence/p04/planning-vm-result.json
-          python3 tests/privileged_vm/run.py --repository dist/test-repo --storage-disks --guest-script tests/privileged_vm/p04_targets_guest.py --output docs/rewrite-evidence/p04/targets-vm-result.json
+          python3 tests/privileged_vm/run.py --repository dist/test-repo --storage-disks --guest-script tests/privileged_vm/p04_locks_guest.py --output docs/rewrite-evidence/p04/locks-vm-result.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: debian-vm-evidence

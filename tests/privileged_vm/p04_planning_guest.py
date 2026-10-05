@@ -15,6 +15,7 @@ from pathlib import Path
 import p04_storage_guest as readiness
 
 VERSION = "0.4.1"
+AUTHORITY_SCHEMA = 6
 DB = "/var/lib/limeos/core/core.sqlite"
 BASE = "/api/v1/storage"
 run = readiness.run
@@ -114,7 +115,7 @@ def main():
         != 0
     )
     with sqlite3.connect(DB) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert db.execute("PRAGMA user_version").fetchone()[0] == AUTHORITY_SCHEMA
         db.execute(
             "INSERT INTO grants VALUES(?,?,?)",
             ("legacy-0", '"storage_manage"', "storage:configuration"),
@@ -135,7 +136,7 @@ def main():
     status = Path(f"/proc/{pid}/status").read_text()
     assert "CapEff:\t0000000000000000" in status and "NoNewPrivs:\t1" in status
     passed(
-        "schema 6, dormant standard/shadow reader payload and installed empty-capability host reader"
+        f"schema {AUTHORITY_SCHEMA}, dormant standard/shadow reader payload and installed empty-capability host reader"
     )
 
     fstab = Path("/etc/fstab")
