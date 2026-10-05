@@ -33,7 +33,7 @@ def repository(path):
     fixture.run("apt-get", "update", "-qq")
 
 
-def upgrade(candidate, package_version="0.3.1", authority_schema=4):
+def upgrade(candidate, package_version="0.3.2", authority_schema=5):
     previous = Path("/opt/limeos-previous-repo")
     assert previous.is_dir(), "The runner must retain the qualified 0.3.0 repository"
     repository(previous)
@@ -120,7 +120,7 @@ def queue(proposal, approval, key, cookie, csrf):
     return job, body
 
 
-def main(package_version="0.3.1", authority_schema=4, qualify_upgrade=True):
+def main(package_version="0.3.2", authority_schema=5, qualify_upgrade=True):
     if os.getuid() != 0 or socket.gethostname() != "limeos-p01-test":
         raise SystemExit("Disposable guest required")
     candidate, output = map(Path, sys.argv[1:])
