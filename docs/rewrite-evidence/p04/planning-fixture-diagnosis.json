@@ -1,0 +1,23 @@
+{
+  "runtime_payload_commit": "dff3b30b866a228a2aa02ad92cc7932a6356f993",
+  "production_payload_changed": false,
+  "failures": [
+    {
+      "acceptance_groups_passed_before_failure": 17,
+      "error": "AttributeError: 'function' object has no attribute 'client'",
+      "cause": "The HTTP helper shadowed the imported http package.",
+      "correction": "Import http.client as http_client.",
+      "fixture_commit": "29a96f7"
+    },
+    {
+      "acceptance_groups_passed_before_failure": 23,
+      "command": ["tune2fs", "-U", "synthetic-data-uuid", "/dev/vdc1"],
+      "exit_code": 1,
+      "stdout": "tune2fs 1.47.0 (5-Feb-2023)\n\nThis operation requires a freshly checked filesystem.\n\nPlease run e2fsck -f on the filesystem.\n\n",
+      "stderr": "",
+      "cause": "The shared readiness fixture had already changed and remounted this synthetic filesystem; a fresh check was required before another UUID change.",
+      "correction": "Run forced preen-mode e2fsck on the unmounted, serial-guarded synthetic partition before each subsequent UUID change; fail on status above 1 and verify all sentinels afterwards.",
+      "diagnostic_scope": "A fresh disposable KVM guest reproduced the exact stdout/status. No production host, runtime code or package was changed."
+    }
+  ]
+}

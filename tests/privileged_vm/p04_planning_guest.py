@@ -308,8 +308,27 @@ def main():
         assert propose(unmounted, single)[0] == 201
         original_uuid = readiness.uuid("/dev/vdb1")
         run("umount", "/mnt/downloads")
-        run("tune2fs", "-U", original_uuid, "/dev/vdc1")
+        # The readiness suite previously relabeled/remounted this synthetic
+        # filesystem. tune2fs requires a fresh check before another UUID change.
+        checked = run("e2fsck", "-f", "-p", "/dev/vdc1", check=False)
+        assert checked.returncode in [0, 1], (
+            checked.returncode,
+            checked.stdout,
+            checked.stderr,
+        )
+        changed_uuid = run("tune2fs", "-U", original_uuid, "/dev/vdc1", check=False)
+        assert changed_uuid.returncode == 0, (
+            changed_uuid.returncode,
+            changed_uuid.stdout,
+            changed_uuid.stderr,
+        )
         assert propose(inventory(), single)[0] == 409
+        checked = run("e2fsck", "-f", "-p", "/dev/vdc1", check=False)
+        assert checked.returncode in [0, 1], (
+            checked.returncode,
+            checked.stdout,
+            checked.stderr,
+        )
         run("tune2fs", "-U", assignments[2]["filesystem_uuid"], "/dev/vdc1")
         run("mount", "/dev/vdb1", "/mnt/data")
         run("mount", "/dev/vdc1", "/mnt/downloads")
