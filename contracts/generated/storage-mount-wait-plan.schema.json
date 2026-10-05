@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StorageMountWaitPlan",
+  "description": "A requested wait on a filesystem assignment, never on its media subdirectories.",
+  "type": "object",
+  "properties": {
+    "devices": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/StorageDevice"
+      },
+      "maxItems": 32,
+      "minItems": 1
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 120,
+      "minimum": 1
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "timeout_seconds",
+    "devices"
+  ],
+  "$defs": {
+    "StorageDevice": {
+      "type": "object",
+      "properties": {
+        "filesystem": {
+          "$ref": "#/$defs/StorageFilesystem"
+        },
+        "filesystem_uuid": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "mountpoint": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "role": {
+          "$ref": "#/$defs/StorageRole"
+        },
+        "serial": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role",
+        "filesystem_uuid",
+        "filesystem",
+        "mountpoint"
+      ]
+    },
+    "StorageFilesystem": {
+      "type": "string",
+      "enum": [
+        "btrfs",
+        "exfat",
+        "ext2",
+        "ext3",
+        "ext4",
+        "ntfs",
+        "vfat",
+        "xfs"
+      ]
+    },
+    "StorageRole": {
+      "type": "string",
+      "enum": [
+        "data",
+        "downloads",
+        "parity",
+        "config_backup"
+      ]
+    }
+  }
+}

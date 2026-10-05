@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StorageContract",
+  "type": "object",
+  "properties": {
+    "devices": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/StorageDevice"
+      },
+      "maxItems": 32,
+      "minItems": 1
+    },
+    "locations": {
+      "$ref": "#/$defs/StorageLocations"
+    },
+    "media_identity": {
+      "$ref": "#/$defs/StorageMediaIdentity"
+    },
+    "profile": {
+      "$ref": "#/$defs/StorageProfile"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/StorageSchemaVersion"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile",
+    "media_identity",
+    "locations",
+    "devices"
+  ],
+  "$defs": {
+    "StorageDevice": {
+      "type": "object",
+      "properties": {
+        "filesystem": {
+          "$ref": "#/$defs/StorageFilesystem"
+        },
+        "filesystem_uuid": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "mountpoint": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "role": {
+          "$ref": "#/$defs/StorageRole"
+        },
+        "serial": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role",
+        "filesystem_uuid",
+        "filesystem",
+        "mountpoint"
+      ]
+    },
+    "StorageFilesystem": {
+      "type": "string",
+      "enum": [
+        "btrfs",
+        "exfat",
+        "ext2",
+        "ext3",
+        "ext4",
+        "ntfs",
+        "vfat",
+        "xfs"
+      ]
+    },
+    "StorageLocations": {
+      "type": "object",
+      "properties": {
+        "application_config_host": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "backup_host": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "config_container": {
+          "type": "string",
+          "pattern": "^/config$"
+        },
+        "downloads_container": {
+          "type": "string",
+          "pattern": "^/data/downloads$"
+        },
+        "downloads_host": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "media_container": {
+          "type": "string",
+          "pattern": "^/data/media$"
+        },
+        "media_host": {
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "media_host",
+        "downloads_host",
+        "application_config_host",
+        "backup_host",
+        "media_container",
+        "downloads_container",
+        "config_container"
+      ]
+    },
+    "StorageMediaIdentity": {
+      "type": "object",
+      "properties": {
+        "gid": {
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 2147483647,
+          "minimum": 1
+        },
+        "uid": {
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 2147483647,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "uid",
+        "gid"
+      ]
+    },
+    "StorageProfile": {
+      "type": "string",
+      "enum": [
+        "single_disk",
+        "separate_downloads",
+        "protected_pool"
+      ]
+    },
+    "StorageRole": {
+      "type": "string",
+      "enum": [
+        "data",
+        "downloads",
+        "parity",
+        "config_backup"
+      ]
+    },
+    "StorageSchemaVersion": {
+      "type": "string",
+      "enum": [
+        "1"
+      ]
+    }
+  }
+}

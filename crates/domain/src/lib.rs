@@ -7,6 +7,8 @@ mod logs;
 pub use logs::*;
 mod compose;
 pub use compose::*;
+mod storage;
+pub use storage::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
