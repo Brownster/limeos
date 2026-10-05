@@ -29,6 +29,10 @@ def main():
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--source-commit", required=True)
     parser.add_argument(
+        "--container-fixture-commit",
+        help="Commit containing the separately launched container VM fixture",
+    )
+    parser.add_argument(
         "--slice",
         choices=["readiness", "planning", "targets", "locks"],
         default="readiness",
@@ -80,6 +84,9 @@ def main():
         )
     container_vm = None
     if locks:
+        assert args.container_fixture_commit, (
+            "Bind the separate container fixture source"
+        )
         assert vm["authority_schema"] == 7
         assert vm["upgrade"]["from"] == "0.4.2" and vm["upgrade"]["to"] == "0.4.3"
         assert vm["upgrade"]["previous_core_sha256"] != vm["core_payload_sha256"]
@@ -291,6 +298,21 @@ def main():
         ],
     }
     if locks:
+        container_fixture_manifest = {}
+        for name in [
+            "run.py",
+            "p03_guest.py",
+            "p03_lifecycle_guest.py",
+            "p04_locks_container_guest.py",
+        ]:
+            path = "tests/privileged_vm/" + name
+            committed = subprocess.check_output(
+                ["git", "show", f"{args.container_fixture_commit}:{path}"], cwd=ROOT
+            )
+            digest = hashlib.sha256(committed).hexdigest()
+            if name != "run.py":
+                assert sha(ROOT / path) == digest, f"Container fixture drift: {path}"
+            container_fixture_manifest[path] = digest
         result["core_resource_locks"] = {
             "authority_schema": 7,
             "genuine_package_upgrade": vm["upgrade"],
@@ -300,6 +322,8 @@ def main():
                 "operations": container_vm["operations"],
                 "shadow_scope": "installed service ceiling and payload checks",
                 "upgrade": None,
+                "fixture_source_commit": args.container_fixture_commit,
+                "fixture_sha256": container_fixture_manifest,
             },
             "scope": "durable core lock foundation; synthetic multi-resource dependencies and real approved container effects",
         }
