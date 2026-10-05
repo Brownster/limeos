@@ -1,0 +1,341 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SnapraidPreview",
+  "type": "object",
+  "properties": {
+    "configuration": {
+      "type": "string"
+    },
+    "desired": {
+      "$ref": "#/$defs/SnapraidConfig"
+    },
+    "media_identity": {
+      "$ref": "#/$defs/StorageMediaIdentity"
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ProtectionPathRequirement"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "desired",
+    "media_identity",
+    "requirements",
+    "configuration"
+  ],
+  "$defs": {
+    "ProtectionPathKind": {
+      "type": "string",
+      "enum": [
+        "source",
+        "data",
+        "content",
+        "parity"
+      ]
+    },
+    "ProtectionPathRequirement": {
+      "type": "object",
+      "properties": {
+        "expected": {
+          "$ref": "#/$defs/StorageDevice"
+        },
+        "kind": {
+          "$ref": "#/$defs/ProtectionPathKind"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "kind",
+        "expected"
+      ]
+    },
+    "SnapraidConfig": {
+      "type": "object",
+      "properties": {
+        "drives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SnapraidDrive"
+          }
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "excludes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "schedule": {
+          "$ref": "#/$defs/SnapraidSchedule"
+        },
+        "scrub": {
+          "$ref": "#/$defs/SnapraidScrub"
+        },
+        "settings": {
+          "$ref": "#/$defs/SnapraidSettings"
+        },
+        "thresholds": {
+          "$ref": "#/$defs/SnapraidThresholds"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "drives",
+        "excludes",
+        "settings",
+        "thresholds",
+        "scrub",
+        "schedule"
+      ]
+    },
+    "SnapraidDrive": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parity_level": {
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "path": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/SnapraidRole"
+        },
+        "uuid": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "path",
+        "uuid",
+        "role",
+        "content",
+        "parity_level"
+      ]
+    },
+    "SnapraidRole": {
+      "type": "string",
+      "enum": [
+        "data",
+        "parity"
+      ]
+    },
+    "SnapraidSchedule": {
+      "type": "object",
+      "properties": {
+        "scrub_cron": {
+          "type": "string"
+        },
+        "scrub_enabled": {
+          "type": "boolean"
+        },
+        "sync_cron": {
+          "type": "string"
+        },
+        "sync_enabled": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sync_enabled",
+        "sync_cron",
+        "scrub_enabled",
+        "scrub_cron"
+      ]
+    },
+    "SnapraidScrub": {
+      "type": "object",
+      "properties": {
+        "age_days": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "percent": {
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "percent",
+        "age_days"
+      ]
+    },
+    "SnapraidSettings": {
+      "type": "object",
+      "properties": {
+        "autosave": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "blocksize": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "hashsize": {
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "nohidden": {
+          "type": "boolean"
+        },
+        "prehash": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "blocksize",
+        "hashsize",
+        "autosave",
+        "nohidden",
+        "prehash"
+      ]
+    },
+    "SnapraidThresholds": {
+      "type": "object",
+      "properties": {
+        "delete_threshold": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "update_threshold": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "delete_threshold",
+        "update_threshold"
+      ]
+    },
+    "StorageDevice": {
+      "type": "object",
+      "properties": {
+        "filesystem": {
+          "$ref": "#/$defs/StorageFilesystem"
+        },
+        "filesystem_uuid": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "mountpoint": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "role": {
+          "$ref": "#/$defs/StorageRole"
+        },
+        "serial": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role",
+        "filesystem_uuid",
+        "filesystem",
+        "mountpoint"
+      ]
+    },
+    "StorageFilesystem": {
+      "type": "string",
+      "enum": [
+        "btrfs",
+        "exfat",
+        "ext2",
+        "ext3",
+        "ext4",
+        "ntfs",
+        "vfat",
+        "xfs"
+      ]
+    },
+    "StorageMediaIdentity": {
+      "type": "object",
+      "properties": {
+        "gid": {
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 2147483647,
+          "minimum": 1
+        },
+        "uid": {
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 2147483647,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "uid",
+        "gid"
+      ]
+    },
+    "StorageRole": {
+      "type": "string",
+      "enum": [
+        "data",
+        "downloads",
+        "parity",
+        "config_backup"
+      ]
+    }
+  }
+}

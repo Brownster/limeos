@@ -1,0 +1,437 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SnapraidDiffEvidence",
+  "type": "object",
+  "properties": {
+    "configuration": {
+      "$ref": "#/$defs/SnapraidConfig"
+    },
+    "mounts_digest": {
+      "type": "string"
+    },
+    "observed_at": {
+      "type": "integer",
+      "format": "int64"
+    },
+    "outcome": {
+      "$ref": "#/$defs/SnapraidDiffOutcome"
+    },
+    "topology_digest": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "observed_at",
+    "configuration",
+    "topology_digest",
+    "mounts_digest",
+    "outcome"
+  ],
+  "$defs": {
+    "SnapraidConfig": {
+      "type": "object",
+      "properties": {
+        "drives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SnapraidDrive"
+          }
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "excludes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "schedule": {
+          "$ref": "#/$defs/SnapraidSchedule"
+        },
+        "scrub": {
+          "$ref": "#/$defs/SnapraidScrub"
+        },
+        "settings": {
+          "$ref": "#/$defs/SnapraidSettings"
+        },
+        "thresholds": {
+          "$ref": "#/$defs/SnapraidThresholds"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "drives",
+        "excludes",
+        "settings",
+        "thresholds",
+        "scrub",
+        "schedule"
+      ]
+    },
+    "SnapraidDiff": {
+      "type": "object",
+      "properties": {
+        "added": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "copied": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "moved": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "removed": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "restored": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "updated": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "added",
+        "removed",
+        "updated",
+        "moved",
+        "copied",
+        "restored"
+      ]
+    },
+    "SnapraidDiffOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "parsed"
+            },
+            "value": {
+              "$ref": "#/$defs/SnapraidDiff"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "unavailable"
+            },
+            "value": {
+              "$ref": "#/$defs/StorageReadFailure"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ]
+        }
+      ]
+    },
+    "SnapraidDrive": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parity_level": {
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "path": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/SnapraidRole"
+        },
+        "uuid": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "path",
+        "uuid",
+        "role",
+        "content",
+        "parity_level"
+      ]
+    },
+    "SnapraidRole": {
+      "type": "string",
+      "enum": [
+        "data",
+        "parity"
+      ]
+    },
+    "SnapraidSchedule": {
+      "type": "object",
+      "properties": {
+        "scrub_cron": {
+          "type": "string"
+        },
+        "scrub_enabled": {
+          "type": "boolean"
+        },
+        "sync_cron": {
+          "type": "string"
+        },
+        "sync_enabled": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sync_enabled",
+        "sync_cron",
+        "scrub_enabled",
+        "scrub_cron"
+      ]
+    },
+    "SnapraidScrub": {
+      "type": "object",
+      "properties": {
+        "age_days": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "percent": {
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "percent",
+        "age_days"
+      ]
+    },
+    "SnapraidSettings": {
+      "type": "object",
+      "properties": {
+        "autosave": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "blocksize": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "hashsize": {
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "nohidden": {
+          "type": "boolean"
+        },
+        "prehash": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "blocksize",
+        "hashsize",
+        "autosave",
+        "nohidden",
+        "prehash"
+      ]
+    },
+    "SnapraidThresholds": {
+      "type": "object",
+      "properties": {
+        "delete_threshold": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "update_threshold": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "delete_threshold",
+        "update_threshold"
+      ]
+    },
+    "StorageReadFailure": {
+      "type": "object",
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "reason": {
+          "$ref": "#/$defs/StorageReadFailureReason"
+        },
+        "termination": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StorageReadTermination"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "detail"
+      ]
+    },
+    "StorageReadFailureReason": {
+      "type": "string",
+      "enum": [
+        "process_failure",
+        "output_limit",
+        "malformed_output",
+        "source_unavailable"
+      ]
+    },
+    "StorageReadTermination": {
+      "description": "Real process termination is preserved independently of parsing or log tags.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "kind": {
+              "type": "string",
+              "const": "exited"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "code"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "signaled"
+            },
+            "signal": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "signal"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "missing_binary"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "timed_out"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "output_limit"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "io_error"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    }
+  }
+}
