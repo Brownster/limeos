@@ -1,0 +1,11 @@
+# Legacy password verification boundary
+
+The P04 workspace run exposed a PBKDF2 timing failure in the existing password boundary. A million-iteration Werkzeug fixture exceeded the unchanged eight-second worker limit and returned `Unavailable` instead of reaching password comparison. Direct probes reproduced approximately nine seconds of wall time in the debug worker and eight seconds in the frozen 0.3.2 release worker on this workstation. CPU-time measurements confirm computation cost rather than a blocked pipe. The failed workspace transcript is retained as [first-run evidence](rust-contract-first-run.txt).
+
+Use `ring` 0.17.14's `pbkdf2::verify` for PBKDF2-HMAC-SHA256. The algorithm, raw UTF-8 salt, expected bytes and accepted parameter bounds remain identical; zero iterations and counts above two million still fail before computation. Ring verifies the derived output with its constant-time API. Scrypt and Argon2id remain unchanged. The existing Werkzeug interoperability and core login/upgrade regressions exercise correct and wrong passwords, successful-only rehash, sessions and revocation.
+
+Ring was already pinned in the workspace lockfile for the footprint spike. It is now a normal dependency of the packaged identity/password boundary; no new third-party package is introduced. The worker now depends on Ring's native C/assembly and internal unsafe code. First-party unsafe code stays forbidden. This review checks API use, source/dependency policy and regression results; it is not a manual audit of Ring's implementation.
+
+The process boundary stays unchanged: at most two workers, eight seconds, bounded input/output, parameters checked before work, password data only through a pipe, cleared environment and no credential logging. Development optimizes Ring alongside the other KDF crates so the test worker exercises the same deadline. Release optimization and policy ceilings are unchanged.
+
+The frozen 0.3.2 packages and their VM/ARM64 evidence predate this backend correction. New package/native ARM64 qualification is still required for the P04 payload. Timing measurements in this slice describe a password fixture on this workstation, not complete application performance or a Pi comparison.
