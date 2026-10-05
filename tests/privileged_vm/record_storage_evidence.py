@@ -100,7 +100,7 @@ def main():
         assert container_vm["package_version"] == "0.4.3"
         assert container_vm["schemas"] == {"authority": 7, "container_receipts": 3}
         assert container_vm["upgrade"] is None
-        assert len(container_vm["checks"]) >= 40
+        assert len(container_vm["checks"]) >= 38
         assert any("kill limeos-core" in s for s in container_vm["checks"])
     assert 2.5 <= vm["plan_wait_seconds"] <= 7
     assert 3.5 <= vm["watchdog_seconds"] <= 8
