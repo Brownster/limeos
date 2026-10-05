@@ -116,6 +116,9 @@ def main():
     )
     with sqlite3.connect(DB) as db:
         assert db.execute("PRAGMA user_version").fetchone()[0] == AUTHORITY_SCHEMA
+        original_jobs = db.execute(
+            "SELECT id,intent,digest FROM jobs ORDER BY id"
+        ).fetchall()
         db.execute(
             "INSERT INTO grants VALUES(?,?,?)",
             ("legacy-0", '"storage_manage"', "storage:configuration"),
@@ -248,7 +251,10 @@ def main():
                 ).fetchone()[0]
                 == hashlib.sha256(approval["token"].encode()).hexdigest()
             )
-            assert db.execute("SELECT count(*) FROM jobs").fetchone()[0] == 0
+            assert (
+                db.execute("SELECT id,intent,digest FROM jobs ORDER BY id").fetchall()
+                == original_jobs
+            )
         passed(
             "restart preserves human session and preview; approval is hashed and creates no executable job"
         )

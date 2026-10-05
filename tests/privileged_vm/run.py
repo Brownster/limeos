@@ -454,7 +454,9 @@ def main():
                     args.output.stem + "-startup-console.txt"
                 )
                 startup.parent.mkdir(parents=True, exist_ok=True)
-                startup.write_text((directory / "console.log").read_text()[-32768:])
+                startup.write_text(
+                    (directory / "console.log").read_text(errors="replace")[-32768:]
+                )
                 raise
             finally:
                 vm.terminate()

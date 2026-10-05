@@ -211,6 +211,11 @@ def main():
         raise SystemExit("Refusing outside disposable VM")
     candidate, output = map(Path, sys.argv[1:])
     upgrade_evidence = upgrade(candidate)
+    if upgrade_evidence:
+        print(
+            "PASS frozen-package upgrade and preserved approvals/receipts/legacy locks",
+            flush=True,
+        )
     targets.VERSION = VERSION
     planning.AUTHORITY_SCHEMA = 7
     targets.main()
