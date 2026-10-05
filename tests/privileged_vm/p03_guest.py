@@ -92,6 +92,9 @@ def inspect(identifier):
 
 
 def restart_container():
+    # Policy tests deliberately reload faster than an operator would. Reset
+    # only this setup counter; crash cases use automatic recovery unchanged.
+    run("systemctl", "reset-failed", "limeos-containerd")
     run("systemctl", "restart", "limeos-containerd")
     wait_container_ready()
 
