@@ -1,4 +1,4 @@
-name: Foundation and observation gates
+name: Foundation, observation and operation gates
 on:
   push:
   pull_request:
@@ -43,6 +43,12 @@ jobs:
       - run: python3 scripts/check_contracts.py
       - run: npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high
         working-directory: frontend
+      - name: Restart browser and keyboard-focus regression
+        if: matrix.runner == 'ubuntu-24.04'
+        run: |
+          python3 -m venv /tmp/limeos-browser-check
+          /tmp/limeos-browser-check/bin/pip install playwright==1.62.0
+          /tmp/limeos-browser-check/bin/python tests/frontend/restart.py
       - name: Deliberate release-gate rejection probes
         run: python3 scripts/test_gates.py
       - name: Debian 12 release builds on native architecture
@@ -54,6 +60,8 @@ jobs:
           python3 packaging/build.py --arch "$arch" --binaries target/release --version 0.1.1
           python3 packaging/build.py --arch "$arch" --binaries target/release --version 0.2.0
           python3 packaging/build.py --arch "$arch" --binaries target/release --version 0.2.0 --profile shadow
+          python3 packaging/build.py --arch "$arch" --binaries target/release --version 0.3.0
+          python3 packaging/build.py --arch "$arch" --binaries target/release --version 0.3.0 --profile shadow
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: debian-${{ matrix.runner }}
@@ -86,6 +94,7 @@ jobs:
           packaging/repository.sh "$PWD/dist/test-repo" "$key" dist/*.deb
           python3 tests/privileged_vm/run.py --repository dist/test-repo
           python3 tests/privileged_vm/run.py --repository dist/test-repo --guest-script tests/privileged_vm/p02_guest.py --output docs/rewrite-evidence/p02/vm-result.json
+          python3 tests/privileged_vm/run.py --repository dist/test-repo --guest-script tests/privileged_vm/p03_guest.py --output docs/rewrite-evidence/p03/vm-result.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: debian-vm-evidence
