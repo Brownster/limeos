@@ -1,0 +1,126 @@
+{
+  "checks": [
+    "real 0.3.1 to 0.3.2 upgrade preserves sessions, pending approvals and verified container receipts",
+    "only the container executor can access Engine and protected receipts",
+    "GET and invalid origin or CSRF cannot initiate an operation",
+    "one real restart, independent verification, durable progress and duplicate request",
+    "changed plans, stale incarnation and independent managed-ID ceiling",
+    "browser and scoped task share policy; task cannot approve; grant revocation is immediate",
+    "expired human approval causes no Engine effect",
+    "queued cancellation prevents effects; in-flight cancellation cannot claim prevention",
+    "kill limeos-core before_prepare: no unjustified second effect",
+    "kill limeos-containerd before_prepare: no unjustified second effect",
+    "kill limeos-core during: no unjustified second effect",
+    "kill limeos-containerd during: no unjustified second effect",
+    "kill limeos-core after_effect: no unjustified second effect",
+    "kill limeos-containerd after_effect: no unjustified second effect",
+    "shadow has isolated state and refuses write-enabled policy",
+    "shadow removal preserves standard services and authenticated reads",
+    "real stop is approved, verified, action-bound and idempotent",
+    "real start is approved, verified, action-bound and idempotent",
+    "start: kill limeos-core before_prepare retains proof and prevents replay",
+    "start: kill limeos-containerd before_prepare retains proof and prevents replay",
+    "start: kill limeos-core during retains proof and prevents replay",
+    "start: kill limeos-containerd during retains proof and prevents replay",
+    "start: kill limeos-core after_effect retains proof and prevents replay",
+    "start: kill limeos-containerd after_effect retains proof and prevents replay",
+    "stop: kill limeos-core before_prepare retains proof and prevents replay",
+    "stop: kill limeos-containerd before_prepare retains proof and prevents replay",
+    "stop: kill limeos-core during retains proof and prevents replay",
+    "stop: kill limeos-containerd during retains proof and prevents replay",
+    "stop: kill limeos-core after_effect retains proof and prevents replay",
+    "stop: kill limeos-containerd after_effect retains proof and prevents replay",
+    "real multiplexed logs are bounded, filtered and have no effect",
+    "real TTY logs are bounded, filtered and have no effect",
+    "logs independently reject an unmanaged ID and a disabled log ceiling",
+    "task logs use the same resource grant and cannot acquire human approval",
+    "viewer inventory authority permits neither browser nor task logs",
+    "real oversized log framing clips within byte and time limits",
+    "start has an independent effect ceiling even with restart enabled",
+    "stop has an independent effect ceiling even with restart enabled",
+    "shadow independently refuses start-enabled and stop-enabled ceilings",
+    "a missing optional catalog disables previews without affecting the core or Python services",
+    "normal scoped preview exposes added/removed/changed services, numeric ownership and unchanged operator fingerprints",
+    "GET never creates or approves a preview and repeated reads do not write authority; CSRF and exact digest are enforced",
+    "hashed preview approval survives restart and cannot become a Docker/container job",
+    "framed task proposals share browser policy and content; kernel UID and human-only approval prevent authority substitution",
+    "all five elevations require the exact stack/template/content grant; wildcard admins and narrowed tasks cannot broaden it",
+    "changed catalog fingerprints block old approvals and cancellation removes access to the preview",
+    "media-requester roles cannot deploy even when supplied deployment scopes",
+    "corrupt catalog fails closed and is preserved",
+    "oversized catalog fails before unlimited input allocation",
+    "ambiguous Compose filenames are rejected without editing operator YAML",
+    "unsupported privilege fields cannot escape the typed schema",
+    "world-writable catalog is refused",
+    "service-owned catalog cannot become planning authority",
+    "root-owned catalog under a writable parent is refused",
+    "symlink catalogs are refused and their targets preserved",
+    "all preview scenarios leave operator files and stack directories byte-for-byte untouched"
+  ],
+  "engine_version": "20.10.24+dfsg1",
+  "container_fixture": "Debian static busybox, no mounts, redacted label",
+  "restart_posts": 8,
+  "restart_effect_ms": {
+    "3a3fe85b2d7d2c3c3bb49a02321bc98c6cb41bdb0dcae8bfa48dc8472a66f6d9": 10441.087,
+    "dea101cbc9b004348ebee2d2c0c24ea41956c2283a14dd90d42858347f31904a": 10395.804,
+    "12946cfdcab921197f234e846eb27f1d7945e292273998bb35bffaecbe25ac52": 10495.758,
+    "748fea1e817390cf31636991025fb63b93688e7c1a520784e297e979091ecb9d": 10390.428,
+    "554acc351677fa168e4b5d91521e5193fc1332c7886ea1b6f142e321bf27c597": 10401.597,
+    "fc4a7f21d939aa7754728c062ac21e4203337c50d31af5272cd3916c78c8e15b": 10388.277,
+    "f95d55dc7384ad9c12ff0038cd7462c7710edf942df970f387cd094ff3b3e25a": 10408.109
+  },
+  "footprint": {
+    "architecture": "amd64",
+    "app_pss_kib": {
+      "limeos-core": 5768,
+      "limeos-containerd": 3143,
+      "limeos-storaged": 1219
+    },
+    "combined_pss_kib": 10130,
+    "overview_p95_ms": 0.755,
+    "overview_median_ms": 0.662,
+    "workload": "after restart/start/stop, log and interruption qualification, 20 cached overview requests",
+    "exclusions": [
+      "Docker daemon",
+      "test proxy",
+      "browser",
+      "Rust build tools"
+    ],
+    "swap_kib": 0
+  },
+  "package_sha256": {
+    "limeos-shadow_0.3.2_amd64.deb": "c3c91cc47c2ffb561d235f869c954772ea9e613517f6e781a85c50cf05d5a57e",
+    "limeos_0.3.2_amd64.deb": "6698b4f183e724aaea93707bd99f484c873322f803d67d005e262c4f27e1b068"
+  },
+  "lifecycle_posts": 20,
+  "operations": [
+    "restart",
+    "start",
+    "stop",
+    "logs",
+    "compose.preview"
+  ],
+  "schemas": {
+    "authority": 5,
+    "container_receipts": 3
+  },
+  "upgrade": {
+    "from": "0.3.1",
+    "to": "0.3.2",
+    "previous_package_sha256": {
+      "limeos_0.3.1_amd64.deb": "183d9a9e62322df278ed2772c4987690ef36fc5f9e2efad9ffcbf64a5bc975ef",
+      "limeos-shadow_0.3.1_amd64.deb": "ef550e81e95ccbf2e7dc786d525cbb01b46c4a5ad19853e9b46112d52ae50c4a"
+    }
+  },
+  "compose": {
+    "catalog_fixture_sha256": "4b5c74eaa3b4d0f7fdc2c4b19c50792eb74a238ca808bbef88a2c39c3ee641eb",
+    "operator_file_sha256": "112533a38c38f95195f85432652cea6b1d6ed2c7a36082beaaf378e960d3be4f",
+    "host_effects": 0,
+    "catalog_source": "synthetic protected planning snapshot; no reference host data",
+    "deployment_executable": false
+  },
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "3d94c9dd66d8a283fde060b8810373b7ae04038b956ee00d553d1ae564f6fbdeaa2fd6e7404e87e53348b5a9509170f3ea7c0731ba737590c5c4cb8d559a47f8"
+  }
+}

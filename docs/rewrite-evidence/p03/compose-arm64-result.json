@@ -1,0 +1,44 @@
+{
+  "checked_at_utc": "2026-10-05T16:03:02.942800+00:00",
+  "checks": [
+    "all four release executables are AArch64 and require no glibc newer than Debian 12",
+    "ARM64 CLI starts and serves version/help under qemu-user",
+    "ARM64 password worker hashes and verifies Argon2id and rejects the wrong password under qemu-user",
+    "standard and shadow ARM64 packages contain the exact cross-built executables with root ownership"
+  ],
+  "binary_sha256": {
+    "limeos-core": {
+      "sha256": "cf3f770171c791fab54622782a8ae27dab6395b0501fbafe635041ac5355bd92",
+      "bytes": 4214520,
+      "highest_glibc": "2.34"
+    },
+    "limeos-executor": {
+      "sha256": "a5de5c9ce75973c9301d45c6bbdfbacf067c30cc1df21e32cc95ae273b27547b",
+      "bytes": 3296936,
+      "highest_glibc": "2.34"
+    },
+    "limeosctl": {
+      "sha256": "6b1b6343ef8575475efacbdb56fa52c9afb6dbc37ce451856623de74c528d706",
+      "bytes": 856784,
+      "highest_glibc": "2.34"
+    },
+    "limeos-password-worker": {
+      "sha256": "096e7292123736922a5afe8cc6772252994b9e81bf4b8333e09ef7bac5391681",
+      "bytes": 463488,
+      "highest_glibc": "2.34"
+    }
+  },
+  "package_sha256": {
+    "limeos-shadow_0.3.2_arm64.deb": {
+      "sha256": "62b88b2a7d2be2a8c6d9cc54c041e920333c5c33e9ec5b154f23ed316b918001",
+      "bytes": 2001512
+    },
+    "limeos_0.3.2_arm64.deb": {
+      "sha256": "76dbaf5679d01759cf40f919ec3b048a18c6d0b62753100dbabd7a7828eb27f0",
+      "bytes": 2000968
+    }
+  },
+  "execution": "qemu-user on AMD64 workstation",
+  "native_arm64_qualified": false,
+  "pi_contacted": false
+}

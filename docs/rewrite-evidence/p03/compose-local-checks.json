@@ -1,0 +1,74 @@
+{
+  "recorded_at_utc": "2026-10-05 16:11:40 UTC",
+  "scope": "Local commands completed in this continuation; integrity recorder checks the source/package binding separately.",
+  "checks": [
+    {
+      "name": "rust_workspace_tests",
+      "command": "cargo test --workspace --locked",
+      "exit_code": 0,
+      "passed": 98,
+      "toolchain": "1.88.0"
+    },
+    {
+      "name": "strict_clippy",
+      "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "name": "rust_format",
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0
+    },
+    {
+      "name": "generated_contracts",
+      "command": "uv run scripts/check_contracts.py",
+      "exit_code": 0
+    },
+    {
+      "name": "repository_boundaries",
+      "command": "uv run scripts/check_repository.py",
+      "exit_code": 0
+    },
+    {
+      "name": "frontend_units",
+      "command": "npm test",
+      "exit_code": 0,
+      "passed": 8
+    },
+    {
+      "name": "typescript_and_assets",
+      "command": "npm run build",
+      "exit_code": 0
+    },
+    {
+      "name": "python_lint",
+      "command": "uv run --with ruff ruff check scripts/check_repository.py tests/privileged_vm tests/arm64 packaging/build.py",
+      "exit_code": 0
+    },
+    {
+      "name": "python_format",
+      "command": "uv run --with ruff ruff format --check scripts/check_repository.py tests/privileged_vm tests/arm64 packaging/build.py",
+      "exit_code": 0
+    },
+    {
+      "name": "dependency_licenses",
+      "command": "cargo deny --offline check",
+      "exit_code": 0,
+      "existing_duplicate_version_warnings": true
+    },
+    {
+      "name": "cached_advisory_audit",
+      "command": "cargo audit --no-fetch --no-yanked --db /tmp/limeos-advisory-db",
+      "exit_code": 0,
+      "dependencies": 214,
+      "advisories": 1290,
+      "known_vulnerabilities": 0
+    },
+    {
+      "name": "cached_npm_audit",
+      "command": "npm audit --offline --audit-level=high",
+      "exit_code": 0,
+      "known_vulnerabilities": 0
+    }
+  ]
+}

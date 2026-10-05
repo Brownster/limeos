@@ -1,0 +1,109 @@
+Result=success
+NRestarts=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+Oct 05 16:13:54 limeos-p01-test limeos-core[12211]: {"timestamp":"2026-10-05T16:13:54.370556Z","level":"INFO","fields":{"message":"core ready","generation":10}}
+Oct 05 16:13:54 limeos-p01-test limeos-core[12211]: {"timestamp":"2026-10-05T16:13:54.371517Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 16:13:54 limeos-p01-test limeos-core[12211]: {"timestamp":"2026-10-05T16:13:54.371640Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 16:13:54 limeos-p01-test limeos-core[12211]: {"timestamp":"2026-10-05T16:13:54.371730Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 16:13:54 limeos-p01-test limeos-core[12211]: {"timestamp":"2026-10-05T16:13:54.371817Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 16:13:54 limeos-p01-test limeos-core[12211]: {"timestamp":"2026-10-05T16:13:54.371905Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 16:13:54 limeos-p01-test limeos-core[12211]: {"timestamp":"2026-10-05T16:13:54.371989Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 16:13:54 limeos-p01-test limeos-core[12211]: {"timestamp":"2026-10-05T16:13:54.372074Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 16:13:54 limeos-p01-test limeos-core[12211]: {"timestamp":"2026-10-05T16:13:54.372159Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 16:13:54 limeos-p01-test limeos-core[12211]: {"timestamp":"2026-10-05T16:13:54.372259Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 16:14:02 limeos-p01-test dockerd[976]: time="2026-10-05T16:14:02.189796613Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=d2dd921cd7459ba028d8ac537555bca3cfd4f0a9085262dac96387c06be5f668
+Oct 05 16:14:02 limeos-p01-test dockerd[976]: time="2026-10-05T16:14:02.213841364Z" level=info msg="ignoring event" container=d2dd921cd7459ba028d8ac537555bca3cfd4f0a9085262dac96387c06be5f668 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 05 16:14:26 limeos-p01-test systemd[1]: limeos-containerd.service: Main process exited, code=killed, status=9/KILL
+Oct 05 16:14:26 limeos-p01-test systemd[1]: limeos-containerd.service: Failed with result 'signal'.
+Oct 05 16:14:28 limeos-p01-test limeos-core[12211]: {"timestamp":"2026-10-05T16:14:28.372869Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Unavailable"}}
+Oct 05 16:14:28 limeos-p01-test systemd[1]: limeos-containerd.service: Scheduled restart job, restart counter is at 5.
+Oct 05 16:14:28 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 05 16:14:28 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 16:14:28 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 16:14:36 limeos-p01-test dockerd[976]: time="2026-10-05T16:14:36.409850118Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=b99c7331237cb31e55b6c29d82128958099d8ac6638c89d7e875edf5ed0c32a7
+Oct 05 16:14:36 limeos-p01-test dockerd[976]: time="2026-10-05T16:14:36.467230945Z" level=info msg="ignoring event" container=b99c7331237cb31e55b6c29d82128958099d8ac6638c89d7e875edf5ed0c32a7 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 05 16:14:40 limeos-p01-test dockerd[976]: time="2026-10-05T16:14:40.434822668Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=c1bfbe692659035865918f0d240778d780aca8c382be7215f82febc786e8dcd3
+Oct 05 16:14:40 limeos-p01-test dockerd[976]: time="2026-10-05T16:14:40.509654646Z" level=info msg="ignoring event" container=c1bfbe692659035865918f0d240778d780aca8c382be7215f82febc786e8dcd3 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 05 16:14:40 limeos-p01-test systemd[1]: limeos-core.service: Main process exited, code=killed, status=9/KILL
+Oct 05 16:14:40 limeos-p01-test systemd[1]: limeos-core.service: Failed with result 'signal'.
+Oct 05 16:14:42 limeos-p01-test systemd[1]: limeos-core.service: Scheduled restart job, restart counter is at 9.
+Oct 05 16:14:42 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 05 16:14:42 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 16:14:42 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 16:14:42 limeos-p01-test limeos-core[12537]: {"timestamp":"2026-10-05T16:14:42.883607Z","level":"INFO","fields":{"message":"core ready","generation":11}}
+Oct 05 16:14:54 limeos-p01-test dockerd[976]: time="2026-10-05T16:14:54.944645392Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=a30e36400efa03d4e5ca5e70233c7f26d856b7cc299fd205b1b66cb031c00d13
+Oct 05 16:14:54 limeos-p01-test dockerd[976]: time="2026-10-05T16:14:54.991514175Z" level=info msg="ignoring event" container=a30e36400efa03d4e5ca5e70233c7f26d856b7cc299fd205b1b66cb031c00d13 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 05 16:14:55 limeos-p01-test systemd[1]: limeos-containerd.service: Main process exited, code=killed, status=9/KILL
+Oct 05 16:14:55 limeos-p01-test systemd[1]: limeos-containerd.service: Failed with result 'signal'.
+Oct 05 16:14:55 limeos-p01-test limeos-core[12537]: {"timestamp":"2026-10-05T16:14:55.103526Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Unavailable"}}
+Oct 05 16:14:57 limeos-p01-test systemd[1]: limeos-containerd.service: Scheduled restart job, restart counter is at 6.
+Oct 05 16:14:57 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 05 16:14:57 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 16:14:57 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 16:14:58 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 05 16:14:58 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 05 16:14:58 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 05 16:14:58 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 16:14:58 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 16:14:58 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 05 16:14:58 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 05 16:14:58 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 05 16:14:58 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 16:14:58 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 16:14:58 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 05 16:14:58 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 05 16:14:58 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 05 16:14:58 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 16:14:58 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 16:14:59 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 05 16:14:59 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 05 16:14:59 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 05 16:14:59 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 16:14:59 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 16:14:59 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 05 16:14:59 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 05 16:14:59 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 05 16:14:59 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 16:14:59 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 16:15:00 limeos-p01-test dockerd[976]: time="2026-10-05T16:15:00.950245103Z" level=info msg="Container failed to exit within 1s of signal 15 - using the force" container=e36781d862f14ac880894d2fdb9ddcaa0ca6b9458465b44fa949125d133464a1
+Oct 05 16:15:00 limeos-p01-test dockerd[976]: time="2026-10-05T16:15:00.974849429Z" level=info msg="ignoring event" container=e36781d862f14ac880894d2fdb9ddcaa0ca6b9458465b44fa949125d133464a1 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 05 16:15:01 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 05 16:15:01 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 05 16:15:01 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 05 16:15:01 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 16:15:01 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 16:15:03 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 05 16:15:03 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 05 16:15:03 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 05 16:15:03 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 16:15:03 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 16:15:08 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 05 16:15:08 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 05 16:15:08 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 05 16:15:08 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 16:15:08 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 16:15:08 limeos-p01-test limeos-core[13567]: {"timestamp":"2026-10-05T16:15:08.776560Z","level":"INFO","fields":{"message":"core ready","generation":12}}
+Oct 05 16:15:08 limeos-p01-test limeos-core[13567]: {"timestamp":"2026-10-05T16:15:08.779734Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Forbidden"}}
+Oct 05 16:15:08 limeos-p01-test limeos-core[13567]: {"timestamp":"2026-10-05T16:15:08.779877Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Forbidden"}}
+Oct 05 16:15:08 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 05 16:15:08 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 05 16:15:08 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 05 16:15:08 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 16:15:08 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 16:15:09 limeos-p01-test limeos-core[13578]: {"timestamp":"2026-10-05T16:15:09.024741Z","level":"INFO","fields":{"message":"core ready","generation":13}}
+Oct 05 16:15:09 limeos-p01-test limeos-core[13578]: {"timestamp":"2026-10-05T16:15:09.027944Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Forbidden"}}
+Oct 05 16:15:09 limeos-p01-test limeos-core[13578]: {"timestamp":"2026-10-05T16:15:09.028125Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Forbidden"}}
+Oct 05 16:15:09 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 05 16:15:09 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 05 16:15:09 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 05 16:15:09 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 16:15:09 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 16:15:09 limeos-p01-test limeos-core[13590]: {"timestamp":"2026-10-05T16:15:09.310259Z","level":"INFO","fields":{"message":"core ready","generation":14}}
+Oct 05 16:15:09 limeos-p01-test limeos-core[13590]: {"timestamp":"2026-10-05T16:15:09.313842Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Forbidden"}}
+Oct 05 16:15:09 limeos-p01-test limeos-core[13590]: {"timestamp":"2026-10-05T16:15:09.314072Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Forbidden"}}
