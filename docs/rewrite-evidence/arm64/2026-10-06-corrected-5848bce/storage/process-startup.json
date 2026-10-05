@@ -1,0 +1,23 @@
+{
+ "executor_start_and_usage_exit": {
+  "command": "/usr/lib/limeos/limeos-executor",
+  "n": 20,
+  "min": 1.478,
+  "p50": 1.603,
+  "max": 1.965
+ },
+ "password_worker_start_and_exit_no_input": {
+  "command": "sh -c /usr/lib/limeos/limeos-password-worker < /dev/null",
+  "n": 20,
+  "min": 1.955,
+  "p50": 2.058,
+  "max": 3.353
+ },
+ "true_baseline": {
+  "command": "/bin/true",
+  "n": 20,
+  "min": 0.615,
+  "p50": 0.655,
+  "max": 2.235
+ }
+}

@@ -1,0 +1,648 @@
+{
+  "version": "0.4.2",
+  "checks": [
+    {
+      "name": "native aarch64 under KVM on Cortex-A76, not emulation",
+      "result": "pass",
+      "seconds": 0.0,
+      "observation": {
+        "uname": "Linux limeos-p01-test 6.1.0-53-cloud-arm64 #1 SMP Debian 6.1.187-1 (2026-09-07) aarch64 ",
+        "virtualization": "kvm",
+        "cpu_implementer": [
+          "0x41"
+        ],
+        "cpu_part": [
+          "0xd0b"
+        ],
+        "page_size": 4096
+      }
+    },
+    {
+      "name": "Debian docker.io and a static busybox workload of 18 containers",
+      "result": "pass",
+      "seconds": 67.88,
+      "observation": {
+        "running": 18,
+        "versions": "busybox-static 1:1.35.0-4+deb12u1+b1\ncontainerd 1.6.20~ds1-1+deb12u3\ndocker.io 20.10.24+dfsg1-1+deb12u1+b6\n"
+      }
+    },
+    {
+      "name": "signed test repository installs limeos 0.4.2 for arm64",
+      "result": "pass",
+      "seconds": 5.18,
+      "observation": "limeos 0.4.2 arm64"
+    },
+    {
+      "name": "package identity: installed files match the package and the native build",
+      "result": "fail",
+      "seconds": 0.06,
+      "error": "FileNotFoundError(2, 'No such file or directory')"
+    },
+    {
+      "name": "unit files, enabled state and running services",
+      "result": "pass",
+      "seconds": 0.11,
+      "observation": {
+        "unit_files": "limeos-containerd.service     enabled enabled\nlimeos-core.service           enabled enabled\nlimeos-storage-reader.service static  -\nlimeos-storage-ready.service  static  -\nlimeos-storaged.service       enabled enabled\n",
+        "state": {
+          "limeos-core": {
+            "enabled": "enabled",
+            "active": "active"
+          },
+          "limeos-containerd": {
+            "enabled": "enabled",
+            "active": "active"
+          },
+          "limeos-storaged": {
+            "enabled": "enabled",
+            "active": "active"
+          },
+          "limeos-storage-reader": {
+            "enabled": "static",
+            "active": "inactive"
+          },
+          "limeos-storage-ready": {
+            "enabled": "static",
+            "active": "inactive"
+          }
+        }
+      }
+    },
+    {
+      "name": "service accounts, capabilities and sandbox properties",
+      "result": "pass",
+      "seconds": 0.07,
+      "observation": {
+        "limeos-core": {
+          "properties": "ExecStart={ path=/usr/lib/limeos/limeos-core ; argv[]=/usr/lib/limeos/limeos-core ; ignore_errors=no ; start_time=[Mon 2026-10-05 22:59:12 UTC] ; stop_time=[n/a] ; pid=7524 ; code=(null) ; status=0/0 }\nMemoryMax=134217728\nTasksMax=32\nCapabilityBoundingSet=\nAmbientCapabilities=\nUser=limeos-core\nGroup=limeos-rpc\nSupplementaryGroups=limeos-host-access limeos-container-access\nProtectSystem=strict\nNoNewPrivileges=yes\n",
+          "process": {
+            "Uid": "104\t104\t104\t104",
+            "CapEff": "0000000000000000",
+            "CapBnd": "0000000000000000",
+            "CapAmb": "0000000000000000",
+            "NoNewPrivs": "1"
+          }
+        },
+        "limeos-containerd": {
+          "properties": "ExecStart={ path=/usr/lib/limeos/limeos-executor ; argv[]=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/container.json /run/limeos-containerd/executor.sock container /var/lib/limeos/executors/container ; ignore_errors=no ; start_time=[Mon 2026-10-05 22:59:12 UTC] ; stop_time=[n/a] ; pid=7522 ; code=(null) ; status=0/0 }\nMemoryMax=33554432\nTasksMax=16\nCapabilityBoundingSet=\nAmbientCapabilities=\nUser=limeos-containerd\nGroup=limeos-container-access\nSupplementaryGroups=docker\nProtectSystem=strict\nNoNewPrivileges=yes\n",
+          "process": {
+            "Uid": "105\t105\t105\t105",
+            "CapEff": "0000000000000000",
+            "CapBnd": "0000000000000000",
+            "CapAmb": "0000000000000000",
+            "NoNewPrivs": "1"
+          }
+        },
+        "limeos-storaged": {
+          "properties": "ExecStart={ path=/usr/lib/limeos/limeos-executor ; argv[]=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/host.json /run/limeos-storaged/executor.sock host ; ignore_errors=no ; start_time=[Mon 2026-10-05 22:59:12 UTC] ; stop_time=[n/a] ; pid=7521 ; code=(null) ; status=0/0 }\nMemoryMax=33554432\nTasksMax=16\nCapabilityBoundingSet=\nAmbientCapabilities=\nUser=root\nGroup=limeos-host-access\nSupplementaryGroups=\nProtectSystem=strict\nNoNewPrivileges=yes\n",
+          "process": {
+            "Uid": "0\t0\t0\t0",
+            "CapEff": "0000000000000000",
+            "CapBnd": "0000000000000000",
+            "CapAmb": "0000000000000000",
+            "NoNewPrivs": "1"
+          }
+        }
+      }
+    },
+    {
+      "name": "root-executed paths are root-owned and not writable by other accounts",
+      "result": "pass",
+      "seconds": 0.03,
+      "observation": {
+        "paths_checked": 13
+      }
+    },
+    {
+      "name": "only the container executor process holds Docker socket access",
+      "result": "pass",
+      "seconds": 0.07,
+      "observation": {
+        "core_account_connect": "13",
+        "docker_gid": 109,
+        "process_groups": {
+          "limeos-core": [
+            113,
+            114,
+            115
+          ],
+          "limeos-containerd": [
+            109,
+            115
+          ],
+          "limeos-storaged": [
+            114
+          ]
+        },
+        "socket": {
+          "uid": 0,
+          "gid": 109,
+          "mode": "0o660"
+        }
+      }
+    },
+    {
+      "name": "no default login; one-use local enrollment and authenticated session",
+      "result": "pass",
+      "seconds": 0.2,
+      "observation": {
+        "login_ms": 64.69
+      }
+    },
+    {
+      "name": "imported Werkzeug scrypt and PBKDF2-SHA256 hashes verify and upgrade to Argon2id",
+      "result": "pass",
+      "seconds": 1.19,
+      "observation": {
+        "scrypt:32768:8:1": {
+          "first_login_ms": 165.79,
+          "argon2id_login_ms": 65.36
+        },
+        "pbkdf2:sha256:1000000": {
+          "first_login_ms": 316.16,
+          "argon2id_login_ms": 64.9
+        }
+      }
+    },
+    {
+      "name": "password work runs in a bounded short-lived worker that exits",
+      "result": "pass",
+      "seconds": 1.21,
+      "observation": {
+        "logins": 10,
+        "status_codes": {
+          "200": 6,
+          "429": 4
+        },
+        "login_ms": {
+          "n": 10,
+          "min": 1.92,
+          "p50": 70.76,
+          "p95": 152.67,
+          "p99": 152.67,
+          "max": 152.67
+        },
+        "workers_observed": 7,
+        "max_concurrent_workers": 2,
+        "max_worker_vmhwm_kib": 21188,
+        "max_worker_rss_kib": 21188,
+        "core_after": {
+          "pss_kib": 5191,
+          "rss_kib": 6600,
+          "swap_kib": 0
+        }
+      }
+    },
+    {
+      "name": "sessions survive core and executor restarts",
+      "result": "pass",
+      "seconds": 64.62,
+      "observation": "session valid after restarting core, container executor and host executor"
+    },
+    {
+      "name": "core restart readiness distribution (20 restarts)",
+      "result": "pass",
+      "seconds": 54.91,
+      "observation": {
+        "n": 20,
+        "min": 188.89,
+        "p50": 236.52,
+        "p95": 267.43,
+        "p99": 277.4,
+        "max": 277.4
+      }
+    },
+    {
+      "name": "full stack cold start readiness (5 starts)",
+      "result": "pass",
+      "seconds": 17.51,
+      "observation": {
+        "n": 5,
+        "min": 437.97,
+        "p50": 449.91,
+        "p95": 462.9,
+        "p99": 462.9,
+        "max": 462.9
+      }
+    },
+    {
+      "name": "idle footprint after authentication (no subscribers)",
+      "result": "pass",
+      "seconds": 60.25,
+      "observation": {
+        "limeos_services": {
+          "limeos-core": {
+            "pss_kib": 7159,
+            "rss_kib": 8556,
+            "swap_kib": 0
+          },
+          "limeos-containerd": {
+            "pss_kib": 1515,
+            "rss_kib": 3656,
+            "swap_kib": 0
+          },
+          "limeos-storaged": {
+            "pss_kib": 1243,
+            "rss_kib": 3380,
+            "swap_kib": 0
+          }
+        },
+        "limeos_sum": {
+          "pss_kib": 9917,
+          "rss_kib": 15592,
+          "swap_kib": 0
+        },
+        "docker_engine": {
+          "docker": {
+            "pss_kib": 81699,
+            "rss_kib": 83780,
+            "swap_kib": 0
+          },
+          "containerd": {
+            "pss_kib": 50333,
+            "rss_kib": 51112,
+            "swap_kib": 0
+          }
+        },
+        "containerd_shims": {
+          "count": 18,
+          "pss_kib": 146064
+        },
+        "media_workload": {
+          "processes": 18,
+          "pss_kib": 2134
+        },
+        "password_workers_running": 0,
+        "meminfo_available_kib": 1077656
+      }
+    },
+    {
+      "name": "idle CPU and bytes written over 600 seconds, no subscribers",
+      "result": "pass",
+      "seconds": 600.37,
+      "observation": {
+        "label": "idle, authenticated, no dashboards",
+        "seconds": 600.0,
+        "per_unit": {
+          "limeos-core": {
+            "cpu_seconds": 0.1407,
+            "cpu_percent_of_one_core": 0.0235,
+            "cgroup_written_bytes": 0,
+            "process_write_bytes": 32768
+          },
+          "limeos-containerd": {
+            "cpu_seconds": 0.0335,
+            "cpu_percent_of_one_core": 0.0056,
+            "cgroup_written_bytes": 0,
+            "process_write_bytes": 0
+          },
+          "limeos-storaged": {
+            "cpu_seconds": 0.0963,
+            "cpu_percent_of_one_core": 0.0161,
+            "cgroup_written_bytes": 0,
+            "process_write_bytes": 0
+          },
+          "docker": {
+            "cpu_seconds": 0.4226,
+            "cpu_percent_of_one_core": 0.0704,
+            "cgroup_written_bytes": 0
+          },
+          "containerd": {
+            "cpu_seconds": 1.6794,
+            "cpu_percent_of_one_core": 0.2799,
+            "cgroup_written_bytes": 0
+          }
+        },
+        "limeos_cpu_percent_of_one_core": 0.0451,
+        "limeos_written_bytes": 0,
+        "limeos_written_bytes_per_day_extrapolated": 0,
+        "vda_bytes_written_all_processes": 8617984,
+        "cgroup_io_stat_present": {
+          "limeos-core": true,
+          "limeos-containerd": true,
+          "limeos-storaged": true
+        }
+      }
+    },
+    {
+      "name": "CPU and bytes written over 300 seconds with 3 open dashboard streams",
+      "result": "pass",
+      "seconds": 300.53,
+      "observation": {
+        "label": "3 SSE dashboard subscribers",
+        "seconds": 300.0,
+        "per_unit": {
+          "limeos-core": {
+            "cpu_seconds": 0.0862,
+            "cpu_percent_of_one_core": 0.0287,
+            "cgroup_written_bytes": 0,
+            "process_write_bytes": 16384
+          },
+          "limeos-containerd": {
+            "cpu_seconds": 0.0425,
+            "cpu_percent_of_one_core": 0.0142,
+            "cgroup_written_bytes": 0,
+            "process_write_bytes": 0
+          },
+          "limeos-storaged": {
+            "cpu_seconds": 0.1183,
+            "cpu_percent_of_one_core": 0.0394,
+            "cgroup_written_bytes": 0,
+            "process_write_bytes": 0
+          },
+          "docker": {
+            "cpu_seconds": 0.3806,
+            "cpu_percent_of_one_core": 0.1269,
+            "cgroup_written_bytes": 0
+          },
+          "containerd": {
+            "cpu_seconds": 1.1591,
+            "cpu_percent_of_one_core": 0.3864,
+            "cgroup_written_bytes": 0
+          }
+        },
+        "limeos_cpu_percent_of_one_core": 0.0823,
+        "limeos_written_bytes": 0,
+        "limeos_written_bytes_per_day_extrapolated": 0,
+        "vda_bytes_written_all_processes": 4812800,
+        "cgroup_io_stat_present": {
+          "limeos-core": true,
+          "limeos-containerd": true,
+          "limeos-storaged": true
+        },
+        "sse_streams_events": [
+          9,
+          10,
+          9
+        ],
+        "memory_after": {
+          "limeos_services": {
+            "limeos-core": {
+              "pss_kib": 7299,
+              "rss_kib": 8696,
+              "swap_kib": 0
+            },
+            "limeos-containerd": {
+              "pss_kib": 1611,
+              "rss_kib": 3752,
+              "swap_kib": 0
+            },
+            "limeos-storaged": {
+              "pss_kib": 1251,
+              "rss_kib": 3388,
+              "swap_kib": 0
+            }
+          },
+          "limeos_sum": {
+            "pss_kib": 10161,
+            "rss_kib": 15836,
+            "swap_kib": 0
+          },
+          "docker_engine": {
+            "docker": {
+              "pss_kib": 79251,
+              "rss_kib": 81332,
+              "swap_kib": 0
+            },
+            "containerd": {
+              "pss_kib": 51573,
+              "rss_kib": 52352,
+              "swap_kib": 0
+            }
+          },
+          "containerd_shims": {
+            "count": 18,
+            "pss_kib": 210788
+          },
+          "media_workload": {
+            "processes": 18,
+            "pss_kib": 2134
+          },
+          "password_workers_running": 0,
+          "meminfo_available_kib": 1001216
+        }
+      }
+    },
+    {
+      "name": "authenticated read latency, 3 concurrent clients x 200 requests",
+      "result": "pass",
+      "seconds": 0.68,
+      "observation": {
+        "per_endpoint_ms": {
+          "/api/v1/overview": {
+            "n": 200,
+            "min": 1.043,
+            "p50": 2.361,
+            "p95": 3.995,
+            "p99": 4.97,
+            "max": 5.863
+          },
+          "/api/v1/resources": {
+            "n": 200,
+            "min": 0.927,
+            "p50": 2.398,
+            "p95": 3.737,
+            "p99": 5.253,
+            "max": 12.815
+          },
+          "/api/v1/system/history?range=30d": {
+            "n": 200,
+            "min": 0.921,
+            "p50": 2.351,
+            "p95": 4.164,
+            "p99": 8.609,
+            "max": 13.285
+          }
+        },
+        "all_ms": {
+          "n": 600,
+          "min": 0.921,
+          "p50": 2.371,
+          "p95": 3.915,
+          "p99": 5.804,
+          "max": 13.285
+        },
+        "requests_per_second": 1181.8,
+        "sequential_cached_overview_ms": {
+          "n": 20,
+          "min": 0.873,
+          "p50": 0.911,
+          "p95": 0.998,
+          "p99": 1.074,
+          "max": 1.074
+        },
+        "memory_after": {
+          "limeos_services": {
+            "limeos-core": {
+              "pss_kib": 7471,
+              "rss_kib": 8868,
+              "swap_kib": 0
+            },
+            "limeos-containerd": {
+              "pss_kib": 1611,
+              "rss_kib": 3752,
+              "swap_kib": 0
+            },
+            "limeos-storaged": {
+              "pss_kib": 1251,
+              "rss_kib": 3388,
+              "swap_kib": 0
+            }
+          },
+          "limeos_sum": {
+            "pss_kib": 10333,
+            "rss_kib": 16008,
+            "swap_kib": 0
+          },
+          "docker_engine": {
+            "docker": {
+              "pss_kib": 79251,
+              "rss_kib": 81332,
+              "swap_kib": 0
+            },
+            "containerd": {
+              "pss_kib": 51573,
+              "rss_kib": 52352,
+              "swap_kib": 0
+            }
+          },
+          "containerd_shims": {
+            "count": 18,
+            "pss_kib": 210852
+          },
+          "media_workload": {
+            "processes": 18,
+            "pss_kib": 2134
+          },
+          "password_workers_running": 0,
+          "meminfo_available_kib": 1001024
+        }
+      }
+    },
+    {
+      "name": "shadow installs beside standard, listens separately and refuses write ceilings",
+      "result": "pass",
+      "seconds": 7.24,
+      "observation": {
+        "units": "limeos-shadow-containerd.service loaded active running LimeOS containerd\nlimeos-shadow-core.service       loaded active running LimeOS core\nlimeos-shadow-storaged.service   loaded active running LimeOS storaged\n",
+        "exec_start": "{ path=/usr/lib/limeos-shadow/limeos-executor ; argv[]=/usr/lib/limeos-shadow/limeos-executor /etc/limeos-shadow/system-policy/container.json /run/limeos-shadow-containerd/executor.sock container /var/lib/limeos-shadow/executors/container read-only ; ignore_errors=no ; start_time=[Mon 2026-10-05 23:17:37 UTC] ; stop_time=[n/a] ; pid=9458 ; code=(null) ; status=0/0 }\n",
+        "refused_results": {
+          "restart": "exit-code",
+          "start": "exit-code",
+          "stop": "exit-code"
+        },
+        "shadow_memory": {
+          "limeos-shadow-core": {
+            "pss_kib": 5034,
+            "rss_kib": 6452,
+            "swap_kib": 0
+          },
+          "limeos-shadow-containerd": {
+            "pss_kib": 1432,
+            "rss_kib": 3588,
+            "swap_kib": 0
+          },
+          "limeos-shadow-storaged": {
+            "pss_kib": 1204,
+            "rss_kib": 3360,
+            "swap_kib": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "final footprint after workload and shadow removal",
+      "result": "pass",
+      "seconds": 30.17,
+      "observation": {
+        "limeos_services": {
+          "limeos-core": {
+            "pss_kib": 7471,
+            "rss_kib": 8868,
+            "swap_kib": 0
+          },
+          "limeos-containerd": {
+            "pss_kib": 1619,
+            "rss_kib": 3760,
+            "swap_kib": 0
+          },
+          "limeos-storaged": {
+            "pss_kib": 1251,
+            "rss_kib": 3388,
+            "swap_kib": 0
+          }
+        },
+        "limeos_sum": {
+          "pss_kib": 10341,
+          "rss_kib": 16016,
+          "swap_kib": 0
+        },
+        "docker_engine": {
+          "docker": {
+            "pss_kib": 79251,
+            "rss_kib": 81332,
+            "swap_kib": 0
+          },
+          "containerd": {
+            "pss_kib": 51389,
+            "rss_kib": 52168,
+            "swap_kib": 0
+          }
+        },
+        "containerd_shims": {
+          "count": 18,
+          "pss_kib": 214328
+        },
+        "media_workload": {
+          "processes": 18,
+          "pss_kib": 2134
+        },
+        "password_workers_running": 0,
+        "meminfo_available_kib": 982760
+      }
+    }
+  ],
+  "observations": {
+    "platform": {
+      "uname": "Linux limeos-p01-test 6.1.0-53-cloud-arm64 #1 SMP Debian 6.1.187-1 (2026-09-07) aarch64 ",
+      "virtualization": "kvm",
+      "cpu_implementer": [
+        "0x41"
+      ],
+      "cpu_part": [
+        "0xd0b"
+      ],
+      "cpu_features": [
+        "fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop asimddp"
+      ],
+      "nproc": 2,
+      "page_size": 4096,
+      "meminfo_total_kib": 1510052,
+      "os_release": [
+        "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"",
+        "NAME=\"Debian GNU/Linux\"",
+        "VERSION_ID=\"12\"",
+        "VERSION=\"12 (bookworm)\""
+      ],
+      "block_devices": "NAME  SIZE ROTA SERIAL\nsr0   366K    1 seed\nvda    16G    1 \n"
+    },
+    "database_bytes": {
+      "core.lock": 0,
+      "core.sqlite-wal": 758112,
+      "metrics.sqlite": 4096,
+      "core.sqlite": 176128,
+      "metrics.sqlite-wal": 111272,
+      "core.sqlite-shm": 32768,
+      "metrics.sqlite-shm": 32768
+    },
+    "journal_limeos_lines": 275
+  },
+  "started": 1791241079.6414542,
+  "finished": 1791242291.9687595,
+  "summary": {
+    "passed": 19,
+    "failed": [
+      "package identity: installed files match the package and the native build"
+    ]
+  }
+}

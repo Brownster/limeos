@@ -1,0 +1,11 @@
+{
+  "name": "build",
+  "host": "holly@wybie",
+  "port": 22801,
+  "cpus": 3,
+  "memory_mib": 2560,
+  "disk": "24G",
+  "storage_disks": false,
+  "qemu": "sudo nice -n 19 ionice -c 3 qemu-system-aarch64 -machine virt,gic-version=host -accel kvm -cpu host -smp 3 -m 2560 -display none -serial file:console.log -drive if=pflash,format=raw,readonly=on,file=/usr/share/AAVMF/AAVMF_CODE.fd -drive if=pflash,format=raw,file=vars.fd -drive file=disk.qcow2,format=qcow2,if=none,id=system -device virtio-blk-pci,drive=system,bootindex=1 -device virtio-scsi-pci,id=scsi0 -drive file=seed.iso,format=raw,if=none,id=seed,media=cdrom,readonly=on -device scsi-cd,drive=seed,bus=scsi0.0 -netdev user,id=n1,hostfwd=tcp:127.0.0.1:22801-:22 -device virtio-net-pci,netdev=n1,romfile= -runas $(id -un) -pidfile qemu.pid -daemonize",
+  "started": "2026-10-05T23:39:25+0100"
+}

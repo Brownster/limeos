@@ -1,0 +1,33 @@
+{
+  "version": "0.4.2",
+  "checks": [
+    {
+      "name": "package identity: installed files match the package and the native build",
+      "result": "pass",
+      "seconds": 0.06,
+      "observation": {
+        "dpkg_verify_non_conffile_mismatches": 0,
+        "changed_conffiles": [],
+        "installed_sha256": {
+          "limeos-core": "1523124483e7d4be4cda781dab921832d2afd8e165c384bc98c2208e9987a271",
+          "limeos-password-worker": "c47cd39afb15e852e29076aca3489b09916360930b20bece135b8a47e1a8c063",
+          "limeos-executor": "71d2fd7853e3a44380a15a827aec678b54244b0afef9a90749cc2bccd63dcf4e",
+          "limeosctl": "2cf36a0b70b1ff76823e3ed360c14143f79679bbd430bbd83327f9404faccc45"
+        },
+        "repository_packages": {
+          "limeos_0.4.2_arm64.deb": "0a8651aa73afc7a2e67fe665f4c43d3a9f832e09c3104c316f105bea651c6e51",
+          "limeos-shadow_0.4.2_arm64.deb": "31ba9929a5a73a995b122af46c56063e01debafe202ccc1c04d65fe0df077b5d"
+        },
+        "elf_machine": {
+          "limeos-core": "AArch64",
+          "limeos-password-worker": "AArch64",
+          "limeos-executor": "AArch64",
+          "limeosctl": "AArch64"
+        }
+      }
+    }
+  ],
+  "observations": {},
+  "started": 1791243131.7880547,
+  "finished": 1791243131.8509362
+}
