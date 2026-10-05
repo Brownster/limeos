@@ -1,0 +1,11 @@
+# ADR 0006: preserve the storage contract before adding host effects
+
+Status: accepted for the authorized P03 → P04 local continuation, 2026-10-05. First RW-040 slice; hardware signoff remains separate.
+
+Port the frozen `storage_contract.py` wire format into the pure domain crate. Preserve schema version `"1"`, all three profiles, numeric media UID/GID, eight supported filesystems, device roles, UUID/optional serial and literal host/container paths. Keep device order and path case; parsing never renames directories, resolves symlinks or moves data. Unknown fields, unsupported versions, duplicate identities, invalid role counts, escaping paths and root ownership fail validation. Publish generated Rust/TypeScript/JSON contracts for subsequent API and migration work.
+
+Mount readiness plans contain the contract's assigned device mountpoints and filesystem identities, with an explicit bounded deadline. Media/download/config/backup subdirectories are not added as waits. For `protected_pool`, the virtual `/mnt/storage` pool and its children cannot be mistaken for physical backing-device assignments. This is a pure plan; enforcement of the deadline and actual mount identity belongs to the host adapter and its VM tests. The first slice adds no executable storage intent, RPC effect, HTTP mutation or systemd unit.
+
+A valid configuration is not proof that a disk is safe to change. Subsequent RW-040 work must resolve fresh filesystem UUID/serial and major/minor topology, exclude root/boot and their backing devices, use protected descriptor-based path traversal, and verify mount namespace and identity immediately before effects. Dashboard cache values and string-prefix relationships cannot satisfy those checks. Dependent containers, shares, pools and protection paths must be observed before unmount; a missing dependency source fails closed.
+
+Golden fixtures cover the frozen single-disk, separate-downloads and fifteen-drive protected-pool contracts. Dedicated regressions cover numeric ownership, fixed container paths, case-sensitive host paths, real device wait lists and bounded deadlines. MNT-001 stays open until an installed unit's unsatisfiable wait actually times out on the disposable host. No defect-register row closes merely because a domain type exists.
