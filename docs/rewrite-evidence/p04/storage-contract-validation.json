@@ -1,0 +1,100 @@
+{
+  "recorded_at_utc": "2026-10-05T18:42:24.463070+00:00",
+  "source_commit": "9d38d5d79dc8880565b27a18980239a38a4b8045",
+  "storage_commit": "9d38d5d",
+  "password_backend_commit": "a02b271",
+  "rust_toolchain": "1.88.0",
+  "checks": [
+    {
+      "name": "workspace_rust_tests",
+      "command": "cargo test --workspace --locked",
+      "exit_code": 0,
+      "passed": 106,
+      "transcript": "rust-contract-tests.txt"
+    },
+    {
+      "name": "strict_clippy",
+      "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+      "exit_code": 0
+    },
+    {
+      "name": "format",
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0
+    },
+    {
+      "name": "contract_drift",
+      "command": "uv run scripts/check_contracts.py",
+      "exit_code": 0
+    },
+    {
+      "name": "repository_boundaries",
+      "command": "uv run scripts/check_repository.py",
+      "exit_code": 0
+    },
+    {
+      "name": "typescript",
+      "command": "npm --prefix frontend run check",
+      "exit_code": 0
+    },
+    {
+      "name": "dependency_policy",
+      "command": "cargo deny --offline check",
+      "exit_code": 0,
+      "existing_duplicate_version_warnings": true
+    },
+    {
+      "name": "cached_advisory_audit",
+      "command": "cargo audit --no-fetch --no-yanked --db /tmp/limeos-advisory-db",
+      "exit_code": 0,
+      "dependencies": 214,
+      "known_vulnerabilities": 0
+    }
+  ],
+  "storage_regressions": 8,
+  "storage_profiles": [
+    "single_disk",
+    "separate_downloads",
+    "protected_pool"
+  ],
+  "golden_source": {
+    "commit": "80593b2",
+    "path": "storage_contract.py",
+    "sha256": "938989fdb04805a228197c3ea406dfcbcb014021d50b01f95ef9ae9834fe1148",
+    "scenarios": "test_storage_contract.py single, separate and fifteen-drive protected-pool cases"
+  },
+  "source_sha256": {
+    "Cargo.toml": "955e73df8cd83c405dff034741cc939d1eefdead6a06d124c38cb43a5b20b63d",
+    "Cargo.lock": "88eacb6f176e021d5fd99923e27c77f4c2d0e7168cc4fe590db0a4bb1bcfebeb",
+    "crates/identity/Cargo.toml": "508a3bf630c0778ec9f5a9c1a08318d80cf008bcdcf37d786f7166e2a2c9df76",
+    "crates/identity/src/lib.rs": "861e5096f4330cb5b8cb1babbe92e75b3d612b0d2c23509ddda484160e2acd9e",
+    "crates/domain/src/lib.rs": "85ad9252815ed05ae0568934b1f2abf5467eaedd725e671019804cceddba349f",
+    "crates/domain/src/storage.rs": "d4982784f21179bf700b8475a2dbb2277cc12805c3bc6379da20e13b37372f8a",
+    "crates/domain/src/storage/tests.rs": "28ff25734151ece4f03f5f74741428cbdf94320efe4eb3221a833aebb81dd7e2",
+    "bins/schema/src/main.rs": "25d3a9baa33b107cf7e52fc3d698acbd6798930c5f58b58a560b21f1d0d3300c",
+    "contracts/generated/types.ts": "8a7227fbe3eaada9bfbe9057f8e6d8fe418c887e55bd159525825ece3a45cbfe",
+    "contracts/generated/storage-contract.schema.json": "6799e0686454809eb748376757047f20ac0141ae0aec32cfdc694d031d1ccba2",
+    "contracts/generated/storage-mount-wait-plan.schema.json": "24de5cc466fa87d853e5e4833700b862935f5f70fa83eb1b7ddc60dc13646cde",
+    "tests/fixtures/storage-contracts.json": "0c9fb27c9b5d59eeb6a820f47d108da86b6c2abc783dea16f815f1dba929ec7a"
+  },
+  "added_third_party_crates": 0,
+  "normal_dependency_change": "Ring 0.17.14 now verifies PBKDF2 in the identity/password boundary; it was already locked for the footprint spike",
+  "advisory_database_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
+  "effort": {
+    "started_at_utc": "2026-10-05T16:56:42+00:00",
+    "observed_end_at_utc": "2026-10-05T18:42:24.463070+00:00",
+    "agent_build_activity_minutes_approx": 45,
+    "test_approval_wait_minutes_approx": 60,
+    "human_implementer_effort_measured": false,
+    "phase_estimate_hours": 320,
+    "cutover_scope_review_hours": 480
+  },
+  "limitations": [
+    "Source validation only; no P04 Debian package, installed mount unit or footprint signoff",
+    "Native ARM64 and P02/reference-host gates remain pending",
+    "MNT-001 stays open until a real unsatisfiable installed wait times out",
+    "Storage effects require fresh disk/topology, root/boot exclusion, descriptor traversal and dependent shutdown before registration",
+    "No defect-register row was closed, and no production host or Python checkout was changed",
+    "GitHub CI was updated but has not run here"
+  ]
+}

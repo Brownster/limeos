@@ -1,0 +1,64 @@
+   Compiling limeos-domain v0.2.0 (/home/marc/Documents/github/lime-os/crates/domain)
+   Compiling limeos-contracts v0.2.0 (/home/marc/Documents/github/lime-os/crates/contracts)
+   Compiling limeos-policy v0.2.0 (/home/marc/Documents/github/lime-os/crates/policy)
+   Compiling limeos-persistence v0.2.0 (/home/marc/Documents/github/lime-os/crates/persistence)
+   Compiling limeos-executor-protocol v0.2.0 (/home/marc/Documents/github/lime-os/crates/executor-protocol)
+   Compiling limeos-observations v0.2.0 (/home/marc/Documents/github/lime-os/crates/observations)
+   Compiling limeos-api v0.2.0 (/home/marc/Documents/github/lime-os/crates/api)
+   Compiling limeos-executor-container v0.2.0 (/home/marc/Documents/github/lime-os/crates/executor-container)
+   Compiling limeosctl v0.2.0 (/home/marc/Documents/github/lime-os/bins/ctl)
+   Compiling limeos-executor v0.2.0 (/home/marc/Documents/github/lime-os/bins/executor)
+   Compiling limeos-core v0.2.0 (/home/marc/Documents/github/lime-os/bins/core)
+   Compiling limeos-schema v0.2.0 (/home/marc/Documents/github/lime-os/bins/schema)
+    Finished `test` profile [unoptimized] target(s) in 5m 03s
+     Running unittests src/lib.rs (target/debug/deps/limeos_api-de2f7a191f2a4e8c)
+
+running 7 tests
+test operation_tests::compose_selections_cannot_carry_manifests_or_claimed_authority ... ok
+test tests::malformed_and_oversized_body_and_rate_limit ... ok
+test tests::no_default_login_cross_site_or_get_mutation ... ok
+test read_tests::reads_require_session_reject_bad_queries_and_paginate_with_revision ... ok
+test read_tests::sse_reconnect_always_sends_snapshot_revocation_ends_stream_and_drop_releases_reader ... ok
+test operation_tests::every_mutation_rejects_get_origin_csrf_and_untyped_extra_fields ... ok
+test read_tests::sse_has_byte_and_age_limits ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_contracts-92530a38d34336bd)
+
+running 1 test
+test tests::oversized_frame_rejected_before_body_and_forged_actor_rejected ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target/debug/deps/limeos_core-6323ebe2c1bd14af)
+
+running 10 tests
+test operation_tests::revoking_a_session_during_inspection_prevents_plan_persistence ... ok
+test compose_tests::framed_task_preview_uses_peer_credentials_and_never_contacts_engine ... ok
+test operation_tests::logs_recheck_revocation_after_reading_and_viewer_scope_never_reaches_executor ... ok
+test operation_tests::dispatch_verifies_once_and_replay_returns_the_job_without_engine_access ... ok
+test tests::observations_and_history_use_current_resource_grants_and_reject_revocation ... ok
+test compose_tests::task_needs_both_scopes_and_kernel_identity_and_current_authority ... ok
+test operation_tests::recovery_without_an_accepted_receipt_never_dispatches_again ... ok
+test operation_tests::start_and_stop_dispatch_use_the_same_approval_and_verified_job_path ... ok
+test compose_tests::browser_and_task_have_identical_compose_policy_and_task_cannot_approve ... ok
+test tests::imported_hash_upgrades_only_after_successful_login_and_session_is_durable ... FAILED
+
+failures:
+
+---- tests::imported_hash_upgrades_only_after_successful_login_and_session_is_durable stdout ----
+
+thread 'tests::imported_hash_upgrades_only_after_successful_login_and_session_is_durable' panicked at bins/core/src/tests.rs:108:9:
+assertion `left == right` failed
+  left: Unavailable
+ right: Unauthenticated
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    tests::imported_hash_upgrades_only_after_successful_login_and_session_is_durable
+
+test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.58s
+
+error: test failed, to rerun pass `-p limeos-core --bin limeos-core`
