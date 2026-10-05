@@ -1,6 +1,6 @@
 # P03 execution tracker
 
-Status: implementation in progress. Started 2026-10-05 after P02 local qualification. P02's reference-host comparison and hardware gates remain pending; the overnight continuation request authorizes local progress while wybie stays untouched.
+Status: local implementation and representative-layout qualification complete; native ARM64 and reference-host gates remain pending. Started 2026-10-05 after P02 local qualification. The authorized P03 → P04 continuation permits local progress while wybie stays on the frozen Python build.
 
 Estimate: twelve implementer days (96 hours) for RW-030 through RW-033. Review the cutover scope at 144 hours. Approximate allocation: 24 hours for typed plans/approvals and durable queueing; 32 hours for the restart executor, receipts and crash reconciliation; 24 hours for start/stop, logs and the Compose plan foundation; 16 hours for disposable-host setup and qualification. Record actual effort separately from elapsed time and approval waits.
 
@@ -49,11 +49,11 @@ This continuation used approximately three hours of elapsed agent work including
 | RW-030: approved restart path | Implemented and qualified on the disposable AMD64 host, including native control, task-shaped caller and durable progress. |
 | RW-031: narrow executor foundation | Restart, start and stop share framing, peer credentials, separate ceilings, locks, cancellation, protected receipts and independent verification. |
 | RW-032: container/deployment operations | Start/stop, bounded logs and the approved Compose plan/diff foundation are implemented and qualified on the disposable AMD64 host. Deployment execution belongs to P04. |
-| RW-033: representative host qualification | Local real-Engine fixtures pass; a redacted representative reference-stack configuration remains. |
+| RW-033: representative host qualification | The redacted resolved layout of seven reference services passed the full matrix with 29 test containers and synthetic data on the disposable AMD64 host. Native ARM64 remains pending. |
 
 ## Remaining phase work
 
-1. Qualify a redacted representative reference-stack configuration and the combined UI/package payload on native ARM64; cross-build/emulation checks pass, and local lifecycle qualification uses AMD64.
+1. Qualify the combined UI/package payload on native ARM64; cross-build/emulation and representative-layout VM checks pass.
 2. Extend footprint measurements as those operations arrive; qualify reference hardware in an explicitly suitable window separately. P02's hardware comparison and reference-host shadow installation remain pending.
 
 No defect-register row is closed solely by this restart milestone. P03 remains in progress until its remaining operation and qualification work passes.
@@ -107,3 +107,27 @@ uv run tests/privileged_vm/run.py \
 ```
 
 This continuation used approximately 70 minutes of elapsed agent work after the tool approval completed, including builds and fixture reruns; approximately 110 minutes of approval wait are recorded separately. These are not human implementer-day measurements. The phase estimate remains 96 hours, with scope review at 144 hours. Holly's Pi was confirmed to be wybie by one light read-only SSH inventory. Its offered quiet window elapsed during approval, so no benchmark, package installation, service restart or mutation ran there. The Python checkout remains frozen. No additional defect-register rows are closed; representative-stack qualification, native ARM64/package and reference-hardware gates remain pending before P03 signoff. P04 has not started.
+
+## Representative-layout qualification
+
+The [filtered reference profile](../../../tests/fixtures/wybie-layout.json) records resolved mounts, restart/network modes, numeric application ownership, image IDs and operator-file hashes for Jellyfin, Audiobookshelf, Navidrome, Sonarr, Radarr, Transmission and the VPN. The [capture helper](../../../tests/reference/capture.py) read these once and emitted no environment values except numeric PUID/PGID, no commands, raw labels, container IDs or file contents. Two synthetic-secret regressions prove that filtering. Capture used light read-only SSH; no reference-host service or data changed.
+
+The [reference VM result](reference-vm-result.json) records 62 passing acceptance groups against the same frozen 0.3.2 packages. All 56 prior upgrade/lifecycle/Compose groups passed again with the reference layout attached. Twenty-nine BusyBox surrogates cycle through the seven layouts, retaining exact mount targets/read modes, numeric application UID/GID and private bridge/shared network namespaces. All eighteen interruption cases passed. Sixteen synthetic data sentinels and their ownership survived; each intended writable bind/volume admitted UID/GID 1000, and the music mount refused a write.
+
+The additional media planning snapshot retains actual resolved paths, operator fingerprints and image IDs, and changes only one read mode. Its elevated host-mount grant and browser/task impact agree. Unsupported VPN capabilities and the literal quoted Navidrome mount target are rejected explicitly by the limited P03 catalog schema. These snapshots cannot deploy: P04 still needs the complete Compose adapter, networking/capability semantics, live filesystem checks and migration handling.
+
+The reference copy is a resolved, redacted configuration projection. No production image, environment secret or data was copied. The test VPN namespace has a stable BusyBox anchor; capabilities/devices and published listeners are not enabled. Production images may initialize as root then drop to PUID/PGID; the surrogate runs directly as UID/GID 1000. This proves the common operation and mount-layout path, rather than production application startup or VPN behavior. The unusual `/data"` bind beside an anonymous `/data` volume, and the case-sensitive `TV`/`Movies` paths, are retained as explicit P04 import/deployment cases.
+
+After lifecycle qualification with those layouts, the application services used 10,118 KiB (9.88 MiB) PSS and zero swap. Twenty cached overview requests measured 0.591 ms median and 0.825 ms p95. The same AMD64-only workload and exclusions apply. [Reference validation metadata](reference-validation.json), [local check record](reference-local-checks.json) and the [source manifest](reference-source-sha256.json) bind the actual package payload, captured profile and current harness hashes. Original Compose and lifecycle evidence remain intact. CI now uses the committed redacted profile and capture regressions; it performs no reference-host SSH. GitHub CI has not run here.
+
+Rerun with the signed test repositories while their signatures remain valid:
+
+```sh
+uv run tests/privileged_vm/run.py \
+  --repository dist/p03-compose-debian/limeos-repo \
+  --previous-repository dist/p03-lifecycle-debian/limeos-repo \
+  --guest-script tests/privileged_vm/p03_reference_guest.py \
+  --output /tmp/limeos-reference-rerun.json
+```
+
+This slice used approximately 25 minutes of elapsed agent work, including capture, fixture implementation and the full VM rerun. The phase's 96-hour estimate and 144-hour scope-review threshold remain unchanged. Local P03 implementation/representative qualification is complete; native ARM64 and P02/reference-hardware signoff remain open. No additional defect-register row closes here. The operator-authorized local continuation now proceeds to [P04](../p04/2026-10-05-execution-tracker.md); no production write or cutover is authorized by these results.
