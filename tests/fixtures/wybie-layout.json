@@ -1,0 +1,363 @@
+{
+  "version": 1,
+  "captured_at_utc": "2026-10-05T16:41:38.522779+00:00",
+  "host": "wybie",
+  "projection": "resolved Docker layout; secrets, commands, IDs and raw Compose omitted",
+  "services": [
+    {
+      "service": "jellyfin",
+      "running": true,
+      "image_id": "sha256:f883c2573d77716010dd932f7de8853772fa4fa0789c796f54a0d87150ad1ef6",
+      "runtime_user": "",
+      "application_owner": {
+        "puid": 1000,
+        "pgid": 1000
+      },
+      "restart": "unless-stopped",
+      "network": "bridge",
+      "privileged": false,
+      "cap_add": [],
+      "devices": [],
+      "mounts": [
+        {
+          "kind": "bind",
+          "source": "/mnt/storage",
+          "target": "/media",
+          "read_only": false
+        },
+        {
+          "kind": "bind",
+          "source": "/home/test-operator/docker/jellyfin",
+          "target": "/config",
+          "read_only": false
+        }
+      ],
+      "ports": [
+        {
+          "target": 8096,
+          "published": 8096,
+          "protocol": "tcp"
+        },
+        {
+          "target": 8920,
+          "published": 8920,
+          "protocol": "tcp"
+        }
+      ],
+      "operator_files": [
+        {
+          "name": "docker-compose.yml",
+          "sha256": "33873dfabee57949ba0582b831a8a25b48feacdce78586c4b6fa84f3f36e5e04"
+        }
+      ],
+      "environment_values_omitted": 14
+    },
+    {
+      "service": "audiobookshelf",
+      "running": true,
+      "image_id": "sha256:2225a3e2123938c2917c06ff17a56715eeca6e2c98a1738def7c8e11cef05271",
+      "runtime_user": "",
+      "application_owner": {
+        "puid": 1000,
+        "pgid": 1000
+      },
+      "restart": "unless-stopped",
+      "network": "bridge",
+      "privileged": false,
+      "cap_add": [],
+      "devices": [],
+      "mounts": [
+        {
+          "kind": "bind",
+          "source": "/mnt/storage/audiobooks",
+          "target": "/audiobooks",
+          "read_only": false
+        },
+        {
+          "kind": "bind",
+          "source": "/mnt/storage/podcasts",
+          "target": "/podcasts",
+          "read_only": false
+        },
+        {
+          "kind": "bind",
+          "source": "/home/test-operator/docker/audiobookshelf/config",
+          "target": "/config",
+          "read_only": false
+        },
+        {
+          "kind": "bind",
+          "source": "/home/test-operator/docker/audiobookshelf/metadata",
+          "target": "/metadata",
+          "read_only": false
+        }
+      ],
+      "ports": [
+        {
+          "target": 80,
+          "published": 13378,
+          "protocol": "tcp"
+        }
+      ],
+      "operator_files": [
+        {
+          "name": "docker-compose.yml",
+          "sha256": "33873dfabee57949ba0582b831a8a25b48feacdce78586c4b6fa84f3f36e5e04"
+        }
+      ],
+      "environment_values_omitted": 11
+    },
+    {
+      "service": "navidrome",
+      "running": true,
+      "image_id": "sha256:82838e7fadf89382dbbb6405f1e8e82271fb0398e05eff0ffccb36fe1c38d347",
+      "runtime_user": "",
+      "application_owner": {
+        "puid": 1000,
+        "pgid": 1000
+      },
+      "restart": "unless-stopped",
+      "network": "bridge",
+      "privileged": false,
+      "cap_add": [],
+      "devices": [],
+      "mounts": [
+        {
+          "kind": "bind",
+          "source": "/mnt/storage/music",
+          "target": "/music",
+          "read_only": true
+        },
+        {
+          "kind": "bind",
+          "source": "/home/test-operator/docker/navidrome",
+          "target": "/data\"",
+          "read_only": false
+        },
+        {
+          "kind": "volume",
+          "source": "/srv/reference/bind-34",
+          "target": "/data",
+          "read_only": false
+        }
+      ],
+      "ports": [
+        {
+          "target": 4533,
+          "published": 4533,
+          "protocol": "tcp"
+        }
+      ],
+      "operator_files": [
+        {
+          "name": "docker-compose.yml",
+          "sha256": "33873dfabee57949ba0582b831a8a25b48feacdce78586c4b6fa84f3f36e5e04"
+        }
+      ],
+      "environment_values_omitted": 8
+    },
+    {
+      "service": "sonarr",
+      "running": true,
+      "image_id": "sha256:1fcb457ab816f4a4c1b0b43d58984920cdd4265806f303f5fbbaee5513cec749",
+      "runtime_user": "",
+      "application_owner": {
+        "puid": 1000,
+        "pgid": 1000
+      },
+      "restart": "unless-stopped",
+      "network": "container:<reference-vpn>",
+      "privileged": false,
+      "cap_add": [],
+      "devices": [],
+      "mounts": [
+        {
+          "kind": "bind",
+          "source": "/mnt/downloads",
+          "target": "/downloads",
+          "read_only": false
+        },
+        {
+          "kind": "bind",
+          "source": "/mnt/downloads/completed/transmission/iplayar",
+          "target": "/downloads/iplayar",
+          "read_only": false
+        },
+        {
+          "kind": "bind",
+          "source": "/home/test-operator/docker/sonarr",
+          "target": "/config",
+          "read_only": false
+        },
+        {
+          "kind": "bind",
+          "source": "/mnt/storage/TV",
+          "target": "/tv",
+          "read_only": false
+        }
+      ],
+      "ports": [],
+      "operator_files": [
+        {
+          "name": "docker-compose.yml",
+          "sha256": "33873dfabee57949ba0582b831a8a25b48feacdce78586c4b6fa84f3f36e5e04"
+        }
+      ],
+      "environment_values_omitted": 15
+    },
+    {
+      "service": "radarr",
+      "running": true,
+      "image_id": "sha256:bf29432e521e14099d94165922c064da32b0454e914277956935026afbb1e4fd",
+      "runtime_user": "",
+      "application_owner": {
+        "puid": 1000,
+        "pgid": 1000
+      },
+      "restart": "unless-stopped",
+      "network": "container:<reference-vpn>",
+      "privileged": false,
+      "cap_add": [],
+      "devices": [],
+      "mounts": [
+        {
+          "kind": "bind",
+          "source": "/mnt/storage/Movies",
+          "target": "/movies",
+          "read_only": false
+        },
+        {
+          "kind": "bind",
+          "source": "/mnt/downloads",
+          "target": "/downloads",
+          "read_only": false
+        },
+        {
+          "kind": "bind",
+          "source": "/home/test-operator/docker/radarr",
+          "target": "/config",
+          "read_only": false
+        }
+      ],
+      "ports": [],
+      "operator_files": [
+        {
+          "name": "docker-compose.yml",
+          "sha256": "33873dfabee57949ba0582b831a8a25b48feacdce78586c4b6fa84f3f36e5e04"
+        }
+      ],
+      "environment_values_omitted": 13
+    },
+    {
+      "service": "transmission",
+      "running": true,
+      "image_id": "sha256:a22ab22238f54f1ef54cbda83ff875340469225225429f980b38730120d8cad3",
+      "runtime_user": "",
+      "application_owner": {
+        "puid": 1000,
+        "pgid": 1000
+      },
+      "restart": "unless-stopped",
+      "network": "container:<reference-vpn>",
+      "privileged": false,
+      "cap_add": [],
+      "devices": [],
+      "mounts": [
+        {
+          "kind": "bind",
+          "source": "/home/test-operator/docker/transmission",
+          "target": "/config",
+          "read_only": false
+        },
+        {
+          "kind": "bind",
+          "source": "/mnt/downloads",
+          "target": "/downloads",
+          "read_only": false
+        }
+      ],
+      "ports": [],
+      "operator_files": [
+        {
+          "name": "docker-compose.yml",
+          "sha256": "33873dfabee57949ba0582b831a8a25b48feacdce78586c4b6fa84f3f36e5e04"
+        }
+      ],
+      "environment_values_omitted": 10
+    },
+    {
+      "service": "vpn",
+      "running": true,
+      "image_id": "sha256:d7e1c00cffe2eecc4364dd684ce5be9c046a6aa2dc106250a7738c8f18f2053f",
+      "runtime_user": "",
+      "application_owner": {
+        "puid": 1000,
+        "pgid": 1000
+      },
+      "restart": "unless-stopped",
+      "network": "reference-bridge",
+      "privileged": false,
+      "cap_add": [
+        "CAP_NET_ADMIN"
+      ],
+      "devices": [
+        {
+          "source": "/dev/net/tun",
+          "target": "/dev/net/tun"
+        }
+      ],
+      "mounts": [
+        {
+          "kind": "bind",
+          "source": "/home/test-operator/docker/vpn",
+          "target": "/gluetun",
+          "read_only": false
+        }
+      ],
+      "ports": [
+        {
+          "target": 6500,
+          "published": 6500,
+          "protocol": "tcp"
+        },
+        {
+          "target": 6789,
+          "published": 6789,
+          "protocol": "tcp"
+        },
+        {
+          "target": 7878,
+          "published": 7878,
+          "protocol": "tcp"
+        },
+        {
+          "target": 8686,
+          "published": 8686,
+          "protocol": "tcp"
+        },
+        {
+          "target": 8989,
+          "published": 8989,
+          "protocol": "tcp"
+        },
+        {
+          "target": 9091,
+          "published": 9091,
+          "protocol": "tcp"
+        },
+        {
+          "target": 9117,
+          "published": 9117,
+          "protocol": "tcp"
+        }
+      ],
+      "operator_files": [
+        {
+          "name": "docker-compose.yml",
+          "sha256": "33873dfabee57949ba0582b831a8a25b48feacdce78586c4b6fa84f3f36e5e04"
+        }
+      ],
+      "environment_values_omitted": 164
+    }
+  ]
+}

@@ -208,6 +208,7 @@ def main():
                 if args.guest_script.name in [
                     "p03_lifecycle_guest.py",
                     "p03_compose_guest.py",
+                    "p03_reference_guest.py",
                 ]:
                     run(
                         "scp",
@@ -217,7 +218,10 @@ def main():
                         str(args.guest_script.with_name("p03_guest.py")),
                         "root@127.0.0.1:/root/p03_guest.py",
                     )
-                if args.guest_script.name == "p03_compose_guest.py":
+                if args.guest_script.name in [
+                    "p03_compose_guest.py",
+                    "p03_reference_guest.py",
+                ]:
                     run(
                         "scp",
                         *common,
@@ -234,6 +238,25 @@ def main():
                         str(ROOT / "tests/fixtures/compose-catalog.json"),
                         "root@127.0.0.1:/root/compose-catalog-fixture.json",
                     )
+                if args.guest_script.name == "p03_reference_guest.py":
+                    for source, destination in [
+                        (
+                            args.guest_script.with_name("p03_compose_guest.py"),
+                            "p03_compose_guest.py",
+                        ),
+                        (
+                            ROOT / "tests/fixtures/wybie-layout.json",
+                            "wybie-layout.json",
+                        ),
+                    ]:
+                        run(
+                            "scp",
+                            *common,
+                            "-P",
+                            str(port),
+                            str(source),
+                            "root@127.0.0.1:/root/" + destination,
+                        )
                 if args.build_bundle:
                     if args.retain_previous_repository:
                         run(*ssh, "mv /opt/limeos-repo /opt/limeos-previous-repo")
