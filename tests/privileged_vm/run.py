@@ -30,6 +30,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", type=Path, required=True)
     parser.add_argument(
+        "--build-bundle",
+        type=Path,
+        help="Optional trusted local source/toolchain bundle; build only inside the throwaway VM",
+    )
+    parser.add_argument(
+        "--build-output",
+        type=Path,
+        help="Copy freshly built Debian binaries and packages here",
+    )
+    parser.add_argument(
         "--guest-script", type=Path, default=ROOT / "tests/privileged_vm/guest.py"
     )
     parser.add_argument(
@@ -117,7 +127,7 @@ def main():
                     "-smp",
                     "2",
                     "-m",
-                    "1024",
+                    "2048" if args.build_bundle else "1024",
                     "-display",
                     "none",
                     "-serial",
@@ -171,6 +181,53 @@ def main():
                     str(args.guest_script),
                     "root@127.0.0.1:/root/guest.py",
                 )
+                if args.build_bundle:
+                    run(
+                        "scp",
+                        *common,
+                        "-P",
+                        str(port),
+                        str(args.build_bundle),
+                        "root@127.0.0.1:/root/build.tar.gz",
+                    )
+                    run(
+                        *ssh,
+                        "mkdir /root/build && tar -xzf /root/build.tar.gz -C /root/build && python3 /root/build/source/tests/privileged_vm/build_guest.py",
+                    )
+                    if args.build_output:
+                        args.build_output.mkdir(parents=True, exist_ok=True)
+                        run(
+                            "scp",
+                            *common,
+                            "-P",
+                            str(port),
+                            "-r",
+                            "root@127.0.0.1:/root/build/packages",
+                            str(args.build_output),
+                        )
+                        run(
+                            "scp",
+                            *common,
+                            "-P",
+                            str(port),
+                            "-r",
+                            "root@127.0.0.1:/opt/limeos-repo",
+                            str(args.build_output),
+                        )
+                        for name in [
+                            "limeos-core",
+                            "limeos-password-worker",
+                            "limeos-executor",
+                            "limeosctl",
+                        ]:
+                            run(
+                                "scp",
+                                *common,
+                                "-P",
+                                str(port),
+                                f"root@127.0.0.1:/root/build/source/target/release/{name}",
+                                str(args.build_output / name),
+                            )
                 try:
                     run(
                         *ssh,
@@ -180,7 +237,7 @@ def main():
                     diagnostics = subprocess.run(
                         [
                             *ssh,
-                            "systemctl show limeos-core -p Result -p NRestarts -p StartLimitBurst -p StartLimitIntervalUSec; journalctl -u limeos-core --no-pager -n 80",
+                            "systemctl show limeos-core limeos-containerd -p Result -p NRestarts -p StartLimitBurst -p StartLimitIntervalUSec; journalctl -u limeos-core -u limeos-containerd -u docker --no-pager -n 100",
                         ],
                         capture_output=True,
                         text=True,
