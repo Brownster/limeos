@@ -5,6 +5,29 @@ use tower::ServiceExt;
 #[derive(Clone)]
 struct Mutations(Arc<AtomicUsize>);
 impl Backend for Mutations {
+    async fn plan_compose(
+        &self,
+        _: String,
+        _: String,
+        _: limeos_domain::ComposeSelection,
+    ) -> Result<limeos_domain::PlannedCompose> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(Error(ErrorCode::Unavailable))
+    }
+    async fn approve_compose(
+        &self,
+        _: String,
+        _: String,
+        _: String,
+        _: String,
+    ) -> Result<limeos_domain::PlanApproval> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(Error(ErrorCode::Unavailable))
+    }
+    async fn cancel_compose(&self, _: String, _: String, _: String) -> Result<()> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(Error(ErrorCode::Unavailable))
+    }
     async fn login(&self, _: Login) -> Result<IssuedSession> {
         Err(Error(ErrorCode::Unauthenticated))
     }
@@ -66,6 +89,9 @@ async fn every_mutation_rejects_get_origin_csrf_and_untyped_extra_fields() {
     let mutations = Arc::new(AtomicUsize::new(0));
     let router = router(Mutations(mutations.clone()), "https://localhost".into());
     for path in [
+        "/api/v1/compose/plans".into(),
+        format!("/api/v1/compose/plans/{}/approval", "a".repeat(64)),
+        format!("/api/v1/compose/plans/{}/cancel", "a".repeat(64)),
         "/api/v1/container/plans".into(),
         format!("/api/v1/container/plans/{}/approval", "a".repeat(64)),
         format!("/api/v1/container/plans/{}/cancel", "a".repeat(64)),
@@ -119,5 +145,31 @@ async fn every_mutation_rejects_get_origin_csrf_and_untyped_extra_fields() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(mutations.load(Ordering::SeqCst), 0);
+}
+#[tokio::test]
+async fn compose_selections_cannot_carry_manifests_or_claimed_authority() {
+    let mutations = Arc::new(AtomicUsize::new(0));
+    let router = router(Mutations(mutations.clone()), "https://localhost".into());
+    for extra in ["project", "yaml", "privileged", "principal", "command"] {
+        let mut body = serde_json::json!({"stack":"media","template":"standard"});
+        body[extra] = serde_json::json!("forbidden");
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/compose/plans")
+                    .header("origin", "https://localhost")
+                    .header("cookie", format!("__Host-limeos={}", "a".repeat(64)))
+                    .header("x-csrf-token", "b".repeat(64))
+                    .header("content-type", "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
     assert_eq!(mutations.load(Ordering::SeqCst), 0);
 }

@@ -100,6 +100,62 @@ pub fn read(path: &Path) -> Result<ConfigRead> {
         _ => ConfigRead::Corrupt,
     })
 }
+/// Optional planning authority. Every path component must be root-controlled;
+/// checking the leaf alone would allow replacement through a writable parent.
+pub fn read_compose_catalog(path: &Path) -> Result<Option<limeos_domain::ComposeCatalog>> {
+    use std::os::unix::fs::MetadataExt;
+    let file = match OpenOptions::new()
+        .read(true)
+        .custom_flags(NOFOLLOW | NONBLOCK)
+        .open(path)
+    {
+        Ok(file) => file,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err(Error(ErrorCode::CorruptConfiguration)),
+    };
+    let metadata = file
+        .metadata()
+        .map_err(|_| Error(ErrorCode::CorruptConfiguration))?;
+    if !path.is_absolute()
+        || !metadata.is_file()
+        || metadata.uid() != 0
+        || metadata.mode() & 0o022 != 0
+    {
+        return Err(Error(ErrorCode::CorruptConfiguration));
+    }
+    let mut ancestor = std::path::PathBuf::new();
+    for component in path
+        .parent()
+        .ok_or(Error(ErrorCode::CorruptConfiguration))?
+        .components()
+    {
+        if !matches!(
+            component,
+            std::path::Component::RootDir | std::path::Component::Normal(_)
+        ) {
+            return Err(Error(ErrorCode::CorruptConfiguration));
+        }
+        ancestor.push(component);
+        let metadata = std::fs::symlink_metadata(&ancestor)
+            .map_err(|_| Error(ErrorCode::CorruptConfiguration))?;
+        if !metadata.is_dir() || metadata.uid() != 0 || metadata.mode() & 0o022 != 0 {
+            return Err(Error(ErrorCode::CorruptConfiguration));
+        }
+    }
+    let mut bytes = Vec::new();
+    file.take(CONFIG_LIMIT + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| Error(ErrorCode::CorruptConfiguration))?;
+    if bytes.len() as u64 > CONFIG_LIMIT {
+        return Err(Error(ErrorCode::CorruptConfiguration));
+    }
+    let mut catalog: limeos_domain::ComposeCatalog =
+        serde_json::from_slice(&bytes).map_err(|_| Error(ErrorCode::CorruptConfiguration))?;
+    catalog
+        .normalize()
+        .map_err(|_| Error(ErrorCode::CorruptConfiguration))?;
+    Ok(Some(catalog))
+}
 /// Caller owns a private managed directory. Sync both the data and directory.
 /// A corrupt destination cannot be replaced by this normal write path.
 pub fn write(path: &Path, config: &Config) -> Result<()> {
@@ -129,6 +185,22 @@ pub fn write(path: &Path, config: &Config) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn optional_compose_catalog_rejects_unprotected_paths_without_replacing_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("compose-catalog.json");
+        assert!(read_compose_catalog(&path).unwrap().is_none());
+        let bytes = include_bytes!("../../../tests/fixtures/compose-catalog.json");
+        fs::write(&path, bytes).unwrap();
+        assert_eq!(
+            read_compose_catalog(&path).unwrap_err().0,
+            ErrorCode::CorruptConfiguration
+        );
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+        let link = dir.path().join("link.json");
+        std::os::unix::fs::symlink(&path, &link).unwrap();
+        assert!(read_compose_catalog(&link).is_err());
+    }
     #[test]
     fn corrupt_config_is_preserved_reads_do_not_write_and_atomic_write_is_valid() {
         let dir = tempfile::tempdir().unwrap();

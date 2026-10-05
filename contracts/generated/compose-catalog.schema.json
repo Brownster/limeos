@@ -1,0 +1,307 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ComposeCatalog",
+  "type": "object",
+  "properties": {
+    "stacks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ComposeStack"
+      }
+    },
+    "version": {
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "stacks"
+  ],
+  "$defs": {
+    "ComposeDevice": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "target"
+      ]
+    },
+    "ComposeFile": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/ComposeFileName"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "sha256"
+      ]
+    },
+    "ComposeFileName": {
+      "type": "string",
+      "enum": [
+        "compose.yaml",
+        "compose.yml",
+        "docker-compose.yaml",
+        "docker-compose.yml"
+      ]
+    },
+    "ComposeMount": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "volume"
+            },
+            "name": {
+              "type": "string"
+            },
+            "read_only": {
+              "type": "boolean"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "name",
+            "target",
+            "read_only"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "bind"
+            },
+            "read_only": {
+              "type": "boolean"
+            },
+            "source": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "source",
+            "target",
+            "read_only"
+          ]
+        }
+      ]
+    },
+    "ComposePort": {
+      "type": "object",
+      "properties": {
+        "host_ip": {
+          "type": "string"
+        },
+        "protocol": {
+          "$ref": "#/$defs/PortProtocol"
+        },
+        "published": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "target": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "host_ip",
+        "published",
+        "target",
+        "protocol"
+      ]
+    },
+    "ComposeProject": {
+      "type": "object",
+      "properties": {
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComposeService"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "services"
+      ]
+    },
+    "ComposeRestart": {
+      "type": "string",
+      "enum": [
+        "no",
+        "always",
+        "on-failure",
+        "unless-stopped"
+      ]
+    },
+    "ComposeService": {
+      "type": "object",
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComposeDevice"
+          }
+        },
+        "host_network": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "string"
+        },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComposeMount"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "ports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComposePort"
+          }
+        },
+        "privileged": {
+          "type": "boolean"
+        },
+        "restart": {
+          "$ref": "#/$defs/ComposeRestart"
+        },
+        "user": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComposeUser"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "image",
+        "restart",
+        "ports",
+        "mounts",
+        "devices",
+        "privileged",
+        "host_network"
+      ]
+    },
+    "ComposeStack": {
+      "type": "object",
+      "properties": {
+        "current": {
+          "$ref": "#/$defs/ComposeProject"
+        },
+        "id": {
+          "type": "string"
+        },
+        "operator_files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComposeFile"
+          }
+        },
+        "templates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComposeTemplate"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "operator_files",
+        "current",
+        "templates"
+      ]
+    },
+    "ComposeTemplate": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "project": {
+          "$ref": "#/$defs/ComposeProject"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "project"
+      ]
+    },
+    "ComposeUser": {
+      "type": "object",
+      "properties": {
+        "gid": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "uid": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "uid",
+        "gid"
+      ]
+    },
+    "PortProtocol": {
+      "type": "string",
+      "enum": [
+        "tcp",
+        "udp"
+      ]
+    }
+  }
+}

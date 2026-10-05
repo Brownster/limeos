@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "stacks": [
+    {
+      "id": "media",
+      "operator_files": [
+        {
+          "name": "compose.yaml",
+          "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ],
+      "current": {
+        "services": [
+          {
+            "name": "api",
+            "image": "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "user": {
+              "uid": 1000,
+              "gid": 1000
+            },
+            "restart": "unless-stopped",
+            "ports": [],
+            "mounts": [],
+            "devices": [],
+            "privileged": false,
+            "host_network": false
+          },
+          {
+            "name": "retired",
+            "image": "example.invalid/retired@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "user": {
+              "uid": 1000,
+              "gid": 1000
+            },
+            "restart": "unless-stopped",
+            "ports": [],
+            "mounts": [],
+            "devices": [],
+            "privileged": false,
+            "host_network": false
+          }
+        ]
+      },
+      "templates": [
+        {
+          "id": "standard",
+          "project": {
+            "services": [
+              {
+                "name": "worker",
+                "image": "example.invalid/worker@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "user": {
+                  "uid": 1000,
+                  "gid": 1000
+                },
+                "restart": "unless-stopped",
+                "ports": [],
+                "mounts": [],
+                "devices": [],
+                "privileged": false,
+                "host_network": false
+              },
+              {
+                "name": "api",
+                "image": "example.invalid/api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "user": {
+                  "uid": 1000,
+                  "gid": 1000
+                },
+                "restart": "unless-stopped",
+                "ports": [],
+                "mounts": [],
+                "devices": [],
+                "privileged": false,
+                "host_network": false
+              }
+            ]
+          }
+        },
+        {
+          "id": "elevated",
+          "project": {
+            "services": [
+              {
+                "name": "engine",
+                "image": "example.invalid/engine@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                "user": {
+                  "uid": 1000,
+                  "gid": 1000
+                },
+                "restart": "unless-stopped",
+                "ports": [],
+                "mounts": [
+                  {
+                    "kind": "bind",
+                    "source": "/var/run/docker.sock",
+                    "target": "/run/docker.sock",
+                    "read_only": true
+                  }
+                ],
+                "devices": [
+                  {
+                    "source": "/dev/video0",
+                    "target": "/dev/video0"
+                  }
+                ],
+                "privileged": true,
+                "host_network": true
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

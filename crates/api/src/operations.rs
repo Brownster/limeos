@@ -1,7 +1,7 @@
 use super::*;
 use axum::extract::{Path, Query};
 
-fn credentials<B>(app: &App<B>, headers: &HeaderMap) -> Result<(String, String)> {
+pub(super) fn credentials<B>(app: &App<B>, headers: &HeaderMap) -> Result<(String, String)> {
     origin(app, headers)?;
     let token = cookie(headers)?;
     let csrf = headers
@@ -32,7 +32,7 @@ pub(super) async fn logs<B: Backend>(
         Err(e) => failure(e),
     }
 }
-async fn input<T: serde::de::DeserializeOwned>(request: Request) -> Result<T> {
+pub(super) async fn input<T: serde::de::DeserializeOwned>(request: Request) -> Result<T> {
     if request
         .headers()
         .get("content-type")

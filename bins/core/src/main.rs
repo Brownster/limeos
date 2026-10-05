@@ -16,6 +16,7 @@ use tokio::{
     net::{TcpListener, UnixListener, UnixStream},
     sync::Semaphore,
 };
+mod compose;
 mod operations;
 
 fn now() -> i64 {
@@ -33,6 +34,7 @@ struct Core {
     observations: limeos_observations::Cache,
     telemetry: Option<limeos_observations::telemetry::Telemetry>,
     container_socket: Arc<PathBuf>,
+    compose_catalog: Option<Arc<limeos_domain::ComposeCatalog>>,
 }
 impl Core {
     async fn password(
@@ -266,6 +268,64 @@ impl Backend for Core {
     fn changes(&self) -> tokio::sync::watch::Receiver<u64> {
         self.observations.subscribe()
     }
+    async fn plan_compose(
+        &self,
+        token: String,
+        csrf: String,
+        selection: limeos_domain::ComposeSelection,
+    ) -> Result<limeos_domain::PlannedCompose> {
+        let catalog = self.catalog()?;
+        let digest = limeos_identity::digest(&token);
+        let csrf = limeos_identity::digest(&csrf);
+        self.db
+            .call(move |s| {
+                let principal = s.authenticate(&digest, Some(&csrf), now())?;
+                s.plan_compose(&principal, &catalog, &selection, now())
+            })
+            .await
+    }
+    async fn compose_plan(
+        &self,
+        token: String,
+        id: String,
+    ) -> Result<limeos_domain::PlannedCompose> {
+        let catalog = self.catalog()?;
+        let digest = limeos_identity::digest(&token);
+        self.db
+            .call(move |s| {
+                let principal = s.authenticate(&digest, None, now())?;
+                s.compose_plan(&principal, &catalog, &id, now())
+            })
+            .await
+    }
+    async fn approve_compose(
+        &self,
+        token: String,
+        csrf: String,
+        id: String,
+        plan_digest: String,
+    ) -> Result<limeos_domain::PlanApproval> {
+        let catalog = self.catalog()?;
+        let digest = limeos_identity::digest(&token);
+        let csrf = limeos_identity::digest(&csrf);
+        self.db
+            .call(move |s| {
+                let principal = s.authenticate(&digest, Some(&csrf), now())?;
+                s.approve_compose(&principal, &catalog, &id, &plan_digest, now())
+            })
+            .await
+    }
+    async fn cancel_compose(&self, token: String, csrf: String, id: String) -> Result<()> {
+        let catalog = self.catalog()?;
+        let digest = limeos_identity::digest(&token);
+        let csrf = limeos_identity::digest(&csrf);
+        self.db
+            .call(move |s| {
+                let principal = s.authenticate(&digest, Some(&csrf), now())?;
+                s.cancel_compose(&principal, &catalog, &id, now())
+            })
+            .await
+    }
     async fn plan_restart(
         &self,
         token: String,
@@ -464,6 +524,15 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
                 core.task_logs(token, peer.uid(), task, resource, options)
                     .await?,
             ),
+            CoreRequest::ProposeCompose {
+                version,
+                token,
+                task,
+                selection,
+            } if version == VERSION => CoreResponse::ComposePlan(
+                core.propose_compose_task(token, peer.uid(), task, selection)
+                    .await?,
+            ),
             _ => return Err(Error(ErrorCode::Forbidden)),
         };
         Ok(response)
@@ -556,6 +625,10 @@ async fn run() -> Result<()> {
         observations,
         telemetry,
         container_socket: Arc::new(config.container_socket.into()),
+        compose_catalog: config::read_compose_catalog(
+            &config_path.with_file_name("compose-catalog.json"),
+        )?
+        .map(Arc::new),
     };
     core.dummy_hash = core
         .hash(limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?)
@@ -577,6 +650,8 @@ async fn run() -> Result<()> {
     }
 }
 
+#[cfg(test)]
+mod compose_tests;
 #[cfg(test)]
 mod operation_tests;
 #[cfg(test)]

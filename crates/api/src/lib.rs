@@ -17,6 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::{net::TcpListener, sync::Semaphore};
+mod compose;
 #[cfg(test)]
 mod operation_tests;
 mod operations;
@@ -29,6 +30,38 @@ pub struct IssuedSession {
     pub view: SessionView,
 }
 pub trait Backend: Clone + Send + Sync + 'static {
+    fn plan_compose(
+        &self,
+        _token: String,
+        _csrf: String,
+        _selection: limeos_domain::ComposeSelection,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedCompose>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn compose_plan(
+        &self,
+        _token: String,
+        _id: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedCompose>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn approve_compose(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+        _digest: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn cancel_compose(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+    ) -> impl Future<Output = Result<()>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
     fn login(&self, request: Login) -> impl Future<Output = Result<IssuedSession>> + Send;
     fn session(
         &self,
@@ -164,6 +197,16 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
         .route("/api/v1/resources", get(reads::resources::<B>))
         .route("/api/v1/system/history", get(reads::history::<B>))
         .route("/api/v1/observations/stream", get(reads::stream::<B>))
+        .route("/api/v1/compose/plans", post(compose::plan::<B>))
+        .route("/api/v1/compose/plans/{id}", get(compose::read::<B>))
+        .route(
+            "/api/v1/compose/plans/{id}/approval",
+            post(compose::approve::<B>),
+        )
+        .route(
+            "/api/v1/compose/plans/{id}/cancel",
+            post(compose::cancel::<B>),
+        )
         .route(
             "/api/v1/container/restart/plans",
             post(operations::plan::<B>),

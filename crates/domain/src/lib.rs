@@ -5,6 +5,8 @@ mod operations;
 pub use operations::*;
 mod logs;
 pub use logs::*;
+mod compose;
+pub use compose::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -76,6 +78,8 @@ pub enum Operation {
     HealthRead,
     MediaRequest,
     ContainerManage,
+    DeploymentManage,
+    DeploymentElevated,
     StorageManage,
     IdentityManage,
 }

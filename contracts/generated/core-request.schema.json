@@ -270,9 +270,57 @@
         "resource",
         "options"
       ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "request": {
+          "type": "string",
+          "const": "propose_compose"
+        },
+        "selection": {
+          "$ref": "#/$defs/ComposeSelection"
+        },
+        "task": {
+          "type": "string"
+        },
+        "token": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version",
+        "token",
+        "task",
+        "selection"
+      ]
     }
   ],
   "$defs": {
+    "ComposeSelection": {
+      "type": "object",
+      "properties": {
+        "stack": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "stack",
+        "template"
+      ]
+    },
     "ContainerAction": {
       "type": "string",
       "enum": [
@@ -390,6 +438,8 @@
         "health_read",
         "media_request",
         "container_manage",
+        "deployment_manage",
+        "deployment_elevated",
         "storage_manage",
         "identity_manage"
       ]

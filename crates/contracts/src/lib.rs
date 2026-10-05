@@ -119,6 +119,12 @@ pub enum CoreRequest {
         resource: String,
         options: limeos_domain::LogOptions,
     },
+    ProposeCompose {
+        version: u16,
+        token: String,
+        task: String,
+        selection: limeos_domain::ComposeSelection,
+    },
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "response", rename_all = "snake_case", deny_unknown_fields)]
@@ -136,6 +142,7 @@ pub enum CoreResponse {
     ContainerPlan(limeos_domain::PlannedContainerAction),
     ContainerJob(limeos_domain::ContainerJob),
     ContainerLogs(limeos_domain::ContainerLogs),
+    ComposePlan(limeos_domain::PlannedCompose),
     Error(ErrorEnvelope),
 }
 

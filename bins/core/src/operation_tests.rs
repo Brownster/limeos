@@ -224,6 +224,7 @@ async fn fixture() -> (
         observations: Default::default(),
         telemetry: None,
         container_socket: Arc::new(path),
+        compose_catalog: None,
     };
     (dir, core, token, csrf, state, entered, release, task)
 }
