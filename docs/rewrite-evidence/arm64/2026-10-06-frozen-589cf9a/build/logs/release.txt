@@ -1,0 +1,131 @@
+$ cargo build --release --locked --bin limeos-core --bin limeos-password-worker --bin limeos-executor --bin limeosctl
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.26
+   Compiling libc v0.2.190
+   Compiling syn v2.0.119
+   Compiling itoa v1.0.18
+   Compiling syn v3.0.6
+   Compiling serde_core v1.0.228
+   Compiling version_check v0.9.5
+   Compiling generic-array v0.14.7
+   Compiling typenum v1.20.1
+   Compiling bytes v1.12.1
+   Compiling pin-project-lite v0.2.17
+   Compiling serde v1.0.228
+   Compiling serde_derive v1.0.228
+   Compiling ryu v1.0.23
+   Compiling serde_json v1.0.145
+   Compiling crypto-common v0.1.7
+   Compiling errno v0.3.14
+   Compiling shlex v2.0.1
+   Compiling memchr v2.8.3
+   Compiling find-msvc-tools v0.1.14
+   Compiling subtle v2.6.1
+   Compiling cc v1.6.0
+   Compiling signal-hook-registry v1.4.8
+   Compiling tokio-macros v2.6.1
+   Compiling mio v1.2.4
+   Compiling socket2 v0.6.5
+   Compiling ref-cast v1.0.27
+   Compiling cfg-if v1.0.5
+   Compiling thiserror v2.0.21
+   Compiling tokio v1.48.0
+   Compiling block-buffer v0.10.4
+   Compiling thiserror-impl v2.0.21
+   Compiling ref-cast-impl v1.0.27
+   Compiling serde_derive_internals v0.29.1
+   Compiling once_cell v1.21.4
+   Compiling futures-core v0.3.34
+   Compiling termcolor v1.4.1
+   Compiling ts-rs-macros v11.0.1
+   Compiling schemars_derive v1.0.4
+   Compiling digest v0.10.7
+   Compiling dyn-clone v1.0.20
+   Compiling schemars v1.0.4
+   Compiling ts-rs v11.0.1
+   Compiling smallvec v1.16.2
+   Compiling limeos-domain v0.2.0 (/root/qual/source/crates/domain)
+   Compiling http v1.5.0
+   Compiling vcpkg v0.2.15
+   Compiling pkg-config v0.3.34
+   Compiling libsqlite3-sys v0.38.2
+   Compiling http-body v1.1.0
+   Compiling tracing-core v0.1.36
+   Compiling inout v0.1.4
+   Compiling httparse v1.10.1
+   Compiling foldhash v0.2.0
+   Compiling bitflags v2.13.2
+   Compiling hashbrown v0.17.1
+   Compiling cipher v0.4.4
+   Compiling hmac v0.12.1
+   Compiling ring v0.17.14
+   Compiling futures-macro v0.3.34
+   Compiling cpufeatures v0.2.17
+   Compiling tower-service v0.3.3
+   Compiling base64ct v1.8.3
+   Compiling rand_core v0.6.4
+   Compiling futures-task v0.3.34
+   Compiling try-lock v0.2.5
+   Compiling percent-encoding v2.3.2
+   Compiling slab v0.4.12
+   Compiling futures-util v0.3.34
+   Compiling want v0.3.1
+   Compiling password-hash v0.5.0
+   Compiling sha2 v0.10.9
+   Compiling pbkdf2 v0.12.2
+   Compiling salsa20 v0.10.2
+   Compiling hashlink v0.12.2
+   Compiling blake2 v0.10.6
+   Compiling futures-channel v0.3.34
+   Compiling getrandom v0.2.17
+   Compiling tracing-attributes v0.1.31
+   Compiling atomic-waker v1.1.2
+   Compiling untrusted v0.9.0
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling rustix v1.1.5
+   Compiling fallible-iterator v0.3.0
+   Compiling httpdate v1.0.3
+   Compiling hyper v1.11.1
+   Compiling tracing v0.1.41
+   Compiling argon2 v0.5.3
+   Compiling scrypt v0.11.0
+   Compiling http-body-util v0.1.3
+   Compiling base64 v0.23.1
+   Compiling ipnet v2.12.2
+   Compiling linux-raw-sys v0.12.1
+   Compiling hex v0.4.3
+   Compiling limeos-identity v0.2.0 (/root/qual/source/crates/identity)
+   Compiling hyper-util v0.1.21
+   Compiling limeos-contracts v0.2.0 (/root/qual/source/crates/contracts)
+   Compiling fs2 v0.4.3
+   Compiling getrandom v0.3.4
+   Compiling sync_wrapper v1.0.2
+   Compiling tower-layer v0.3.3
+   Compiling limeos-executor-protocol v0.2.0 (/root/qual/source/crates/executor-protocol)
+   Compiling form_urlencoded v1.2.2
+   Compiling fastrand v2.5.0
+   Compiling lazy_static v1.5.1
+   Compiling mime v0.3.17
+   Compiling axum-core v0.5.6
+   Compiling sharded-slab v0.1.7
+   Compiling tempfile v3.23.0
+   Compiling serde_urlencoded v0.7.1
+   Compiling tower v0.5.3
+   Compiling tracing-serde v0.2.0
+   Compiling limeos-policy v0.2.0 (/root/qual/source/crates/policy)
+   Compiling thread_local v1.1.10
+   Compiling serde_path_to_error v0.1.20
+   Compiling matchit v0.8.4
+   Compiling axum v0.8.9
+   Compiling tracing-subscriber v0.3.20
+   Compiling limeos-api v0.2.0 (/root/qual/source/crates/api)
+   Compiling rusqlite v0.40.2
+   Compiling limeos-observations v0.2.0 (/root/qual/source/crates/observations)
+   Compiling limeos-persistence v0.2.0 (/root/qual/source/crates/persistence)
+   Compiling limeos-executor-storage v0.2.0 (/root/qual/source/crates/executor-storage)
+   Compiling limeos-executor-container v0.2.0 (/root/qual/source/crates/executor-container)
+   Compiling limeos-core v0.2.0 (/root/qual/source/bins/core)
+   Compiling limeos-executor v0.2.0 (/root/qual/source/bins/executor)
+   Compiling limeosctl v0.2.0 (/root/qual/source/bins/ctl)
+    Finished `release` profile [optimized] target(s) in 4m 06s

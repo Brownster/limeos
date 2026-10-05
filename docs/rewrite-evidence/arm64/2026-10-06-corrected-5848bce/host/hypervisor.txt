@@ -1,0 +1,9 @@
+model: Raspberry Pi 5 Model B Rev 1.0
+Linux 6.12.25+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.25-1+rpt1 (2025-04-30) aarch64
+16384
+QEMU emulator version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)
+qemu-efi-aarch64 2022.11-6+deb12u2
+CPU part	: 0xd0b
+4
+MemTotal:        8257232 kB
+nvme0n1 nvme   KBG40ZNS256G NVMe KIOXIA 256GB

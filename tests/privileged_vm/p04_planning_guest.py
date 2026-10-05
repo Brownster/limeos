@@ -85,7 +85,8 @@ def main():
         print("PASS " + name, flush=True)
 
     repo = Path(sys.argv[1])
-    shadow_package = next(repo.rglob(f"limeos-shadow_{VERSION}_amd64.deb"))
+    architecture = run("dpkg", "--print-architecture").stdout.strip()
+    shadow_package = next(repo.rglob(f"limeos-shadow_{VERSION}_{architecture}.deb"))
     with tempfile.TemporaryDirectory(prefix="limeos-shadow-payload-") as temporary:
         run("dpkg-deb", "-x", str(shadow_package), temporary)
         shadow_unit = (

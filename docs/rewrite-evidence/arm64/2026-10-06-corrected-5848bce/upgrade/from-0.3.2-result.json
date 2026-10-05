@@ -1,0 +1,68 @@
+{
+  "checks": [
+    {
+      "name": "older payload is the exact recorded artifact",
+      "result": "pass",
+      "observation": {
+        "sha256": "76dbaf5679d01759cf40f919ec3b048a18c6d0b62753100dbabd7a7828eb27f0",
+        "control": "Package: limeos\nVersion: 0.3.2\nArchitecture: arm64\n"
+      }
+    },
+    {
+      "name": "older package installs, enrolls and holds an authenticated session",
+      "result": "pass",
+      "observation": {
+        "installed_version": "0.3.2",
+        "schema_user_version_and_users": [
+          5,
+          1
+        ],
+        "unit_files": "limeos-containerd.service enabled enabled\nlimeos-core.service       enabled enabled\nlimeos-storaged.service   enabled enabled\n",
+        "active": {
+          "limeos-core": "active",
+          "limeos-containerd": "active",
+          "limeos-storaged": "active"
+        }
+      }
+    },
+    {
+      "name": "apt upgrades the genuine older package to the native 0.4.2 build",
+      "result": "pass",
+      "observation": {
+        "identity": "limeos 0.4.2 arm64",
+        "apt_seconds": 3.1,
+        "dpkg_verify": "",
+        "apt_tail": "Reading package lists...\nBuilding dependency tree...\nReading state information...\nThe following packages will be upgraded:\n  limeos\n1 upgraded, 0 newly installed, 0 to remove and 6 not upgraded.\nNeed to get 0 B/2214 kB of archives.\nAfter this operation, 0 B of additional disk space will be used.\nGet:1 file:/opt/limeos-repo stable/main arm64 limeos arm64 0.4.2 [2214 kB]\napt-listchanges: Reading changelogs...\n(Reading database ... \n(Reading database ... 5%\n(Reading database ... 10%\n(Reading database ... 15%\n(Reading database ... 20%\n(Reading database ... 25%\n(Reading database ... 30%\n(Reading database ... 35%\n(Reading database ... 40%\n(Reading database ... 45%\n(Reading database ... 50%\n(Reading database ... 55%\n(Reading database ... 60%\n(Reading database ... 65%\n(Reading database ... 70%\n(Reading database ... 75%\n(Reading database ... 80%\n(Reading database ... 85%\n(Reading database ... 90%\n(Reading database ... 95%\n(Reading database ... 100%\n(Reading database ... 20554 files and directories currently installed.)\nPreparing to unpack .../main/limeos_0.4.2_arm64.deb ...\nUnpacking limeos (0.4.2) over (0.3.2) ...\nSetting up limeos (0.4.2) ...\n",
+        "installed_sha256": {
+          "limeos-core": "1523124483e7d4be4cda781dab921832d2afd8e165c384bc98c2208e9987a271",
+          "limeos-password-worker": "c47cd39afb15e852e29076aca3489b09916360930b20bece135b8a47e1a8c063",
+          "limeos-executor": "71d2fd7853e3a44380a15a827aec678b54244b0afef9a90749cc2bccd63dcf4e",
+          "limeosctl": "2cf36a0b70b1ff76823e3ed360c14143f79679bbd430bbd83327f9404faccc45"
+        }
+      }
+    },
+    {
+      "name": "upgrade migrates authority to schema 6 and preserves users and the live session",
+      "result": "pass",
+      "observation": {
+        "schema_before": [
+          5,
+          1
+        ],
+        "schema_after": [
+          6,
+          1
+        ],
+        "session_after_upgrade": 200,
+        "unit_files": "limeos-containerd.service     enabled enabled\nlimeos-core.service           enabled enabled\nlimeos-storage-reader.service static  -\nlimeos-storage-ready.service  static  -\nlimeos-storaged.service       enabled enabled\n",
+        "active": {
+          "limeos-core": "active",
+          "limeos-containerd": "active",
+          "limeos-storaged": "active"
+        }
+      }
+    }
+  ],
+  "observations": {},
+  "summary": "pass"
+}

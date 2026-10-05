@@ -1,0 +1,6 @@
+    Checking limeos-persistence v0.2.0 (/root/qual/fixed/crates/persistence)
+    Checking limeos-executor-container v0.2.0 (/root/qual/fixed/crates/executor-container)
+    Checking limeos-executor v0.2.0 (/root/qual/fixed/bins/executor)
+    Checking limeos-core v0.2.0 (/root/qual/fixed/bins/core)
+    Checking limeosctl v0.2.0 (/root/qual/fixed/bins/ctl)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.82s

@@ -1,0 +1,1 @@
+$ bash packaging/repository.sh /root/qual/repo E1F5C95039523F8C917B3F4DA6C731431B51E360 /root/qual/packages/limeos-shadow_0.4.2_arm64.deb /root/qual/packages/limeos_0.4.2_arm64.deb

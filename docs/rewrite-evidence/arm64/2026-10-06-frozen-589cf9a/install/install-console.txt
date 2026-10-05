@@ -1,0 +1,21 @@
+PASS native aarch64 under KVM on Cortex-A76, not emulation
+PASS Debian docker.io and a static busybox workload of 18 containers
+PASS signed test repository installs limeos 0.4.2 for arm64
+FAIL package identity: installed files match the package and the native build: FileNotFoundError(2, 'No such file or directory')
+PASS unit files, enabled state and running services
+PASS service accounts, capabilities and sandbox properties
+PASS root-executed paths are root-owned and not writable by other accounts
+PASS only the container executor process holds Docker socket access
+PASS no default login; one-use local enrollment and authenticated session
+PASS imported Werkzeug scrypt and PBKDF2-SHA256 hashes verify and upgrade to Argon2id
+PASS password work runs in a bounded short-lived worker that exits
+PASS sessions survive core and executor restarts
+PASS core restart readiness distribution (20 restarts)
+PASS full stack cold start readiness (5 starts)
+PASS idle footprint after authentication (no subscribers)
+PASS idle CPU and bytes written over 600 seconds, no subscribers
+PASS CPU and bytes written over 300 seconds with 3 open dashboard streams
+PASS authenticated read latency, 3 concurrent clients x 200 requests
+PASS shadow installs beside standard, listens separately and refuses write ceilings
+PASS final footprint after workload and shadow removal
+SUMMARY {"passed": 19, "failed": ["package identity: installed files match the package and the native build"]}

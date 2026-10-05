@@ -1,0 +1,6 @@
+$ gpg --batch --pinentry-mode loopback --passphrase  --quick-generate-key Disposable ARM64 qualification key <rewrite@test.invalid> rsa2048 sign 2d
+gpg: directory '/root/.gnupg' created
+gpg: keybox '/root/.gnupg/pubring.kbx' created
+gpg: /root/.gnupg/trustdb.gpg: trustdb created
+gpg: directory '/root/.gnupg/openpgp-revocs.d' created
+gpg: revocation certificate stored as '/root/.gnupg/openpgp-revocs.d/EDB41947F74D79FC3D48888CD1C7D3514D11E5CC.rev'

@@ -1,0 +1,41 @@
+{
+  "limeosctl_status": {
+    "command": "/usr/lib/limeos/limeosctl status",
+    "exit_codes": [
+      0
+    ],
+    "n": 20,
+    "min": 1.292,
+    "p50": 1.393,
+    "p95": 1.703,
+    "max": 1.764
+  },
+  "executor_storage_inventory": {
+    "command": "/usr/lib/limeos/limeos-executor storage-inventory",
+    "exit_codes": [
+      0
+    ],
+    "n": 10,
+    "min": 51.233,
+    "p50": 52.45,
+    "p95": 53.812,
+    "max": 53.812
+  },
+  "storage_reader": {
+    "start_exit": 0,
+    "start_ms": 8.78,
+    "active": "active",
+    "memory": {
+      "pss_kib": 1155,
+      "rss_kib": 3456,
+      "swap_kib": 0
+    },
+    "uid_and_caps": [
+      "Uid:\t0\t0\t0\t0",
+      "CapEff:\t0000000000000000",
+      "CapBnd:\t0000000000000000",
+      "NoNewPrivs:\t1"
+    ],
+    "properties": "ExecStart={ path=/usr/lib/limeos/limeos-executor ; argv[]=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/storage.json /run/limeos-storage-reader/executor.sock storage ; ignore_errors=no ; start_time=[Mon 2026-10-05 23:32:05 UTC] ; stop_time=[n/a] ; pid=2382 ; code=(null) ; status=0/0 }\nMemoryMax=67108864\nCapabilityBoundingSet=\nUser=root\n"
+  }
+}

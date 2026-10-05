@@ -1,0 +1,160 @@
+{
+  "version": "0.4.2",
+  "steps": [
+    {
+      "step": "apt",
+      "command": "sh -c apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential pkg-config ca-certificates curl gnupg apt-utils dpkg-dev binutils file",
+      "jobs": null,
+      "exit": 0,
+      "seconds": 71.0,
+      "gate": false,
+      "log": "logs/apt.txt"
+    },
+    {
+      "step": "rustup",
+      "command": "sh -c curl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.88.0 -c clippy -c rustfmt --no-modify-path",
+      "jobs": null,
+      "exit": 0,
+      "seconds": 24.7,
+      "gate": false,
+      "log": "logs/rustup.txt"
+    },
+    {
+      "step": "fetch",
+      "command": "cargo fetch --locked",
+      "jobs": null,
+      "exit": 0,
+      "seconds": 11.2,
+      "gate": true,
+      "log": "logs/fetch.txt"
+    },
+    {
+      "step": "fmt",
+      "command": "cargo fmt --all -- --check",
+      "jobs": null,
+      "exit": 0,
+      "seconds": 0.6,
+      "gate": true,
+      "log": "logs/fmt.txt"
+    },
+    {
+      "step": "clippy",
+      "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+      "jobs": 3,
+      "exit": 0,
+      "seconds": 70.0,
+      "gate": true,
+      "log": "logs/clippy.txt"
+    },
+    {
+      "step": "test",
+      "command": "cargo test --workspace --locked",
+      "jobs": 3,
+      "exit": 0,
+      "seconds": 100.1,
+      "gate": true,
+      "log": "logs/test.txt"
+    },
+    {
+      "step": "contracts",
+      "command": "python3 scripts/check_contracts.py",
+      "jobs": 3,
+      "exit": 0,
+      "seconds": 25.0,
+      "gate": true,
+      "log": "logs/contracts.txt"
+    },
+    {
+      "step": "release",
+      "command": "cargo build --release --locked --bin limeos-core --bin limeos-password-worker --bin limeos-executor --bin limeosctl",
+      "jobs": 2,
+      "exit": 0,
+      "seconds": 248.0,
+      "gate": true,
+      "log": "logs/release.txt"
+    },
+    {
+      "step": "package-standard",
+      "command": "python3 packaging/build.py --arch arm64 --binaries /root/qual/source/target/release --version 0.4.2 --profile standard --output /root/qual/packages",
+      "jobs": null,
+      "exit": 0,
+      "seconds": 5.5,
+      "gate": true,
+      "log": "logs/package-standard.txt"
+    },
+    {
+      "step": "package-shadow",
+      "command": "python3 packaging/build.py --arch arm64 --binaries /root/qual/source/target/release --version 0.4.2 --profile shadow --output /root/qual/packages",
+      "jobs": null,
+      "exit": 0,
+      "seconds": 5.6,
+      "gate": true,
+      "log": "logs/package-shadow.txt"
+    },
+    {
+      "step": "signing-key",
+      "command": "gpg --batch --pinentry-mode loopback --passphrase  --quick-generate-key Disposable ARM64 qualification key <rewrite@test.invalid> rsa2048 sign 2d",
+      "jobs": null,
+      "exit": 0,
+      "seconds": 0.5,
+      "gate": false,
+      "log": "logs/signing-key.txt"
+    },
+    {
+      "step": "repository",
+      "command": "bash packaging/repository.sh /root/qual/repo EDB41947F74D79FC3D48888CD1C7D3514D11E5CC /root/qual/packages/limeos-shadow_0.4.2_arm64.deb /root/qual/packages/limeos_0.4.2_arm64.deb",
+      "jobs": null,
+      "exit": 0,
+      "seconds": 0.2,
+      "gate": true,
+      "log": "logs/repository.txt"
+    }
+  ],
+  "platform": {
+    "uname": "Linux limeos-p01-test 6.1.0-53-cloud-arm64 #1 SMP Debian 6.1.187-1 (2026-09-07) aarch64 ",
+    "cpu": [
+      "0xd0b"
+    ],
+    "nproc": 3,
+    "memory_kib": 2021932,
+    "os_release": "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"12\"\nVERSION=\"12 (bookworm)\"\nVERSION_CODENAME=bookworm\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n",
+    "dpkg_architecture": "arm64",
+    "page_size": 4096,
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: aarch64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5\n",
+    "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+    "native_linker": "/usr/bin/aarch64-linux-gnu-gcc\naarch64-linux-gnu-gcc (Debian 12.2.0-14+deb12u1) 12.2.0\n"
+  },
+  "tests": {
+    "passed": 132,
+    "failed": 0,
+    "ignored": 0,
+    "result_lines": 27
+  },
+  "binaries": {
+    "limeos-core": {
+      "sha256": "1523124483e7d4be4cda781dab921832d2afd8e165c384bc98c2208e9987a271",
+      "bytes": 4476672,
+      "machine": "AArch64"
+    },
+    "limeos-password-worker": {
+      "sha256": "c47cd39afb15e852e29076aca3489b09916360930b20bece135b8a47e1a8c063",
+      "bytes": 529032,
+      "machine": "AArch64"
+    },
+    "limeos-executor": {
+      "sha256": "71d2fd7853e3a44380a15a827aec678b54244b0afef9a90749cc2bccd63dcf4e",
+      "bytes": 3755712,
+      "machine": "AArch64"
+    },
+    "limeosctl": {
+      "sha256": "2cf36a0b70b1ff76823e3ed360c14143f79679bbd430bbd83327f9404faccc45",
+      "bytes": 856792,
+      "machine": "AArch64"
+    }
+  },
+  "signing_fingerprint": "EDB41947F74D79FC3D48888CD1C7D3514D11E5CC",
+  "packages": {
+    "limeos-shadow_0.4.2_arm64.deb": "31ba9929a5a73a995b122af46c56063e01debafe202ccc1c04d65fe0df077b5d",
+    "limeos_0.4.2_arm64.deb": "0a8651aa73afc7a2e67fe665f4c43d3a9f832e09c3104c316f105bea651c6e51"
+  }
+}

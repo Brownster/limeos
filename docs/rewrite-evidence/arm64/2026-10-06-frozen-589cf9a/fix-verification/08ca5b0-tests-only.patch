@@ -1,0 +1,33 @@
+diff --git a/crates/executor-container/src/tests.rs b/crates/executor-container/src/tests.rs
+index d0416e4..77c158d 100644
+--- a/crates/executor-container/src/tests.rs
++++ b/crates/executor-container/src/tests.rs
+@@ -559,3 +559,12 @@ async fn process_death_after_effect_before_result_persistence_never_replays_the_
+         b"1"
+     );
+ }
++
++#[test]
++fn symlinked_receipt_lock_is_refused_on_every_architecture() {
++    let directory = private_dir();
++    let elsewhere = directory.path().join("elsewhere.lock");
++    std::os::unix::fs::symlink(&elsewhere, directory.path().join("receipts.lock")).unwrap();
++    assert!(ReceiptStore::open(directory.path()).is_err());
++    assert!(!elsewhere.exists());
++}
+diff --git a/crates/persistence/src/tests.rs b/crates/persistence/src/tests.rs
+index b0d4f43..6a91a54 100644
+--- a/crates/persistence/src/tests.rs
++++ b/crates/persistence/src/tests.rs
+@@ -380,3 +380,11 @@ async fn bounded_worker_serializes_concurrent_budget_reservations() {
+     }
+     assert_eq!(success, 10);
+ }
++#[test]
++fn symlinked_database_lock_is_refused_on_every_architecture() {
++    let d = tempfile::tempdir().unwrap();
++    let elsewhere = d.path().join("elsewhere.lock");
++    std::os::unix::fs::symlink(&elsewhere, d.path().join("core.lock")).unwrap();
++    assert!(Store::open(&d.path().join("core.sqlite")).is_err());
++    assert!(!elsewhere.exists());
++}

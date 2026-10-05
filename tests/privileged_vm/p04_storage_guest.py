@@ -451,7 +451,7 @@ def main():
             {
                 "passed": checks,
                 "package_version": VERSION,
-                "architecture": "amd64",
+                "architecture": run("dpkg", "--print-architecture").stdout.strip(),
                 "plan_wait_seconds": elapsed,
                 "watchdog_seconds": watchdog_elapsed,
                 "payload_sha256": hashlib.sha256(
