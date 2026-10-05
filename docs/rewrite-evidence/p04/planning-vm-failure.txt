@@ -1,0 +1,66 @@
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=timeout
+NRestarts=0
+ExecMainStatus=15
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+Oct 05 20:14:19 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 05 20:14:19 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 05 20:14:19 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 20:14:19 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 20:14:19 limeos-p01-test limeos-core[967]: {"timestamp":"2026-10-05T20:14:19.678051Z","level":"INFO","fields":{"message":"core ready","generation":1}}
+Oct 05 20:14:22 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 20:14:22 limeos-p01-test limeos-executor[1042]: {"host_root_mount_id":27,"mounts":[{"device":{"major":254,"minor":17},"filesystem_uuid":"abdf3b7f-3489-4d76-94e9-0c87fa0aa713","id":"data","mount_id":554,"mountpoint":"/mnt/data"}]}
+Oct 05 20:14:22 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 05 20:14:22 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 20:14:23 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 20:14:23 limeos-p01-test limeos-executor[1075]: {"host_root_mount_id":27,"mounts":[{"device":{"major":254,"minor":17},"filesystem_uuid":"abdf3b7f-3489-4d76-94e9-0c87fa0aa713","id":"data","mount_id":554,"mountpoint":"/mnt/data"},{"device":{"major":254,"minor":33},"filesystem_uuid":"70041ca9-ab64-491b-86a7-525224982ed8","id":"downloads","mount_id":588,"mountpoint":"/mnt/downloads"}]}
+Oct 05 20:14:23 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 05 20:14:23 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 20:14:23 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 20:14:23 limeos-p01-test limeos-executor[1111]: {"host_root_mount_id":27,"mounts":[{"device":{"major":254,"minor":17},"filesystem_uuid":"abdf3b7f-3489-4d76-94e9-0c87fa0aa713","id":"data","mount_id":554,"mountpoint":"/mnt/data"},{"device":{"major":254,"minor":18},"filesystem_uuid":"c88fd226-3eec-4464-bd1a-c1f8b25e7305","id":"data2","mount_id":571,"mountpoint":"/mnt/data2"},{"device":{"major":254,"minor":49},"filesystem_uuid":"f53d9ab2-1622-4df4-900b-13006af033e4","id":"parity","mount_id":605,"mountpoint":"/mnt/parity"},{"device":{"major":254,"minor":65},"filesystem_uuid":"94bd750a-4f01-4345-bf59-242494185545","id":"backup","mount_id":622,"mountpoint":"/mnt/backup"}]}
+Oct 05 20:14:23 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 05 20:14:23 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 20:14:24 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 20:14:27 limeos-p01-test limeos-executor[1238]: {"error":"timed_out","message":"The storage readiness deadline expired."}
+Oct 05 20:14:27 limeos-p01-test systemd[1]: limeos-storage-ready.service: Main process exited, code=exited, status=3/NOTIMPLEMENTED
+Oct 05 20:14:27 limeos-p01-test systemd[1]: limeos-storage-ready.service: Failed with result 'exit-code'.
+Oct 05 20:14:27 limeos-p01-test systemd[1]: Failed to start limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 20:14:28 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 05 20:14:32 limeos-p01-test systemd[1]: limeos-storage-ready.service: start operation timed out. Terminating.
+Oct 05 20:14:32 limeos-p01-test systemd[1]: limeos-storage-ready.service: Main process exited, code=killed, status=15/TERM
+Oct 05 20:14:32 limeos-p01-test systemd[1]: limeos-storage-ready.service: Failed with result 'timeout'.
+Oct 05 20:14:32 limeos-p01-test systemd[1]: Failed to start limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 05 20:14:32 limeos-p01-test systemd[1]: limeos-storage-ready.service: Consumed 1.268s CPU time.
+Oct 05 20:14:33 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 05 20:14:33 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 05 20:14:33 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 05 20:14:33 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 20:14:33 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 20:14:33 limeos-p01-test limeos-core[1610]: {"timestamp":"2026-10-05T20:14:33.869916Z","level":"INFO","fields":{"message":"core ready","generation":2}}
+Oct 05 20:14:37 limeos-p01-test systemd[1]: Starting limeos-storage-reader.service - LimeOS fresh storage inventory (read only)...
+Oct 05 20:14:37 limeos-p01-test systemd[1]: Started limeos-storage-reader.service - LimeOS fresh storage inventory (read only).
+Oct 05 20:14:38 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 05 20:14:38 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 05 20:14:38 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 05 20:14:38 limeos-p01-test systemd[1]: limeos-core.service: Consumed 2.045s CPU time.
+Oct 05 20:14:38 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 20:14:38 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 20:14:38 limeos-p01-test limeos-core[1771]: {"timestamp":"2026-10-05T20:14:38.863723Z","level":"INFO","fields":{"message":"core ready","generation":3}}
