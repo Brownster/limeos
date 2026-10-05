@@ -3,7 +3,7 @@
 
 import copy
 import hashlib
-import http.client
+import http.client as http_client
 import json
 import os
 import sqlite3
@@ -23,7 +23,7 @@ run = readiness.run
 def http(
     path, method="GET", body=None, cookie=None, csrf=None, origin="https://localhost"
 ):
-    connection = http.client.HTTPConnection("127.0.0.1", 8003, timeout=12)
+    connection = http_client.HTTPConnection("127.0.0.1", 8003, timeout=12)
     headers = {"Origin": origin, "Content-Type": "application/json"}
     if cookie:
         headers["Cookie"] = cookie

@@ -183,7 +183,7 @@ def main():
                 for p in [file, *file.parents]:
                     assert p.stat().st_uid == 0 and p.stat().st_mode & 0o022 == 0
     passed(
-        "signed 0.4.0 install, protected executable/libraries and dormant bounded readiness unit"
+        f"signed {VERSION} install, protected executable/libraries and dormant bounded readiness unit"
     )
 
     for name in ["vdb", "vdc", "vdd", "vde"]:
