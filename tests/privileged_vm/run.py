@@ -205,7 +205,10 @@ def main():
                     str(args.guest_script),
                     "root@127.0.0.1:/root/guest.py",
                 )
-                if args.guest_script.name == "p03_lifecycle_guest.py":
+                if args.guest_script.name in [
+                    "p03_lifecycle_guest.py",
+                    "p03_compose_guest.py",
+                ]:
                     run(
                         "scp",
                         *common,
@@ -213,6 +216,23 @@ def main():
                         str(port),
                         str(args.guest_script.with_name("p03_guest.py")),
                         "root@127.0.0.1:/root/p03_guest.py",
+                    )
+                if args.guest_script.name == "p03_compose_guest.py":
+                    run(
+                        "scp",
+                        *common,
+                        "-P",
+                        str(port),
+                        str(args.guest_script.with_name("p03_lifecycle_guest.py")),
+                        "root@127.0.0.1:/root/p03_lifecycle_guest.py",
+                    )
+                    run(
+                        "scp",
+                        *common,
+                        "-P",
+                        str(port),
+                        str(ROOT / "tests/fixtures/compose-catalog.json"),
+                        "root@127.0.0.1:/root/compose-catalog-fixture.json",
                     )
                 if args.build_bundle:
                     if args.retain_previous_repository:

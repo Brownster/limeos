@@ -42,7 +42,9 @@ def main():
             "docs/p01-operations.md",
             "docs/p02-operations.md",
             "docs/p03-operations.md",
+            "docs/p03-compose-planning.md",
             "tests/privileged_vm",
+            "tests/fixtures",
         ]:
             archive.add(
                 ROOT / name,

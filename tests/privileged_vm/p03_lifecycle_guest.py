@@ -33,7 +33,7 @@ def repository(path):
     fixture.run("apt-get", "update", "-qq")
 
 
-def upgrade(candidate):
+def upgrade(candidate, package_version="0.3.1", authority_schema=4):
     previous = Path("/opt/limeos-previous-repo")
     assert previous.is_dir(), "The runner must retain the qualified 0.3.0 repository"
     repository(previous)
@@ -62,7 +62,7 @@ def upgrade(candidate):
     with sqlite3.connect(fixture.RECEIPTS) as db:
         assert db.execute("PRAGMA user_version").fetchone()[0] == 2
     repository(candidate)
-    fixture.run("apt-get", "install", "-y", "limeos=0.3.1")
+    fixture.run("apt-get", "install", "-y", "limeos=" + package_version)
     fixture.eventually(
         lambda: fixture.http("/api/v1/overview", cookie=cookie)[0] == 200
     )
@@ -73,7 +73,7 @@ def upgrade(candidate):
     new_job, _ = fixture.queue(pending, token, "upgrade-pending", cookie, csrf)
     fixture.eventually(lambda: fixture.state(new_job["id"]) == "succeeded")
     with sqlite3.connect(fixture.CORE_DB) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert db.execute("PRAGMA user_version").fetchone()[0] == authority_schema
         assert db.execute("SELECT COUNT(*) FROM container_results").fetchone()[0] == 2
     with sqlite3.connect(fixture.RECEIPTS) as db:
         assert db.execute("PRAGMA user_version").fetchone()[0] == 3
@@ -88,7 +88,7 @@ def upgrade(candidate):
     fixture.restart_container()
     fixture.run("docker", "rm", "-f", identifier)
     fixture.passed(
-        "real 0.3.0 to 0.3.1 upgrade preserves sessions, approved restart bytes and verified receipts"
+        f"real 0.3.0 to {package_version} upgrade preserves sessions, approved restart bytes and verified receipts"
     )
 
 
@@ -120,7 +120,7 @@ def queue(proposal, approval, key, cookie, csrf):
     return job, body
 
 
-def main():
+def main(package_version="0.3.1", authority_schema=4, qualify_upgrade=True):
     if os.getuid() != 0 or socket.gethostname() != "limeos-p01-test":
         raise SystemExit("Disposable guest required")
     candidate, output = map(Path, sys.argv[1:])
@@ -137,9 +137,9 @@ def main():
     fixture.eventually(
         lambda: fixture.run("docker", "info", check=False).returncode == 0
     )
-    if Path("/opt/limeos-previous-repo").is_dir():
-        upgrade(candidate)
-    fixture.PACKAGE_VERSION = "0.3.1"
+    if qualify_upgrade and Path("/opt/limeos-previous-repo").is_dir():
+        upgrade(candidate, package_version, authority_schema)
+    fixture.PACKAGE_VERSION = package_version
     cookie, csrf, principal, ids, policy_path, policy = fixture.main()
     extra = [
         fixture.docker(
@@ -492,7 +492,7 @@ def main():
     result["checks"] = fixture.checks
     result["lifecycle_posts"] = sum(fixture.control.posts.values())
     result["operations"] = ["restart", "start", "stop", "logs"]
-    result["schemas"] = {"authority": 4, "container_receipts": 3}
+    result["schemas"] = {"authority": authority_schema, "container_receipts": 3}
     result["footprint"].update(
         app_pss_kib=memory,
         combined_pss_kib=sum(memory.values()),
@@ -503,13 +503,13 @@ def main():
     result["upgrade"] = (
         {
             "from": "0.3.0",
-            "to": "0.3.1",
+            "to": package_version,
             "previous_package_sha256": {
                 p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                 for p in Path("/opt/limeos-previous-repo/pool/main").glob("*.deb")
             },
         }
-        if Path("/opt/limeos-previous-repo").is_dir()
+        if qualify_upgrade and Path("/opt/limeos-previous-repo").is_dir()
         else None
     )
     output.write_text(json.dumps(result, indent=2) + "\n")
