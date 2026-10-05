@@ -12,7 +12,7 @@ workspace = true
 [dependencies]
 argon2.workspace = true
 scrypt.workspace = true
-pbkdf2.workspace = true
+ring.workspace = true
 sha2.workspace = true
 hex.workspace = true
 getrandom.workspace = true

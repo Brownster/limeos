@@ -61,19 +61,25 @@ pub fn verify(password: &str, encoded: &str) -> bool {
     let Some((method, salt, expected)) = legacy(encoded) else {
         return false;
     };
-    let mut actual = vec![0_u8; expected.len()];
     match method {
-        Legacy::Pbkdf2(count) => {
-            pbkdf2::pbkdf2_hmac::<Sha256>(password.as_bytes(), salt.as_bytes(), count, &mut actual)
-        }
+        Legacy::Pbkdf2(count) => std::num::NonZeroU32::new(count).is_some_and(|iterations| {
+            ring::pbkdf2::verify(
+                ring::pbkdf2::PBKDF2_HMAC_SHA256,
+                iterations,
+                salt.as_bytes(),
+                password.as_bytes(),
+                &expected,
+            )
+            .is_ok()
+        }),
         Legacy::Scrypt(params) => {
+            let mut actual = vec![0_u8; expected.len()];
             if scrypt::scrypt(password.as_bytes(), salt.as_bytes(), &params, &mut actual).is_err() {
                 return false;
             }
+            actual.ct_eq(&expected).into()
         }
     }
-
-    actual.ct_eq(&expected).into()
 }
 enum Legacy {
     Pbkdf2(u32),
