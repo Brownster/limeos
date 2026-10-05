@@ -272,7 +272,8 @@ def main():
             with sqlite3.connect(fixture.CORE_DB) as db:
                 assert (
                     db.execute(
-                        "SELECT COUNT(*) FROM resource_locks WHERE job=?", (job["id"],)
+                        "SELECT COUNT(*) FROM jobs INDEXED BY jobs_resource_lock WHERE id=? AND state IN ('running','verifying','outcome_unknown','needs_intervention')",
+                        (job["id"],),
                     ).fetchone()[0]
                     == 1
                 )
