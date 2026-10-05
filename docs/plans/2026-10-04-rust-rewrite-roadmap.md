@@ -18,7 +18,7 @@ The sequence is governed by evidence gates, not a file-by-file translation. A ph
 - Rust for footprint, start-up speed, and compile-time correctness of root-side and job code. Python is already memory-safe, so memory safety counts only for new native code, not as a gain over the current implementation. The [reference Pi 5 baseline](../rewrite-evidence/p00/2026-10-04-reference-pi5-baseline.md) sets the targets; see "Why Rust" in the architecture.
 - The current build is frozen. Its known defects are fixed only in the new build, each with a regression scenario in the defect register (section 2).
 - The cutover release is the smallest scope that replaces the current build: host, storage, and deployment parity; deterministic schedules and notifications; and a minimal native assistant. Media requests, more model providers, model-driven automation, and chat transports follow cutover and cannot delay it.
-- Phases run one after another; there is one implementer.
+- Phases run one after another with one integrating implementer. On 2026-10-05 the operator asked how two additional engineers could help: [native ARM64 qualification](2026-10-05-engineer-arm64-qualification.md) and [RW-041 pool/protection planning](2026-10-05-engineer-pool-protection-planning.md) can proceed on separate branches while RW-040 continues. These bounded assignments preserve phase gates; shared runtime integration remains sequential.
 - One cutover per installation, after read-only shadow running and a rehearsal on a test host. The two builds never mutate the same host at the same time.
 - One modular unprivileged core, plus narrow host/Docker executors and isolated assistant/provider/connector runtimes.
 - One operation registry, policy engine, and durable job journal for every caller.
