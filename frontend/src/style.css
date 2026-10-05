@@ -291,6 +291,31 @@ th small {
   min-height: 44px;
   font-size: 13px;
 }
+.container-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+}
+.container-controls .container-action {
+  margin-top: 0;
+}
+.log-dialog {
+  width: min(58rem, calc(100vw - 2rem));
+}
+.container-logs {
+  max-height: 50vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 1rem;
+  border: 1px solid #475244;
+  color: #edf1e7;
+  background: #161b18;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
 .operation-dialog {
   width: min(620px, calc(100% - 32px));
   max-height: 90vh;

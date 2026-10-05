@@ -5,6 +5,8 @@ import type {
   PlannedRestart,
   Resource,
   RestartJob,
+  ContainerAction,
+  ContainerLogs,
 } from "../../contracts/generated/types";
 import { api, ApiError } from "./api";
 
@@ -13,6 +15,11 @@ function message(error: unknown): string {
     ? `${error.message} · reference ${error.detail.audit_id}`
     : "The host is unavailable. Check recent operations before trying again.";
 }
+const labels: Record<ContainerAction, string> = {
+  restart: "Restart",
+  start: "Start",
+  stop: "Stop",
+};
 function containFocus(event: KeyboardEvent<HTMLDialogElement>) {
   if (event.key !== "Tab") return;
   const controls = Array.from(
@@ -48,6 +55,7 @@ export function ContainerActions({
   const [proposal, setProposal] = useState<PlannedRestart | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [operation, setOperation] = useState<ContainerAction>("restart");
   const submission = useRef<{
     proposal: PlannedRestart;
     approval: string;
@@ -60,14 +68,20 @@ export function ContainerActions({
       alive.current = false;
     };
   }, []);
-  async function preview() {
+  async function preview(action: ContainerAction) {
     setPending(true);
     setError("");
     setProposal(null);
     submission.current = null;
+    setOperation(action);
     dialog.current?.showModal();
     try {
-      const next = await api.planRestart(resource.id, csrf);
+      const next = await api.planContainer(resource.id, action, csrf);
+      if (
+        next.plan.expected.resource !== resource.id ||
+        (next.plan.operation ?? "restart") !== action
+      )
+        throw new Error("Plan identity mismatch");
       if (alive.current) setProposal(next);
     } catch (e) {
       if (alive.current) setError(message(e));
@@ -102,13 +116,24 @@ export function ContainerActions({
   }
   return (
     <>
-      <button
-        className="container-action"
-        disabled={resource.status !== "running" || pending}
-        onClick={() => void preview()}
-      >
-        {pending ? "Restarting…" : "Restart"}
-      </button>
+      <div className="container-controls">
+        {(["start", "stop", "restart"] as ContainerAction[]).map((action) => (
+          <button
+            key={action}
+            className="container-action"
+            disabled={
+              pending ||
+              (action === "start"
+                ? !["exited", "created", "stopped"].includes(resource.status)
+                : resource.status !== "running")
+            }
+            onClick={() => void preview(action)}
+          >
+            {labels[action]}
+          </button>
+        ))}
+        <ContainerLogView resource={resource} />
+      </div>
       <dialog
         ref={dialog}
         className="operation-dialog"
@@ -117,19 +142,25 @@ export function ContainerActions({
         onKeyDown={containFocus}
       >
         <header className="page-heading">
-          <h2 id={`restart-${resource.id}`}>Restart {resource.name}</h2>
+          <h2 id={`restart-${resource.id}`}>
+            {labels[operation]} {resource.name}
+          </h2>
           <button
             className="quiet"
             autoFocus
             onClick={() => dialog.current?.close()}
-            aria-label="Close restart preview"
+            aria-label={`Close ${operation} preview`}
           >
             Close
           </button>
         </header>
         <p>
-          This briefly interrupts the service. Review the selected container
-          before approving.
+          {operation === "start"
+            ? "This starts the selected service."
+            : operation === "stop"
+              ? "This stops the selected service until it is started again."
+              : "This briefly interrupts the service."}{" "}
+          Review the selected container before approving.
         </p>
         {pending && !proposal && <p role="status">Inspecting the container…</p>}
         {proposal && (
@@ -162,7 +193,88 @@ export function ContainerActions({
             ? "Submitting…"
             : submission.current
               ? "Retry same request"
-              : "Approve and restart"}
+              : `Approve and ${operation}`}
+        </button>
+      </dialog>
+    </>
+  );
+}
+function ContainerLogView({ resource }: { resource: Resource }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [logs, setLogs] = useState<ContainerLogs | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  async function refresh() {
+    if (pending) return;
+    setPending(true);
+    setError("");
+    setLogs(null);
+    try {
+      const value = await api.containerLogs(resource.id);
+      if (value.resource !== resource.id)
+        throw new Error("Log identity mismatch");
+      if (alive.current) setLogs(value);
+    } catch (e) {
+      if (alive.current) setError(message(e));
+    } finally {
+      if (alive.current) setPending(false);
+    }
+  }
+  return (
+    <>
+      <button
+        className="quiet"
+        onClick={() => {
+          dialog.current?.showModal();
+          void refresh();
+        }}
+      >
+        Logs
+      </button>
+      <dialog
+        ref={dialog}
+        className="operation-dialog log-dialog"
+        aria-labelledby={`logs-${resource.id}`}
+        onKeyDown={containFocus}
+      >
+        <header className="page-heading">
+          <h2 id={`logs-${resource.id}`}>Logs · {resource.name}</h2>
+          <button
+            autoFocus
+            className="quiet"
+            onClick={() => dialog.current?.close()}
+          >
+            Close logs
+          </button>
+        </header>
+        <p>
+          Last 100 lines. Common credentials and terminal controls are filtered.
+        </p>
+        {pending && <p role="status">Reading logs…</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        {logs && (
+          <>
+            {logs.truncated && (
+              <p className="notice">Output reached the size limit.</p>
+            )}
+            <pre className="container-logs">
+              {logs.text || "No log output."}
+            </pre>
+          </>
+        )}
+        <button disabled={pending} onClick={() => void refresh()}>
+          Refresh logs
         </button>
       </dialog>
     </>
@@ -252,13 +364,14 @@ export function ContainerJobs({
         <article key={job.id} className="job-row">
           <div>
             <strong>
-              Restart · {job.plan.expected.resource.slice(10, 22)}
+              {labels[job.plan.operation ?? "restart"]} ·{" "}
+              {job.plan.expected.resource.slice(10, 22)}
             </strong>
             <p role="status">{job.state.replaceAll("_", " ")}</p>
             {job.state === "needs_intervention" && (
               <p className="notice">
                 The outcome needs inspection. The resource remains locked and
-                the restart will not be repeated.
+                the operation will not be repeated.
               </p>
             )}
           </div>
@@ -267,7 +380,7 @@ export function ContainerJobs({
           </button>
           {job.state === "queued" && (
             <button className="quiet" onClick={() => void cancel(job.id)}>
-              Cancel queued restart
+              Cancel queued {job.plan.operation ?? "restart"}
             </button>
           )}
           {events?.id === job.id && (

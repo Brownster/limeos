@@ -11,6 +11,8 @@ import type {
   PlanApproval,
   RestartJob,
   JobProgress,
+  ContainerAction,
+  ContainerLogs,
 } from "../../contracts/generated/types";
 export class ApiError extends Error {
   readonly detail: ErrorEnvelope;
@@ -54,6 +56,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     : ((await response.json()) as T);
 }
 export const api = {
+  planContainer: (resource: string, operation: ContainerAction, csrf: string) =>
+    request<PlannedRestart>("/container/plans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ resource, operation }),
+    }),
   planRestart: (resource: string, csrf: string) =>
     request<PlannedRestart>("/container/restart/plans", {
       method: "POST",
@@ -61,35 +69,33 @@ export const api = {
       body: JSON.stringify({ resource }),
     }),
   approveRestart: (proposal: PlannedRestart, csrf: string) =>
-    request<PlanApproval>(
-      `/container/restart/plans/${proposal.plan.id}/approval`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-        body: JSON.stringify({ digest: proposal.digest }),
-      },
-    ),
+    request<PlanApproval>(`/container/plans/${proposal.plan.id}/approval`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ digest: proposal.digest }),
+    }),
   queueRestart: (
     proposal: PlannedRestart,
     approval: string,
     key: string,
     csrf: string,
   ) =>
-    request<RestartJob>("/container/restart/jobs", {
+    request<RestartJob>("/container/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
       body: JSON.stringify({ proposal, approval, idempotency_key: key }),
     }),
-  restartJobs: () => request<RestartJob[]>("/container/restart/jobs"),
+  restartJobs: () => request<RestartJob[]>("/container/jobs"),
   restartProgress: (id: string, after = 0) =>
-    request<JobProgress>(`/container/restart/jobs/${id}?after=${after}`),
+    request<JobProgress>(`/container/jobs/${id}?after=${after}`),
   cancelRestart: (id: string, csrf: string, plan = false) =>
-    request<void>(
-      `/container/restart/${plan ? "plans" : "jobs"}/${id}/cancel`,
-      {
-        method: "POST",
-        headers: { "X-CSRF-Token": csrf },
-      },
+    request<void>(`/container/${plan ? "plans" : "jobs"}/${id}/cancel`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrf },
+    }),
+  containerLogs: (resource: string, tail = 100) =>
+    request<ContainerLogs>(
+      `/containers/${encodeURIComponent(resource.slice(10))}/logs?tail=${tail}`,
     ),
   overview: () => request<Overview>("/overview"),
   resources: (kind?: ResourceKind, offset = 0, revision?: number) =>
