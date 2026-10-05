@@ -257,6 +257,7 @@ def main():
         fixture.eventually(
             lambda job=job, expected=expected: fixture.state(job["id"]) == expected
         )
+        fixture.wait_container_ready()
         post_count = (
             0 if target == "limeos-containerd" and mode == "before_prepare" else 1
         )

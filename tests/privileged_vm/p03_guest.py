@@ -93,6 +93,10 @@ def inspect(identifier):
 
 def restart_container():
     run("systemctl", "restart", "limeos-containerd")
+    wait_container_ready()
+
+
+def wait_container_ready():
     # Type=exec guarantees execve, not that policy/receipt initialization and
     # the Unix listener are ready. Probe as the authorized kernel UID.
     code = "import json,socket,struct; s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect('/run/limeos-containerd/executor.sock'); d=json.dumps({'operation':'health','version':1}).encode(); s.sendall(struct.pack('!I',len(d))+d); n=struct.unpack('!I',s.recv(4))[0]; b=b''\nwhile len(b)<n: b+=s.recv(n-len(b))\nprint(b.decode())"
