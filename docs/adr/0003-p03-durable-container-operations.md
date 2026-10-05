@@ -1,6 +1,6 @@
 # ADR 0003: durable container operation authority
 
-Status: accepted for the first P03 slice, 2026-10-05. Implements architecture A04 and roadmap RW-030; later slices add executor effects.
+Status: accepted and implemented for the restart path, 2026-10-05. Implements architecture A04 and roadmap RW-030.
 
 Core creates a typed `container.restart@1` plan from a selected, fresh Docker inspection. The plan binds the complete container ID, image ID, running state and last start timestamp, its owner and grant revision, a normalized digest and a five-minute expiry. The registry owns the operation's risk, scope, timeout and recovery classification. Caller text never sets them.
 
@@ -12,4 +12,6 @@ Cancellation of waiting or queued work records a terminal state without a host e
 
 Authority schema v2 adds plans without rewriting the v1 tables. A transactional migration preserves existing identity, jobs and audit state. The v1 binary refuses the newer schema; automatic downgrade across this migration requires recovery rather than being advertised as compatible.
 
-The first slice remains effect-free. A future protected executor receipt must be committed before dispatch, deduplicate action IDs, preserve uncertainty across interruption and allow independent verification. A completed receipt alone is not proof that the desired state was reached.
+A protected executor receipt is committed before dispatch and deduplicates action IDs across interruption. Core records the authenticated receipt with independent selected inspection evidence in schema v3. Both resource locks remain held until a fresh new running incarnation is verified; executor verification performs another inspection before releasing its lock. Recovery reads receipts and never sends an effect request for an interrupted job. Missing or prepared receipts retain `needs_intervention`.
+
+Session mutations recheck authentication inside the final authority transaction after inspection. Scoped task callers resolve their principal from a token bound to their kernel UID, task, scope, grant revision and core generation. Their protocol offers proposal and approved queueing, with no approval command. Duplicate queue requests recover the original job from durable state without contacting Engine. Schema v3 migrates v1/v2 transactionally and records receipt plus verification with the terminal job event.

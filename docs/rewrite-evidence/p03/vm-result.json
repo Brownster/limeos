@@ -1,0 +1,58 @@
+{
+  "checks": [
+    "only the container executor can access Engine and protected receipts",
+    "GET and invalid origin or CSRF cannot initiate an operation",
+    "one real restart, independent verification, durable progress and duplicate request",
+    "changed plans, stale incarnation and independent managed-ID ceiling",
+    "browser and scoped task share policy; task cannot approve; grant revocation is immediate",
+    "expired human approval causes no Engine effect",
+    "queued cancellation prevents effects; in-flight cancellation cannot claim prevention",
+    "kill limeos-core before_prepare: no unjustified second effect",
+    "kill limeos-containerd before_prepare: no unjustified second effect",
+    "kill limeos-core during: no unjustified second effect",
+    "kill limeos-containerd during: no unjustified second effect",
+    "kill limeos-core after_effect: no unjustified second effect",
+    "kill limeos-containerd after_effect: no unjustified second effect",
+    "shadow has isolated state and refuses write-enabled policy",
+    "shadow removal preserves standard services and authenticated reads"
+  ],
+  "engine_version": "20.10.24+dfsg1",
+  "container_fixture": "Debian static busybox, no mounts, redacted label",
+  "restart_posts": 8,
+  "restart_effect_ms": {
+    "fcb64f8aa80130754cf86cdec2d0fc41ab87cd4b5dd325531ff9ba408b6611c3": 10661.783,
+    "b889066ced280794314adcb78aa1590007d02bda69e8865184e80c5c4b53295d": 10769.985,
+    "a690df24d12dc833fa9dcdf109d85ee132f50b4ada64e75e5bd0dd656e8180c1": 10746.002,
+    "847ef12f96701551fca4626698e482541449d9584f93c75394739f9240d07b65": 10882.505,
+    "06be98e693dea6b2acdf1fc1ae441221e8044830b2403d9318a2b935727ce3fc": 10752.028,
+    "542e43d84439db23760deedf335f4515023a9d0bef395cfc6bb242312a149aa6": 10861.54,
+    "8a8819eb6204caf4446085df33871ae722e9c3d93c26327fb4c624d80c855a2e": 10696.688
+  },
+  "footprint": {
+    "architecture": "amd64",
+    "app_pss_kib": {
+      "limeos-core": 5098,
+      "limeos-containerd": 2889,
+      "limeos-storaged": 1257
+    },
+    "combined_pss_kib": 9244,
+    "overview_p95_ms": 2.552,
+    "overview_median_ms": 1.587,
+    "workload": "after real restart/interruption qualification, 20 cached overview requests",
+    "exclusions": [
+      "Docker daemon",
+      "test proxy",
+      "browser",
+      "Rust build tools"
+    ],
+    "swap_kib": 0
+  },
+  "package_sha256": {
+    "limeos-shadow_0.3.0_amd64.deb": "b006e8873c18d474d4b7861a9a0656e354a5e12651ef00b7e9a4a51f812f6d00",
+    "limeos_0.3.0_amd64.deb": "8acefcc579a274d4cdf41080a8faec91b034c6d4560eb405402c6a81bbc86227"
+  },
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "3d94c9dd66d8a283fde060b8810373b7ae04038b956ee00d553d1ae564f6fbdeaa2fd6e7404e87e53348b5a9509170f3ea7c0731ba737590c5c4cb8d559a47f8"
+  }
+}

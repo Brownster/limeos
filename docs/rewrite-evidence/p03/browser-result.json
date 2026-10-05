@@ -1,0 +1,14 @@
+{
+  "browser": "150.0.7871.46",
+  "checks": [
+    "native modal contains keyboard focus",
+    "Escape restores trigger focus",
+    "preview precedes explicit approval",
+    "one POST queues the job",
+    "durable progress survives reload",
+    "lost queue response requires explicit retry with the same plan, approval and key",
+    "explicit retry recovers the same job without another approval"
+  ],
+  "queue_posts": 3,
+  "durable_fixture_jobs": 2
+}

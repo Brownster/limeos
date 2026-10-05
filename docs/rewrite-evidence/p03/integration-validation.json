@@ -1,0 +1,87 @@
+{
+  "checked_at_utc": "2026-10-05T11:11:08.691818+00:00",
+  "runtime_source_commit": "2de8e2c",
+  "backend_commit": "1edfd62",
+  "browser_test_commit": "986e811",
+  "qualification_tools_commit": "e461651",
+  "build": {
+    "host": "disposable Debian 12 KVM guest",
+    "architecture": "amd64",
+    "rust_toolchain": "1.88.0",
+    "cargo": "locked offline release build",
+    "source_bundle_sha256": "e68a3e080aeafccc64988900119e53742e2b6ba5685c156aa828098bd81cedb4",
+    "source_bundle_bytes": 258348479,
+    "qualified_bundle_files_match_current_workspace": 103,
+    "source_manifest": "qualified-source-sha256.json",
+    "binaries_sha256": {
+      "limeos-core": "f155fd1e34a50cbc3d597a54151dd8871b8ce06bd09ab51bca8baa619fa9b5d1",
+      "limeos-executor": "7b217f903d3ee83c5856da5ed3ddcb7935b2bbef325cceb7a780dc7269b4ac34",
+      "limeosctl": "1e3a28ca7ef3526f3b7c8ad23844b5b46670aaf9036ff6e5966c1c60c3ca21db",
+      "limeos-password-worker": "c0b8863115008f82d647c9a4682ab38491d85586255cc70193dc53d3cb89dcf9"
+    },
+    "packages_sha256": {
+      "limeos-shadow_0.3.0_amd64.deb": "b006e8873c18d474d4b7861a9a0656e354a5e12651ef00b7e9a4a51f812f6d00",
+      "limeos_0.3.0_amd64.deb": "8acefcc579a274d4cdf41080a8faec91b034c6d4560eb405402c6a81bbc86227"
+    },
+    "signing_key": "test-only key generated in the discarded guest"
+  },
+  "rust_workspace_tests": {
+    "result": "pass",
+    "passed": 69,
+    "log": "rust-integration-tests.txt"
+  },
+  "real_engine_vm": {
+    "result": "pass",
+    "acceptance_groups": 15,
+    "result_file": "vm-result.json"
+  },
+  "browser": {
+    "result": "pass",
+    "acceptance_groups": 7,
+    "result_file": "browser-result.json",
+    "scope": "production assets with a closed API fixture"
+  },
+  "fixture_sha256": {
+    "tests/privileged_vm/run.py": "c83b57ceeca3209b32323da5c664f46925e816fd6f76fd03c8c1692b6ce487d9",
+    "tests/privileged_vm/p03_guest.py": "163a6fd3352ceb248cbc608776445ba3563896c5963d5466dcd7258fc11e1559",
+    "tests/privileged_vm/build_guest.py": "010ecac4b224d60852efc98d6cb59149f9dfaf3595fcc70fe3ad3cdbdb817a0a",
+    "tests/privileged_vm/build_bundle.py": "232d3050c334f3d2ad1033075f69d8a65af4deaecce9ea8579fb36ee90e6f895",
+    "tests/frontend/restart.py": "9051ec417b1730c368305c90921b5cd1c9f7ec9dd19c489dad121b48ea49ce4d"
+  },
+  "checks": {
+    "formatting": "pass",
+    "clippy_all_targets_warnings_denied": "pass",
+    "generated_contracts": "pass",
+    "repository_boundaries": "pass",
+    "shellcheck": "pass",
+    "frontend_unit_tests": "pass",
+    "typescript": "pass",
+    "frontend_production_build": "pass",
+    "dependency_policy": "pass",
+    "cached_advisory_audit": "pass",
+    "npm_offline_audit": "pass",
+    "python_lint_and_format": "pass",
+    "thirteen_release_gate_rejection_probes": "pass",
+    "vm_local_footprint_guardrails": "pass"
+  },
+  "advisory_database_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
+  "dependency_count": 214,
+  "known_vulnerabilities_in_checked_database": 0,
+  "added_third_party_rust_dependencies": 0,
+  "footprint_guardrails": {
+    "combined_pss_kib": 30720,
+    "overview_p95_ms": 20,
+    "steady_state_swap_kib": 0,
+    "scope": "disposable AMD64 VM only; reference hardware qualification remains pending"
+  },
+  "limitations": [
+    "P03 remains in progress: start/stop, bounded logs and Compose plan/diff foundation remain",
+    "Representative fixtures use local BusyBox images; redacted reference stack configuration still needs qualification",
+    "No reference-host mutation, installation, active benchmark or cutover",
+    "No ARM64 combined-package qualification in this continuation",
+    "No same-workload comparison with Python; no hardware improvement percentage claimed",
+    "Browser and real-Engine transport were qualified separately against the same application payload",
+    "CI workflow changes have not been run on GitHub",
+    "All 50 defect-register requirements remain open pending their full acceptance criteria"
+  ]
+}

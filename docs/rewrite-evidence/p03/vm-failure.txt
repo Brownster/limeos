@@ -1,0 +1,35 @@
+Result=success
+NRestarts=3
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+Oct 05 10:53:10 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 10:53:10 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 10:53:10 limeos-p01-test limeos-core[8929]: {"timestamp":"2026-10-05T10:53:10.311957Z","level":"INFO","fields":{"message":"core ready","generation":1}}
+Oct 05 10:54:00 limeos-p01-test systemd[1]: limeos-core.service: Main process exited, code=killed, status=9/KILL
+Oct 05 10:54:00 limeos-p01-test systemd[1]: limeos-core.service: Failed with result 'signal'.
+Oct 05 10:54:02 limeos-p01-test systemd[1]: limeos-core.service: Scheduled restart job, restart counter is at 1.
+Oct 05 10:54:02 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 05 10:54:02 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 10:54:02 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 10:54:02 limeos-p01-test limeos-core[10486]: {"timestamp":"2026-10-05T10:54:02.517097Z","level":"INFO","fields":{"message":"core ready","generation":2}}
+Oct 05 10:54:02 limeos-p01-test limeos-core[10486]: {"timestamp":"2026-10-05T10:54:02.521743Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 10:54:02 limeos-p01-test limeos-core[10486]: {"timestamp":"2026-10-05T10:54:02.522707Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 10:54:38 limeos-p01-test limeos-core[10486]: {"timestamp":"2026-10-05T10:54:38.522558Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Unavailable"}}
+Oct 05 10:54:40 limeos-p01-test systemd[1]: limeos-core.service: Main process exited, code=killed, status=9/KILL
+Oct 05 10:54:40 limeos-p01-test systemd[1]: limeos-core.service: Failed with result 'signal'.
+Oct 05 10:54:42 limeos-p01-test systemd[1]: limeos-core.service: Scheduled restart job, restart counter is at 2.
+Oct 05 10:54:42 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 05 10:54:42 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 10:54:42 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 10:54:42 limeos-p01-test limeos-core[10820]: {"timestamp":"2026-10-05T10:54:42.978572Z","level":"INFO","fields":{"message":"core ready","generation":3}}
+Oct 05 10:54:42 limeos-p01-test limeos-core[10820]: {"timestamp":"2026-10-05T10:54:42.980808Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 10:54:42 limeos-p01-test limeos-core[10820]: {"timestamp":"2026-10-05T10:54:42.981002Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 10:54:42 limeos-p01-test limeos-core[10820]: {"timestamp":"2026-10-05T10:54:42.981188Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 05 10:55:16 limeos-p01-test limeos-core[10820]: {"timestamp":"2026-10-05T10:55:16.980641Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Unavailable"}}
+Oct 05 10:55:29 limeos-p01-test systemd[1]: limeos-core.service: Main process exited, code=killed, status=9/KILL
+Oct 05 10:55:29 limeos-p01-test systemd[1]: limeos-core.service: Failed with result 'signal'.
+Oct 05 10:55:32 limeos-p01-test systemd[1]: limeos-core.service: Scheduled restart job, restart counter is at 3.
+Oct 05 10:55:32 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 05 10:55:32 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 05 10:55:32 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 05 10:55:32 limeos-p01-test limeos-core[11355]: {"timestamp":"2026-10-05T10:55:32.239504Z","level":"INFO","fields":{"message":"core ready","generation":4}}
