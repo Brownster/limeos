@@ -12,7 +12,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 6;
+pub const SCHEMA_VERSION: u32 = 7;
 pub const QUEUE_CAPACITY: usize = 64;
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
@@ -128,7 +128,7 @@ impl Store {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(durable)?;
         match version {
-            0..=5 => {
+            0..=6 => {
                 let tx = conn
                     .transaction_with_behavior(TransactionBehavior::Immediate)
                     .map_err(durable)?;
@@ -152,7 +152,11 @@ impl Store {
                     tx.execute_batch(include_str!("migration-v5.sql"))
                         .map_err(durable)?;
                 }
-                tx.execute_batch(include_str!("migration-v6.sql"))
+                if version < 6 {
+                    tx.execute_batch(include_str!("migration-v6.sql"))
+                        .map_err(durable)?;
+                }
+                tx.execute_batch(include_str!("migration-v7.sql"))
                     .map_err(durable)?;
                 tx.commit().map_err(durable)?;
             }
@@ -165,6 +169,7 @@ impl Store {
         if check != "ok" {
             return Err(Error(ErrorCode::StateNotDurable));
         }
+        resources::check(&conn)?;
         if fs2::available_space(&directory).map_err(|_| Error(ErrorCode::StateNotDurable))?
             < MIN_FREE_BYTES
         {
@@ -188,8 +193,8 @@ impl Store {
         let generation = tx
             .query_row("SELECT generation FROM meta WHERE id=1", [], |r| r.get(0))
             .map_err(durable)?;
-        // Set-based recovery stays bounded in memory. P01 executors have no
-        // effects; uncertain jobs keep their locks and are never retried.
+        // Set-based recovery stays bounded in memory. Every uncertain job
+        // keeps its complete resource set; recovery never redispatches effects.
         let recovered_at = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -239,9 +244,29 @@ mod compose;
 mod identity_store;
 mod jobs;
 mod plans;
+mod resources;
 mod storage;
 pub use compose::compose_scopes;
 pub use storage::storage_scope;
+
+#[cfg(test)]
+fn remove_v7_schema(conn: &Connection) {
+    // Existing migration fixtures must actually represent the older schema.
+    let mut stmt = conn
+        .prepare("SELECT name FROM sqlite_schema WHERE type='trigger' AND name IN ('jobs_primary_resource','jobs_identity_immutable','job_resources_insert','job_resources_update','job_resources_delete','jobs_acquire_resources','jobs_release_resources','resource_locks_insert','resource_locks_update','resource_locks_delete')")
+        .unwrap();
+    let names = stmt
+        .query_map([], |r| r.get::<_, String>(0))
+        .unwrap()
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .unwrap();
+    drop(stmt);
+    for name in names {
+        conn.execute_batch(&format!("DROP TRIGGER {name}")).unwrap();
+    }
+    conn.execute_batch("DROP TABLE resource_locks; DROP TABLE job_resources;")
+        .unwrap();
+}
 
 #[cfg(test)]
 mod tests;

@@ -201,6 +201,7 @@ fn storage_requires_current_admin_grant_owner_and_durable_audit_space() {
 fn v5_migration_is_atomic_preserves_users_and_does_not_mutate_failed_v5() {
     for fail in [false, true] {
         let (dir, store, _p, _inventory, _input) = setup();
+        remove_v7_schema(&store.conn);
         store
             .conn
             .execute_batch("DROP TABLE storage_plans; PRAGMA user_version=5;")
@@ -225,7 +226,7 @@ fn v5_migration_is_atomic_preserves_users_and_does_not_mutate_failed_v5() {
         assert_eq!(
             conn.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
                 .unwrap(),
-            if fail { 5 } else { 6 }
+            if fail { 5 } else { SCHEMA_VERSION }
         );
         assert_eq!(
             conn.query_row("SELECT count(*) FROM users", [], |r| r.get::<_, i64>(0))

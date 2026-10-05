@@ -372,7 +372,8 @@ impl Store {
         job.plan.check_current(current, now)?;
         let generation = self.generation;
         self.write(|tx| {
-            // The unique partial resource index is the durable per-resource lock.
+            // Schema-7 triggers acquire the complete operation-owned resource
+            // set atomically; the original primary-resource index also remains.
             if tx.execute("UPDATE jobs SET state='running',generation=? WHERE id=? AND state='queued' AND deadline>? AND revision=(SELECT grant_revision FROM users WHERE id=jobs.principal)", params![generation, id, now]).map_err(|_| Error(ErrorCode::Conflict))? != 1 {
                 return Err(Error(ErrorCode::Conflict));
             }

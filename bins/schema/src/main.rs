@@ -384,6 +384,19 @@ fn main() {
     )
     .unwrap();
     std::fs::write(
+        dir.join("authority-v7.sql"),
+        concat!(
+            include_str!("../../../crates/persistence/src/schema.sql"),
+            include_str!("../../../crates/persistence/src/migration-v2.sql"),
+            include_str!("../../../crates/persistence/src/migration-v3.sql"),
+            include_str!("../../../crates/persistence/src/migration-v4.sql"),
+            include_str!("../../../crates/persistence/src/migration-v5.sql"),
+            include_str!("../../../crates/persistence/src/migration-v6.sql"),
+            include_str!("../../../crates/persistence/src/migration-v7.sql")
+        ),
+    )
+    .unwrap();
+    std::fs::write(
         dir.join("openapi.json"),
         serde_json::to_string_pretty(&openapi).unwrap() + "\n",
     )

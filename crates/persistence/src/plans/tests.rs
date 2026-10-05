@@ -116,6 +116,7 @@ fn v3_migration_preserves_restart_approval_bytes_and_rolls_back_table_renames() 
     for fail in [false, true] {
         let (dir, mut store, principal) = setup();
         let (proposal, approval) = approved(&mut store, &principal, 200);
+        remove_v7_schema(&store.conn);
         store.conn.execute_batch("DROP TABLE storage_plans; DROP TABLE compose_plans; ALTER TABLE container_plans RENAME TO restart_plans; ALTER TABLE container_results RENAME TO restart_results; PRAGMA user_version=3;").unwrap();
         if fail {
             store

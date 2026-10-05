@@ -252,6 +252,7 @@ fn v4_migration_preserves_container_approvals_and_failure_leaves_v4_untouched() 
         let approval = store
             .approve_container(&p, &proposal.plan.id, &proposal.digest, 201)
             .unwrap();
+        remove_v7_schema(&store.conn);
         store
             .conn
             .execute_batch(
