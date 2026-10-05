@@ -5,6 +5,8 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use ts_rs::TS;
 mod observations;
 pub use observations::*;
+mod operations;
+pub use operations::*;
 
 pub const VERSION: u16 = 1;
 pub const FRAME_LIMIT: usize = 64 * 1024;
@@ -85,6 +87,18 @@ pub enum CoreRequest {
         operation: limeos_domain::Operation,
         resource: String,
     },
+    ProposeRestart {
+        version: u16,
+        token: String,
+        task: String,
+        resource: String,
+    },
+    QueueRestart {
+        version: u16,
+        token: String,
+        task: String,
+        input: Box<QueueRestartInput>,
+    },
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "response", rename_all = "snake_case", deny_unknown_fields)]
@@ -97,6 +111,8 @@ pub enum CoreResponse {
     },
     Enrolled,
     Authorized,
+    RestartPlan(limeos_domain::PlannedRestart),
+    RestartJob(limeos_domain::RestartJob),
     Error(ErrorEnvelope),
 }
 

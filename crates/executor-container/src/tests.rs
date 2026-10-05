@@ -1,4 +1,62 @@
 use super::*;
+use limeos_domain::RestartPlan;
+
+#[tokio::test]
+async fn accepted_result_retains_lock_until_fresh_independent_verification() {
+    let directory = private_dir();
+    let mut store = ReceiptStore::open(directory.path()).unwrap();
+    let mut engine = FakeEngine::new(Mode::Accept);
+    let request = request();
+    store
+        .execute(&engine, &ceiling(), 1001, &request, || 201)
+        .await
+        .unwrap();
+    let mut next = request.clone();
+    next.action = "e".repeat(64);
+    assert!(
+        store
+            .execute(&engine, &ceiling(), 1001, &next, || 201)
+            .await
+            .is_err()
+    );
+    assert!(
+        store
+            .verify(
+                &engine,
+                &ceiling(),
+                1001,
+                &request.action,
+                &request.plan_digest,
+                &request.plan.expected
+            )
+            .await
+            .is_err()
+    );
+    engine.snapshot.started_at = "2026-10-05T07:01:00Z".into();
+    assert_eq!(
+        store
+            .verify(
+                &engine,
+                &ceiling(),
+                1001,
+                &request.action,
+                &request.plan_digest,
+                &engine.snapshot
+            )
+            .await
+            .unwrap()
+            .state,
+        ExecutionState::Verified
+    );
+    next.plan.expected = engine.snapshot.clone();
+    next.plan_digest = limeos_identity::digest(&encode(&next.plan).unwrap());
+    assert!(
+        store
+            .execute(&engine, &ceiling(), 1001, &next, || 201)
+            .await
+            .is_ok()
+    );
+}
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn private_dir() -> tempfile::TempDir {

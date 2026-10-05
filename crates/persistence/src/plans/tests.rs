@@ -27,6 +27,119 @@ fn approved(store: &mut Store, p: &Principal, at: i64) -> (PlannedRestart, PlanA
 }
 
 #[test]
+fn proof_is_bound_to_the_persisted_intent_and_accepted_effect_is_not_success() {
+    use limeos_domain::{ExecutionState, RestartReceipt};
+    let (_dir, mut store, principal) = setup();
+    let (proposal, approval) = approved(&mut store, &principal, 200);
+    let job = store
+        .queue_restart(
+            &principal,
+            "proof",
+            &proposal,
+            &approval.token,
+            &snapshot(),
+            202,
+        )
+        .unwrap();
+    let job = store
+        .claim_restart(&principal, &job.id, &snapshot(), 203)
+        .unwrap();
+    store
+        .transition(&job.id, JobState::Running, JobState::Verifying, 204)
+        .unwrap();
+    assert_eq!(
+        store
+            .transition(&job.id, JobState::Verifying, JobState::Succeeded, 204)
+            .unwrap_err()
+            .0,
+        ErrorCode::Forbidden
+    );
+    let mut receipt = RestartReceipt {
+        action: job.id.clone(),
+        plan_digest: proposal.digest,
+        before: snapshot(),
+        state: ExecutionState::EffectAccepted,
+        error: None,
+    };
+    assert_eq!(
+        store
+            .record_restart_result(&job, &receipt, None, 204)
+            .unwrap(),
+        JobState::NeedsIntervention
+    );
+    let retained: String = store
+        .conn
+        .query_row(
+            "SELECT receipt FROM restart_results WHERE job=?",
+            [&job.id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<RestartReceipt>(&retained).unwrap(),
+        receipt
+    );
+    receipt.state = ExecutionState::Verified;
+    assert!(
+        store
+            .record_restart_result(&job, &receipt, Some(&snapshot()), 205)
+            .is_err()
+    );
+    let changed = ContainerSnapshot {
+        started_at: "2026-10-05T07:01:00Z".into(),
+        ..snapshot()
+    };
+    let mut forged = job.clone();
+    forged.plan.principal = "forged".into();
+    assert!(
+        store
+            .record_restart_result(&forged, &receipt, Some(&changed), 205)
+            .is_err()
+    );
+    assert_eq!(
+        store
+            .record_restart_result(&job, &receipt, Some(&changed), 205)
+            .unwrap(),
+        JobState::Succeeded
+    );
+    assert_eq!(
+        store
+            .record_restart_result(&job, &receipt, Some(&changed), 206)
+            .unwrap(),
+        JobState::Succeeded
+    );
+}
+
+#[test]
+fn v2_to_v3_failure_preserves_old_authority_and_schema() {
+    for fail in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("core.sqlite");
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch(include_str!("../schema.sql")).unwrap();
+        conn.execute_batch(include_str!("../migration-v2.sql"))
+            .unwrap();
+        if fail {
+            conn.execute_batch("CREATE TABLE restart_results(dummy TEXT);")
+                .unwrap();
+        }
+        drop(conn);
+        let result = Store::open(&path);
+        if fail {
+            assert!(result.is_err());
+            let conn = Connection::open(path).unwrap();
+            assert_eq!(
+                conn.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
+                    .unwrap(),
+                2
+            );
+        } else {
+            assert!(result.is_ok());
+        }
+    }
+}
+
+#[test]
 fn approval_is_plan_bound_hashed_single_use_and_idempotency_survives_expiry() {
     let (_dir, mut s, p) = setup();
     let (proposal, approval) = approved(&mut s, &p, 200);
@@ -396,7 +509,7 @@ fn v1_migration_preserves_authority_and_failed_migration_rolls_back() {
                     .conn
                     .query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
                     .unwrap(),
-                2
+                SCHEMA_VERSION
             );
             assert_eq!(
                 store.login_record("alice").unwrap().unwrap().password_hash,

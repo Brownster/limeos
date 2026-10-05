@@ -56,6 +56,7 @@ async fn observations_and_history_use_current_resource_grants_and_reject_revocat
         db,
         observations: cache,
         telemetry: None,
+        container_socket: Arc::new("/unused".into()),
         password_workers: Arc::new(Semaphore::new(2)),
         dummy_hash: "unused".into(),
     };
@@ -91,6 +92,7 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
         dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),
         observations: limeos_observations::Cache::default(),
         telemetry: None,
+        container_socket: Arc::new("/unused".into()),
     };
     for (index, fixture) in fixtures.as_array().unwrap().iter().enumerate() {
         let encoded = fixture["hash"].as_str().unwrap().to_owned();

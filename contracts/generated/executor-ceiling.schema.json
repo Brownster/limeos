@@ -14,10 +14,21 @@
       "type": "boolean",
       "default": false
     },
+    "allow_restart": {
+      "type": "boolean",
+      "default": false
+    },
     "core_uid": {
       "type": "integer",
       "format": "uint32",
       "minimum": 0
+    },
+    "managed_containers": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
     },
     "version": {
       "type": "integer",

@@ -16,6 +16,7 @@ use tokio::{
     net::{TcpListener, UnixListener, UnixStream},
     sync::Semaphore,
 };
+mod operations;
 
 fn now() -> i64 {
     SystemTime::now()
@@ -31,6 +32,7 @@ struct Core {
     dummy_hash: Arc<str>,
     observations: limeos_observations::Cache,
     telemetry: Option<limeos_observations::telemetry::Telemetry>,
+    container_socket: Arc<PathBuf>,
 }
 impl Core {
     async fn password(
@@ -264,6 +266,78 @@ impl Backend for Core {
     fn changes(&self) -> tokio::sync::watch::Receiver<u64> {
         self.observations.subscribe()
     }
+    async fn plan_restart(
+        &self,
+        token: String,
+        csrf: String,
+        input: limeos_contracts::RestartInput,
+    ) -> Result<limeos_domain::PlannedRestart> {
+        self.propose(token, csrf, input.resource).await
+    }
+    async fn approve_restart(
+        &self,
+        token: String,
+        csrf: String,
+        id: String,
+        plan_digest: String,
+    ) -> Result<limeos_domain::PlanApproval> {
+        let digest = limeos_identity::digest(&token);
+        let csrf = limeos_identity::digest(&csrf);
+        self.db
+            .call(move |s| {
+                let principal = s.authenticate(&digest, Some(&csrf), now())?;
+                s.approve_restart(&principal, &id, &plan_digest, now())
+            })
+            .await
+    }
+    async fn queue_restart(
+        &self,
+        token: String,
+        csrf: String,
+        input: limeos_contracts::QueueRestartInput,
+    ) -> Result<limeos_domain::RestartJob> {
+        self.submit(token, csrf, input).await
+    }
+    async fn restart_progress(
+        &self,
+        token: String,
+        id: String,
+        after: i64,
+    ) -> Result<limeos_contracts::JobProgress> {
+        let principal = self.session(token, None).await?.principal;
+        self.db
+            .call(move |s| {
+                Ok(limeos_contracts::JobProgress {
+                    job: s.restart_job(&principal, &id)?,
+                    events: s.restart_events(&principal, &id, after)?,
+                })
+            })
+            .await
+    }
+    async fn restart_jobs(&self, token: String) -> Result<Vec<limeos_domain::RestartJob>> {
+        let principal = self.session(token, None).await?.principal;
+        self.db.call(move |s| s.restart_jobs(&principal)).await
+    }
+    async fn cancel_restart(
+        &self,
+        token: String,
+        csrf: String,
+        id: String,
+        plan: bool,
+    ) -> Result<()> {
+        let digest = limeos_identity::digest(&token);
+        let csrf = limeos_identity::digest(&csrf);
+        self.db
+            .call(move |s| {
+                let principal = s.authenticate(&digest, Some(&csrf), now())?;
+                if plan {
+                    s.cancel_restart_plan(&principal, &id, now())
+                } else {
+                    s.cancel_restart_job(&principal, &id, now())
+                }
+            })
+            .await
+    }
 }
 async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
     let peer = stream
@@ -315,6 +389,41 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
                     })
                     .await?;
                 CoreResponse::Authorized
+            }
+            CoreRequest::ProposeRestart {
+                version,
+                token,
+                task,
+                resource,
+            } if version == VERSION => {
+                let principal = core
+                    .task_principal(&token, peer.uid(), &task, &resource)
+                    .await?;
+                let snapshot = core.inspect(&resource).await?;
+                // Token and grant revocation still take effect during inspection.
+                let digest = limeos_identity::digest(&token);
+                let uid = peer.uid();
+                let proposal = core
+                    .db
+                    .call(move |s| {
+                        let current =
+                            s.check_task(&digest, uid, &task, &snapshot.scope(), now())?;
+                        if current != principal {
+                            return Err(Error(ErrorCode::Expired));
+                        }
+                        s.plan_restart(&current, &snapshot, now())
+                    })
+                    .await?;
+                CoreResponse::RestartPlan(proposal)
+            }
+            CoreRequest::QueueRestart {
+                version,
+                token,
+                task,
+                input,
+            } if version == VERSION => {
+                let job = core.submit_task(token, peer.uid(), task, *input).await?;
+                CoreResponse::RestartJob(job)
             }
             _ => return Err(Error(ErrorCode::Forbidden)),
         };
@@ -407,6 +516,7 @@ async fn run() -> Result<()> {
         dummy_hash: "".into(),
         observations,
         telemetry,
+        container_socket: Arc::new(config.container_socket.into()),
     };
     core.dummy_hash = core
         .hash(limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?)
@@ -418,13 +528,17 @@ async fn run() -> Result<()> {
     let rpc = bind_socket(&socket)?;
     tracing::info!(generation = core.db.generation, "core ready");
     let app = limeos_api::router(core.clone(), config.origin);
+    let dispatcher = core.clone();
     tokio::select! {
         result=limeos_api::serve(http,app)=>result.map_err(|_|Error(ErrorCode::Unavailable)),
         result=rpc_server(core,rpc)=>result.map_err(|_|Error(ErrorCode::Unavailable)),
+        _=dispatcher.dispatcher()=>Err(Error(ErrorCode::Unavailable)),
         _=tokio::signal::ctrl_c()=>Ok(()),
         _=async {if let Ok(mut signal)=tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()){signal.recv().await;}}=>Ok(()),
     }
 }
 
+#[cfg(test)]
+mod operation_tests;
 #[cfg(test)]
 mod tests;

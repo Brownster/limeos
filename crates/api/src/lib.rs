@@ -18,6 +18,9 @@ use std::{
 };
 use tokio::{net::TcpListener, sync::Semaphore};
 #[cfg(test)]
+mod operation_tests;
+mod operations;
+#[cfg(test)]
 mod read_tests;
 mod reads;
 
@@ -49,6 +52,54 @@ pub trait Backend: Clone + Send + Sync + 'static {
     }
     fn changes(&self) -> tokio::sync::watch::Receiver<u64> {
         tokio::sync::watch::channel(0).1
+    }
+    fn plan_restart(
+        &self,
+        _token: String,
+        _csrf: String,
+        _input: limeos_contracts::RestartInput,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedRestart>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn approve_restart(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+        _digest: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn queue_restart(
+        &self,
+        _token: String,
+        _csrf: String,
+        _input: limeos_contracts::QueueRestartInput,
+    ) -> impl Future<Output = Result<limeos_domain::RestartJob>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn restart_progress(
+        &self,
+        _token: String,
+        _id: String,
+        _after: i64,
+    ) -> impl Future<Output = Result<limeos_contracts::JobProgress>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn restart_jobs(
+        &self,
+        _token: String,
+    ) -> impl Future<Output = Result<Vec<limeos_domain::RestartJob>>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn cancel_restart(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+        _plan: bool,
+    ) -> impl Future<Output = Result<()>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
     }
 }
 #[derive(Clone)]
@@ -97,6 +148,30 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
         .route("/api/v1/resources", get(reads::resources::<B>))
         .route("/api/v1/system/history", get(reads::history::<B>))
         .route("/api/v1/observations/stream", get(reads::stream::<B>))
+        .route(
+            "/api/v1/container/restart/plans",
+            post(operations::plan::<B>),
+        )
+        .route(
+            "/api/v1/container/restart/plans/{id}/approval",
+            post(operations::approve::<B>),
+        )
+        .route(
+            "/api/v1/container/restart/plans/{id}/cancel",
+            post(operations::cancel_plan::<B>),
+        )
+        .route(
+            "/api/v1/container/restart/jobs",
+            post(operations::queue::<B>).get(operations::jobs::<B>),
+        )
+        .route(
+            "/api/v1/container/restart/jobs/{id}",
+            get(operations::progress::<B>),
+        )
+        .route(
+            "/api/v1/container/restart/jobs/{id}/cancel",
+            post(operations::cancel_job::<B>),
+        )
         .fallback(|| async { failure(Error(ErrorCode::NotFound)) })
         .layer(middleware::from_fn(limits))
         .with_state(App {

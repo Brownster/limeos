@@ -55,17 +55,7 @@ impl ContainerSnapshot {
     pub fn validate(&self) -> Result<()> {
         let id = self.resource.strip_prefix("container:").unwrap_or_default();
         let image = self.image.strip_prefix("sha256:").unwrap_or_default();
-        if !opaque_id(id)
-            || !opaque_id(image)
-            || self.started_at.len() < 20
-            || self.started_at.len() > 64
-            || !self
-                .started_at
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b"-:.+".contains(&b))
-            || self.started_at.as_bytes().get(10) != Some(&b'T')
-            || !self.started_at.ends_with('Z')
-        {
+        if !opaque_id(id) || !opaque_id(image) || engine_timestamp(&self.started_at).is_none() {
             return Err(Error(ErrorCode::InvalidInput));
         }
         Ok(())
@@ -152,6 +142,116 @@ pub struct RestartJob {
     pub plan: RestartPlan,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct RestartRequest {
+    pub action: String,
+    pub plan_digest: String,
+    pub plan: RestartPlan,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionState {
+    Prepared,
+    EffectAccepted,
+    Verified,
+    PreconditionChanged,
+    OutcomeUnknown,
+}
+impl ExecutionState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Prepared => "prepared",
+            Self::EffectAccepted => "effect_accepted",
+            Self::Verified => "verified",
+            Self::PreconditionChanged => "precondition_changed",
+            Self::OutcomeUnknown => "outcome_unknown",
+        }
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct RestartReceipt {
+    pub action: String,
+    pub plan_digest: String,
+    pub before: ContainerSnapshot,
+    pub state: ExecutionState,
+    pub error: Option<ErrorCode>,
+}
+
+/// A successful Engine response alone is insufficient. Inspect the same image
+/// and container again and require a new running incarnation.
+pub fn verify_restart(before: &ContainerSnapshot, after: &ContainerSnapshot) -> Result<()> {
+    before.validate()?;
+    after.validate()?;
+    if before.resource != after.resource
+        || before.image != after.image
+        || !after.running
+        || engine_timestamp(&after.started_at) <= engine_timestamp(&before.started_at)
+    {
+        return Err(Error(ErrorCode::Conflict));
+    }
+    Ok(())
+}
+
+/// Docker emits UTC RFC3339 nanosecond timestamps. Validate calendar fields and
+/// normalize fractional precision before comparing incarnations.
+fn engine_timestamp(value: &str) -> Option<(u32, u32, u32, u32, u32, u32, u32)> {
+    let bytes = value.as_bytes();
+    if !(20..=30).contains(&bytes.len())
+        || !value.is_ascii()
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || bytes[10] != b'T'
+        || bytes[13] != b':'
+        || bytes[16] != b':'
+        || *bytes.last()? != b'Z'
+    {
+        return None;
+    }
+    let number = |start, end| value.get(start..end)?.parse::<u32>().ok();
+    let (year, month, day, hour, minute, second) = (
+        number(0, 4)?,
+        number(5, 7)?,
+        number(8, 10)?,
+        number(11, 13)?,
+        number(14, 16)?,
+        number(17, 19)?,
+    );
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            if leap {
+                29
+            } else {
+                28
+            }
+        }
+        _ => return None,
+    };
+    if year == 0 || day == 0 || day > days || hour > 23 || minute > 59 || second > 59 {
+        return None;
+    }
+    let nano = if bytes.len() == 20 {
+        0
+    } else {
+        if bytes[19] != b'.' || bytes.len() < 22 {
+            return None;
+        }
+        let fraction = &value[20..bytes.len() - 1];
+        if !fraction.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        fraction
+            .parse::<u32>()
+            .ok()?
+            .checked_mul(10u32.pow((9 - fraction.len()) as u32))?
+    };
+    Some((year, month, day, hour, minute, second, nano))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -226,5 +326,34 @@ mod tests {
                 ErrorCode::Conflict
             );
         }
+    }
+    #[test]
+    fn verification_normalizes_precision_and_rejects_invalid_or_earlier_timestamps() {
+        let before = snapshot();
+        for value in [
+            "2026-02-30T07:00:00Z",
+            "2026-10-05T25:00:00Z",
+            "2026-10-05T07:00:00.000Z",
+            "2026-10-05T06:59:00Z",
+        ] {
+            assert!(
+                verify_restart(
+                    &before,
+                    &ContainerSnapshot {
+                        started_at: value.into(),
+                        ..before.clone()
+                    }
+                )
+                .is_err()
+            );
+        }
+        verify_restart(
+            &before,
+            &ContainerSnapshot {
+                started_at: "2026-10-05T07:00:00.000000001Z".into(),
+                ..before.clone()
+            },
+        )
+        .unwrap();
     }
 }

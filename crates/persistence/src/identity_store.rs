@@ -308,13 +308,20 @@ impl Store {
         task: &str,
         scope: &Scope,
         now: i64,
-    ) -> Result<()> {
-        let scopes: Option<String> = self.conn.query_row("SELECT t.scopes FROM task_tokens t JOIN users u ON u.id=t.principal WHERE t.digest=? AND t.service_uid=? AND t.task=? AND t.generation=? AND t.revision=u.grant_revision AND t.expires>? AND t.revoked=0",params![digest,peer_uid,task,self.generation,now],|r|r.get(0)).optional().map_err(durable)?;
-        let scopes: Vec<Scope> = parse(&scopes.ok_or(Error(ErrorCode::Expired))?)?;
+    ) -> Result<Principal> {
+        let row: Option<(String, String, String, i64)> = self.conn.query_row("SELECT t.scopes,u.id,u.role,u.grant_revision FROM task_tokens t JOIN users u ON u.id=t.principal WHERE t.digest=? AND t.service_uid=? AND t.task=? AND t.generation=? AND t.revision=u.grant_revision AND t.expires>? AND t.revoked=0",params![digest,peer_uid,task,self.generation,now],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(durable)?;
+        let (scopes, id, role, grant_revision) = row.ok_or(Error(ErrorCode::Expired))?;
+        let scopes: Vec<Scope> = parse(&scopes)?;
         if !scopes.contains(scope) {
             return Err(Error(ErrorCode::Forbidden));
         }
-        Ok(())
+        let principal = Principal {
+            id,
+            role: parse(&role)?,
+            grant_revision,
+        };
+        limeos_policy::authorize(&principal, &self.grants(&principal)?, scope)?;
+        Ok(principal)
     }
     pub fn revoke_task(&mut self, digest: &str, now: i64) -> Result<()> {
         self.write(|tx| {

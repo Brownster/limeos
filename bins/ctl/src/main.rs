@@ -22,7 +22,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let ceiling: limeos_executor_protocol::Ceiling =
             serde_json::from_slice(&std::fs::read(&args[1])?)
                 .map_err(|_| "Invalid executor ceiling; preserve and repair the original file.")?;
-        if ceiling.version != VERSION || ceiling.core_uid != args[2].parse::<u32>()? {
+        if !ceiling.configuration_valid() || ceiling.core_uid != args[2].parse::<u32>()? {
             return Err(
                 "Executor ceiling identity/version mismatch; repair the original file.".into(),
             );

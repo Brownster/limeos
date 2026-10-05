@@ -29,6 +29,7 @@ def profile_text(text: str, shadow: bool) -> str:
         text,
     )
     text = text.replace("dpkg --configure limeos.", "dpkg --configure limeos-shadow.")
+    text = text.replace("StateDirectory=limeos/", "StateDirectory=limeos-shadow/")
     return text
 
 
@@ -73,6 +74,10 @@ def main() -> None:
                     "ExecStart=/usr/lib/limeos-shadow/limeos-core",
                     "ExecStart=/usr/lib/limeos-shadow/limeos-core --state-dir /var/lib/limeos-shadow/core --config /etc/limeos-shadow/core.json --socket /run/limeos-shadow-core/core.sock",
                 )
+            if shadow and unit.name == "limeos-containerd.service":
+                content = content.replace(
+                    "/executors/container\n", "/executors/container read-only\n", 1
+                )
             (units / name).write_text(content)
         etc = stage / "etc" / package
         etc.mkdir(parents=True)
@@ -99,6 +104,9 @@ def main() -> None:
         shutil.copyfile(
             ROOT / "docs/p02-operations.md", documentation / "p02-operations.md"
         )
+        shutil.copyfile(
+            ROOT / "docs/p03-operations.md", documentation / "p03-operations.md"
+        )
         control = stage / "DEBIAN"
         control.mkdir()
         (control / "control").write_text(f"""Package: {package}
@@ -108,7 +116,7 @@ Maintainer: LimeOS maintainers <maintainers@limeos.invalid>
 Depends: libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux
 Section: admin
 Priority: optional
-Description: Secure read-only host observations
+Description: Secure host observations and approved container operations
  Rust identity, durable authority, shared observations and bounded executors.
 """)
         (control / "conffiles").write_text(f"/etc/{package}/core.json\n")

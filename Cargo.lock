@@ -720,6 +720,7 @@ dependencies = [
  "limeos-api",
  "limeos-contracts",
  "limeos-domain",
+ "limeos-executor-protocol",
  "limeos-identity",
  "limeos-observations",
  "limeos-persistence",
@@ -746,6 +747,7 @@ version = "0.2.0"
 dependencies = [
  "limeos-contracts",
  "limeos-domain",
+ "limeos-executor-container",
  "limeos-executor-protocol",
  "limeos-observations",
  "serde_json",
@@ -759,6 +761,9 @@ name = "limeos-executor-container"
 version = "0.2.0"
 dependencies = [
  "fs2",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "limeos-domain",
  "limeos-identity",
  "rusqlite",

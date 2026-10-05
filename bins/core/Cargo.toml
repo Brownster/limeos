@@ -17,6 +17,7 @@ limeos-contracts = { path = "../../crates/contracts", version = "=0.2.0" }
 limeos-policy = { path = "../../crates/policy", version = "=0.2.0" }
 limeos-persistence = { path = "../../crates/persistence", version = "=0.2.0" }
 limeos-identity = { path = "../../crates/identity", version = "=0.2.0" }
+limeos-executor-protocol = { path = "../../crates/executor-protocol", version = "=0.2.0" }
 tokio.workspace = true
 serde_json.workspace = true
 tracing.workspace = true

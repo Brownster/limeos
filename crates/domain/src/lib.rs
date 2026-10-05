@@ -37,7 +37,7 @@ impl Error {
                 "Configuration is invalid; the original file was preserved. Run limeosctl check-config before restarting."
             }
             ErrorCode::StateNotDurable => {
-                "Durable state could not be recorded; no operation was dispatched."
+                "Durable state is unavailable. Check the job outcome before retrying."
             }
             ErrorCode::NotFound => "The resource was not found.",
         }

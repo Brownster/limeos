@@ -1,0 +1,378 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Receipt",
+  "type": "object",
+  "properties": {
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "inspection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ContainerSnapshot"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "observations": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ObservationBatch"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ready": {
+      "type": "boolean"
+    },
+    "restart": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RestartReceipt"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "ready"
+  ],
+  "$defs": {
+    "Availability": {
+      "type": "string",
+      "enum": [
+        "loading",
+        "fresh",
+        "stale",
+        "unavailable"
+      ]
+    },
+    "ContainerSnapshot": {
+      "description": "Selected inspection evidence. Environment variables, labels and host paths\nnever enter a plan. The full ID, image and start timestamp identify an instance.",
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "resource": {
+          "type": "string"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "started_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "image",
+        "started_at",
+        "running"
+      ]
+    },
+    "ErrorCode": {
+      "type": "string",
+      "enum": [
+        "invalid_input",
+        "unauthenticated",
+        "forbidden",
+        "conflict",
+        "expired",
+        "overloaded",
+        "unavailable",
+        "corrupt_configuration",
+        "state_not_durable",
+        "not_found"
+      ]
+    },
+    "ExecutionState": {
+      "type": "string",
+      "enum": [
+        "prepared",
+        "effect_accepted",
+        "verified",
+        "precondition_changed",
+        "outcome_unknown"
+      ]
+    },
+    "Freshness": {
+      "type": "object",
+      "properties": {
+        "max_age_seconds": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "sampled_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "state": {
+          "$ref": "#/$defs/Availability"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "state",
+        "max_age_seconds",
+        "warnings"
+      ]
+    },
+    "HostMetrics": {
+      "type": "object",
+      "properties": {
+        "cpu_percent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "disk_percent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "load_one": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "memory_percent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "temperature_celsius": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "uptime_seconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ObservationBatch": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HostMetrics"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Resource"
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Freshness"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resources",
+        "sources"
+      ]
+    },
+    "Resource": {
+      "type": "object",
+      "properties": {
+        "cpu_percent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "filesystem": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "health": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "identity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "image": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/ResourceKind"
+        },
+        "memory_percent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "mountpoint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "size_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "status",
+        "source"
+      ]
+    },
+    "ResourceKind": {
+      "type": "string",
+      "enum": [
+        "disk",
+        "partition",
+        "pool",
+        "container",
+        "stack"
+      ]
+    },
+    "RestartReceipt": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "before": {
+          "$ref": "#/$defs/ContainerSnapshot"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plan_digest": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/ExecutionState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "plan_digest",
+        "before",
+        "state"
+      ]
+    },
+    "Source": {
+      "type": "string",
+      "enum": [
+        "host",
+        "storage",
+        "pools",
+        "docker",
+        "history"
+      ]
+    }
+  }
+}

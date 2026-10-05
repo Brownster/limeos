@@ -1,0 +1,363 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JobProgress",
+  "type": "object",
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Event"
+      }
+    },
+    "job": {
+      "$ref": "#/$defs/RestartJob"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "job",
+    "events"
+  ],
+  "$defs": {
+    "ContainerSnapshot": {
+      "description": "Selected inspection evidence. Environment variables, labels and host paths\nnever enter a plan. The full ID, image and start timestamp identify an instance.",
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "resource": {
+          "type": "string"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "started_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "image",
+        "started_at",
+        "running"
+      ]
+    },
+    "Event": {
+      "type": "object",
+      "properties": {
+        "created": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "cursor": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "event": {
+          "$ref": "#/$defs/EventKind"
+        },
+        "job": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "principal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "cursor",
+        "event",
+        "created"
+      ]
+    },
+    "EventKind": {
+      "description": "Authority events contain stable types and identifiers, never credentials.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "bootstrap_issued"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "administrator_enrolled"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "legacy_identity_imported"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "session_created"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "session_revoked"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "grants_revised"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "task_issued"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "task_revoked"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "job_queued"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "job_recovery_required"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "job_transition"
+            },
+            "state": {
+              "$ref": "#/$defs/JobState"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "state"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "plan_created"
+            },
+            "plan": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "plan"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "plan_approved"
+            },
+            "plan": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "plan"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "plan_canceled"
+            },
+            "plan": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "plan"
+          ]
+        }
+      ]
+    },
+    "JobState": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "waiting_approval",
+        "queued",
+        "running",
+        "verifying",
+        "succeeded",
+        "failed",
+        "canceled",
+        "precondition_changed",
+        "outcome_unknown",
+        "needs_intervention"
+      ]
+    },
+    "RestartJob": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/$defs/RestartPlan"
+        },
+        "state": {
+          "$ref": "#/$defs/JobState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "state",
+        "plan"
+      ]
+    },
+    "RestartPlan": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "expected": {
+          "$ref": "#/$defs/ContainerSnapshot"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "id": {
+          "type": "string"
+        },
+        "principal": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "principal",
+        "grant_revision",
+        "expected",
+        "created_at",
+        "expires_at"
+      ]
+    }
+  }
+}

@@ -1,7 +1,9 @@
-//! Restart execution foundation. No daemon or real Engine adapter is wired yet.
+//! Bounded container execution and protected receipts.
 //! The executor records uncertainty before a host effect and never blindly replays.
 use fs2::FileExt;
-use limeos_domain::{ContainerSnapshot, Error, ErrorCode, RestartPlan, Result, opaque_id};
+use limeos_domain::{ContainerSnapshot, Error, ErrorCode, Result, opaque_id};
+pub use limeos_domain::{ExecutionState, RestartReceipt, RestartRequest};
+pub mod docker;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -36,41 +38,6 @@ impl RestartCeiling {
         }
         Ok(())
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RestartRequest {
-    pub action: String,
-    pub plan_digest: String,
-    pub plan: RestartPlan,
-}
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ExecutionState {
-    Prepared,
-    EffectAccepted,
-    PreconditionChanged,
-    OutcomeUnknown,
-}
-impl ExecutionState {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Prepared => "prepared",
-            Self::EffectAccepted => "effect_accepted",
-            Self::PreconditionChanged => "precondition_changed",
-            Self::OutcomeUnknown => "outcome_unknown",
-        }
-    }
-}
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RestartReceipt {
-    pub action: String,
-    pub plan_digest: String,
-    pub before: ContainerSnapshot,
-    pub state: ExecutionState,
-    pub error: Option<ErrorCode>,
 }
 
 pub trait Engine {
@@ -140,8 +107,11 @@ impl ReceiptStore {
             0 => {
                 conn.execute_batch("BEGIN IMMEDIATE; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL); CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','outcome_unknown'); PRAGMA user_version=1; COMMIT;").map_err(durable)?;
             }
-            1 => {}
+            1 | 2 => {}
             _ => return Err(Error(ErrorCode::Conflict)),
+        }
+        if version < 2 {
+            conn.execute_batch("BEGIN IMMEDIATE; ALTER TABLE actions RENAME TO actions_v1; DROP INDEX actions_resource_lock; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL); INSERT INTO actions SELECT * FROM actions_v1; DROP TABLE actions_v1; CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); PRAGMA user_version=2; COMMIT;").map_err(durable)?;
         }
         if conn
             .query_row("PRAGMA quick_check(1)", [], |r| r.get::<_, String>(0))
@@ -317,6 +287,48 @@ impl ReceiptStore {
             receipt.state = ExecutionState::OutcomeUnknown;
             receipt.error = Some(ErrorCode::StateNotDurable);
         }
+        Ok(receipt)
+    }
+
+    /// Release the executor's resource lock only after a separate fresh Engine
+    /// inspection confirms the result supplied by core. Never replay an effect.
+    pub async fn verify(
+        &mut self,
+        engine: &impl Engine,
+        ceiling: &RestartCeiling,
+        peer_uid: u32,
+        action: &str,
+        digest: &str,
+        after: &ContainerSnapshot,
+    ) -> Result<RestartReceipt> {
+        let mut receipt = self
+            .receipt(action, digest)?
+            .ok_or(Error(ErrorCode::NotFound))?;
+        ceiling.authorize(peer_uid, &receipt.before.resource)?;
+        if receipt.state == ExecutionState::Verified {
+            return Ok(receipt);
+        }
+        if receipt.state != ExecutionState::EffectAccepted {
+            return Err(Error(ErrorCode::Conflict));
+        }
+        limeos_domain::verify_restart(&receipt.before, after)?;
+        let id = receipt
+            .before
+            .resource
+            .strip_prefix("container:")
+            .ok_or(Error(ErrorCode::InvalidInput))?;
+        let current = tokio::time::timeout(Duration::from_secs(2), engine.inspect(id))
+            .await
+            .map_err(|_| Error(ErrorCode::Unavailable))??;
+        if current != *after {
+            return Err(Error(ErrorCode::Conflict));
+        }
+        receipt.state = ExecutionState::Verified;
+        let tx = self.conn.transaction().map_err(durable)?;
+        if tx.execute("UPDATE actions SET state='verified',receipt=? WHERE action=? AND digest=? AND state='effect_accepted'", params![encode(&receipt)?, action, digest]).map_err(durable)? != 1 {
+            return Err(Error(ErrorCode::Conflict));
+        }
+        tx.commit().map_err(durable)?;
         Ok(receipt)
     }
 }

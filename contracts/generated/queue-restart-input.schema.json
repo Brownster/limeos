@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "QueueRestartInput",
+  "type": "object",
+  "properties": {
+    "approval": {
+      "type": "string"
+    },
+    "idempotency_key": {
+      "type": "string"
+    },
+    "proposal": {
+      "$ref": "#/$defs/PlannedRestart"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "proposal",
+    "approval",
+    "idempotency_key"
+  ],
+  "$defs": {
+    "ContainerSnapshot": {
+      "description": "Selected inspection evidence. Environment variables, labels and host paths\nnever enter a plan. The full ID, image and start timestamp identify an instance.",
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "resource": {
+          "type": "string"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "started_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "image",
+        "started_at",
+        "running"
+      ]
+    },
+    "PlannedRestart": {
+      "type": "object",
+      "properties": {
+        "digest": {
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/$defs/RestartPlan"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "plan",
+        "digest"
+      ]
+    },
+    "RestartPlan": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "expected": {
+          "$ref": "#/$defs/ContainerSnapshot"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "id": {
+          "type": "string"
+        },
+        "principal": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "principal",
+        "grant_revision",
+        "expected",
+        "created_at",
+        "expires_at"
+      ]
+    }
+  }
+}

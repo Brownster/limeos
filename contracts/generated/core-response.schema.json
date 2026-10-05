@@ -88,6 +88,52 @@
     {
       "type": "object",
       "properties": {
+        "digest": {
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/$defs/RestartPlan"
+        },
+        "response": {
+          "type": "string",
+          "const": "restart_plan"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "response",
+        "plan",
+        "digest"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/$defs/RestartPlan"
+        },
+        "response": {
+          "type": "string",
+          "const": "restart_job"
+        },
+        "state": {
+          "$ref": "#/$defs/JobState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "response",
+        "id",
+        "state",
+        "plan"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
         "audit_id": {
           "type": "string"
         },
@@ -116,6 +162,31 @@
     }
   ],
   "$defs": {
+    "ContainerSnapshot": {
+      "description": "Selected inspection evidence. Environment variables, labels and host paths\nnever enter a plan. The full ID, image and start timestamp identify an instance.",
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "resource": {
+          "type": "string"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "started_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "image",
+        "started_at",
+        "running"
+      ]
+    },
     "ErrorCode": {
       "type": "string",
       "enum": [
@@ -129,6 +200,64 @@
         "corrupt_configuration",
         "state_not_durable",
         "not_found"
+      ]
+    },
+    "JobState": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "waiting_approval",
+        "queued",
+        "running",
+        "verifying",
+        "succeeded",
+        "failed",
+        "canceled",
+        "precondition_changed",
+        "outcome_unknown",
+        "needs_intervention"
+      ]
+    },
+    "RestartPlan": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "expected": {
+          "$ref": "#/$defs/ContainerSnapshot"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "id": {
+          "type": "string"
+        },
+        "principal": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "principal",
+        "grant_revision",
+        "expected",
+        "created_at",
+        "expires_at"
       ]
     }
   }

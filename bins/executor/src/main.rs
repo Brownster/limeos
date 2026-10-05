@@ -1,6 +1,10 @@
+use limeos_executor_container::{Engine, ReceiptStore, RestartCeiling, docker::Docker};
 use limeos_executor_protocol::{Ceiling, Request};
 use std::{os::unix::fs::MetadataExt, path::Path, sync::Arc};
-use tokio::{net::UnixListener, sync::Semaphore};
+use tokio::{
+    net::UnixListener,
+    sync::{Mutex, Semaphore},
+};
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     tracing_subscriber::fmt().json().with_target(false).init();
@@ -11,9 +15,9 @@ async fn main() {
 }
 async fn run() -> std::io::Result<()> {
     let args: Vec<_> = std::env::args().collect();
-    if args.len() != 4 {
+    if !(4..=6).contains(&args.len()) {
         return Err(std::io::Error::other(
-            "usage: limeos-executor POLICY SOCKET host|container",
+            "usage: limeos-executor POLICY SOCKET host|container [RECEIPT_DIRECTORY [read-only]]",
         ));
     }
     let policy = Path::new(&args[1]);
@@ -23,12 +27,41 @@ async fn run() -> std::io::Result<()> {
     }
     let ceiling: Ceiling =
         serde_json::from_slice(&std::fs::read(policy)?).map_err(std::io::Error::other)?;
+    if !ceiling.configuration_valid()
+        || (args.len() == 6 && (args[5] != "read-only" || ceiling.allow_restart))
+    {
+        return Err(std::io::Error::other("invalid or writable shadow ceiling"));
+    }
     let ceiling = Arc::new(ceiling);
     let source = match args[3].as_str() {
         "host" => limeos_contracts::Source::Host,
         "container" => limeos_contracts::Source::Docker,
         _ => return Err(std::io::Error::other("invalid executor kind")),
     };
+    if source != limeos_contracts::Source::Docker && ceiling.allow_restart {
+        return Err(std::io::Error::other(
+            "host executor cannot mutate containers",
+        ));
+    }
+    let restart_ceiling = Arc::new(RestartCeiling {
+        version: ceiling.version,
+        core_uid: ceiling.core_uid,
+        allow_restart: ceiling.allow_restart,
+        managed_containers: ceiling.managed_containers.clone(),
+    });
+    let receipts = if ceiling.allow_restart {
+        let directory = args
+            .get(4)
+            .map(String::as_str)
+            .unwrap_or("/var/lib/limeos/executors/container");
+        Some(Arc::new(Mutex::new(
+            ReceiptStore::open(Path::new(directory))
+                .map_err(|_| std::io::Error::other("unsafe or unavailable receipt store"))?,
+        )))
+    } else {
+        None
+    };
+    let engine = Docker::new("/var/run/docker.sock".into());
     // An independent ceiling can disable collection entirely.
     let observations = match source {
         limeos_contracts::Source::Host if ceiling.allow_host_read => {
@@ -57,9 +90,12 @@ async fn run() -> std::io::Result<()> {
         };
         let ceiling = ceiling.clone();
         let observations = observations.clone();
+        let receipts = receipts.clone();
+        let restart_ceiling = restart_ceiling.clone();
+        let engine = engine.clone();
         tokio::spawn(async move {
             let _permit = permit;
-            let _ = tokio::time::timeout(limeos_contracts::RPC_DEADLINE, async {
+            let result = async {
                 let peer = stream
                     .peer_cred()
                     .map_err(|_| limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
@@ -67,30 +103,124 @@ async fn run() -> std::io::Result<()> {
                 if peer.uid() != ceiling.core_uid {
                     return Err(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden));
                 }
-                let request: Request = limeos_contracts::read_frame(&mut stream).await?;
+                let request: Request = tokio::time::timeout(
+                    limeos_contracts::RPC_DEADLINE,
+                    limeos_contracts::read_frame(&mut stream),
+                )
+                .await
+                .map_err(|_| limeos_domain::Error(limeos_domain::ErrorCode::Unavailable))??;
                 let mut receipt = ceiling.validate(peer.uid(), &request)?;
-                if let Request::Observe {
-                    source: requested,
-                    active,
-                    ..
-                } = request
-                {
-                    if requested != source {
-                        return Err(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden));
+                match request {
+                    Request::Observe {
+                        source: requested,
+                        active,
+                        ..
+                    } => {
+                        if requested != source {
+                            return Err(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden));
+                        }
+                        if active {
+                            observations.demand();
+                        }
+                        let value = observations.snapshot();
+                        receipt.observations = Some(limeos_contracts::ObservationBatch {
+                            host: value.host,
+                            resources: value.resources,
+                            sources: value.sources,
+                        });
                     }
-                    if active {
-                        observations.demand();
+                    Request::Inspect { resource, .. }
+                        if source == limeos_contracts::Source::Docker =>
+                    {
+                        receipt.inspection = Some(
+                            tokio::time::timeout(
+                                std::time::Duration::from_secs(5),
+                                engine.inspect(&resource[10..]),
+                            )
+                            .await
+                            .map_err(|_| {
+                                limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
+                            })??,
+                        );
                     }
-                    let value = observations.snapshot();
-                    receipt.observations = Some(limeos_contracts::ObservationBatch {
-                        host: value.host,
-                        resources: value.resources,
-                        sources: value.sources,
-                    });
+                    Request::Restart { request, .. }
+                        if source == limeos_contracts::Source::Docker =>
+                    {
+                        let store = receipts
+                            .as_ref()
+                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
+                        // Do not wait behind another effect with an expiring plan.
+                        let mut store = store.try_lock().map_err(|_| {
+                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
+                        })?;
+                        receipt.restart = Some(
+                            store
+                                .execute(&engine, &restart_ceiling, peer.uid(), &request, clock)
+                                .await?,
+                        );
+                    }
+                    Request::RestartReceipt { action, digest, .. } => {
+                        let store = receipts
+                            .as_ref()
+                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
+                        let store = store.try_lock().map_err(|_| {
+                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
+                        })?;
+                        receipt.restart = store.receipt(&action, &digest)?;
+                        if let Some(value) = &receipt.restart {
+                            restart_ceiling.authorize(peer.uid(), &value.before.resource)?;
+                        }
+                    }
+                    Request::VerifyRestart {
+                        action,
+                        digest,
+                        after,
+                        ..
+                    } => {
+                        let store = receipts
+                            .as_ref()
+                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
+                        let mut store = store.try_lock().map_err(|_| {
+                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
+                        })?;
+                        receipt.restart = Some(
+                            store
+                                .verify(
+                                    &engine,
+                                    &restart_ceiling,
+                                    peer.uid(),
+                                    &action,
+                                    &digest,
+                                    &after,
+                                )
+                                .await?,
+                        );
+                    }
+                    Request::Health { .. } => {}
+                    _ => return Err(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden)),
                 }
-                limeos_contracts::write_frame(&mut stream, &receipt).await
-            })
+                Ok::<_, limeos_domain::Error>(receipt)
+            }
+            .await;
+            let receipt = result.unwrap_or_else(|e| {
+                let mut value = limeos_executor_protocol::Receipt::empty();
+                value.ready = false;
+                value.error = Some(e.0);
+                value
+            });
+            // Responses are bounded even if the caller stops reading.
+            let _ = tokio::time::timeout(
+                limeos_contracts::RPC_DEADLINE,
+                limeos_contracts::write_frame(&mut stream, &receipt),
+            )
             .await;
         });
     }
+}
+fn clock() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        .min(i64::MAX as u64) as i64
 }

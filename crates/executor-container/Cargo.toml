@@ -17,6 +17,9 @@ serde_json.workspace = true
 rusqlite.workspace = true
 tokio.workspace = true
 fs2.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+http-body-util.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

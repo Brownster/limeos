@@ -78,6 +78,19 @@ impl Store {
         if !from.allows(to) {
             return Err(Error(ErrorCode::Conflict));
         }
+        if matches!(
+            to,
+            JobState::Succeeded | JobState::Failed | JobState::PreconditionChanged
+        ) && from != JobState::Queued
+        {
+            let intent: String = self
+                .conn
+                .query_row("SELECT intent FROM jobs WHERE id=?", [id], |r| r.get(0))
+                .map_err(durable)?;
+            if matches!(parse::<Intent>(&intent)?, Intent::ContainerRestart { .. }) {
+                return Err(Error(ErrorCode::Forbidden));
+            }
+        }
         if to == JobState::Running || (to == JobState::Canceled && from != JobState::Queued) {
             let encoded: String = self
                 .conn
