@@ -306,6 +306,65 @@ def main():
     )
 
     # Block real raw probes after the durable receipt, then kill the executor.
+    # Qualify multiple physical targets before exercising interrupted dispatch.
+    run("umount", "/mnt/downloads")
+    downloads = readiness.assignment(
+        "downloads",
+        "/dev/vdc1",
+        str(parent / "Downloads"),
+        "limeos-test-1",
+        role="downloads",
+    )
+    separate = planning.contract(
+        "separate_downloads", [{**second, "mountpoint": str(target)}, downloads]
+    )
+    separate["locations"].update(
+        media_host=str(target / "media"), downloads_host=downloads["mountpoint"]
+    )
+    separate_plan = make_plan(separate)
+    separate_receipt = json.loads(prepare(separate_plan).stdout)
+    assert (
+        separate_receipt["state"] == "verified" and len(separate_receipt["after"]) == 2
+    )
+    passed(
+        "separate-downloads preparation verifies existing data and creates its second physical target without media leaves"
+    )
+
+    for mount in ["data", "parity", "backup"]:
+        run("umount", "/mnt/" + mount)
+    protected = planning.contract(
+        "protected_pool",
+        [
+            {**second, "mountpoint": str(target)},
+            {**data, "mountpoint": str(parent / "Data2")},
+            readiness.assignment(
+                "parity",
+                "/dev/vdd1",
+                str(parent / "Parity"),
+                "limeos-test-2",
+                role="parity",
+            ),
+            readiness.assignment(
+                "backup",
+                "/dev/vde1",
+                str(parent / "Backup"),
+                "limeos-test-3",
+                role="config_backup",
+            ),
+        ],
+    )
+    protected["locations"]["backup_host"] = str(parent / "Backup/limeos")
+    protected_plan = make_plan(protected)
+    protected_receipt = json.loads(prepare(protected_plan).stdout)
+    assert (
+        protected_receipt["state"] == "verified"
+        and len(protected_receipt["after"]) == 4
+    )
+    assert not Path("/mnt/storage").exists() and not (parent / "Backup/limeos").exists()
+    passed(
+        "protected-pool preparation verifies four physical role targets without creating the virtual pool or backup leaves"
+    )
+
     # The wrapper and coordination files live only inside this guarded guest.
     interrupted = make_plan(selection(str(parent / "interrupted")))
     plan_file.write_text(json.dumps(interrupted))
@@ -365,7 +424,7 @@ def main():
             ).fetchone()[0]
             == 3
         )
-        assert db.execute("SELECT count(*) FROM receipts").fetchone()[0] == 3
+        assert db.execute("SELECT count(*) FROM receipts").fetchone()[0] == 5
     passed(
         "real executor death after durable dispatch preserves three resource claims; receipt lookup and retry cannot replay mkdir or bypass uncertainty"
     )
@@ -384,7 +443,14 @@ def main():
         "explicit fresh reconciliation proves an unchanged target and releases its claims without replaying the effect"
     )
 
-    interrupted_after = make_plan(selection(str(parent / "interrupted-after")))
+    partial = copy.deepcopy(separate)
+    partial["devices"][0]["mountpoint"] = str(parent / "interrupted-after")
+    partial["devices"][1]["mountpoint"] = str(parent / "partial-downloads")
+    partial["locations"].update(
+        media_host=str(parent / "interrupted-after/media"),
+        downloads_host=str(parent / "partial-downloads"),
+    )
+    interrupted_after = make_plan(partial)
     plan_file.write_text(json.dumps(interrupted_after))
     plan_file.chmod(0o600)
     blkid.rename(original_blkid)
@@ -435,11 +501,25 @@ def main():
         != 0
     )
     with sqlite3.connect(STATE / "targets.sqlite") as db:
-        assert db.execute("SELECT count(*) FROM locks").fetchone()[0] == 3
+        assert db.execute("SELECT count(*) FROM locks").fetchone()[0] == 5
     assert (changed / "external-data").read_text() == "preserve"
     (
         changed / "external-data"
     ).unlink()  # Fixture cleanup only, never executor cleanup.
+    assert not (parent / "partial-downloads").exists()
+    assert (
+        run(
+            EXECUTOR,
+            "storage-reconcile-targets",
+            "--action",
+            interrupted_after["action"],
+            check=False,
+        ).returncode
+        != 0
+    )
+    # Model an explicit root operator completing the second empty target. The
+    # executor itself refuses to replay any part of the interrupted operation.
+    (parent / "partial-downloads").mkdir(mode=0o755)
     resolved_after = json.loads(
         run(
             EXECUTOR,
@@ -452,12 +532,18 @@ def main():
     with sqlite3.connect(STATE / "targets.sqlite") as db:
         assert db.execute("SELECT count(*) FROM locks").fetchone()[0] == 0
     passed(
-        "real executor death after mkdir keeps claims; unexpected data blocks reconciliation and fresh verified postconditions resolve the receipt without another mkdir"
+        "real executor death after mkdir keeps five claims; partial preparation and unexpected data block reconciliation; root-completed postconditions resolve without executor replay"
     )
 
     for name, expected in sentinels.items():
-        if name == "data2":
-            run("mount", "/dev/vdb2", "/mnt/data2")
+        devices = {
+            "data": "/dev/vdb1",
+            "data2": "/dev/vdb2",
+            "downloads": "/dev/vdc1",
+            "parity": "/dev/vdd1",
+            "backup": "/dev/vde1",
+        }
+        run("mount", devices[name], "/mnt/" + name)
         assert (Path("/mnt") / name / "sentinel").read_bytes() == expected
     assert Path("/etc/fstab").read_bytes() == fstab_before
     assert not Path("/mnt/storage").exists() and not (target / "media").exists()

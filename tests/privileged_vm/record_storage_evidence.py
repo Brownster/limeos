@@ -29,7 +29,7 @@ def main():
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--source-commit", required=True)
     parser.add_argument(
-        "--slice", choices=["readiness", "planning"], default="readiness"
+        "--slice", choices=["readiness", "planning", "targets"], default="readiness"
     )
     parser.add_argument(
         "--output",
@@ -37,31 +37,40 @@ def main():
         default=None,
     )
     args = parser.parse_args()
-    planning = args.slice == "planning"
+    planning = args.slice != "readiness"
+    targets = args.slice == "targets"
     args.output = (
         args.output
         or ROOT / f"docs/rewrite-evidence/p04/storage-{args.slice}-validation.json"
     )
     evidence = args.output.parent
-    vm_name = "planning-vm-result.json" if planning else "storage-vm-result.json"
-    log_name = "rust-planning-tests.txt" if planning else "rust-readiness-tests.txt"
+    vm_name = f"{args.slice}-vm-result.json" if planning else "storage-vm-result.json"
+    log_name = f"rust-{args.slice}-tests.txt"
     vm = json.loads((evidence / vm_name).read_text())
-    assert len(vm["passed"]) >= (27 if planning else 17)
+    assert len(vm["passed"]) >= (37 if targets else 27 if planning else 17)
     assert "three-second plan deadline" in " ".join(vm["passed"])
     assert "watchdog bound" in " ".join(vm["passed"])
     assert (
-        vm["package_version"] == ("0.4.1" if planning else "0.4.0")
+        vm["package_version"]
+        == ("0.4.2" if targets else "0.4.1" if planning else "0.4.0")
         and vm["architecture"] == "amd64"
     )
     if planning:
         assert "operator fstab edit" in " ".join(vm["passed"])
         assert "duplicate raw UUIDs" in " ".join(vm["passed"])
+    if targets:
+        assert "active swap file identity" in " ".join(vm["passed"])
+        assert "after mkdir" in " ".join(vm["passed"])
+        assert (
+            "partial preparation and unexpected data block reconciliation"
+            in " ".join(vm["passed"])
+        )
     assert 2.5 <= vm["plan_wait_seconds"] <= 7
     assert 3.5 <= vm["watchdog_seconds"] <= 8
     log = (evidence / log_name).read_text()
     assert "FAILED" not in log and "test result: ok." in log
     passed = sum(int(n) for n in re.findall(r"test result: ok\. (\d+) passed", log))
-    assert passed >= (126 if planning else 111)
+    assert passed >= (131 if targets else 126 if planning else 111)
     manifest = {}
     with tarfile.open(args.bundle) as archive:
         for item in archive:
@@ -137,6 +146,17 @@ def main():
                     f"/etc/{prefix}/system-policy/storage.json /run/{prefix}-storage-reader/executor.sock storage"
                     in content
                 )
+            if targets:
+                # Maintainer scripts are in the separate control archive.
+                script = subprocess.check_output(
+                    ["dpkg-deb", "--ctrl-tarfile", str(package)]
+                )
+                with tarfile.open(fileobj=io.BytesIO(script)) as control:
+                    postinst_text = control.extractfile("./postinst").read().decode()
+                assert (
+                    f"fct_directory /var/lib/{prefix}/executors/storage root 0700"
+                    in postinst_text
+                )
     assert len(packages) == 2
     previous = json.loads(
         (ROOT / "docs/rewrite-evidence/p03/compose-source-sha256.json").read_text()
@@ -184,6 +204,11 @@ def main():
                     if planning
                     else []
                 ),
+                *(
+                    [ROOT / "tests/privileged_vm/p04_targets_guest.py"]
+                    if targets
+                    else []
+                ),
             ]
         },
         "checks": {
@@ -198,11 +223,15 @@ def main():
         "advisory_database_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
         "audited_lockfile_packages": 215,
         "added_third_party_packages": 0,
-        "production_boundary_change": "Storage adapter also uses the first-party identity crate for SHA-256 evidence digests"
+        "production_boundary_change": "Storage target preparation adds already-locked rusqlite to the root adapter for private WAL receipts and resource claims"
+        if targets
+        else "Storage adapter also uses the first-party identity crate for SHA-256 evidence digests"
         if planning
         else "Already-locked rustix 1.1.5 is now a direct safe syscall adapter dependency",
         "limitations": [
-            "P04 remains in progress; no storage effect or live mount-loss monitor is enabled",
+            "P04 remains in progress; root target preparation is qualified but mount/fstab, core storage jobs and live mount-loss handling remain pending"
+            if targets
+            else "P04 remains in progress; no storage effect or live mount-loss monitor is enabled",
             "Native ARM64 package/reference-host qualification pending",
             "Btrfs multi-device and FUSE NTFS are refused pending complete backing mappings",
             "No Pi performance comparison or P04 footprint signoff",
