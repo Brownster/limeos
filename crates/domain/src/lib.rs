@@ -1,6 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
+mod operations;
+pub use operations::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -149,6 +151,9 @@ pub enum EventKind {
     JobQueued,
     JobRecoveryRequired,
     JobTransition { state: JobState },
+    PlanCreated { plan: String },
+    PlanApproved { plan: String },
+    PlanCanceled { plan: String },
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
@@ -162,16 +167,18 @@ pub struct Event {
     pub created: i64,
 }
 
-/// P01 has no effectful operation. Later phases add closed typed variants here.
+/// Closed typed intent. Effectful intent requires the plan approval path.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Intent {
     HealthProbe { resource: String },
+    ContainerRestart { plan: RestartPlan },
 }
 impl Intent {
     pub fn resource(&self) -> &str {
         match self {
             Self::HealthProbe { resource } => resource,
+            Self::ContainerRestart { plan } => &plan.expected.resource,
         }
     }
 }

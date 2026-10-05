@@ -9,6 +9,10 @@ impl Store {
         deadline: i64,
         now: i64,
     ) -> Result<String> {
+        // Effectful intent must go through atomic plan-bound approval consumption.
+        if !matches!(intent, Intent::HealthProbe { .. }) {
+            return Err(Error(ErrorCode::Forbidden));
+        }
         if !limeos_domain::identifier(key)
             || !limeos_domain::identifier(intent.resource())
             || deadline <= now
@@ -73,6 +77,17 @@ impl Store {
     pub fn transition(&mut self, id: &str, from: JobState, to: JobState, now: i64) -> Result<()> {
         if !from.allows(to) {
             return Err(Error(ErrorCode::Conflict));
+        }
+        if to == JobState::Running || (to == JobState::Canceled && from != JobState::Queued) {
+            let encoded: String = self
+                .conn
+                .query_row("SELECT intent FROM jobs WHERE id=?", [id], |r| r.get(0))
+                .optional()
+                .map_err(durable)?
+                .ok_or(Error(ErrorCode::NotFound))?;
+            if !matches!(parse::<Intent>(&encoded)?, Intent::HealthProbe { .. }) {
+                return Err(Error(ErrorCode::Forbidden));
+            }
         }
         self.write(|tx| {
             let principal:String=tx.query_row("SELECT principal FROM jobs WHERE id=?",[id],|r|r.get(0)).optional().map_err(durable)?.ok_or(Error(ErrorCode::NotFound))?;

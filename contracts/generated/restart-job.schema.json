@@ -1,42 +1,23 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Intent",
-  "description": "Closed typed intent. Effectful intent requires the plan approval path.",
-  "oneOf": [
-    {
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "health_probe"
-        },
-        "resource": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "resource"
-      ]
+  "title": "RestartJob",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
     },
-    {
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "container_restart"
-        },
-        "plan": {
-          "$ref": "#/$defs/RestartPlan"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "plan"
-      ]
+    "plan": {
+      "$ref": "#/$defs/RestartPlan"
+    },
+    "state": {
+      "$ref": "#/$defs/JobState"
     }
+  },
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "state",
+    "plan"
   ],
   "$defs": {
     "ContainerSnapshot": {
@@ -62,6 +43,22 @@
         "image",
         "started_at",
         "running"
+      ]
+    },
+    "JobState": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "waiting_approval",
+        "queued",
+        "running",
+        "verifying",
+        "succeeded",
+        "failed",
+        "canceled",
+        "precondition_changed",
+        "outcome_unknown",
+        "needs_intervention"
       ]
     },
     "RestartPlan": {

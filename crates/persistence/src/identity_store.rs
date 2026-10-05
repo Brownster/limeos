@@ -187,16 +187,16 @@ impl Store {
         })
     }
     pub fn grants(&self, principal: &Principal) -> Result<Vec<Scope>> {
-        let revision: Option<i64> = self
+        let identity: Option<(i64, String)> = self
             .conn
             .query_row(
-                "SELECT grant_revision FROM users WHERE id=?",
+                "SELECT grant_revision,role FROM users WHERE id=?",
                 [&principal.id],
-                |r| r.get(0),
+                |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .optional()
             .map_err(durable)?;
-        if revision != Some(principal.grant_revision) {
+        if identity != Some((principal.grant_revision, json(&principal.role)?)) {
             return Err(Error(ErrorCode::Expired));
         }
         let mut stmt = self

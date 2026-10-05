@@ -12,7 +12,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 pub const QUEUE_CAPACITY: usize = 64;
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
@@ -134,6 +134,16 @@ impl Store {
                     .map_err(durable)?;
                 tx.execute_batch(include_str!("schema.sql"))
                     .map_err(durable)?;
+                tx.execute_batch(include_str!("migration-v2.sql"))
+                    .map_err(durable)?;
+                tx.commit().map_err(durable)?;
+            }
+            1 => {
+                let tx = conn
+                    .transaction_with_behavior(TransactionBehavior::Immediate)
+                    .map_err(durable)?;
+                tx.execute_batch(include_str!("migration-v2.sql"))
+                    .map_err(durable)?;
                 tx.commit().map_err(durable)?;
             }
             SCHEMA_VERSION => {}
@@ -217,6 +227,7 @@ impl Store {
 mod budgets;
 mod identity_store;
 mod jobs;
+mod plans;
 
 #[cfg(test)]
 mod tests;
