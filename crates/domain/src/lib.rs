@@ -11,6 +11,10 @@ mod storage;
 pub use storage::*;
 mod storage_targets;
 pub use storage_targets::*;
+mod pools;
+pub use pools::*;
+mod protection;
+pub use protection::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

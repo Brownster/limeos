@@ -844,6 +844,7 @@ dependencies = [
  "limeos-domain",
  "limeos-executor-protocol",
  "rusqlite",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",

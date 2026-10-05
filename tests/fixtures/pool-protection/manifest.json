@@ -1,0 +1,24 @@
+{
+  "commit": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+  "source_sha256": {
+    "storage_plugins/mergerfs_plugin.py": "85ec68efdfcb893e81d549f7940f8de7f18edaaf9faf004a513edc4bd6bc2c12",
+    "storage_plugins/snapraid_plugin.py": "651bf048de06761de575eb56a9944d25c9d148bf3477eee991d6669b09e80980",
+    "storage_plugins/snapraid_logtags.py": "c04aef391af6b56dfe0db769582b45e48d3558dacabc7ca98629e1181517b1ca",
+    "storage_capability_adapters.py": "274d6cec2590736bfc0e49a3fa54d7494d3718ce755e7f2b6486a7a6b4587aa1",
+    "storage_contract.py": "938989fdb04805a228197c3ea406dfcbcb014021d50b01f95ef9ae9834fe1148",
+    "media_layout.py": "9fd21b2d715dedddc06a1d4c7d68d35d386328dfabeb25b45f57b88e3dd745ed",
+    "config/schemas/mergerfs.schema.json": "1b8933dafe5efb219e08d7ac805716f8ddd1cbffecf2303056fff829bc2c5c8e",
+    "config/schemas/snapraid.schema.json": "60702933c47042d6f6dffcb9c674c89bf65df7da9f11df0ddf649bb4524a75ee",
+    "config/capability_providers/mergerfs.manifest.json": "51e30003f295fcf8737de90382db354b73ce2215cff29d0393c4fa75a1f50180",
+    "config/capability_providers/snapraid.manifest.json": "d1a4f3c35990dd578c487d959978932022c2d03819f9323dfa4b3443d353dbb5",
+    "tests/test_mergerfs_plugin.py": "77a0a895ed220d44edc5042728ba605dde4f275cba43d378462e919570839563",
+    "tests/test_snapraid_plugin.py": "70a8dfce582f2a6d24ef3158d830f53f4c2b48f3b2465f72486d15dfeca8b302",
+    "tests/test_snapraid_logtags.py": "ace0935bc682714613cf3fc90deb3b18c749d95b91bdcdb362769eefc0b578ec",
+    "tests/test_storage_capability_adapters.py": "d81216d4191ed2dc772e8e316adcc3aa9bddb7d0c468d1d34504a140fdd7ce0d",
+    "tests/test_storage_contract.py": "d3e384e25f0d1636e0d0cbbe70fc07f3b22a40934bb1a9dca7e1b1066cee4a79",
+    "Docs/snapraid-manual.txt": "c1a5b10cdd1a60be6b8d8fd27d2905f0aea58ca5a55d072353aa16c4ac14fa1d",
+    "Docs/snapraid-logtags.txt": "93b3ade9e6762796917679238b9384880d23406e7b1547fd771c0ee9e1d364e2"
+  },
+  "fixture_kind": "synthetic configurations and captured outputs, not live mount or host-effect proof",
+  "derivation": "AST-isolated frozen pure render functions; normalize generator banner and timestamp; add final newline"
+}

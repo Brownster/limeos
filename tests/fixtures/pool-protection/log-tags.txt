@@ -1,0 +1,9 @@
+summary:added:5
+summary:removed:2
+summary:exit:diff
+scan:add:d1:Movies/Example.mkv
+scan:add:d1:Movies/Other.mkv
+scan:remove:d2:Old/Thing.mkv
+run:pos:10:20:300:40:120:15.5:3.2:900
+msg:status:hello\dworld
+argv:0:/private/omitted

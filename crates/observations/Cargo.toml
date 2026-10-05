@@ -12,6 +12,7 @@ limeos-domain = { path = "../domain", version = "=0.2.0" }
 limeos-contracts = { path = "../contracts", version = "=0.2.0" }
 limeos-executor-protocol = { path = "../executor-protocol", version = "=0.2.0" }
 tokio.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 rusqlite.workspace = true
 fs2.workspace = true
