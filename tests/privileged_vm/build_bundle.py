@@ -42,7 +42,7 @@ def main():
             "docs/p01-operations.md",
             "docs/p02-operations.md",
             "docs/p03-operations.md",
-            "tests/privileged_vm/build_guest.py",
+            "tests/privileged_vm",
         ]:
             archive.add(
                 ROOT / name,

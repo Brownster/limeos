@@ -105,7 +105,20 @@ def main():
                     previews += 1
                     data = json.loads(json.dumps(proposal))
                     data["plan"]["id"] = f"{previews:064x}"
+                    operation = request.post_data_json.get("operation", "restart")
+                    if operation != "restart":
+                        data["plan"]["operation"] = operation
+                    data["plan"]["expected"]["running"] = (
+                        resource["status"] == "running"
+                    )
                     status = 201
+                elif path.endswith("/logs"):
+                    assert request.method == "GET"
+                    data = {
+                        "resource": resource["id"],
+                        "text": 'ready\n<img src=x onerror="window.logExecuted=true">\n[credential-bearing line redacted]\n',
+                        "truncated": True,
+                    }
                 elif path.endswith("/approval"):
                     data = {
                         "token": "f" * 64,
@@ -199,10 +212,51 @@ def main():
         )
         jobs[1]["state"] = "succeeded"
         page.locator(".job-row").nth(0).get_by_text("succeeded", exact=True).wait_for()
+        assert not page.get_by_role("button", name="Start", exact=True).is_enabled()
+        for action, next_status in [("stop", "exited"), ("start", "running")]:
+            page.get_by_role("button", name=action.capitalize(), exact=True).click()
+            page.get_by_role("button", name=f"Approve and {action}", exact=True).click()
+            dialog.wait_for(state="hidden")
+            assert jobs[-1]["plan"]["operation"] == action
+            jobs[-1]["state"] = "succeeded"
+            resource["status"] = next_status
+            page.reload()
+            page.locator(".job-row").nth(0).get_by_text(
+                "succeeded", exact=True
+            ).wait_for()
+            assert page.get_by_role(
+                "button", name="Start", exact=True
+            ).is_enabled() == (next_status == "exited")
+            assert page.get_by_role("button", name="Stop", exact=True).is_enabled() == (
+                next_status == "running"
+            )
+        mutation_count = len([c for c in calls if c[1] == "POST"])
+        log_button = page.get_by_role("button", name="Logs", exact=True)
+        log_button.click()
+        log_dialog = page.get_by_role("dialog", name="Logs · Test television")
+        log_dialog.wait_for(state="visible")
+        page.locator(".container-logs").get_by_text("<img", exact=False).wait_for()
+        assert page.locator(".container-logs img").count() == 0
+        assert not page.evaluate("!!window.logExecuted")
+        page.get_by_text("Output reached the size limit.", exact=True).wait_for()
+        for _ in range(4):
+            page.keyboard.press("Tab")
+            assert page.evaluate("!!document.activeElement.closest('dialog')")
+        page.get_by_role("button", name="Refresh logs", exact=True).click()
+        assert len([c for c in calls if c[0].endswith("/logs")]) == 2
+        assert len([c for c in calls if c[1] == "POST"]) == mutation_count
+        page.keyboard.press("Escape")
+        log_dialog.wait_for(state="hidden")
+        assert log_button.evaluate("element => document.activeElement === element")
         evidence = ROOT / "docs/rewrite-evidence/p03"
         evidence.mkdir(parents=True, exist_ok=True)
-        page.screenshot(path=str(evidence / "restart-progress.png"), full_page=True)
-        (evidence / "browser-result.json").write_text(
+        page.screenshot(path=str(evidence / "lifecycle-progress.png"), full_page=True)
+        session["principal"]["role"] = "viewer"
+        page.reload()
+        page.get_by_role("heading", name="At home.").wait_for()
+        for label in ["Start", "Stop", "Restart", "Logs"]:
+            assert page.get_by_role("button", name=label, exact=True).count() == 0
+        (evidence / "lifecycle-browser-result.json").write_text(
             json.dumps(
                 {
                     "browser": browser.version,
@@ -214,8 +268,16 @@ def main():
                         "durable progress survives reload",
                         "lost queue response requires explicit retry with the same plan, approval and key",
                         "explicit retry recovers the same job without another approval",
+                        "stop and start previews bind their actions and require explicit approval",
+                        "lifecycle controls reflect running state",
+                        "log HTML is escaped text and clipping is visible",
+                        "log refresh uses GET without queueing any effect",
+                        "log dialog contains keyboard focus and Escape restores its trigger",
+                        "viewer sees neither lifecycle nor log controls",
                     ],
-                    "queue_posts": len(posts),
+                    "queue_posts": len(
+                        [c for c in calls if c[0].endswith("/jobs") and c[1] == "POST"]
+                    ),
                     "durable_fixture_jobs": len(jobs),
                 },
                 indent=2,
@@ -223,7 +285,7 @@ def main():
             + "\n"
         )
         browser.close()
-    print("Browser restart and focus regressions passed.")
+    print("Browser lifecycle, logs and focus regressions passed.")
 
 
 if __name__ == "__main__":

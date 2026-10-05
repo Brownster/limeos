@@ -63,7 +63,7 @@ def main():
             "--binaries",
             str(source / "target/release"),
             "--version",
-            "0.3.0",
+            "0.3.1",
             "--profile",
             profile,
             "--output",

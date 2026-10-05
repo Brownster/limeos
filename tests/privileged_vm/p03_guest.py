@@ -23,6 +23,7 @@ CORE_DB = "/var/lib/limeos/core/core.sqlite"
 RECEIPTS = "/var/lib/limeos/executors/container/receipts.sqlite"
 REAL_SOCKET = "/var/run/limeos-p03-real.sock"
 BASE = "/api/v1/container/restart"
+PACKAGE_VERSION = "0.3.0"
 checks = []
 
 
@@ -92,18 +93,20 @@ def inspect(identifier):
 
 def enroll(prefix="limeos", port=8003):
     ctl = [f"/usr/lib/{prefix}/limeosctl", "--socket", f"/run/{prefix}-core/core.sock"]
-    token = json.loads(run(*ctl, "bootstrap").stdout)["token"]
-    run(
-        *ctl,
-        "enroll",
-        input=json.dumps(
-            {
-                "token": token,
-                "username": "test-admin",
-                "password": "Synthetic-P03-test-password",
-            }
-        ),
-    )
+    bootstrap = run(*ctl, "bootstrap", check=False)
+    if bootstrap.returncode == 0:
+        token = json.loads(bootstrap.stdout)["token"]
+        run(
+            *ctl,
+            "enroll",
+            input=json.dumps(
+                {
+                    "token": token,
+                    "username": "test-admin",
+                    "password": "Synthetic-P03-test-password",
+                }
+            ),
+        )
     status, headers, view = http(
         "/api/v1/auth/login",
         "POST",
@@ -293,7 +296,7 @@ def main():
         + " stable main\n"
     )
     run("apt-get", "update", "-qq")
-    run("apt-get", "install", "-y", "limeos=0.3.0")
+    run("apt-get", "install", "-y", "limeos=" + PACKAGE_VERSION)
     cookie, csrf, principal = enroll()
     # A real Docker daemon, an image constructed from Debian's static busybox,
     # and private writable container layers. No bind mounts or production data.
@@ -394,8 +397,14 @@ def main():
     progress = http(BASE + f"/jobs/{job['id']}", cookie=cookie)[2]
     assert progress["events"][-1]["event"]["state"] == "succeeded"
     with sqlite3.connect(CORE_DB) as db:
+        results_table = (
+            "container_results"
+            if db.execute("PRAGMA user_version").fetchone()[0] >= 4
+            else "restart_results"
+        )
         receipt, verification = db.execute(
-            "SELECT receipt,verification FROM restart_results WHERE job=?", (job["id"],)
+            f"SELECT receipt,verification FROM {results_table} WHERE job=?",
+            (job["id"],),
         ).fetchone()
         assert (
             json.loads(receipt)["state"] == "verified"
@@ -664,7 +673,7 @@ def main():
         passed(f"kill {target} {mode}: no unjustified second effect")
 
     # Shadow uses a distinct receipt directory and refuses a writable ceiling.
-    run("apt-get", "install", "-y", "limeos-shadow=0.3.0")
+    run("apt-get", "install", "-y", "limeos-shadow=" + PACKAGE_VERSION)
     shadow_cookie, shadow_csrf, _ = enroll("limeos-shadow", 8004)
     assert (
         http(
@@ -754,13 +763,16 @@ def main():
                 },
                 "package_sha256": {
                     p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-                    for p in sorted(repository.glob("pool/main/*0.3.0*.deb"))
+                    for p in sorted(
+                        repository.glob(f"pool/main/*{PACKAGE_VERSION}*.deb")
+                    )
                 },
             },
             indent=2,
         )
         + "\n"
     )
+    return cookie, csrf, principal, ids, policy_path, policy
 
 
 if __name__ == "__main__":

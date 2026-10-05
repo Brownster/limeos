@@ -40,6 +40,11 @@ def main():
         help="Copy freshly built Debian binaries and packages here",
     )
     parser.add_argument(
+        "--retain-previous-repository",
+        action="store_true",
+        help="Keep the input repository in the guest for a real package upgrade test",
+    )
+    parser.add_argument(
         "--guest-script", type=Path, default=ROOT / "tests/privileged_vm/guest.py"
     )
     parser.add_argument(
@@ -54,6 +59,8 @@ def main():
         "--output", type=Path, default=ROOT / "docs/rewrite-evidence/p01/vm-result.json"
     )
     args = parser.parse_args()
+    if args.retain_previous_repository and not args.build_bundle:
+        parser.error("--retain-previous-repository requires --build-bundle")
     expected = next(
         line.split()[0]
         for line in args.checksums.read_text().splitlines()
@@ -181,7 +188,18 @@ def main():
                     str(args.guest_script),
                     "root@127.0.0.1:/root/guest.py",
                 )
+                if args.guest_script.name == "p03_lifecycle_guest.py":
+                    run(
+                        "scp",
+                        *common,
+                        "-P",
+                        str(port),
+                        str(args.guest_script.with_name("p03_guest.py")),
+                        "root@127.0.0.1:/root/p03_guest.py",
+                    )
                 if args.build_bundle:
+                    if args.retain_previous_repository:
+                        run(*ssh, "mv /opt/limeos-repo /opt/limeos-previous-repo")
                     run(
                         "scp",
                         *common,
