@@ -1,0 +1,22 @@
+{
+  "assignment": "RW-041 pool/protection planning foundation",
+  "branch": "rw-041-pool-protection",
+  "base_commit": "589cf9a6de587d301ecaacff9eeb92869af40e7c",
+  "frozen_python_commit": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+  "worktree": "/tmp/limeos-rw041",
+  "local_date": "2026-10-06",
+  "rust_tests_passed": 161,
+  "rw041_regression_tests": 30,
+  "strict_clippy": "passed",
+  "format": "passed",
+  "dependency_direction": "passed",
+  "generated_contract_drift": "passed",
+  "frozen_sources_verified": 17,
+  "local_sources_hashed": 26,
+  "fixture_layouts": 4,
+  "fixture_kind": "synthetic; no live mount or host-effect proof",
+  "defect_register_rows_closed": [],
+  "host_effects_enabled": false,
+  "runtime_integration": "deferred to RW-040 locks and recovery",
+  "actual_agent_wall_time_minutes_approximate": 45
+}

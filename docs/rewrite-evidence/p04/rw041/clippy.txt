@@ -1,0 +1,5 @@
+    Checking limeos-observations v0.2.0 (/tmp/limeos-rw041/crates/observations)
+    Checking limeos-domain v0.2.0 (/tmp/limeos-rw041/crates/domain)
+    Checking limeos-executor v0.2.0 (/tmp/limeos-rw041/bins/executor)
+    Checking limeos-core v0.2.0 (/tmp/limeos-rw041/bins/core)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.33s
