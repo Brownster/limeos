@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PoolPreview",
+  "type": "object",
+  "properties": {
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PoolDependency"
+      }
+    },
+    "desired": {
+      "$ref": "#/$defs/PoolsConfig"
+    },
+    "managed_fstab": {
+      "type": "string"
+    },
+    "media_identity": {
+      "$ref": "#/$defs/StorageMediaIdentity"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "desired",
+    "media_identity",
+    "dependencies",
+    "managed_fstab"
+  ],
+  "$defs": {
+    "PoolConfig": {
+      "type": "object",
+      "properties": {
+        "branches": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "create_policy": {
+          "$ref": "#/$defs/PoolCreatePolicy"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "min_free_space": {
+          "type": "string"
+        },
+        "mount_point": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/PoolOptions"
+        },
+        "preset": {
+          "$ref": "#/$defs/PoolPreset"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "branches",
+        "mount_point",
+        "create_policy",
+        "preset",
+        "min_free_space",
+        "options",
+        "enabled"
+      ]
+    },
+    "PoolCreatePolicy": {
+      "type": "string",
+      "enum": [
+        "epmfs",
+        "eplfs",
+        "eplus",
+        "mfs",
+        "lfs",
+        "lus",
+        "rand",
+        "pfrd",
+        "ff"
+      ]
+    },
+    "PoolDependency": {
+      "type": "object",
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageDevice"
+          }
+        },
+        "pool_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pool_id",
+        "devices"
+      ]
+    },
+    "PoolFileCache": {
+      "type": "string",
+      "enum": [
+        "off",
+        "auto-full"
+      ]
+    },
+    "PoolGetattr": {
+      "type": "string",
+      "enum": [
+        "newest"
+      ]
+    },
+    "PoolOptions": {
+      "description": "Closed subset of legacy option overrides; no free-form mount option string.",
+      "type": "object",
+      "properties": {
+        "cache_files": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PoolFileCache"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "create_policy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PoolCreatePolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "drop_cache_on_close": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "getattr": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PoolGetattr"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "min_free_space": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "PoolPreset": {
+      "type": "string",
+      "enum": [
+        "linux_6_6_plus",
+        "linux_6_5_mmap",
+        "linux_6_5_no_mmap"
+      ]
+    },
+    "PoolsConfig": {
+      "type": "object",
+      "properties": {
+        "pools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PoolConfig"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pools"
+      ]
+    },
+    "StorageDevice": {
+      "type": "object",
+      "properties": {
+        "filesystem": {
+          "$ref": "#/$defs/StorageFilesystem"
+        },
+        "filesystem_uuid": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "mountpoint": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "role": {
+          "$ref": "#/$defs/StorageRole"
+        },
+        "serial": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role",
+        "filesystem_uuid",
+        "filesystem",
+        "mountpoint"
+      ]
+    },
+    "StorageFilesystem": {
+      "type": "string",
+      "enum": [
+        "btrfs",
+        "exfat",
+        "ext2",
+        "ext3",
+        "ext4",
+        "ntfs",
+        "vfat",
+        "xfs"
+      ]
+    },
+    "StorageMediaIdentity": {
+      "type": "object",
+      "properties": {
+        "gid": {
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 2147483647,
+          "minimum": 1
+        },
+        "uid": {
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 2147483647,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "uid",
+        "gid"
+      ]
+    },
+    "StorageRole": {
+      "type": "string",
+      "enum": [
+        "data",
+        "downloads",
+        "parity",
+        "config_backup"
+      ]
+    }
+  }
+}

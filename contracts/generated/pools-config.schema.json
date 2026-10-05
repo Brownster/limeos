@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PoolsConfig",
+  "type": "object",
+  "properties": {
+    "pools": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PoolConfig"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "pools"
+  ],
+  "$defs": {
+    "PoolConfig": {
+      "type": "object",
+      "properties": {
+        "branches": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "create_policy": {
+          "$ref": "#/$defs/PoolCreatePolicy"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "min_free_space": {
+          "type": "string"
+        },
+        "mount_point": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/PoolOptions"
+        },
+        "preset": {
+          "$ref": "#/$defs/PoolPreset"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "branches",
+        "mount_point",
+        "create_policy",
+        "preset",
+        "min_free_space",
+        "options",
+        "enabled"
+      ]
+    },
+    "PoolCreatePolicy": {
+      "type": "string",
+      "enum": [
+        "epmfs",
+        "eplfs",
+        "eplus",
+        "mfs",
+        "lfs",
+        "lus",
+        "rand",
+        "pfrd",
+        "ff"
+      ]
+    },
+    "PoolFileCache": {
+      "type": "string",
+      "enum": [
+        "off",
+        "auto-full"
+      ]
+    },
+    "PoolGetattr": {
+      "type": "string",
+      "enum": [
+        "newest"
+      ]
+    },
+    "PoolOptions": {
+      "description": "Closed subset of legacy option overrides; no free-form mount option string.",
+      "type": "object",
+      "properties": {
+        "cache_files": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PoolFileCache"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "create_policy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PoolCreatePolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "drop_cache_on_close": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "getattr": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PoolGetattr"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "min_free_space": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "PoolPreset": {
+      "type": "string",
+      "enum": [
+        "linux_6_6_plus",
+        "linux_6_5_mmap",
+        "linux_6_5_no_mmap"
+      ]
+    }
+  }
+}
