@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build and sign test-only packages. Never run outside the disposable guest."""
 
+import argparse
 import os
 import socket
 import subprocess
@@ -15,6 +16,9 @@ def main():
     if os.getuid() != 0 or socket.gethostname() != "limeos-p01-test":
         raise SystemExit("Disposable guest required")
     source = Path("/root/build/source")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--version", default="0.3.2")
+    args = parser.parse_args()
     run("apt-get", "update", "-qq")
     run(
         "apt-get",
@@ -63,7 +67,7 @@ def main():
             "--binaries",
             str(source / "target/release"),
             "--version",
-            "0.3.2",
+            args.version,
             "--profile",
             profile,
             "--output",
@@ -78,7 +82,7 @@ def main():
         "--passphrase",
         "",
         "--quick-generate-key",
-        "Disposable P03 test signing key <p03@test.invalid>",
+        "Disposable rewrite test signing key <rewrite@test.invalid>",
         "rsa2048",
         "sign",
         "1d",

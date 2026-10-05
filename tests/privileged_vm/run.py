@@ -13,6 +13,8 @@ Only a throwaway SSH key is accepted; no passwords, host mounts or host services
 import argparse
 import hashlib
 import json
+import re
+import shlex
 import socket
 import subprocess
 import tempfile
@@ -45,12 +47,22 @@ def main():
         help="Copy freshly built Debian binaries and packages here",
     )
     parser.add_argument(
+        "--package-version",
+        default="0.3.2",
+        help="Version label for an optional fresh build",
+    )
+    parser.add_argument(
         "--retain-previous-repository",
         action="store_true",
         help="Keep the input repository in the guest for a real package upgrade test",
     )
     parser.add_argument(
         "--guest-script", type=Path, default=ROOT / "tests/privileged_vm/guest.py"
+    )
+    parser.add_argument(
+        "--storage-disks",
+        action="store_true",
+        help="Attach four empty 128 MiB disposable virtual disks for storage acceptance",
     )
     parser.add_argument(
         "--image",
@@ -64,6 +76,8 @@ def main():
         "--output", type=Path, default=ROOT / "docs/rewrite-evidence/p01/vm-result.json"
     )
     args = parser.parse_args()
+    if not re.fullmatch(r"[0-9][A-Za-z0-9.+~:-]*", args.package_version):
+        parser.error("Invalid Debian package version")
     if args.previous_repository and args.retain_previous_repository:
         parser.error("Choose --previous-repository or --retain-previous-repository")
     if args.retain_previous_repository and not args.build_bundle:
@@ -115,6 +129,19 @@ def main():
             str(directory / "disk.qcow2"),
             "8G",
         )
+        storage_drives = []
+        if args.storage_disks:
+            for index in range(4):
+                disk = directory / f"storage-{index}.qcow2"
+                run("qemu-img", "create", "-q", "-f", "qcow2", str(disk), "128M")
+                storage_drives.extend(
+                    [
+                        "-drive",
+                        f"file={disk},format=qcow2,if=none,id=storage{index}",
+                        "-device",
+                        f"virtio-blk-pci,drive=storage{index},serial=limeos-test-{index}",
+                    ]
+                )
         with socket.socket() as probe:
             probe.bind(("127.0.0.1", 0))
             port = probe.getsockname()[1]
@@ -154,6 +181,7 @@ def main():
                     f"user,id=n1,hostfwd=tcp:127.0.0.1:{port}-:22",
                     "-device",
                     "virtio-net-pci,netdev=n1",
+                    *storage_drives,
                 ],
                 stdout=console,
                 stderr=console,
@@ -257,6 +285,15 @@ def main():
                             str(source),
                             "root@127.0.0.1:/root/" + destination,
                         )
+                if args.guest_script.name == "p04_storage_guest.py":
+                    run(
+                        "scp",
+                        *common,
+                        "-P",
+                        str(port),
+                        str(ROOT / "tests/fixtures/werkzeug-hashes.json"),
+                        "root@127.0.0.1:/root/werkzeug-hashes.json",
+                    )
                 if args.build_bundle:
                     if args.retain_previous_repository:
                         run(*ssh, "mv /opt/limeos-repo /opt/limeos-previous-repo")
@@ -270,7 +307,8 @@ def main():
                     )
                     run(
                         *ssh,
-                        "mkdir /root/build && tar -xzf /root/build.tar.gz -C /root/build && python3 /root/build/source/tests/privileged_vm/build_guest.py",
+                        "mkdir /root/build && tar -xzf /root/build.tar.gz -C /root/build && python3 /root/build/source/tests/privileged_vm/build_guest.py --version "
+                        + shlex.quote(args.package_version),
                     )
                     if args.build_output:
                         args.build_output.mkdir(parents=True, exist_ok=True)
