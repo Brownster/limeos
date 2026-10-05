@@ -249,10 +249,47 @@ impl StorageContract {
         }
         let mut devices = self.devices.clone();
         devices.sort_by(|a, b| a.mountpoint.cmp(&b.mountpoint));
-        Ok(StorageMountWaitPlan {
+        let plan = StorageMountWaitPlan {
             timeout_seconds,
             devices,
-        })
+        };
+        plan.validate()?;
+        Ok(plan)
+    }
+}
+
+impl StorageMountWaitPlan {
+    /// Executor input is validated independently, including when no contract
+    /// generator produced it. Profile role counts do not apply to a wait subset.
+    pub fn validate(&self) -> Result<()> {
+        valid((1..=STORAGE_MAX_WAIT_SECONDS).contains(&self.timeout_seconds))?;
+        valid((1..=STORAGE_MAX_DEVICES).contains(&self.devices.len()))?;
+        let (mut ids, mut uuids, mut mounts) = (BTreeSet::new(), BTreeSet::new(), BTreeSet::new());
+        for d in &self.devices {
+            valid(
+                !d.id.is_empty()
+                    && d.id.len() <= 64
+                    && d.id.as_bytes()[0].is_ascii_alphanumeric()
+                    && d.id.bytes().all(|c| {
+                        c.is_ascii_lowercase() || c.is_ascii_digit() || b"_-".contains(&c)
+                    })
+                    && ids.insert(&d.id),
+            )?;
+            valid(
+                !d.filesystem_uuid.is_empty()
+                    && d.filesystem_uuid.len() <= 128
+                    && d.filesystem_uuid.as_bytes()[0].is_ascii_alphanumeric()
+                    && d.filesystem_uuid
+                        .bytes()
+                        .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c))
+                    && uuids.insert(&d.filesystem_uuid),
+            )?;
+            valid(canonical_path(&d.mountpoint, true) && mounts.insert(&d.mountpoint))?;
+            valid(d.serial.as_ref().is_none_or(|s| {
+                !s.is_empty() && s.len() <= 128 && s.trim() == s && !s.chars().any(char::is_control)
+            }))?;
+        }
+        Ok(())
     }
 }
 

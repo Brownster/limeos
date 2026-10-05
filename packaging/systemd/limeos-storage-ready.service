@@ -1,0 +1,33 @@
+[Unit]
+Description=LimeOS verified device mount readiness
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/lib/limeos/limeos-executor storage-wait --plan /etc/limeos/storage-wait.json
+# The plan allows at most 120 seconds; systemd bounds even a blocked kernel read.
+TimeoutStartSec=125s
+TimeoutStopSec=5s
+Restart=no
+UMask=0077
+LimitCORE=0
+NoNewPrivileges=yes
+# Mount verification must run in PID 1's mount namespace. ProtectSystem,
+# ProtectHome and PrivateTmp would create a different namespace.
+PrivateMounts=no
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+LimitNOFILE=256
+TasksMax=8
+MemoryMax=64M
+MemorySwapMax=0
+CPUQuota=50%

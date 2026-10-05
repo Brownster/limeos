@@ -7,10 +7,65 @@ use tokio::{
 };
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    let args: Vec<_> = std::env::args().collect();
+    if args.iter().any(|s| matches!(s.as_str(), "--help" | "-h")) {
+        println!(
+            "Usage: limeos-executor POLICY SOCKET host|container [RECEIPT_DIRECTORY [read-only]]\n       limeos-executor storage-check|storage-wait --plan ROOT_OWNED_JSON\n\nStorage commands inspect only; stdout is JSON, errors go to stderr.\nExit: 0 verified, 1 unsafe/unavailable, 2 invalid plan/usage, 3 deadline expired."
+        );
+        return;
+    }
+    if args.get(1).is_some_and(|s| s == "--version") && args.len() == 2 {
+        println!("limeos-executor {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+    if args.get(1).is_some_and(|s| s.starts_with("storage-")) {
+        storage_cli(&args).await;
+        return;
+    }
     tracing_subscriber::fmt().json().with_target(false).init();
     if run().await.is_err() {
         tracing::error!("executor configuration or runtime failure");
         std::process::exit(1);
+    }
+}
+async fn storage_cli(args: &[String]) {
+    use limeos_executor_storage::{Failure, read_plan, verify, wait};
+    let result = async {
+        if args.len() != 4
+            || args[2] != "--plan"
+            || !matches!(args[1].as_str(), "storage-check" | "storage-wait")
+        {
+            return Err(Failure::InvalidPlan);
+        }
+        let plan = read_plan(Path::new(&args[3]))?;
+        if args[1] == "storage-wait" {
+            wait(&plan).await
+        } else {
+            tokio::time::timeout(
+                std::time::Duration::from_secs(u64::from(plan.timeout_seconds)),
+                verify(&plan),
+            )
+            .await
+            .map_err(|_| Failure::TimedOut)?
+        }
+    }
+    .await;
+    match result {
+        Ok(snapshot) => println!(
+            "{}",
+            serde_json::to_string(&snapshot).expect("serializable storage snapshot")
+        ),
+        Err(error) => {
+            eprintln!(
+                "{}",
+                serde_json::json!({"error": error, "message": error.message()})
+            );
+            std::process::exit(match error {
+                Failure::InvalidPlan => 2,
+                Failure::TimedOut => 3,
+                _ => 1,
+            });
+        }
     }
 }
 async fn run() -> std::io::Result<()> {

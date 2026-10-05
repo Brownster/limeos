@@ -111,6 +111,10 @@ def main() -> None:
             ROOT / "docs/p03-compose-planning.md",
             documentation / "p03-compose-planning.md",
         )
+        shutil.copyfile(
+            ROOT / "docs/p04-storage-readiness.md",
+            documentation / "p04-storage-readiness.md",
+        )
         control = stage / "DEBIAN"
         control.mkdir()
         (control / "control").write_text(f"""Package: {package}

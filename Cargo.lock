@@ -750,6 +750,7 @@ dependencies = [
  "limeos-domain",
  "limeos-executor-container",
  "limeos-executor-protocol",
+ "limeos-executor-storage",
  "limeos-observations",
  "serde_json",
  "tokio",
@@ -786,6 +787,18 @@ dependencies = [
  "tempfile",
  "tokio",
  "ts-rs",
+]
+
+[[package]]
+name = "limeos-executor-storage"
+version = "0.2.0"
+dependencies = [
+ "limeos-domain",
+ "rustix",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

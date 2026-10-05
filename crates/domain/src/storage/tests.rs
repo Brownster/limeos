@@ -71,6 +71,51 @@ fn waits_require_device_roots_and_a_bounded_deadline() {
 }
 
 #[test]
+fn executor_wait_input_is_validated_without_trusting_its_generator() {
+    let original = parse(golden()[0]["contract"].clone())
+        .unwrap()
+        .mount_wait_plan(3)
+        .unwrap();
+    for (field, bad) in [
+        ("id", json!("ROOT")),
+        ("id", json!("../disk")),
+        ("filesystem_uuid", json!("$(command)")),
+        ("filesystem_uuid", json!("")),
+        ("mountpoint", json!("/mnt/data/../boot")),
+        ("mountpoint", json!("/boot")),
+        ("serial", json!(" padded ")),
+    ] {
+        let mut value = serde_json::to_value(&original).unwrap();
+        value["devices"][0][field] = bad;
+        assert!(
+            serde_json::from_value::<StorageMountWaitPlan>(value)
+                .unwrap()
+                .validate()
+                .is_err()
+        );
+    }
+    let mut duplicate = original.clone();
+    duplicate.devices.push(duplicate.devices[0].clone());
+    assert!(duplicate.validate().is_err());
+    assert!(
+        StorageMountWaitPlan {
+            devices: Vec::new(),
+            ..original.clone()
+        }
+        .validate()
+        .is_err()
+    );
+    assert!(
+        StorageMountWaitPlan {
+            timeout_seconds: 121,
+            ..original
+        }
+        .validate()
+        .is_err()
+    );
+}
+
+#[test]
 fn ownership_and_fixed_container_paths_cannot_change_implicitly() {
     let original = golden()[0]["contract"].clone();
     for bad in [
