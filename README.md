@@ -10,4 +10,6 @@ The disposable Debian VM passed fourteen acceptance groups. After authentication
 
 P02 adds shared host, disk, pool and container observations, scoped inventory/history APIs, bounded SSE, and a native read-only dashboard. Its independent shadow package passed six disposable Debian VM acceptance groups with 6.25 MiB combined PSS. [P02 evidence](docs/rewrite-evidence/p02/2026-10-04-execution-tracker.md) distinguishes local acceptance from the pending Pi measurements and reference-host shadow installation. Wybie remains on the frozen Python build.
 
+P03 has started with typed restart plans, durable single-use approvals, cancellation and a protected executor receipt library. The [P03 tracker](docs/rewrite-evidence/p03/2026-10-05-execution-tracker.md) records 59 passing Rust tests and the remaining integration work. Container effects and UI controls are still pending.
+
 See [foundation recovery instructions](docs/p01-operations.md), [shadow installation instructions](docs/p02-operations.md), the [foundation ADR](docs/adr/0001-p01-foundation.md), and the [ownership/dependency audit](docs/rewrite-evidence/p01/dependency-boundary-audit.md). Browser access requires a configured HTTPS proxy. Mutations follow in P03–P04 on a disposable test host.

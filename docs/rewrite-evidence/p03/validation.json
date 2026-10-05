@@ -1,0 +1,26 @@
+{
+  "checked_at_utc": "2026-10-05 07:50:28 UTC",
+  "code_commit": "48642e8",
+  "rust_workspace_tests": {
+    "result": "pass",
+    "passed": 59,
+    "log": "rust-tests.txt"
+  },
+  "checks": {
+    "formatting": "pass",
+    "clippy_all_targets_warnings_denied": "pass",
+    "generated_contracts": "pass",
+    "repository_boundaries": "pass",
+    "frontend_tests": "pass",
+    "typescript": "pass",
+    "frontend_production_build": "pass",
+    "dependency_policy": "pass",
+    "advisory_audit": "pass"
+  },
+  "advisory_database_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
+  "dependency_count": 214,
+  "known_vulnerabilities": 0,
+  "added_third_party_dependencies": 0,
+  "scope": "Native source qualification and synthetic Engine/process-crash fixtures. No real Docker mutation, Debian rebuild, hardware qualification or reference-host installation.",
+  "remaining_phase_gate": "P03 integration and disposable-host interruption matrix remain open."
+}
