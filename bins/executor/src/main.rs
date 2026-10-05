@@ -10,7 +10,7 @@ async fn main() {
     let args: Vec<_> = std::env::args().collect();
     if args.iter().any(|s| matches!(s.as_str(), "--help" | "-h")) {
         println!(
-            "Usage: limeos-executor POLICY SOCKET host|container [RECEIPT_DIRECTORY [read-only]]\n       limeos-executor storage-check|storage-wait --plan ROOT_OWNED_JSON\n\nStorage commands inspect only; stdout is JSON, errors go to stderr.\nExit: 0 verified, 1 unsafe/unavailable, 2 invalid plan/usage, 3 deadline expired."
+            "Usage: limeos-executor POLICY SOCKET host|container|storage [RECEIPT_DIRECTORY [read-only]]\n       limeos-executor storage-check|storage-wait --plan ROOT_OWNED_JSON\n       limeos-executor storage-inventory\n\nStorage commands inspect only; stdout is JSON, errors go to stderr.\nExit: 0 verified, 1 unsafe/unavailable, 2 invalid plan/usage, 3 deadline expired."
         );
         return;
     }
@@ -31,6 +31,15 @@ async fn main() {
 async fn storage_cli(args: &[String]) {
     use limeos_executor_storage::{Failure, read_plan, verify, wait};
     let result = async {
+        if args.len() == 2 && args[1] == "storage-inventory" {
+            let value = tokio::time::timeout(
+                std::time::Duration::from_secs(4),
+                limeos_executor_storage::inventory(),
+            )
+            .await
+            .map_err(|_| Failure::TimedOut)??;
+            return serde_json::to_value(value).map_err(|_| Failure::Unavailable);
+        }
         if args.len() != 4
             || args[2] != "--plan"
             || !matches!(args[1].as_str(), "storage-check" | "storage-wait")
@@ -38,7 +47,7 @@ async fn storage_cli(args: &[String]) {
             return Err(Failure::InvalidPlan);
         }
         let plan = read_plan(Path::new(&args[3]))?;
-        if args[1] == "storage-wait" {
+        let value = if args[1] == "storage-wait" {
             wait(&plan).await
         } else {
             tokio::time::timeout(
@@ -47,7 +56,8 @@ async fn storage_cli(args: &[String]) {
             )
             .await
             .map_err(|_| Failure::TimedOut)?
-        }
+        }?;
+        serde_json::to_value(value).map_err(|_| Failure::Unavailable)
     }
     .await;
     match result {
@@ -72,7 +82,7 @@ async fn run() -> std::io::Result<()> {
     let args: Vec<_> = std::env::args().collect();
     if !(4..=6).contains(&args.len()) {
         return Err(std::io::Error::other(
-            "usage: limeos-executor POLICY SOCKET host|container [RECEIPT_DIRECTORY [read-only]]",
+            "usage: limeos-executor POLICY SOCKET host|container|storage [RECEIPT_DIRECTORY [read-only]]",
         ));
     }
     let policy = Path::new(&args[1]);
@@ -89,10 +99,16 @@ async fn run() -> std::io::Result<()> {
     }
     let ceiling = Arc::new(ceiling);
     let source = match args[3].as_str() {
-        "host" => limeos_contracts::Source::Host,
+        "host" | "storage" => limeos_contracts::Source::Host,
         "container" => limeos_contracts::Source::Docker,
         _ => return Err(std::io::Error::other("invalid executor kind")),
     };
+    let storage_reader = args[3] == "storage";
+    if ceiling.allow_storage_read != storage_reader || (storage_reader && args.len() != 4) {
+        return Err(std::io::Error::other(
+            "storage reader requires a dedicated read-only ceiling",
+        ));
+    }
     if source != limeos_contracts::Source::Docker
         && (ceiling.can_write() || ceiling.allow_container_logs)
     {
@@ -142,6 +158,7 @@ async fn run() -> std::io::Result<()> {
     let listener = UnixListener::bind(path)?;
     std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o660))?;
     let permits = Arc::new(Semaphore::new(8));
+    let storage_permit = Arc::new(Mutex::new(()));
     loop {
         let (mut stream, _) = listener.accept().await?;
         let Ok(permit) = permits.clone().try_acquire_owned() else {
@@ -152,6 +169,7 @@ async fn run() -> std::io::Result<()> {
         let receipts = receipts.clone();
         let restart_ceiling = restart_ceiling.clone();
         let engine = engine.clone();
+        let storage_permit = storage_permit.clone();
         tokio::spawn(async move {
             let _permit = permit;
             let result = async {
@@ -170,6 +188,24 @@ async fn run() -> std::io::Result<()> {
                 .map_err(|_| limeos_domain::Error(limeos_domain::ErrorCode::Unavailable))??;
                 let mut receipt = ceiling.validate(peer.uid(), &request)?;
                 match request {
+                    Request::StorageInventory { .. } if storage_reader => {
+                        let _single_flight = storage_permit.try_lock().map_err(|_| {
+                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
+                        })?;
+                        receipt.storage = Some(
+                            tokio::time::timeout(
+                                std::time::Duration::from_secs(4),
+                                limeos_executor_storage::inventory(),
+                            )
+                            .await
+                            .map_err(|_| {
+                                limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
+                            })?
+                            .map_err(|_| {
+                                limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
+                            })?,
+                        );
+                    }
                     Request::Observe {
                         source: requested,
                         active,

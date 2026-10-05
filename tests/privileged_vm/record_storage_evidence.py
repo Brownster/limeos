@@ -29,23 +29,39 @@ def main():
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--source-commit", required=True)
     parser.add_argument(
+        "--slice", choices=["readiness", "planning"], default="readiness"
+    )
+    parser.add_argument(
         "--output",
         type=Path,
-        default=ROOT / "docs/rewrite-evidence/p04/storage-readiness-validation.json",
+        default=None,
     )
     args = parser.parse_args()
+    planning = args.slice == "planning"
+    args.output = (
+        args.output
+        or ROOT / f"docs/rewrite-evidence/p04/storage-{args.slice}-validation.json"
+    )
     evidence = args.output.parent
-    vm = json.loads((evidence / "storage-vm-result.json").read_text())
-    assert len(vm["passed"]) >= 17
+    vm_name = "planning-vm-result.json" if planning else "storage-vm-result.json"
+    log_name = "rust-planning-tests.txt" if planning else "rust-readiness-tests.txt"
+    vm = json.loads((evidence / vm_name).read_text())
+    assert len(vm["passed"]) >= (27 if planning else 17)
     assert "three-second plan deadline" in " ".join(vm["passed"])
     assert "watchdog bound" in " ".join(vm["passed"])
-    assert vm["package_version"] == "0.4.0" and vm["architecture"] == "amd64"
+    assert (
+        vm["package_version"] == ("0.4.1" if planning else "0.4.0")
+        and vm["architecture"] == "amd64"
+    )
+    if planning:
+        assert "operator fstab edit" in " ".join(vm["passed"])
+        assert "duplicate raw UUIDs" in " ".join(vm["passed"])
     assert 2.5 <= vm["plan_wait_seconds"] <= 7
     assert 3.5 <= vm["watchdog_seconds"] <= 8
-    log = (evidence / "rust-readiness-tests.txt").read_text()
+    log = (evidence / log_name).read_text()
     assert "FAILED" not in log and "test result: ok." in log
     passed = sum(int(n) for n in re.findall(r"test result: ok\. (\d+) passed", log))
-    assert passed >= 111
+    assert passed >= (126 if planning else 111)
     manifest = {}
     with tarfile.open(args.bundle) as archive:
         for item in archive:
@@ -69,7 +85,7 @@ def main():
                     f"Commit binding failed: {name}"
                 )
             manifest[name] = digest
-    manifest_path = evidence / "storage-readiness-source-sha256.json"
+    manifest_path = evidence / f"storage-{args.slice}-source-sha256.json"
     manifest_path.write_text(json.dumps(manifest, sort_keys=True, indent=2) + "\n")
     binaries = {
         name: sha(args.artifacts / name)
@@ -108,6 +124,19 @@ def main():
                 and "[Install]" not in text
             )
             assert "storage-wait --plan /etc/" + prefix + "/storage-wait.json" in text
+            if planning:
+                reader = archive.getmember(
+                    f"./lib/systemd/system/{prefix}-storage-reader.service"
+                )
+                assert reader.uid == 0 and reader.mode & 0o022 == 0
+                content = archive.extractfile(reader).read().decode()
+                assert (
+                    "[Install]" not in content and "CapabilityBoundingSet=\n" in content
+                )
+                assert (
+                    f"/etc/{prefix}/system-policy/storage.json /run/{prefix}-storage-reader/executor.sock storage"
+                    in content
+                )
     assert len(packages) == 2
     previous = json.loads(
         (ROOT / "docs/rewrite-evidence/p03/compose-source-sha256.json").read_text()
@@ -136,10 +165,10 @@ def main():
             "package_sha256": packages,
             "signing_key": "test-only private key discarded with the VM",
         },
-        "rust_workspace_tests": {"passed": passed, "log": "rust-readiness-tests.txt"},
+        "rust_workspace_tests": {"passed": passed, "log": log_name},
         "storage_vm": {
             "acceptance_groups": len(vm["passed"]),
-            "result_file": "storage-vm-result.json",
+            "result_file": vm_name,
             "installed_profile": "standard",
             "shadow_scope": "payload identity and dormant unit only",
         },
@@ -150,6 +179,11 @@ def main():
                 ROOT / "tests/privileged_vm/run.py",
                 ROOT / "tests/privileged_vm/p04_storage_guest.py",
                 ROOT / "tests/privileged_vm/record_storage_evidence.py",
+                *(
+                    [ROOT / "tests/privileged_vm/p04_planning_guest.py"]
+                    if planning
+                    else []
+                ),
             ]
         },
         "checks": {
@@ -164,7 +198,9 @@ def main():
         "advisory_database_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
         "audited_lockfile_packages": 215,
         "added_third_party_packages": 0,
-        "production_boundary_change": "Already-locked rustix 1.1.5 is now a direct safe syscall adapter dependency",
+        "production_boundary_change": "Storage adapter also uses the first-party identity crate for SHA-256 evidence digests"
+        if planning
+        else "Already-locked rustix 1.1.5 is now a direct safe syscall adapter dependency",
         "limitations": [
             "P04 remains in progress; no storage effect or live mount-loss monitor is enabled",
             "Native ARM64 package/reference-host qualification pending",

@@ -13,6 +13,8 @@ pub struct Ceiling {
     #[serde(default)]
     pub allow_host_read: bool,
     #[serde(default)]
+    pub allow_storage_read: bool,
+    #[serde(default)]
     pub allow_container_read: bool,
     #[serde(default)]
     pub allow_restart: bool,
@@ -28,6 +30,9 @@ pub struct Ceiling {
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Request {
+    StorageInventory {
+        version: u16,
+    },
     Health {
         version: u16,
     },
@@ -80,6 +85,8 @@ pub struct Receipt {
     pub logs: Option<limeos_domain::ContainerLogs>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<ErrorCode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage: Option<limeos_domain::StorageInventory>,
 }
 impl Ceiling {
     pub fn configuration_valid(&self) -> bool {
@@ -90,6 +97,11 @@ impl Ceiling {
                 .iter()
                 .all(|id| limeos_domain::opaque_id(id))
             && (!(self.can_write() || self.allow_container_logs) || self.allow_container_read)
+            && (!self.allow_storage_read
+                || (!self.can_write()
+                    && !self.allow_container_read
+                    && !self.allow_host_read
+                    && !self.allow_container_logs))
     }
     pub fn can_write(&self) -> bool {
         self.allow_restart || self.allow_start || self.allow_stop
@@ -99,6 +111,11 @@ impl Ceiling {
             return Err(Error(ErrorCode::Forbidden));
         }
         match request {
+            Request::StorageInventory { version }
+                if *version == VERSION && self.allow_storage_read =>
+            {
+                Ok(Receipt::empty())
+            }
             Request::Health { version } if *version == VERSION && self.allow_health => {
                 Ok(Receipt {
                     version: VERSION,
@@ -108,6 +125,7 @@ impl Ceiling {
                     restart: None,
                     logs: None,
                     error: None,
+                    storage: None,
                 })
             }
             Request::Observe {
@@ -125,6 +143,7 @@ impl Ceiling {
                     restart: None,
                     logs: None,
                     error: None,
+                    storage: None,
                 })
             }
             Request::Inspect { version, resource }
@@ -227,12 +246,38 @@ impl Receipt {
             restart: None,
             logs: None,
             error: None,
+            storage: None,
         }
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn storage_reader_has_an_independent_read_only_ceiling_and_no_path_or_effect_input() {
+        let old: Ceiling =
+            serde_json::from_str(r#"{"version":1,"core_uid":1001,"allow_health":true}"#).unwrap();
+        let request = Request::StorageInventory { version: VERSION };
+        assert!(old.validate(1001, &request).is_err());
+        let mut reader = Ceiling {
+            allow_storage_read: true,
+            ..old
+        };
+        assert!(reader.validate(1001, &request).is_ok());
+        assert!(!reader.can_write());
+        assert!(reader.validate(1002, &request).is_err());
+        reader.allow_host_read = true;
+        assert!(!reader.configuration_valid());
+        for extra in ["path", "fstab", "command", "options", "principal"] {
+            let raw =
+                format!(r#"{{"operation":"storage_inventory","version":1,"{extra}":"attack"}}"#);
+            assert!(serde_json::from_str::<Request>(&raw).is_err());
+        }
+        assert!(
+            serde_json::from_str::<Request>(r#"{"operation":"storage_mount","version":1}"#)
+                .is_err()
+        );
+    }
     #[test]
     fn log_ceiling_is_independent_managed_and_capped() {
         let id = "a".repeat(64);
@@ -241,6 +286,7 @@ mod tests {
             core_uid: 1001,
             allow_health: true,
             allow_host_read: false,
+            allow_storage_read: false,
             allow_container_read: true,
             allow_restart: false,
             allow_start: false,
@@ -282,6 +328,7 @@ mod tests {
             core_uid: 1001,
             allow_health: true,
             allow_host_read: false,
+            allow_storage_read: false,
             allow_container_read: false,
             allow_restart: false,
             allow_start: false,

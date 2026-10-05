@@ -1,0 +1,37 @@
+[Unit]
+Description=LimeOS fresh storage inventory (read only)
+After=local-fs.target
+
+[Service]
+Type=exec
+User=root
+Group=limeos-host-access
+ExecStart=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/storage.json /run/limeos-storage-reader/executor.sock storage
+RuntimeDirectory=limeos-storage-reader
+RuntimeDirectoryMode=0750
+UMask=0077
+LimitCORE=0
+MemorySwapMax=0
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=15s
+TimeoutStopSec=5s
+NoNewPrivileges=yes
+# A mount namespace sandbox would hide or clone the host mount identity.
+# This dormant reader has no effectful request, shell, write flag or capability.
+PrivateMounts=no
+PrivateDevices=no
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+LimitNOFILE=256
+TasksMax=16
+MemoryMax=64M
+CPUQuota=50%
+# Deliberately no Install section or package enable/start action.

@@ -7,6 +7,13 @@ fct_main() {
     case "${1:-}" in
         remove|deconfigure|upgrade)
             if [[ -d /run/systemd/system ]]; then systemctl stop limeos-core.service limeos-containerd.service limeos-storaged.service; fi
+            if [[ -d /run/systemd/system ]]; then
+                local unit
+                for unit in limeos-storage-reader.service limeos-storage-ready.service; do
+                    # Earlier packages do not contain these optional services.
+                    if [[ "$(systemctl show "${unit}" -p LoadState --value)" == loaded ]]; then systemctl stop "${unit}"; fi
+                done
+            fi
             ;;
     esac
 }

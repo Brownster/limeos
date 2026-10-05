@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StorageInventoryView",
+  "type": "object",
+  "properties": {
+    "digest": {
+      "type": "string"
+    },
+    "inventory": {
+      "$ref": "#/$defs/StorageInventory"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "inventory",
+    "digest"
+  ],
+  "$defs": {
+    "StorageBlockDevice": {
+      "type": "object",
+      "properties": {
+        "major": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "minor": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "major",
+        "minor"
+      ]
+    },
+    "StorageFstabEntry": {
+      "description": "Only identity/target fields leave the protected reader. Fstab options may\ncontain credentials and are never copied into RPC, plans or HTTP responses.",
+      "type": "object",
+      "properties": {
+        "device": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StorageBlockDevice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "filesystem_uuid": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "managed": {
+          "type": "boolean"
+        },
+        "mountpoint": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "mountpoint",
+        "managed"
+      ]
+    },
+    "StorageInventory": {
+      "type": "object",
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageObservedDevice"
+          }
+        },
+        "fstab_digest": {
+          "type": "string"
+        },
+        "fstab_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageFstabEntry"
+          }
+        },
+        "host_root_mount_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "mounts_digest": {
+          "type": "string"
+        },
+        "topology_digest": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "host_root_mount_id",
+        "topology_digest",
+        "mounts_digest",
+        "fstab_digest",
+        "fstab_entries",
+        "devices"
+      ]
+    },
+    "StorageObservedDevice": {
+      "type": "object",
+      "properties": {
+        "boot_backing": {
+          "type": "boolean"
+        },
+        "device": {
+          "$ref": "#/$defs/StorageBlockDevice"
+        },
+        "filesystem": {
+          "type": "string"
+        },
+        "filesystem_uuid": {
+          "type": "string"
+        },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageObservedMount"
+          }
+        },
+        "serial": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "filesystem_uuid",
+        "filesystem",
+        "boot_backing",
+        "mounts"
+      ]
+    },
+    "StorageObservedMount": {
+      "type": "object",
+      "properties": {
+        "filesystem": {
+          "type": "string"
+        },
+        "filesystem_root": {
+          "type": "string"
+        },
+        "mount_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "mountpoint": {
+          "type": "string"
+        },
+        "writable": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "mountpoint",
+        "mount_id",
+        "filesystem_root",
+        "filesystem",
+        "writable"
+      ]
+    }
+  }
+}

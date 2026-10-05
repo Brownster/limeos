@@ -303,7 +303,10 @@ def main():
                             str(source),
                             "root@127.0.0.1:/root/" + destination,
                         )
-                if args.guest_script.name == "p04_storage_guest.py":
+                if args.guest_script.name in [
+                    "p04_storage_guest.py",
+                    "p04_planning_guest.py",
+                ]:
                     run(
                         "scp",
                         *common,
@@ -311,6 +314,15 @@ def main():
                         str(port),
                         str(ROOT / "tests/fixtures/werkzeug-hashes.json"),
                         "root@127.0.0.1:/root/werkzeug-hashes.json",
+                    )
+                if args.guest_script.name == "p04_planning_guest.py":
+                    run(
+                        "scp",
+                        *common,
+                        "-P",
+                        str(port),
+                        str(args.guest_script.with_name("p04_storage_guest.py")),
+                        "root@127.0.0.1:/root/p04_storage_guest.py",
                     )
                 if args.build_bundle:
                     if args.retain_previous_repository:
@@ -371,7 +383,7 @@ def main():
                     diagnostics = subprocess.run(
                         [
                             *ssh,
-                            "systemctl show limeos-core limeos-containerd limeos-storage-ready -p Result -p ExecMainStatus -p NRestarts -p StartLimitBurst -p StartLimitIntervalUSec; journalctl -u limeos-core -u limeos-containerd -u limeos-storage-ready -u docker --no-pager -n 100",
+                            "systemctl show limeos-core limeos-containerd limeos-storage-ready limeos-storage-reader -p Result -p ExecMainStatus -p NRestarts -p StartLimitBurst -p StartLimitIntervalUSec; journalctl -u limeos-core -u limeos-containerd -u limeos-storage-ready -u limeos-storage-reader -u docker --no-pager -n 100",
                         ],
                         capture_output=True,
                         text=True,

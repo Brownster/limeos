@@ -30,6 +30,10 @@
       "type": "boolean",
       "default": false
     },
+    "allow_storage_read": {
+      "type": "boolean",
+      "default": false
+    },
     "core_uid": {
       "type": "integer",
       "format": "uint32",

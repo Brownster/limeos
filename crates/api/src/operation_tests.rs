@@ -5,6 +5,29 @@ use tower::ServiceExt;
 #[derive(Clone)]
 struct Mutations(Arc<AtomicUsize>);
 impl Backend for Mutations {
+    async fn plan_storage(
+        &self,
+        _: String,
+        _: String,
+        _: limeos_domain::StorageSetupInput,
+    ) -> Result<limeos_domain::PlannedStorageSetup> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(Error(ErrorCode::Unavailable))
+    }
+    async fn approve_storage(
+        &self,
+        _: String,
+        _: String,
+        _: String,
+        _: String,
+    ) -> Result<limeos_domain::PlanApproval> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(Error(ErrorCode::Unavailable))
+    }
+    async fn cancel_storage(&self, _: String, _: String, _: String) -> Result<()> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(Error(ErrorCode::Unavailable))
+    }
     async fn plan_compose(
         &self,
         _: String,
@@ -89,6 +112,9 @@ async fn every_mutation_rejects_get_origin_csrf_and_untyped_extra_fields() {
     let mutations = Arc::new(AtomicUsize::new(0));
     let router = router(Mutations(mutations.clone()), "https://localhost".into());
     for path in [
+        "/api/v1/storage/plans".into(),
+        format!("/api/v1/storage/plans/{}/approval", "a".repeat(64)),
+        format!("/api/v1/storage/plans/{}/cancel", "a".repeat(64)),
         "/api/v1/compose/plans".into(),
         format!("/api/v1/compose/plans/{}/approval", "a".repeat(64)),
         format!("/api/v1/compose/plans/{}/cancel", "a".repeat(64)),
@@ -160,6 +186,37 @@ async fn compose_selections_cannot_carry_manifests_or_claimed_authority() {
                 Request::builder()
                     .method("POST")
                     .uri("/api/v1/compose/plans")
+                    .header("origin", "https://localhost")
+                    .header("cookie", format!("__Host-limeos={}", "a".repeat(64)))
+                    .header("x-csrf-token", "b".repeat(64))
+                    .header("content-type", "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+    assert_eq!(mutations.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn guided_storage_accepts_no_fstab_options_commands_units_or_claimed_principal() {
+    let mutations = Arc::new(AtomicUsize::new(0));
+    let router = router(Mutations(mutations.clone()), "https://localhost".into());
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/storage-contracts.json"
+    ))
+    .unwrap();
+    for extra in ["fstab", "options", "command", "unit", "principal"] {
+        let mut body = serde_json::json!({"contract": fixture["cases"][0]["contract"], "inventory_digest": "a".repeat(64), "timeout_seconds": 10});
+        body[extra] = serde_json::json!("forbidden");
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/storage/plans")
                     .header("origin", "https://localhost")
                     .header("cookie", format!("__Host-limeos={}", "a".repeat(64)))
                     .header("x-csrf-token", "b".repeat(64))

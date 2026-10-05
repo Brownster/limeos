@@ -1,7 +1,7 @@
 use crate::{Failure, Result, topology::DeviceNumber};
 use std::collections::BTreeSet;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct Mount {
     pub id: u64,
     pub device: DeviceNumber,
@@ -41,7 +41,7 @@ pub(crate) fn parse(text: &str) -> Result<Vec<Mount>> {
     }
     Ok(mounts)
 }
-fn unescape(text: &str) -> Result<String> {
+pub(crate) fn unescape(text: &str) -> Result<String> {
     let mut bytes = Vec::new();
     let mut i = 0;
     let raw = text.as_bytes();

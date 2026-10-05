@@ -24,12 +24,51 @@ mod operations;
 #[cfg(test)]
 mod read_tests;
 mod reads;
+mod storage;
 
 pub struct IssuedSession {
     pub token: String,
     pub view: SessionView,
 }
 pub trait Backend: Clone + Send + Sync + 'static {
+    fn storage_inventory(
+        &self,
+        _token: String,
+    ) -> impl Future<Output = Result<limeos_domain::StorageInventoryView>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn plan_storage(
+        &self,
+        _token: String,
+        _csrf: String,
+        _input: limeos_domain::StorageSetupInput,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageSetup>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn storage_plan(
+        &self,
+        _token: String,
+        _id: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageSetup>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn approve_storage(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+        _digest: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn cancel_storage(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+    ) -> impl Future<Output = Result<()>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
     fn plan_compose(
         &self,
         _token: String,
@@ -190,6 +229,17 @@ impl Limiter {
 pub fn router<B: Backend>(backend: B, origin: String) -> Router {
     Router::new()
         .route("/api/v1/health", get(health::<B>))
+        .route("/api/v1/storage/inventory", get(storage::inventory::<B>))
+        .route("/api/v1/storage/plans", post(storage::plan::<B>))
+        .route("/api/v1/storage/plans/{id}", get(storage::read::<B>))
+        .route(
+            "/api/v1/storage/plans/{id}/approval",
+            post(storage::approve::<B>),
+        )
+        .route(
+            "/api/v1/storage/plans/{id}/cancel",
+            post(storage::cancel::<B>),
+        )
         .route("/api/v1/auth/login", post(login::<B>))
         .route("/api/v1/auth/session", get(session::<B>))
         .route("/api/v1/auth/logout", post(logout::<B>))

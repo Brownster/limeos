@@ -24,7 +24,7 @@ def profile_text(text: str, shadow: bool) -> str:
         text = text.replace(prefix, prefix.replace("limeos", "limeos-shadow"))
     # Account/service names, preserving executable basenames following '/'.
     text = re.sub(
-        r"(?<!/)\blimeos-(core|containerd|storaged|assistant|rpc|host-access|container-access)\b",
+        r"(?<!/)\blimeos-(core|containerd|storaged|storage-reader|assistant|rpc|host-access|container-access)\b",
         r"limeos-shadow-\1",
         text,
     )
@@ -88,6 +88,7 @@ def main() -> None:
                 origin="https://limeos-shadow.localhost:8444",
                 host_socket="/run/limeos-shadow-storaged/executor.sock",
                 container_socket="/run/limeos-shadow-containerd/executor.sock",
+                storage_socket="/run/limeos-shadow-storage-reader/executor.sock",
             )
         (etc / "core.json").write_text(json.dumps(config, indent=2) + "\n")
         documentation = stage / "usr/share/doc" / package
@@ -114,6 +115,10 @@ def main() -> None:
         shutil.copyfile(
             ROOT / "docs/p04-storage-readiness.md",
             documentation / "p04-storage-readiness.md",
+        )
+        shutil.copyfile(
+            ROOT / "docs/p04-storage-planning.md",
+            documentation / "p04-storage-planning.md",
         )
         control = stage / "DEBIAN"
         control.mkdir()

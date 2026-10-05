@@ -19,7 +19,7 @@ impl DeviceNumber {
         })
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub(crate) struct Node {
     pub name: String,
     pub parents: BTreeSet<DeviceNumber>,

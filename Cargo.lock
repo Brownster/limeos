@@ -794,6 +794,7 @@ name = "limeos-executor-storage"
 version = "0.2.0"
 dependencies = [
  "limeos-domain",
+ "limeos-identity",
  "rustix",
  "serde",
  "serde_json",

@@ -18,6 +18,7 @@ use tokio::{
 };
 mod compose;
 mod operations;
+mod storage;
 
 fn now() -> i64 {
     SystemTime::now()
@@ -35,6 +36,8 @@ struct Core {
     telemetry: Option<limeos_observations::telemetry::Telemetry>,
     container_socket: Arc<PathBuf>,
     compose_catalog: Option<Arc<limeos_domain::ComposeCatalog>>,
+    storage_socket: Arc<PathBuf>,
+    storage_readers: Arc<Semaphore>,
 }
 impl Core {
     async fn password(
@@ -115,6 +118,45 @@ impl Core {
     }
 }
 impl Backend for Core {
+    async fn storage_inventory(
+        &self,
+        token: String,
+    ) -> Result<limeos_domain::StorageInventoryView> {
+        self.human_storage_inventory(token).await
+    }
+    async fn plan_storage(
+        &self,
+        token: String,
+        csrf: String,
+        input: limeos_domain::StorageSetupInput,
+    ) -> Result<limeos_domain::PlannedStorageSetup> {
+        self.human_plan_storage(token, csrf, input).await
+    }
+    async fn storage_plan(
+        &self,
+        token: String,
+        id: String,
+    ) -> Result<limeos_domain::PlannedStorageSetup> {
+        let principal = self.storage_principal(token, None).await?;
+        self.db
+            .call(move |s| s.storage_plan(&principal, &id, now()))
+            .await
+    }
+    async fn approve_storage(
+        &self,
+        token: String,
+        csrf: String,
+        id: String,
+        digest: String,
+    ) -> Result<limeos_domain::PlanApproval> {
+        self.human_approve_storage(token, csrf, id, digest).await
+    }
+    async fn cancel_storage(&self, token: String, csrf: String, id: String) -> Result<()> {
+        let principal = self.storage_principal(token, Some(csrf)).await?;
+        self.db
+            .call(move |s| s.cancel_storage(&principal, &id, now()))
+            .await
+    }
     async fn login(&self, input: Login) -> Result<IssuedSession> {
         if !limeos_domain::identifier(&input.username)
             || input.username.len() > 64
@@ -625,6 +667,8 @@ async fn run() -> Result<()> {
         observations,
         telemetry,
         container_socket: Arc::new(config.container_socket.into()),
+        storage_socket: Arc::new(config.storage_socket.into()),
+        storage_readers: Arc::new(Semaphore::new(1)),
         compose_catalog: config::read_compose_catalog(
             &config_path.with_file_name("compose-catalog.json"),
         )?
@@ -654,5 +698,7 @@ async fn run() -> Result<()> {
 mod compose_tests;
 #[cfg(test)]
 mod operation_tests;
+#[cfg(test)]
+mod storage_tests;
 #[cfg(test)]
 mod tests;

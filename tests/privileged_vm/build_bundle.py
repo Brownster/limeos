@@ -44,6 +44,7 @@ def main():
             "docs/p03-operations.md",
             "docs/p03-compose-planning.md",
             "docs/p04-storage-readiness.md",
+            "docs/p04-storage-planning.md",
             "tests/privileged_vm",
             "tests/fixtures",
         ]:

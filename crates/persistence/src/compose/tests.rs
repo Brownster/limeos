@@ -254,7 +254,9 @@ fn v4_migration_preserves_container_approvals_and_failure_leaves_v4_untouched() 
             .unwrap();
         store
             .conn
-            .execute_batch("DROP TABLE compose_plans; PRAGMA user_version=4;")
+            .execute_batch(
+                "DROP TABLE storage_plans; DROP TABLE compose_plans; PRAGMA user_version=4;",
+            )
             .unwrap();
         if fail {
             store
@@ -303,7 +305,7 @@ fn v4_migration_preserves_container_approvals_and_failure_leaves_v4_untouched() 
                     .conn
                     .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                     .unwrap(),
-                5
+                SCHEMA_VERSION
             );
         }
     }

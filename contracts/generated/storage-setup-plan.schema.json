@@ -1,0 +1,436 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlannedStorageSetup",
+  "type": "object",
+  "properties": {
+    "digest": {
+      "type": "string"
+    },
+    "plan": {
+      "$ref": "#/$defs/StorageSetupPlan"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "plan",
+    "digest"
+  ],
+  "$defs": {
+    "StorageBlockDevice": {
+      "type": "object",
+      "properties": {
+        "major": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "minor": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "major",
+        "minor"
+      ]
+    },
+    "StorageContract": {
+      "type": "object",
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageDevice"
+          },
+          "maxItems": 32,
+          "minItems": 1
+        },
+        "locations": {
+          "$ref": "#/$defs/StorageLocations"
+        },
+        "media_identity": {
+          "$ref": "#/$defs/StorageMediaIdentity"
+        },
+        "profile": {
+          "$ref": "#/$defs/StorageProfile"
+        },
+        "schema_version": {
+          "$ref": "#/$defs/StorageSchemaVersion"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "profile",
+        "media_identity",
+        "locations",
+        "devices"
+      ]
+    },
+    "StorageDevice": {
+      "type": "object",
+      "properties": {
+        "filesystem": {
+          "$ref": "#/$defs/StorageFilesystem"
+        },
+        "filesystem_uuid": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "mountpoint": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "role": {
+          "$ref": "#/$defs/StorageRole"
+        },
+        "serial": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role",
+        "filesystem_uuid",
+        "filesystem",
+        "mountpoint"
+      ]
+    },
+    "StorageFilesystem": {
+      "type": "string",
+      "enum": [
+        "btrfs",
+        "exfat",
+        "ext2",
+        "ext3",
+        "ext4",
+        "ntfs",
+        "vfat",
+        "xfs"
+      ]
+    },
+    "StorageFstabEntry": {
+      "description": "Only identity/target fields leave the protected reader. Fstab options may\ncontain credentials and are never copied into RPC, plans or HTTP responses.",
+      "type": "object",
+      "properties": {
+        "device": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StorageBlockDevice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "filesystem_uuid": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "managed": {
+          "type": "boolean"
+        },
+        "mountpoint": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "mountpoint",
+        "managed"
+      ]
+    },
+    "StorageInventory": {
+      "type": "object",
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageObservedDevice"
+          }
+        },
+        "fstab_digest": {
+          "type": "string"
+        },
+        "fstab_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageFstabEntry"
+          }
+        },
+        "host_root_mount_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "mounts_digest": {
+          "type": "string"
+        },
+        "topology_digest": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "host_root_mount_id",
+        "topology_digest",
+        "mounts_digest",
+        "fstab_digest",
+        "fstab_entries",
+        "devices"
+      ]
+    },
+    "StorageLocations": {
+      "type": "object",
+      "properties": {
+        "application_config_host": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "backup_host": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "config_container": {
+          "type": "string",
+          "pattern": "^/config$"
+        },
+        "downloads_container": {
+          "type": "string",
+          "pattern": "^/data/downloads$"
+        },
+        "downloads_host": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "media_container": {
+          "type": "string",
+          "pattern": "^/data/media$"
+        },
+        "media_host": {
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "media_host",
+        "downloads_host",
+        "application_config_host",
+        "backup_host",
+        "media_container",
+        "downloads_container",
+        "config_container"
+      ]
+    },
+    "StorageMediaIdentity": {
+      "type": "object",
+      "properties": {
+        "gid": {
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 2147483647,
+          "minimum": 1
+        },
+        "uid": {
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 2147483647,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "uid",
+        "gid"
+      ]
+    },
+    "StorageMountWaitPlan": {
+      "description": "A requested wait on a filesystem assignment, never on its media subdirectories.",
+      "type": "object",
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageDevice"
+          },
+          "maxItems": 32,
+          "minItems": 1
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 120,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "timeout_seconds",
+        "devices"
+      ]
+    },
+    "StorageObservedDevice": {
+      "type": "object",
+      "properties": {
+        "boot_backing": {
+          "type": "boolean"
+        },
+        "device": {
+          "$ref": "#/$defs/StorageBlockDevice"
+        },
+        "filesystem": {
+          "type": "string"
+        },
+        "filesystem_uuid": {
+          "type": "string"
+        },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageObservedMount"
+          }
+        },
+        "serial": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "filesystem_uuid",
+        "filesystem",
+        "boot_backing",
+        "mounts"
+      ]
+    },
+    "StorageObservedMount": {
+      "type": "object",
+      "properties": {
+        "filesystem": {
+          "type": "string"
+        },
+        "filesystem_root": {
+          "type": "string"
+        },
+        "mount_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "mountpoint": {
+          "type": "string"
+        },
+        "writable": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "mountpoint",
+        "mount_id",
+        "filesystem_root",
+        "filesystem",
+        "writable"
+      ]
+    },
+    "StorageProfile": {
+      "type": "string",
+      "enum": [
+        "single_disk",
+        "separate_downloads",
+        "protected_pool"
+      ]
+    },
+    "StorageRole": {
+      "type": "string",
+      "enum": [
+        "data",
+        "downloads",
+        "parity",
+        "config_backup"
+      ]
+    },
+    "StorageSchemaVersion": {
+      "type": "string",
+      "enum": [
+        "1"
+      ]
+    },
+    "StorageSetupPlan": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "desired": {
+          "$ref": "#/$defs/StorageContract"
+        },
+        "expected": {
+          "$ref": "#/$defs/StorageInventory"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "id": {
+          "type": "string"
+        },
+        "managed_fstab": {
+          "type": "string"
+        },
+        "principal": {
+          "type": "string"
+        },
+        "readiness": {
+          "$ref": "#/$defs/StorageMountWaitPlan"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "principal",
+        "grant_revision",
+        "expected",
+        "desired",
+        "readiness",
+        "managed_fstab",
+        "created_at",
+        "expires_at"
+      ]
+    }
+  }
+}

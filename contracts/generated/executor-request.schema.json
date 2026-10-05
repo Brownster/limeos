@@ -7,6 +7,26 @@
       "properties": {
         "operation": {
           "type": "string",
+          "const": "storage_inventory"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
           "const": "health"
         },
         "version": {

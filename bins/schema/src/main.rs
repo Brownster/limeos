@@ -71,6 +71,9 @@ fn main() {
     emit!("compose-selection", limeos_domain::ComposeSelection);
     emit!("compose-plan", limeos_domain::PlannedCompose);
     emit!("storage-contract", limeos_domain::StorageContract);
+    emit!("storage-inventory", limeos_domain::StorageInventoryView);
+    emit!("storage-setup-input", limeos_domain::StorageSetupInput);
+    emit!("storage-setup-plan", limeos_domain::PlannedStorageSetup);
     emit!(
         "storage-mount-wait-plan",
         limeos_domain::StorageMountWaitPlan
@@ -121,6 +124,15 @@ fn main() {
     ts!(limeos_domain::StorageDevice);
     ts!(limeos_domain::StorageContract);
     ts!(limeos_domain::StorageMountWaitPlan);
+    ts!(limeos_domain::StorageBlockDevice);
+    ts!(limeos_domain::StorageObservedMount);
+    ts!(limeos_domain::StorageObservedDevice);
+    ts!(limeos_domain::StorageFstabEntry);
+    ts!(limeos_domain::StorageInventory);
+    ts!(limeos_domain::StorageInventoryView);
+    ts!(limeos_domain::StorageSetupInput);
+    ts!(limeos_domain::StorageSetupPlan);
+    ts!(limeos_domain::PlannedStorageSetup);
     ts!(limeos_domain::RestartPlan);
     ts!(limeos_domain::PlannedRestart);
     ts!(limeos_domain::PlanApproval);
@@ -191,6 +203,18 @@ fn main() {
     openapi["paths"]["/api/v1/observations/stream"] = serde_json::json!({"get":{"security":[{"session":[]}],"description":"Full authorized snapshot on connect and reconnect. Maximum eight readers, 25 seconds and 128 KiB per stream. Identity rechecked every five seconds.","parameters":[{"name":"Last-Event-ID","in":"header","schema":{"type":"string","pattern":"^[0-9]{1,20}$"}}],"responses":{"200":{"description":"snapshot events; id is the current revision","content":{"text/event-stream":{"schema":{"type":"string"}}}}}}});
     for (path, input, output, status) in [
         (
+            "/api/v1/storage/plans",
+            serde_json::to_value(schema_for!(limeos_domain::StorageSetupInput)).unwrap(),
+            serde_json::to_value(schema_for!(limeos_domain::PlannedStorageSetup)).unwrap(),
+            "201",
+        ),
+        (
+            "/api/v1/storage/plans/{id}/approval",
+            serde_json::to_value(schema_for!(limeos_contracts::ApprovalInput)).unwrap(),
+            serde_json::to_value(schema_for!(limeos_domain::PlanApproval)).unwrap(),
+            "200",
+        ),
+        (
             "/api/v1/compose/plans",
             serde_json::to_value(schema_for!(limeos_domain::ComposeSelection)).unwrap(),
             serde_json::to_value(schema_for!(limeos_domain::PlannedCompose)).unwrap(),
@@ -236,6 +260,7 @@ fn main() {
     openapi["paths"]["/api/v1/container/restart/jobs"]["get"] = serde_json::json!({"security":[{"session":[]}],"responses":{"200":{"description":"Latest 32 owned, currently authorized jobs","content":{"application/json":{"schema":schema_for!(Vec<limeos_domain::RestartJob>)}}}}});
     for path in [
         "/api/v1/compose/plans/{id}/cancel",
+        "/api/v1/storage/plans/{id}/cancel",
         "/api/v1/container/restart/plans/{id}/cancel",
         "/api/v1/container/restart/jobs/{id}/cancel",
     ] {
@@ -244,6 +269,11 @@ fn main() {
             {"name":"X-CSRF-Token","in":"header","required":true,"schema":{"type":"string","minLength":64,"maxLength":64}}
         ],"responses":{"204":{"description":"Canceled before dispatch; in-flight cancellation conflicts"}}}});
     }
+    openapi["paths"]["/api/v1/storage/inventory"] = serde_json::json!({"get":{"security":[{"session":[]}],"description":"Fresh, root-reader evidence under a four-second deadline. Administrator storage grant required; fstab credentials stay private.","responses":{"200":{"description":"Disk/mount/fstab identity and revision","content":{"application/json":{"schema":schema_for!(limeos_domain::StorageInventoryView)}}}}}});
+    openapi["paths"]["/api/v1/storage/plans/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"responses":{"200":{"description":"Owner-scoped durable preview; no inspection or expiry refresh","content":{"application/json":{"schema":schema_for!(limeos_domain::PlannedStorageSetup)}}}}}});
+    openapi["paths"]["/api/v1/storage/plans"]["post"]["description"] = serde_json::json!(
+        "Persist guided assignments and a generated managed fstab section against fresh evidence. Preview only; storage execution requires a new operation version and new approval."
+    );
     for suffix in [
         "/plans",
         "/plans/{id}/approval",
@@ -337,6 +367,19 @@ fn main() {
             include_str!("../../../crates/persistence/src/migration-v3.sql"),
             include_str!("../../../crates/persistence/src/migration-v4.sql"),
             include_str!("../../../crates/persistence/src/migration-v5.sql")
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("authority-v6.sql"),
+        format!(
+            "{}{}{}{}{}{}",
+            include_str!("../../../crates/persistence/src/schema.sql"),
+            include_str!("../../../crates/persistence/src/migration-v2.sql"),
+            include_str!("../../../crates/persistence/src/migration-v3.sql"),
+            include_str!("../../../crates/persistence/src/migration-v4.sql"),
+            include_str!("../../../crates/persistence/src/migration-v5.sql"),
+            include_str!("../../../crates/persistence/src/migration-v6.sql")
         ),
     )
     .unwrap();

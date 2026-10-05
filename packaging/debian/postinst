@@ -40,7 +40,7 @@ fct_execute_this() {
     fct_directory /etc/limeos/system-policy root 0755
     core_uid="$(id -u limeos-core)"
     local target temporary
-    for target in host container; do
+    for target in host container storage; do
         if [[ -e "/etc/limeos/system-policy/${target}.json" || -L "/etc/limeos/system-policy/${target}.json" ]]; then
             /usr/lib/limeos/limeosctl check-ceiling "/etc/limeos/system-policy/${target}.json" "${core_uid}"
             continue
@@ -48,8 +48,10 @@ fct_execute_this() {
         temporary="$(mktemp "/etc/limeos/system-policy/.${target}.XXXXXX")"
         if [[ "${target}" == host ]]; then
             printf '{"version":1,"core_uid":%s,"allow_health":true,"allow_host_read":true,"allow_container_read":false,"allow_restart":false,"managed_containers":[]}\n' "${core_uid}" >"${temporary}"
-        else
+        elif [[ "${target}" == container ]]; then
             printf '{"version":1,"core_uid":%s,"allow_health":true,"allow_host_read":false,"allow_container_read":true,"allow_restart":false,"managed_containers":[]}\n' "${core_uid}" >"${temporary}"
+        else
+            printf '{"version":1,"core_uid":%s,"allow_health":true,"allow_storage_read":true,"managed_containers":[]}\n' "${core_uid}" >"${temporary}"
         fi
         chown root:root "${temporary}"
         chmod 0644 "${temporary}"
