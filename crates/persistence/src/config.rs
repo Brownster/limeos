@@ -17,6 +17,16 @@ pub struct Config {
     pub version: u16,
     pub listen: String,
     pub origin: String,
+    #[serde(default = "default_host_socket")]
+    pub host_socket: String,
+    #[serde(default = "default_container_socket")]
+    pub container_socket: String,
+}
+fn default_host_socket() -> String {
+    "/run/limeos-storaged/executor.sock".into()
+}
+fn default_container_socket() -> String {
+    "/run/limeos-containerd/executor.sock".into()
 }
 impl Default for Config {
     fn default() -> Self {
@@ -24,6 +34,8 @@ impl Default for Config {
             version: 1,
             listen: "127.0.0.1:8003".into(),
             origin: "https://localhost".into(),
+            host_socket: default_host_socket(),
+            container_socket: default_container_socket(),
         }
     }
 }
@@ -35,6 +47,12 @@ impl Config {
             .map_err(|_| Error(ErrorCode::CorruptConfiguration))?;
         // Cleartext only on loopback behind a local HTTPS proxy. No forwarding-header trust.
         if self.version != 1
+            || [&self.host_socket, &self.container_socket].iter().any(|s| {
+                !s.starts_with('/')
+                    || s.len() > 107
+                    || s.bytes().any(|b| b <= 0x20)
+                    || s.contains("/../")
+            })
             || !address.ip().is_loopback()
             || address.port() == 0
             || !self.origin.starts_with("https://")

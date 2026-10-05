@@ -1,0 +1,136 @@
+{
+  "reference_sources": {
+    "disk_inventory_service.py": "791ee801d318e4d934557286ab8c1cf3ea0fa15578a2088b6f9e751e49c825e2",
+    "container_inventory_service.py": "ccf662e52b7d4aa42df56a12d3cd088b72994511d59305b11e4b01f86cfa645d",
+    "metric_history.py": "c8dae2bae25a599ca2f9a4a81bf88eba7454ff81bf725f3448ab8e3a1effa4c8"
+  },
+  "lsblk": {
+    "blockdevices": [
+      {
+        "name": "sda",
+        "path": "/dev/sda",
+        "type": "disk",
+        "size": 100000,
+        "serial": "drive-1",
+        "children": [
+          {
+            "name": "sda1",
+            "path": "/dev/sda1",
+            "type": "part",
+            "size": 99000,
+            "uuid": "data-1",
+            "fstype": "ext4",
+            "mountpoints": [
+              "/mnt/data"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "loop0",
+        "type": "loop"
+      }
+    ]
+  },
+  "docker": [
+    {
+      "Id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "Names": [
+        "/jellyfin"
+      ],
+      "Image": "jellyfin:stable",
+      "State": "running",
+      "Status": "Up (healthy)",
+      "Labels": {
+        "com.docker.compose.project": "media"
+      }
+    },
+    {
+      "Id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "Names": [
+        "/sonarr"
+      ],
+      "Image": "sonarr:stable",
+      "State": "exited",
+      "Status": "Exited (0)",
+      "Labels": {
+        "com.docker.compose.project": "media"
+      }
+    }
+  ],
+  "expected": {
+    "disk": {
+      "serial": "drive-1",
+      "partition_uuid": "data-1",
+      "partition_mounted": true,
+      "partition_mountpoint": "/mnt/data"
+    },
+    "containers": [
+      {
+        "id_prefix": "aaaaaaaaaaaa",
+        "name": "jellyfin",
+        "status": "running",
+        "image": "jellyfin:stable",
+        "health": "healthy",
+        "stack": "media"
+      },
+      {
+        "id_prefix": "bbbbbbbbbbbb",
+        "name": "sonarr",
+        "status": "exited",
+        "image": "sonarr:stable",
+        "health": null,
+        "stack": "media"
+      }
+    ],
+    "history": {
+      "range": "24h",
+      "from": "2033-05-17T03:33:20Z",
+      "to": "2033-05-18T03:33:20Z",
+      "bucket_seconds": 300,
+      "points": [
+        {
+          "at": "2033-05-18T03:23:20Z",
+          "cpu_percent": 30.0,
+          "memory_percent": 80.0,
+          "temperature_celsius": null,
+          "disk_percent": null
+        },
+        {
+          "at": "2033-05-18T03:28:20Z",
+          "cpu_percent": null,
+          "memory_percent": null,
+          "temperature_celsius": null,
+          "disk_percent": null
+        }
+      ],
+      "summary": {
+        "cpu_percent": {
+          "current": 30.0,
+          "min": 30.0,
+          "average": 30.0,
+          "max": 30.0
+        },
+        "memory_percent": {
+          "current": 80.0,
+          "min": 80.0,
+          "average": 80.0,
+          "max": 80.0
+        },
+        "temperature_celsius": {
+          "current": null,
+          "min": null,
+          "average": null,
+          "max": null
+        },
+        "disk_percent": {
+          "current": null,
+          "min": null,
+          "average": null,
+          "max": null
+        }
+      }
+    }
+  },
+  "history_at": 2000000000
+}

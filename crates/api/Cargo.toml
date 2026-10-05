@@ -10,6 +10,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+futures-util.workspace = true
 axum.workspace = true
 tokio.workspace = true
 serde.workspace = true
@@ -18,8 +19,9 @@ subtle.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true
 tower.workspace = true
-limeos-domain = { path = "../domain", version = "=0.1.0" }
-limeos-contracts = { path = "../contracts", version = "=0.1.0" }
+limeos-domain = { path = "../domain", version = "=0.2.0" }
+limeos-contracts = { path = "../contracts", version = "=0.2.0" }
 
 [dev-dependencies]
 http-body-util.workspace = true
+tokio = { workspace = true, features = ["test-util"] }

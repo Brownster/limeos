@@ -3,8 +3,16 @@
   "title": "Ceiling",
   "type": "object",
   "properties": {
+    "allow_container_read": {
+      "type": "boolean",
+      "default": false
+    },
     "allow_health": {
       "type": "boolean"
+    },
+    "allow_host_read": {
+      "type": "boolean",
+      "default": false
     },
     "core_uid": {
       "type": "integer",

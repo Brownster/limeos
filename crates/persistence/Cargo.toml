@@ -18,10 +18,10 @@ sha2.workspace = true
 hex.workspace = true
 fs2.workspace = true
 tempfile.workspace = true
-limeos-domain = { path = "../domain", version = "=0.1.0" }
-limeos-identity = { path = "../identity", version = "=0.1.0" }
+limeos-domain = { path = "../domain", version = "=0.2.0" }
+limeos-identity = { path = "../identity", version = "=0.2.0" }
 
-limeos-policy = { path = "../policy", version = "=0.1.0" }
+limeos-policy = { path = "../policy", version = "=0.2.0" }
 
 [dev-dependencies]
 tempfile.workspace = true

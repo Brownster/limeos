@@ -21,6 +21,46 @@
         "operation",
         "version"
       ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "operation": {
+          "type": "string",
+          "const": "observe"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version",
+        "source",
+        "active"
+      ]
     }
-  ]
+  ],
+  "$defs": {
+    "Source": {
+      "type": "string",
+      "enum": [
+        "host",
+        "storage",
+        "pools",
+        "docker",
+        "history"
+      ]
+    }
+  }
 }

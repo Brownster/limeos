@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Overview",
+  "type": "object",
+  "properties": {
+    "generated_at": {
+      "type": "integer",
+      "format": "int64"
+    },
+    "host": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HostMetrics"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Resource"
+      }
+    },
+    "revision": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Freshness"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "revision",
+    "generated_at",
+    "sources",
+    "resources"
+  ],
+  "$defs": {
+    "Availability": {
+      "type": "string",
+      "enum": [
+        "loading",
+        "fresh",
+        "stale",
+        "unavailable"
+      ]
+    },
+    "Freshness": {
+      "type": "object",
+      "properties": {
+        "max_age_seconds": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "sampled_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "state": {
+          "$ref": "#/$defs/Availability"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "state",
+        "max_age_seconds",
+        "warnings"
+      ]
+    },
+    "HostMetrics": {
+      "type": "object",
+      "properties": {
+        "cpu_percent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "disk_percent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "load_one": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "memory_percent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "temperature_celsius": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "uptime_seconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Resource": {
+      "type": "object",
+      "properties": {
+        "cpu_percent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "filesystem": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "health": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "identity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "image": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/ResourceKind"
+        },
+        "memory_percent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "mountpoint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "size_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "status",
+        "source"
+      ]
+    },
+    "ResourceKind": {
+      "type": "string",
+      "enum": [
+        "disk",
+        "partition",
+        "pool",
+        "container",
+        "stack"
+      ]
+    },
+    "Source": {
+      "type": "string",
+      "enum": [
+        "host",
+        "storage",
+        "pools",
+        "docker",
+        "history"
+      ]
+    }
+  }
+}

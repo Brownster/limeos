@@ -17,6 +17,9 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::{net::TcpListener, sync::Semaphore};
+#[cfg(test)]
+mod read_tests;
+mod reads;
 
 pub struct IssuedSession {
     pub token: String,
@@ -31,12 +34,29 @@ pub trait Backend: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<SessionView>> + Send;
     fn logout(&self, token: String, csrf: String) -> impl Future<Output = Result<()>> + Send;
     fn health(&self) -> impl Future<Output = Result<Health>> + Send;
+    fn observations(
+        &self,
+        _token: String,
+    ) -> impl Future<Output = Result<limeos_contracts::Overview>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn history(
+        &self,
+        _token: String,
+        _range: limeos_contracts::HistoryRange,
+    ) -> impl Future<Output = Result<limeos_contracts::MetricHistory>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn changes(&self) -> tokio::sync::watch::Receiver<u64> {
+        tokio::sync::watch::channel(0).1
+    }
 }
 #[derive(Clone)]
 struct App<B> {
     backend: B,
     origin: Arc<str>,
     limiter: Arc<Mutex<Limiter>>,
+    readers: Arc<Semaphore>,
 }
 #[derive(Clone, Copy)]
 struct Peer(SocketAddr);
@@ -73,12 +93,17 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
         .route("/api/v1/auth/login", post(login::<B>))
         .route("/api/v1/auth/session", get(session::<B>))
         .route("/api/v1/auth/logout", post(logout::<B>))
+        .route("/api/v1/overview", get(reads::overview::<B>))
+        .route("/api/v1/resources", get(reads::resources::<B>))
+        .route("/api/v1/system/history", get(reads::history::<B>))
+        .route("/api/v1/observations/stream", get(reads::stream::<B>))
         .fallback(|| async { failure(Error(ErrorCode::NotFound)) })
         .layer(middleware::from_fn(limits))
         .with_state(App {
             backend,
             origin: origin.into(),
             limiter: Arc::new(Mutex::new(Limiter::default())),
+            readers: Arc::new(Semaphore::new(8)),
         })
 }
 fn failure(error: Error) -> Response {

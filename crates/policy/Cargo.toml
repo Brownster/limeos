@@ -11,4 +11,4 @@ workspace = true
 
 [dependencies]
 serde.workspace = true
-limeos-domain = { path = "../domain", version = "=0.1.0" }
+limeos-domain = { path = "../domain", version = "=0.2.0" }

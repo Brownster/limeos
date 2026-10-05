@@ -29,6 +29,8 @@ struct Core {
     db: Database,
     password_workers: Arc<Semaphore>,
     dummy_hash: Arc<str>,
+    observations: limeos_observations::Cache,
+    telemetry: Option<limeos_observations::telemetry::Telemetry>,
 }
 impl Core {
     async fn password(
@@ -191,6 +193,77 @@ impl Backend for Core {
             ready: true,
         })
     }
+    async fn observations(&self, token: String) -> Result<limeos_contracts::Overview> {
+        let digest = limeos_identity::digest(&token);
+        let (principal, grants) = self
+            .db
+            .call(move |s| {
+                let p = s.authenticate(&digest, None, now())?;
+                let g = s.grants(&p)?;
+                Ok((p, g))
+            })
+            .await?;
+        let allowed = |resource: &str| {
+            limeos_policy::authorize(
+                &principal,
+                &grants,
+                &Scope {
+                    operation: limeos_domain::Operation::HealthRead,
+                    resource: resource.into(),
+                },
+            )
+            .is_ok()
+        };
+        let mut value = self.observations.snapshot();
+        let host = allowed("host:system");
+        if !host {
+            value.host = None;
+        }
+        value.resources.retain(|r| allowed(&r.id));
+        value.sources.retain(|s| {
+            (matches!(
+                s.source,
+                limeos_contracts::Source::Host | limeos_contracts::Source::History
+            ) && host)
+                || value.resources.iter().any(|r| r.source == s.source)
+                || grants.iter().any(|g| {
+                    g.operation == limeos_domain::Operation::HealthRead && g.resource == "*"
+                })
+        });
+        if !host && value.resources.is_empty() && value.sources.is_empty() {
+            return Err(Error(ErrorCode::Forbidden));
+        }
+        self.observations.demand();
+        Ok(value)
+    }
+    async fn history(
+        &self,
+        token: String,
+        range: limeos_contracts::HistoryRange,
+    ) -> Result<limeos_contracts::MetricHistory> {
+        let digest = limeos_identity::digest(&token);
+        self.db
+            .call(move |s| {
+                let p = s.authenticate(&digest, None, now())?;
+                limeos_policy::authorize(
+                    &p,
+                    &s.grants(&p)?,
+                    &Scope {
+                        operation: limeos_domain::Operation::HealthRead,
+                        resource: "host:system".into(),
+                    },
+                )
+            })
+            .await?;
+        self.telemetry
+            .as_ref()
+            .ok_or(Error(ErrorCode::Unavailable))?
+            .query(range, now())
+            .await
+    }
+    fn changes(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.observations.subscribe()
+    }
 }
 async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
     let peer = stream
@@ -321,10 +394,19 @@ async fn run() -> Result<()> {
     std::fs::set_permissions(&state, std::os::unix::fs::PermissionsExt::from_mode(0o700))
         .map_err(|_| Error(ErrorCode::StateNotDurable))?;
     let db = Database::open(&state.join("core.sqlite"))?;
+    let telemetry =
+        limeos_observations::telemetry::Telemetry::open(&state.join("metrics.sqlite")).ok();
+    let observations = limeos_observations::start_core(
+        config.host_socket.clone().into(),
+        config.container_socket.clone().into(),
+        telemetry.clone(),
+    );
     let mut core = Core {
         db,
         password_workers: Arc::new(Semaphore::new(2)),
         dummy_hash: "".into(),
+        observations,
+        telemetry,
     };
     core.dummy_hash = core
         .hash(limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?)
@@ -345,66 +427,4 @@ async fn run() -> Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[tokio::test]
-    async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durable() {
-        let dir = tempfile::tempdir().unwrap();
-        let db = Database::open(&dir.path().join("core.sqlite")).unwrap();
-        let fixtures: serde_json::Value =
-            serde_json::from_str(include_str!("../../../tests/fixtures/werkzeug-hashes.json"))
-                .unwrap();
-        let core = Core {
-            db,
-            password_workers: Arc::new(Semaphore::new(2)),
-            dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),
-        };
-        for (index, fixture) in fixtures.as_array().unwrap().iter().enumerate() {
-            let encoded = fixture["hash"].as_str().unwrap().to_owned();
-            let username = format!("legacy-{index}");
-            let imported_name = username.clone();
-            let stored_hash = encoded.clone();
-            core.db
-                .call(move |s| s.import_legacy_user(&imported_name, &stored_hash, now()))
-                .await
-                .unwrap();
-            assert_eq!(
-                core.login(Login {
-                    username: username.clone(),
-                    password: "wrong".into()
-                })
-                .await
-                .err()
-                .unwrap()
-                .0,
-                ErrorCode::Unauthenticated,
-            );
-            let user = username.clone();
-            assert_eq!(
-                core.db
-                    .call(move |s| Ok(s.login_record(&user)?.unwrap().password_hash))
-                    .await
-                    .unwrap(),
-                encoded
-            );
-            let issued = core
-                .login(Login {
-                    username: username.clone(),
-                    password: fixture["password"].as_str().unwrap().into(),
-                })
-                .await
-                .unwrap();
-            assert!(core.session(issued.token.clone(), None).await.is_ok());
-            let upgraded = core
-                .db
-                .call(move |s| Ok(s.login_record(&username)?.unwrap().password_hash))
-                .await
-                .unwrap();
-            assert!(upgraded.starts_with("$argon2id$"));
-            core.logout(issued.token.clone(), issued.view.csrf_token)
-                .await
-                .unwrap();
-            assert!(core.session(issued.token, None).await.is_err());
-        }
-    }
-}
+mod tests;

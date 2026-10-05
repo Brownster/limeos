@@ -10,12 +10,13 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-limeos-api = { path = "../../crates/api", version = "=0.1.0" }
-limeos-domain = { path = "../../crates/domain", version = "=0.1.0" }
-limeos-contracts = { path = "../../crates/contracts", version = "=0.1.0" }
-limeos-policy = { path = "../../crates/policy", version = "=0.1.0" }
-limeos-persistence = { path = "../../crates/persistence", version = "=0.1.0" }
-limeos-identity = { path = "../../crates/identity", version = "=0.1.0" }
+limeos-observations = { path = "../../crates/observations", version = "=0.2.0" }
+limeos-api = { path = "../../crates/api", version = "=0.2.0" }
+limeos-domain = { path = "../../crates/domain", version = "=0.2.0" }
+limeos-contracts = { path = "../../crates/contracts", version = "=0.2.0" }
+limeos-policy = { path = "../../crates/policy", version = "=0.2.0" }
+limeos-persistence = { path = "../../crates/persistence", version = "=0.2.0" }
+limeos-identity = { path = "../../crates/identity", version = "=0.2.0" }
 tokio.workspace = true
 serde_json.workspace = true
 tracing.workspace = true

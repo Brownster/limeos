@@ -28,6 +28,7 @@ checksum = "31b698c5f9a010f6573133b09e0de5408834d0c82f8d7475a89fc1867a71cd90"
 dependencies = [
  "axum-core",
  "bytes",
+ "form_urlencoded",
  "futures-util",
  "http",
  "http-body",
@@ -43,6 +44,7 @@ dependencies = [
  "serde_core",
  "serde_json",
  "serde_path_to_error",
+ "serde_urlencoded",
  "sync_wrapper",
  "tokio",
  "tower",
@@ -296,6 +298,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92d699e522242e69e3003b94ecc1f960f3a5e015aa7c5d7486e65ad01dd94f5e"
 
 [[package]]
+name = "futures-macro"
+version = "0.3.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fb9654ba8355388abeb8dcb4fc62f511300867002afc858860463bdd9fe0c44"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.6",
+]
+
+[[package]]
 name = "futures-task"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -308,6 +321,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d50a92467f8ba5dd6e3ee5d4bd04d73ab2e4e1c44474a0674821dfce14b79bc"
 dependencies = [
  "futures-core",
+ "futures-macro",
  "futures-task",
  "pin-project-lite",
  "slab",
@@ -671,9 +685,10 @@ dependencies = [
 
 [[package]]
 name = "limeos-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
+ "futures-util",
  "http-body-util",
  "hyper",
  "hyper-util",
@@ -688,7 +703,7 @@ dependencies = [
 
 [[package]]
 name = "limeos-contracts"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "limeos-domain",
  "schemars",
@@ -700,12 +715,13 @@ dependencies = [
 
 [[package]]
 name = "limeos-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "limeos-api",
  "limeos-contracts",
  "limeos-domain",
  "limeos-identity",
+ "limeos-observations",
  "limeos-persistence",
  "limeos-policy",
  "serde_json",
@@ -717,7 +733,7 @@ dependencies = [
 
 [[package]]
 name = "limeos-domain"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "schemars",
  "serde",
@@ -726,11 +742,12 @@ dependencies = [
 
 [[package]]
 name = "limeos-executor"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "limeos-contracts",
  "limeos-domain",
  "limeos-executor-protocol",
+ "limeos-observations",
  "serde_json",
  "tokio",
  "tracing",
@@ -739,7 +756,7 @@ dependencies = [
 
 [[package]]
 name = "limeos-executor-protocol"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "limeos-contracts",
  "limeos-domain",
@@ -765,7 +782,7 @@ dependencies = [
 
 [[package]]
 name = "limeos-identity"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "argon2",
  "getrandom 0.2.17",
@@ -779,8 +796,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "limeos-observations"
+version = "0.2.0"
+dependencies = [
+ "fs2",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "limeos-contracts",
+ "limeos-domain",
+ "limeos-executor-protocol",
+ "rusqlite",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "limeos-persistence"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "fs2",
  "hex",
@@ -797,7 +831,7 @@ dependencies = [
 
 [[package]]
 name = "limeos-policy"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "limeos-domain",
  "serde",
@@ -805,7 +839,7 @@ dependencies = [
 
 [[package]]
 name = "limeos-schema"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "limeos-contracts",
  "limeos-domain",
@@ -818,7 +852,7 @@ dependencies = [
 
 [[package]]
 name = "limeosctl"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "limeos-contracts",
  "limeos-executor-protocol",
