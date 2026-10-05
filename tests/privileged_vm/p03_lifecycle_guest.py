@@ -436,7 +436,7 @@ def main(package_version="0.3.2", authority_schema=5, qualify_upgrade=True):
             f"{action} has an independent effect ceiling even with restart enabled"
         )
 
-    fixture.run("apt-get", "install", "-y", "limeos-shadow=0.3.1")
+    fixture.run("apt-get", "install", "-y", "limeos-shadow=" + package_version)
     shadow_path = Path("/etc/limeos-shadow/system-policy/container.json")
     original = json.loads(shadow_path.read_text())
     for action in ["start", "stop"]:
