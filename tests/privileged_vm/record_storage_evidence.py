@@ -29,7 +29,9 @@ def main():
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--source-commit", required=True)
     parser.add_argument(
-        "--slice", choices=["readiness", "planning", "targets"], default="readiness"
+        "--slice",
+        choices=["readiness", "planning", "targets", "locks"],
+        default="readiness",
     )
     parser.add_argument(
         "--output",
@@ -38,7 +40,8 @@ def main():
     )
     args = parser.parse_args()
     planning = args.slice != "readiness"
-    targets = args.slice == "targets"
+    locks = args.slice == "locks"
+    targets = args.slice in ["targets", "locks"]
     args.output = (
         args.output
         or ROOT / f"docs/rewrite-evidence/p04/storage-{args.slice}-validation.json"
@@ -47,12 +50,22 @@ def main():
     vm_name = f"{args.slice}-vm-result.json" if planning else "storage-vm-result.json"
     log_name = f"rust-{args.slice}-tests.txt"
     vm = json.loads((evidence / vm_name).read_text())
-    assert len(vm["passed"]) >= (37 if targets else 27 if planning else 17)
+    assert len(vm["passed"]) >= (
+        43 if locks else 37 if targets else 27 if planning else 17
+    )
     assert "three-second plan deadline" in " ".join(vm["passed"])
     assert "watchdog bound" in " ".join(vm["passed"])
     assert (
         vm["package_version"]
-        == ("0.4.2" if targets else "0.4.1" if planning else "0.4.0")
+        == (
+            "0.4.3"
+            if locks
+            else "0.4.2"
+            if targets
+            else "0.4.1"
+            if planning
+            else "0.4.0"
+        )
         and vm["architecture"] == "amd64"
     )
     if planning:
@@ -65,12 +78,36 @@ def main():
             "partial preparation and unexpected data block reconciliation"
             in " ".join(vm["passed"])
         )
+    container_vm = None
+    if locks:
+        assert vm["authority_schema"] == 7
+        assert vm["upgrade"]["from"] == "0.4.2" and vm["upgrade"]["to"] == "0.4.3"
+        assert vm["upgrade"]["previous_core_sha256"] != vm["core_payload_sha256"]
+        assert vm["upgrade"]["current_core_sha256"] == vm["core_payload_sha256"]
+        assert vm["upgrade"]["previous_package_sha256"] == (
+            "468b844cebb12806661a4d757b47b53f0c9d2f3bcbe21bb2d89639b5df656263"
+        )
+        for scenario in [
+            "complete claim sets atomically",
+            "core SIGKILL",
+            "missing dependency locks",
+            "altered dispatch guards",
+        ]:
+            assert scenario in " ".join(vm["passed"])
+        container_vm = json.loads(
+            (evidence / "locks-container-vm-result.json").read_text()
+        )
+        assert container_vm["package_version"] == "0.4.3"
+        assert container_vm["schemas"] == {"authority": 7, "container_receipts": 3}
+        assert container_vm["upgrade"] is None
+        assert len(container_vm["checks"]) >= 40
+        assert any("kill limeos-core" in s for s in container_vm["checks"])
     assert 2.5 <= vm["plan_wait_seconds"] <= 7
     assert 3.5 <= vm["watchdog_seconds"] <= 8
     log = (evidence / log_name).read_text()
     assert "FAILED" not in log and "test result: ok." in log
     passed = sum(int(n) for n in re.findall(r"test result: ok\. (\d+) passed", log))
-    assert passed >= (131 if targets else 126 if planning else 111)
+    assert passed >= (144 if locks else 131 if targets else 126 if planning else 111)
     manifest = {}
     with tarfile.open(args.bundle) as archive:
         for item in archive:
@@ -106,6 +143,9 @@ def main():
         ]
     }
     assert binaries["limeos-executor"] == vm["payload_sha256"]
+    if locks:
+        assert binaries["limeos-core"] == vm["core_payload_sha256"]
+        assert container_vm["binary_sha256"] == binaries
     packages = {}
     for package in sorted((args.artifacts / "packages").glob("*.deb")):
         prefix = (
@@ -205,6 +245,16 @@ def main():
                     else []
                 ),
                 *(
+                    [
+                        ROOT / "tests/privileged_vm/p04_locks_guest.py",
+                        ROOT / "tests/privileged_vm/p04_locks_container_guest.py",
+                        ROOT / "tests/privileged_vm/p03_guest.py",
+                        ROOT / "tests/privileged_vm/p03_lifecycle_guest.py",
+                    ]
+                    if locks
+                    else []
+                ),
+                *(
                     [ROOT / "tests/privileged_vm/p04_targets_guest.py"]
                     if targets
                     else []
@@ -223,7 +273,9 @@ def main():
         "advisory_database_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
         "audited_lockfile_packages": 215,
         "added_third_party_packages": 0,
-        "production_boundary_change": "Storage target preparation adds already-locked rusqlite to the root adapter for private WAL receipts and resource claims"
+        "production_boundary_change": "Schema-7 atomic core resource sets; already-locked rustix supplies architecture-aware flags for core/configuration and container receipt opens"
+        if locks
+        else "Storage target preparation adds already-locked rusqlite to the root adapter for private WAL receipts and resource claims"
         if targets
         else "Storage adapter also uses the first-party identity crate for SHA-256 evidence digests"
         if planning
@@ -238,6 +290,22 @@ def main():
             "MNT-001 remains open until the full profile startup path uses this mechanism",
         ],
     }
+    if locks:
+        result["core_resource_locks"] = {
+            "authority_schema": 7,
+            "genuine_package_upgrade": vm["upgrade"],
+            "container_vm": {
+                "result_file": "locks-container-vm-result.json",
+                "acceptance_groups": len(container_vm["checks"]),
+                "operations": container_vm["operations"],
+                "shadow_scope": "installed service ceiling and payload checks",
+                "upgrade": None,
+            },
+            "scope": "durable core lock foundation; synthetic multi-resource dependencies and real approved container effects",
+        }
+        result["limitations"].append(
+            "Storage jobs, fresh live dependency discovery and shared executor dispatch remain pending; root target receipts still use their separate private journal"
+        )
     args.output.write_text(json.dumps(result, indent=2) + "\n")
     print(
         f"Recorded {len(vm['passed'])} VM groups against {len(manifest)} committed source/build files."
