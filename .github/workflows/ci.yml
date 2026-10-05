@@ -94,7 +94,11 @@ jobs:
       - name: Disposable Debian signed-apt and systemd acceptance
         run: |
           sudo apt-get update -qq
-          sudo apt-get install --no-install-recommends -y qemu-system-x86 qemu-utils genisoimage apt-utils gnupg
+          sudo apt-get install --no-install-recommends -y qemu-system-x86 qemu-utils genisoimage apt-utils gnupg acl
+          test -c /dev/kvm
+          sudo setfacl -m "u:$(id -un):rw" /dev/kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
           mkdir -p .cache/p01-vm
           curl --fail --location https://cloud.debian.org/images/cloud/bookworm/latest/SHA512SUMS -o .cache/p01-vm/SHA512SUMS
           curl --fail --location https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2 -o .cache/p01-vm/debian-12-genericcloud-amd64.qcow2
