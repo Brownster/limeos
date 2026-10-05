@@ -1,0 +1,193 @@
+{
+  "recorded_at_utc": "2026-10-05T16:54:52.161662+00:00",
+  "qualified_source_commit": "ae89a7f",
+  "backend_commit": "fdc0ee9",
+  "frontend_commit": "26d5fb4",
+  "package_version": "0.3.2",
+  "build": {
+    "architecture": "amd64",
+    "host": "disposable Debian 12 KVM guest",
+    "rust_toolchain": "1.88.0",
+    "cargo": "locked offline release build",
+    "source_bundle_sha256": "169d7fdc561d6a84571a2b9bf10e562fd5fcbbc02211b9dacba4f5018710b448",
+    "source_bundle_bytes": 258417745,
+    "source_manifest": "reference-source-sha256.json",
+    "qualified_bundle_files_match_workspace": 127,
+    "binary_sha256": {
+      "limeos-core": "59713f61e815ddf2eeb87bfa331fe0663ba6e95946fedabd6ac0c34cd8ff445d",
+      "limeos-executor": "ee5beee57afad3b6c9b215f6c8246c45eb159843c8560f32c74242c00e296070",
+      "limeosctl": "3940281385464040c1553af159998cd71946d698b1b256d7b060ab12e498f9b0",
+      "limeos-password-worker": "c0b8863115008f82d647c9a4682ab38491d85586255cc70193dc53d3cb89dcf9"
+    },
+    "package_sha256": {
+      "limeos-shadow_0.3.2_amd64.deb": "c3c91cc47c2ffb561d235f869c954772ea9e613517f6e781a85c50cf05d5a57e",
+      "limeos_0.3.2_amd64.deb": "6698b4f183e724aaea93707bd99f484c873322f803d67d005e262c4f27e1b068"
+    },
+    "signing_key": "test-only key generated in the discarded guest"
+  },
+  "local_checks": {
+    "recorded_at_utc": "2026-10-05T16:54:49.548506+00:00",
+    "scope": "Rust/UI checks reused from the unchanged frozen Compose payload; reference capture and harness checks added after that qualification.",
+    "checks": [
+      {
+        "name": "rust_workspace_tests",
+        "command": "cargo test --workspace --locked",
+        "exit_code": 0,
+        "passed": 98,
+        "toolchain": "1.88.0"
+      },
+      {
+        "name": "strict_clippy",
+        "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+        "exit_code": 0
+      },
+      {
+        "name": "rust_format",
+        "command": "cargo fmt --all -- --check",
+        "exit_code": 0
+      },
+      {
+        "name": "generated_contracts",
+        "command": "uv run scripts/check_contracts.py",
+        "exit_code": 0
+      },
+      {
+        "name": "repository_boundaries",
+        "command": "uv run scripts/check_repository.py",
+        "exit_code": 0
+      },
+      {
+        "name": "frontend_units",
+        "command": "npm test",
+        "exit_code": 0,
+        "passed": 8
+      },
+      {
+        "name": "typescript_and_assets",
+        "command": "npm run build",
+        "exit_code": 0
+      },
+      {
+        "name": "python_lint",
+        "command": "uv run --with ruff ruff check scripts/check_repository.py tests/privileged_vm tests/arm64 packaging/build.py",
+        "exit_code": 0
+      },
+      {
+        "name": "python_format",
+        "command": "uv run --with ruff ruff format --check scripts/check_repository.py tests/privileged_vm tests/arm64 packaging/build.py",
+        "exit_code": 0
+      },
+      {
+        "name": "dependency_licenses",
+        "command": "cargo deny --offline check",
+        "exit_code": 0,
+        "existing_duplicate_version_warnings": true
+      },
+      {
+        "name": "cached_advisory_audit",
+        "command": "cargo audit --no-fetch --no-yanked --db /tmp/limeos-advisory-db",
+        "exit_code": 0,
+        "dependencies": 214,
+        "advisories": 1290,
+        "known_vulnerabilities": 0
+      },
+      {
+        "name": "cached_npm_audit",
+        "command": "npm audit --offline --audit-level=high",
+        "exit_code": 0,
+        "known_vulnerabilities": 0
+      },
+      {
+        "name": "reference_capture_redaction",
+        "command": "uv run --no-project python -m unittest discover -s tests/reference -p 'test_*.py'",
+        "exit_code": 0,
+        "passed": 2
+      },
+      {
+        "name": "reference_harness_lint",
+        "command": "uv run --with ruff ruff check tests/reference tests/privileged_vm",
+        "exit_code": 0
+      }
+    ]
+  },
+  "release_gate_probes": {
+    "result": "pass",
+    "groups": 13,
+    "result_file": "compose-gate-probes.json"
+  },
+  "real_engine_vm": {
+    "result": "pass",
+    "acceptance_groups": 62,
+    "effect_interruption_cases": 18,
+    "result_file": "reference-vm-result.json"
+  },
+  "browser": {
+    "result": "reused identical assets and fixture",
+    "acceptance_groups": 13,
+    "result_file": "lifecycle-browser-result.json",
+    "asset_sha256": {
+      "frontend/dist/assets/index-C3RxCNyi.css": "64c20446c003aed19c6bed2fede7316b50f9e1d9ac8e17633b1fff8cd5e37df8",
+      "frontend/dist/assets/index-D-RFxl0f.js": "280e06ad09d13899981bbf34395b7ff28007885247bbec86b85913250aa6816b",
+      "frontend/dist/index.html": "bc2f63d645e52dddad3fa637739fcc0e22ae1e8c5c21eb6d38a64bbc3f8e9536"
+    }
+  },
+  "arm64": {
+    "result": "cross-build and qemu-user smoke passed",
+    "native_qualified": false,
+    "result_file": "compose-arm64-result.json",
+    "acceptance_groups": 4
+  },
+  "qualification_fixture_commit": "ead08477b33f464e5fa79d1d37a842fc654cba1c",
+  "fixture_sha256": {
+    "tests/privileged_vm/run.py": "e595ae48ab702cbebb4e42bf1b86d4bb0786f6ce507e1b80ba5d107a549fb5da",
+    "tests/privileged_vm/p03_guest.py": "ef98c2ba8e0c1f87c1f6da5fc62a4c4ae88afe10bf5238886bcb36bb362d2c94",
+    "tests/privileged_vm/p03_lifecycle_guest.py": "ce633c012cedb977798781e52cbc46bbe8e374a0a7742eaaa302efed6d969732",
+    "tests/privileged_vm/p03_compose_guest.py": "4cd100a2e1216a0879c6b2acf1f8c76d08cfc761e75ead3dbebc4f0206723ce4",
+    "tests/privileged_vm/build_bundle.py": "6ab8e2b63358a87bf3de2c68396717607d7cd897bee0613b3ecf7c39b7560920",
+    "tests/privileged_vm/build_guest.py": "aeed5d26f933a1a76fe68743f7f5e762558b117ba3c1289866d42e000b8da609",
+    "tests/arm64/smoke.py": "78d4bb5e5eb4b6e4e7a14e98db54b24a066909c5663cfaf215e3e511ff5566d3",
+    "tests/privileged_vm/p03_reference_guest.py": "62accc1632310a4f193703ddff7ed2f36a7f69b5d5ef51b27bce7a86a25ec8b4",
+    "tests/reference/capture.py": "1dc042ab2592b68c1bbb6f0c759246e44e484a5cea418e5d14a135a1961d3833",
+    "tests/fixtures/wybie-layout.json": "aa9780e3d8f4b7b5cca9bb3caeb883a19f356a88c6b836875f184c3a26f9c82c"
+  },
+  "dependency_count": 214,
+  "added_third_party_rust_dependencies": 0,
+  "advisory_database_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
+  "known_vulnerabilities_in_checked_database": 0,
+  "limitations": [
+    "P03 local representative-layout qualification passed; native ARM64 and P02 reference-host gates remain pending",
+    "Compose plans are protected non-executable snapshots; P04 must freshly validate host paths, combined project semantics and stack locks before deployment",
+    "VM footprint was sampled after lifecycle qualification before the optional catalog ownership scenarios; it is not a Pi measurement",
+    "ARM64 packages were not installed on native hardware or added to the signed AMD64 test repository",
+    "No live host changes, benchmark, service restart or cutover; only light read-only SSH inventory and filtered configuration projection",
+    "GitHub CI was updated but not run here; no additional defect-register rows are closed by this milestone"
+  ],
+  "reference": {
+    "profile_sha256": "aa9780e3d8f4b7b5cca9bb3caeb883a19f356a88c6b836875f184c3a26f9c82c",
+    "services": [
+      "jellyfin",
+      "audiobookshelf",
+      "navidrome",
+      "sonarr",
+      "radarr",
+      "transmission",
+      "vpn"
+    ],
+    "profiled_containers": 29,
+    "sentinels_preserved": 16,
+    "application_uid_gid": [
+      1000,
+      1000
+    ],
+    "production_environment_values_copied": 0,
+    "host": "wybie (read-only capture)",
+    "limitations": [
+      "Resolved configuration projection, not raw Compose/.env import or application qualification",
+      "BusyBox runs as the application UID; production images may initialize as root then drop privileges",
+      "Privileged flags, VPN capabilities/devices and published listeners are not enabled in these surrogates",
+      "VPN clients share a stable surrogate namespace; dependent-stack mount/network supervision belongs to P04",
+      "Anonymous volume is recreated with a test name; no production data or image is fetched",
+      "Native ARM64 and reference-hardware measurements remain pending"
+    ]
+  }
+}
