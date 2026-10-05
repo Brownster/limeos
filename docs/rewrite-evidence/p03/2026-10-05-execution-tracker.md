@@ -47,14 +47,36 @@ This continuation used approximately three hours of elapsed agent work including
 | Work package | Current status |
 | --- | --- |
 | RW-030: approved restart path | Implemented and qualified on the disposable AMD64 host, including native control, task-shaped caller and durable progress. |
-| RW-031: narrow executor foundation | Restart framing, peer credentials, ceilings, locks, cancellation and protected receipts are qualified; extend these to the remaining operations. |
-| RW-032: container/deployment operations | Start/stop, bounded logs and approved Compose plan/diff remain. |
+| RW-031: narrow executor foundation | Restart, start and stop share framing, peer credentials, separate ceilings, locks, cancellation, protected receipts and independent verification. |
+| RW-032: container/deployment operations | Start/stop and bounded logs are implemented and qualified on the disposable AMD64 host. Approved Compose plan/diff remains. |
 | RW-033: representative host qualification | Local real-Engine fixtures pass; a redacted representative reference-stack configuration remains. |
 
 ## Remaining phase work
 
-1. Add start/stop, bounded logs and the approved Compose plan/diff foundation. Port the remaining container controls onto the same authority and recovery path.
-2. Extend disposable-host qualification to those operations and a redacted representative stack configuration. Qualify the combined UI/package payload on ARM64; this continuation qualified AMD64.
+1. Add the approved Compose plan/diff foundation, including the specific elevated deployment grant.
+2. Qualify a redacted representative reference-stack configuration and the combined UI/package payload on ARM64; local lifecycle qualification uses AMD64.
 3. Extend footprint measurements as those operations arrive; qualify reference hardware in an explicitly suitable window separately. P02's hardware comparison and reference-host shadow installation remain pending.
 
 No defect-register row is closed solely by this restart milestone. P03 remains in progress until its remaining operation and qualification work passes.
+
+## Lifecycle and log continuation
+
+Start and stop now use the same plan, human approval, durable queue, full-ID resource lock, protected receipt and fresh verification path as restart. Each action has its own independent ceiling. Start requires a stopped container and verifies a later running incarnation; stop requires a running container and verifies that the same incarnation has stopped. Existing restart HTTP/task entry points remain compatible; generic container routes carry the selected action. Standard installs leave all effects disabled, and shadow rejects any enabled effect.
+
+Authority schema v4 renames the shared plan/result tables; executor receipt schema v3 records the action explicitly. Restart's absent action field remains its canonical representation, preserving old plan digests and approval binding. A genuine upgrade of the previously qualified 0.3.0 package preserves sessions, an approved pending restart and verified receipts. The upgrade fixture uses the old package hashes, rather than rebuilding an old version label from new source.
+
+Managed log reads require the current container-management resource grant and an independent log ceiling. Docker multiplexing and TTY output are decoded separately. Reads never follow, accept at most 200 tail lines, have a four-second deadline and return at most 24 KiB of filtered text. The filter strips terminal controls and common credential-bearing lines; it does not claim to detect every possible application secret. Current authority is checked again after the read. Logs are not persisted in authority events, and the native dialog renders escaped text.
+
+The [local Rust log](rust-lifecycle-tests.txt) records 81 passing tests. Strict Clippy, formatting, generated contracts, repository boundaries, Python fixture lint/format, frontend tests/build and cached dependency checks pass. The graph remains at 214 dependencies with no reported vulnerabilities in the checked advisory database. No third-party Rust dependency was added.
+
+The [browser result](lifecycle-browser-result.json) records thirteen checks against the built assets: the original approval/focus/retry/reload cases plus action-bound start/stop previews, state-aware controls, escaped log HTML, visible clipping, GET-only refresh, log focus restoration and viewer restrictions. The [lifecycle screenshot](lifecycle-progress.png) records the resulting native controls and durable jobs. Browser transport uses a closed fixture; real API and Engine behavior are qualified independently against the same payload.
+
+The application payload is frozen at source commit `40de6ff`, with backend `4984d08` and frontend `26d5fb4`. Fresh 0.3.1 standard/shadow packages were built offline inside the disposable Debian guest. Qualification fixture corrections do not change these binaries. The fixtures now wait for authenticated executor readiness after policy reload and automatic recovery, use the core service's actual socket group, query the real durable jobs lock index and reset the rate counter only during rapid manual setup reloads. Automatic recovery retains the package's systemd limits. [Failed-run diagnostics](lifecycle-vm-failure.txt) are retained separately from the earlier restart milestone.
+
+The [final VM result](lifecycle-vm-result.json) records 39 passing acceptance groups. All eighteen combinations of restart/start/stop, core/executor interruption and the three dispatch barriers passed without an unjustified second effect. Prepared or ambiguous outcomes retain their protected receipt and durable resource lock. Real multiplexed and TTY logs pass credential/control filtering, viewer/task scope checks, independent ceiling rejection and output clipping. Start and stop each fail closed when their own ceiling is disabled despite restart being enabled. Shadow independently refuses start-enabled and stop-enabled policies.
+
+After those scenarios and shadow removal, the three application services used 9,786 KiB (9.56 MiB) combined PSS: core 5,510 KiB, container executor 2,997 KiB and host executor 1,279 KiB. All had zero swap. Twenty cached authenticated overview requests measured 0.516 ms median and 0.768 ms p95. These meet the local 30 MiB/20 ms guardrails. The Docker daemon, test proxy, browser and build tools are excluded; the assistant is not configured. These are AMD64 VM measurements, not a reference-Pi qualification or a comparison with Python.
+
+[Lifecycle metadata](lifecycle-validation.json) binds the tested binaries and both package hashes to 111 matching runtime/build-source files in the [source manifest](lifecycle-source-sha256.json). Qualification fixture hashes and commit `9e65b7e` are recorded separately from the frozen application payload. Artifacts remain under `dist/p03-lifecycle-debian`; rerun them without compiling with `uv run tests/privileged_vm/run.py --repository dist/p03-lifecycle-debian/limeos-repo --previous-repository dist/p03-debian/limeos-repo --guest-script tests/privileged_vm/p03_lifecycle_guest.py --output docs/rewrite-evidence/p03/lifecycle-vm-result.json` while the test repository signatures remain valid. The evidence recorder verifies the source bundle, actual package binaries, complete interruption count and footprint budgets. CI includes the lifecycle gates, but the GitHub workflow has not been run here.
+
+This continuation used approximately two hours of elapsed agent work, including isolated builds and fixture reruns. This is not a human implementer-day measurement; the 96-hour phase estimate and 144-hour scope-review threshold remain unchanged. Wybie and the frozen Python checkout were not changed. The Compose foundation, representative configuration, ARM64 combined-package and reference-hardware gates remain open, as do all fifty defect-register requirements.
