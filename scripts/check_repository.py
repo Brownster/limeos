@@ -22,6 +22,7 @@ ALLOWED = {
     "observations": {"contracts", "domain", "executor-protocol"},
     "executor-container": {"domain", "identity"},
     "executor-storage": {"domain", "identity"},
+    "backup-archive": {"domain"},
 }
 for crate, allowed in ALLOWED.items():
     config = tomllib.loads((ROOT / "crates" / crate / "Cargo.toml").read_text())
