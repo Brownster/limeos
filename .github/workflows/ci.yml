@@ -32,7 +32,7 @@ jobs:
       - run: cargo test --workspace --locked
       - run: cargo deny check
       - run: cargo audit
-      - run: shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh
+      - run: shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh tests/fixtures/backup-archives/generate.sh
       - name: Unit validation
         run: |
           sudo install -d /usr/lib/limeos /var/lib/limeos/core
@@ -41,6 +41,8 @@ jobs:
           systemd-analyze verify packaging/systemd/*.service
       - run: python3 scripts/check_repository.py
       - run: python3 scripts/check_contracts.py
+      - name: ARM64 qualification evidence and host guards
+        run: python3 -m unittest discover -s tests/qualification/arm64 -p 'test_*.py'
       - run: npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high
         working-directory: frontend
       - name: Lifecycle, logs and keyboard-focus browser regression
