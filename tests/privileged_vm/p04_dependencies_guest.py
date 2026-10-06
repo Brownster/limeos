@@ -110,7 +110,7 @@ def storage_grant(principal, enabled, database=fixture.CORE_DB):
             )
 
 
-def main(package_version="0.4.5"):
+def main(package_version="0.4.6"):
     if os.getuid() != 0 or socket.gethostname() != "limeos-p01-test":
         raise SystemExit("Disposable guest required")
     lifecycle.main(
