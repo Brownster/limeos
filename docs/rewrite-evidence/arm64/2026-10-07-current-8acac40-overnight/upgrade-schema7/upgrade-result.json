@@ -1,0 +1,59 @@
+{
+  "suite": "upgrade",
+  "identity": {
+    "architecture": "arm64",
+    "authority_schema": 8,
+    "fixtures_commit": "d46d7eeb992be420adc7a3a45fa13cee0a85de27",
+    "package_version": "0.4.7+arm64.1",
+    "qualification_kind": "native-kvm",
+    "source_commit": "8acac403e32d3692b028a036a11f4fead2050580"
+  },
+  "build_result_sha256": "8b6fe1dd64e3e4fedc454cc5a3ddbc630d5218bf5de187d285f56e774f31c50a",
+  "previous": {
+    "architecture": "arm64",
+    "artifact_bytes": 2561158,
+    "artifact_path_observed": "dist/ci-37386421570-arm64/limeos_0.4.3_arm64.deb",
+    "authority_schema": 7,
+    "binary_sha256": {
+      "limeos-core": "c41cb4ed34deac5b35b3d7c24afb95e0fd9832fdbcf94bcdc91c624d79793dc1",
+      "limeos-executor": "cf241c844cdfb131df79c68e828575a8959e37d754c29ffccb016fdd6c67ba85",
+      "limeos-password-worker": "c67d0d6e20769554e2938a30e4694561e0e2015abbb89626366f1a0aa6e70481",
+      "limeosctl": "47c8b586303303eda77e23d04e9eda97ac94cd7bc769250de31778a957e871bb"
+    },
+    "build_ci_url": "https://github.com/Brownster/limeos/actions/runs/37386421570",
+    "build_result_evidence": "docs/rewrite-evidence/p04/native-ci-open-flags.json",
+    "build_result_sha256": "774958f21682a9d137ea990d95a949dff15abfc28cadd4778cdd0008947d7f53",
+    "core_sha256": "c41cb4ed34deac5b35b3d7c24afb95e0fd9832fdbcf94bcdc91c624d79793dc1",
+    "package_control": "Package: limeos\nVersion: 0.4.3\nArchitecture: arm64\n",
+    "package_sha256": "31e8eb3bc92afb713ae7669a16661e9073a6834453265dea4548c4813f4b001b",
+    "package_version": "0.4.3",
+    "qualification_status": "original recorded native schema-7 artifact verified locally; schema-7-to-8 upgrade untested; no ARM64 binary executed",
+    "source_commit": "f39396b4dcff61240f0e7a4b4328d4747108217e"
+  },
+  "previous_provenance_sha256": "93c25d5fe0ce4b42ddaf354dd789f53b66adac633343f91188a0cb8c79b7c25e",
+  "started": 1791326992.3507895,
+  "summary": "pass",
+  "upgrade": {
+    "from": "0.4.3",
+    "to": "0.4.7+arm64.1",
+    "previous_package_sha256": "31e8eb3bc92afb713ae7669a16661e9073a6834453265dea4548c4813f4b001b",
+    "previous_core_sha256": "c41cb4ed34deac5b35b3d7c24afb95e0fd9832fdbcf94bcdc91c624d79793dc1",
+    "current_core_sha256": "aab46a601a95924c8900a93749cd8cf5cc735cc2328783196732c363f258cde0",
+    "preserved": [
+      "human session",
+      "approved canonical bytes and token hash",
+      "verified receipt",
+      "four active complete claim sets",
+      "queued state"
+    ],
+    "post_upgrade_approved_restart": "verified",
+    "original_queue_response_replay": "same job"
+  },
+  "installed_sha256": {
+    "limeos-core": "aab46a601a95924c8900a93749cd8cf5cc735cc2328783196732c363f258cde0",
+    "limeos-password-worker": "17610bb6d2fb4964ecacbcac1adc3e1ee3733bcdb8b87899ad38fadcf337f243",
+    "limeos-executor": "171bfb1e34101c00738955ddaa5c99823e4e42b033f34c8e44045b7e507940b2",
+    "limeosctl": "a0ebf9524d8c329693a0eadd1211bba5884cf2baf3f86569c1f26578752f6cc1"
+  },
+  "finished": 1791327087.3906808
+}
