@@ -21,6 +21,8 @@ use std::{
 };
 use tar::{Archive, Header, PaxExtensions};
 
+pub mod staging;
+
 const GZIP_MAGIC: [u8; 3] = [0x1f, 0x8b, 0x08];
 const ZSTD_MAGIC: [u8; 4] = [0x28, 0xb5, 0x2f, 0xfd];
 const BLOCK: u64 = 512;
