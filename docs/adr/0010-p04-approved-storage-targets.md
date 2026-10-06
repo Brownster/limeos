@@ -1,0 +1,17 @@
+# ADR 0010: Approved empty storage target jobs
+
+Status: accepted for RW-040 implementation, 2026-10-06. Installed qualification is recorded separately; P04 remains open.
+
+The core's guided storage previews and their version-1 approval tokens cannot execute. Introduce a separate version-2 `storage.prepare_targets` proposal, approval and job. It prepares missing final mount directories only. Mounts, formatting, fstab writes, media directories and ownership changes to existing data require later operations and fresh approvals.
+
+An administrator with the current storage grant proposes a contract. A dedicated root service supplies fresh raw filesystem identity, boot/swap exclusions, host mount/fstab evidence and protected empty target/parent identities. Its independent root-owned policy lists exact permitted UUID/path pairs. The core binds that evidence, principal, grant revision, random action and five-minute expiry into a durable proposal. Approval and queue admission inspect again. Plain random approval tokens are hashed in authority; consumed approvals and idempotency keys cannot authorize different work. Existing preview tokens have no executable meaning.
+
+Authority schema 8 adds target proposals and bound receipt/verification records without changing old canonical bytes. Queue admission derives configuration, UUID and literal mountpoint requirements inside the transaction. Dispatch claims the complete set atomically before IPC and rechecks current authority and evidence. Startup refuses missing operation dependencies or detached approvals before recovery writes. The operation uses the existing protected root target journal and its independent barriers; neither journal steals or expires uncertain claims.
+
+The dormant standard-only target service authenticates the core's kernel UID before parsing. Its closed requests inspect targets, prepare targets and read a bound receipt. It runs in the host mount namespace with only `CAP_CHOWN`, needed to normalize a newly created directory's group. It has no mount capability, shell command, arbitrary effect path or automatic reconciliation request. The shadow package contains no target service, and shadow/relocated binaries refuse target effects and reconciliation.
+
+The root executor records Prepared before mkdir and checks raw identity and held parent descriptors again. Newly created inode identities must match the final inspection. A verified root receipt plus an independent fresh target inspection are necessary for core success. Core proof, audit event, terminal state and release commit together; a failed audit write releases nothing.
+
+Recovery reads receipts only. Timeouts, partial preparation, missing receipts and death retain core claims. Explicit root reconciliation can resolve an existing receipt, or a protected original plan when death preceded IPC delivery. Absence alone never proves no effect: unchanged complete target/device evidence must be established independently, recorded durably and inspected again. Reconciliation never repeats mkdir, deletes uncertain paths or creates a mount. A changed or occupied path remains held for operator review.
+
+This is directory preparation, not a claim that shared live container/share/pool dependencies or mount/fstab execution are complete. Those remain the next RW-040 prerequisites, together with unmount/runtime loss and guided screens. Native evidence for the earlier corrected 0.4.2 payload does not qualify this new payload.
