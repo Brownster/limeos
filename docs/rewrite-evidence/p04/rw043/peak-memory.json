@@ -1,0 +1,7 @@
+[
+  {"archive": "legacy-valid.tar.zst", "compressed_bytes": 786, "exit": 0, "vmhwm_kib": 2772, "seconds": 0.005},
+  {"archive": "legacy-valid.tar.gz", "compressed_bytes": 834, "exit": 0, "vmhwm_kib": 2592, "seconds": 0.004},
+  {"archive": "zeros-64m-full.tar.zst", "compressed_bytes": 2205, "exit": 0, "vmhwm_kib": 5088, "seconds": 0.752},
+  {"archive": "random-64m.tar.zst", "compressed_bytes": 67110937, "exit": 0, "vmhwm_kib": 4936, "seconds": 1.621},
+  {"archive": "random-64m.tar.gz", "compressed_bytes": 67119335, "exit": 0, "vmhwm_kib": 2592, "seconds": 1.345}
+]
