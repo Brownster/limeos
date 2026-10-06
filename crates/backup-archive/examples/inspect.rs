@@ -41,11 +41,17 @@ fn main() -> ExitCode {
     }
     match result {
         Ok(manifest) => {
-            println!("{}", serde_json::to_string_pretty(&manifest).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&manifest).unwrap_or_default()
+            );
             ExitCode::SUCCESS
         }
         Err(rejection) => {
-            println!("{}", serde_json::to_string_pretty(&rejection).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&rejection).unwrap_or_default()
+            );
             ExitCode::from(1)
         }
     }
