@@ -1,0 +1,219 @@
+{
+  "architectures": {
+    "amd64": {
+      "completed_at": "2026-10-06T21:59:49Z",
+      "conclusion": "success",
+      "harness_tests": 9,
+      "job_id": 112518177086,
+      "log": "ci-amd64.log.gz",
+      "raw_bytes": 249469,
+      "raw_sha256": "0019748c6f318a2b37b0bb01c88f257e87f1c4a30cfc00d1135587d77e934bd1",
+      "rust_tests": 250,
+      "started_at": "2026-10-06T21:47:38Z",
+      "status": "completed",
+      "steps": [
+        {
+          "conclusion": "success",
+          "name": "Set up job"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"
+        },
+        {
+          "conclusion": "success",
+          "name": "Toolchain and native validation tools"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run cargo fmt --all -- --check"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run cargo clippy --workspace --all-targets --locked -- -D warnings"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run cargo test --workspace --locked"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run cargo deny check"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run cargo audit"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh tests/fixtures/backup-archives/generate.sh"
+        },
+        {
+          "conclusion": "success",
+          "name": "Unit validation"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run python3 scripts/check_repository.py"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run python3 scripts/check_contracts.py"
+        },
+        {
+          "conclusion": "success",
+          "name": "ARM64 qualification evidence and host guards"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high"
+        },
+        {
+          "conclusion": "success",
+          "name": "Lifecycle, logs and keyboard-focus browser regression"
+        },
+        {
+          "conclusion": "success",
+          "name": "Deliberate release-gate rejection probes"
+        },
+        {
+          "conclusion": "success",
+          "name": "Debian 12 release builds on native architecture"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803"
+        },
+        {
+          "conclusion": "success",
+          "name": "Complete job"
+        }
+      ],
+      "stored_sha256": "ad0dd3487222b1989b63cf76b2f93a16d5a69761be07806a6ce97bd53bfcd8da"
+    },
+    "arm64": {
+      "completed_at": "2026-10-06T21:58:25Z",
+      "conclusion": "success",
+      "harness_tests": 9,
+      "job_id": 112518176864,
+      "log": "ci-arm64.log.gz",
+      "raw_bytes": 234864,
+      "raw_sha256": "db0b68a6d1473f4905018219b5fb9dbe625ecad795137460a07e0bc976ba53dc",
+      "rust_tests": 250,
+      "started_at": "2026-10-06T21:47:40Z",
+      "status": "completed",
+      "steps": [
+        {
+          "conclusion": "success",
+          "name": "Set up job"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"
+        },
+        {
+          "conclusion": "success",
+          "name": "Toolchain and native validation tools"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run cargo fmt --all -- --check"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run cargo clippy --workspace --all-targets --locked -- -D warnings"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run cargo test --workspace --locked"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run cargo deny check"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run cargo audit"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh tests/fixtures/backup-archives/generate.sh"
+        },
+        {
+          "conclusion": "success",
+          "name": "Unit validation"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run python3 scripts/check_repository.py"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run python3 scripts/check_contracts.py"
+        },
+        {
+          "conclusion": "success",
+          "name": "ARM64 qualification evidence and host guards"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high"
+        },
+        {
+          "conclusion": "skipped",
+          "name": "Lifecycle, logs and keyboard-focus browser regression"
+        },
+        {
+          "conclusion": "success",
+          "name": "Deliberate release-gate rejection probes"
+        },
+        {
+          "conclusion": "success",
+          "name": "Debian 12 release builds on native architecture"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803"
+        },
+        {
+          "conclusion": "success",
+          "name": "Complete job"
+        }
+      ],
+      "stored_sha256": "fe678d5469eccd56bdb2e1f45fe6b8911afb4c79c34570a328e1c7b18c76dc62"
+    }
+  },
+  "limitations": [
+    "Native CI runners are not the production Pi",
+    "The source descriptor library has no installed executor command or service activation",
+    "Installed AMD64 acceptance was still running at this observation; genuine upgrades and footprint are separate qualifications"
+  ],
+  "observed_at": "2026-10-06T22:17:04.121343+00:00",
+  "source_commit": "f90a51c6c83d941dc35c99fe436b29a771ee2b34",
+  "url": "https://github.com/Brownster/limeos/actions/runs/37536347575",
+  "workflow_id": 37536347575
+}
