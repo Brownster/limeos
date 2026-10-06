@@ -21,3 +21,5 @@ The next engineer deliveries are integrated: [RW-043 archive admission](docs/p04
 See [foundation recovery instructions](docs/p01-operations.md), [shadow installation instructions](docs/p02-operations.md), [approved container operation instructions](docs/p03-operations.md), [Compose preview instructions](docs/p03-compose-planning.md), the [foundation ADR](docs/adr/0001-p01-foundation.md), and the [ownership/dependency audit](docs/rewrite-evidence/p01/dependency-boundary-audit.md). Browser access requires a configured HTTPS proxy. Run mutations only on a disposable test host.
 
 The [active engineer assignments](docs/plans/2026-10-06-engineer-assignments.md) divide overnight native qualification and verified backup staging while the integrator continues RW-040.
+
+The next [RW-040 source-descriptor library](docs/p04-container-source-evidence.md) binds declared paths to retained kernel identities and refuses stale or unsupported evidence. Its 19 new regressions bring local workspace tests to 250. UUID/backing topology, running namespaces, shared dependencies and executable mount/unmount integration remain pending; this adds no route or storage effect.

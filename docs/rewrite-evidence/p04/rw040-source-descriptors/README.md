@@ -1,0 +1,17 @@
+# RW-040 retained source descriptor validation
+
+Tested source: `f90a51c6c83d941dc35c99fe436b29a771ee2b34`, 2026-10-06. This follows the integrated 231-test source `8acac40`; it does not replace the engineer's frozen overnight input. [Design](../../../adr/0011-p04-container-source-descriptors.md) and [interface](../../../p04-container-source-evidence.md).
+
+Local workstation validation passes **250 Rust tests**, including **19 new source tests** and 32 total storage-executor tests. Fmt, strict workspace/all-target Clippy, generated contracts, repository boundaries, offline cargo deny and cached cargo audit pass. The lockfile still has 227 dependencies; no dependency, protocol, API, database, frontend or service-ceiling change was made.
+
+Real unprivileged `/tmp` fixtures verify descriptors for regular files/directories, ordinary relative/absolute links and linked parents, case and spaces, named-volume declaration binding, magic/cyclic links, replaced/deleted/renamed/retargeted paths, link/target/work budgets, FIFO refusal, age/deadline expiry and report limits. Synthetic mount rows verify bind aliases and nested-mount candidates without mounting a host disk. Full raw mount digests detect parent, propagation and option changes that leave selected parsed facts unchanged. Unsupported source filesystems are refused before attribute/link-data reads.
+
+The retained failing transcript concerns the pre-commit `file/../other` development regression. Its final test is included in the frozen passing source. No frozen failing-build identity was recorded, so that transcript is diagnostic evidence, not an earlier qualified release. Direct cached link following also refused freshly created symlinks; the final resolver reads ordinary targets through retained link descriptors. Tests preserve kernel directory semantics and permit incidental link-atime updates while never opening regular file data.
+
+`checks.json` records commands, results, platform, limitations and both raw/compressed log hashes. Logs are losslessly gzip-compressed; `SHA256SUMS` binds the stored files. `source-manifest.json` binds tested Rust/manifests/fixtures to the exact source commit. The initial cargo deny sandbox failure is retained separately; it failed on the advisory database's read-only lock path, and the authorized rerun passed. Audit used the cached 1,290-advisory database, rather than claiming a local refresh.
+
+[Isolated CI](https://github.com/Brownster/limeos/actions/runs/37536347575) was started for this source. Its state is recorded separately in `ci-run.json`; local results do not establish native or installed qualification.
+
+This is an unused read-only library boundary. Successful UID-0 host-service collection, bounded worker/process admission, fresh Engine rechecks, UUID/topology binding, running-container namespaces, pool/protection/share propagation, shared claims and executable storage effects remain unqualified. DSK-001, RT-001 and every other pending P04 defect remain open. No Pi/SSH command, production mount, physical disk write or frozen-Python change was made by the integrator in this slice.
+
+Observed implementation and local checks span approximately 21:25–21:47 UTC, with later evidence/CI time recorded separately. Agent/build and tool-approval waits were not independently timed; this is not a measured human engineering estimate. P04 remains estimated at 320 hours with scope review at 480.

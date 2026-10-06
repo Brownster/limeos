@@ -1,0 +1,109 @@
+{
+  "commands": [
+    {
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache cargo fmt --all --check",
+      "exit_code": 0
+    },
+    {
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+      "exit_code": 0,
+      "log": "strict-clippy.log.gz"
+    },
+    {
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache cargo test --workspace --locked --offline",
+      "execution": "outside workspace sandbox for local Unix-socket fixtures",
+      "exit_code": 0,
+      "log": "workspace-tests.log.gz"
+    },
+    {
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache CARGO_NET_OFFLINE=true UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline scripts/check_contracts.py",
+      "exit_code": 0,
+      "log": "contracts.log.gz"
+    },
+    {
+      "command": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline scripts/check_repository.py",
+      "exit_code": 0
+    },
+    {
+      "command": "cargo deny --offline check",
+      "execution": "authorized rerun allowing advisory database lock",
+      "exit_code": 0,
+      "log": "cargo-deny.log.gz"
+    },
+    {
+      "command": "cargo audit --no-fetch",
+      "execution": "cached 1290-advisory database; 227 dependencies; no local refresh",
+      "exit_code": 0,
+      "log": "cargo-audit.log.gz"
+    }
+  ],
+  "date": "2026-10-06",
+  "diagnostics": {
+    "before_fix_transcript_has_frozen_source_identity": false,
+    "sandbox_deny_failure_exit_code": 1
+  },
+  "limitations": [
+    "Public successful root-service collection is not installed-qualified",
+    "The cooperative work budget is not an interruptible syscall or process deadline",
+    "Link reads may update link atime; regular file data remains unopened",
+    "No UUID/backing topology, actual running namespaces or complete shared-dependency proof",
+    "No storage effect, route, RPC, schema or service-policy addition",
+    "No native or Pi footprint claim from local workstation tests",
+    "No Pi/SSH command or frozen-Python change by the integrating agent"
+  ],
+  "logs": {
+    "cargo-audit": {
+      "file": "cargo-audit.log.gz",
+      "raw_bytes": 144,
+      "raw_sha256": "5ab8a6f15ea0c9a169c08077d4e8ffa23218a435690b7d7c3df000b5ef4e11c9",
+      "stored_sha256": "7c7c21997df1426228b326860914dc898fb7c3ec64bfc836b49c1a863eb83143"
+    },
+    "cargo-deny": {
+      "file": "cargo-deny.log.gz",
+      "raw_bytes": 17590,
+      "raw_sha256": "f88e07b47dd50059e3748331edb5fc41512e65401bed9045ee84ced71a7d91cf",
+      "stored_sha256": "b5c5b6769ad208e54259a184620d3c10ed2ac6df3f850698d6837cdb10e1bf8d"
+    },
+    "cargo-deny-sandbox-failure": {
+      "file": "cargo-deny-sandbox-failure.log.gz",
+      "raw_bytes": 195,
+      "raw_sha256": "ef246d26a9681ada6c61a5e9d027ebbd0f3c96b106f76fee83b46c705d032875",
+      "stored_sha256": "306bac88de5e78dfb915af85f1f1d593b8bf2f8e420deee7c4b9f9ffd0d3d031"
+    },
+    "contracts": {
+      "file": "contracts.log.gz",
+      "raw_bytes": 200,
+      "raw_sha256": "0c538d3eba2fea534784dbf09cdd460f1b6f34f7a2cc8449c78d89a878e1fbca",
+      "stored_sha256": "e7b55cc7f27a5b14a030f4be76df7f44ea8c879f9f5947c9ce3ec3ab1d89fe40"
+    },
+    "directory-regression-before-fix": {
+      "file": "directory-regression-before-fix.log.gz",
+      "raw_bytes": 815,
+      "raw_sha256": "ec4072a6c4bde7defa1ed74c00796b12ecde588ef93d549543883a33856104db",
+      "stored_sha256": "2b62e099553094021eaf3f1454a251d5693940d11a415e334015ffdd3a5c2583"
+    },
+    "strict-clippy": {
+      "file": "strict-clippy.log.gz",
+      "raw_bytes": 266,
+      "raw_sha256": "37cee1ed9e13b49d891ab043910c82973cdbed6eb4d06d8b77d631a66147b0d6",
+      "stored_sha256": "c0cb3575f55db03e72fd96de97b5a51636a99fe175c631df1b98c82cdc9bb16d"
+    },
+    "workspace-tests": {
+      "file": "workspace-tests.log.gz",
+      "raw_bytes": 28632,
+      "raw_sha256": "a21aa1724d8a2bb22648ecf726a1620a268305f80bb1d65ce4000d8d2e56425d",
+      "stored_sha256": "d45cf19c424af45aaefb7512f6e2f21884afc608fc5ef27bae5b66ba07a83517"
+    }
+  },
+  "platform": {
+    "architecture": "x86_64",
+    "kernel": "7.0.14-101.fc43.x86_64",
+    "scope": "local workstation; unprivileged temporary descriptor fixtures"
+  },
+  "source_commit": "f90a51c6c83d941dc35c99fe436b29a771ee2b34",
+  "tests": {
+    "new_source_regressions": 19,
+    "storage_executor": 32,
+    "workspace": 250
+  }
+}

@@ -26,4 +26,6 @@ The pure `declared_container_storage_dependencies` helper compares contract moun
 
 These declarations do not establish complete physical dependency coverage. Symlinks, bind aliases, replaced source paths, named-volume backing mounts, nested filesystems and actual running-container mount namespaces still require protected kernel evidence. Pool branches, protection paths and shares require separate collection and propagation. A successful read or digest authorizes no mount, unmount or fstab effect. Those operations remain gated until complete fresh evidence, derived shared claims, approval and effect-time verification are qualified.
 
+The next [source-descriptor library slice](p04-container-source-evidence.md) collects retained inode/device/mount facts and conservative nested-mount candidates with local adversarial proof. It is not connected to this endpoint or executable storage operations; complete physical coverage remains a later integration gate.
+
 [Installed acceptance](rewrite-evidence/p04/rw040-dependencies/2026-10-06-acceptance.md) binds the frozen source and exact AMD64 packages. Native ARM64 CI builds and installed AMD64 VM results are separate from installed ARM64/Pi qualification and comparable Python footprint measurements. The Python checkout and production Pi remain unchanged.
