@@ -1,0 +1,75 @@
+{
+  "recorded_at": "2026-10-06T19:56:15.459479+00:00",
+  "source_commit": "63bcd78abfd1a0dd413183d3d2899d0aab4afa2c",
+  "fixture_commit": "63bcd78abfd1a0dd413183d3d2899d0aab4afa2c",
+  "bundle": {
+    "path": "/tmp/limeos-p04-dependencies-fixed-build.tar.gz",
+    "sha256": "752e51106d479e376c6da835129f1c5a2e397f1e55e2719cf87f984a12990701",
+    "bytes": 408207990
+  },
+  "package_version": "0.4.6",
+  "architecture": "amd64",
+  "schemas": {
+    "authority": 8,
+    "container_receipts": 3
+  },
+  "packages": {
+    "standard": {
+      "path": "dist/p04-dependencies-fixed-debian/packages/limeos_0.4.6_amd64.deb",
+      "sha256": "2976035d774bed0c10b2adf70f9de97b5f9d8d84866b49e84c9c485938b73e65"
+    },
+    "shadow": {
+      "path": "dist/p04-dependencies-fixed-debian/packages/limeos-shadow_0.4.6_amd64.deb",
+      "sha256": "3939cd11adf6537ccfe33a7401c3e71bc2eee3801980bba2c5f02f43abffde0f"
+    }
+  },
+  "binary_sha256": {
+    "limeos-core": "ab4504b7b0081b2f0a7a63fc8e7d0252b6db923778b6263eae9fe162c02b9e86",
+    "limeos-executor": "e9fcb4835be85d97e5fb5077b42a908b42894e4177a22d28c75a5a678ef48796",
+    "limeosctl": "77bb8b18b1c164392df9f180dcd301636f3707d98f6f6db2c01ae614daa6cf1d",
+    "limeos-password-worker": "285be6eb1680354e97a8ec03daf75dbf78ca87e1bd1aee6e76e62210663d95c3"
+  },
+  "source_files": 225,
+  "source_sha256_manifest": "source-sha256.json",
+  "browser_asset_sha256": {
+    "frontend/dist/assets/index-C3RxCNyi.css": "64c20446c003aed19c6bed2fede7316b50f9e1d9ac8e17633b1fff8cd5e37df8",
+    "frontend/dist/assets/index-D-RFxl0f.js": "280e06ad09d13899981bbf34395b7ff28007885247bbec86b85913250aa6816b",
+    "frontend/dist/index.html": "bc2f63d645e52dddad3fa637739fcc0e22ae1e8c5c21eb6d38a64bbc3f8e9536"
+  },
+  "rust_tests": {
+    "passed": 199,
+    "failed": 0,
+    "transcript_sha256": "daca97747e830f3296795602c30d5931ad0dbe4532bcee0dfdc1496137732ad7"
+  },
+  "installed": {
+    "groups": 49,
+    "dependency_groups": 11,
+    "result_sha256": "a44ba457df9922aa2fa7576a0c56ad7cda0a1cdb27fd663ceac1e5b86a286f23"
+  },
+  "footprint": {
+    "architecture": "amd64",
+    "app_pss_kib": {
+      "limeos-core": 7226,
+      "limeos-containerd": 3416,
+      "limeos-storaged": 1506
+    },
+    "combined_pss_kib": 12148,
+    "overview_p95_ms": 0.762,
+    "overview_median_ms": 0.587,
+    "workload": "after restart/start/stop, log and interruption qualification, 20 cached overview requests",
+    "exclusions": [
+      "Docker daemon",
+      "test proxy",
+      "browser",
+      "Rust build tools"
+    ],
+    "swap_kib": 0
+  },
+  "limits": [
+    "Fresh AMD64 disposable guest and synthetic data; no genuine historical upgrade in this run",
+    "Docker declarations do not establish physical alias, pool, protection or share completeness; mount/fstab effects remain gated",
+    "Native ARM64 and comparable Pi/Python measurements remain separate",
+    "No mount/fstab effect or complete physical/non-container consumer proof is claimed",
+    "Historical package upgrades are independently qualified; this run installs the fresh payload"
+  ]
+}

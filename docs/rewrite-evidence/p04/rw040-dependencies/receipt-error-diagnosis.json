@@ -1,0 +1,45 @@
+{
+  "failed_source": "b3465050c1c87bd5b0a1f73d9e2c81383d63e8cd",
+  "failed_bundle": {
+    "path": "/tmp/limeos-p04-dependencies-build.tar.gz",
+    "sha256": "8888fcbc5822c4a286e714196aa797c6bd30e64e58b30ddb3075ede4057d48c7",
+    "bytes": 408209103
+  },
+  "failed_package_version": "0.4.5",
+  "failed_package_sha256": {
+    "limeos-shadow_0.4.5_amd64.deb": "0df02fdaf38b82f921a7e0561f8e3c1aa4cb1e0c5363af20f13f281d780a8509",
+    "limeos_0.4.5_amd64.deb": "eed020ef67446a60426efc171e230433322a5b0f3d813a28ad536164fd746598"
+  },
+  "installed_failure": {
+    "case": "change_list",
+    "expected_http_status": 409,
+    "actual_http_status": 503,
+    "actual_error_code": "unavailable",
+    "diagnostics": "b346-dependencies-vm-failure.txt",
+    "console": "b346-dependencies-vm-startup-console.txt"
+  },
+  "root_cause": "Executor correctly emits ready=false with error=Conflict, but the core combined readiness/version check returned Unavailable before reading that error",
+  "regression": {
+    "test": "failed_container_dependency_receipts_preserve_errors_after_version_validation",
+    "before_fix": "FAILED: left Unavailable, right Conflict",
+    "after_fix": "passed within the 199-test workspace suite; incompatible versions and unspecified failures remain unavailable"
+  },
+  "fix_commit": "2bd092dd19b71319794269d3350cba5eaf45a6ec",
+  "fixed_source": "63bcd78abfd1a0dd413183d3d2899d0aab4afa2c",
+  "fixed_package_version": "0.4.6",
+  "failed_ci": {
+    "run": 37515353852,
+    "url": "https://github.com/Brownster/limeos/actions/runs/37515353852",
+    "native_jobs": "passed",
+    "installed_guest_job": "failed",
+    "failed_log_sha256": "d87a514491288b9335af80be754a4912516367a730187c7c45a8016709a00911",
+    "error_excerpt": "b346-ci-failure-excerpt.txt",
+    "version_label": "0.4.4; same failed b346 source, not the separately numbered local 0.4.5 packages"
+  },
+  "fixed_ci": {
+    "run": 37517732734,
+    "url": "https://github.com/Brownster/limeos/actions/runs/37517732734",
+    "conclusion": "success"
+  },
+  "scope": "This is a newly detected rewrite response-handling defect; no frozen-build defect-register row closes"
+}

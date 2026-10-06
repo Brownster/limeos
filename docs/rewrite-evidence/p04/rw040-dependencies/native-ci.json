@@ -1,0 +1,66 @@
+{
+  "run": 37517732734,
+  "url": "https://github.com/Brownster/limeos/actions/runs/37517732734",
+  "source_commit": "63bcd78abfd1a0dd413183d3d2899d0aab4afa2c",
+  "conclusion": "success",
+  "native_workspace_tests": {
+    "check (ubuntu-24.04-arm)": 199,
+    "check (ubuntu-24.04)": 199
+  },
+  "jobs": [
+    {
+      "name": "check (ubuntu-24.04-arm)",
+      "conclusion": "success",
+      "startedAt": "2026-10-06T19:16:39Z",
+      "completedAt": "2026-10-06T19:25:40Z"
+    },
+    {
+      "name": "check (ubuntu-24.04)",
+      "conclusion": "success",
+      "startedAt": "2026-10-06T19:16:39Z",
+      "completedAt": "2026-10-06T19:28:22Z"
+    },
+    {
+      "name": "debian-vm",
+      "conclusion": "success",
+      "startedAt": "2026-10-06T19:28:26Z",
+      "completedAt": "2026-10-06T19:44:01Z"
+    }
+  ],
+  "log_sha256": "28ff5ceda0428fc2f7afda80c103dde8ef7d926e9b64985a205e6c768925bd75",
+  "vm_results": [
+    "p01/ci-vm-result.json",
+    "p02/ci-vm-result.json",
+    "p03/ci-reference-vm-result.json",
+    "p04/ci-approved-vm-result.json",
+    "p04/ci-dependencies-vm-result.json"
+  ],
+  "vm_scope": "Five fresh AMD64 guests: foundation/revision lifecycle, observations, representative layouts, approved storage/teardown and fresh container dependencies with lifecycle/interruption regressions",
+  "limits": [
+    "CI version labels 0.4.4 and 0.4.4+ci.1 use current source and prove no genuine historical upgrade",
+    "Native ARM64 source and package gates pass; installed ARM64/Pi and comparable Python measurements remain separate",
+    "Docker declarations alone do not prove complete physical, pool, protection or share dependency coverage; mount/fstab effects remain gated"
+  ],
+  "retained_ci_results": {
+    "p01/ci-vm-result.json": {
+      "sha256": "69313d4c4cbe774929da9b57f5e78941d3dfd0cf5ff301462d36fc9bcbc69933",
+      "groups": 14
+    },
+    "p02/ci-vm-result.json": {
+      "sha256": "31bd87a0d75447769be6ffe28d571fe5cfcd89206f2bb552ea50c46464175776",
+      "groups": 6
+    },
+    "p03/ci-reference-vm-result.json": {
+      "sha256": "6f0a0ffab1ee2c119882c17334a2cb2e5eddeca193fb24694afe425dcb927c76",
+      "groups": 61
+    },
+    "p04/ci-approved-vm-result.json": {
+      "sha256": "72c96ad82bdd96ca023cf65ae166df626253fa010a402c91b66a5f442c9ce4fc",
+      "groups": 50
+    },
+    "p04/ci-dependencies-vm-result.json": {
+      "sha256": "27b7477ea7936cc286b8b91957fa92d7bfd7f886442bd2f07dede594599f418e",
+      "groups": 49
+    }
+  }
+}
