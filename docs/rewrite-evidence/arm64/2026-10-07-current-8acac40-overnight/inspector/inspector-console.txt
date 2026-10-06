@@ -1,0 +1,39 @@
+{
+ "legacy-valid.tar.zst": {
+  "max_vmhwm_kib": 2084,
+  "exits": [
+   0
+  ]
+ },
+ "legacy-valid.tar.gz": {
+  "max_vmhwm_kib": 912,
+  "exits": [
+   0
+  ]
+ },
+ "zeros-64m.tar.zst": {
+  "max_vmhwm_kib": 4172,
+  "exits": [
+   0
+  ]
+ },
+ "zeros-64m-full.tar.zst": {
+  "max_vmhwm_kib": 4176,
+  "exits": [
+   0
+  ]
+ },
+ "random-64m.tar.zst": {
+  "max_vmhwm_kib": 4372,
+  "exits": [
+   0
+  ]
+ },
+ "random-64m.tar.gz": {
+  "max_vmhwm_kib": 2064,
+  "exits": [
+   0
+  ]
+ }
+}
+exit 0
