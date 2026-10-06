@@ -5,16 +5,15 @@ Runs inside the disposable storage guest after the P04 suite has configured
 storage policy:  extra_guest.py OUTPUT_JSON
 """
 
+import argparse
 import json
-import os
-import platform
-import socket
+import pwd
 import subprocess
-import sys
 import time
 from pathlib import Path
 
-OUTPUT = Path(sys.argv[1])
+from qualification import guest_guard, installed_binaries, load_build, sha
+
 LIMEOS = Path("/usr/lib/limeos")
 
 
@@ -47,6 +46,8 @@ def timed(command, count):
         "p50": values[len(values) // 2],
         "p95": values[min(count - 1, round(0.95 * (count - 1)))],
         "max": values[-1],
+        "samples_ms": values,
+        "successful": codes == {0},
     }
 
 
@@ -63,59 +64,103 @@ def smaps(pid):
 
 
 def main():
-    if (
-        os.getuid() != 0
-        or socket.gethostname() != "limeos-p01-test"
-        or platform.machine() != "aarch64"
-    ):
-        raise SystemExit("Disposable native aarch64 guest required")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--expected", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    guest_guard()
+    if args.output.exists():
+        parser.error("output exists; select a new result file")
+    expected = load_build(args.expected)
     result = {
+        "kind": "extra",
+        "identity": expected["identity"],
+        "build_result_sha256": sha(args.expected),
+        "installed_sha256": installed_binaries(expected),
         "limeosctl_status": timed([str(LIMEOS / "limeosctl"), "status"], 20),
         "executor_storage_inventory": timed(
             [str(LIMEOS / "limeos-executor"), "storage-inventory"], 10
         ),
     }
-    run("systemctl", "reset-failed", "limeos-storage-reader", check=False)
-    started = time.monotonic()
-    start = run("systemctl", "start", "limeos-storage-reader", check=False)
-    reader = {
-        "start_exit": start.returncode,
-        "start_ms": round((time.monotonic() - started) * 1000, 2),
-    }
-    time.sleep(2)
-    pid = int(
-        run(
-            "systemctl", "show", "limeos-storage-reader", "-p", "MainPID", "--value"
-        ).stdout
+    policy = Path("/etc/limeos/system-policy/storage-targets.json")
+    original = policy.read_bytes() if policy.exists() else None
+    # A closed no-effect policy lets the optional service start without granting
+    # directory preparation authority. Restore the fixture's policy afterwards.
+    policy.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "core_uid": pwd.getpwnam("limeos-core").pw_uid,
+                "allow_prepare_targets": False,
+                "managed_targets": [],
+            }
+        )
     )
-    reader["active"] = run(
-        "systemctl", "is-active", "limeos-storage-reader", check=False
-    ).stdout.strip()
-    if pid:
-        reader["memory"] = smaps(pid)
-        status = Path(f"/proc/{pid}/status").read_text()
-        reader["uid_and_caps"] = [
-            l
-            for l in status.splitlines()
-            if l.split(":")[0] in ("Uid", "CapEff", "CapBnd", "NoNewPrivs")
-        ]
-    reader["properties"] = run(
-        "systemctl",
-        "show",
-        "limeos-storage-reader",
-        "-p",
-        "User",
-        "-p",
-        "CapabilityBoundingSet",
-        "-p",
-        "MemoryMax",
-        "-p",
-        "ExecStart",
-    ).stdout
-    run("systemctl", "stop", "limeos-storage-reader", check=False)
-    result["storage_reader"] = reader
-    OUTPUT.write_text(json.dumps(result, indent=2) + "\n")
-    print(json.dumps(result, indent=1))
+    result["optional_services"] = {}
+    try:
+        for unit in ("limeos-storage-reader", "limeos-storage-targets"):
+            run("systemctl", "reset-failed", unit, check=False)
+            began = time.monotonic()
+            start = run("systemctl", "start", unit, check=False)
+            observed = {
+                "start_exit": start.returncode,
+                "start_ms": round((time.monotonic() - began) * 1000, 2),
+            }
+            result["optional_services"][unit] = observed
+            time.sleep(2)
+            pid = int(run("systemctl", "show", unit, "-p", "MainPID", "--value").stdout)
+            observed["active"] = run(
+                "systemctl", "is-active", unit, check=False
+            ).stdout.strip()
+            observed["properties"] = run(
+                "systemctl",
+                "show",
+                unit,
+                "-p",
+                "User",
+                "-p",
+                "CapabilityBoundingSet",
+                "-p",
+                "MemoryMax",
+                "-p",
+                "ExecStart",
+            ).stdout
+            assert start.returncode == 0 and pid and observed["active"] == "active", (
+                observed
+            )
+            observed["memory"] = smaps(pid)
+            status = Path(f"/proc/{pid}/status").read_text()
+            observed["uid_and_caps"] = {
+                line.split(":")[0]: line.split(":", 1)[1].strip()
+                for line in status.splitlines()
+                if line.split(":")[0]
+                in ("Uid", "CapEff", "CapBnd", "CapAmb", "NoNewPrivs")
+            }
+            caps = observed["uid_and_caps"]
+            assert caps["Uid"].split()[0] == "0" and caps["NoNewPrivs"] == "1", caps
+            assert int(caps["CapBnd"], 16) == (1 if unit.endswith("targets") else 0), (
+                caps
+            )
+            assert int(caps["CapEff"], 16) == (1 if unit.endswith("targets") else 0), (
+                caps
+            )
+            run("systemctl", "stop", unit)
+        assert all(
+            result[k]["successful"]
+            for k in ("limeosctl_status", "executor_storage_inventory")
+        ), result
+        result["summary"] = "pass"
+    except Exception as error:
+        result.update(summary="fail", error=repr(error))
+        raise
+    finally:
+        for unit in ("limeos-storage-reader", "limeos-storage-targets"):
+            run("systemctl", "stop", unit, check=False)
+        if original is not None:
+            policy.write_bytes(original)
+        else:
+            policy.unlink()
+        args.output.write_text(json.dumps(result, indent=2) + "\n")
 
 
 if __name__ == "__main__":
