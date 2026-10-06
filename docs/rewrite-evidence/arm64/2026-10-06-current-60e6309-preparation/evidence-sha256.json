@@ -1,0 +1,19 @@
+{
+  "README.md": "0b0f0670e389bb0fa8eff54afa98855beef8469c6a7cff6456c261ef6c7cfbbe",
+  "frontend/0.txt": "8630da577153c356cd8ed435a8cebffb830d1e89447db783269b1c99d2292179",
+  "frontend/1.txt": "13eb4ea1243a12179e3147be8f801fa8fd4dbd27cdb5832daf2a88dc89af0dcf",
+  "frontend/2.txt": "e98104779af83dfad850ec2ad4464b8fd0564e080594bb9ff902bbb941f32d88",
+  "frontend/steps.json": "5187392b6beede0e6ddbf870df22ad6e7eb83463f7f65388338520e9bc770b1c",
+  "local-validation/0.stderr.txt": "a283666795eed7cd69bb4b54cb6ff3282cb2cf4e666591488a3df4a3d0b87a46",
+  "local-validation/0.stdout.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "local-validation/1.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "local-validation/1.stdout.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+  "local-validation/2.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "local-validation/2.stdout.txt": "75b7030be9d7de96bf4e76e79b1f03f14af8899d169fd8d79564d59167d1ab80",
+  "local-validation/3.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "local-validation/3.stdout.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "local-validation/steps.json": "89becfcd3df32add1a16f8e82c926b0dec5611316ad75b7cd34fcea03bf0f1db",
+  "preparation-status.json": "dfe216a74955e9249a0d7344be13521aced98e5912412402ecaf780f4ac7667d",
+  "previous-artifact.json": "ea6f5fcb78887273ae8c6f8fe511366df3a0628f46560efab20644bef282308c",
+  "source-manifest.json": "4dd0c1b709d712bf36f5b56e548056ff702182664723c30bd454b5c202eb19c8"
+}
