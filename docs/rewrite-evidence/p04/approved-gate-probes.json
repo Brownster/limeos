@@ -1,0 +1,163 @@
+{
+  "date_utc": "2026-10-06T08:54:50.240299+00:00",
+  "probes": [
+    {
+      "gate": "Rust formatting",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 1,
+      "seconds": 0.721,
+      "result": "rejected"
+    },
+    {
+      "gate": "Clippy warnings denied",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 101,
+      "seconds": 5.593,
+      "result": "rejected"
+    },
+    {
+      "gate": "First-party unsafe forbidden",
+      "command": [
+        "cargo",
+        "check",
+        "--locked",
+        "-p",
+        "limeos-domain"
+      ],
+      "exit_code": 101,
+      "seconds": 2.511,
+      "result": "rejected"
+    },
+    {
+      "gate": "Locked graph",
+      "command": [
+        "cargo",
+        "metadata",
+        "--locked",
+        "--offline",
+        "--format-version",
+        "1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.103,
+      "result": "rejected"
+    },
+    {
+      "gate": "Known advisory",
+      "command": [
+        "cargo",
+        "audit",
+        "--no-fetch",
+        "--no-yanked"
+      ],
+      "exit_code": 1,
+      "seconds": 0.105,
+      "result": "rejected"
+    },
+    {
+      "gate": "Dependency licenses",
+      "command": [
+        "cargo",
+        "deny",
+        "check",
+        "licenses"
+      ],
+      "exit_code": 4,
+      "seconds": 0.6,
+      "result": "rejected"
+    },
+    {
+      "gate": "ShellCheck",
+      "command": [
+        "shellcheck",
+        "packaging/debian/postinst"
+      ],
+      "exit_code": 1,
+      "seconds": 0.091,
+      "result": "rejected"
+    },
+    {
+      "gate": "systemd units",
+      "command": [
+        "systemd-analyze",
+        "verify",
+        "packaging/systemd/limeos-core.service"
+      ],
+      "exit_code": 1,
+      "seconds": 0.165,
+      "result": "rejected"
+    },
+    {
+      "gate": "Frontend type check",
+      "command": [
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "check"
+      ],
+      "exit_code": 2,
+      "seconds": 1.599,
+      "result": "rejected"
+    },
+    {
+      "gate": "Frontend asset build",
+      "command": [
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "build"
+      ],
+      "exit_code": 1,
+      "seconds": 1.963,
+      "result": "rejected"
+    },
+    {
+      "gate": "Dependency direction",
+      "command": [
+        "python3",
+        "scripts/check_repository.py"
+      ],
+      "exit_code": 1,
+      "seconds": 0.054,
+      "result": "rejected"
+    },
+    {
+      "gate": "Generated contract drift",
+      "command": [
+        "python3",
+        "scripts/check_contracts.py"
+      ],
+      "exit_code": 1,
+      "seconds": 6.783,
+      "result": "rejected"
+    },
+    {
+      "gate": "Tracked build outputs",
+      "command": [
+        "python3",
+        "scripts/check_repository.py"
+      ],
+      "exit_code": 1,
+      "seconds": 0.057,
+      "result": "rejected"
+    }
+  ],
+  "result": "pass"
+}

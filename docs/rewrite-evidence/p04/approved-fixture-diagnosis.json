@@ -1,0 +1,44 @@
+{
+  "frozen_initial_runtime": "371682828c33ec9dd2e4f7ca15211562ff355c80",
+  "initial_artifacts": "dist/p04-approved-debian",
+  "initial_runtime_acceptance": {
+    "rust_tests": 155,
+    "storage_groups": 50,
+    "container_groups": 38,
+    "qualified_package_teardown": false
+  },
+  "fixture_transfer_failure": {
+    "cause": "runner selected wrapper as guest.py and omitted imported helpers",
+    "diagnostics": "observed in initial build-run output; original guest failed at import before any acceptance operation",
+    "fix": "fb3ecd4",
+    "runtime_changed": false,
+    "observed_error": "ModuleNotFoundError: No module named p03_guest"
+  },
+  "teardown_fixture_first_failure": {
+    "cause": "capture helper does not accept text=False",
+    "diagnostics": "approved-initial-package-vm-failure.txt",
+    "correction": "subprocess.check_output for the binary control tar"
+  },
+  "confirmed_package_defects": {
+    "fixture": "9170b5df7b68dbf1f4d3885f70fa7107be2d1fcc",
+    "shadow_service_names_scoped": false,
+    "target_service_active_after_prerm": true,
+    "diagnostics": "approved-initial-teardown-vm-failure.txt",
+    "cause": "prerm omits storage-targets; shadow generator omits storage-ready and storage-targets service names",
+    "fix": "06e0e66",
+    "superseding_artifacts": "dist/p04-approved-final-debian"
+  },
+  "limits": [
+    "all reproduction and write testing confined to disposable guarded Debian guests",
+    "no P04 defect-register row closed"
+  ],
+  "service_restart_fixture_failure": {
+    "observed_status": 503,
+    "observed_code": "unavailable",
+    "retry": true,
+    "diagnostics": "approved-restart-fixture-vm-failure.txt",
+    "inference": "dependent fixture proposed immediately after systemctl start of a simple service, before socket readiness",
+    "correction": "af3d037 waits for the socket and final 0660 mode",
+    "runtime_changed": false
+  }
+}

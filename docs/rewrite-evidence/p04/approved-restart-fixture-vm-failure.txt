@@ -1,0 +1,123 @@
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=timeout
+NRestarts=0
+ExecMainStatus=15
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+Oct 06 10:06:15 limeos-p01-test limeos-core[9142]: {"timestamp":"2026-10-06T10:06:15.778430Z","level":"INFO","fields":{"message":"core ready","generation":1}}
+Oct 06 10:06:16 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 06 10:06:16 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 06 10:06:16 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 06 10:06:16 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 06 10:06:17 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 06 10:06:27 limeos-p01-test dockerd[2214]: time="2026-10-06T10:06:27.815414009Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=5f85e75151c3b14f861392cc04e47c057e028e156a97bdff4b2516886365273b
+Oct 06 10:06:27 limeos-p01-test dockerd[2214]: time="2026-10-06T10:06:27.841370504Z" level=info msg="ignoring event" container=5f85e75151c3b14f861392cc04e47c057e028e156a97bdff4b2516886365273b module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 06 10:06:28 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 06 10:06:28 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 06 10:06:28 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 06 10:06:30 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 06 10:06:30 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 06 10:06:30 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 06 10:06:30 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 06 10:06:30 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 06 10:06:30 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 06 10:06:31 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 06 10:06:31 limeos-p01-test limeos-core[9759]: {"timestamp":"2026-10-06T10:06:31.065179Z","level":"INFO","fields":{"message":"core ready","generation":2}}
+Oct 06 10:06:43 limeos-p01-test dockerd[2214]: time="2026-10-06T10:06:43.112322394Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=5f85e75151c3b14f861392cc04e47c057e028e156a97bdff4b2516886365273b
+Oct 06 10:06:43 limeos-p01-test dockerd[2214]: time="2026-10-06T10:06:43.222570928Z" level=info msg="ignoring event" container=5f85e75151c3b14f861392cc04e47c057e028e156a97bdff4b2516886365273b module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 06 10:06:43 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 06 10:06:43 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 06 10:06:43 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 06 10:06:43 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 06 10:06:43 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 06 10:06:43 limeos-p01-test dockerd[2214]: time="2026-10-06T10:06:43.831099661Z" level=info msg="ignoring event" container=5f85e75151c3b14f861392cc04e47c057e028e156a97bdff4b2516886365273b module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 06 10:06:47 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 06 10:06:47 limeos-p01-test limeos-executor[10208]: {"host_root_mount_id":27,"mounts":[{"device":{"major":254,"minor":17},"filesystem_uuid":"57643d51-da2c-4e7a-860b-09975b5890d7","id":"data","mount_id":371,"mountpoint":"/mnt/data"}]}
+Oct 06 10:06:47 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 06 10:06:47 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 06 10:06:47 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 06 10:06:47 limeos-p01-test limeos-executor[10241]: {"host_root_mount_id":27,"mounts":[{"device":{"major":254,"minor":17},"filesystem_uuid":"57643d51-da2c-4e7a-860b-09975b5890d7","id":"data","mount_id":371,"mountpoint":"/mnt/data"},{"device":{"major":254,"minor":33},"filesystem_uuid":"39939bcc-18e6-44e9-929a-a526bb188331","id":"downloads","mount_id":582,"mountpoint":"/mnt/downloads"}]}
+Oct 06 10:06:47 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 06 10:06:47 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 06 10:06:47 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 06 10:06:47 limeos-p01-test limeos-executor[10277]: {"host_root_mount_id":27,"mounts":[{"device":{"major":254,"minor":17},"filesystem_uuid":"57643d51-da2c-4e7a-860b-09975b5890d7","id":"data","mount_id":371,"mountpoint":"/mnt/data"},{"device":{"major":254,"minor":18},"filesystem_uuid":"0168dd5b-20dc-48fe-9e26-07e99ebfbd76","id":"data2","mount_id":557,"mountpoint":"/mnt/data2"},{"device":{"major":254,"minor":49},"filesystem_uuid":"903d527f-8a3a-4c1b-a091-2cd78a85b5f1","id":"parity","mount_id":605,"mountpoint":"/mnt/parity"},{"device":{"major":254,"minor":65},"filesystem_uuid":"d0bab3f1-bf54-477f-87b0-3ce0a3cf2a96","id":"backup","mount_id":622,"mountpoint":"/mnt/backup"}]}
+Oct 06 10:06:47 limeos-p01-test systemd[1]: limeos-storage-ready.service: Deactivated successfully.
+Oct 06 10:06:47 limeos-p01-test systemd[1]: Finished limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 06 10:06:47 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 06 10:06:50 limeos-p01-test limeos-executor[10404]: {"error":"timed_out","message":"The storage readiness deadline expired."}
+Oct 06 10:06:50 limeos-p01-test systemd[1]: limeos-storage-ready.service: Main process exited, code=exited, status=3/NOTIMPLEMENTED
+Oct 06 10:06:50 limeos-p01-test systemd[1]: limeos-storage-ready.service: Failed with result 'exit-code'.
+Oct 06 10:06:50 limeos-p01-test systemd[1]: Failed to start limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 06 10:06:51 limeos-p01-test systemd[1]: Starting limeos-storage-ready.service - LimeOS verified device mount readiness...
+Oct 06 10:06:55 limeos-p01-test systemd[1]: limeos-storage-ready.service: start operation timed out. Terminating.
+Oct 06 10:06:55 limeos-p01-test systemd[1]: limeos-storage-ready.service: Main process exited, code=killed, status=15/TERM
+Oct 06 10:06:55 limeos-p01-test systemd[1]: limeos-storage-ready.service: Failed with result 'timeout'.
+Oct 06 10:06:55 limeos-p01-test systemd[1]: Failed to start limeos-storage-ready.service - LimeOS verified device mount readiness.
+Oct 06 10:06:55 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 06 10:06:55 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 06 10:06:55 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 06 10:06:55 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 06 10:06:55 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 06 10:06:55 limeos-p01-test limeos-core[10881]: {"timestamp":"2026-10-06T10:06:55.905859Z","level":"INFO","fields":{"message":"core ready","generation":3}}
+Oct 06 10:06:58 limeos-p01-test systemd[1]: Starting limeos-storage-reader.service - LimeOS fresh storage inventory (read only)...
+Oct 06 10:06:58 limeos-p01-test systemd[1]: Started limeos-storage-reader.service - LimeOS fresh storage inventory (read only).
+Oct 06 10:06:58 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 06 10:06:58 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 06 10:06:58 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 06 10:06:58 limeos-p01-test systemd[1]: limeos-core.service: Consumed 1.248s CPU time.
+Oct 06 10:06:58 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 06 10:06:58 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 06 10:06:58 limeos-p01-test limeos-core[11044]: {"timestamp":"2026-10-06T10:06:58.907181Z","level":"INFO","fields":{"message":"core ready","generation":4}}
+Oct 06 10:07:01 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 06 10:07:01 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 06 10:07:01 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 06 10:07:01 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 06 10:07:01 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 06 10:07:01 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 06 10:07:01 limeos-p01-test systemd[1]: Stopping limeos-storage-reader.service - LimeOS fresh storage inventory (read only)...
+Oct 06 10:07:01 limeos-p01-test systemd[1]: limeos-storage-reader.service: Deactivated successfully.
+Oct 06 10:07:01 limeos-p01-test systemd[1]: Stopped limeos-storage-reader.service - LimeOS fresh storage inventory (read only).
+Oct 06 10:07:01 limeos-p01-test systemd[1]: limeos-storage-reader.service: Consumed 1.400s CPU time.
+Oct 06 10:07:01 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 06 10:07:01 limeos-p01-test systemd[1]: Starting limeos-storage-reader.service - LimeOS fresh storage inventory (read only)...
+Oct 06 10:07:01 limeos-p01-test systemd[1]: Started limeos-storage-reader.service - LimeOS fresh storage inventory (read only).
+Oct 06 10:07:01 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 06 10:07:01 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 06 10:07:01 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 06 10:07:01 limeos-p01-test limeos-core[11562]: {"timestamp":"2026-10-06T10:07:01.619362Z","level":"INFO","fields":{"message":"core ready","generation":5}}
+Oct 06 10:07:08 limeos-p01-test systemd[1]: limeos-core.service: Main process exited, code=killed, status=9/KILL
+Oct 06 10:07:08 limeos-p01-test systemd[1]: limeos-core.service: Failed with result 'signal'.
+Oct 06 10:07:10 limeos-p01-test systemd[1]: limeos-core.service: Scheduled restart job, restart counter is at 1.
+Oct 06 10:07:10 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 06 10:07:10 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 06 10:07:10 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 06 10:07:10 limeos-p01-test limeos-core[13343]: {"timestamp":"2026-10-06T10:07:10.257759Z","level":"INFO","fields":{"message":"core ready","generation":6}}
+Oct 06 10:07:10 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 06 10:07:10 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 06 10:07:10 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 06 10:07:10 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 06 10:07:10 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 06 10:07:10 limeos-p01-test limeos-core[13362]: {"timestamp":"2026-10-06T10:07:10.429492Z","level":"INFO","fields":{"message":"core ready","generation":7}}
+Oct 06 10:07:10 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...
+Oct 06 10:07:10 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.
+Oct 06 10:07:10 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 06 10:07:10 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 06 10:07:10 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 06 10:07:10 limeos-p01-test limeos-core[13374]: {"timestamp":"2026-10-06T10:07:10.637002Z","level":"INFO","fields":{"message":"core ready","generation":8}}

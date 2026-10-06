@@ -1,0 +1,123 @@
+{
+  "checked_at_utc": "2026-10-06T10:15:12.766534+00:00",
+  "qualified_source_commit": "9170b5df7b68dbf1f4d3885f70fa7107be2d1fcc",
+  "build": {
+    "host": "disposable Debian 12 KVM guest",
+    "architecture": "amd64",
+    "rust_toolchain": "1.88.0",
+    "cargo": "locked offline release",
+    "bundle_sha256": "9a378cb24f23c552dd32b24eea99b05fa9afab7c257768e344cdebf3eb417305",
+    "bundle_bytes": 258551176,
+    "source_manifest": "storage-approved-source-sha256.json",
+    "bound_source_files": 178,
+    "binary_sha256": {
+      "limeos-core": "701f79e68780b4d9b8401cce2a4495426c02fe0aa8826bd47c60ab96b5fca1f8",
+      "limeos-executor": "7e9bb913bac95324ec97d990cf5fe1cdc0478a26e188fb052d4ce1ea2c61f681",
+      "limeosctl": "77bb8b18b1c164392df9f180dcd301636f3707d98f6f6db2c01ae614daa6cf1d",
+      "limeos-password-worker": "4168f41212a6e121af5c3a5b8020fb6003a26b4ea8c69ef528e1526dc50c8246"
+    },
+    "package_sha256": {
+      "limeos-shadow_0.4.4_amd64.deb": "d06051641f71fe5836ed9075fa82da178487cc4885f5bee7c8baaabcd1a7ed5f",
+      "limeos_0.4.4_amd64.deb": "6697ab37355bc3453a3ec8d3f7163c0e1e2a987499577a77b18018da6a53e573"
+    },
+    "signing_key": "test-only private key discarded with the VM"
+  },
+  "rust_workspace_tests": {
+    "passed": 155,
+    "log": "rust-approved-tests.txt"
+  },
+  "storage_vm": {
+    "acceptance_groups": 51,
+    "result_file": "approved-vm-result.json",
+    "installed_profile": "standard",
+    "shadow_scope": "payload identity and dormant unit only"
+  },
+  "production_frontend_assets_identical_to_qualified_p03": true,
+  "fixture_sha256": {
+    "tests/privileged_vm/run.py": "35e41841828df937b646ce57c60e27b94687edc987c0b3cfcc1801b93be58d5e",
+    "tests/privileged_vm/p04_storage_guest.py": "2d8f6f07fa42d6a1a61e3711090fb0e9a122a30718f1c04dce8d3918dae3a9fa",
+    "tests/privileged_vm/record_storage_evidence.py": "1aab175d872bfc0490c9a9b0e67c58b3d82938b2e78b812119673b85a78163f4",
+    "tests/privileged_vm/p04_planning_guest.py": "fb507c8b2ad85fd382e5902b5a9c5aa1bc9d94170778958eff33585163bdced6",
+    "tests/privileged_vm/p04_locks_guest.py": "a6968f935180414ec8e74b46ddcc9f39277bc6b07c70e70004ee546596b04d89",
+    "tests/privileged_vm/p04_approved_container_guest.py": "b14026e98e37a1d0eb55ee567379a6fbd729ac2e4b738a900df2f540872e8ec4",
+    "tests/privileged_vm/p03_guest.py": "ef98c2ba8e0c1f87c1f6da5fc62a4c4ae88afe10bf5238886bcb36bb362d2c94",
+    "tests/privileged_vm/p03_lifecycle_guest.py": "47d03c239ac7d40fedea6ad04948c75fafa0e7e3181f6c8541928ef52de4c2c1",
+    "tests/privileged_vm/p04_targets_guest.py": "332bf5b6062b381b20ec24067735b96478b5b4ff30b5b94e7a46f340b6c430a5"
+  },
+  "checks": {
+    "strict_clippy": "pass",
+    "rust_format": "pass",
+    "generated_contracts": "pass",
+    "repository_boundaries": "pass",
+    "python_lint_and_format": "pass",
+    "offline_dependency_policy": "pass",
+    "cached_advisory_audit": "pass"
+  },
+  "advisory_database_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
+  "audited_lockfile_packages": 215,
+  "added_third_party_packages": 0,
+  "production_boundary_change": "Schema-8 approved empty target jobs and a dormant explicitly constrained root service; already-locked rustix supplies safe descriptor-relative policy reads",
+  "limitations": [
+    "P04 remains in progress; mount/fstab effects, fresh container/share/pool dependencies, unmount/runtime-loss handling and guided UI remain pending",
+    "No new native ARM64 or Pi qualification for this 0.4.4 payload; earlier native results remain separately bound",
+    "Btrfs multi-device and FUSE NTFS are refused pending complete backing mappings",
+    "No full Pi/Python footprint comparison or cutover signoff",
+    "No P04 defect-register row closes on this operation alone"
+  ],
+  "core_resource_locks": {
+    "authority_schema": 8,
+    "genuine_package_upgrade": {
+      "from": "0.4.3",
+      "to": "0.4.4",
+      "previous_package_sha256": "c5e49b2117a19d0983b5afb9a3ea756f479c2ab9dc67be7001758265737204b6",
+      "previous_core_sha256": "99c2c8a2a19919e093476e33fbaae9fc0d4da8559bfa8b5a2151135b23243c33",
+      "current_core_sha256": "701f79e68780b4d9b8401cce2a4495426c02fe0aa8826bd47c60ab96b5fca1f8",
+      "preserved": [
+        "human session",
+        "approved canonical bytes and token hash",
+        "verified receipt",
+        "four active complete claim sets",
+        "queued state"
+      ],
+      "post_upgrade_approved_restart": "verified",
+      "original_queue_response_replay": "same job"
+    },
+    "container_vm": {
+      "result_file": "approved-container-vm-result.json",
+      "acceptance_groups": 38,
+      "operations": [
+        "restart",
+        "start",
+        "stop",
+        "logs"
+      ],
+      "shadow_scope": "installed service ceiling and payload checks",
+      "upgrade": null,
+      "fixture_source_commit": "cfce672",
+      "fixture_sha256": {
+        "tests/privileged_vm/run.py": "35e41841828df937b646ce57c60e27b94687edc987c0b3cfcc1801b93be58d5e",
+        "tests/privileged_vm/p03_guest.py": "ef98c2ba8e0c1f87c1f6da5fc62a4c4ae88afe10bf5238886bcb36bb362d2c94",
+        "tests/privileged_vm/p03_lifecycle_guest.py": "47d03c239ac7d40fedea6ad04948c75fafa0e7e3181f6c8541928ef52de4c2c1",
+        "tests/privileged_vm/p04_approved_container_guest.py": "b14026e98e37a1d0eb55ee567379a6fbd729ac2e4b738a900df2f540872e8ec4"
+      }
+    },
+    "scope": "durable complete core claims, approved empty target effects and real approved container effects; root receipt journal remains independent"
+  },
+  "approved_storage_targets": {
+    "authority_schema": 8,
+    "plan_version": 2,
+    "root_journal_schema": 1,
+    "fixture_source_commit": "af3d037a8084b5e506207cbb5e7af42c0494c5d9",
+    "fixture_sha256": {
+      "tests/privileged_vm/run.py": "35e41841828df937b646ce57c60e27b94687edc987c0b3cfcc1801b93be58d5e",
+      "tests/privileged_vm/p03_guest.py": "ef98c2ba8e0c1f87c1f6da5fc62a4c4ae88afe10bf5238886bcb36bb362d2c94",
+      "tests/privileged_vm/p04_storage_guest.py": "2d8f6f07fa42d6a1a61e3711090fb0e9a122a30718f1c04dce8d3918dae3a9fa",
+      "tests/privileged_vm/p04_planning_guest.py": "fb507c8b2ad85fd382e5902b5a9c5aa1bc9d94170778958eff33585163bdced6",
+      "tests/privileged_vm/p04_targets_guest.py": "332bf5b6062b381b20ec24067735b96478b5b4ff30b5b94e7a46f340b6c430a5",
+      "tests/privileged_vm/p04_locks_guest.py": "a6968f935180414ec8e74b46ddcc9f39277bc6b07c70e70004ee546596b04d89",
+      "tests/privileged_vm/p04_approved_guest.py": "7eaf02395622a856ffcd8460cb4dac2ca4bff3e45feb372ded1926a2e3ea72cc",
+      "tests/privileged_vm/p04_targets_package_guest.py": "cdfa362d5c490119a8628a338847642c4de077c53b35a8a69a4f7601bffc523c"
+    },
+    "scope": "human-approved empty target preparation; complete configuration/UUID/path claims, independent verification and receipt-only automatic recovery"
+  }
+}

@@ -1,0 +1,517 @@
+emd[1]: Starting modprobe@dm_mod.service - Load Kernel Module dm_mod...
+         Starting [0;1;39mmodprobe@dm_mod.s…[0m - Load Kernel Module dm_mod...
+
+[    3.423949] systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
+         Starting [0;1;39mmodprobe@drm.service[0m - Load Kernel Module drm...
+
+[    3.427589] systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+         Starting [0;1;39mmodprobe@efi_psto…- Load Kernel Module efi_pstore...
+
+[    3.431677] systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
+         Starting [0;1;39mmodprobe@fuse.ser…e[0m - Load Kernel Module fuse...
+
+[    3.434310] device-mapper: core: CONFIG_IMA_DISABLE_HTABLE is disabled. Duplicate IMA measurements will not be recorded in the IMA log.
+[    3.436058] systemd[1]: Starting modprobe@loop.service - Load Kernel Module loop...
+[    3.438085] device-mapper: uevent: version 1.0.3
+         Starting [0;1;39mmodprobe@loop.ser…e[0m - Load Kernel Module loop...
+
+[    3.440124] device-mapper: ioctl: 4.47.0-ioctl (2022-07-28) initialised: dm-devel@redhat.com
+[    3.440261] systemd[1]: netplan-ovs-cleanup.service - OpenVSwitch configuration for cleanup was skipped because of an unmet condition check (ConditionFileIsExecutable=/usr/bin/ovs-vsctl).
+[    3.446263] systemd[1]: Starting systemd-fsck-root.service - File System Check on Root Device...
+         Starting [0;1;39msystemd-fsck-root…ile System Check on Root Device...
+
+[    3.451520] systemd[1]: Starting systemd-journald.service - Journal Service...
+         Starting [0;1;39msystemd-journald.service[0m - Journal Service...
+
+[    3.455678] systemd[1]: Starting systemd-modules-load.service - Load Kernel Modules...
+         Starting [0;1;39msystemd-modules-l…rvice[0m - Load Kernel Modules...
+
+[    3.460305] loop: module loaded
+[    3.464427] systemd[1]: Starting systemd-network-generator.service - Generate network units from Kernel command line...
+         Starting [0;1;39msystemd-network-g… units from Kernel command line...
+
+[    3.468350] fuse: init (API version 7.38)
+[    3.475196] systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+         Starting [0;1;39msystemd-udev-trig…[0m - Coldplug All udev Devices...
+
+[    3.483665] systemd[1]: Mounted dev-hugepages.mount - Huge Pages File System.
+[[0;32m  OK  [0m] Mounted [0;1;39mdev-hugepages.mount[0m - Huge Pages File System.
+
+[    3.486689] systemd[1]: Mounted dev-mqueue.mount - POSIX Message Queue File System.
+[[0;32m  OK  [0m] Mounted [0;1;39mdev-mqueue.mount[…- POSIX Message Queue File System.
+
+[    3.490998] systemd[1]: Mounted sys-kernel-debug.mount - Kernel Debug File System.
+[[0;32m  OK  [0m] Mounted [0;1;39msys-kernel-debug.m…nt[0m - Kernel Debug File System.
+
+[    3.494199] systemd[1]: Mounted sys-kernel-tracing.mount - Kernel Trace File System.
+[[0;32m  OK  [0m] Mounted [0;1;39msys-kernel-tracing…nt[0m - Kernel Trace File System.
+
+[    3.497521] systemd[1]: Finished kmod-static-nodes.service - Create List of Static Device Nodes.
+[[0;32m  OK  [0m] Finished [0;1;39mkmod-static-nodes…reate List of Static Device Nodes.
+
+[    3.502451] systemd[1]: modprobe@configfs.service: Deactivated successfully.
+[    3.504622] systemd[1]: Finished modprobe@configfs.service - Load Kernel Module configfs.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@configfs…[0m - Load Kernel Module configfs.
+
+[    3.508265] systemd[1]: modprobe@dm_mod.service: Deactivated successfully.
+[    3.509870] systemd[1]: Finished modprobe@dm_mod.service - Load Kernel Module dm_mod.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@dm_mod.s…e[0m - Load Kernel Module dm_mod.
+
+[    3.513658] systemd[1]: modprobe@drm.service: Deactivated successfully.
+[    3.515212] systemd[1]: Finished modprobe@drm.service - Load Kernel Module drm.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@drm.service[0m - Load Kernel Module drm.
+
+[    3.518670] systemd[1]: modprobe@efi_pstore.service: Deactivated successfully.
+[    3.520504] systemd[1]: Finished modprobe@efi_pstore.service - Load Kernel Module efi_pstore.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@efi_psto…m - Load Kernel Module efi_pstore.
+
+[    3.523939] systemd[1]: modprobe@fuse.service: Deactivated successfully.
+[    3.525163] systemd[1]: Finished modprobe@fuse.service - Load Kernel Module fuse.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@fuse.service[0m - Load Kernel Module fuse.
+
+[    3.527861] systemd[1]: modprobe@loop.service: Deactivated successfully.
+[    3.529305] systemd[1]: Finished modprobe@loop.service - Load Kernel Module loop.
+[[0;32m  OK  [0m] Finished [0;1;39mmodprobe@loop.service[0m - Load Kernel Module loop.
+
+[    3.531950] systemd[1]: Finished systemd-fsck-root.service - File System Check on Root Device.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-fsck-root… File System Check on Root Device.
+
+[    3.535305] systemd[1]: Finished systemd-modules-load.service - Load Kernel Modules.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-modules-l…service[0m - Load Kernel Modules.
+
+[    3.539080] systemd[1]: Finished systemd-network-generator.service - Generate network units from Kernel command line.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-network-g…rk units from Kernel command line.
+
+[    3.542856] systemd[1]: Started systemd-journald.service - Journal Service.
+[[0;32m  OK  [0m] Started [0;1;39msystemd-journald.service[0m - Journal Service.
+
+         Mounting [0;1;39msys-fs-fuse-conne…[0m - FUSE Control File System...
+
+         Mounting [0;1;39msys-kernel-config…ernel Configuration File System...
+
+[[0;32m  OK  [0m] Started [0;1;39msystemd-fsckd.serv…tem Check Daemon to report status.
+
+         Starting [0;1;39msystemd-remount-f…nt Root and Kernel File Systems...
+
+         Starting [0;1;39msystemd-sysctl.se…ce[0m - Apply Kernel Variables...
+
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-udev-trig…e[0m - Coldplug All udev Devices.
+
+[[0;32m  OK  [0m] Mounted [0;1;39msys-fs-fuse-connec…nt[0m - FUSE Control File System.
+
+[[0;32m  OK  [0m] Mounted [0;1;39msys-kernel-config.… Kernel Configuration File System.
+
+[    3.582446] EXT4-fs (vda1): re-mounted. Quota mode: none.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-remount-f…ount Root and Kernel File Systems.
+
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-sysctl.service[0m - Apply Kernel Variables.
+
+         Starting [0;1;39mcloud-init-local.…cloud-init job (pre-networking)...
+
+         Starting [0;1;39msystemd-growfs@-.…ice[0m - Grow File System on /...
+
+         Starting [0;1;39msystemd-journal-f…h Journal to Persistent Storage...
+
+         Starting [0;1;39msystemd-random-se…ice[0m - Load/Save Random Seed...
+
+         Starting [0;1;39msystemd-sysusers.…rvice[0m - Create System Users...
+
+[    3.656778] EXT4-fs (vda1): resizing filesystem from 753408 to 2064379 blocks
+[    3.683529] systemd-journald[257]: Received client request to flush runtime journal.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-random-se…rvice[0m - Load/Save Random Seed.
+
+[    3.693210] EXT4-fs (vda1): resized filesystem to 2064379
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-sysusers.service[0m - Create System Users.
+
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-growfs@-.…rvice[0m - Grow File System on /.
+
+         Starting [0;1;39msystemd-tmpfiles-…ate Static Device Nodes in /dev...
+
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-journal-f…ush Journal to Persistent Storage.
+
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-tmpfiles-…reate Static Device Nodes in /dev.
+
+[[0;32m  OK  [0m] Reached target [0;1;39mlocal-fs-pr…reparation for Local File Systems.
+
+         Starting [0;1;39msystemd-udevd.ser…ger for Device Events and Files...
+
+[[0;32m  OK  [0m] Started [0;1;39msystemd-udevd.serv…nager for Device Events and Files.
+
+[    3.889415] sr 0:0:0:0: Attached scsi generic sg0 type 5
+[    3.890467] sr 1:0:0:0: Attached scsi generic sg1 type 5
+[    3.915761] input: Power Button as /devices/LNXSYSTM:00/LNXPWRBN:00/input/input2
+[[0;32m  OK  [0m] Found device [0;1;39mdev-ttyS0.device[0m - /dev/ttyS0.
+
+[[0;32m  OK  [0m] Found device [0;1;39mdev-disk-by\x…b7234-e525-4da0-9718-7bc6f15da064.
+[    3.979863] ACPI: button: Power Button [PWRF]
+
+[    4.090613] RAPL PMU: API unit is 2^-32 Joules, 0 fixed counters, 10737418240 ms ovfl timer
+[    4.099615] cryptd: max_cpu_qlen set to 1000
+[    4.146169] AVX2 version of gcm_enc/dec engaged.
+[    4.150898] AES CTR mode by8 optimization enabled
+         Mounting [0;1;39mboot-efi.mount[0m - /boot/efi...
+
+[    4.446760] cloud-init[390]: Cloud-init v. 22.4.2 running 'init-local' at Tue, 06 Oct 2026 10:01:20 +0000. Up 4.42 seconds.
+[[0;32m  OK  [0m] Mounted [0;1;39mboot-efi.mount[0m - /boot/efi.
+
+[[0;32m  OK  [0m] Reached target [0;1;39mlocal-fs.target[0m - Local File Systems.
+
+         Starting [0;1;39mapparmor.service[0m - Load AppArmor profiles...
+
+         Starting [0;1;39msystemd-binfmt.se…et Up Additional Binary Formats...
+
+         Starting [0;1;39msystemd-machine-i… a transient machine-id on disk...
+
+         Starting [0;1;39msystemd-tmpfiles-…te System Files and Directories...
+
+         Mounting [0;1;39mproc-sys-fs-binfm…utable File Formats File System...
+
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-tmpfiles-…eate System Files and Directories.
+
+         Starting [0;1;39msystemd-resolved.…e[0m - Network Name Resolution...
+
+         Starting [0;1;39msystemd-timesyncd… - Network Time Synchronization...
+
+         Starting [0;1;39msystemd-update-ut…rd System Boot/Shutdown in UTMP...
+
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-machine-i…it a transient machine-id on disk.
+
+[[0;32m  OK  [0m] Mounted [0;1;39mproc-sys-fs-binfmt…ecutable File Formats File System.
+
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-binfmt.se… Set Up Additional Binary Formats.
+
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-update-ut…cord System Boot/Shutdown in UTMP.
+
+[    4.687430] audit: type=1400 audit(1791280880.264:2): apparmor="STATUS" operation="profile_load" profile="unconfined" name="lsb_release" pid=409 comm="apparmor_parser"
+[    4.729927] audit: type=1400 audit(1791280880.308:3): apparmor="STATUS" operation="profile_load" profile="unconfined" name="nvidia_modprobe" pid=410 comm="apparmor_parser"
+[    4.733029] audit: type=1400 audit(1791280880.308:4): apparmor="STATUS" operation="profile_load" profile="unconfined" name="nvidia_modprobe//kmod" pid=410 comm="apparmor_parser"
+[[0;32m  OK  [0m] Started [0;1;39msystemd-timesyncd.…0m - Network Time Synchronization.
+
+[[0;32m  OK  [0m] Reached target [0;1;39mtime-set.target[0m - System Time Set.
+
+[    4.844188] audit: type=1400 audit(1791280880.424:5): apparmor="STATUS" operation="profile_load" profile="unconfined" name="/usr/bin/man" pid=413 comm="apparmor_parser"
+[    4.847338] audit: type=1400 audit(1791280880.424:6): apparmor="STATUS" operation="profile_load" profile="unconfined" name="man_filter" pid=413 comm="apparmor_parser"
+[    4.850654] audit: type=1400 audit(1791280880.428:7): apparmor="STATUS" operation="profile_load" profile="unconfined" name="man_groff" pid=413 comm="apparmor_parser"
+[[0;32m  OK  [0m] Started [0;1;39msystemd-resolved.s…ice[0m - Network Name Resolution.
+
+[[0;32m  OK  [0m] Reached target [0;1;39mnss-lookup.…m - Host and Network Name Lookups.
+
+[    5.000257] audit: type=1400 audit(1791280880.580:8): apparmor="STATUS" operation="profile_load" profile="unconfined" name="tcpdump" pid=416 comm="apparmor_parser"
+[    5.044738] audit: type=1400 audit(1791280880.624:9): apparmor="STATUS" operation="profile_load" profile="unconfined" name="/usr/lib/NetworkManager/nm-dhcp-client.action" pid=412 comm="apparmor_parser"
+[    5.047213] audit: type=1400 audit(1791280880.624:10): apparmor="STATUS" operation="profile_load" profile="unconfined" name="/usr/lib/NetworkManager/nm-dhcp-helper" pid=412 comm="apparmor_parser"
+[[0;32m  OK  [0m] Finished [0;1;39mapparmor.service[0m - Load AppArmor profiles.
+
+[[0;32m  OK  [0m] Finished [0;1;39mcloud-init-local.…l cloud-init job (pre-networking).
+
+[[0;32m  OK  [0m] Reached target [0;1;39mnetwork-pre…get[0m - Preparation for Network.
+
+         Starting [0;1;39msystemd-networkd.…ice[0m - Network Configuration...
+
+[[0;32m  OK  [0m] Started [0;1;39msystemd-networkd.service[0m - Network Configuration.
+
+[[0;32m  OK  [0m] Reached target [0;1;39mnetwork.target[0m - Network.
+
+         Starting [0;1;39msystemd-networkd-…it for Network to be Configured...
+
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-networkd-…Wait for Network to be Configured.
+
+         Starting [0;1;39mcloud-init.servic… job (metadata service crawler)...
+
+[    6.975080] cloud-init[444]: Cloud-init v. 22.4.2 running 'init' at Tue, 06 Oct 2026 10:01:22 +0000. Up 6.96 seconds.
+[    6.982816] cloud-init[444]: ci-info: ++++++++++++++++++++++++++++++++++++++Net device info++++++++++++++++++++++++++++++++++++++
+[    6.984769] cloud-init[444]: ci-info: +--------+------+----------------------------+---------------+--------+-------------------+
+[    6.986620] cloud-init[444]: ci-info: | Device |  Up  |          Address           |      Mask     | Scope  |     Hw-Address    |
+[    6.988509] cloud-init[444]: ci-info: +--------+------+----------------------------+---------------+--------+-------------------+
+[    6.990381] cloud-init[444]: ci-info: |  ens4  | True |         10.0.2.15          | 255.255.255.0 | global | 52:54:00:12:34:56 |
+[    6.992398] cloud-init[444]: ci-info: |  ens4  | True | fe80::5054:ff:fe12:3456/64 |       .       |  link  | 52:54:00:12:34:56 |
+[    6.994530] cloud-init[444]: ci-info: |   lo   | True |         127.0.0.1          |   255.0.0.0   |  host  |         .         |
+[    6.996481] cloud-init[444]: ci-info: |   lo   | True |          ::1/128           |       .       |  host  |         .         |
+[    6.998336] cloud-init[444]: ci-info: +--------+------+----------------------------+---------------+--------+-------------------+
+[    7.000160] cloud-init[444]: ci-info: ++++++++++++++++++++++++++++Route IPv4 info+++++++++++++++++++++++++++++
+[    7.001775] cloud-init[444]: ci-info: +-------+-------------+----------+-----------------+-----------+-------+
+[    7.003380] cloud-init[444]: ci-info: | Route | Destination | Gateway  |     Genmask     | Interface | Flags |
+[    7.005031] cloud-init[444]: ci-info: +-------+-------------+----------+-----------------+-----------+-------+
+[    7.006671] cloud-init[444]: ci-info: |   0   |   0.0.0.0   | 10.0.2.2 |     0.0.0.0     |    ens4   |   UG  |
+[    7.008136] cloud-init[444]: ci-info: |   1   |   10.0.2.0  | 0.0.0.0  |  255.255.255.0  |    ens4   |   U   |
+[    7.009456] cloud-init[444]: ci-info: |   2   |   10.0.2.2  | 0.0.0.0  | 255.255.255.255 |    ens4   |   UH  |
+[    7.010726] cloud-init[444]: ci-info: |   3   |   10.0.2.3  | 0.0.0.0  | 255.255.255.255 |    ens4   |   UH  |
+[    7.011995] cloud-init[444]: ci-info: +-------+-------------+----------+-----------------+-----------+-------+
+[    7.013304] cloud-init[444]: ci-info: +++++++++++++++++++Route IPv6 info+++++++++++++++++++
+[    7.014405] cloud-init[444]: ci-info: +-------+-------------+---------+-----------+-------+
+[    7.015494] cloud-init[444]: ci-info: | Route | Destination | Gateway | Interface | Flags |
+[    7.016623] cloud-init[444]: ci-info: +-------+-------------+---------+-----------+-------+
+[    7.017782] cloud-init[444]: ci-info: |   0   |  fe80::/64  |    ::   |    ens4   |   U   |
+[    7.018873] cloud-init[444]: ci-info: |   2   |    local    |    ::   |    ens4   |   U   |
+[    7.020045] cloud-init[444]: ci-info: |   3   |  multicast  |    ::   |    ens4   |   U   |
+[    7.021145] cloud-init[444]: ci-info: +-------+-------------+---------+-----------+-------+
+[    8.057000] cloud-init[444]: Generating public/private rsa key pair.
+[    8.058164] cloud-init[444]: Your identification has been saved in /etc/ssh/ssh_host_rsa_key
+[    8.059510] cloud-init[444]: Your public key has been saved in /etc/ssh/ssh_host_rsa_key.pub
+[    8.061026] cloud-init[444]: The key fingerprint is:
+[    8.062070] cloud-init[444]: SHA256:nHVZYtSgqGLep/knkvDG4pmKV3wg5/+O1CJlWPPMgI4 root@limeos-p01-test
+[    8.063740] cloud-init[444]: The key's randomart image is:
+[    8.064864] cloud-init[444]: +---[RSA 3072]----+
+[    8.065895] cloud-init[444]: |           .=o.  |
+[    8.066869] cloud-init[444]: |     .   . o +.  |
+[    8.067834] cloud-init[444]: |    . + . o o    |
+[    8.068855] cloud-init[444]: |  .ooo O o .     |
+[    8.069844] cloud-init[444]: |  E==.+ S        |
+[    8.070796] cloud-init[444]: |   o==..         |
+[    8.071719] cloud-init[444]: |   .o*+.o        |
+[    8.072712] cloud-init[444]: | .. .=B*. .      |
+[    8.073787] cloud-init[444]: |...o+o+=+o       |
+[    8.074805] cloud-init[444]: +----[SHA256]-----+
+[    8.075832] cloud-init[444]: Generating public/private dsa key pair.
+[    8.077080] cloud-init[444]: Your identification has been saved in /etc/ssh/ssh_host_dsa_key
+[    8.078577] cloud-init[444]: Your public key has been saved in /etc/ssh/ssh_host_dsa_key.pub
+[    8.080179] cloud-init[444]: The key fingerprint is:
+[    8.081216] cloud-init[444]: SHA256:SCiWlL9jFCU7xoMc2b7goBqxmPqb8DkqCc7ggQ913uw root@limeos-p01-test
+[    8.082916] cloud-init[444]: The key's randomart image is:
+[    8.083845] cloud-init[444]: +---[DSA 1024]----+
+[    8.084623] cloud-init[444]: |  o+...          |
+[    8.085386] cloud-init[444]: | oo=o+           |
+[    8.086091] cloud-init[444]: |  *oB..          |
+[    8.086792] cloud-init[444]: |o.oo=+ .         |
+[    8.087508] cloud-init[444]: |+B = =. S        |
+[    8.088256] cloud-init[444]: |@.. * o          |
+[    8.088976] cloud-init[444]: |X=.. o           |
+[    8.089719] cloud-init[444]: |=*oo  E          |
+[    8.090433] cloud-init[444]: |oo*o             |
+[    8.091160] cloud-init[444]: +----[SHA256]-----+
+[    8.091879] cloud-init[444]: Generating public/private ecdsa key pair.
+[    8.092864] cloud-init[444]: Your identification has been saved in /etc/ssh/ssh_host_ecdsa_key
+[    8.094127] cloud-init[444]: Your public key has been saved in /etc/ssh/ssh_host_ecdsa_key.pub
+[    8.095347] cloud-init[444]: The key fingerprint is:
+[    8.096109] cloud-init[444]: SHA256:v64FuUy8Cr8FWkxCj7xymLb3v4WhiDfb6n2dvBE93W0 root@limeos-p01-test
+[    8.097431] cloud-init[444]: The key's randomart image is:
+[    8.098291] cloud-init[444]: +---[ECDSA 256]---+
+[    8.099050] cloud-init[444]: |    .            |
+[    8.099817] cloud-init[444]: |   o o           |
+[    8.100621] cloud-init[444]: |    + o          |
+[    8.101390] cloud-init[444]: |   o = . . . . ..|
+[    8.102098] cloud-init[444]: |  = o + S . o . E|
+[    8.102833] cloud-init[444]: | . = + = B . . . |
+[    8.103562] cloud-init[444]: |  o B . *o=.     |
+[    8.104336] cloud-init[444]: |   o O o.o+o     |
+[    8.105054] cloud-init[444]: |   .+.B++++.     |
+[    8.105866] cloud-init[444]: +----[SHA256]-----+
+[    8.106598] cloud-init[444]: Generating public/private ed25519 key pair.
+[    8.107603] cloud-init[444]: Your identification has been saved in /etc/ssh/ssh_host_ed25519_key
+[    8.108937] cloud-init[444]: Your public key has been saved in /etc/ssh/ssh_host_ed25519_key.pub
+[    8.110230] cloud-init[444]: The key fingerprint is:
+[    8.110978] cloud-init[444]: SHA256:dEZoDkFpsbM1vPZQSWOFJ2Nvqxp2iHwFiRThE1eaH+s root@limeos-p01-test
+[[0;32m  OK  [0m] Finished [0;1;39mcloud-init.servic…it job (metadata service crawler).
+
+[    8.112377] cloud-init[444]: The key's randomart image is:
+[[0;32m  OK  [0m] Reached target [0;1;39mcloud-confi…t[0m - Cloud-config availability.
+
+[    8.115205] cloud-init[444]: +--[ED25519 256]--+
+[[0;32m  OK  [0m] Reached target [0;1;39mnetwork-online.target[0m - Network is Online.
+
+[    8.116935] cloud-init[444]: |     .O*.o*o.    |
+[[0;32m  OK  [0m] Reached target [0;1;39msysinit.target[0m - System Initialization.
+
+[    8.118646] cloud-init[444]: |     o+*oB=o.    |
+[[0;32m  OK  [0m] Started [0;1;39mapt-daily.timer[0m - Daily apt download activities.
+
+[    8.120361] cloud-init[444]: |     .*+X.*=     |
+[[0;32m  OK  [0m] Started [0;1;39mapt-daily-upgrade.… apt upgrade and clean activities.
+
+[    8.122107] cloud-init[444]: |       *.O oo    |
+[[0;32m  OK  [0m] Started [0;1;39mdpkg-db-backup.tim… Daily dpkg database backup timer.
+
+[    8.123877] cloud-init[444]: |      . S +. .   |
+[[0;32m  OK  [0m] Started [0;1;39me2scrub_all.timer…etadata Check for All Filesystems.
+
+[    8.125671] cloud-init[444]: |     . o *  .    |
+[[0;32m  OK  [0m] Started [0;1;39mfstrim.timer[0m - Discard unused blocks once a week.
+
+[    8.127375] cloud-init[444]: |      o = E.     |
+[[0;32m  OK  [0m] Started [0;1;39mman-db.timer[0m - Daily man-db regeneration.
+
+[[0;32m  OK  [0m] Started [0;1;39msystemd-tmpfiles-c… Cleanup of Temporary Directories.
+
+[[0;32m  OK  [0m] Reached target [0;1;39mtimers.target[0m - Timer Units.
+
+[[0;32m  OK  [0m] Listening on [0;1;39mcloud-init-ho… - cloud-init hotplug hook socket.
+
+[[0;32m  OK  [0m] Listening on [0;1;39mdbus.socket[…- D-Bus System Message Bus Socket.
+
+[[0;32m  OK  [0m] Listening on [0;1;39muuidd.socket…m - UUID daemon activation socket.
+
+[[0;32m  OK  [0m] Reached target [0;1;39msockets.target[0m - Socket Units.
+
+[[0;32m  OK  [0m] Reached target [0;1;39mbasic.target[0m - Basic System.
+
+[    8.135626] cloud-init[444]: |       o o.      |
+[    8.136411] cloud-init[444]: |        ..       |
+[    8.137141] cloud-init[444]: +----[SHA256]-----+
+         Starting [0;1;39mcloud-config.serv…tings specified in cloud-config...
+
+         Starting [0;1;39mdbus.service[0m - D-Bus System Message Bus...
+
+         Starting [0;1;39me2scrub_reap.serv…e ext4 Metadata Check Snapshots...
+
+         Starting [0;1;39mssh.service[0m - OpenBSD Secure Shell server...
+
+         Starting [0;1;39msystemd-logind.se…ice[0m - User Login Management...
+
+         Starting [0;1;39msystemd-user-sess…vice[0m - Permit User Sessions...
+
+[[0;32m  OK  [0m] Started [0;1;39mdbus.service[0m - D-Bus System Message Bus.
+
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-user-sess…ervice[0m - Permit User Sessions.
+
+[[0;32m  OK  [0m] Started [0;1;39mgetty@tty1.service[0m - Getty on tty1.
+
+[[0;32m  OK  [0m] Started [0;1;39mserial-getty@ttyS0…rvice[0m - Serial Getty on ttyS0.
+
+[[0;32m  OK  [0m] Reached target [0;1;39mgetty.target[0m - Login Prompts.
+
+[[0;32m  OK  [0m] Started [0;1;39mssh.service[0m - OpenBSD Secure Shell server.
+
+[[0;32m  OK  [0m] Started [0;1;39msystemd-logind.service[0m - User Login Management.
+
+[[0;32m  OK  [0m] Started [0;1;39munattended-upgrade…0m - Unattended Upgrades Shutdown.
+
+[[0;32m  OK  [0m] Finished [0;1;39me2scrub_reap.serv…ine ext4 Metadata Check Snapshots.
+
+[[0;32m  OK  [0m] Reached target [0;1;39mmulti-user.target[0m - Multi-User System.
+
+[[0;32m  OK  [0m] Reached target [0;1;39mgraphical.target[0m - Graphical Interface.
+
+         Starting [0;1;39msystemd-update-ut… Record Runlevel Change in UTMP...
+
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-update-ut… - Record Runlevel Change in UTMP.
+
+[    8.532663] cloud-init[508]: Cloud-init v. 22.4.2 running 'modules:config' at Tue, 06 Oct 2026 10:01:24 +0000. Up 8.50 seconds.
+         Stopping [0;1;39mssh.service[0m - OpenBSD Secure Shell server...
+
+[[0;32m  OK  [0m] Stopped [0;1;39mssh.service[0m - OpenBSD Secure Shell server.
+
+         Starting [0;1;39mssh.service[0m - OpenBSD Secure Shell server...
+
+[[0;32m  OK  [0m] Created slice [0;1;39muser-0.slice[0m - User Slice of UID 0.
+
+         Starting [0;1;39muser-runtime-dir@…r Runtime Directory /run/user/0...
+
+[[0;32m  OK  [0m] Started [0;1;39mssh.service[0m - OpenBSD Secure Shell server.
+
+[[0;32m  OK  [0m] Finished [0;1;39muser-runtime-dir@…ser Runtime Directory /run/user/0.
+
+         Starting [0;1;39muser@0.service[0m - User Manager for UID 0...
+
+[[0;32m  OK  [0m] Started [0;1;39muser@0.service[0m - User Manager for UID 0.
+
+[[0;32m  OK  [0m] Started [0;1;39msession-1.scope[0m - Session 1 of User root.
+
+[[0;32m  OK  [0m] Finished [0;1;39mcloud-config.serv…ettings specified in cloud-config.
+
+         Starting [0;1;39mcloud-final.servi…xecute cloud user/final scripts...
+
+[    9.312091] cloud-init[552]: Cloud-init v. 22.4.2 running 'modules:final' at Tue, 06 Oct 2026 10:01:24 +0000. Up 9.28 seconds.
+ci-info: ++++++++++++++++++++++++++++++++++++++Authorized keys from /root/.ssh/authorized_keys for user root++++++++++++++++++++++++++++++++++++++
+ci-info: +-------------+-------------------------------------------------------------------------------------------------+---------+-------------+
+ci-info: |   Keytype   |                                       Fingerprint (sha256)                                      | Options |   Comment   |
+ci-info: +-------------+-------------------------------------------------------------------------------------------------+---------+-------------+
+ci-info: | ssh-ed25519 | 77:04:9a:20:fd:d5:71:de:b2:d8:fe:6d:e5:54:51:08:8d:76:41:71:5c:9a:ae:cf:93:d3:5f:5f:b4:19:c5:3c |    -    | marc@fedora |
+ci-info: +-------------+-------------------------------------------------------------------------------------------------+---------+-------------+
+<14>Oct  6 10:01:25 cloud-init: #############################################################
+<14>Oct  6 10:01:25 cloud-init: -----BEGIN SSH HOST KEY FINGERPRINTS-----
+<14>Oct  6 10:01:25 cloud-init: 1024 SHA256:SCiWlL9jFCU7xoMc2b7goBqxmPqb8DkqCc7ggQ913uw root@limeos-p01-test (DSA)
+<14>Oct  6 10:01:25 cloud-init: 256 SHA256:v64FuUy8Cr8FWkxCj7xymLb3v4WhiDfb6n2dvBE93W0 root@limeos-p01-test (ECDSA)
+<14>Oct  6 10:01:25 cloud-init: 256 SHA256:dEZoDkFpsbM1vPZQSWOFJ2Nvqxp2iHwFiRThE1eaH+s root@limeos-p01-test (ED25519)
+<14>Oct  6 10:01:25 cloud-init: 3072 SHA256:nHVZYtSgqGLep/knkvDG4pmKV3wg5/+O1CJlWPPMgI4 root@limeos-p01-test (RSA)
+<14>Oct  6 10:01:25 cloud-init: -----END SSH HOST KEY FINGERPRINTS-----
+<14>Oct  6 10:01:25 cloud-init: #############################################################
+-----BEGIN SSH HOST KEY KEYS-----
+ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBHbsnk1oQbptb/GjQwkAq231Qi8ta7tho1X3nchBZ5Pzo1q9TBlkdx7lHNDTJru1eQGjM3oiC7QKrxcGBycblRs= root@limeos-p01-test
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJIxBsia4NPXus0ahXLNyegy4tdTeUPzlSq9Oln6k1HV root@limeos-p01-test
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC/TvwQSNXgKC1OKT8OKi85Kie5ybq/nqfg6CdtkzjeL03rOfRAwxQtqXuK8FUqW8KhBr3eakpuYeJYeJGl/Wa5feziMXnZxEj4+qWeQeZjcpPDsgvWYt8H96V8C2laVHcBW4AtLpbVH5pQWBLU79923QbuDXRptyoKAiOLOlb8Dkzfe/Fue1liQpImC2+vO7IG+55pOHs34dk7lpq1ppf7YfoCZGljFlFWxfZn+7yzlAyxr5rCpiv8sAXvNn3R9jTpw65DPSjlBGKUqyxljZTqeDzwQsnClApJnSPHZprYEK9FOc6VCVAZJbykxiuz+5v7IF0xpfZJiRhQ6CArUkTVDr+3jOA4WPjUEIoRj+AWL/Vuqb5+YD8HLJwlSzQJD4xb1dqlDYdW66E141T06cD+b5ZGD/nPpQbvn7THUf5+4+gzrQI1pssCNo1jOhkdgYhHnfSSY30c12UvyxWFdqwvctsA+v+ije2MYD7FfTgO6VID8aVZjPYloPRSkA+9660= root@limeos-p01-test
+-----END SSH HOST KEY KEYS-----
+[    9.456960] cloud-init[552]: Cloud-init v. 22.4.2 finished at Tue, 06 Oct 2026 10:01:25 +0000. Datasource DataSourceNoCloud [seed=/dev/sr0][dsmode=net].  Up 9.45 seconds
+[[0;32m  OK  [0m] Finished [0;1;39mcloud-final.servi… Execute cloud user/final scripts.
+
+[[0;32m  OK  [0m] Reached target [0;1;39mcloud-init.target[0m - Cloud-init target.
+
+
+
+Debian GNU/Linux 12 limeos-p01-test ttyS0
+
+limeos-p01-test login: [  102.795615] kauditd_printk_skb: 2 callbacks suppressed
+[  102.795618] audit: type=1400 audit(1791280978.568:13): apparmor="STATUS" operation="profile_load" profile="unconfined" name="docker-default" pid=2225 comm="apparmor_parser"
+[  102.825516] bridge: filtering via arp/ip/ip6tables is no longer available by default. Update your scripts to load br_netfilter if you need this.
+[  102.828997] Bridge firewalling registered
+[  102.948110] Initializing XFRM netlink socket
+[  300.974163] docker0: port 1(vetheb0b315) entered blocking state
+[  300.975201] docker0: port 1(vetheb0b315) entered disabled state
+[  300.976137] device vetheb0b315 entered promiscuous mode
+[  301.135974] eth0: renamed from veth00cb2e1
+[  301.154937] IPv6: ADDRCONF(NETDEV_CHANGE): vetheb0b315: link becomes ready
+[  301.155955] docker0: port 1(vetheb0b315) entered blocking state
+[  301.156817] docker0: port 1(vetheb0b315) entered forwarding state
+[  301.157778] IPv6: ADDRCONF(NETDEV_CHANGE): docker0: link becomes ready
+[  312.071260] docker0: port 1(vetheb0b315) entered disabled state
+[  312.072322] veth00cb2e1: renamed from eth0
+[  312.102806] docker0: port 1(vetheb0b315) entered disabled state
+[  312.104880] device vetheb0b315 left promiscuous mode
+[  312.105651] docker0: port 1(vetheb0b315) entered disabled state
+[  312.160306] docker0: port 1(veth80c6a14) entered blocking state
+[  312.161568] docker0: port 1(veth80c6a14) entered disabled state
+[  312.162796] device veth80c6a14 entered promiscuous mode
+[  312.163986] docker0: port 1(veth80c6a14) entered blocking state
+[  312.165220] docker0: port 1(veth80c6a14) entered forwarding state
+[  312.311292] eth0: renamed from veth033b976
+[  312.330974] IPv6: ADDRCONF(NETDEV_CHANGE): veth80c6a14: link becomes ready
+[  327.459791] docker0: port 1(veth80c6a14) entered disabled state
+[  327.461532] veth033b976: renamed from eth0
+[  327.498729] docker0: port 1(veth80c6a14) entered disabled state
+[  327.501419] device veth80c6a14 left promiscuous mode
+[  327.502293] docker0: port 1(veth80c6a14) entered disabled state
+[  327.556540] docker0: port 1(vethe0ff40b) entered blocking state
+[  327.557839] docker0: port 1(vethe0ff40b) entered disabled state
+[  327.559218] device vethe0ff40b entered promiscuous mode
+[  327.560600] docker0: port 1(vethe0ff40b) entered blocking state
+[  327.561820] docker0: port 1(vethe0ff40b) entered forwarding state
+[  327.735422] eth0: renamed from vethe4dd253
+[  327.754980] IPv6: ADDRCONF(NETDEV_CHANGE): vethe0ff40b: link becomes ready
+[  328.060834] docker0: port 1(vethe0ff40b) entered disabled state
+[  328.061807] vethe4dd253: renamed from eth0
+[  328.094045] docker0: port 1(vethe0ff40b) entered disabled state
+[  328.096422] device vethe0ff40b left promiscuous mode
+[  328.097309] docker0: port 1(vethe0ff40b) entered disabled state
+[  330.103703]  vdb: vdb1 vdb2
+[  330.381694]  vdc: vdc1
+[  330.706429]  vdd: vdd1
+[  331.035666]  vde: vde1
+[  331.147868] EXT4-fs (vdb1): mounted filesystem with ordered data mode. Quota mode: none.
+[  331.228175] EXT4-fs (vdb2): mounted filesystem with ordered data mode. Quota mode: none.
+[  331.297424] EXT4-fs (vdc1): mounted filesystem with ordered data mode. Quota mode: none.
+[  331.333166] EXT4-fs (vdd1): mounted filesystem with ordered data mode. Quota mode: none.
+[  331.356522] EXT4-fs (vde1): mounted filesystem with ordered data mode. Quota mode: none.
+[  331.844023] EXT4-fs (vdc1): unmounting filesystem.
+[  331.901848] EXT4-fs (vdb1): unmounting filesystem.
+[  331.910008] EXT4-fs (vdc1): mounted filesystem with ordered data mode. Quota mode: none.
+[  331.948462] EXT4-fs (vdc1): unmounting filesystem.
+[  339.846828] EXT4-fs (vdb1): mounted filesystem with ordered data mode. Quota mode: none.
+[  339.854402] EXT4-fs (vdc1): mounted filesystem with ordered data mode. Quota mode: none.
+[  339.936709] EXT4-fs (vdb1): unmounting filesystem.
+[  340.020064] EXT4-fs (vdb1): mounted filesystem with ordered data mode. Quota mode: none.
+[  344.897670] EXT4-fs (vdb1): unmounting filesystem.
+[  345.225902] EXT4-fs (vdc1): unmounting filesystem.
+[  345.511706] EXT4-fs (vdb1): mounted filesystem with ordered data mode. Quota mode: none.
+[  345.524429] EXT4-fs (vdc1): mounted filesystem with ordered data mode. Quota mode: none.
+[  346.131389] Adding 16368k swap on /mnt/data/fixture.swap.  Priority:-2 extents:3 across:22520k
+[  346.645192] EXT4-fs (vdb2): unmounting filesystem.
+[  348.162774] EXT4-fs (vdc1): unmounting filesystem.
+[  348.498892] EXT4-fs (vdb1): unmounting filesystem.
+[  348.506422] EXT4-fs (vdd1): unmounting filesystem.
+[  348.512356] EXT4-fs (vde1): unmounting filesystem.
+[  352.217886] EXT4-fs (vdb1): mounted filesystem with ordered data mode. Quota mode: none.
+[  352.225790] EXT4-fs (vdb2): mounted filesystem with ordered data mode. Quota mode: none.
+[  352.235273] EXT4-fs (vdc1): mounted filesystem with ordered data mode. Quota mode: none.
+[  352.243578] EXT4-fs (vdd1): mounted filesystem with ordered data mode. Quota mode: none.
+[  352.252959] EXT4-fs (vde1): mounted filesystem with ordered data mode. Quota mode: none.
+[  355.162589] EXT4-fs (vdb2): unmounting filesystem.
+[  355.253409] EXT4-fs (vdb2): mounted filesystem with ordered data mode. Quota mode: none.
+[  355.257277] EXT4-fs (vdb2): unmounting filesystem.
