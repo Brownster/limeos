@@ -1,0 +1,838 @@
+//! Adversarial and valid archives through the real decode and inspection path.
+//!
+//! Archives are built byte by byte so hostile headers can be expressed, then
+//! compressed with real gzip and zstd encoders. Test quotas are small so a
+//! decompression-bomb regression stays bounded.
+
+use limeos_backup_archive::{inspect, inspect_and_admit};
+use limeos_domain::backups::{
+    AdmissionPolicy, ArchiveFormat, ArchiveLimits, EntryKind, FindingCode, LegacyMapping,
+    ManagedResource, Rejection, RestoreManifest,
+};
+use sha2::{Digest, Sha256};
+use std::{
+    cell::Cell,
+    collections::BTreeMap,
+    io::Write,
+    path::{Path, PathBuf},
+};
+use tar::{EntryType, Header};
+
+const MIB: u64 = 1 << 20;
+
+fn limits() -> ArchiveLimits {
+    ArchiveLimits {
+        max_compressed_bytes: MIB,
+        max_decompressed_bytes: 4 * MIB,
+        max_file_bytes: MIB,
+        max_entries: 64,
+        max_path_bytes: 256,
+        max_path_depth: 16,
+        max_component_bytes: 128,
+        max_metadata_bytes: 4096,
+        max_total_metadata_bytes: 16384,
+        // zstd's default level (what the frozen helper used) needs 2^21.
+        max_zstd_window_log: 21,
+    }
+}
+
+fn policy() -> AdmissionPolicy {
+    let resource = |id: &str, root: &str| ManagedResource {
+        id: id.into(),
+        destination_root: root.into(),
+    };
+    let map = |prefix: &str, id: &str| LegacyMapping {
+        archive_prefix: prefix.into(),
+        resource: id.into(),
+        resource_prefix: String::new(),
+    };
+    AdmissionPolicy {
+        revision: 3,
+        formats: vec![ArchiveFormat::TarGzip, ArchiveFormat::TarZstd],
+        limits: limits(),
+        resources: vec![
+            resource("limeos-config", "/etc/limeos"),
+            resource("limeos-state", "/var/lib/limeos"),
+            resource("stacks", "/opt/stacks"),
+            resource("app-config", "/home/pi/docker"),
+        ],
+        legacy_mappings: vec![
+            map("etc/limeos", "limeos-config"),
+            map("var/lib/limeos", "limeos-state"),
+            map("opt/stacks", "stacks"),
+            map("home/pi/docker", "app-config"),
+        ],
+    }
+}
+
+fn never() -> bool {
+    false
+}
+
+/// Raw tar stream builder. Names are written into the header verbatim so
+/// traversal, absolute and non-UTF-8 names can be expressed.
+#[derive(Default, Clone)]
+struct Tar(Vec<u8>);
+
+impl Tar {
+    fn header(kind: EntryType, name: &[u8], size: u64) -> Header {
+        let mut header = Header::new_gnu();
+        header.set_entry_type(kind);
+        header.set_size(size);
+        header.set_mode(if kind == EntryType::Directory {
+            0o755
+        } else {
+            0o644
+        });
+        header.set_mtime(0);
+        header.set_uid(0);
+        header.set_gid(0);
+        let gnu = header.as_gnu_mut().unwrap();
+        gnu.name = [0; 100];
+        gnu.name[..name.len()].copy_from_slice(name);
+        header.set_cksum();
+        header
+    }
+
+    fn push(mut self, header: &Header, data: &[u8]) -> Self {
+        self.0.extend_from_slice(header.as_bytes());
+        self.0.extend_from_slice(data);
+        self.0.resize(self.0.len().div_ceil(512) * 512, 0);
+        self
+    }
+
+    fn file(self, name: &str, data: &[u8]) -> Self {
+        let header = Self::header(EntryType::Regular, name.as_bytes(), data.len() as u64);
+        self.push(&header, data)
+    }
+
+    fn dir(self, name: &str) -> Self {
+        let header = Self::header(EntryType::Directory, name.as_bytes(), 0);
+        self.push(&header, &[])
+    }
+
+    fn typed(self, kind: EntryType, name: &str, link: &str) -> Self {
+        let mut header = Self::header(kind, name.as_bytes(), 0);
+        let gnu = header.as_gnu_mut().unwrap();
+        gnu.linkname[..link.len()].copy_from_slice(link.as_bytes());
+        header.set_cksum();
+        self.push(&header, &[])
+    }
+
+    fn extension(self, kind: EntryType, body: &[u8]) -> Self {
+        let header = Self::header(kind, b"././@LongLink", body.len() as u64);
+        self.push(&header, body)
+    }
+
+    fn long_name(self, name: &[u8]) -> Self {
+        let mut body = name.to_vec();
+        body.push(0);
+        self.extension(EntryType::GNULongName, &body)
+    }
+
+    fn pax(self, records: &[(&str, &[u8])]) -> Self {
+        self.extension(EntryType::XHeader, &pax_body(records))
+    }
+
+    fn end(mut self) -> Vec<u8> {
+        self.0.extend_from_slice(&[0; 1024]);
+        self.0
+    }
+}
+
+fn pax_body(records: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut body = Vec::new();
+    for (key, value) in records {
+        let rest = key.len() + value.len() + 3;
+        let mut len = rest + 1;
+        while len.to_string().len() + rest != len {
+            len += 1;
+        }
+        body.extend_from_slice(format!("{len} {key}=").as_bytes());
+        body.extend_from_slice(value);
+        body.push(b'\n');
+    }
+    body
+}
+
+fn gz(tar: &[u8]) -> Vec<u8> {
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(tar).unwrap();
+    encoder.finish().unwrap()
+}
+
+fn zst(tar: &[u8]) -> Vec<u8> {
+    zstd::stream::encode_all(tar, 3).unwrap()
+}
+
+fn admitted(archive: &[u8]) -> RestoreManifest {
+    inspect_and_admit(archive, &policy(), &never).expect("archive must be admitted")
+}
+
+fn rejected_with(archive: &[u8], policy: &AdmissionPolicy) -> Rejection {
+    inspect_and_admit(archive, policy, &never).expect_err("archive must be rejected")
+}
+
+fn first(archive: &[u8]) -> FindingCode {
+    rejected_with(archive, &policy()).findings[0].code
+}
+
+/// Both compressions must reach the same decision for the same tar stream.
+fn both(tar: &[u8]) -> FindingCode {
+    let (a, b) = (first(&gz(tar)), first(&zst(tar)));
+    assert_eq!(a, b, "gzip and zstd disagree");
+    a
+}
+
+fn sample() -> Vec<u8> {
+    Tar::default()
+        .dir("etc/limeos/")
+        .file("etc/limeos/core.json", br#"{"version":1}"#)
+        .dir("opt/stacks/media/")
+        .file("opt/stacks/media/compose.yaml", b"services: {}\n")
+        .file("home/pi/docker/sonarr.xml", b"<Config/>")
+        .end()
+}
+
+#[test]
+fn valid_archives_yield_identical_deterministic_manifests_in_both_formats() {
+    let tar = sample();
+    let (g, z) = (admitted(&gz(&tar)), admitted(&zst(&tar)));
+    assert_eq!(g.entries, z.entries);
+    assert_eq!(
+        (g.format, z.format),
+        (ArchiveFormat::TarGzip, ArchiveFormat::TarZstd)
+    );
+    assert_eq!(g.decompressed_bytes, tar.len() as u64);
+    assert_eq!((g.header_count, g.file_count, g.directory_count), (5, 3, 2));
+    assert_eq!(
+        admitted(&gz(&tar)),
+        g,
+        "repeat inspection must be identical"
+    );
+    let resources: Vec<_> = g
+        .entries
+        .iter()
+        .map(|e| (e.resource.as_str(), e.relative_path.as_str()))
+        .collect();
+    assert_eq!(
+        resources,
+        [
+            ("app-config", "sonarr.xml"),
+            ("limeos-config", ""),
+            ("limeos-config", "core.json"),
+            ("stacks", "media"),
+            ("stacks", "media/compose.yaml"),
+        ]
+    );
+}
+
+#[test]
+fn manifest_is_bound_to_the_exact_archive_and_file_contents() {
+    let archive = zst(&sample());
+    let manifest = admitted(&archive);
+    assert_eq!(
+        manifest.archive_sha256,
+        hex::encode(Sha256::digest(&archive))
+    );
+    assert_eq!(manifest.compressed_bytes, archive.len() as u64);
+    assert_eq!(manifest.policy_revision, 3);
+    let core = manifest
+        .entries
+        .iter()
+        .find(|e| e.relative_path == "core.json")
+        .unwrap();
+    assert_eq!(
+        core.sha256.as_deref(),
+        Some(hex::encode(Sha256::digest(br#"{"version":1}"#)).as_str())
+    );
+    assert_eq!(core.kind, EntryKind::File);
+    // A single changed byte changes the binding.
+    let other = zst(&Tar::default()
+        .file("etc/limeos/core.json", br#"{"version":2}"#)
+        .end());
+    assert_ne!(admitted(&other).archive_sha256, manifest.archive_sha256);
+}
+
+#[test]
+fn traversal_and_absolute_names_are_rejected() {
+    for (name, code) in [
+        ("../etc/limeos/core.json", FindingCode::ParentComponent),
+        ("etc/limeos/../../shadow", FindingCode::ParentComponent),
+        ("/etc/limeos/core.json", FindingCode::AbsolutePath),
+        ("./etc/limeos/core.json", FindingCode::DotComponent),
+        ("etc//limeos/core.json", FindingCode::EmptyComponent),
+        ("etc/shadow", FindingCode::Unmapped),
+        ("home/pi/.ssh/authorized_keys", FindingCode::Unmapped),
+        ("opt/stacks/a\u{1b}[2J", FindingCode::UnsafeCharacter),
+        ("opt/stacks/file/", FindingCode::TrailingSlashOnFile),
+    ] {
+        assert_eq!(both(&Tar::default().file(name, b"x").end()), code, "{name}");
+    }
+    let mut header = Tar::header(EntryType::Regular, b"opt/stacks/\xff\xfe", 1);
+    header.set_cksum();
+    assert_eq!(
+        both(&Tar::default().push(&header, b"x").end()),
+        FindingCode::NonUtf8Name
+    );
+}
+
+#[test]
+fn extension_records_set_the_effective_name_that_is_checked() {
+    // The innocent header name is overridden; the override is what counts.
+    let gnu = Tar::default()
+        .long_name(b"../../etc/shadow")
+        .file("opt/stacks/safe", b"x")
+        .end();
+    assert_eq!(both(&gnu), FindingCode::ParentComponent);
+    let pax = Tar::default()
+        .pax(&[("path", b"/etc/shadow")])
+        .file("opt/stacks/safe", b"x")
+        .end();
+    assert_eq!(both(&pax), FindingCode::AbsolutePath);
+    let long = format!("opt/stacks/{}/settings.json", "d".repeat(120));
+    let ok = Tar::default()
+        .long_name(long.as_bytes())
+        .file("opt/stacks/short", b"x")
+        .end();
+    assert_eq!(admitted(&gz(&ok)).entries[0].archive_path, long);
+    let pax_ok = Tar::default()
+        .pax(&[
+            ("path", b"opt/stacks/real.yaml"),
+            ("mtime", b"1767225600.5"),
+            ("uname", b"root"),
+        ])
+        .file("opt/stacks/placeholder", b"x")
+        .end();
+    assert_eq!(
+        admitted(&zst(&pax_ok)).entries[0].relative_path,
+        "real.yaml"
+    );
+}
+
+#[test]
+fn ambiguous_or_unsupported_extension_records_are_rejected() {
+    let cases: Vec<(Vec<u8>, FindingCode)> = vec![
+        (
+            Tar::default()
+                .long_name(b"opt/stacks/a")
+                .pax(&[("path", b"opt/stacks/b")])
+                .file("opt/stacks/c", b"x")
+                .end(),
+            FindingCode::AmbiguousName,
+        ),
+        (
+            Tar::default()
+                .long_name(b"opt/stacks/a")
+                .long_name(b"opt/stacks/b")
+                .file("opt/stacks/c", b"x")
+                .end(),
+            FindingCode::AmbiguousName,
+        ),
+        (
+            Tar::default()
+                .pax(&[("mtime", b"1")])
+                .pax(&[("mtime", b"2")])
+                .file("opt/stacks/c", b"x")
+                .end(),
+            FindingCode::AmbiguousName,
+        ),
+        (
+            Tar::default()
+                .pax(&[("path", b"opt/stacks/a"), ("path", b"opt/stacks/b")])
+                .file("opt/stacks/c", b"x")
+                .end(),
+            FindingCode::AmbiguousName,
+        ),
+        // A size override changes framing; never trusted, never applied.
+        (
+            Tar::default()
+                .pax(&[("size", b"0")])
+                .file("opt/stacks/c", b"x")
+                .end(),
+            FindingCode::UnsupportedExtension,
+        ),
+        (
+            Tar::default()
+                .pax(&[("SCHILY.xattr.security.capability", b"\x01")])
+                .file("opt/stacks/c", b"x")
+                .end(),
+            FindingCode::UnsupportedExtension,
+        ),
+        (
+            Tar::default()
+                .pax(&[("GNU.sparse.size", b"9")])
+                .file("opt/stacks/c", b"x")
+                .end(),
+            FindingCode::Sparse,
+        ),
+        (
+            Tar::default()
+                .extension(EntryType::XGlobalHeader, &pax_body(&[("comment", b"x")]))
+                .end(),
+            FindingCode::UnsupportedExtension,
+        ),
+        (
+            Tar::default().pax(&[("mtime", b"1")]).end(),
+            FindingCode::ExtensionWithoutMember,
+        ),
+        (
+            Tar::default()
+                .long_name(b"opt/stacks/x\0y")
+                .file("opt/stacks/c", b"x")
+                .end(),
+            FindingCode::UnsafeCharacter,
+        ),
+        (
+            Tar::default()
+                .extension(EntryType::XHeader, b"5 x\n")
+                .file("opt/stacks/c", b"x")
+                .end(),
+            FindingCode::Malformed,
+        ),
+    ];
+    for (i, (tar, code)) in cases.iter().enumerate() {
+        assert_eq!(both(tar), *code, "case {i}");
+    }
+}
+
+#[test]
+fn links_devices_and_other_member_types_are_rejected() {
+    let cases = [
+        (
+            EntryType::Symlink,
+            "opt/stacks/escape",
+            "../../../etc/shadow",
+            FindingCode::Symlink,
+        ),
+        (
+            EntryType::Symlink,
+            "opt/stacks/abs",
+            "/etc/shadow",
+            FindingCode::Symlink,
+        ),
+        (
+            EntryType::Link,
+            "opt/stacks/hard",
+            "etc/shadow",
+            FindingCode::Hardlink,
+        ),
+        (
+            EntryType::Link,
+            "opt/stacks/self",
+            "opt/stacks/self",
+            FindingCode::LegacySelfHardlink,
+        ),
+        (EntryType::Char, "opt/stacks/null", "", FindingCode::Device),
+        (EntryType::Block, "opt/stacks/sda", "", FindingCode::Device),
+        (EntryType::Fifo, "opt/stacks/pipe", "", FindingCode::Fifo),
+        (
+            EntryType::GNUSparse,
+            "opt/stacks/sparse",
+            "",
+            FindingCode::Sparse,
+        ),
+        (
+            EntryType::Continuous,
+            "opt/stacks/contig",
+            "",
+            FindingCode::UnsupportedEntryType,
+        ),
+        (
+            EntryType::new(b'V'),
+            "opt/stacks/volume",
+            "",
+            FindingCode::UnsupportedEntryType,
+        ),
+        (
+            EntryType::new(b'D'),
+            "opt/stacks/dumpdir",
+            "",
+            FindingCode::UnsupportedEntryType,
+        ),
+    ];
+    for (kind, name, link, code) in cases {
+        assert_eq!(
+            both(&Tar::default().typed(kind, name, link).end()),
+            code,
+            "{name}"
+        );
+    }
+    // A chain stops at its first link; the escape is never followed.
+    let chain = Tar::default()
+        .typed(EntryType::Symlink, "opt/stacks/a", "b")
+        .typed(EntryType::Symlink, "opt/stacks/b", "/etc")
+        .file("opt/stacks/a/passwd", b"x")
+        .end();
+    assert_eq!(both(&chain), FindingCode::Symlink);
+    // A long link name is read under the metadata bound and still rejected.
+    let long_link = Tar::default()
+        .extension(EntryType::GNULongLink, b"opt/stacks/self\0")
+        .typed(EntryType::Link, "opt/stacks/self", "ignored")
+        .end();
+    assert_eq!(both(&long_link), FindingCode::LegacySelfHardlink);
+    let stray_link = Tar::default()
+        .extension(EntryType::GNULongLink, b"x\0")
+        .file("opt/stacks/f", b"x")
+        .end();
+    assert_eq!(both(&stray_link), FindingCode::AmbiguousName);
+}
+
+#[test]
+fn duplicate_and_colliding_destinations_are_rejected() {
+    let dup = Tar::default()
+        .file("opt/stacks/a", b"1")
+        .file("opt/stacks/a", b"2")
+        .end();
+    assert_eq!(both(&dup), FindingCode::DuplicateDestination);
+    let parent = Tar::default()
+        .file("opt/stacks/a", b"1")
+        .dir("opt/stacks/a/b/")
+        .file("opt/stacks/a/b/c", b"2")
+        .end();
+    assert_eq!(both(&parent), FindingCode::ParentIsFile);
+    let kind = Tar::default()
+        .dir("opt/stacks/a/")
+        .file("opt/stacks/a", b"1")
+        .end();
+    assert_eq!(both(&kind), FindingCode::FileDirectoryCollision);
+    let root = Tar::default().file("opt/stacks", b"1").end();
+    assert_eq!(both(&root), FindingCode::FileDirectoryCollision);
+    let mut dir_data = Tar::header(EntryType::Directory, b"opt/stacks/d/", 3);
+    dir_data.set_cksum();
+    assert_eq!(
+        both(&Tar::default().push(&dir_data, b"abc").end()),
+        FindingCode::DirectoryWithData
+    );
+}
+
+#[test]
+fn malformed_and_truncated_streams_are_rejected() {
+    let good = Tar::default().file("opt/stacks/a", &[7; 2000]).end();
+    let mut checksum = good.clone();
+    checksum[0] ^= 1;
+    assert_eq!(both(&checksum), FindingCode::Malformed);
+    let mut size = Tar::header(EntryType::Regular, b"opt/stacks/a", 1);
+    size.as_gnu_mut().unwrap().size = *b"zzzzzzzzzzz\0";
+    size.set_cksum();
+    assert_eq!(
+        both(&Tar::default().push(&size, b"x").end()),
+        FindingCode::Malformed
+    );
+    let mut mode = Tar::header(EntryType::Regular, b"opt/stacks/a", 1);
+    mode.as_gnu_mut().unwrap().mode = *b"9999999\0";
+    mode.set_cksum();
+    assert_eq!(
+        both(&Tar::default().push(&mode, b"x").end()),
+        FindingCode::Malformed
+    );
+    // Cut inside a header, inside file data, and before the end marker.
+    assert_eq!(both(&good[..300]), FindingCode::Truncated);
+    assert_eq!(both(&good[..512 + 1000]), FindingCode::Truncated);
+    assert_eq!(both(&good[..512 + 2048]), FindingCode::Truncated);
+    let one_zero_block = &good[..good.len() - 512];
+    assert_eq!(both(one_zero_block), FindingCode::Truncated);
+    let mut hidden = good.clone();
+    hidden.extend_from_slice(
+        Tar::default()
+            .file("opt/stacks/hidden", b"x")
+            .end()
+            .as_slice(),
+    );
+    assert_eq!(both(&hidden), FindingCode::TrailingData);
+    // Compressed streams cut short or followed by junk.
+    for archive in [gz(&good), zst(&good)] {
+        assert_eq!(first(&archive[..archive.len() - 6]), FindingCode::Truncated);
+        let mut junk = archive.clone();
+        junk.extend_from_slice(&[b'x'; 32]);
+        assert_eq!(first(&junk), FindingCode::Malformed);
+    }
+    let mut v7 = Header::new_old();
+    v7.as_old_mut().name[..12].copy_from_slice(b"opt/stacks/a");
+    v7.set_size(1);
+    v7.set_cksum();
+    assert_eq!(
+        both(&Tar::default().push(&v7, b"x").end()),
+        FindingCode::UnsupportedHeaderFormat
+    );
+    assert_eq!(
+        first(&good),
+        FindingCode::UnrecognizedCompression,
+        "plain tar has no compression magic"
+    );
+    assert_eq!(first(b"BZh91AY&SY"), FindingCode::UnrecognizedCompression);
+    assert_eq!(first(b""), FindingCode::Truncated);
+}
+
+#[test]
+fn oversized_declarations_are_refused_before_any_read() {
+    // The headers declare far more than the stream carries; refusal must not
+    // depend on reading (or allocating) the declared bytes.
+    let huge_name = Tar::header(EntryType::GNULongName, b"././@LongLink", 1 << 30);
+    assert_eq!(
+        both(&Tar::default().push(&huge_name, &[]).end()),
+        FindingCode::MetadataLimit
+    );
+    let huge_pax = Tar::header(EntryType::XHeader, b"pax", 4097);
+    assert_eq!(
+        both(&Tar::default().push(&huge_pax, &[]).end()),
+        FindingCode::MetadataLimit
+    );
+    let huge_file = Tar::header(EntryType::Regular, b"opt/stacks/big", 1 << 40);
+    assert_eq!(
+        both(&Tar::default().push(&huge_file, &[]).end()),
+        FindingCode::FileSizeLimit
+    );
+    // 2^63 survives the library's checked arithmetic; the policy refuses it.
+    let mut top = Tar::header(EntryType::Regular, b"opt/stacks/top", 0);
+    top.set_size(1 << 63);
+    top.set_cksum();
+    assert_eq!(
+        both(&Tar::default().push(&top, &[]).end()),
+        FindingCode::FileSizeLimit
+    );
+    // u64::MAX overflows the next-header computation: refused as malformed.
+    let mut overflow = Tar::header(EntryType::Regular, b"opt/stacks/overflow", 0);
+    overflow.set_size(u64::MAX);
+    overflow.set_cksum();
+    assert_eq!(
+        both(&Tar::default().push(&overflow, &[]).end()),
+        FindingCode::Malformed
+    );
+    // Many individually small records exceed the total metadata allowance.
+    let mut tar = Tar::default();
+    for i in 0..5 {
+        let name = format!("opt/stacks/{i}{}", "n".repeat(3900));
+        tar = tar.long_name(name.as_bytes()).file("opt/stacks/x", b"x");
+    }
+    assert_eq!(both(&tar.end()), FindingCode::TotalMetadataLimit);
+}
+
+#[test]
+fn entry_floods_and_decompression_bombs_stop_at_policy_limits() {
+    let mut flood = Tar::default();
+    for i in 0..65 {
+        flood = flood.dir(&format!("opt/stacks/{i}/"));
+    }
+    assert_eq!(both(&flood.end()), FindingCode::EntryLimit);
+
+    // Five 900 KiB files of zeros: each within the file limit, together past
+    // the 4 MiB decompressed limit. The compressed form stays tiny.
+    let mut bomb = Tar::default();
+    for i in 0..5 {
+        bomb = bomb.file(&format!("opt/stacks/zero-{i}"), &vec![0; 900 * 1024]);
+    }
+    let bomb = bomb.end();
+    for archive in [gz(&bomb), zst(&bomb)] {
+        assert!(
+            archive.len() < 64 * 1024,
+            "fixture must be a high-expansion archive"
+        );
+        let rejection = rejected_with(&archive, &policy());
+        assert_eq!(rejection.findings[0].code, FindingCode::DecompressedLimit);
+    }
+    // Zero padding after the end marker counts too.
+    let mut padded = sample();
+    padded.extend(std::iter::repeat_n(0, 8 * MIB as usize));
+    assert_eq!(both(&padded), FindingCode::DecompressedLimit);
+
+    let mut tight = policy();
+    tight.limits.max_compressed_bytes = 64;
+    assert_eq!(
+        rejected_with(&zst(&sample()), &tight).findings[0].code,
+        FindingCode::CompressedLimit
+    );
+}
+
+#[test]
+fn zstd_windows_beyond_the_decoder_memory_limit_are_refused() {
+    let mut encoder = zstd::stream::write::Encoder::new(Vec::new(), 3).unwrap();
+    encoder
+        .set_parameter(zstd::stream::raw::CParameter::WindowLog(23))
+        .unwrap();
+    encoder.write_all(&sample()).unwrap();
+    let archive = encoder.finish().unwrap();
+    assert_eq!(first(&archive), FindingCode::DecoderMemoryLimit);
+    let mut roomy = policy();
+    roomy.limits.max_zstd_window_log = 23;
+    assert!(inspect_and_admit(archive.as_slice(), &roomy, &never).is_ok());
+}
+
+#[test]
+fn quota_boundaries_admit_exactly_the_limit() {
+    let at = Tar::default()
+        .file("opt/stacks/a", &vec![1; MIB as usize])
+        .end();
+    assert!(inspect_and_admit(gz(&at).as_slice(), &policy(), &never).is_ok());
+    let over = Tar::default()
+        .file("opt/stacks/a", &vec![1; MIB as usize + 1])
+        .end();
+    assert_eq!(both(&over), FindingCode::FileSizeLimit);
+
+    let mut exact = Tar::default();
+    for i in 0..64 {
+        exact = exact.dir(&format!("opt/stacks/{i}/"));
+    }
+    assert_eq!(admitted(&zst(&exact.end())).header_count, 64);
+
+    let archive = zst(&sample());
+    let report = inspect(archive.as_slice(), &policy(), &never).unwrap();
+    let mut limit = policy();
+    limit.limits.max_decompressed_bytes = report.decompressed_bytes;
+    limit.limits.max_file_bytes = report.decompressed_bytes;
+    assert!(inspect_and_admit(archive.as_slice(), &limit, &never).is_ok());
+    limit.limits.max_decompressed_bytes -= 1;
+    limit.limits.max_file_bytes -= 1;
+    assert_eq!(
+        rejected_with(&archive, &limit).findings[0].code,
+        FindingCode::DecompressedLimit
+    );
+    let mut compressed = policy();
+    compressed.limits.max_compressed_bytes = archive.len() as u64;
+    assert!(inspect_and_admit(archive.as_slice(), &compressed, &never).is_ok());
+    compressed.limits.max_compressed_bytes -= 1;
+    assert_eq!(
+        rejected_with(&archive, &compressed).findings[0].code,
+        FindingCode::CompressedLimit
+    );
+}
+
+#[test]
+fn cancellation_returns_no_report() {
+    let mut big = Tar::default();
+    for i in 0..8 {
+        big = big.file(&format!("opt/stacks/f{i}"), &vec![i as u8; 200 * 1024]);
+    }
+    let archive = gz(&big.end());
+    let calls = Cell::new(0u32);
+    let cancel_later = || {
+        calls.set(calls.get() + 1);
+        calls.get() > 6
+    };
+    let rejection = inspect_and_admit(archive.as_slice(), &policy(), &cancel_later).unwrap_err();
+    assert_eq!(rejection.codes(), [FindingCode::Cancelled]);
+    assert!(inspect(archive.as_slice(), &policy(), &|| true).is_err());
+}
+
+#[test]
+fn format_policy_and_invalid_policy_are_enforced_before_decoding() {
+    let mut zstd_only = policy();
+    zstd_only.formats = vec![ArchiveFormat::TarZstd];
+    assert_eq!(
+        rejected_with(&gz(&sample()), &zstd_only).findings[0].code,
+        FindingCode::FormatNotAllowed
+    );
+    let mut broad = policy();
+    broad.legacy_mappings[0].archive_prefix = "etc".into();
+    assert_eq!(
+        rejected_with(&gz(&sample()), &broad).findings[0].code,
+        FindingCode::InvalidPolicy
+    );
+}
+
+fn snapshot(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
+    let mut out = BTreeMap::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            let meta = std::fs::symlink_metadata(&path).unwrap();
+            if meta.is_dir() {
+                stack.push(path.clone());
+                out.insert(path, b"<dir>".to_vec());
+            } else {
+                out.insert(path.clone(), std::fs::read(&path).unwrap());
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn rejections_produce_no_manifest_and_change_no_managed_destination() {
+    // Stand-in managed destinations with sentinel contents.
+    let destinations = tempfile::tempdir().unwrap();
+    for (path, body) in [
+        ("etc/limeos/core.json", "sentinel"),
+        ("opt/stacks/media/compose.yaml", "sentinel"),
+    ] {
+        let path = destinations.path().join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, body).unwrap();
+    }
+    let before = snapshot(destinations.path());
+    let hostile = [
+        Tar::default()
+            .file("../../etc/limeos/core.json", b"pwn")
+            .end(),
+        Tar::default().file("/etc/limeos/core.json", b"pwn").end(),
+        Tar::default()
+            .typed(EntryType::Symlink, "opt/stacks/media", "/etc")
+            .end(),
+        Tar::default()
+            .typed(EntryType::Link, "opt/stacks/x", "etc/shadow")
+            .end(),
+        Tar::default()
+            .typed(EntryType::Char, "opt/stacks/null", "")
+            .end(),
+        Tar::default()
+            .pax(&[("path", b"../etc/passwd")])
+            .file("opt/stacks/a", b"pwn")
+            .end(),
+        Tar::default()
+            .file("opt/stacks/a", b"1")
+            .file("opt/stacks/a", b"2")
+            .end(),
+        Tar::default().file("opt/stacks/a", &[0; 2000]).end()[..900].to_vec(),
+    ];
+    for tar in hostile {
+        for archive in [gz(&tar), zst(&tar)] {
+            assert!(inspect_and_admit(archive.as_slice(), &policy(), &never).is_err());
+        }
+    }
+    assert_eq!(snapshot(destinations.path()), before);
+}
+
+fn fixtures() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/backup-archives")
+}
+
+#[test]
+fn gnu_tar_fixtures_match_their_recorded_hashes_and_expected_decisions() {
+    let sums = std::fs::read_to_string(fixtures().join("SHA256SUMS")).unwrap();
+    let mut seen = 0;
+    for line in sums.lines() {
+        let (digest, name) = line.split_once("  ./").unwrap();
+        let archive = std::fs::read(fixtures().join(name)).unwrap();
+        assert_eq!(
+            hex::encode(Sha256::digest(&archive)),
+            digest,
+            "{name} changed; regenerate"
+        );
+        let result = inspect_and_admit(archive.as_slice(), &policy(), &never);
+        let expected = match name {
+            "legacy-valid.tar.gz" | "legacy-valid.tar.zst" | "legacy-posix.tar.gz" => None,
+            "legacy-primary-overlap.tar.zst" => Some(FindingCode::LegacySelfHardlink),
+            "symlink-escape.tar.gz" => Some(FindingCode::Symlink),
+            "fifo.tar.gz" => Some(FindingCode::Fifo),
+            "sparse.tar.gz" => Some(FindingCode::Sparse),
+            "absolute-name.tar.gz" => Some(FindingCode::AbsolutePath),
+            "parent-name.tar.gz" => Some(FindingCode::ParentComponent),
+            "zeros-64m.tar.zst" => Some(FindingCode::FileSizeLimit),
+            other => panic!("unexpected fixture {other}"),
+        };
+        match (expected, result) {
+            (None, Ok(manifest)) => {
+                assert!(manifest.file_count >= 4, "{name}");
+                assert!(
+                    manifest.entries.iter().any(|e| e.archive_path.len() > 100),
+                    "{name} lacks a GNU long name"
+                );
+            }
+            (Some(code), Err(rejection)) => assert_eq!(rejection.findings[0].code, code, "{name}"),
+            (expected, result) => panic!("{name}: expected {expected:?}, got {result:?}"),
+        }
+        seen += 1;
+    }
+    assert_eq!(seen, 10);
+}
