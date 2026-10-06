@@ -1,0 +1,21 @@
+# RW-040: fresh container storage declarations
+
+Status: accepted for implementation under the existing rewrite authorization. This slice supplies live container declarations; storage effects remain gated by the remaining physical, pool, protection and share checks.
+
+Estimate: 12 engineering hours for the collector, internal RPC, scoped read API and regressions. Review the slice at 18 hours. P04 retains its 320-hour estimate and 480-hour phase review threshold. Record agent/build elapsed time separately from measured engineering effort.
+
+The existing container inspector returns identity, image, running state and start time. It omits mounts. Add a dedicated GET-only Docker collector in the existing container executor, which already owns Docker access. Core requests it on demand rather than interpreting cached dashboard observations or opening Docker itself. An unavailable, oversized, malformed or changing collection returns an error, never an empty successful inventory.
+
+Enumerate all containers, including stopped and unmanaged ones. Inspect their effective bind mounts and named volumes, retaining only full container identity/state, canonical host source, container destination, read/write state and bounded volume name/driver. Ignore validated tmpfs entries, which have no host source. Unsupported mount types block collection. Do not emit environment, labels, raw errors, Compose text or the rest of Engine inspection.
+
+Bracket collection with matching Engine identity and full container-ID enumerations; inspect each container twice and require identical selected facts. This detects observed collection races without claiming a transaction against external Docker clients. Bound the entire collection to four seconds, each JSON response to its existing cap, containers to 64, mounts per container to 64 and aggregate mounts to 256. Serialization must also fit the existing 64 KiB RPC frame. Do not clip or paginate safety evidence.
+
+A closed `container_storage_inventory` executor request uses the existing read ceiling and authenticated core peer. It carries no resource list, filters, paths or commands. Core verifies the connected executor UID against the socket owner and rejects root or its own account as the container reader. A shared single-flight permit bounds expensive storage reads. The response binds Engine identity, observation time and selected declarations; validation rejects stale/future or malformed evidence. Its digest identifies the exact selected snapshot.
+
+Expose `GET /api/v1/storage/container-dependencies` to a current human administrator with the explicit storage grant. Recheck authority after collection, including expiry/revocation during the read. A GET creates no intent, approval, job, receipt or audit mutation. Task tokens and ordinary health access cannot enumerate private host paths. Generated schemas and TypeScript carry the closed read contract.
+
+Provide component-aware declared-path impact calculation for a storage contract. A source at a mountpoint, below it, or above it can depend on that mount. Include stopped containers because a later start may use the path. These are declarations only: aliases, symlinks, bind aliases, named-volume backing mounts and nested filesystem boundaries require protected host-side resolution before effects. Pool branch consumers must later propagate through their pool roots; protection and share sources require separate complete collection. Missing sources must never imply no consumers.
+
+Test malformed identity/state/mount metadata, duplicate IDs/destinations, unknown types, changing lists/inspections/Engine identity, timeouts, byte/count bounds, stopped/unmanaged inclusion and absence of secret leakage. Test private RPC ceilings and HTTP authentication/verb behavior. Installed qualification uses disposable guests with synthetic bind directories and volumes, and compares Engine facts against the returned inventory. The frozen Python project and production Pi receive no changes.
+
+No database migration or service capability change is needed. Existing approvals, job canonical bytes and resource claims remain unchanged. Future coordinated dispatch must derive shared claims from protected, fresh complete dependency evidence and recheck before an effect; this read endpoint alone authorizes no mount or unmount.
