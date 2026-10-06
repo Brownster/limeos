@@ -1,0 +1,38 @@
+{
+  "added_substantive_tests": 19,
+  "added_tests": 20,
+  "audit_database": "ef6173cbc5c50ec8166f9a5b28f07834144373ee 2026-10-03T10:14:03+02:00",
+  "base_commit": "a595c2f1bcca8a8a0bc21ea0162eea841d0d5d15",
+  "baseline_test_count": 231,
+  "crash_helper_tests": 1,
+  "dependency_edges_added": [
+    "backup-archive -> rustix 1.1.5",
+    "backup-archive -> getrandom 0.2.17"
+  ],
+  "external_package_count": 212,
+  "external_package_versions_sources_checksums_unchanged": true,
+  "gnu_fixture_sha256": {
+    "absolute-name.tar.gz": "e60d850f3d991c629dfefa2eb6014e962b64e234b61f913e342718ae21271304",
+    "fifo.tar.gz": "ca73f733bf452fd69d6c2a4085d5de22658c146f0b4f68d95a2888f466fa5e8a",
+    "legacy-posix.tar.gz": "fcc8fac2de9fd843236bfabc8ad1ba65c2cd653343fdedb55e2ba610948dc48a",
+    "legacy-primary-overlap.tar.zst": "536e2d1fffe91420931a0034970d78aa4e1f06130aca0706a72988018ef1ceec",
+    "legacy-valid.tar.gz": "d060432647c2d18d6db4055d2e58bcab7dbdce0d17f2462bb6c315511dc26a54",
+    "legacy-valid.tar.zst": "51603bef78f8c54528c6707ffa8bac001d4400d4176cfa71956cad7e15034d38",
+    "parent-name.tar.gz": "3f801744b822e7023dc3ae9c6cd82626c94c067fdb2e797acaafc4a655086a70",
+    "sparse.tar.gz": "e218557386abb6434181da913f28b2e746eddfae2578a5753cf1bba8cbbc5a82",
+    "symlink-escape.tar.gz": "dc586ee848b07964b456c958dc0ac49fb212ea222c381bc3133494116a75c28c",
+    "zeros-64m.tar.zst": "69d6133a8e4f7ad9617ea91d5de8575caba2e89ce52ff4d7c2fbd57835a02d5c"
+  },
+  "source_commit": "ffef192fc51110557e87b4555e1b68f1c3b650b9",
+  "tool_versions": {
+    "audit": "cargo-audit-audit 0.22.2",
+    "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+    "deny": "cargo-deny 0.20.2",
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)"
+  },
+  "unchanged_original_admission_sections_sha256": {
+    "crates/backup-archive/src/lib.rs": "eb2b29bed9ed890941f34b3a24006f4784a4b7b03052666fc780335a7bafe9c6",
+    "crates/backup-archive/tests/archives.rs": "b5fb9d88d3f3d8f4589786bb5c9cd7acf7dd7373ae058f17ec6d413d0104c0f8"
+  },
+  "workspace_test_count": 251
+}

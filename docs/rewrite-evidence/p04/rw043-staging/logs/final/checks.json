@@ -1,0 +1,150 @@
+{
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "elapsed_seconds": 0.528649440035224,
+      "exit_code": 0,
+      "log": "fmt.txt",
+      "name": "fmt"
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "elapsed_seconds": 0.8730411069700494,
+      "exit_code": 0,
+      "log": "clippy.txt",
+      "name": "clippy"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked",
+        "--offline"
+      ],
+      "elapsed_seconds": 104.71682495099958,
+      "exit_code": 0,
+      "log": "workspace-tests.txt",
+      "name": "workspace-tests"
+    },
+    {
+      "command": [
+        "/home/marc/.cache/uv/environments-v2/run-checks-d349482c22c4b5f7/bin/python",
+        "scripts/check_repository.py"
+      ],
+      "elapsed_seconds": 0.12021038506645709,
+      "exit_code": 0,
+      "log": "repository.txt",
+      "name": "repository"
+    },
+    {
+      "command": [
+        "/home/marc/.cache/uv/environments-v2/run-checks-d349482c22c4b5f7/bin/python",
+        "scripts/check_contracts.py"
+      ],
+      "elapsed_seconds": 9.511950758984312,
+      "exit_code": 0,
+      "log": "contracts.txt",
+      "name": "contracts"
+    },
+    {
+      "command": [
+        "cargo",
+        "metadata",
+        "--locked",
+        "--offline",
+        "--format-version",
+        "1"
+      ],
+      "elapsed_seconds": 0.3567566459532827,
+      "exit_code": 0,
+      "log": "dependency-metadata.txt",
+      "name": "dependency-metadata"
+    },
+    {
+      "command": [
+        "cargo",
+        "deny",
+        "--offline",
+        "check"
+      ],
+      "elapsed_seconds": 0.7687475390266627,
+      "exit_code": 0,
+      "log": "deny.txt",
+      "name": "deny"
+    },
+    {
+      "command": [
+        "cargo",
+        "audit",
+        "--no-fetch",
+        "--no-yanked",
+        "--db",
+        "/tmp/limeos-advisory-db"
+      ],
+      "elapsed_seconds": 0.1036671050824225,
+      "exit_code": 0,
+      "log": "audit.txt",
+      "name": "audit"
+    },
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--offline",
+        "-p",
+        "limeos-backup-archive",
+        "--example",
+        "stage"
+      ],
+      "elapsed_seconds": 53.77981301792897,
+      "exit_code": 0,
+      "log": "release-example.txt",
+      "name": "release-example"
+    }
+  ],
+  "finished_utc": "2026-10-06T22:28:42.818765+00:00",
+  "platform": {
+    "machine": "x86_64",
+    "node": "fedora",
+    "processor": "",
+    "release": "7.0.14-101.fc43.x86_64",
+    "system": "Linux",
+    "version": "#1 SMP PREEMPT_DYNAMIC Wed Jul  1 13:50:13 UTC 2026"
+  },
+  "scope": "local workstation; cached dependencies/advisories; no native ARM/installed restore",
+  "source_commit": "ffef192fc51110557e87b4555e1b68f1c3b650b9",
+  "source_sha256": {
+    "Cargo.lock": "db3ee3f292266c092c27f31a12f06276236be8099fb1e300bde7c3dd390af764",
+    "Cargo.toml": "904578398be9460bbc087d2e5988a3ba1082160a6af7ebfa70b12256fc90d2a3",
+    "crates/backup-archive/Cargo.toml": "469e56b69545cbca285d7875981c045dd5f3034ff16aadd511070dce5204413f",
+    "crates/backup-archive/examples/stage.rs": "4f3097828d865a7316c7948396c42f1c6cd96744cc3ac566d305d8f2ef040a1b",
+    "crates/backup-archive/src/lib.rs": "f4ed349039aa1bcc7c078fade47d88dc916cca6461bebcbb1736f70f9914661b",
+    "crates/backup-archive/src/staging.rs": "0517279f6a6890f2aa3743d967737c6714878d2daaaeb689de54fe36ff65adb1",
+    "crates/backup-archive/src/staging/tests.rs": "b913e9f60ee1f8bcb48be39dbe9ecb527e5f50384bbabac9471f65918bed794c",
+    "crates/backup-archive/tests/archives.rs": "b94dcad5d4dd32cc89129f9c75cc679b431741eca4891fa3a55e8a3893ff03ec",
+    "crates/domain/src/backups.rs": "838bf9d185c9bdb4ba6e8c8fc0d23c77506c7840988ee51271140bd59a6d491b",
+    "docs/rewrite-evidence/p04/rw043-staging/measure_staging.py": "a379aae45be86fc6637ffceb640d97dee82aa78a7777e8f63dafad83b67f3151",
+    "tests/fixtures/backup-staging/policy.json": "66cd55aa525b751f451bfb207b0907728b3aff9adfb56576a545e6199e3f60a9"
+  },
+  "started_utc": "2026-10-06T22:25:52.054747+00:00",
+  "uid": 1000
+}
