@@ -5,7 +5,8 @@
 //! only after reaching a verified end. [`inspect_and_admit`] adds the pure
 //! domain admission step and returns a digest-bound [`RestoreManifest`].
 //!
-//! Nothing here writes to disk, follows links or resolves destinations.
+//! Inspection is read-only. [`staging`] reuses this exact streaming path for
+//! tentative private files, returning a catalog only after verified replay.
 
 use flate2::bufread::MultiGzDecoder;
 use limeos_domain::backups::{
@@ -14,7 +15,6 @@ use limeos_domain::backups::{
 };
 use sha2::{Digest, Sha256};
 use std::{
-    collections::BTreeSet,
     error::Error as StdError,
     fmt,
     io::{self, BufRead, BufReader, Read},
@@ -27,6 +27,73 @@ const GZIP_MAGIC: [u8; 3] = [0x1f, 0x8b, 0x08];
 const ZSTD_MAGIC: [u8; 4] = [0x28, 0xb5, 0x2f, 0xfd];
 const BLOCK: u64 = 512;
 const CHUNK: usize = 64 * 1024;
+
+/// Internal-only consumer. No public callback can publish tentative bytes.
+trait FileSink {
+    type Error;
+    fn begin_file(&mut self, index: u64, path: &str, size: u64) -> Result<(), Self::Error>;
+    fn chunk(&mut self, bytes: &[u8]) -> Result<(), Self::Error>;
+    fn end_file(&mut self) -> Result<(), Self::Error>;
+}
+
+struct Discard;
+impl FileSink for Discard {
+    type Error = Rejection;
+    fn begin_file(&mut self, _: u64, _: &str, _: u64) -> Result<(), Rejection> {
+        Ok(())
+    }
+    fn chunk(&mut self, _: &[u8]) -> Result<(), Rejection> {
+        Ok(())
+    }
+    fn end_file(&mut self) -> Result<(), Rejection> {
+        Ok(())
+    }
+}
+
+fn allocation(index: Option<u64>) -> Rejection {
+    reject(
+        FindingCode::Allocation,
+        index,
+        None,
+        "bounded allocation failed",
+    )
+}
+
+fn buffer(size: usize, index: Option<u64>) -> Result<Vec<u8>, Rejection> {
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(size)
+        .map_err(|_| allocation(index))?;
+    bytes.resize(size, 0);
+    Ok(bytes)
+}
+
+#[derive(Debug)]
+struct InputFailure(io::Error);
+impl fmt::Display for InputFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+impl StdError for InputFailure {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        Some(&self.0)
+    }
+}
+
+fn input_failed(error: &io::Error) -> bool {
+    let mut source: Option<&(dyn StdError + 'static)> = error.get_ref().map(|e| e as _);
+    while let Some(e) = source {
+        if e.is::<InputFailure>() {
+            return true;
+        }
+        source = match e.downcast_ref::<io::Error>() {
+            Some(inner) => inner.get_ref().map(|e| e as _),
+            None => e.source(),
+        };
+    }
+    false
+}
 /// Pax keys that may appear but carry no authority: archived ownership and
 /// times are ignored. Any other key, including `size`, is rejected.
 const INFORMATIONAL_PAX_KEYS: &[&str] =
@@ -92,6 +159,9 @@ impl<R: Read> Read for Limited<'_, R> {
             }
             match self.inner.read(&mut buf[..want]) {
                 Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                Err(error) if self.reason == Stop::Compressed => {
+                    return Err(io::Error::other(InputFailure(error)));
+                }
                 result => break result?,
             }
         };
@@ -147,6 +217,7 @@ fn classify(error: &io::Error, entry: Option<u64>) -> Rejection {
         Some(Stop::Compressed) => FindingCode::CompressedLimit,
         Some(Stop::Decompressed) => FindingCode::DecompressedLimit,
         Some(Stop::Cancelled) => FindingCode::Cancelled,
+        None if input_failed(error) => FindingCode::Io,
         None if text.contains("Frame requires too much memory") => FindingCode::DecoderMemoryLimit,
         None if error.kind() == io::ErrorKind::UnexpectedEof
             || text.contains("failed to read entire block") =>
@@ -217,11 +288,17 @@ fn read_pax(body: &[u8], pending: &mut Pending, index: u64) -> Result<(), Reject
                 &format!("pax key {key} repeated"),
             ));
         }
+        seen.try_reserve(1).map_err(|_| allocation(Some(index)))?;
         seen.push(key);
-        let value = record.value_bytes().to_vec();
+        let value = || -> Result<Vec<u8>, Rejection> {
+            let bytes = record.value_bytes();
+            let mut copy = buffer(bytes.len(), Some(index))?;
+            copy.copy_from_slice(bytes);
+            Ok(copy)
+        };
         match key {
-            "path" => pending.pax_path = Some(value),
-            "linkpath" => pending.pax_linkpath = Some(value),
+            "path" => pending.pax_path = Some(value()?),
+            "linkpath" => pending.pax_linkpath = Some(value()?),
             k if k.starts_with("GNU.sparse.") => {
                 return Err(reject(
                     FindingCode::Sparse,
@@ -282,19 +359,11 @@ fn utf8(name: Vec<u8>, index: u64) -> Result<String, Rejection> {
 
 /// Read one extension record whose declared size the caller already checked.
 fn read_record(entry: &mut impl Read, size: u64, index: u64) -> Result<Vec<u8>, Rejection> {
-    let mut body = Vec::with_capacity(usize::try_from(size).unwrap_or(0));
+    let size = usize::try_from(size).map_err(|_| allocation(Some(index)))?;
+    let mut body = buffer(size, Some(index))?;
     entry
-        .take(size)
-        .read_to_end(&mut body)
+        .read_exact(&mut body)
         .map_err(|e| classify(&e, Some(index)))?;
-    if body.len() as u64 != size {
-        return Err(reject(
-            FindingCode::Truncated,
-            Some(index),
-            None,
-            "extension record ended early",
-        ));
-    }
     Ok(body)
 }
 
@@ -322,12 +391,31 @@ pub fn inspect<R: Read>(
     policy: &AdmissionPolicy,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<InspectionReport, Rejection> {
+    inspect_stream::<_, _, Rejection>(source, policy, cancelled, None, &mut Discard)
+}
+
+fn inspect_stream<R: Read, S: FileSink, E: From<Rejection> + From<S::Error>>(
+    source: R,
+    policy: &AdmissionPolicy,
+    cancelled: &dyn Fn() -> bool,
+    expected: Option<&RestoreManifest>,
+    sink: &mut S,
+) -> Result<InspectionReport, E> {
     policy.validate()?;
     let limits = &policy.limits;
+    let compressed_limit = expected.map_or(limits.max_compressed_bytes, |m| {
+        limits.max_compressed_bytes.min(m.compressed_bytes)
+    });
+    let decompressed_limit = expected.map_or(limits.max_decompressed_bytes, |m| {
+        limits.max_decompressed_bytes.min(m.decompressed_bytes)
+    });
+    let header_limit = expected.map_or(limits.max_entries, |m| {
+        limits.max_entries.min(m.header_count)
+    });
     let mut compressed = Limited {
         inner: source,
         count: 0,
-        limit: limits.max_compressed_bytes,
+        limit: compressed_limit,
         reason: Stop::Compressed,
         hasher: Some(Sha256::new()),
         cancelled,
@@ -338,7 +426,7 @@ pub fn inspect<R: Read>(
         .map_err(|e| classify(&e, None))?;
     let format = detect(&magic)?;
     if !policy.formats.contains(&format) {
-        return Err(reject(FindingCode::FormatNotAllowed, None, None, ""));
+        return Err(reject(FindingCode::FormatNotAllowed, None, None, "").into());
     }
     let buffered = BufReader::with_capacity(CHUNK, io::Cursor::new(magic).chain(compressed));
     let decoder = match format {
@@ -355,18 +443,17 @@ pub fn inspect<R: Read>(
     let mut archive = Archive::new(Limited {
         inner: decoder,
         count: 0,
-        limit: limits.max_decompressed_bytes,
+        limit: decompressed_limit,
         reason: Stop::Decompressed,
         hasher: None,
         cancelled,
     });
-    let mut entries_out = Vec::new();
-    let mut completed_files = BTreeSet::new();
-    let mut coalesced_self_hardlinks = 0;
+    let mut entries_out: Vec<InspectedEntry> = Vec::new();
+    let mut coalesced_self_hardlinks: u64 = 0;
     let mut header_count: u64 = 0;
     let mut metadata_bytes: u64 = 0;
     let mut pending = Pending::default();
-    let mut chunk = vec![0u8; CHUNK];
+    let mut chunk = buffer(CHUNK, None)?;
     {
         // Raw iteration: the library would otherwise read extension records of
         // any declared size into memory and apply pax overrides itself.
@@ -374,12 +461,14 @@ pub fn inspect<R: Read>(
         for next in entries {
             let index = header_count;
             if cancelled() {
-                return Err(reject(FindingCode::Cancelled, Some(index), None, ""));
+                return Err(reject(FindingCode::Cancelled, Some(index), None, "").into());
             }
             let mut entry = next.map_err(|e| classify(&e, Some(index)))?;
-            header_count += 1;
-            if header_count > limits.max_entries {
-                return Err(reject(FindingCode::EntryLimit, Some(index), None, ""));
+            header_count = header_count
+                .checked_add(1)
+                .ok_or_else(|| reject(FindingCode::EntryLimit, Some(index), None, ""))?;
+            if header_count > header_limit {
+                return Err(reject(FindingCode::EntryLimit, Some(index), None, "").into());
             }
             let header: Header = entry.header().clone();
             if header.as_gnu().is_none() && header.as_ustar().is_none() {
@@ -388,7 +477,8 @@ pub fn inspect<R: Read>(
                     Some(index),
                     None,
                     "only GNU and ustar headers are supported",
-                ));
+                )
+                .into());
             }
             let size = header.entry_size().map_err(|e| classify(&e, Some(index)))?;
             let kind = header.entry_type();
@@ -400,7 +490,17 @@ pub fn inspect<R: Read>(
                         Some(index),
                         None,
                         &format!("{size} bytes declared"),
-                    ));
+                    )
+                    .into());
+                }
+                if size > decompressed_limit {
+                    return Err(reject(
+                        FindingCode::DecompressedLimit,
+                        Some(index),
+                        None,
+                        "metadata declaration exceeds replay byte budget",
+                    )
+                    .into());
                 }
                 metadata_bytes = metadata_bytes
                     .checked_add(size)
@@ -425,7 +525,8 @@ pub fn inspect<R: Read>(
                         Some(index),
                         None,
                         "two extension records of one kind describe one member",
-                    ));
+                    )
+                    .into());
                 }
                 continue;
             }
@@ -435,7 +536,8 @@ pub fn inspect<R: Read>(
                     Some(index),
                     None,
                     "pax global header",
-                ));
+                )
+                .into());
             }
             let taken = std::mem::take(&mut pending);
             let name = effective_name(
@@ -459,9 +561,13 @@ pub fn inspect<R: Read>(
                 if kind.is_hard_link()
                     && size == 0
                     && link == path.as_bytes()
-                    && completed_files.contains(&path)
+                    && entries_out
+                        .iter()
+                        .any(|e| e.kind == EntryKind::File && e.archive_path == path)
                 {
-                    coalesced_self_hardlinks += 1;
+                    coalesced_self_hardlinks = coalesced_self_hardlinks
+                        .checked_add(1_u64)
+                        .ok_or_else(|| at(FindingCode::EntryLimit, "repeat count overflow"))?;
                     continue;
                 }
                 let detail = format!("target {}", display_path(&String::from_utf8_lossy(&link)));
@@ -471,20 +577,22 @@ pub fn inspect<R: Read>(
                     at(FindingCode::LegacySelfHardlink, &detail)
                 } else {
                     at(FindingCode::Hardlink, &detail)
-                });
+                }
+                .into());
             }
             if taken.long_link.is_some() || taken.pax_linkpath.is_some() {
                 return Err(at(
                     FindingCode::AmbiguousName,
                     "link name on a member that is not a link",
-                ));
+                )
+                .into());
             }
             let entry_kind = if kind.is_character_special() || kind.is_block_special() {
-                return Err(at(FindingCode::Device, ""));
+                return Err(at(FindingCode::Device, "").into());
             } else if kind.is_fifo() {
-                return Err(at(FindingCode::Fifo, ""));
+                return Err(at(FindingCode::Fifo, "").into());
             } else if kind.is_gnu_sparse() {
-                return Err(at(FindingCode::Sparse, ""));
+                return Err(at(FindingCode::Sparse, "").into());
             } else if kind.is_dir() {
                 EntryKind::Directory
             } else if matches!(kind.as_byte(), b'0' | b'\0') {
@@ -493,13 +601,16 @@ pub fn inspect<R: Read>(
                 return Err(at(
                     FindingCode::UnsupportedEntryType,
                     &format!("type {:?}", char::from(kind.as_byte())),
-                ));
+                )
+                .into());
             };
             let mode = header.mode().map_err(|e| classify(&e, Some(index)))? & 0o7777;
             let sha256 = match entry_kind {
                 EntryKind::Directory => {
                     if size != 0 {
-                        return Err(at(FindingCode::DirectoryWithData, &format!("{size} bytes")));
+                        return Err(
+                            at(FindingCode::DirectoryWithData, &format!("{size} bytes")).into()
+                        );
                     }
                     None
                 }
@@ -509,8 +620,10 @@ pub fn inspect<R: Read>(
                         return Err(at(
                             FindingCode::FileSizeLimit,
                             &format!("{size} bytes declared"),
-                        ));
+                        )
+                        .into());
                     }
+                    sink.begin_file(index, &path, size).map_err(E::from)?;
                     let mut hasher = Sha256::new();
                     let mut read: u64 = 0;
                     loop {
@@ -521,15 +634,21 @@ pub fn inspect<R: Read>(
                             break;
                         }
                         hasher.update(&chunk[..n]);
-                        read += n as u64;
+                        read = read
+                            .checked_add(n as u64)
+                            .ok_or_else(|| at(FindingCode::FileSizeLimit, "file count overflow"))?;
+                        sink.chunk(&chunk[..n]).map_err(E::from)?;
                     }
                     if read != size {
-                        return Err(at(FindingCode::Truncated, "file data ended early"));
+                        return Err(at(FindingCode::Truncated, "file data ended early").into());
                     }
-                    completed_files.insert(path.clone());
+                    sink.end_file().map_err(E::from)?;
                     Some(hex::encode(hasher.finalize()))
                 }
             };
+            entries_out
+                .try_reserve(1)
+                .map_err(|_| allocation(Some(index)))?;
             entries_out.push(InspectedEntry {
                 header_index: index,
                 archive_path: path,
@@ -546,7 +665,8 @@ pub fn inspect<R: Read>(
             Some(header_count),
             None,
             "",
-        ));
+        )
+        .into());
     }
     // The library stops at the first zero block, or at a bare EOF. Require the
     // second end-of-archive block and nothing but zero padding after it.
@@ -565,9 +685,17 @@ pub fn inspect<R: Read>(
                 None,
                 None,
                 "data after the end-of-archive marker",
-            ));
+            )
+            .into());
         }
-        trailing += n as u64;
+        trailing = trailing.checked_add(n as u64).ok_or_else(|| {
+            reject(
+                FindingCode::DecompressedLimit,
+                None,
+                None,
+                "trailing byte count overflow",
+            )
+        })?;
     }
     if trailing < BLOCK || trailing % BLOCK != 0 {
         return Err(reject(
@@ -575,7 +703,8 @@ pub fn inspect<R: Read>(
             None,
             None,
             "missing or partial end-of-archive marker",
-        ));
+        )
+        .into());
     }
     let decompressed_bytes = decompressed.count;
     let mut source = decompressed.inner.into_source();
@@ -589,7 +718,8 @@ pub fn inspect<R: Read>(
             None,
             None,
             "bytes after the compressed stream",
-        ));
+        )
+        .into());
     }
     let (_, compressed) = source.into_inner().into_inner();
     Ok(InspectionReport {
