@@ -66,6 +66,7 @@ def fixture_job(db, owner, key, initial="queued", resources=()):
     revision = db.execute(
         "SELECT grant_revision FROM users WHERE id=?", (owner,)
     ).fetchone()[0]
+    schema = db.execute("PRAGMA user_version").fetchone()[0]
     db.execute(
         "INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?,?)",
         (
@@ -75,7 +76,7 @@ def fixture_job(db, owner, key, initial="queued", resources=()):
             intent,
             hashlib.sha256(intent.encode()).hexdigest(),
             resource,
-            initial,
+            "queued" if schema >= 7 else initial,
             generation,
             revision,
             int(time.time()) + 300,
@@ -83,24 +84,29 @@ def fixture_job(db, owner, key, initial="queued", resources=()):
     )
     for dependency in resources:
         db.execute("INSERT INTO job_resources VALUES(?,?)", (job, dependency))
+    if schema >= 7 and initial != "queued":
+        db.execute("UPDATE jobs SET state=? WHERE id=?", (initial, job))
     return job
 
 
-def upgrade(candidate):
+def upgrade(
+    candidate,
+    previous_version="0.4.2",
+    previous_schema=6,
+    previous_package_sha256="468b844cebb12806661a4d757b47b53f0c9d2f3bcbe21bb2d89639b5df656263",
+    previous_core_sha256="f868c45731f2b9323843be43b55de638648e1a228e92f29417dfad9ac42a69a9",
+):
     previous = Path("/opt/limeos-previous-repo")
     if not previous.is_dir():
         return None
-    old_package = next(previous.rglob("limeos_0.4.2_amd64.deb"))
-    assert (
-        digest(old_package)
-        == "468b844cebb12806661a4d757b47b53f0c9d2f3bcbe21bb2d89639b5df656263"
-    ), "Genuinely frozen 0.4.2 package required"
-    repository(previous)
-    run("apt-get", "install", "-y", "limeos=0.4.2", timeout=120)
-    old_core = digest(CORE)
-    assert (
-        old_core == "f868c45731f2b9323843be43b55de638648e1a228e92f29417dfad9ac42a69a9"
+    old_package = next(previous.rglob(f"limeos_{previous_version}_amd64.deb"))
+    assert digest(old_package) == previous_package_sha256, (
+        "Genuinely frozen previous package required"
     )
+    repository(previous)
+    run("apt-get", "install", "-y", "limeos=" + previous_version, timeout=120)
+    old_core = digest(CORE)
+    assert old_core == previous_core_sha256
     run("apt-get", "install", "-y", "docker.io", "busybox-static", timeout=120)
     run("systemctl", "start", "docker")
     cookie, csrf, owner = container_tests.enroll()
@@ -130,7 +136,7 @@ def upgrade(candidate):
     pending, token = container_tests.plan(identifier, cookie, csrf)
     run("systemctl", "stop", "limeos-core")
     with sqlite3.connect(DB) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert db.execute("PRAGMA user_version").fetchone()[0] == previous_schema
         before = db.execute(
             "SELECT body,digest,approval_digest FROM container_plans WHERE id=?",
             (pending["plan"]["id"],),
@@ -140,7 +146,15 @@ def upgrade(candidate):
             (old_job["id"],),
         ).fetchone()
         legacy = {
-            status: fixture_job(db, owner["id"], "legacy-" + status, status)
+            status: fixture_job(
+                db,
+                owner["id"],
+                "legacy-" + status,
+                status,
+                ["storage:uuid:legacy-" + status, "storage:mount:/mnt/Legacy-" + status]
+                if previous_schema >= 7
+                else [],
+            )
             for status in [
                 "running",
                 "verifying",
@@ -173,7 +187,9 @@ def upgrade(candidate):
         assert state(job) == (
             "needs_intervention" if status in ["running", "verifying"] else status
         )
-        assert len(claims(job)) == (0 if status == "queued" else 1)
+        assert len(claims(job)) == (
+            0 if status == "queued" else 3 if previous_schema >= 7 else 1
+        )
     new_job, _ = container_tests.queue(pending, token, "upgrade-pending", cookie, csrf)
     eventually(lambda: state(new_job["id"]) == "succeeded")
     code, _, replay = container_tests.http(
@@ -186,7 +202,7 @@ def upgrade(candidate):
     container_tests.restart_container()
     run("docker", "rm", "-f", identifier)
     return {
-        "from": "0.4.2",
+        "from": previous_version,
         "to": VERSION,
         "previous_package_sha256": digest(old_package),
         "previous_core_sha256": old_core,
@@ -195,7 +211,9 @@ def upgrade(candidate):
             "human session",
             "approved canonical bytes and token hash",
             "verified receipt",
-            "four active primary locks",
+            "four active complete claim sets"
+            if previous_schema >= 7
+            else "four active primary locks",
             "queued state",
         ],
         "post_upgrade_approved_restart": "verified",
@@ -203,21 +221,23 @@ def upgrade(candidate):
     }
 
 
-def main():
+def main(package_version="0.4.3", authority_schema=7, qualify_upgrade=True):
+    global VERSION
+    VERSION = package_version
     if (
         os.geteuid() != 0
         or Path("/etc/hostname").read_text().strip() != "limeos-p01-test"
     ):
         raise SystemExit("Refusing outside disposable VM")
     candidate, output = map(Path, sys.argv[1:])
-    upgrade_evidence = upgrade(candidate)
+    upgrade_evidence = upgrade(candidate) if qualify_upgrade else None
     if upgrade_evidence:
         print(
             "PASS frozen-package upgrade and preserved approvals/receipts/legacy locks",
             flush=True,
         )
     targets.VERSION = VERSION
-    planning.AUTHORITY_SCHEMA = 7
+    planning.AUTHORITY_SCHEMA = authority_schema
     targets.main()
     evidence = json.loads(output.read_text())
 
@@ -355,7 +375,7 @@ def main():
     assert claims(a) == held
     evidence.update(
         scope="installed core multi-resource lock foundation, storage target regressions and optional genuine frozen-package upgrade",
-        authority_schema=7,
+        authority_schema=authority_schema,
         core_payload_sha256=digest(CORE),
         upgrade=upgrade_evidence,
     )

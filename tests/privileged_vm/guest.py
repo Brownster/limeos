@@ -76,7 +76,7 @@ def refused_executor_reply(body, error):
     return value == {"version": 1, "ready": False, "error": error}
 
 
-def main():
+def main(package_version="0.1.0", upgrade_version="0.1.1"):
     if (
         os.geteuid() != 0
         or Path("/etc/hostname").read_text().strip() != "limeos-p01-test"
@@ -103,7 +103,7 @@ def main():
         + " stable main\n"
     )
     run("apt-get", "update")
-    run("apt-get", "install", "-y", "limeos=0.1.0")
+    run("apt-get", "install", "-y", "limeos=" + package_version)
     run("/usr/lib/limeos/limeosctl", "status")
     units = ["limeos-core", "limeos-containerd", "limeos-storaged"]
     for unit in units:
@@ -391,7 +391,7 @@ print(body.decode())
         "install",
         "-y",
         "--reinstall",
-        "limeos=0.1.0",
+        "limeos=" + package_version,
     )
     assert original_ids == [
         pwd.getpwnam(name).pw_uid
@@ -471,8 +471,8 @@ print(body.decode())
         )
     run("/var/lib/dpkg/info/limeos.postinst", "configure")
     passed("activation and removal failures surface and rerun recovers")
-    run("apt-get", "install", "-y", "limeos=0.1.1")
-    run("apt-get", "install", "-y", "--allow-downgrades", "limeos=0.1.0")
+    run("apt-get", "install", "-y", "limeos=" + upgrade_version)
+    run("apt-get", "install", "-y", "--allow-downgrades", "limeos=" + package_version)
     run("/usr/lib/limeos/limeosctl", "status")
     assert config.read_bytes() == valid
     assert (
@@ -578,7 +578,7 @@ print(body.decode())
     passed("idle health reads do not write and logs contain no credentials")
     run("apt-get", "remove", "-y", "limeos")
     assert Path("/var/lib/limeos/core/core.sqlite").exists()
-    run("apt-get", "install", "-y", "limeos=0.1.0")
+    run("apt-get", "install", "-y", "limeos=" + package_version)
     assert (
         http_request(
             "POST", "/api/v1/auth/login", {"username": "alice", "password": password}

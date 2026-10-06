@@ -220,7 +220,7 @@ def media_preview():
     compose.restart_core()
 
 
-def main():
+def main(package_version="0.3.2", authority_schema=5, qualify_upgrade=True):
     if os.getuid() != 0 or socket.gethostname() != "limeos-p01-test":
         raise SystemExit("Disposable guest required")
     profiles.extend(json.loads(PROFILE.read_text())["services"])
@@ -235,7 +235,7 @@ def main():
     ]
     prepare_sources()
     fixture.docker = reference_docker
-    compose.main()
+    compose.main(package_version, authority_schema, qualify_upgrade)
     representative = {}
     for identifier, service in created:
         inspected = fixture.inspect(identifier)

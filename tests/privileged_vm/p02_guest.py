@@ -123,7 +123,7 @@ def pss(pid):
     )
 
 
-def main():
+def main(package_version="0.2.0"):
     if (
         os.geteuid() != 0
         or Path("/etc/hostname").read_text().strip() != "limeos-p01-test"
@@ -148,7 +148,7 @@ def main():
         f"deb [signed-by=/usr/share/keyrings/limeos-test.gpg] file:{repo} stable main\n"
     )
     run("apt-get", "update")
-    run("apt-get", "install", "-y", "limeos=0.2.0")
+    run("apt-get", "install", "-y", "limeos=" + package_version)
     baseline_cookie = enroll(False)
     reference = Path("/home/reference/pi-health")
     reference.mkdir(parents=True)
@@ -161,7 +161,7 @@ def main():
         for u in units
     }
     mounts = Path("/proc/1/mountinfo").read_text()
-    run("apt-get", "install", "-y", "limeos-shadow=0.2.0")
+    run("apt-get", "install", "-y", "limeos-shadow=" + package_version)
     shadow_units = [
         "limeos-shadow-core",
         "limeos-shadow-containerd",

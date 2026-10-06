@@ -171,7 +171,9 @@ def invalid_catalog(value, message):
     fixture.passed(message)
 
 
-def main():
+def main(package_version="0.3.2", authority_schema=5, qualify_upgrade=True):
+    global VERSION
+    VERSION = package_version
     if os.getuid() != 0 or socket.gethostname() != "limeos-p01-test":
         raise SystemExit("Disposable guest required")
     candidate, output = map(Path, sys.argv[1:])
@@ -187,8 +189,12 @@ def main():
     fixture.eventually(
         lambda: fixture.run("docker", "info", check=False).returncode == 0
     )
-    upgrade_result = upgrade(candidate)
-    lifecycle.main(package_version=VERSION, authority_schema=5, qualify_upgrade=False)
+    upgrade_result = upgrade(candidate) if qualify_upgrade else None
+    lifecycle.main(
+        package_version=VERSION,
+        authority_schema=authority_schema,
+        qualify_upgrade=False,
+    )
     cookie, csrf, principal = fixture.enroll()
     assert preview(cookie, csrf)[0] == 503
     fixture.passed(
