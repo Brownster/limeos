@@ -17,6 +17,7 @@ import p04_locks_guest as locks
 import p04_planning_guest as planning
 import p04_storage_guest as storage
 import p04_targets_guest as targets
+import p04_targets_package_guest as package_tests
 
 VERSION = "0.4.4"
 BASE = "/api/v1/storage/targets"
@@ -496,6 +497,8 @@ def main():
     passed(
         "approved target jobs and interruption preserve fstab, mounted fixture data and all media/download path leaves"
     )
+    passed(package_tests.check(repo, VERSION))
+    assert http(BASE + f"/jobs/{job['id']}", cookie=cookie)[2]["state"] == "succeeded"
     evidence.update(
         scope="installed approved empty target jobs with complete core claims and receipt-only recovery; mount/fstab effects remain pending",
         authority_schema=8,
