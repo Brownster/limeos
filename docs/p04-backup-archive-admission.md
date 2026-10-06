@@ -90,7 +90,9 @@ Original engineer measurement before integration (`VmHWM` of a release build, wo
 - **Small archives:** 2.6–2.8 MiB, gzip or zstd.
 - **64 MiB of data:** 5.0 MiB through zstd and 2.7 MiB through gzip.
 
-Memory is about 2.7 MiB plus the zstd window, whatever the archive size. Retained metadata adds at most the entry and metadata limits. See the [evidence](rewrite-evidence/p04/rw043/README.md).
+For these inputs, streaming file data uses about 2.7 MiB plus the zstd window. Retained entry, path and extension metadata grows within the policy limits. See the [evidence](rewrite-evidence/p04/rw043/README.md).
+
+The [integrated manifest-v2 measurement](rewrite-evidence/p04/2026-10-06-handoff-integration/README.md) repeats the check with three runs per input: peak RSS ranges from 2,620 to 5,136 KiB across small, legacy-repeat and 64 MiB gzip/zstd archives. These are standalone workstation measurements. Native AMD64 and ARM64 CI also pass the combined 231-test workspace, including libzstd and the inspector; installed Pi qualification remains pending.
 
 ## Trusted legacy mapping
 
@@ -146,4 +148,4 @@ Frozen source hashes are recorded in the [evidence](rewrite-evidence/p04/rw043/R
 | `flate2` | `=1.1.10`, `rust_backend` | MIT or Apache-2.0, MSRV 1.67. Pure Rust (`miniz_oxide`). Gzip header name and comment fields are capped at 64 KiB by the library. |
 | `zstd` | `=0.14.0`, default features off | BSD-3-Clause, MSRV 1.64. Wraps `zstd-sys 2.1.0+zstd.1.5.7`, which builds the vendored C libzstd. `window_log_max` bounds decoder memory. |
 
-Transitive additions are `filetime`, `crc32fast`, `miniz_oxide`, `adler2`, `simd-adler32`, `zstd-safe` and `jobserver`; no existing lockfile version changed. libzstd is native code, and `unsafe_code = "forbid"` still applies to all first-party crates. The aarch64 build of libzstd goes through the existing cross linker setting but hasn't yet been built natively for ARM64 in this slice. `cargo deny check` passes. The release `inspect` example is about 800 KB stripped, including `serde_json`.
+Transitive additions are `filetime`, `crc32fast`, `miniz_oxide`, `adler2`, `simd-adler32`, `zstd-safe` and `jobserver`; no existing lockfile version changed. libzstd is native code, and `unsafe_code = "forbid"` still applies to all first-party crates. The integrated inspector and libzstd build and pass tests on native ARM64 CI; installed ARM64/Pi qualification remains pending. `cargo deny check` passes. The release `inspect` example is about 800 KB stripped, including `serde_json`.

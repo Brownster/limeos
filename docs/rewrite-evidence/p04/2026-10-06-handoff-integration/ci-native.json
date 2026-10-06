@@ -1,0 +1,477 @@
+{
+  "installed_amd64_guest_workflow": "still running at this capture",
+  "native": [
+    {
+      "architecture": "arm64",
+      "harness_tests": 9,
+      "job": {
+        "completedAt": "2026-10-06T20:34:04Z",
+        "conclusion": "success",
+        "databaseId": 112483624236,
+        "name": "check (ubuntu-24.04-arm)",
+        "startedAt": "2026-10-06T20:24:21Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-06T20:24:22Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-06T20:24:22Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:24:23Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "number": 2,
+            "startedAt": "2026-10-06T20:24:22Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:24:24Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "number": 3,
+            "startedAt": "2026-10-06T20:24:23Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:28:41Z",
+            "conclusion": "success",
+            "name": "Toolchain and native validation tools",
+            "number": 4,
+            "startedAt": "2026-10-06T20:24:24Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:28:41Z",
+            "conclusion": "success",
+            "name": "Run cargo fmt --all -- --check",
+            "number": 5,
+            "startedAt": "2026-10-06T20:28:41Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:29:15Z",
+            "conclusion": "success",
+            "name": "Run cargo clippy --workspace --all-targets --locked -- -D warnings",
+            "number": 6,
+            "startedAt": "2026-10-06T20:28:41Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:30:11Z",
+            "conclusion": "success",
+            "name": "Run cargo test --workspace --locked",
+            "number": 7,
+            "startedAt": "2026-10-06T20:29:15Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:30:13Z",
+            "conclusion": "success",
+            "name": "Run cargo deny check",
+            "number": 8,
+            "startedAt": "2026-10-06T20:30:11Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:30:16Z",
+            "conclusion": "success",
+            "name": "Run cargo audit",
+            "number": 9,
+            "startedAt": "2026-10-06T20:30:13Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:30:17Z",
+            "conclusion": "success",
+            "name": "Run shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh tests/fixtures/backup-archives/generate.sh",
+            "number": 10,
+            "startedAt": "2026-10-06T20:30:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:30:39Z",
+            "conclusion": "success",
+            "name": "Unit validation",
+            "number": 11,
+            "startedAt": "2026-10-06T20:30:17Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:30:39Z",
+            "conclusion": "success",
+            "name": "Run python3 scripts/check_repository.py",
+            "number": 12,
+            "startedAt": "2026-10-06T20:30:39Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:30:52Z",
+            "conclusion": "success",
+            "name": "Run python3 scripts/check_contracts.py",
+            "number": 13,
+            "startedAt": "2026-10-06T20:30:39Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:30:52Z",
+            "conclusion": "success",
+            "name": "ARM64 qualification evidence and host guards",
+            "number": 14,
+            "startedAt": "2026-10-06T20:30:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:30:56Z",
+            "conclusion": "success",
+            "name": "Run npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high",
+            "number": 15,
+            "startedAt": "2026-10-06T20:30:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:30:56Z",
+            "conclusion": "skipped",
+            "name": "Lifecycle, logs and keyboard-focus browser regression",
+            "number": 16,
+            "startedAt": "2026-10-06T20:30:56Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:31:35Z",
+            "conclusion": "success",
+            "name": "Deliberate release-gate rejection probes",
+            "number": 17,
+            "startedAt": "2026-10-06T20:30:56Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:34:01Z",
+            "conclusion": "success",
+            "name": "Debian 12 release builds on native architecture",
+            "number": 18,
+            "startedAt": "2026-10-06T20:31:35Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:34:02Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+            "number": 19,
+            "startedAt": "2026-10-06T20:34:01Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:34:02Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "number": 37,
+            "startedAt": "2026-10-06T20:34:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:34:02Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "number": 38,
+            "startedAt": "2026-10-06T20:34:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:34:02Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 39,
+            "startedAt": "2026-10-06T20:34:02Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/Brownster/limeos/actions/runs/37526173585/job/112483624236"
+      },
+      "packages": [
+        {
+          "binary_sha256": {
+            "limeos-core": "a09295d15504cc76d587b623ff5776cfe18cbd18a210bcc50183c612d44fdfdd",
+            "limeos-executor": "bd56060e41aab16954c324dfc3f65ab0077ee072edb9919929082bef9720a4a5",
+            "limeos-password-worker": "732e8ceba35f45d008f81a29607ba8e29fc2f68fe2051318c17b04ae8e255235",
+            "limeosctl": "221e8f0db776e97f06d5aa9c04b45a55757f89fd94642f1eaa62bb0df9c20eec"
+          },
+          "bytes": 2741882,
+          "control": "Package: limeos-shadow\nVersion: 0.4.4\nArchitecture: arm64\n",
+          "file": "dist/ci-37526173585-arm64/limeos-shadow_0.4.4_arm64.deb",
+          "sha256": "02275867db9a7d08c26ac890d567cb53503172860a80f50f0ed3ff24ce54ed64"
+        },
+        {
+          "binary_sha256": {
+            "limeos-core": "a09295d15504cc76d587b623ff5776cfe18cbd18a210bcc50183c612d44fdfdd",
+            "limeos-executor": "bd56060e41aab16954c324dfc3f65ab0077ee072edb9919929082bef9720a4a5",
+            "limeos-password-worker": "732e8ceba35f45d008f81a29607ba8e29fc2f68fe2051318c17b04ae8e255235",
+            "limeosctl": "221e8f0db776e97f06d5aa9c04b45a55757f89fd94642f1eaa62bb0df9c20eec"
+          },
+          "bytes": 2742078,
+          "control": "Package: limeos\nVersion: 0.4.4+ci.1\nArchitecture: arm64\n",
+          "file": "dist/ci-37526173585-arm64/limeos_0.4.4+ci.1_arm64.deb",
+          "sha256": "4a64893d624e319bc329425551ea2d98ea66bef2cd345c32d2863c9dd4aa79a3"
+        },
+        {
+          "binary_sha256": {
+            "limeos-core": "a09295d15504cc76d587b623ff5776cfe18cbd18a210bcc50183c612d44fdfdd",
+            "limeos-executor": "bd56060e41aab16954c324dfc3f65ab0077ee072edb9919929082bef9720a4a5",
+            "limeos-password-worker": "732e8ceba35f45d008f81a29607ba8e29fc2f68fe2051318c17b04ae8e255235",
+            "limeosctl": "221e8f0db776e97f06d5aa9c04b45a55757f89fd94642f1eaa62bb0df9c20eec"
+          },
+          "bytes": 2742152,
+          "control": "Package: limeos\nVersion: 0.4.4\nArchitecture: arm64\n",
+          "file": "dist/ci-37526173585-arm64/limeos_0.4.4_arm64.deb",
+          "sha256": "13902cbaeee6805c08fc3106ecc4a1ef088a68765341747afbbb54d4e49cd086"
+        }
+      ],
+      "raw_job_log_sha256": "a8fbd15589ecc81f904f8d5bba95e9f1fd8d91fdc3062f377634614959dc5b2e",
+      "rust_tests": {
+        "failed": 0,
+        "passed": 231
+      },
+      "scope": "native source/test and Debian 12 container release builds; no installed ARM64/Pi footprint; both standard version labels are this source"
+    },
+    {
+      "architecture": "amd64",
+      "harness_tests": 9,
+      "job": {
+        "completedAt": "2026-10-06T20:32:14Z",
+        "conclusion": "success",
+        "databaseId": 112483624529,
+        "name": "check (ubuntu-24.04)",
+        "startedAt": "2026-10-06T20:24:19Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-06T20:24:21Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-06T20:24:19Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:24:22Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "number": 2,
+            "startedAt": "2026-10-06T20:24:21Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:24:23Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "number": 3,
+            "startedAt": "2026-10-06T20:24:22Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:27:47Z",
+            "conclusion": "success",
+            "name": "Toolchain and native validation tools",
+            "number": 4,
+            "startedAt": "2026-10-06T20:24:23Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:27:47Z",
+            "conclusion": "success",
+            "name": "Run cargo fmt --all -- --check",
+            "number": 5,
+            "startedAt": "2026-10-06T20:27:47Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:28:14Z",
+            "conclusion": "success",
+            "name": "Run cargo clippy --workspace --all-targets --locked -- -D warnings",
+            "number": 6,
+            "startedAt": "2026-10-06T20:27:47Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:28:58Z",
+            "conclusion": "success",
+            "name": "Run cargo test --workspace --locked",
+            "number": 7,
+            "startedAt": "2026-10-06T20:28:14Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:28:59Z",
+            "conclusion": "success",
+            "name": "Run cargo deny check",
+            "number": 8,
+            "startedAt": "2026-10-06T20:28:58Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:29:02Z",
+            "conclusion": "success",
+            "name": "Run cargo audit",
+            "number": 9,
+            "startedAt": "2026-10-06T20:28:59Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:29:02Z",
+            "conclusion": "success",
+            "name": "Run shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh tests/fixtures/backup-archives/generate.sh",
+            "number": 10,
+            "startedAt": "2026-10-06T20:29:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:29:20Z",
+            "conclusion": "success",
+            "name": "Unit validation",
+            "number": 11,
+            "startedAt": "2026-10-06T20:29:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:29:20Z",
+            "conclusion": "success",
+            "name": "Run python3 scripts/check_repository.py",
+            "number": 12,
+            "startedAt": "2026-10-06T20:29:20Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:29:29Z",
+            "conclusion": "success",
+            "name": "Run python3 scripts/check_contracts.py",
+            "number": 13,
+            "startedAt": "2026-10-06T20:29:20Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:29:30Z",
+            "conclusion": "success",
+            "name": "ARM64 qualification evidence and host guards",
+            "number": 14,
+            "startedAt": "2026-10-06T20:29:29Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:29:33Z",
+            "conclusion": "success",
+            "name": "Run npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high",
+            "number": 15,
+            "startedAt": "2026-10-06T20:29:30Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:29:43Z",
+            "conclusion": "success",
+            "name": "Lifecycle, logs and keyboard-focus browser regression",
+            "number": 16,
+            "startedAt": "2026-10-06T20:29:33Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:30:11Z",
+            "conclusion": "success",
+            "name": "Deliberate release-gate rejection probes",
+            "number": 17,
+            "startedAt": "2026-10-06T20:29:43Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:32:11Z",
+            "conclusion": "success",
+            "name": "Debian 12 release builds on native architecture",
+            "number": 18,
+            "startedAt": "2026-10-06T20:30:11Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:32:12Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+            "number": 19,
+            "startedAt": "2026-10-06T20:32:11Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:32:12Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "number": 37,
+            "startedAt": "2026-10-06T20:32:12Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:32:13Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "number": 38,
+            "startedAt": "2026-10-06T20:32:12Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-06T20:32:13Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 39,
+            "startedAt": "2026-10-06T20:32:13Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/Brownster/limeos/actions/runs/37526173585/job/112483624529"
+      },
+      "packages": [
+        {
+          "binary_sha256": {
+            "limeos-core": "9a11202409be0c3a3207eb5d66cf6d100c3a017935c9ece563ffaafcbc436260",
+            "limeos-executor": "364ade6ddf5b9fabfff97143ea7512c9b004fa8c84c316614bb9811daf0f23fa",
+            "limeos-password-worker": "5566730a166697e58851460758f71e004577633333a331b750b86eebb8c587e7",
+            "limeosctl": "ce583703a18634eb6679d0679b20ca0e2037e7ec3209383385dd0ca28acece75"
+          },
+          "bytes": 2922162,
+          "control": "Package: limeos-shadow\nVersion: 0.4.4\nArchitecture: amd64\n",
+          "file": "dist/ci-37526173585-amd64/limeos-shadow_0.4.4_amd64.deb",
+          "sha256": "b591f0e52d6276fd19c5551a9f886ca57fcb5b8980fac3f779f0e7b5d4b48c5c"
+        },
+        {
+          "binary_sha256": {
+            "limeos-core": "9a11202409be0c3a3207eb5d66cf6d100c3a017935c9ece563ffaafcbc436260",
+            "limeos-executor": "364ade6ddf5b9fabfff97143ea7512c9b004fa8c84c316614bb9811daf0f23fa",
+            "limeos-password-worker": "5566730a166697e58851460758f71e004577633333a331b750b86eebb8c587e7",
+            "limeosctl": "ce583703a18634eb6679d0679b20ca0e2037e7ec3209383385dd0ca28acece75"
+          },
+          "bytes": 2922848,
+          "control": "Package: limeos\nVersion: 0.4.4+ci.1\nArchitecture: amd64\n",
+          "file": "dist/ci-37526173585-amd64/limeos_0.4.4+ci.1_amd64.deb",
+          "sha256": "13522bc8e2bbd5ce98ce2ae45213d9bc51bfe55817c2ed03bc1b1385c352d33e"
+        },
+        {
+          "binary_sha256": {
+            "limeos-core": "9a11202409be0c3a3207eb5d66cf6d100c3a017935c9ece563ffaafcbc436260",
+            "limeos-executor": "364ade6ddf5b9fabfff97143ea7512c9b004fa8c84c316614bb9811daf0f23fa",
+            "limeos-password-worker": "5566730a166697e58851460758f71e004577633333a331b750b86eebb8c587e7",
+            "limeosctl": "ce583703a18634eb6679d0679b20ca0e2037e7ec3209383385dd0ca28acece75"
+          },
+          "bytes": 2922788,
+          "control": "Package: limeos\nVersion: 0.4.4\nArchitecture: amd64\n",
+          "file": "dist/ci-37526173585-amd64/limeos_0.4.4_amd64.deb",
+          "sha256": "490f516ac7404965007e595a8bd0f01791dda8630ca5f4559df947373de00821"
+        }
+      ],
+      "raw_job_log_sha256": "9d3662edd1db5a0b0c62b41b3cad50c021d2656b697a7ccf02987d88365d4ec0",
+      "rust_tests": {
+        "failed": 0,
+        "passed": 231
+      },
+      "scope": "native source/test and Debian 12 container release builds; no installed ARM64/Pi footprint; both standard version labels are this source"
+    }
+  ],
+  "run_url": "https://github.com/Brownster/limeos/actions/runs/37526173585",
+  "source_commit": "8acac403e32d3692b028a036a11f4fead2050580"
+}

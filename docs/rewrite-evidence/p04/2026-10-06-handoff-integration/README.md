@@ -18,6 +18,21 @@ All **14 deliberate rejection probes** pass, including unregistered crates. The 
 
 All ten GNU tar fixtures regenerate byte-identically in a temporary directory using tar 1.35, zstd 1.5.7 and gzip 1.13. Fresh archived-source frontend installation, eight tests and production build pass; their logs are retained. The original engineer's 214-test transcript and memory observations remain tied to that branch, rather than being relabeled as measurements of the combined runtime.
 
+## Integrated inspector memory
+
+The release example built from the frozen runtime is 812,456 bytes, SHA-256 `eb21aab14655df4c3708fd4bf7fdc0f0561dbc8343a6020280d2f67469e3fbe7`. `measure_inspector.py` records three fresh-process samples per archive, under the original synthetic measurement policy with a 2 MiB zstd window. The result records full manifests, archive/file checksums, policy/binary hashes and platform. Random payloads are generated in a temporary directory and checked against the resulting file digest.
+
+| Archive | Peak RSS range (KiB) |
+|---|---:|
+| Small gzip | 2,620–2,680 |
+| Small zstd | 2,840–2,892 |
+| Legacy primary repeats, zstd | 2,764–2,824 |
+| 64 MiB zeros, zstd | 4,992–5,136 |
+| 64 MiB random, gzip | 2,680–2,756 |
+| 64 MiB random, zstd | 4,800–4,944 |
+
+The measured peak is about 2.6–5.1 MiB across these inputs. This is workstation process RSS for the standalone inspector; it makes no installed-service PSS, Pi, latency or Python-comparison claim. Production inventory limits remain undecided.
+
 ## Frozen native preparation
 
 `source-manifest.json` binds runtime, fixture and frontend asset bytes. The prepared bundle is `.cache/arm64-qual/2026-10-06-integration/source.tar.gz`, **1,688,191 bytes**, SHA-256 `669675abab7b60c0a645ef70531dcd4890a144a681ee2b35c802af870069c594`. Intended identity: ARM64, authority schema 8, Debian qualification version `0.4.7+arm64.1`, native KVM. This is a source bundle, not a built or qualified package.
@@ -27,5 +42,7 @@ The earlier [60e6309 preparation](../../arm64/2026-10-06-current-60e6309-prepara
 `previous-schema7-artifact.json` also prepares the genuine 0.4.3 ARM64 artifact from source `f39396b`, recorded in CI 37386421570. Its package control, original package/four binary hashes, AArch64 ELF headers and original source schema are verified locally. This supplies a schema 7 → 8 upgrade candidate without relabeling current binaries. Neither that upgrade nor the schema 6 → 8 upgrade has run for the integrated bundle.
 
 [CI run 37526173585](https://github.com/Brownster/limeos/actions/runs/37526173585) checks this exact runtime on native AMD64 and ARM64 and runs installed acceptance in disposable AMD64 Debian guests. CI results, when available, qualify their recorded source and workload; they do not substitute for Pi footprint measurements.
+
+Both native jobs passed all 231 Rust tests, nine harness tests, dependency/security checks, contracts, boundaries, frontend and package gates. The ARM64 job compiled and exercised the new libzstd/inspector natively. `ci-native.json` binds the completed job metadata, original log hashes, three packages per architecture and all four binary hashes/ELF architectures. Raw logs are retained losslessly as `.log.gz`. Standard 0.4.4 and 0.4.4+ci.1 labels contain the same current binaries; they do not prove a historical upgrade. Current installed native ARM64/Pi qualification is still pending; the disposable AMD64 guest workflow was still running at this capture.
 
 Each engineer assignment retains its 24-hour engineering estimate and review threshold of 36 hours. Agent wall time is not a human engineering estimate. P04 retains 320 hours with a cutover-scope review at 480. No defect-register row closes here. RW-040 protected physical/pool/protection/share dependencies and mount/fstab operations remain the next integration work.

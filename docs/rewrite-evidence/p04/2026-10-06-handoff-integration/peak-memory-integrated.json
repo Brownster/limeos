@@ -1,0 +1,2060 @@
+{
+  "binary_bytes": 812456,
+  "binary_sha256": "eb21aab14655df4c3708fd4bf7fdc0f0561dbc8343a6020280d2f67469e3fbe7",
+  "platform": {
+    "machine": "x86_64",
+    "node": "fedora",
+    "processor": "",
+    "release": "7.0.14-101.fc43.x86_64",
+    "system": "Linux",
+    "version": "#1 SMP PREEMPT_DYNAMIC Wed Jul  1 13:50:13 UTC 2026"
+  },
+  "policy_sha256": "03069532ee6ad5900d4515a20ca9b10070c60ed38b1c7294246034fd1f22a769",
+  "samples": [
+    {
+      "archive": "legacy-valid.tar.gz",
+      "compressed_bytes": 834,
+      "manifest": {
+        "archive_sha256": "d060432647c2d18d6db4055d2e58bcab7dbdce0d17f2462bb6c315511dc26a54",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 834,
+        "decompressed_bytes": 20480,
+        "directory_count": 13,
+        "entries": [
+          {
+            "archive_path": "home/pi/docker",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "app-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "home/pi/docker/sonarr",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "sonarr",
+            "resource": "app-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "home/pi/docker/sonarr/config.xml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "sonarr/config.xml",
+            "resource": "app-config",
+            "sha256": "8b467fce3673e3dd92e8c88dee4ea2b8e67e8811778e79ff563fe4f0f3d0f560",
+            "size": 35
+          },
+          {
+            "archive_path": "etc/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/core.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "core.json",
+            "resource": "limeos-config",
+            "sha256": "2029e83c1e70a9942bc23e7de570692bad474ad91b631f53558d646b99b22595",
+            "size": 40
+          },
+          {
+            "archive_path": "etc/limeos/credentials.env",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "credentials.env",
+            "resource": "limeos-config",
+            "sha256": "88f07b91229e56e76f29283a4e9ec79ebbbbc93b95f8ff7bb5ba59d24693e8fd",
+            "size": 24
+          },
+          {
+            "archive_path": "etc/limeos/media_layout.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media_layout.json",
+            "resource": "limeos-config",
+            "sha256": "d8233be9c770b249b4dc245ce48a1d8e71152b3bc2bd117306db1a18ebeb19c3",
+            "size": 26
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins/mergerfs.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/mergerfs.json",
+            "resource": "limeos-config",
+            "sha256": "ae8d67f7e6af424d4543d19f1b129778d8faafa151a2e683e305df8072e3baa8",
+            "size": 13
+          },
+          {
+            "archive_path": "var/lib/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-state",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "var/lib/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-state",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "var/lib/limeos/storage_plugins/snapraid.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/snapraid.json",
+            "resource": "limeos-state",
+            "sha256": "ffbe216650bb1995134dbd2d8ef7c8dc5e501c945ab595fba1bac64c385f9a77",
+            "size": 19
+          },
+          {
+            "archive_path": "opt/stacks",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/compose.yaml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/compose.yaml",
+            "resource": "stacks",
+            "sha256": "c6d57444459a93195437c01705524c49aace2f8d82405f23137e70f7c46e3eaf",
+            "size": 118
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "resource": "stacks",
+            "sha256": "c93f1e4d27896b82b0037047ef729b334aebde599ff77d6eb75728505b662597",
+            "size": 10
+          }
+        ],
+        "file_bytes": 285,
+        "file_count": 8,
+        "format": "tar_gzip",
+        "header_count": 23,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 2620,
+      "sample": 1,
+      "stderr": "VmHWM:\t    2620 kB\n"
+    },
+    {
+      "archive": "legacy-valid.tar.gz",
+      "compressed_bytes": 834,
+      "manifest": {
+        "archive_sha256": "d060432647c2d18d6db4055d2e58bcab7dbdce0d17f2462bb6c315511dc26a54",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 834,
+        "decompressed_bytes": 20480,
+        "directory_count": 13,
+        "entries": [
+          {
+            "archive_path": "home/pi/docker",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "app-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "home/pi/docker/sonarr",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "sonarr",
+            "resource": "app-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "home/pi/docker/sonarr/config.xml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "sonarr/config.xml",
+            "resource": "app-config",
+            "sha256": "8b467fce3673e3dd92e8c88dee4ea2b8e67e8811778e79ff563fe4f0f3d0f560",
+            "size": 35
+          },
+          {
+            "archive_path": "etc/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/core.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "core.json",
+            "resource": "limeos-config",
+            "sha256": "2029e83c1e70a9942bc23e7de570692bad474ad91b631f53558d646b99b22595",
+            "size": 40
+          },
+          {
+            "archive_path": "etc/limeos/credentials.env",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "credentials.env",
+            "resource": "limeos-config",
+            "sha256": "88f07b91229e56e76f29283a4e9ec79ebbbbc93b95f8ff7bb5ba59d24693e8fd",
+            "size": 24
+          },
+          {
+            "archive_path": "etc/limeos/media_layout.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media_layout.json",
+            "resource": "limeos-config",
+            "sha256": "d8233be9c770b249b4dc245ce48a1d8e71152b3bc2bd117306db1a18ebeb19c3",
+            "size": 26
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins/mergerfs.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/mergerfs.json",
+            "resource": "limeos-config",
+            "sha256": "ae8d67f7e6af424d4543d19f1b129778d8faafa151a2e683e305df8072e3baa8",
+            "size": 13
+          },
+          {
+            "archive_path": "var/lib/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-state",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "var/lib/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-state",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "var/lib/limeos/storage_plugins/snapraid.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/snapraid.json",
+            "resource": "limeos-state",
+            "sha256": "ffbe216650bb1995134dbd2d8ef7c8dc5e501c945ab595fba1bac64c385f9a77",
+            "size": 19
+          },
+          {
+            "archive_path": "opt/stacks",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/compose.yaml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/compose.yaml",
+            "resource": "stacks",
+            "sha256": "c6d57444459a93195437c01705524c49aace2f8d82405f23137e70f7c46e3eaf",
+            "size": 118
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "resource": "stacks",
+            "sha256": "c93f1e4d27896b82b0037047ef729b334aebde599ff77d6eb75728505b662597",
+            "size": 10
+          }
+        ],
+        "file_bytes": 285,
+        "file_count": 8,
+        "format": "tar_gzip",
+        "header_count": 23,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 2680,
+      "sample": 2,
+      "stderr": "VmHWM:\t    2680 kB\n"
+    },
+    {
+      "archive": "legacy-valid.tar.gz",
+      "compressed_bytes": 834,
+      "manifest": {
+        "archive_sha256": "d060432647c2d18d6db4055d2e58bcab7dbdce0d17f2462bb6c315511dc26a54",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 834,
+        "decompressed_bytes": 20480,
+        "directory_count": 13,
+        "entries": [
+          {
+            "archive_path": "home/pi/docker",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "app-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "home/pi/docker/sonarr",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "sonarr",
+            "resource": "app-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "home/pi/docker/sonarr/config.xml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "sonarr/config.xml",
+            "resource": "app-config",
+            "sha256": "8b467fce3673e3dd92e8c88dee4ea2b8e67e8811778e79ff563fe4f0f3d0f560",
+            "size": 35
+          },
+          {
+            "archive_path": "etc/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/core.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "core.json",
+            "resource": "limeos-config",
+            "sha256": "2029e83c1e70a9942bc23e7de570692bad474ad91b631f53558d646b99b22595",
+            "size": 40
+          },
+          {
+            "archive_path": "etc/limeos/credentials.env",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "credentials.env",
+            "resource": "limeos-config",
+            "sha256": "88f07b91229e56e76f29283a4e9ec79ebbbbc93b95f8ff7bb5ba59d24693e8fd",
+            "size": 24
+          },
+          {
+            "archive_path": "etc/limeos/media_layout.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media_layout.json",
+            "resource": "limeos-config",
+            "sha256": "d8233be9c770b249b4dc245ce48a1d8e71152b3bc2bd117306db1a18ebeb19c3",
+            "size": 26
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins/mergerfs.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/mergerfs.json",
+            "resource": "limeos-config",
+            "sha256": "ae8d67f7e6af424d4543d19f1b129778d8faafa151a2e683e305df8072e3baa8",
+            "size": 13
+          },
+          {
+            "archive_path": "var/lib/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-state",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "var/lib/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-state",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "var/lib/limeos/storage_plugins/snapraid.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/snapraid.json",
+            "resource": "limeos-state",
+            "sha256": "ffbe216650bb1995134dbd2d8ef7c8dc5e501c945ab595fba1bac64c385f9a77",
+            "size": 19
+          },
+          {
+            "archive_path": "opt/stacks",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/compose.yaml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/compose.yaml",
+            "resource": "stacks",
+            "sha256": "c6d57444459a93195437c01705524c49aace2f8d82405f23137e70f7c46e3eaf",
+            "size": 118
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "resource": "stacks",
+            "sha256": "c93f1e4d27896b82b0037047ef729b334aebde599ff77d6eb75728505b662597",
+            "size": 10
+          }
+        ],
+        "file_bytes": 285,
+        "file_count": 8,
+        "format": "tar_gzip",
+        "header_count": 23,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 2672,
+      "sample": 3,
+      "stderr": "VmHWM:\t    2672 kB\n"
+    },
+    {
+      "archive": "legacy-valid.tar.zst",
+      "compressed_bytes": 786,
+      "manifest": {
+        "archive_sha256": "51603bef78f8c54528c6707ffa8bac001d4400d4176cfa71956cad7e15034d38",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 786,
+        "decompressed_bytes": 20480,
+        "directory_count": 13,
+        "entries": [
+          {
+            "archive_path": "home/pi/docker",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "app-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "home/pi/docker/sonarr",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "sonarr",
+            "resource": "app-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "home/pi/docker/sonarr/config.xml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "sonarr/config.xml",
+            "resource": "app-config",
+            "sha256": "8b467fce3673e3dd92e8c88dee4ea2b8e67e8811778e79ff563fe4f0f3d0f560",
+            "size": 35
+          },
+          {
+            "archive_path": "etc/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/core.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "core.json",
+            "resource": "limeos-config",
+            "sha256": "2029e83c1e70a9942bc23e7de570692bad474ad91b631f53558d646b99b22595",
+            "size": 40
+          },
+          {
+            "archive_path": "etc/limeos/credentials.env",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "credentials.env",
+            "resource": "limeos-config",
+            "sha256": "88f07b91229e56e76f29283a4e9ec79ebbbbc93b95f8ff7bb5ba59d24693e8fd",
+            "size": 24
+          },
+          {
+            "archive_path": "etc/limeos/media_layout.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media_layout.json",
+            "resource": "limeos-config",
+            "sha256": "d8233be9c770b249b4dc245ce48a1d8e71152b3bc2bd117306db1a18ebeb19c3",
+            "size": 26
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins/mergerfs.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/mergerfs.json",
+            "resource": "limeos-config",
+            "sha256": "ae8d67f7e6af424d4543d19f1b129778d8faafa151a2e683e305df8072e3baa8",
+            "size": 13
+          },
+          {
+            "archive_path": "var/lib/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-state",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "var/lib/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-state",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "var/lib/limeos/storage_plugins/snapraid.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/snapraid.json",
+            "resource": "limeos-state",
+            "sha256": "ffbe216650bb1995134dbd2d8ef7c8dc5e501c945ab595fba1bac64c385f9a77",
+            "size": 19
+          },
+          {
+            "archive_path": "opt/stacks",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/compose.yaml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/compose.yaml",
+            "resource": "stacks",
+            "sha256": "c6d57444459a93195437c01705524c49aace2f8d82405f23137e70f7c46e3eaf",
+            "size": 118
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "resource": "stacks",
+            "sha256": "c93f1e4d27896b82b0037047ef729b334aebde599ff77d6eb75728505b662597",
+            "size": 10
+          }
+        ],
+        "file_bytes": 285,
+        "file_count": 8,
+        "format": "tar_zstd",
+        "header_count": 23,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 2844,
+      "sample": 1,
+      "stderr": "VmHWM:\t    2844 kB\n"
+    },
+    {
+      "archive": "legacy-valid.tar.zst",
+      "compressed_bytes": 786,
+      "manifest": {
+        "archive_sha256": "51603bef78f8c54528c6707ffa8bac001d4400d4176cfa71956cad7e15034d38",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 786,
+        "decompressed_bytes": 20480,
+        "directory_count": 13,
+        "entries": [
+          {
+            "archive_path": "home/pi/docker",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "app-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "home/pi/docker/sonarr",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "sonarr",
+            "resource": "app-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "home/pi/docker/sonarr/config.xml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "sonarr/config.xml",
+            "resource": "app-config",
+            "sha256": "8b467fce3673e3dd92e8c88dee4ea2b8e67e8811778e79ff563fe4f0f3d0f560",
+            "size": 35
+          },
+          {
+            "archive_path": "etc/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/core.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "core.json",
+            "resource": "limeos-config",
+            "sha256": "2029e83c1e70a9942bc23e7de570692bad474ad91b631f53558d646b99b22595",
+            "size": 40
+          },
+          {
+            "archive_path": "etc/limeos/credentials.env",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "credentials.env",
+            "resource": "limeos-config",
+            "sha256": "88f07b91229e56e76f29283a4e9ec79ebbbbc93b95f8ff7bb5ba59d24693e8fd",
+            "size": 24
+          },
+          {
+            "archive_path": "etc/limeos/media_layout.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media_layout.json",
+            "resource": "limeos-config",
+            "sha256": "d8233be9c770b249b4dc245ce48a1d8e71152b3bc2bd117306db1a18ebeb19c3",
+            "size": 26
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins/mergerfs.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/mergerfs.json",
+            "resource": "limeos-config",
+            "sha256": "ae8d67f7e6af424d4543d19f1b129778d8faafa151a2e683e305df8072e3baa8",
+            "size": 13
+          },
+          {
+            "archive_path": "var/lib/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-state",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "var/lib/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-state",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "var/lib/limeos/storage_plugins/snapraid.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/snapraid.json",
+            "resource": "limeos-state",
+            "sha256": "ffbe216650bb1995134dbd2d8ef7c8dc5e501c945ab595fba1bac64c385f9a77",
+            "size": 19
+          },
+          {
+            "archive_path": "opt/stacks",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/compose.yaml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/compose.yaml",
+            "resource": "stacks",
+            "sha256": "c6d57444459a93195437c01705524c49aace2f8d82405f23137e70f7c46e3eaf",
+            "size": 118
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "resource": "stacks",
+            "sha256": "c93f1e4d27896b82b0037047ef729b334aebde599ff77d6eb75728505b662597",
+            "size": 10
+          }
+        ],
+        "file_bytes": 285,
+        "file_count": 8,
+        "format": "tar_zstd",
+        "header_count": 23,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 2892,
+      "sample": 2,
+      "stderr": "VmHWM:\t    2892 kB\n"
+    },
+    {
+      "archive": "legacy-valid.tar.zst",
+      "compressed_bytes": 786,
+      "manifest": {
+        "archive_sha256": "51603bef78f8c54528c6707ffa8bac001d4400d4176cfa71956cad7e15034d38",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 786,
+        "decompressed_bytes": 20480,
+        "directory_count": 13,
+        "entries": [
+          {
+            "archive_path": "home/pi/docker",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "app-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "home/pi/docker/sonarr",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "sonarr",
+            "resource": "app-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "home/pi/docker/sonarr/config.xml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "sonarr/config.xml",
+            "resource": "app-config",
+            "sha256": "8b467fce3673e3dd92e8c88dee4ea2b8e67e8811778e79ff563fe4f0f3d0f560",
+            "size": 35
+          },
+          {
+            "archive_path": "etc/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/core.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "core.json",
+            "resource": "limeos-config",
+            "sha256": "2029e83c1e70a9942bc23e7de570692bad474ad91b631f53558d646b99b22595",
+            "size": 40
+          },
+          {
+            "archive_path": "etc/limeos/credentials.env",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "credentials.env",
+            "resource": "limeos-config",
+            "sha256": "88f07b91229e56e76f29283a4e9ec79ebbbbc93b95f8ff7bb5ba59d24693e8fd",
+            "size": 24
+          },
+          {
+            "archive_path": "etc/limeos/media_layout.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media_layout.json",
+            "resource": "limeos-config",
+            "sha256": "d8233be9c770b249b4dc245ce48a1d8e71152b3bc2bd117306db1a18ebeb19c3",
+            "size": 26
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins/mergerfs.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/mergerfs.json",
+            "resource": "limeos-config",
+            "sha256": "ae8d67f7e6af424d4543d19f1b129778d8faafa151a2e683e305df8072e3baa8",
+            "size": 13
+          },
+          {
+            "archive_path": "var/lib/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-state",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "var/lib/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-state",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "var/lib/limeos/storage_plugins/snapraid.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/snapraid.json",
+            "resource": "limeos-state",
+            "sha256": "ffbe216650bb1995134dbd2d8ef7c8dc5e501c945ab595fba1bac64c385f9a77",
+            "size": 19
+          },
+          {
+            "archive_path": "opt/stacks",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/compose.yaml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/compose.yaml",
+            "resource": "stacks",
+            "sha256": "c6d57444459a93195437c01705524c49aace2f8d82405f23137e70f7c46e3eaf",
+            "size": 118
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "resource": "stacks",
+            "sha256": "c93f1e4d27896b82b0037047ef729b334aebde599ff77d6eb75728505b662597",
+            "size": 10
+          }
+        ],
+        "file_bytes": 285,
+        "file_count": 8,
+        "format": "tar_zstd",
+        "header_count": 23,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 2840,
+      "sample": 3,
+      "stderr": "VmHWM:\t    2840 kB\n"
+    },
+    {
+      "archive": "legacy-primary-overlap.tar.zst",
+      "compressed_bytes": 685,
+      "manifest": {
+        "archive_sha256": "536e2d1fffe91420931a0034970d78aa4e1f06130aca0706a72988018ef1ceec",
+        "coalesced_self_hardlinks": 2,
+        "compressed_bytes": 685,
+        "decompressed_bytes": 20480,
+        "directory_count": 9,
+        "entries": [
+          {
+            "archive_path": "etc/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/core.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "core.json",
+            "resource": "limeos-config",
+            "sha256": "2029e83c1e70a9942bc23e7de570692bad474ad91b631f53558d646b99b22595",
+            "size": 40
+          },
+          {
+            "archive_path": "etc/limeos/credentials.env",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "credentials.env",
+            "resource": "limeos-config",
+            "sha256": "88f07b91229e56e76f29283a4e9ec79ebbbbc93b95f8ff7bb5ba59d24693e8fd",
+            "size": 24
+          },
+          {
+            "archive_path": "etc/limeos/media_layout.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media_layout.json",
+            "resource": "limeos-config",
+            "sha256": "d8233be9c770b249b4dc245ce48a1d8e71152b3bc2bd117306db1a18ebeb19c3",
+            "size": 26
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins/mergerfs.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/mergerfs.json",
+            "resource": "limeos-config",
+            "sha256": "ae8d67f7e6af424d4543d19f1b129778d8faafa151a2e683e305df8072e3baa8",
+            "size": 13
+          },
+          {
+            "archive_path": "opt/stacks",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/compose.yaml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/compose.yaml",
+            "resource": "stacks",
+            "sha256": "c6d57444459a93195437c01705524c49aace2f8d82405f23137e70f7c46e3eaf",
+            "size": 118
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "resource": "stacks",
+            "sha256": "c93f1e4d27896b82b0037047ef729b334aebde599ff77d6eb75728505b662597",
+            "size": 10
+          }
+        ],
+        "file_bytes": 231,
+        "file_count": 6,
+        "format": "tar_zstd",
+        "header_count": 19,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 2764,
+      "sample": 1,
+      "stderr": "VmHWM:\t    2764 kB\n"
+    },
+    {
+      "archive": "legacy-primary-overlap.tar.zst",
+      "compressed_bytes": 685,
+      "manifest": {
+        "archive_sha256": "536e2d1fffe91420931a0034970d78aa4e1f06130aca0706a72988018ef1ceec",
+        "coalesced_self_hardlinks": 2,
+        "compressed_bytes": 685,
+        "decompressed_bytes": 20480,
+        "directory_count": 9,
+        "entries": [
+          {
+            "archive_path": "etc/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/core.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "core.json",
+            "resource": "limeos-config",
+            "sha256": "2029e83c1e70a9942bc23e7de570692bad474ad91b631f53558d646b99b22595",
+            "size": 40
+          },
+          {
+            "archive_path": "etc/limeos/credentials.env",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "credentials.env",
+            "resource": "limeos-config",
+            "sha256": "88f07b91229e56e76f29283a4e9ec79ebbbbc93b95f8ff7bb5ba59d24693e8fd",
+            "size": 24
+          },
+          {
+            "archive_path": "etc/limeos/media_layout.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media_layout.json",
+            "resource": "limeos-config",
+            "sha256": "d8233be9c770b249b4dc245ce48a1d8e71152b3bc2bd117306db1a18ebeb19c3",
+            "size": 26
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins/mergerfs.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/mergerfs.json",
+            "resource": "limeos-config",
+            "sha256": "ae8d67f7e6af424d4543d19f1b129778d8faafa151a2e683e305df8072e3baa8",
+            "size": 13
+          },
+          {
+            "archive_path": "opt/stacks",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/compose.yaml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/compose.yaml",
+            "resource": "stacks",
+            "sha256": "c6d57444459a93195437c01705524c49aace2f8d82405f23137e70f7c46e3eaf",
+            "size": 118
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "resource": "stacks",
+            "sha256": "c93f1e4d27896b82b0037047ef729b334aebde599ff77d6eb75728505b662597",
+            "size": 10
+          }
+        ],
+        "file_bytes": 231,
+        "file_count": 6,
+        "format": "tar_zstd",
+        "header_count": 19,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 2824,
+      "sample": 2,
+      "stderr": "VmHWM:\t    2824 kB\n"
+    },
+    {
+      "archive": "legacy-primary-overlap.tar.zst",
+      "compressed_bytes": 685,
+      "manifest": {
+        "archive_sha256": "536e2d1fffe91420931a0034970d78aa4e1f06130aca0706a72988018ef1ceec",
+        "coalesced_self_hardlinks": 2,
+        "compressed_bytes": 685,
+        "decompressed_bytes": 20480,
+        "directory_count": 9,
+        "entries": [
+          {
+            "archive_path": "etc/limeos",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/core.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "core.json",
+            "resource": "limeos-config",
+            "sha256": "2029e83c1e70a9942bc23e7de570692bad474ad91b631f53558d646b99b22595",
+            "size": 40
+          },
+          {
+            "archive_path": "etc/limeos/credentials.env",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "credentials.env",
+            "resource": "limeos-config",
+            "sha256": "88f07b91229e56e76f29283a4e9ec79ebbbbc93b95f8ff7bb5ba59d24693e8fd",
+            "size": 24
+          },
+          {
+            "archive_path": "etc/limeos/media_layout.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media_layout.json",
+            "resource": "limeos-config",
+            "sha256": "d8233be9c770b249b4dc245ce48a1d8e71152b3bc2bd117306db1a18ebeb19c3",
+            "size": 26
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "storage_plugins",
+            "resource": "limeos-config",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "etc/limeos/storage_plugins/mergerfs.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "storage_plugins/mergerfs.json",
+            "resource": "limeos-config",
+            "sha256": "ae8d67f7e6af424d4543d19f1b129778d8faafa151a2e683e305df8072e3baa8",
+            "size": 13
+          },
+          {
+            "archive_path": "opt/stacks",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/compose.yaml",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/compose.yaml",
+            "resource": "stacks",
+            "sha256": "c6d57444459a93195437c01705524c49aace2f8d82405f23137e70f7c46e3eaf",
+            "size": 118
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "media/nested-directory-01/nested-directory-02/nested-directory-03/nested-directory-04/nested-directory-05/settings-with-a-deliberately-long-file-name.json",
+            "resource": "stacks",
+            "sha256": "c93f1e4d27896b82b0037047ef729b334aebde599ff77d6eb75728505b662597",
+            "size": 10
+          }
+        ],
+        "file_bytes": 231,
+        "file_count": 6,
+        "format": "tar_zstd",
+        "header_count": 19,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 2820,
+      "sample": 3,
+      "stderr": "VmHWM:\t    2820 kB\n"
+    },
+    {
+      "archive": "zeros-64m.tar.zst",
+      "compressed_bytes": 2214,
+      "manifest": {
+        "archive_sha256": "69d6133a8e4f7ad9617ea91d5de8575caba2e89ce52ff4d7c2fbd57835a02d5c",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 2214,
+        "decompressed_bytes": 67112960,
+        "directory_count": 1,
+        "entries": [
+          {
+            "archive_path": "opt/stacks",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/zeros.bin",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "zeros.bin",
+            "resource": "stacks",
+            "sha256": "3b6a07d0d404fab4e23b6d34bc6696a6a312dd92821332385e5af7c01c421351",
+            "size": 67108864
+          }
+        ],
+        "file_bytes": 67108864,
+        "file_count": 1,
+        "format": "tar_zstd",
+        "header_count": 2,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 5040,
+      "sample": 1,
+      "stderr": "VmHWM:\t    5040 kB\n"
+    },
+    {
+      "archive": "zeros-64m.tar.zst",
+      "compressed_bytes": 2214,
+      "manifest": {
+        "archive_sha256": "69d6133a8e4f7ad9617ea91d5de8575caba2e89ce52ff4d7c2fbd57835a02d5c",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 2214,
+        "decompressed_bytes": 67112960,
+        "directory_count": 1,
+        "entries": [
+          {
+            "archive_path": "opt/stacks",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/zeros.bin",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "zeros.bin",
+            "resource": "stacks",
+            "sha256": "3b6a07d0d404fab4e23b6d34bc6696a6a312dd92821332385e5af7c01c421351",
+            "size": 67108864
+          }
+        ],
+        "file_bytes": 67108864,
+        "file_count": 1,
+        "format": "tar_zstd",
+        "header_count": 2,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 4992,
+      "sample": 2,
+      "stderr": "VmHWM:\t    4992 kB\n"
+    },
+    {
+      "archive": "zeros-64m.tar.zst",
+      "compressed_bytes": 2214,
+      "manifest": {
+        "archive_sha256": "69d6133a8e4f7ad9617ea91d5de8575caba2e89ce52ff4d7c2fbd57835a02d5c",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 2214,
+        "decompressed_bytes": 67112960,
+        "directory_count": 1,
+        "entries": [
+          {
+            "archive_path": "opt/stacks",
+            "archived_permissions": 493,
+            "kind": "directory",
+            "relative_path": "",
+            "resource": "stacks",
+            "sha256": null,
+            "size": 0
+          },
+          {
+            "archive_path": "opt/stacks/zeros.bin",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "zeros.bin",
+            "resource": "stacks",
+            "sha256": "3b6a07d0d404fab4e23b6d34bc6696a6a312dd92821332385e5af7c01c421351",
+            "size": 67108864
+          }
+        ],
+        "file_bytes": 67108864,
+        "file_count": 1,
+        "format": "tar_zstd",
+        "header_count": 2,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 5136,
+      "sample": 3,
+      "stderr": "VmHWM:\t    5136 kB\n"
+    },
+    {
+      "archive": "random.tar.gz",
+      "compressed_bytes": 67129466,
+      "manifest": {
+        "archive_sha256": "059cbc29359cf6f52cee4121ff36480cc5f43f502fc2fd60f67465a7b98f2340",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 67129466,
+        "decompressed_bytes": 67112960,
+        "directory_count": 0,
+        "entries": [
+          {
+            "archive_path": "opt/stacks/random.bin",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "random.bin",
+            "resource": "stacks",
+            "sha256": "a55b624d8c6aa4ba21b8dd0c16c7c2f0cc9103d8f79e9446ad92f3b1d7168273",
+            "size": 67108864
+          }
+        ],
+        "file_bytes": 67108864,
+        "file_count": 1,
+        "format": "tar_gzip",
+        "header_count": 1,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 2756,
+      "sample": 1,
+      "stderr": "VmHWM:\t    2756 kB\n"
+    },
+    {
+      "archive": "random.tar.gz",
+      "compressed_bytes": 67129466,
+      "manifest": {
+        "archive_sha256": "059cbc29359cf6f52cee4121ff36480cc5f43f502fc2fd60f67465a7b98f2340",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 67129466,
+        "decompressed_bytes": 67112960,
+        "directory_count": 0,
+        "entries": [
+          {
+            "archive_path": "opt/stacks/random.bin",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "random.bin",
+            "resource": "stacks",
+            "sha256": "a55b624d8c6aa4ba21b8dd0c16c7c2f0cc9103d8f79e9446ad92f3b1d7168273",
+            "size": 67108864
+          }
+        ],
+        "file_bytes": 67108864,
+        "file_count": 1,
+        "format": "tar_gzip",
+        "header_count": 1,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 2680,
+      "sample": 2,
+      "stderr": "VmHWM:\t    2680 kB\n"
+    },
+    {
+      "archive": "random.tar.gz",
+      "compressed_bytes": 67129466,
+      "manifest": {
+        "archive_sha256": "059cbc29359cf6f52cee4121ff36480cc5f43f502fc2fd60f67465a7b98f2340",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 67129466,
+        "decompressed_bytes": 67112960,
+        "directory_count": 0,
+        "entries": [
+          {
+            "archive_path": "opt/stacks/random.bin",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "random.bin",
+            "resource": "stacks",
+            "sha256": "a55b624d8c6aa4ba21b8dd0c16c7c2f0cc9103d8f79e9446ad92f3b1d7168273",
+            "size": 67108864
+          }
+        ],
+        "file_bytes": 67108864,
+        "file_count": 1,
+        "format": "tar_gzip",
+        "header_count": 1,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 2684,
+      "sample": 3,
+      "stderr": "VmHWM:\t    2684 kB\n"
+    },
+    {
+      "archive": "random.tar.zst",
+      "compressed_bytes": 67110941,
+      "manifest": {
+        "archive_sha256": "850ac9aad2f9bbf2139fa6377f415ad302b973142eac37424a3975d033b234e0",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 67110941,
+        "decompressed_bytes": 67112960,
+        "directory_count": 0,
+        "entries": [
+          {
+            "archive_path": "opt/stacks/random.bin",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "random.bin",
+            "resource": "stacks",
+            "sha256": "a55b624d8c6aa4ba21b8dd0c16c7c2f0cc9103d8f79e9446ad92f3b1d7168273",
+            "size": 67108864
+          }
+        ],
+        "file_bytes": 67108864,
+        "file_count": 1,
+        "format": "tar_zstd",
+        "header_count": 1,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 4800,
+      "sample": 1,
+      "stderr": "VmHWM:\t    4800 kB\n"
+    },
+    {
+      "archive": "random.tar.zst",
+      "compressed_bytes": 67110941,
+      "manifest": {
+        "archive_sha256": "850ac9aad2f9bbf2139fa6377f415ad302b973142eac37424a3975d033b234e0",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 67110941,
+        "decompressed_bytes": 67112960,
+        "directory_count": 0,
+        "entries": [
+          {
+            "archive_path": "opt/stacks/random.bin",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "random.bin",
+            "resource": "stacks",
+            "sha256": "a55b624d8c6aa4ba21b8dd0c16c7c2f0cc9103d8f79e9446ad92f3b1d7168273",
+            "size": 67108864
+          }
+        ],
+        "file_bytes": 67108864,
+        "file_count": 1,
+        "format": "tar_zstd",
+        "header_count": 1,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 4860,
+      "sample": 2,
+      "stderr": "VmHWM:\t    4860 kB\n"
+    },
+    {
+      "archive": "random.tar.zst",
+      "compressed_bytes": 67110941,
+      "manifest": {
+        "archive_sha256": "850ac9aad2f9bbf2139fa6377f415ad302b973142eac37424a3975d033b234e0",
+        "coalesced_self_hardlinks": 0,
+        "compressed_bytes": 67110941,
+        "decompressed_bytes": 67112960,
+        "directory_count": 0,
+        "entries": [
+          {
+            "archive_path": "opt/stacks/random.bin",
+            "archived_permissions": 420,
+            "kind": "file",
+            "relative_path": "random.bin",
+            "resource": "stacks",
+            "sha256": "a55b624d8c6aa4ba21b8dd0c16c7c2f0cc9103d8f79e9446ad92f3b1d7168273",
+            "size": 67108864
+          }
+        ],
+        "file_bytes": 67108864,
+        "file_count": 1,
+        "format": "tar_zstd",
+        "header_count": 1,
+        "manifest_version": 2,
+        "policy_revision": 1
+      },
+      "peak_rss_kib": 4944,
+      "sample": 3,
+      "stderr": "VmHWM:\t    4944 kB\n"
+    }
+  ],
+  "scope": "local release example VmHWM; no installed/Pi/restore measurement",
+  "source_commit": "8acac403e32d3692b028a036a11f4fead2050580"
+}
