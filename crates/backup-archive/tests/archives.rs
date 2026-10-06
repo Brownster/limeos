@@ -834,6 +834,105 @@ fn fixtures() -> PathBuf {
 }
 
 #[test]
+fn completed_regular_file_self_links_are_inert_legacy_repeats() {
+    let name = "etc/limeos/media_layout.json";
+    let original = Tar::default().file(name, b"legacy config");
+    let repeated = original
+        .clone()
+        .typed(EntryType::Link, name, name)
+        .typed(EntryType::Link, name, name)
+        .end();
+    for compress in [gz, zst] {
+        let original = compress(&original.clone().end());
+        let repeated = compress(&repeated);
+        let before = inspect_and_admit(original.as_slice(), &policy(), &never).unwrap();
+        let after = inspect_and_admit(repeated.as_slice(), &policy(), &never).unwrap();
+        assert_eq!(before.entries, after.entries);
+        assert_eq!(after.file_count, 1);
+        assert_eq!(before.file_bytes, after.file_bytes);
+        assert_eq!(after.header_count, 3);
+        assert_eq!(before.coalesced_self_hardlinks, 0);
+        assert_eq!(after.coalesced_self_hardlinks, 2);
+        assert_eq!(after.manifest_version, 2);
+        assert_ne!(before.archive_sha256, after.archive_sha256);
+        // A truncated or corrupted ending still cannot publish a manifest.
+        let mut incomplete = repeated.clone();
+        incomplete.truncate(incomplete.len() - 8);
+        assert!(inspect_and_admit(incomplete.as_slice(), &policy(), &never).is_err());
+    }
+}
+
+#[test]
+fn legacy_repeat_cannot_create_links_or_bypass_destination_checks() {
+    let name = "etc/limeos/core.json";
+    let mut nonempty = Tar::header(EntryType::Link, name.as_bytes(), 1);
+    nonempty.as_gnu_mut().unwrap().linkname[..name.len()].copy_from_slice(name.as_bytes());
+    nonempty.set_cksum();
+    let cases = [
+        (
+            Tar::default()
+                .typed(EntryType::Link, name, name)
+                .file(name, b"1"),
+            FindingCode::LegacySelfHardlink,
+        ),
+        (
+            Tar::default().dir(name).typed(EntryType::Link, name, name),
+            FindingCode::LegacySelfHardlink,
+        ),
+        (
+            Tar::default().file(name, b"1").push(&nonempty, b"x"),
+            FindingCode::LegacySelfHardlink,
+        ),
+        (
+            Tar::default()
+                .file(name, b"1")
+                .typed(EntryType::Link, "etc/limeos/other", name),
+            FindingCode::Hardlink,
+        ),
+        (
+            Tar::default()
+                .file(name, b"1")
+                .typed(EntryType::Link, name, "etc/limeos/./core.json"),
+            FindingCode::Hardlink,
+        ),
+        (
+            Tar::default()
+                .file(name, b"1")
+                .typed(EntryType::Symlink, name, name),
+            FindingCode::Symlink,
+        ),
+        (
+            Tar::default()
+                .file(name, b"1")
+                .typed(EntryType::Link, name, name)
+                .file(name, b"2"),
+            FindingCode::DuplicateDestination,
+        ),
+        (
+            Tar::default().file("etc/shadow", b"secret").typed(
+                EntryType::Link,
+                "etc/shadow",
+                "etc/shadow",
+            ),
+            FindingCode::Unmapped,
+        ),
+        (
+            Tar::default()
+                .file("etc/limeos/../shadow", b"secret")
+                .typed(
+                    EntryType::Link,
+                    "etc/limeos/../shadow",
+                    "etc/limeos/../shadow",
+                ),
+            FindingCode::ParentComponent,
+        ),
+    ];
+    for (tar, code) in cases {
+        assert_eq!(both(&tar.end()), code);
+    }
+}
+
+#[test]
 fn gnu_tar_fixtures_match_their_recorded_hashes_and_expected_decisions() {
     let sums = std::fs::read_to_string(fixtures().join("SHA256SUMS")).unwrap();
     let mut seen = 0;
@@ -848,7 +947,7 @@ fn gnu_tar_fixtures_match_their_recorded_hashes_and_expected_decisions() {
         let result = inspect_and_admit(archive.as_slice(), &policy(), &never);
         let expected = match name {
             "legacy-valid.tar.gz" | "legacy-valid.tar.zst" | "legacy-posix.tar.gz" => None,
-            "legacy-primary-overlap.tar.zst" => Some(FindingCode::LegacySelfHardlink),
+            "legacy-primary-overlap.tar.zst" => None,
             "symlink-escape.tar.gz" => Some(FindingCode::Symlink),
             "fifo.tar.gz" => Some(FindingCode::Fifo),
             "sparse.tar.gz" => Some(FindingCode::Sparse),
@@ -859,6 +958,15 @@ fn gnu_tar_fixtures_match_their_recorded_hashes_and_expected_decisions() {
         };
         match (expected, result) {
             (None, Ok(manifest)) => {
+                assert_eq!(
+                    manifest.coalesced_self_hardlinks,
+                    if name == "legacy-primary-overlap.tar.zst" {
+                        2
+                    } else {
+                        0
+                    },
+                    "{name}"
+                );
                 assert!(manifest.file_count >= 4, "{name}");
                 assert!(
                     manifest.entries.iter().any(|e| e.archive_path.len() > 100),

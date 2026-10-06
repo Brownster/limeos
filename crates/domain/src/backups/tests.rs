@@ -91,6 +91,7 @@ fn report(entries: Vec<InspectedEntry>) -> InspectionReport {
         decompressed_bytes: 10240,
         header_count,
         metadata_bytes: 0,
+        coalesced_self_hardlinks: 0,
         entries,
     }
 }
@@ -289,6 +290,22 @@ fn archived_special_bits_and_ownership_never_reach_the_manifest() {
 
 #[test]
 fn inconsistent_or_partial_reports_are_refused() {
+    let mut repeats = report(vec![file(0, "opt/stacks/a", 1)]);
+    repeats.coalesced_self_hardlinks = 1;
+    assert_eq!(
+        codes(admit(&policy(), &repeats)),
+        [FindingCode::InconsistentReport]
+    );
+    repeats.header_count = 2;
+    assert_eq!(
+        admit(&policy(), &repeats).unwrap().coalesced_self_hardlinks,
+        1
+    );
+    repeats.entries[0] = dir(0, "opt/stacks/a/");
+    assert_eq!(
+        codes(admit(&policy(), &repeats)),
+        [FindingCode::InconsistentReport]
+    );
     let mut bad = report(vec![file(0, "opt/stacks/a", 1)]);
     bad.archive_sha256 = "ABC".into();
     assert_eq!(

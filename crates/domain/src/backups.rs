@@ -13,7 +13,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const MANIFEST_VERSION: u32 = 1;
+pub const MANIFEST_VERSION: u32 = 2;
 
 /// Archive compression formats the legacy helper produced.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -88,8 +88,8 @@ pub struct AdmissionPolicy {
     pub legacy_mappings: Vec<LegacyMapping>,
 }
 
-/// Entry kinds the inspector reports. Every other tar type is rejected while
-/// streaming, before its data is read.
+/// Entry kinds the inspector reports. Redundant legacy self-links produce no
+/// entry; every other tar type is rejected while streaming.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EntryKind {
@@ -127,6 +127,9 @@ pub struct InspectionReport {
     /// Every tar header, including extension headers.
     pub header_count: u64,
     pub metadata_bytes: u64,
+    /// Zero-length self-links following an inspected regular file at the
+    /// exact same archive path. These produce no entry or destination.
+    pub coalesced_self_hardlinks: u64,
     pub entries: Vec<InspectedEntry>,
 }
 
@@ -243,6 +246,7 @@ pub struct RestoreManifest {
     pub compressed_bytes: u64,
     pub decompressed_bytes: u64,
     pub header_count: u64,
+    pub coalesced_self_hardlinks: u64,
     pub file_count: u64,
     pub directory_count: u64,
     pub file_bytes: u64,
@@ -521,6 +525,12 @@ fn check_report(policy: &AdmissionPolicy, report: &InspectionReport) -> Result<u
     {
         return Err("entry counts are inconsistent with policy".into());
     }
+    if report.coalesced_self_hardlinks > report.header_count - report.entries.len() as u64
+        || (report.coalesced_self_hardlinks != 0
+            && !report.entries.iter().any(|e| e.kind == EntryKind::File))
+    {
+        return Err("legacy repeat count is inconsistent with inspected files".into());
+    }
     if report.metadata_bytes > limits.max_total_metadata_bytes {
         return Err("metadata bytes exceed policy".into());
     }
@@ -664,6 +674,7 @@ pub fn admit(
         compressed_bytes: report.compressed_bytes,
         decompressed_bytes: report.decompressed_bytes,
         header_count: report.header_count,
+        coalesced_self_hardlinks: report.coalesced_self_hardlinks,
         file_count,
         directory_count: entries.len() as u64 - file_count,
         file_bytes,

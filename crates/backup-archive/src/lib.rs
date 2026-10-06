@@ -14,6 +14,7 @@ use limeos_domain::backups::{
 };
 use sha2::{Digest, Sha256};
 use std::{
+    collections::BTreeSet,
     error::Error as StdError,
     fmt,
     io::{self, BufRead, BufReader, Read},
@@ -358,6 +359,8 @@ pub fn inspect<R: Read>(
         cancelled,
     });
     let mut entries_out = Vec::new();
+    let mut completed_files = BTreeSet::new();
+    let mut coalesced_self_hardlinks = 0;
     let mut header_count: u64 = 0;
     let mut metadata_bytes: u64 = 0;
     let mut pending = Pending::default();
@@ -447,6 +450,18 @@ pub fn inspect<R: Read>(
                     .map(|l| l.into_owned())
                     .unwrap_or_default();
                 let link = effective_name(header_link, taken.long_link, taken.pax_linkpath, index)?;
+                // GNU tar emits these when the frozen helper lists a file
+                // both through its parent directory and as an explicit source.
+                // The earlier file has already been fully read and hashed.
+                // Count this header, but create no entry or link operation.
+                if kind.is_hard_link()
+                    && size == 0
+                    && link == path.as_bytes()
+                    && completed_files.contains(&path)
+                {
+                    coalesced_self_hardlinks += 1;
+                    continue;
+                }
                 let detail = format!("target {}", display_path(&String::from_utf8_lossy(&link)));
                 return Err(if kind.is_symlink() {
                     at(FindingCode::Symlink, &detail)
@@ -509,6 +524,7 @@ pub fn inspect<R: Read>(
                     if read != size {
                         return Err(at(FindingCode::Truncated, "file data ended early"));
                     }
+                    completed_files.insert(path.clone());
                     Some(hex::encode(hasher.finalize()))
                 }
             };
@@ -581,6 +597,7 @@ pub fn inspect<R: Read>(
         decompressed_bytes,
         header_count,
         metadata_bytes,
+        coalesced_self_hardlinks,
         entries: entries_out,
     })
 }
