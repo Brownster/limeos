@@ -1,0 +1,95 @@
+{
+  "recorded_at": "2026-10-06T19:54:45.969815+00:00",
+  "status": "prepared; awaiting explicitly available isolated ARM64 host",
+  "identity": {
+    "architecture": "arm64",
+    "authority_schema": 8,
+    "fixtures_commit": "bb8676934573642b4fdc43b4df5e939d72d40c7a",
+    "package_version": "0.4.4+arm64.1",
+    "qualification_kind": "native-kvm",
+    "source_commit": "60e6309384c6a93caa63c0d578dc57d981897863"
+  },
+  "bundle_path": "/tmp/limeos-current-arm64/.cache/arm64-qual/current/source.tar.gz",
+  "bundle_sha256": "c382556f165eb80bb2f8db4e0b2a75658ad9b93b3745fb33c54c0c54e00f7a84",
+  "verified_runtime_files": 480,
+  "local_machine": "x86_64",
+  "local_validation": [
+    {
+      "command": [
+        "uv",
+        "run",
+        "--no-project",
+        "--no-managed-python",
+        "tests/qualification/arm64/test_harness.py",
+        "-v"
+      ],
+      "exit": 0,
+      "seconds": 1.471,
+      "stdout": "local-validation/0.stdout.txt",
+      "stderr": "local-validation/0.stderr.txt"
+    },
+    {
+      "command": [
+        "uv",
+        "tool",
+        "run",
+        "--offline",
+        "ruff",
+        "check",
+        "tests/qualification/arm64",
+        "tests/privileged_vm/p04_approved_guest.py",
+        "tests/privileged_vm/p04_approved_container_guest.py",
+        "tests/privileged_vm/p04_locks_guest.py",
+        "tests/privileged_vm/p04_targets_package_guest.py",
+        "tests/privileged_vm/p03_guest.py"
+      ],
+      "exit": 0,
+      "seconds": 0.446,
+      "stdout": "local-validation/1.stdout.txt",
+      "stderr": "local-validation/1.stderr.txt"
+    },
+    {
+      "command": [
+        "uv",
+        "tool",
+        "run",
+        "--offline",
+        "ruff",
+        "format",
+        "--check",
+        "tests/qualification/arm64"
+      ],
+      "exit": 0,
+      "seconds": 0.044,
+      "stdout": "local-validation/2.stdout.txt",
+      "stderr": "local-validation/2.stderr.txt"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "seconds": 0.03,
+      "stdout": "local-validation/3.stdout.txt",
+      "stderr": "local-validation/3.stderr.txt"
+    }
+  ],
+  "host_wait_observed_at": "2026-10-06T19:54:45.969887+00:00",
+  "infrastructure_wait": "isolated native ARM64 SSH target requested; no target supplied, no remote commands attempted",
+  "engineering_time": "preparation only; native execution time not started, host wait excluded",
+  "native_gates": {
+    "Rust 1.88 locked build, workspace tests and strict Clippy": "untested",
+    "ARM64 standard/shadow package build and signed install": "untested",
+    "installed identity/capabilities/dormant units/password formats/sessions": "untested",
+    "approved storage jobs and receipt-only crash recovery": "untested",
+    "approved container lifecycle and interruption": "untested",
+    "actual package replacement/removal": "untested",
+    "genuine schema 6 ARM64 upgrade to schema 8": "untested",
+    "genuine schema 7 ARM64 upgrade to schema 8": "untested",
+    "current payload PSS/RSS/swap and 600-second idle CPU": "untested",
+    "readiness/command/authenticated latency/installed bytes/write interval": "untested",
+    "bare-metal Pi and comparable Python baseline": "untested"
+  }
+}

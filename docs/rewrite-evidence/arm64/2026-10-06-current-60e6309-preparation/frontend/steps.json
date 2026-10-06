@@ -1,0 +1,28 @@
+[
+  {
+    "command": [
+      "npm",
+      "ci",
+      "--ignore-scripts"
+    ],
+    "exit": 0,
+    "log": "0.txt"
+  },
+  {
+    "command": [
+      "npm",
+      "test"
+    ],
+    "exit": 0,
+    "log": "1.txt"
+  },
+  {
+    "command": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "exit": 0,
+    "log": "2.txt"
+  }
+]
