@@ -16,6 +16,8 @@ flate2.workspace = true
 zstd.workspace = true
 sha2.workspace = true
 hex.workspace = true
+rustix.workspace = true
+getrandom.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
