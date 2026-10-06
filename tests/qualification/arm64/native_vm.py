@@ -236,7 +236,15 @@ def host_info(guest):
     result = guest.host_run(
         "uname -a; getconf PAGESIZE; cat /proc/cpuinfo; cat /proc/meminfo; "
         "cat /proc/loadavg; cat /proc/pressure/memory; "
-        "lsblk -d -o NAME,SIZE,ROTA,MODEL; systemctl list-units --state=running --no-pager",
+        "lsblk -d -o NAME,SIZE,ROTA,MODEL; systemctl list-units --state=running --no-pager; "
+        # Read-only prerequisite and workload evidence; nothing here changes the host.
+        "echo '@@prerequisites'; ls -l /dev/kvm; "
+        "for t in qemu-system-aarch64 qemu-img python3; do command -v $t || echo missing:$t; done; "
+        "ls /usr/share/AAVMF/AAVMF_CODE.fd /usr/share/AAVMF/AAVMF_VARS.fd 2>&1; "
+        "dpkg-query -W -f '${Package} ${Version} ${Status}\\n' qemu-system-arm qemu-efi-aarch64 qemu-utils 2>&1; "
+        f"ls -la ~/{REMOTE_BASE} ~/{REMOTE_BASE}/image 2>&1; df -h ~ /tmp; free -m; "
+        "echo '@@qemu'; pgrep -a qemu || echo none; "
+        "echo '@@docker'; docker ps --format '{{.Names}} {{.Status}}' 2>&1",
         text=True,
         capture_output=True,
         timeout=30,
