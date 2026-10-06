@@ -1,0 +1,13 @@
+$ python3 scripts/check_repository.py
+Traceback (most recent call last):
+  File "/root/qual/source/scripts/check_repository.py", line 53, in <module>
+    listing = subprocess.run(
+              ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/subprocess.py", line 548, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/subprocess.py", line 1024, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "/usr/lib/python3.11/subprocess.py", line 1901, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'git'
