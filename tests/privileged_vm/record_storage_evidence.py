@@ -33,8 +33,12 @@ def main():
         help="Commit containing the separately launched container VM fixture",
     )
     parser.add_argument(
+        "--storage-fixture-commit",
+        help="Commit containing the launched approved-storage fixture",
+    )
+    parser.add_argument(
         "--slice",
-        choices=["readiness", "planning", "targets", "locks"],
+        choices=["readiness", "planning", "targets", "locks", "approved"],
         default="readiness",
     )
     parser.add_argument(
@@ -44,8 +48,21 @@ def main():
     )
     args = parser.parse_args()
     planning = args.slice != "readiness"
-    locks = args.slice == "locks"
-    targets = args.slice in ["targets", "locks"]
+    approved = args.slice == "approved"
+    locks = args.slice in ["locks", "approved"]
+    targets = args.slice in ["targets", "locks", "approved"]
+    authority_schema = 8 if approved else 7
+    package_version = (
+        "0.4.4"
+        if approved
+        else "0.4.3"
+        if locks
+        else "0.4.2"
+        if targets
+        else "0.4.1"
+        if planning
+        else "0.4.0"
+    )
     args.output = (
         args.output
         or ROOT / f"docs/rewrite-evidence/p04/storage-{args.slice}-validation.json"
@@ -55,23 +72,11 @@ def main():
     log_name = f"rust-{args.slice}-tests.txt"
     vm = json.loads((evidence / vm_name).read_text())
     assert len(vm["passed"]) >= (
-        43 if locks else 37 if targets else 27 if planning else 17
+        50 if approved else 43 if locks else 37 if targets else 27 if planning else 17
     )
     assert "three-second plan deadline" in " ".join(vm["passed"])
     assert "watchdog bound" in " ".join(vm["passed"])
-    assert (
-        vm["package_version"]
-        == (
-            "0.4.3"
-            if locks
-            else "0.4.2"
-            if targets
-            else "0.4.1"
-            if planning
-            else "0.4.0"
-        )
-        and vm["architecture"] == "amd64"
-    )
+    assert vm["package_version"] == package_version and vm["architecture"] == "amd64"
     if planning:
         assert "operator fstab edit" in " ".join(vm["passed"])
         assert "duplicate raw UUIDs" in " ".join(vm["passed"])
@@ -87,12 +92,15 @@ def main():
         assert args.container_fixture_commit, (
             "Bind the separate container fixture source"
         )
-        assert vm["authority_schema"] == 7
-        assert vm["upgrade"]["from"] == "0.4.2" and vm["upgrade"]["to"] == "0.4.3"
+        assert vm["authority_schema"] == authority_schema
+        assert vm["upgrade"]["from"] == ("0.4.3" if approved else "0.4.2")
+        assert vm["upgrade"]["to"] == package_version
         assert vm["upgrade"]["previous_core_sha256"] != vm["core_payload_sha256"]
         assert vm["upgrade"]["current_core_sha256"] == vm["core_payload_sha256"]
         assert vm["upgrade"]["previous_package_sha256"] == (
-            "468b844cebb12806661a4d757b47b53f0c9d2f3bcbe21bb2d89639b5df656263"
+            "c5e49b2117a19d0983b5afb9a3ea756f479c2ab9dc67be7001758265737204b6"
+            if approved
+            else "468b844cebb12806661a4d757b47b53f0c9d2f3bcbe21bb2d89639b5df656263"
         )
         for scenario in [
             "complete claim sets atomically",
@@ -102,19 +110,42 @@ def main():
         ]:
             assert scenario in " ".join(vm["passed"])
         container_vm = json.loads(
-            (evidence / "locks-container-vm-result.json").read_text()
+            (evidence / f"{args.slice}-container-vm-result.json").read_text()
         )
-        assert container_vm["package_version"] == "0.4.3"
-        assert container_vm["schemas"] == {"authority": 7, "container_receipts": 3}
+        assert container_vm["package_version"] == package_version
+        assert container_vm["schemas"] == {
+            "authority": authority_schema,
+            "container_receipts": 3,
+        }
         assert container_vm["upgrade"] is None
         assert len(container_vm["checks"]) >= 38
         assert any("kill limeos-core" in s for s in container_vm["checks"])
+    if approved:
+        assert args.storage_fixture_commit, "Bind the launched storage fixture source"
+        for scenario in [
+            "CAP_CHOWN",
+            "rejects preview tokens",
+            "SIGKILL",
+            "missing root receipt",
+            "without mkdir",
+        ]:
+            assert scenario in " ".join(vm["passed"])
     assert 2.5 <= vm["plan_wait_seconds"] <= 7
     assert 3.5 <= vm["watchdog_seconds"] <= 8
     log = (evidence / log_name).read_text()
     assert "FAILED" not in log and "test result: ok." in log
     passed = sum(int(n) for n in re.findall(r"test result: ok\. (\d+) passed", log))
-    assert passed >= (144 if locks else 131 if targets else 126 if planning else 111)
+    assert passed >= (
+        155
+        if approved
+        else 144
+        if locks
+        else 131
+        if targets
+        else 126
+        if planning
+        else 111
+    )
     manifest = {}
     with tarfile.open(args.bundle) as archive:
         for item in archive:
@@ -153,6 +184,8 @@ def main():
     if locks:
         assert binaries["limeos-core"] == vm["core_payload_sha256"]
         assert container_vm["binary_sha256"] == binaries
+    if approved:
+        assert vm["binary_sha256"] == binaries
     packages = {}
     for package in sorted((args.artifacts / "packages").glob("*.deb")):
         prefix = (
@@ -204,6 +237,20 @@ def main():
                     f"fct_directory /var/lib/{prefix}/executors/storage root 0700"
                     in postinst_text
                 )
+            if approved:
+                target_service = (
+                    f"./lib/systemd/system/{prefix}-storage-targets.service"
+                )
+                if prefix == "limeos-shadow":
+                    assert target_service not in archive.getnames()
+                else:
+                    service = archive.getmember(target_service)
+                    assert service.uid == 0 and service.mode & 0o022 == 0
+                    service_text = archive.extractfile(service).read().decode()
+                    assert (
+                        "CapabilityBoundingSet=CAP_CHOWN" in service_text
+                        and "[Install]" not in service_text
+                    )
     assert len(packages) == 2
     previous = json.loads(
         (ROOT / "docs/rewrite-evidence/p03/compose-source-sha256.json").read_text()
@@ -254,7 +301,8 @@ def main():
                 *(
                     [
                         ROOT / "tests/privileged_vm/p04_locks_guest.py",
-                        ROOT / "tests/privileged_vm/p04_locks_container_guest.py",
+                        ROOT
+                        / f"tests/privileged_vm/p04_{'approved' if approved else 'locks'}_container_guest.py",
                         ROOT / "tests/privileged_vm/p03_guest.py",
                         ROOT / "tests/privileged_vm/p03_lifecycle_guest.py",
                     ]
@@ -303,7 +351,7 @@ def main():
             "run.py",
             "p03_guest.py",
             "p03_lifecycle_guest.py",
-            "p04_locks_container_guest.py",
+            f"p04_{'approved' if approved else 'locks'}_container_guest.py",
         ]:
             path = "tests/privileged_vm/" + name
             committed = subprocess.check_output(
@@ -314,10 +362,10 @@ def main():
                 assert sha(ROOT / path) == digest, f"Container fixture drift: {path}"
             container_fixture_manifest[path] = digest
         result["core_resource_locks"] = {
-            "authority_schema": 7,
+            "authority_schema": authority_schema,
             "genuine_package_upgrade": vm["upgrade"],
             "container_vm": {
-                "result_file": "locks-container-vm-result.json",
+                "result_file": f"{args.slice}-container-vm-result.json",
                 "acceptance_groups": len(container_vm["checks"]),
                 "operations": container_vm["operations"],
                 "shadow_scope": "installed service ceiling and payload checks",
@@ -330,6 +378,45 @@ def main():
         result["limitations"].append(
             "Storage jobs, fresh live dependency discovery and shared executor dispatch remain pending; root target receipts still use their separate private journal"
         )
+    if approved:
+        storage_fixture_manifest = {}
+        for name in [
+            "run.py",
+            "p03_guest.py",
+            "p04_storage_guest.py",
+            "p04_planning_guest.py",
+            "p04_targets_guest.py",
+            "p04_locks_guest.py",
+            "p04_approved_guest.py",
+        ]:
+            path = "tests/privileged_vm/" + name
+            committed = subprocess.check_output(
+                ["git", "show", f"{args.storage_fixture_commit}:{path}"], cwd=ROOT
+            )
+            digest = hashlib.sha256(committed).hexdigest()
+            assert sha(ROOT / path) == digest, f"Storage fixture drift: {path}"
+            storage_fixture_manifest[path] = digest
+        result["approved_storage_targets"] = {
+            "authority_schema": 8,
+            "plan_version": 2,
+            "root_journal_schema": 1,
+            "fixture_source_commit": args.storage_fixture_commit,
+            "fixture_sha256": storage_fixture_manifest,
+            "scope": "human-approved empty target preparation; complete configuration/UUID/path claims, independent verification and receipt-only automatic recovery",
+        }
+        result["production_boundary_change"] = (
+            "Schema-8 approved empty target jobs and a dormant explicitly constrained root service; already-locked rustix supplies safe descriptor-relative policy reads"
+        )
+        result["core_resource_locks"]["scope"] = (
+            "durable complete core claims, approved empty target effects and real approved container effects; root receipt journal remains independent"
+        )
+        result["limitations"] = [
+            "P04 remains in progress; mount/fstab effects, fresh container/share/pool dependencies, unmount/runtime-loss handling and guided UI remain pending",
+            "No new native ARM64 or Pi qualification for this 0.4.4 payload; earlier native results remain separately bound",
+            "Btrfs multi-device and FUSE NTFS are refused pending complete backing mappings",
+            "No full Pi/Python footprint comparison or cutover signoff",
+            "No P04 defect-register row closes on this operation alone",
+        ]
     args.output.write_text(json.dumps(result, indent=2) + "\n")
     print(
         f"Recorded {len(vm['passed'])} VM groups against {len(manifest)} committed source/build files."
