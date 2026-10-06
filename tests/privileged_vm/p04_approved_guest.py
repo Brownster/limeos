@@ -133,7 +133,17 @@ def main():
     assert http(BASE + "/plans", "POST", selection("Data"), cookie, csrf)[0] == 503
     POLICY.write_text(json.dumps(policy))
     POLICY.chmod(0o644)
-    run("systemctl", "start", "limeos-storage-targets")
+
+    def start_target_service():
+        run("systemctl", "start", "limeos-storage-targets")
+        socket_path = Path("/run/limeos-storage-targets/executor.sock")
+        eventually(
+            lambda: (
+                socket_path.is_socket() and socket_path.stat().st_mode & 0o777 == 0o660
+            )
+        )
+
+    start_target_service()
     pid = int(
         run(
             "systemctl", "show", "limeos-storage-targets", "-p", "MainPID", "--value"
@@ -309,7 +319,7 @@ def main():
     assert http(BASE + f"/jobs/{job['id']}", cookie=cookie)[2]["state"] == "succeeded"
     with sqlite3.connect(planning.DB) as db:
         assert db.execute("SELECT count(*) FROM events").fetchone()[0] == before
-    run("systemctl", "start", "limeos-storage-targets")
+    start_target_service()
     passed(
         "new human approval binds the complete target plan, rejects preview tokens and edits, creates only one empty root-owned directory, and commits independent inode verification before releasing core claims; read/replay remains pure with the executor stopped"
     )
