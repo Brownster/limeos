@@ -12,9 +12,10 @@ import shutil
 import subprocess
 import tempfile
 import time
-import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
+
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -142,7 +143,9 @@ def main():
             "declaration of an `unsafe` function",
         )
         lock = (clone / "Cargo.lock").read_text()
-        version = tomllib.loads((clone / "Cargo.toml").read_text())["workspace"]["package"]["version"]
+        version = tomllib.loads((clone / "Cargo.toml").read_text())["workspace"][
+            "package"
+        ]["version"]
         stale = lock.replace(
             f'name = "limeos-domain"\nversion = "{version}"',
             'name = "limeos-domain"\nversion = "0.0.0"',
@@ -216,6 +219,17 @@ def main():
             "Failed to resolve",
         )
         dependency = (clone / "crates/domain/Cargo.toml").read_text()
+        unregistered = clone / "crates/gate-unregistered"
+        unregistered.mkdir()
+        try:
+            (unregistered / "Cargo.toml").write_text(dependency)
+            rejects(
+                "Unregistered crate boundary",
+                ["python3", "scripts/check_repository.py"],
+                "unregistered crates ['gate-unregistered']",
+            )
+        finally:
+            shutil.rmtree(unregistered)
         mutate(
             "crates/domain/Cargo.toml",
             dependency + "\naxum.workspace = true\n",

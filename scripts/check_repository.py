@@ -24,6 +24,13 @@ ALLOWED = {
     "executor-storage": {"domain", "identity"},
     "backup-archive": {"domain"},
 }
+discovered = {
+    manifest.parent.name for manifest in (ROOT / "crates").glob("*/Cargo.toml")
+}
+assert discovered == ALLOWED.keys(), (
+    f"crate boundary registry mismatch: unregistered crates {sorted(discovered - ALLOWED.keys())}; "
+    f"missing crates {sorted(ALLOWED.keys() - discovered)}"
+)
 for crate, allowed in ALLOWED.items():
     config = tomllib.loads((ROOT / "crates" / crate / "Cargo.toml").read_text())
     # Tests, build scripts, aliases and target-specific sections must preserve
