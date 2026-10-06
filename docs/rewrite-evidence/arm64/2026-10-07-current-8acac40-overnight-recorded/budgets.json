@@ -1,0 +1,92 @@
+[
+  [
+    "Core and base executors, idle PSS (MiB)",
+    10.44,
+    30,
+    true
+  ],
+  [
+    "Measured resident LimeOS services, idle PSS (MiB); assistant unavailable",
+    10.44,
+    60,
+    true
+  ],
+  [
+    "Steady-state swap (KiB)",
+    0,
+    0,
+    true
+  ],
+  [
+    "Core and executors PSS after workload (MiB)",
+    10.87,
+    30,
+    true
+  ],
+  [
+    "Idle CPU, 600 s, % of one core",
+    0.051,
+    0.1,
+    true
+  ],
+  [
+    "Resident writes, idle, MB/day (process write_bytes over 600 s, extrapolated)",
+    4.72,
+    20,
+    true
+  ],
+  [
+    "CPU with 3 dashboard streams, % of one core (no budget)",
+    0.0876,
+    "-",
+    null
+  ],
+  [
+    "Resident writes with 3 dashboards, MB/day (process write_bytes over 300 s, extrapolated)",
+    4.72,
+    20,
+    true
+  ],
+  [
+    "Core restart to ready, p95 / max (ms)",
+    "266.05 / 268.02",
+    1000,
+    true
+  ],
+  [
+    "Full stack cold start to ready, max (ms)",
+    456.58,
+    1000,
+    true
+  ],
+  [
+    "Cached overview, sequential, p95 (ms)",
+    0.921,
+    20,
+    true
+  ],
+  [
+    "Authenticated reads, 3 concurrent clients, p95 (ms)",
+    3.516,
+    20,
+    true
+  ],
+  [
+    "Installed package bytes including UI (MB)",
+    11.15,
+    154.0,
+    true
+  ],
+  [
+    "limeosctl_status p95 (ms)",
+    1.71,
+    20,
+    true
+  ],
+  [
+    "executor_storage_inventory p95 (ms)",
+    61.401,
+    20,
+    false
+  ]
+]

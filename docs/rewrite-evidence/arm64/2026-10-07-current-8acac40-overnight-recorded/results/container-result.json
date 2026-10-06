@@ -1,0 +1,121 @@
+{
+  "identity": {
+    "architecture": "arm64",
+    "authority_schema": 8,
+    "fixtures_commit": "d46d7eeb992be420adc7a3a45fa13cee0a85de27",
+    "package_version": "0.4.7+arm64.1",
+    "qualification_kind": "native-kvm",
+    "source_commit": "8acac403e32d3692b028a036a11f4fead2050580"
+  },
+  "build_result_sha256": "8b6fe1dd64e3e4fedc454cc5a3ddbc630d5218bf5de187d285f56e774f31c50a",
+  "suite": "container",
+  "started": 1791326448.0010839,
+  "summary": "pass",
+  "installed_sha256": {
+    "limeos-core": "aab46a601a95924c8900a93749cd8cf5cc735cc2328783196732c363f258cde0",
+    "limeos-password-worker": "17610bb6d2fb4964ecacbcac1adc3e1ee3733bcdb8b87899ad38fadcf337f243",
+    "limeos-executor": "171bfb1e34101c00738955ddaa5c99823e4e42b033f34c8e44045b7e507940b2",
+    "limeosctl": "a0ebf9524d8c329693a0eadd1211bba5884cf2baf3f86569c1f26578752f6cc1"
+  },
+  "fixture_result": {
+    "checks": [
+      "only the container executor can access Engine and protected receipts",
+      "GET and invalid origin or CSRF cannot initiate an operation",
+      "one real restart, independent verification, durable progress and duplicate request",
+      "changed plans, stale incarnation and independent managed-ID ceiling",
+      "browser and scoped task share policy; task cannot approve; grant revocation is immediate",
+      "expired human approval causes no Engine effect",
+      "queued cancellation prevents effects; in-flight cancellation cannot claim prevention",
+      "kill limeos-core before_prepare: no unjustified second effect",
+      "kill limeos-containerd before_prepare: no unjustified second effect",
+      "kill limeos-core during: no unjustified second effect",
+      "kill limeos-containerd during: no unjustified second effect",
+      "kill limeos-core after_effect: no unjustified second effect",
+      "kill limeos-containerd after_effect: no unjustified second effect",
+      "shadow has isolated state and refuses write-enabled policy",
+      "shadow removal preserves standard services and authenticated reads",
+      "real stop is approved, verified, action-bound and idempotent",
+      "real start is approved, verified, action-bound and idempotent",
+      "start: kill limeos-core before_prepare retains proof and prevents replay",
+      "start: kill limeos-containerd before_prepare retains proof and prevents replay",
+      "start: kill limeos-core during retains proof and prevents replay",
+      "start: kill limeos-containerd during retains proof and prevents replay",
+      "start: kill limeos-core after_effect retains proof and prevents replay",
+      "start: kill limeos-containerd after_effect retains proof and prevents replay",
+      "stop: kill limeos-core before_prepare retains proof and prevents replay",
+      "stop: kill limeos-containerd before_prepare retains proof and prevents replay",
+      "stop: kill limeos-core during retains proof and prevents replay",
+      "stop: kill limeos-containerd during retains proof and prevents replay",
+      "stop: kill limeos-core after_effect retains proof and prevents replay",
+      "stop: kill limeos-containerd after_effect retains proof and prevents replay",
+      "real multiplexed logs are bounded, filtered and have no effect",
+      "real TTY logs are bounded, filtered and have no effect",
+      "logs independently reject an unmanaged ID and a disabled log ceiling",
+      "task logs use the same resource grant and cannot acquire human approval",
+      "viewer inventory authority permits neither browser nor task logs",
+      "real oversized log framing clips within byte and time limits",
+      "start has an independent effect ceiling even with restart enabled",
+      "stop has an independent effect ceiling even with restart enabled",
+      "shadow independently refuses start-enabled and stop-enabled ceilings"
+    ],
+    "engine_version": "20.10.24+dfsg1",
+    "container_fixture": "Debian static busybox, no mounts, redacted label",
+    "restart_posts": 8,
+    "restart_effect_ms": {
+      "3ef01e06380a6b28ca559e03c303fc980f700d7633707c1330ac1e4388af1f7a": 10534.329,
+      "0cf567dea67f2cc12fb69ebad7de0e0a11a8b28089937471071733bf38878358": 10553.166,
+      "4ac3540cd38ed169953e7e8c106fcd93a7272998403a6deba57e18510b3f11f1": 10560.484,
+      "04278e86b48e896878c0903484a9a5c7c39af1509e131d9010130a041d198363": 10548.076,
+      "79fa8f86b53e0dc4d4bfc7d75f39ca8aea34d3aca88994f897991788727c9583": 10527.904,
+      "59c378e314feb7c9fedc8169e94adc512787f4075edee5902911f4c0591b2bd9": 10563.3,
+      "d65162d471467dc47458daa00f05fcef5483c2deb6e562e8ba10790af7d9c57c": 10493.126
+    },
+    "footprint": {
+      "architecture": "arm64",
+      "app_pss_kib": {
+        "limeos-core": 6431,
+        "limeos-containerd": 3010,
+        "limeos-storaged": 1290
+      },
+      "combined_pss_kib": 10731,
+      "overview_p95_ms": 1.154,
+      "overview_median_ms": 0.865,
+      "workload": "after restart/start/stop, log and interruption qualification, 20 cached overview requests",
+      "exclusions": [
+        "Docker daemon",
+        "test proxy",
+        "browser",
+        "Rust build tools"
+      ],
+      "swap_kib": 0
+    },
+    "package_sha256": {
+      "limeos-shadow_0.4.7+arm64.1_arm64.deb": "20e10c7e19e902c7976b7ce37b26539d2d9a27bb4d2e5f63377ddb3f2e85fe55",
+      "limeos_0.4.7+arm64.1_arm64.deb": "6c86199b253e155c94d96e1395c069c4188e11a2379f14eff97eacab0203b898"
+    },
+    "lifecycle_posts": 20,
+    "operations": [
+      "restart",
+      "start",
+      "stop",
+      "logs"
+    ],
+    "schemas": {
+      "authority": 8,
+      "container_receipts": 3
+    },
+    "upgrade": null,
+    "package_version": "0.4.7+arm64.1",
+    "binary_sha256": {
+      "limeos-core": "aab46a601a95924c8900a93749cd8cf5cc735cc2328783196732c363f258cde0",
+      "limeos-executor": "171bfb1e34101c00738955ddaa5c99823e4e42b033f34c8e44045b7e507940b2",
+      "limeosctl": "a0ebf9524d8c329693a0eadd1211bba5884cf2baf3f86569c1f26578752f6cc1",
+      "limeos-password-worker": "17610bb6d2fb4964ecacbcac1adc3e1ee3733bcdb8b87899ad38fadcf337f243"
+    },
+    "limitations": [
+      "Disposable VM; current fresh standard/shadow lifecycle, no genuine upgrade in this run",
+      "Live container storage dependency discovery and mount/fstab effects remain pending"
+    ]
+  },
+  "finished": 1791326833.9293492
+}

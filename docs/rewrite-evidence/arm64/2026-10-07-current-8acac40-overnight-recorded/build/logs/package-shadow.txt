@@ -1,0 +1,2 @@
+$ python3 packaging/build.py --arch arm64 --binaries /root/qual/source/target/release --version 0.4.7+arm64.1 --profile shadow --output /root/qual/packages
+dpkg-deb: building package 'limeos-shadow' in '/root/qual/packages/limeos-shadow_0.4.7+arm64.1_arm64.deb'.
