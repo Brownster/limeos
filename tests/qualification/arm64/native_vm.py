@@ -457,7 +457,7 @@ def boot(args):
         # Never leave a guest running without its deadline supervisor.
         guest.host_run(
             f"cd {guest.remote} && pid=$(sudo cat qemu.pid) && "
-            'test "$(sudo readlink /proc/$pid/cwd)" = "$PWD" && sudo kill $pid',
+            f"grep -qaF -- {shlex.quote(marker)} /proc/$pid/cmdline && kill $pid",
             check=False,
         )
         raise SystemExit("supervisor did not bind; guest stopped")
@@ -514,6 +514,9 @@ def stop(args):
     guest = Guest(args.name, args.host, args.authorization)
     if guest.port is None:
         raise SystemExit("recorded guest state required for stop")
+    marker = json.loads((guest.local / "guest.json").read_text()).get("marker")
+    if not marker:
+        raise SystemExit("guest has no recorded QEMU marker; stop it on the host")
     (guest.local / "host-after.json").write_text(
         json.dumps(host_info(guest), indent=2) + "\n"
     )
@@ -522,7 +525,10 @@ def stop(args):
         # A supervisor may already have stopped the guest at its deadline.
         f"cd {guest.remote} && "
         "pid=$(cat qemu.bound-pid 2>/dev/null || sudo cat qemu.pid 2>/dev/null || true) && "
-        'if [ -n "$pid" ] && [ -e /proc/$pid ]; then test "$(sudo readlink /proc/$pid/cwd)" = "$PWD" && sudo kill $pid; fi && '
+        # Identify the guest by its unique -name marker: QEMU's -daemonize
+        # changes its working directory to /, so a cwd check never matches.
+        'if [ -n "$pid" ] && [ -e /proc/$pid ]; then '
+        f"grep -qaF -- {shlex.quote(marker)} /proc/$pid/cmdline && kill $pid; fi && "
         'for i in $(seq 1 60); do [ -n "$pid" ] && [ -e /proc/$pid ] || break; sleep 1; done && '
         '{ [ -z "$pid" ] || [ ! -e /proc/$pid ]; } && '
         # The supervisor exits on its own once its pidfd reports the exit.
