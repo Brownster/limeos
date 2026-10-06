@@ -444,6 +444,8 @@ def boot(args):
                 "--log supervisor.log < /dev/null > supervisor.out 2>&1 &"
             ),
             "echo $! > supervisor.pid",
+            # QEMU deletes qemu.pid when it exits; keep the bound PID for stop.
+            "echo $pid > qemu.bound-pid",
             "sleep 1",
             'grep -q \'"event": "bound"\' supervisor.log',
             "echo qemu=$pid supervisor=$(cat supervisor.pid)",
@@ -518,10 +520,11 @@ def stop(args):
     guest.host_run(
         # The pidfile is root-owned (written before -runas drops privileges).
         # A supervisor may already have stopped the guest at its deadline.
-        f"cd {guest.remote} && pid=$(sudo cat qemu.pid) && "
-        'if [ -e /proc/$pid ]; then test "$(sudo readlink /proc/$pid/cwd)" = "$PWD" && sudo kill $pid; fi && '
-        "for i in $(seq 1 60); do [ -e /proc/$pid ] || break; sleep 1; done && "
-        "[ ! -e /proc/$pid ] && "
+        f"cd {guest.remote} && "
+        "pid=$(cat qemu.bound-pid 2>/dev/null || sudo cat qemu.pid 2>/dev/null || true) && "
+        'if [ -n "$pid" ] && [ -e /proc/$pid ]; then test "$(sudo readlink /proc/$pid/cwd)" = "$PWD" && sudo kill $pid; fi && '
+        'for i in $(seq 1 60); do [ -n "$pid" ] && [ -e /proc/$pid ] || break; sleep 1; done && '
+        '{ [ -z "$pid" ] || [ ! -e /proc/$pid ]; } && '
         # The supervisor exits on its own once its pidfd reports the exit.
         "spid=$(cat supervisor.pid 2>/dev/null || true) && "
         'for i in $(seq 1 30); do [ -n "$spid" ] && grep -qa guest_supervisor.py /proc/$spid/cmdline 2>/dev/null || break; sleep 1; done && '
