@@ -1,0 +1,18 @@
+
+> limeos-foundation-ui@0.1.0 build
+> npm run check && vite build
+
+
+> limeos-foundation-ui@0.1.0 check
+> tsc --noEmit
+
+vite v8.3.2 building client environment for production...
+transforming...
+✓ 19 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.44 kB │ gzip:  0.28 kB
+dist/assets/index-C3RxCNyi.css    5.39 kB │ gzip:  1.76 kB
+dist/assets/index-D-RFxl0f.js   159.22 kB │ gzip: 51.49 kB
+
+✓ built in 718ms

@@ -1,0 +1,14 @@
+PASS rejection: Rust formatting
+PASS rejection: Clippy warnings denied
+PASS rejection: First-party unsafe forbidden
+PASS rejection: Locked graph
+PASS rejection: Known advisory
+PASS rejection: Dependency licenses
+PASS rejection: ShellCheck
+PASS rejection: systemd units
+PASS rejection: Frontend type check
+PASS rejection: Frontend asset build
+PASS rejection: Unregistered crate boundary
+PASS rejection: Dependency direction
+PASS rejection: Generated contract drift
+PASS rejection: Tracked build outputs

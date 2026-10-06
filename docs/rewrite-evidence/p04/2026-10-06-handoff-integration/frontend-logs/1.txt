@@ -1,0 +1,58 @@
+
+> limeos-foundation-ui@0.1.0 test
+> node --experimental-strip-types --test tests/*.mjs
+
+TAP version 13
+# (node:369163) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: login sends credentials in the body with same-origin cookies and a deadline
+ok 1 - login sends credentials in the body with same-origin cookies and a deadline
+  ---
+  duration_ms: 260.358296
+  ...
+# Subtest: logout supplies CSRF over POST, and session reads have no mutation body
+ok 2 - logout supplies CSRF over POST, and session reads have no mutation body
+  ---
+  duration_ms: 1.603924
+  ...
+# Subtest: safe API errors retain their details; malformed proxy responses get a fixed message
+ok 3 - safe API errors retain their details; malformed proxy responses get a fixed message
+  ---
+  duration_ms: 16.429738
+  ...
+# Subtest: restart approval and queue use POST and CSRF, retaining the same retry key
+ok 4 - restart approval and queue use POST and CSRF, retaining the same retry key
+  ---
+  duration_ms: 21.140088
+  ...
+# (node:369167) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: missing evidence is never displayed as zero or a complete inventory
+ok 5 - missing evidence is never displayed as zero or a complete inventory
+  ---
+  duration_ms: 95.680104
+  ...
+# Subtest: pagination, stale timestamps and legitimate zero metrics remain distinct
+ok 6 - pagination, stale timestamps and legitimate zero metrics remain distinct
+  ---
+  duration_ms: 0.873154
+  ...
+# Subtest: history explicitly preserves the separate legacy view
+ok 7 - history explicitly preserves the separate legacy view
+  ---
+  duration_ms: 2.022829
+  ...
+# Subtest: inventory requests use bounded pagination and propagate server details
+ok 8 - inventory requests use bounded pagination and propagate server details
+  ---
+  duration_ms: 46.701453
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5342.26078

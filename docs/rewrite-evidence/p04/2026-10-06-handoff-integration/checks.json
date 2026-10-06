@@ -1,0 +1,158 @@
+{
+  "bkp001": "open",
+  "bundle_bytes": 1688191,
+  "bundle_sha256": "669675abab7b60c0a645ef70531dcd4890a144a681ee2b35c802af870069c594",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked",
+        "--offline"
+      ],
+      "exit_code": 0,
+      "failed": 0,
+      "local_sockets": "outside sandbox",
+      "name": "Rust workspace tests",
+      "passed": 231
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "name": "Strict Clippy"
+    },
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "name": "Rust formatting"
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/check_contracts.py"
+      ],
+      "exit_code": 0,
+      "name": "Contract drift"
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/check_repository.py"
+      ],
+      "exit_code": 0,
+      "name": "Repository boundaries"
+    },
+    {
+      "command": [
+        "cargo",
+        "deny",
+        "--offline",
+        "check"
+      ],
+      "dependency_packages": 227,
+      "exit_code": 0,
+      "name": "Cached dependency policy"
+    },
+    {
+      "advisories_loaded": 1290,
+      "command": [
+        "cargo",
+        "audit",
+        "--no-fetch"
+      ],
+      "dependency_packages": 227,
+      "exit_code": 0,
+      "name": "Cached advisories",
+      "refreshed": false
+    },
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/qualification/arm64",
+        "-p",
+        "test_*.py"
+      ],
+      "exit_code": 0,
+      "name": "ARM64 harness",
+      "passed": 9,
+      "ssh": false
+    },
+    {
+      "command": [
+        "ruff",
+        "check",
+        "scripts/check_repository.py",
+        "scripts/test_gates.py",
+        "tests/qualification/arm64"
+      ],
+      "exit_code": 0,
+      "name": "Python lint"
+    },
+    {
+      "command": [
+        "shellcheck",
+        "packaging/debian/postinst",
+        "packaging/debian/prerm",
+        "packaging/debian/postrm",
+        "packaging/repository.sh",
+        "tests/fixtures/backup-archives/generate.sh"
+      ],
+      "exit_code": 0,
+      "name": "ShellCheck"
+    },
+    {
+      "command": [
+        "ruff",
+        "format",
+        "--check",
+        "scripts/check_repository.py",
+        "scripts/test_gates.py",
+        "tests/qualification/arm64"
+      ],
+      "exit_code": 0,
+      "files": 13,
+      "name": "Python formatting"
+    }
+  ],
+  "date_utc": "2026-10-06T20:28:13.570610+00:00",
+  "native_arm64_installed_qualification": "not run; isolated host missing",
+  "platform": "local AMD64 workstation",
+  "rejection_probe_count": 14,
+  "source_commit": "8acac403e32d3692b028a036a11f4fead2050580",
+  "transcript_formatting": {
+    "gate-probes-sandbox.txt": {
+      "change": "remove extra blank lines at EOF only",
+      "raw_local_path": "/tmp/limeos-handoff-gate-probes-sandbox.txt",
+      "raw_sha256": "85f6bee2461280490b5c715b882a574cff456e495a3e293ac9591c7b9384c244",
+      "saved_sha256": "f833879c2d155e5bb6003fa86776d8f9498aaaba6b68b8d9872bba4e8e87bb2f"
+    },
+    "rust-tests.txt": {
+      "change": "remove extra blank lines at EOF only",
+      "raw_local_path": "/tmp/limeos-handoff-rust-tests.txt",
+      "raw_sha256": "bf83e2c86fc86787f64b9df98716deeea6e257a3551053485392869e8120c8fb",
+      "saved_sha256": "95a1a0481d23d97e5445505173fca445fc9485178a35522ba1d42c8e06c5b062"
+    }
+  },
+  "wybie": "no SSH or qualification/test commands"
+}

@@ -32,9 +32,9 @@ Any failure, including cancellation, returns a `Rejection`, so a partial inspect
 
 A `RestoreManifest` contains:
 - the SHA-256 of every compressed byte, the format and the policy revision
-- compressed and decompressed byte counts and the header count
+- compressed and decompressed byte counts, the header count and the number of inert legacy self-link repeats
 - file and directory counts and total file bytes
-- one entry per member: managed resource, relative path, kind, size, SHA-256, archived permission bits and effective archive path
+- one entry per admitted file or directory: managed resource, relative path, kind, size, SHA-256, archived permission bits and effective archive path
 
 Entries are sorted, and the manifest has no timestamps or ownership, so the same archive and policy always produce the same manifest.
 
@@ -57,8 +57,8 @@ Entries are sorted, and the manifest has no timestamps or ownership, so the same
 |---|---|---|
 | Compression | gzip (magic `1f 8b 08`) and zstd (`28 b5 2f fd`), detected from content and limited to the policy's `formats`. Filenames are never consulted. | Anything else (`unrecognized_compression`); a format the policy excludes (`format_not_allowed`) |
 | Tar headers | GNU and ustar | V7 or unknown magic (`unsupported_header_format`) |
-| Member types | Regular files (`0` and NUL) and directories (`5`) | Symlinks (`symlink`), hard links (`hardlink`, or `legacy_self_hardlink` when a member links to its own path), character and block devices (`device`), FIFOs (`fifo`), GNU sparse members and pax sparse keys (`sparse`), contiguous, volume, dumpdir and unknown types (`unsupported_entry_type`). Sockets can't be stored in tar. |
-| Extension records | GNU long name `L`. GNU long link `K`, only to classify a link member. Pax local `x` with `path`, `linkpath`, and the informational `mtime`, `atime`, `ctime`, `uid`, `gid`, `uname`, `gname`. | Pax global `g`, pax `size`, extended attributes, ACLs or any other key (`unsupported_extension`). Repeated keys, two records of one kind, or a GNU name together with a pax path (`ambiguous_name`). A link name on a non-link (`ambiguous_name`). A record with no member (`extension_without_member`). |
+| Member types | Regular files (`0` and NUL) and directories (`5`) | Symlinks (`symlink`), hard links outside the reviewed inert-repeat rule (`hardlink`, or `legacy_self_hardlink` for an unsafe self-reference), character and block devices (`device`), FIFOs (`fifo`), GNU sparse members and pax sparse keys (`sparse`), contiguous, volume, dumpdir and unknown types (`unsupported_entry_type`). Sockets can't be stored in tar. |
+| Extension records | GNU long name `L`. GNU long link `K`, only to check a link member against the inert-repeat rule or classify its rejection. Pax local `x` with `path`, `linkpath`, and the informational `mtime`, `atime`, `ctime`, `uid`, `gid`, `uname`, `gname`. | Pax global `g`, pax `size`, extended attributes, ACLs or any other key (`unsupported_extension`). Repeated keys, two records of one kind, or a GNU name together with a pax path (`ambiguous_name`). A link name on a non-link (`ambiguous_name`). A record with no member (`extension_without_member`). |
 | Names | Effective names after extension records: UTF-8, relative, literal and case-sensitive. A single trailing `/` only on directories. | Non-UTF-8 (`non_utf8_name`); absolute (`absolute_path`); empty, `.` or `..` components (`empty_component`, `dot_component`, `parent_component`); C0, DEL or C1 controls, backslash or NUL (`unsafe_character`); trailing `/` on a file (`trailing_slash_on_file`); length, depth and component limits |
 | Destinations | Members inside a trusted legacy mapping, each landing on a distinct resource path | Unmapped members (`unmapped`), duplicates (`duplicate_destination`), the same path as both file and directory, or a file replacing a resource root (`file_directory_collision`), anything beneath a file (`parent_is_file`) |
 | Stream integrity | The second end-of-archive block followed only by zero padding, an exact compressed end, and decoder checksums | Checksum, size or mode fields that don't parse, or overflowing arithmetic (`malformed`); cut streams or a missing end marker (`truncated`); members after the end marker (`trailing_data`) |
@@ -86,7 +86,7 @@ Policy validation rejects zero limits, a file limit above the decompressed limit
 
 Production values must come from the P00 inventory of real archive sizes, not from these test values. On the reference host the frozen helper wrote about 2.2 GB a day, so primary archives may be gigabytes.
 
-Measured peak memory (`VmHWM` of a release build, workstation x86-64, window 21):
+Original engineer measurement before integration (`VmHWM` of a release build, workstation x86-64, window 21; not repeated for manifest version 2):
 - **Small archives:** 2.6–2.8 MiB, gzip or zstd.
 - **64 MiB of data:** 5.0 MiB through zstd and 2.7 MiB through gzip.
 
@@ -110,18 +110,20 @@ The frozen helper's own allowlist (`/home/`, `/opt/`, `/etc/limeos/`, `/var/lib/
 | `stacks_path` (default `/opt/stacks`) | `opt/stacks` | `stacks` | Supported |
 | `/etc/limeos` | `etc/limeos` | `limeos-config` | Supported |
 | `/var/lib/limeos` | `var/lib/limeos` | `limeos-state` | Mapping is possible. Whether Python-era state is restored at all is a migration decision; its SQLite files need the database-aware slice |
-| `/etc/limeos/media_layout.json` and `media_profile.json`, listed again explicitly | — | — | **Rejected today:** GNU tar stores the repeated file as a hard link to itself (`legacy_self_hardlink`) |
-| `/etc/limeos/credentials.env` (`include_env`) | — | — | Also a repeated source, so a self hard link. Secret material should stay unmapped until credential import is designed |
+| `/etc/limeos/media_layout.json` and `media_profile.json`, listed again explicitly | — | — | Supported as an inert repeat after the exact regular file has been inspected; no link is created |
+| `/etc/limeos/credentials.env` (`include_env`) | — | — | An inert repeat is supported structurally. Secret material still requires a credential-import policy |
 | Plugin archive: `/etc/limeos/storage_plugins`, `/var/lib/limeos/storage_plugins` | as above | inside `limeos-config` and `limeos-state` | Supported |
 | Plugin archive: `/var/log/limeos/snapraid` | `var/log/limeos/snapraid` | — | Logs are not restored; leave unmapped (`unmapped`) |
 
-### Known gap: current primary legacy backups are not admitted
+### Reviewed compatibility: redundant primary-backup records
 
 The frozen primary backup lists `/etc/limeos` and also files inside it (`media_layout.json`, `media_profile.json` and, with `include_env`, `credentials.env`). GNU tar 1.35 stores each repeated occurrence as a zero-length hard link to the same path. The fixture `legacy-primary-overlap.tar.zst` reproduces this with the helper's flags.
 
-This slice admits only regular files and directories, so every such archive is rejected with `legacy_self_hardlink`. Plugin archives don't overlap and are admitted.
+The integrated inspector coalesces a record only when it is a zero-length hard link, its effective target exactly equals its effective archive path, and a regular file at that exact path has already been fully read and hashed. The record produces no entry, destination or link operation. The earlier file still has to pass every path and trusted-mapping check. Header and byte limits, complete end verification and the compressed archive digest cover the repeats too.
 
-A narrow later rule, for the integrator to decide on, could treat a zero-length hard link whose target is its own path, and which follows an already-inspected regular file of that path, as a redundant duplicate with no new destination. It shouldn't be enabled without that review; until then a legacy primary backup can't be restored through this path.
+Manifest version 2 adds `coalesced_self_hardlinks`. It keeps one file checksum and counts each ignored repeat explicitly. Both codecs have regressions for repeats, forward references, directories, nonzero link data, other targets, path aliases, symlinks, duplicate regular files, unmapped originals, traversal and truncated endings. The unchanged GNU primary-overlap fixture now passes under the synthetic test policy; the original engineer's rejection evidence remains historical.
+
+Production mappings and limits still require the P00 inventory. This compatibility rule does not authorize restoring credentials or Python-era databases. The installed restore executor remains pending.
 
 ## Parity with the frozen restore
 

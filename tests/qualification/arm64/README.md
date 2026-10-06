@@ -4,13 +4,23 @@ Run LimeOS only in disposable Debian 12 ARM64 KVM guests on an explicitly
 available isolated host. The workstation uses SSH through the host to a
 loopback guest port. The host runs QEMU; packages, policy changes, synthetic
 disks and fault injection stay inside guests. This assignment grants no new
-quiet window on wybie or Holly's production Pi. `--host` has no default.
+quiet window on wybie or Holly's production Pi. `--host` has no default, and
+the runner rejects wybie by name before any SSH command. Only supply an
+isolated host; alternate aliases and IP addresses are not isolation proof.
 
-The current assignment freezes runtime source at
+The original engineer preparation freezes runtime source at
 `60e6309384c6a93caa63c0d578dc57d981897863`, authority schema 8. Use a distinct
 qualification package version, for example `0.4.4+arm64.1`. Package labels
 identify an artifact; the source, fixture, binary and package hashes identify
 the code tested. Earlier evidence stays under its original directory.
+
+The integrated preparation pins runtime and fixtures to
+`8acac403e32d3692b028a036a11f4fead2050580`, schema 8, version
+`0.4.7+arm64.1`. Its bundle is under
+`.cache/arm64-qual/2026-10-06-integration/`; the [integration evidence](../../../docs/rewrite-evidence/p04/2026-10-06-handoff-integration/README.md)
+records its digest. No native build, package installation or footprint run
+has been performed for that bundle. Supply these exact identities when
+reproducing the integration preparation; preserve the older bundle too.
 
 ## Inputs and scripts
 
@@ -131,6 +141,13 @@ Do not rebuild or relabel the artifact. The previous provenance JSON needs
 The corrected historical `0.4.2` artifact is available for schema 6 → 8;
 its provenance is in the current preparation evidence directory. A schema
 7 → 8 claim additionally requires an original schema 7 ARM64 artifact.
+
+The integrator verified a genuine schema 7 candidate in
+`docs/rewrite-evidence/p04/2026-10-06-handoff-integration/previous-schema7-artifact.json`:
+original source `f39396b`, package `dist/ci-37386421570-arm64/limeos_0.4.3_arm64.deb`.
+Run the schema 6 and schema 7 upgrades in separate fresh guests, with each
+candidate's exact provenance and package bytes. Both integrated upgrades
+remain untested.
 
 ```bash
 python3 /root/qual/fixtures/tests/qualification/arm64/upgrade_guest.py \

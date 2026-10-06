@@ -1,0 +1,19 @@
+.usage: python3 -m unittest [-h] --run RUN [--artifact ARTIFACT]
+                           [--install-result INSTALL_RESULT]
+                           [--extra-result EXTRA_RESULT]
+                           --build-result BUILD_RESULT
+                           --source-manifest SOURCE_MANIFEST
+                           [--suite-result SUITE_RESULT]
+python3 -m unittest: error: invalid or duplicate artifact: /tmp/tmp7p99z0zw=build
+usage: python3 -m unittest [-h] --run RUN [--artifact ARTIFACT]
+                           [--install-result INSTALL_RESULT]
+                           [--extra-result EXTRA_RESULT]
+                           --build-result BUILD_RESULT
+                           --source-manifest SOURCE_MANIFEST
+                           [--suite-result SUITE_RESULT]
+python3 -m unittest: error: run exists; historical evidence is immutable
+........
+----------------------------------------------------------------------
+Ran 9 tests in 0.639s
+
+OK

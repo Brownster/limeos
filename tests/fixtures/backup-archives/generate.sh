@@ -37,8 +37,8 @@ fct_main() {
     --pax-option='delete=atime,delete=ctime' -C "${work}/root" \
     -czf "${out}/legacy-posix.tar.gz" etc/limeos opt/stacks
 
-  # Rejected today: the frozen helper listed /etc/limeos and also files inside
-  # it, so GNU tar stores the second copy as a hard link to itself.
+  # Legacy repeats: the frozen helper listed /etc/limeos and files inside
+  # it. GNU tar emits self-links; the inspector coalesces only inert repeats.
   tar "${tar_opts[@]}" -C "${work}/root" -I zstd \
     -cf "${out}/legacy-primary-overlap.tar.zst" \
     etc/limeos etc/limeos/media_layout.json etc/limeos/credentials.env opt/stacks

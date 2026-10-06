@@ -1,0 +1,24 @@
+{
+  "archives": 10,
+  "result": "pass",
+  "scope": "local disposable temporary directory; historical fixtures untouched",
+  "sha256": {
+    "absolute-name.tar.gz": "e60d850f3d991c629dfefa2eb6014e962b64e234b61f913e342718ae21271304",
+    "fifo.tar.gz": "ca73f733bf452fd69d6c2a4085d5de22658c146f0b4f68d95a2888f466fa5e8a",
+    "legacy-posix.tar.gz": "fcc8fac2de9fd843236bfabc8ad1ba65c2cd653343fdedb55e2ba610948dc48a",
+    "legacy-primary-overlap.tar.zst": "536e2d1fffe91420931a0034970d78aa4e1f06130aca0706a72988018ef1ceec",
+    "legacy-valid.tar.gz": "d060432647c2d18d6db4055d2e58bcab7dbdce0d17f2462bb6c315511dc26a54",
+    "legacy-valid.tar.zst": "51603bef78f8c54528c6707ffa8bac001d4400d4176cfa71956cad7e15034d38",
+    "parent-name.tar.gz": "3f801744b822e7023dc3ae9c6cd82626c94c067fdb2e797acaafc4a655086a70",
+    "sparse.tar.gz": "e218557386abb6434181da913f28b2e746eddfae2578a5753cf1bba8cbbc5a82",
+    "symlink-escape.tar.gz": "dc586ee848b07964b456c958dc0ac49fb212ea222c381bc3133494116a75c28c",
+    "zeros-64m.tar.zst": "69d6133a8e4f7ad9617ea91d5de8575caba2e89ce52ff4d7c2fbd57835a02d5c"
+  },
+  "stderr": "",
+  "stdout": "",
+  "tools": [
+    "tar (GNU tar) 1.35",
+    "*** Zstandard CLI (64-bit) v1.5.7, by Yann Collet ***",
+    "gzip 1.13"
+  ]
+}
