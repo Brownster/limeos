@@ -1,0 +1,43 @@
+{
+  "architecture": "amd64",
+  "binaries": {
+    "limeos-core": "9a11202409be0c3a3207eb5d66cf6d100c3a017935c9ece563ffaafcbc436260",
+    "limeos-executor": "364ade6ddf5b9fabfff97143ea7512c9b004fa8c84c316614bb9811daf0f23fa",
+    "limeos-password-worker": "5566730a166697e58851460758f71e004577633333a331b750b86eebb8c587e7",
+    "limeosctl": "ce583703a18634eb6679d0679b20ca0e2037e7ec3209383385dd0ca28acece75"
+  },
+  "installed_amd64_groups": 180,
+  "package_version": "0.4.4",
+  "raw_job_log_sha256": "55dff80ff2f62408063f2f953389e330c9479939ede8e8179b7a20a5378b92d5",
+  "results": [
+    {
+      "checks": 14,
+      "file": "ci-guests/p01/ci-vm-result.json",
+      "sha256": "f49043af940f662a8f39e52485dc9eff5928730545411aeff11120e1a56671f7"
+    },
+    {
+      "checks": 6,
+      "file": "ci-guests/p02/ci-vm-result.json",
+      "sha256": "d9d02d52b748a343984fc711b40878b4f9292ada4a3947651376f50b14d61adb"
+    },
+    {
+      "checks": 61,
+      "file": "ci-guests/p03/ci-reference-vm-result.json",
+      "sha256": "1ea40243258e8f159776726f171f007f631ea8bae67f725991bc8ede06b40303"
+    },
+    {
+      "checks": 50,
+      "file": "ci-guests/p04/ci-approved-vm-result.json",
+      "sha256": "0d0e7f2e3c4bc92d4c99d91eff3fcdff698d05b8532025ba10826ff2f93681fc"
+    },
+    {
+      "checks": 49,
+      "file": "ci-guests/p04/ci-dependencies-vm-result.json",
+      "sha256": "454565b2b876f67107587729c0425e8471527cced5c167832466b52d711d3757"
+    }
+  ],
+  "run_url": "https://github.com/Brownster/limeos/actions/runs/37526173585",
+  "scope": "five fresh disposable Debian 12 KVM guests; no genuine historical upgrade in these suites; installed ARM64/Pi qualification pending",
+  "source_commit": "8acac403e32d3692b028a036a11f4fead2050580",
+  "summary": "pass"
+}

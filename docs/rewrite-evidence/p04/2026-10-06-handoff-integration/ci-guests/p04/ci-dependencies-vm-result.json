@@ -1,0 +1,426 @@
+{
+  "checks": [
+    "only the container executor can access Engine and protected receipts",
+    "GET and invalid origin or CSRF cannot initiate an operation",
+    "one real restart, independent verification, durable progress and duplicate request",
+    "changed plans, stale incarnation and independent managed-ID ceiling",
+    "browser and scoped task share policy; task cannot approve; grant revocation is immediate",
+    "expired human approval causes no Engine effect",
+    "queued cancellation prevents effects; in-flight cancellation cannot claim prevention",
+    "kill limeos-core before_prepare: no unjustified second effect",
+    "kill limeos-containerd before_prepare: no unjustified second effect",
+    "kill limeos-core during: no unjustified second effect",
+    "kill limeos-containerd during: no unjustified second effect",
+    "kill limeos-core after_effect: no unjustified second effect",
+    "kill limeos-containerd after_effect: no unjustified second effect",
+    "shadow has isolated state and refuses write-enabled policy",
+    "shadow removal preserves standard services and authenticated reads",
+    "real stop is approved, verified, action-bound and idempotent",
+    "real start is approved, verified, action-bound and idempotent",
+    "start: kill limeos-core before_prepare retains proof and prevents replay",
+    "start: kill limeos-containerd before_prepare retains proof and prevents replay",
+    "start: kill limeos-core during retains proof and prevents replay",
+    "start: kill limeos-containerd during retains proof and prevents replay",
+    "start: kill limeos-core after_effect retains proof and prevents replay",
+    "start: kill limeos-containerd after_effect retains proof and prevents replay",
+    "stop: kill limeos-core before_prepare retains proof and prevents replay",
+    "stop: kill limeos-containerd before_prepare retains proof and prevents replay",
+    "stop: kill limeos-core during retains proof and prevents replay",
+    "stop: kill limeos-containerd during retains proof and prevents replay",
+    "stop: kill limeos-core after_effect retains proof and prevents replay",
+    "stop: kill limeos-containerd after_effect retains proof and prevents replay",
+    "real multiplexed logs are bounded, filtered and have no effect",
+    "real TTY logs are bounded, filtered and have no effect",
+    "logs independently reject an unmanaged ID and a disabled log ceiling",
+    "task logs use the same resource grant and cannot acquire human approval",
+    "viewer inventory authority permits neither browser nor task logs",
+    "real oversized log framing clips within byte and time limits",
+    "start has an independent effect ceiling even with restart enabled",
+    "stop has an independent effect ceiling even with restart enabled",
+    "shadow independently refuses start-enabled and stop-enabled ceilings",
+    "private dependency reads require a human storage grant and accept no filters or mutations",
+    "real running unmanaged bind, validated tmpfs and never-started named volume declarations match Engine without leaking secrets",
+    "GET records no intent, event, claim or Engine effect and preserves synthetic data",
+    "live missing_info evidence refuses instead of returning empty or clipped consumers",
+    "live oversized_info evidence refuses instead of returning empty or clipped consumers",
+    "live missing_inspection evidence refuses instead of returning empty or clipped consumers",
+    "live change_list evidence refuses instead of returning empty or clipped consumers",
+    "real container start between inspections invalidates the dependency read",
+    "storage grant revocation during a real read prevents returning private paths",
+    "independent container read ceiling disables live dependency enumeration",
+    "isolated shadow reads the live declarations and removal preserves standard services"
+  ],
+  "engine_version": "20.10.24+dfsg1",
+  "container_fixture": "Debian static busybox, no mounts, redacted label",
+  "restart_posts": 8,
+  "restart_effect_ms": {
+    "d8294b6503011d8fe5fdc19a2b467e6662328f9d6de0b5d4066615ccf7562a48": 10417.553,
+    "d6c281321cfc5a931d4980ed2f7f6fa1748fcf6b7837f3cc39229aaf9bff01d0": 10413.112,
+    "7893b2fc0f218528b34e4d53ec76c7f84e9a473f2938ac5936ad7a3fa1b039e7": 10444.077,
+    "b15f4b07929c43039c5da945f3be7c323adf9ed1a11042868021636f54cdcd58": 10415.297,
+    "4ef2c41b87344aacc39676aaaa1d26836600bb13518fedf732637a10b99ea215": 10464.325,
+    "b60a314d4009dc296bd69b663d439cb4810db1d2e8b423ed5f68a01208884c21": 10396.606,
+    "0a2256cf981d4b297e1ded7c29ca384f96779e8642fa36e8e57cd5ed0f13149f": 10419.901
+  },
+  "footprint": {
+    "architecture": "amd64",
+    "app_pss_kib": {
+      "limeos-core": 7241,
+      "limeos-containerd": 3282,
+      "limeos-storaged": 1503
+    },
+    "combined_pss_kib": 12026,
+    "overview_p95_ms": 0.824,
+    "overview_median_ms": 0.589,
+    "workload": "after restart/start/stop, log and interruption qualification, 20 cached overview requests",
+    "exclusions": [
+      "Docker daemon",
+      "test proxy",
+      "browser",
+      "Rust build tools"
+    ],
+    "swap_kib": 0
+  },
+  "package_sha256": {
+    "limeos-shadow_0.4.4_amd64.deb": "b591f0e52d6276fd19c5551a9f886ca57fcb5b8980fac3f779f0e7b5d4b48c5c",
+    "limeos_0.4.4+ci.1_amd64.deb": "13522bc8e2bbd5ce98ce2ae45213d9bc51bfe55817c2ed03bc1b1385c352d33e",
+    "limeos_0.4.4_amd64.deb": "490f516ac7404965007e595a8bd0f01791dda8630ca5f4559df947373de00821"
+  },
+  "lifecycle_posts": 20,
+  "operations": [
+    "restart",
+    "start",
+    "stop",
+    "logs"
+  ],
+  "schemas": {
+    "authority": 8,
+    "container_receipts": 3
+  },
+  "upgrade": null,
+  "package_version": "0.4.4",
+  "dependency_inventory": {
+    "inventory": {
+      "version": 1,
+      "engine_id": "WLVB:WLGJ:NSIU:TCRG:3NAT:XPCS:K6HF:OFC7:4MJC:UPIG:EOHJ:GDMG",
+      "observed_at": 1791319912,
+      "containers": [
+        {
+          "container": {
+            "resource": "container:07d6ec4e50408bd26b7aab2b66cc2af60d227b99e37f76ecd03b5f765b1edeca",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:51:43.224273772Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:0a2256cf981d4b297e1ded7c29ca384f96779e8642fa36e8e57cd5ed0f13149f",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:02.8162225Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:11e4201bd942c87362fe7d7bda11df92d7f451882dac613c87ff590eac75df79",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:09.921275234Z",
+            "running": false
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:1c78392df9da8b7caedd5fdb3bdfab923a8d38bf6545afc8498d24391a3a0509",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:53.595240911Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:2a9665df27547482e7fc0926d5d27faf80867ebe7872c760595ab50cda78472d",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:13.155306422Z",
+            "running": false
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:303f546d58da5e357a9dd5d431ce9f26d8fd8aae9c4a7030c89ec70a6279e92c",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:11.803091457Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:306eeecb1aebb9bd2216c64b65da958d31cd4f64e6aa0f36303d9b58e723e466",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:26.667691714Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:4417b0d5f7f097a80f0facb6baf8a2c8aedf155ec4c135029a0b6910e2d7b0b1",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:49.116823946Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:4712a9f4f287848c8e01f61827551fc7900550221bb3359d29dfb8a2be350287",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:51:52.105642182Z",
+            "running": true
+          },
+          "mounts": [
+            {
+              "source": {
+                "kind": "bind",
+                "path": "/mnt/limeos-dependency-fixture/Media"
+              },
+              "destination": "/data",
+              "writable": false
+            }
+          ]
+        },
+        {
+          "container": {
+            "resource": "container:4ef2c41b87344aacc39676aaaa1d26836600bb13518fedf732637a10b99ea215",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:48:44.298396261Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:50e98984bf88b4a157c750ed7d611bb803e539da11f7d145247da8307b3e86a6",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:51:42.181566248Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:55155e7721858466ca76a1ceb7ccaec25bd1a0b0231c9219bc89a7134cf0bed8",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:43.120844091Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:5ac9c334dd8eb233e92d030255406e55429de5ae9ff18534fc57cdbb3ed9e40a",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:46:41.510622779Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:5b4d5fb41e8ef0c3c70e98abf407e48355d897579a74091d486e139fbc553f63",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:46:39.947080313Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:61b016e46877cbb70a3a8cf179efd1cda1553fea30b92d81dbda29c9a1f38417",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:46:53.951102433Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:6593b13d0bfef65798d8c36a7070504d774cfdd6ab5338ee0d80275da476bbf7",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "0001-01-01T00:00:00Z",
+            "running": false
+          },
+          "mounts": [
+            {
+              "source": {
+                "kind": "volume",
+                "path": "/var/lib/docker/volumes/dependency-config/_data",
+                "name": "dependency-config",
+                "driver": "local"
+              },
+              "destination": "/config",
+              "writable": true
+            }
+          ]
+        },
+        {
+          "container": {
+            "resource": "container:7893b2fc0f218528b34e4d53ec76c7f84e9a473f2938ac5936ad7a3fa1b039e7",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:47:31.936805789Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:90318cdff5e539ed6f91f9de90485e0d8558a160d061c02cd57295be50f2dd51",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:51:46.609774628Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:a452214afc831bacc6cb1482f3a0cc995e7772fbf056f3ec9fc031d7ea6a310f",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:51:43.739926638Z",
+            "running": false
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:ad4557531d97e79d09b02bab7a96bfea02f99eb01294523b85b95ba699cdb447",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:51:41.640918432Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:b003da33ae98cedcd8966c25a6ddd6d29bc67122264383999687c2b4be57e3a0",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:12.490137306Z",
+            "running": false
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:b15f4b07929c43039c5da945f3be7c323adf9ed1a11042868021636f54cdcd58",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:48:10.066094524Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:b60a314d4009dc296bd69b663d439cb4810db1d2e8b423ed5f68a01208884c21",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:48:48.220902898Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:c85a42cda07fde56dc504de8441538829b2f4642f2743df21ed8d253b4f31ca6",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:11.485287856Z",
+            "running": false
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:cc658e95d751a7e91f72380f0e3e265d589d24c39bec72a162a99a29a7b28723",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:38.862959293Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:ce0bc8d5dff9574a31de848fa431ce37d7d861b217669c434df78f8d97340c12",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:12.13424536Z",
+            "running": false
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:d6c281321cfc5a931d4980ed2f7f6fa1748fcf6b7837f3cc39229aaf9bff01d0",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:47:08.331599399Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:d8294b6503011d8fe5fdc19a2b467e6662328f9d6de0b5d4066615ccf7562a48",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:47:19.919642936Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:e65b19b059bb2a7db14aa58d210b5c5430a77382ecc4af1794676af53ca4abec",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:28.677235149Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:ed92ae1367c733fcd58031f931db69579f9c48b3f9e0b528b2d7dd27f303c29e",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:13.483732562Z",
+            "running": true
+          },
+          "mounts": []
+        },
+        {
+          "container": {
+            "resource": "container:fe4656aa04563d6556374ef17b9ac376c8495ca62bfc2374df0e5e0b333b391d",
+            "image": "sha256:3da4919e64bcfa3b61d29c4f18cdfc05f6ff1fbae2df421ae797e8b612d576a5",
+            "started_at": "2026-10-06T20:49:12.806471697Z",
+            "running": false
+          },
+          "mounts": []
+        }
+      ]
+    },
+    "digest": "3fc68d63625a1c3fdc1ec8581b9c37d32ce52912150ebe3d3fe4f4e70888c289"
+  },
+  "dependency_cases": 11,
+  "binary_sha256": {
+    "limeos-core": "9a11202409be0c3a3207eb5d66cf6d100c3a017935c9ece563ffaafcbc436260",
+    "limeos-executor": "364ade6ddf5b9fabfff97143ea7512c9b004fa8c84c316614bb9811daf0f23fa",
+    "limeosctl": "ce583703a18634eb6679d0679b20ca0e2037e7ec3209383385dd0ca28acece75",
+    "limeos-password-worker": "5566730a166697e58851460758f71e004577633333a331b750b86eebb8c587e7"
+  },
+  "limitations": [
+    "Fresh AMD64 disposable guest and synthetic data; no genuine historical upgrade in this run",
+    "Docker declarations do not establish physical alias, pool, protection or share completeness; mount/fstab effects remain gated"
+  ],
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+  }
+}

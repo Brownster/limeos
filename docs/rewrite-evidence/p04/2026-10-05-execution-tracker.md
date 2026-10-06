@@ -11,7 +11,7 @@ The first slice ports the frozen storage contract into typed, generated domain c
 | RW-040 — Storage identities, contracts and mounts | Approved empty target jobs, complete core claims and explicit recovery qualify in frozen AMD64 0.4.4 packages. Fresh Docker declarations qualify in frozen 0.4.6 packages with 49 installed groups. Native 199-test source/package gates pass. Physical/pool/protection/share dependencies, mount/fstab effects, unmount/loss handling, guided UI and current installed native qualification remain pending. |
 | RW-041 — Pools, protection, remote mounts and shares | Engineer's pure pool/SnapRAID configuration, previews and bounded imports/parsers integrated with 30 new regressions. Protected collection, executable operations, schedules, remote mounts and shares remain pending. |
 | RW-042 — Catalog, Compose and media deployment | P03 preview foundation exists; deployment execution, live imports and UI remain pending. |
-| RW-043 — Backup, restore and recovery | Bounded archive inspector and pure admission planner integrated. Manifest v2 coalesces exact inert legacy repeats; 22 inspector tests pass locally. Restore executor, production inventory limits, backup creation and recovery remain pending; BKP-001 stays open. |
+| RW-043 — Backup, restore and recovery | Bounded archive inspector and pure admission planner integrated. Manifest v2 coalesces exact inert legacy repeats; 22 inspector tests pass locally and on native AMD64/ARM64 CI. Restore executor, production inventory limits, backup creation and recovery remain pending; BKP-001 stays open. |
 | RW-044 — Package/container updates and host prerequisites | Pending. |
 | RW-045 — Schedules, alerts and notifications | Pending. |
 
