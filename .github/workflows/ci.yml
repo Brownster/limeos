@@ -69,7 +69,7 @@ jobs:
   debian-vm:
     needs: check
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -107,6 +107,7 @@ jobs:
           python3 -m unittest discover -s tests/reference -p 'test_*.py'
           fct_run_vm --repository dist/test-repo --guest-script tests/privileged_vm/ci_reference_guest.py --output docs/rewrite-evidence/p03/ci-reference-vm-result.json
           fct_run_vm --repository dist/test-repo --storage-disks --guest-script tests/privileged_vm/p04_approved_guest.py --output docs/rewrite-evidence/p04/ci-approved-vm-result.json
+          fct_run_vm --repository dist/test-repo --guest-script tests/privileged_vm/ci_dependencies_guest.py --output docs/rewrite-evidence/p04/ci-dependencies-vm-result.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
