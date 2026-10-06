@@ -13,12 +13,29 @@ use sha2::{Digest, Sha256};
 use std::{
     cell::Cell,
     collections::BTreeMap,
-    io::Write,
+    io::{self, Read, Write},
     path::{Path, PathBuf},
 };
 use tar::{EntryType, Header};
 
 const MIB: u64 = 1 << 20;
+
+struct Fragmented<R> {
+    inner: R,
+    maximum: usize,
+    interrupt: bool,
+}
+
+impl<R: Read> Read for Fragmented<R> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if self.interrupt {
+            self.interrupt = false;
+            return Err(io::Error::from(io::ErrorKind::Interrupted));
+        }
+        let count = buffer.len().min(self.maximum);
+        self.inner.read(&mut buffer[..count])
+    }
+}
 
 fn limits() -> ArchiveLimits {
     ArchiveLimits {
@@ -225,6 +242,25 @@ fn valid_archives_yield_identical_deterministic_manifests_in_both_formats() {
             ("stacks", "media/compose.yaml"),
         ]
     );
+}
+
+#[test]
+fn short_and_interrupted_reads_preserve_format_digest_and_complete_admission() {
+    for archive in [gz(&sample()), zst(&sample())] {
+        let expected = admitted(&archive);
+        for maximum in [1, 2, 3, 7, 1024] {
+            for interrupt in [false, true] {
+                let mut source = Fragmented {
+                    inner: io::Cursor::new(&archive),
+                    maximum,
+                    interrupt,
+                };
+                let actual = inspect_and_admit(&mut source, &policy(), &never).unwrap();
+                assert_eq!(actual, expected, "chunk size {maximum}");
+                assert_eq!(source.inner.position(), archive.len() as u64);
+            }
+        }
+    }
 }
 
 #[test]

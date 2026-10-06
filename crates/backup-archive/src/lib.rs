@@ -79,14 +79,19 @@ struct Limited<'c, R> {
 
 impl<R: Read> Read for Limited<'_, R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if (self.cancelled)() {
-            return Err(io::Error::other(Stop::Cancelled));
-        }
         let allowed = self.limit.saturating_sub(self.count).saturating_add(1);
         let want = buf
             .len()
             .min(usize::try_from(allowed).unwrap_or(usize::MAX));
-        let n = self.inner.read(&mut buf[..want])?;
+        let n = loop {
+            if (self.cancelled)() {
+                return Err(io::Error::other(Stop::Cancelled));
+            }
+            match self.inner.read(&mut buf[..want]) {
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                result => break result?,
+            }
+        };
         self.count = self
             .count
             .checked_add(n as u64)
@@ -101,7 +106,9 @@ impl<R: Read> Read for Limited<'_, R> {
     }
 }
 
-type Source<'c, R> = BufReader<Limited<'c, R>>;
+// The four sniffed bytes replay only into the decoder. Limited already counted
+// and hashed them while reading the source, so they are never counted twice.
+type Source<'c, R> = BufReader<io::Chain<io::Cursor<[u8; 4]>, Limited<'c, R>>>;
 
 enum Decoder<'c, R: Read> {
     Gzip(MultiGzDecoder<Source<'c, R>>),
@@ -289,14 +296,10 @@ fn read_record(entry: &mut impl Read, size: u64, index: u64) -> Result<Vec<u8>, 
 }
 
 /// Identify the compression from its magic bytes; filenames are never used.
-fn detect(source: &mut impl BufRead) -> Result<ArchiveFormat, Rejection> {
-    let available = source.fill_buf().map_err(|e| classify(&e, None))?;
-    if available.is_empty() {
-        return Err(reject(FindingCode::Truncated, None, None, "empty archive"));
-    }
-    if available.starts_with(&ZSTD_MAGIC) {
+fn detect(magic: &[u8; 4]) -> Result<ArchiveFormat, Rejection> {
+    if magic.starts_with(&ZSTD_MAGIC) {
         Ok(ArchiveFormat::TarZstd)
-    } else if available.starts_with(&GZIP_MAGIC) {
+    } else if magic.starts_with(&GZIP_MAGIC) {
         Ok(ArchiveFormat::TarGzip)
     } else {
         Err(reject(
@@ -318,7 +321,7 @@ pub fn inspect<R: Read>(
 ) -> Result<InspectionReport, Rejection> {
     policy.validate()?;
     let limits = &policy.limits;
-    let compressed = Limited {
+    let mut compressed = Limited {
         inner: source,
         count: 0,
         limit: limits.max_compressed_bytes,
@@ -326,11 +329,15 @@ pub fn inspect<R: Read>(
         hasher: Some(Sha256::new()),
         cancelled,
     };
-    let mut buffered = BufReader::with_capacity(CHUNK, compressed);
-    let format = detect(&mut buffered)?;
+    let mut magic = [0; 4];
+    compressed
+        .read_exact(&mut magic)
+        .map_err(|e| classify(&e, None))?;
+    let format = detect(&magic)?;
     if !policy.formats.contains(&format) {
         return Err(reject(FindingCode::FormatNotAllowed, None, None, ""));
     }
+    let buffered = BufReader::with_capacity(CHUNK, io::Cursor::new(magic).chain(compressed));
     let decoder = match format {
         ArchiveFormat::TarGzip => Decoder::Gzip(MultiGzDecoder::new(buffered)),
         ArchiveFormat::TarZstd => {
@@ -566,7 +573,7 @@ pub fn inspect<R: Read>(
             "bytes after the compressed stream",
         ));
     }
-    let compressed = source.into_inner();
+    let (_, compressed) = source.into_inner().into_inner();
     Ok(InspectionReport {
         format,
         archive_sha256: hex::encode(compressed.hasher.unwrap_or_default().finalize()),
