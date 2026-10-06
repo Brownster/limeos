@@ -93,6 +93,7 @@ def upgrade(
     candidate,
     previous_version="0.4.2",
     previous_schema=6,
+    authority_schema=7,
     previous_package_sha256="468b844cebb12806661a4d757b47b53f0c9d2f3bcbe21bb2d89639b5df656263",
     previous_core_sha256="f868c45731f2b9323843be43b55de638648e1a228e92f29417dfad9ac42a69a9",
 ):
@@ -168,7 +169,7 @@ def upgrade(
     assert digest(CORE) != old_core
     assert container_tests.http("/api/v1/overview", cookie=cookie)[0] == 200
     with sqlite3.connect(DB) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert db.execute("PRAGMA user_version").fetchone()[0] == authority_schema
         assert (
             db.execute(
                 "SELECT body,digest,approval_digest FROM container_plans WHERE id=?",

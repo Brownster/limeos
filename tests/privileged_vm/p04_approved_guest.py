@@ -40,6 +40,7 @@ def main():
         repo,
         previous_version="0.4.3",
         previous_schema=7,
+        authority_schema=8,
         previous_package_sha256="c5e49b2117a19d0983b5afb9a3ea756f479c2ab9dc67be7001758265737204b6",
         previous_core_sha256="99c2c8a2a19919e093476e33fbaae9fc0d4da8559bfa8b5a2151135b23243c33",
     )

@@ -204,7 +204,9 @@ def main():
                     if vm.poll() is not None:
                         raise RuntimeError(
                             "Guest exited: "
-                            + (directory / "console.log").read_text()[-4000:]
+                            + (directory / "console.log").read_text(errors="replace")[
+                                -4000:
+                            ]
                         )
                     time.sleep(1)
                 else:
@@ -213,7 +215,7 @@ def main():
                     )
                     failure.parent.mkdir(parents=True, exist_ok=True)
                     failure.write_text(
-                        (directory / "console.log").read_text()[-16384:]
+                        (directory / "console.log").read_text(errors="replace")[-16384:]
                         + "\nSSH: "
                         + result.stderr.decode(errors="replace")[-4096:]
                     )
@@ -243,116 +245,29 @@ def main():
                         str(args.previous_repository.resolve()),
                         "root@127.0.0.1:/opt/limeos-previous-repo",
                     )
+                # Preserve module filenames: wrappers import guest.py and other
+                # fixtures, so renaming the selected script to guest.py masks imports.
+                scripts = sorted(args.guest_script.parent.glob("*.py"))
                 run(
                     "scp",
                     *common,
                     "-P",
                     str(port),
-                    str(args.guest_script),
-                    "root@127.0.0.1:/root/guest.py",
+                    *map(str, scripts),
+                    "root@127.0.0.1:/root/",
                 )
-                if args.guest_script.name in [
-                    "p03_lifecycle_guest.py",
-                    "p03_compose_guest.py",
-                    "p03_reference_guest.py",
-                    "p04_locks_guest.py",
-                    "p04_locks_container_guest.py",
+                for source, destination in [
+                    ("werkzeug-hashes.json", "werkzeug-hashes.json"),
+                    ("compose-catalog.json", "compose-catalog-fixture.json"),
+                    ("wybie-layout.json", "wybie-layout.json"),
                 ]:
                     run(
                         "scp",
                         *common,
                         "-P",
                         str(port),
-                        str(args.guest_script.with_name("p03_guest.py")),
-                        "root@127.0.0.1:/root/p03_guest.py",
-                    )
-                if args.guest_script.name in [
-                    "p03_compose_guest.py",
-                    "p03_reference_guest.py",
-                    "p04_locks_container_guest.py",
-                ]:
-                    run(
-                        "scp",
-                        *common,
-                        "-P",
-                        str(port),
-                        str(args.guest_script.with_name("p03_lifecycle_guest.py")),
-                        "root@127.0.0.1:/root/p03_lifecycle_guest.py",
-                    )
-                    run(
-                        "scp",
-                        *common,
-                        "-P",
-                        str(port),
-                        str(ROOT / "tests/fixtures/compose-catalog.json"),
-                        "root@127.0.0.1:/root/compose-catalog-fixture.json",
-                    )
-                if args.guest_script.name == "p03_reference_guest.py":
-                    for source, destination in [
-                        (
-                            args.guest_script.with_name("p03_compose_guest.py"),
-                            "p03_compose_guest.py",
-                        ),
-                        (
-                            ROOT / "tests/fixtures/wybie-layout.json",
-                            "wybie-layout.json",
-                        ),
-                    ]:
-                        run(
-                            "scp",
-                            *common,
-                            "-P",
-                            str(port),
-                            str(source),
-                            "root@127.0.0.1:/root/" + destination,
-                        )
-                if args.guest_script.name in [
-                    "p04_storage_guest.py",
-                    "p04_planning_guest.py",
-                    "p04_targets_guest.py",
-                    "p04_locks_guest.py",
-                ]:
-                    run(
-                        "scp",
-                        *common,
-                        "-P",
-                        str(port),
-                        str(ROOT / "tests/fixtures/werkzeug-hashes.json"),
-                        "root@127.0.0.1:/root/werkzeug-hashes.json",
-                    )
-                if args.guest_script.name in [
-                    "p04_planning_guest.py",
-                    "p04_targets_guest.py",
-                    "p04_locks_guest.py",
-                ]:
-                    run(
-                        "scp",
-                        *common,
-                        "-P",
-                        str(port),
-                        str(args.guest_script.with_name("p04_storage_guest.py")),
-                        "root@127.0.0.1:/root/p04_storage_guest.py",
-                    )
-                if args.guest_script.name in [
-                    "p04_targets_guest.py",
-                    "p04_locks_guest.py",
-                ]:
-                    run(
-                        "scp",
-                        *common,
-                        "-P",
-                        str(port),
-                        str(args.guest_script.with_name("p04_planning_guest.py")),
-                        "root@127.0.0.1:/root/p04_planning_guest.py",
-                    )
-                if args.guest_script.name == "p04_locks_guest.py":
-                    run(
-                        "scp",
-                        *common,
-                        "-P",
-                        str(port),
-                        str(args.guest_script.with_name("p04_targets_guest.py")),
-                        "root@127.0.0.1:/root/p04_targets_guest.py",
+                        str(ROOT / "tests/fixtures" / source),
+                        "root@127.0.0.1:/root/" + destination,
                     )
                 if args.build_bundle:
                     if args.retain_previous_repository:
@@ -407,7 +322,9 @@ def main():
                 try:
                     run(
                         *ssh,
-                        "python3 /root/guest.py /opt/limeos-repo /root/result.json",
+                        "python3 "
+                        + shlex.quote("/root/" + args.guest_script.name)
+                        + " /opt/limeos-repo /root/result.json",
                     )
                 except subprocess.CalledProcessError:
                     diagnostics = subprocess.run(
