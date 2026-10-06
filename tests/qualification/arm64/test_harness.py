@@ -7,13 +7,16 @@
 
 import copy
 import json
+import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import native_vm
 import qualification as q
 import record_run
 from native_vm import Guest
@@ -259,6 +262,7 @@ class EvidenceTests(unittest.TestCase):
             "extra_guest",
             "approved_guest",
             "native_vm",
+            "guest_supervisor",
             "make_bundle",
             "record_run",
         ):
@@ -272,6 +276,265 @@ class EvidenceTests(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn("usage:", result.stdout)
+
+
+def write_authorization(directory, **overrides):
+    record = {
+        "version": 1,
+        "host": "holly@wybie",
+        "not_before": "2026-10-06T21:30:00Z",
+        "not_after": "2026-10-07T06:00:00Z",
+        "authorized_by": "operator",
+        "reference": "docs/plans/2026-10-06-engineer-arm64-overnight-qualification.md",
+        "scope": "disposable Debian ARM64 KVM guests only",
+    }
+    record.update(overrides)
+    for key in [k for k, v in record.items() if v is None]:
+        del record[key]
+    path = Path(directory) / "authorization.json"
+    path.write_text(json.dumps(record))
+    return path
+
+
+INSIDE = native_vm.parse_utc("2026-10-06T23:00:00Z")
+
+
+class AuthorizationTests(unittest.TestCase):
+    def test_aliases_and_addresses_of_production_are_production(self):
+        def fake_ssh_g(argv, **kwargs):
+            host = argv[-1].rsplit("@", 1)[-1]
+            name = "wybie" if host == "pi" else host
+            return subprocess.CompletedProcess(
+                argv, 0, stdout=f"user holly\nhostname {name}\n"
+            )
+
+        def fake_addresses(host, *rest):
+            table = {
+                "wybie": "100.119.146.6",
+                "100.119.146.6": "100.119.146.6",
+                "spare": "10.0.0.9",
+            }
+            return [(0, 0, 0, "", (table.get(host, "192.0.2.1"), 0))]
+
+        with (
+            patch("native_vm.subprocess.run", side_effect=fake_ssh_g),
+            patch("native_vm.socket.getaddrinfo", side_effect=fake_addresses),
+        ):
+            self.assertTrue(native_vm.production_host("holly@pi"))
+            self.assertTrue(native_vm.production_host("holly@100.119.146.6"))
+            self.assertFalse(native_vm.production_host("holly@spare"))
+            with self.assertRaisesRegex(ValueError, "production"):
+                Guest("run", "holly@100.119.146.6")
+
+    def test_named_window_admits_only_the_exact_host_without_ssh(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("native_vm.subprocess.run") as run,
+            patch("native_vm.utc_now", return_value=INSIDE),
+        ):
+            path = write_authorization(directory)
+            guest = Guest("run", "holly@wybie", path)
+            self.assertEqual(guest.authorization["not_after"], "2026-10-07T06:00:00Z")
+            self.assertEqual(len(guest.authorization["sha256"]), 64)
+            for host in ("wybie", "root@wybie", "holly@wybie.local"):
+                with (
+                    self.subTest(host=host),
+                    self.assertRaisesRegex(ValueError, "authorization names"),
+                ):
+                    Guest("run", host, path)
+            run.assert_not_called()
+
+    def test_absent_malformed_expired_or_overlong_windows_are_refused(self):
+        cases = {
+            "absent": None,
+            "missing key": {"scope": None},
+            "extra key": {"extra": "x"},
+            "version": {"version": 2},
+            "blank owner": {"authorized_by": " "},
+            "offset time": {"not_after": "2026-10-07T06:00:00+00:00"},
+            "spaced time": {"not_before": "2026-10-06 21:30:00"},
+            "inverted": {"not_before": "2026-10-07T06:00:00Z"},
+            "overlong": {"not_before": "2026-10-06T17:59:59Z"},
+            "expired": {
+                "not_before": "2026-10-06T10:00:00Z",
+                "not_after": "2026-10-06T22:00:00Z",
+            },
+            "not started": {"not_before": "2026-10-06T23:30:00Z"},
+        }
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("native_vm.subprocess.run") as run,
+            patch("native_vm.utc_now", return_value=INSIDE),
+        ):
+            for label, overrides in cases.items():
+                with self.subTest(label), self.assertRaises(ValueError):
+                    path = (
+                        None
+                        if overrides is None
+                        else write_authorization(directory, **overrides)
+                    )
+                    Guest("run", "holly@wybie", path)
+            (Path(directory) / "broken.json").write_text("{")
+            with self.assertRaises(ValueError):
+                Guest("run", "holly@wybie", Path(directory) / "broken.json")
+            run.assert_not_called()
+
+    def test_expiry_during_a_run_blocks_every_further_ssh(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("native_vm.STATE", Path(directory)),
+            patch("native_vm.subprocess.run") as run,
+        ):
+            path = write_authorization(directory)
+            with patch("native_vm.utc_now", return_value=INSIDE):
+                guest = Guest("run", "holly@wybie", path)
+            guest.port = 22801
+            with patch(
+                "native_vm.utc_now",
+                return_value=native_vm.parse_utc("2026-10-07T06:00:00Z"),
+            ):
+                for action in (
+                    lambda: guest.host_run("true"),
+                    lambda: guest.ssh("true"),
+                    lambda: guest.push("a", "b"),
+                    lambda: guest.pull("a", Path(directory) / "b"),
+                ):
+                    with self.assertRaisesRegex(SystemExit, "expired"):
+                        action()
+            run.assert_not_called()
+
+    def test_guest_deadlines_stay_inside_the_window(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("native_vm.subprocess.run"),
+            patch("native_vm.utc_now", return_value=INSIDE),
+        ):
+            guest = Guest("run", "holly@wybie", write_authorization(directory))
+            terminate, kill = native_vm.deadlines(guest, None)
+            self.assertEqual(
+                (terminate, kill),
+                (
+                    native_vm.parse_utc("2026-10-07T05:55:00Z"),
+                    native_vm.parse_utc("2026-10-07T05:57:00Z"),
+                ),
+            )
+            early = native_vm.parse_utc("2026-10-06T23:05:00Z")
+            self.assertEqual(
+                native_vm.deadlines(guest, early),
+                (early, native_vm.parse_utc("2026-10-06T23:07:00Z")),
+            )
+            late = native_vm.parse_utc("2026-10-07T05:41:00Z")
+            with self.assertRaisesRegex(SystemExit, "15 minutes"):
+                native_vm.deadlines(guest, None, now=late)
+            with self.assertRaisesRegex(SystemExit, "no usable time"):
+                native_vm.deadlines(guest, INSIDE)
+        with (
+            patch("native_vm.production_host", return_value=False),
+            self.assertRaisesRegex(SystemExit, "terminate-at"),
+        ):
+            native_vm.deadlines(Guest("run", "isolated"), None)
+
+
+TARGET = (
+    "import signal, sys, time\n"
+    "if sys.argv[1] == 'stubborn': signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+    "time.sleep(float(sys.argv[2]))\n"
+)
+
+
+def spawn(mode, marker, seconds=60):
+    return subprocess.Popen([sys.executable, "-c", TARGET, mode, str(seconds), marker])
+
+
+def start_ticks(pid):
+    stat = Path(f"/proc/{pid}/stat").read_text()
+    return int(stat[stat.rindex(")") + 2 :].split()[19])
+
+
+def supervise(target, log, terminate_in, kill_in, marker=None, ticks=None):
+    now = time.time()
+    return subprocess.run(
+        [
+            sys.executable,
+            str(HERE / "guest_supervisor.py"),
+            "--pid",
+            str(target.pid),
+            "--start-ticks",
+            str(ticks if ticks is not None else start_ticks(target.pid)),
+            "--uid",
+            str(os.getuid()),
+            "--marker",
+            marker or target.args[-1],
+            "--terminate-at",
+            str(now + terminate_in),
+            "--kill-at",
+            str(now + kill_in),
+            "--log",
+            str(log),
+            "--poll",
+            "0.2",
+        ],
+        timeout=30,
+        check=False,
+    )
+
+
+def events(log):
+    return [json.loads(line)["event"] for line in Path(log).read_text().splitlines()]
+
+
+class SupervisorTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.log = Path(self.directory.name) / "supervisor.log"
+        self.processes = []
+
+    def tearDown(self):
+        for process in self.processes:
+            process.kill()
+            process.wait()
+        self.directory.cleanup()
+
+    def start(self, mode, marker, seconds=60):
+        process = spawn(mode, marker, seconds)
+        self.processes.append(process)
+        time.sleep(0.3)
+        return process
+
+    def test_deadline_forces_only_the_bound_guest_and_spares_others(self):
+        guest = self.start("stubborn", "limeos-arm64-run-aaaa")
+        unrelated = self.start("stubborn", "limeos-arm64-other-bbbb")
+        result = supervise(guest, self.log, 0.5, 2.0)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(
+            events(self.log), ["bound", "sigterm", "sigkill", "guest_gone"]
+        )
+        self.assertEqual(guest.wait(timeout=5), -9)
+        self.assertIsNone(unrelated.poll(), "an unrelated process was signalled")
+
+    def test_cooperative_guest_stops_at_sigterm(self):
+        guest = self.start("cooperative", "limeos-arm64-run-cccc")
+        self.assertEqual(supervise(guest, self.log, 0.5, 10).returncode, 0)
+        self.assertEqual(events(self.log), ["bound", "sigterm", "guest_gone"])
+        self.assertEqual(guest.wait(timeout=5), -15)
+
+    def test_mismatched_identity_is_never_signalled(self):
+        guest = self.start("stubborn", "limeos-arm64-run-dddd")
+        for kwargs in ({"marker": "limeos-arm64-run-other"}, {"ticks": 1}):
+            with self.subTest(**kwargs):
+                self.assertEqual(
+                    supervise(guest, self.log, 0.1, 0.5, **kwargs).returncode, 2
+                )
+                self.assertIsNone(guest.poll())
+        self.assertEqual(set(events(self.log)), {"refused_unbound"})
+
+    def test_guest_stopping_first_ends_supervision_without_signals(self):
+        guest = self.start("cooperative", "limeos-arm64-run-eeee", seconds=0.8)
+        started = time.monotonic()
+        self.assertEqual(supervise(guest, self.log, 60, 120).returncode, 0)
+        self.assertLess(time.monotonic() - started, 10)
+        self.assertEqual(events(self.log), ["bound", "guest_gone"])
+        self.assertEqual(guest.wait(timeout=5), 0)
 
 
 if __name__ == "__main__":

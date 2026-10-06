@@ -17,18 +17,113 @@ passwordless sudo. QEMU opens /dev/kvm as root, then drops to the SSH user with
 """
 
 import argparse
+import hashlib
 import json
 import re
+import secrets
 import shlex
+import socket
 import subprocess
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 STATE = ROOT / ".cache/arm64-qual"
 REMOTE_BASE = "limeos-arm64-qual"
 IMAGE = "image/debian-12-genericcloud-arm64.qcow2"
+SUPERVISOR = Path(__file__).resolve().with_name("guest_supervisor.py")
+# Production hosts are refused unless a recorded authorization names them.
+PRODUCTION_HOSTS = ("wybie",)
+AUTHORIZATION_KEYS = {
+    "version",
+    "host",
+    "not_before",
+    "not_after",
+    "authorized_by",
+    "reference",
+    "scope",
+}
+MAX_WINDOW = timedelta(hours=12)
+# Guests are signalled before the window closes: SIGTERM, then SIGKILL.
+TERMINATE_MARGIN = timedelta(minutes=5)
+KILL_MARGIN = timedelta(minutes=3)
+# A new guest needs at least this much of the window left.
+BOOT_MARGIN = timedelta(minutes=15)
+
+
+def utc_now():
+    return datetime.now(timezone.utc)
+
+
+def parse_utc(text):
+    if not isinstance(text, str) or not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", text
+    ):
+        raise ValueError(f"timestamp must be UTC like 2026-10-07T06:00:00Z: {text!r}")
+    return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+
+def production_host(host, resolve=True):
+    """Whether host names a production machine, directly, by alias or by address."""
+    name = host.rsplit("@", 1)[-1]
+    if name.split(".", 1)[0].casefold() in PRODUCTION_HOSTS:
+        return True
+    if not resolve:
+        return False
+    # `ssh -G` prints the effective configuration without connecting.
+    config = subprocess.run(
+        ["ssh", "-G", host], capture_output=True, text=True, timeout=10, check=False
+    ).stdout
+    target = next(
+        (
+            line.split()[1]
+            for line in config.splitlines()
+            if line.startswith("hostname ")
+        ),
+        name,
+    )
+    if target.split(".", 1)[0].casefold() in PRODUCTION_HOSTS:
+        return True
+
+    def addresses(value):
+        try:
+            return {info[4][0] for info in socket.getaddrinfo(value, None)}
+        except OSError:
+            return set()
+
+    mine = addresses(target)
+    return any(mine & addresses(production) for production in PRODUCTION_HOSTS)
+
+
+def load_authorization(path, host, now=None):
+    """Validate a recorded authorization window for exactly this host."""
+    now = now or utc_now()
+    try:
+        raw = Path(path).read_bytes()
+        record = json.loads(raw)
+    except (OSError, ValueError) as error:
+        raise ValueError(f"authorization unreadable: {error}") from None
+    if not isinstance(record, dict) or set(record) != AUTHORIZATION_KEYS:
+        raise ValueError(
+            f"authorization must have exactly {sorted(AUTHORIZATION_KEYS)}"
+        )
+    if record["version"] != 1:
+        raise ValueError("unsupported authorization version")
+    if record["host"] != host:
+        raise ValueError(f"authorization names {record['host']!r}, not {host!r}")
+    for key in ("authorized_by", "reference", "scope"):
+        if not isinstance(record[key], str) or not record[key].strip():
+            raise ValueError(f"authorization {key} is required")
+    start, end = parse_utc(record["not_before"]), parse_utc(record["not_after"])
+    if not start < end <= start + MAX_WINDOW:
+        raise ValueError("authorization window must be positive and at most 12 hours")
+    if now < start:
+        raise ValueError("authorization window has not started")
+    if now >= end:
+        raise ValueError("authorization window has expired")
+    return {**record, "sha256": hashlib.sha256(raw).hexdigest(), "end": end}
 
 
 def run(*args, **kwargs):
@@ -36,17 +131,20 @@ def run(*args, **kwargs):
 
 
 class Guest:
-    def __init__(self, name, host):
+    def __init__(self, name, host, authorization=None, resolve=True):
         if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", name):
             raise ValueError(
                 "guest name must use lowercase letters, digits and hyphens (max 64)"
             )
         if not re.fullmatch(r"(?:[A-Za-z0-9_.-]+@)?[A-Za-z0-9][A-Za-z0-9_.-]*", host):
             raise ValueError("host must be an explicit SSH alias or user@hostname")
-        if host.rsplit("@", 1)[-1].split(".", 1)[0].casefold() == "wybie":
-            raise ValueError(
-                "wybie is in production and is excluded from qualification"
-            )
+        self.authorization = None
+        if production_host(host, resolve=resolve):
+            if authorization is None:
+                raise ValueError(
+                    "production host requires a recorded --authorization window"
+                )
+            self.authorization = load_authorization(authorization, host)
         self.name = name
         self.host = host
         self.local = STATE / name
@@ -78,7 +176,13 @@ class Guest:
             "LogLevel=ERROR",
         ]
 
+    def authorize(self):
+        """Refuse any further SSH once a production window has closed."""
+        if self.authorization and utc_now() >= self.authorization["end"]:
+            raise SystemExit("authorization window expired; no further host access")
+
     def ssh(self, command, check=True, **kwargs):
+        self.authorize()
         return subprocess.run(
             ["ssh", *self.options(), "-p", str(self.port), "root@127.0.0.1", command],
             check=check,
@@ -86,6 +190,7 @@ class Guest:
         )
 
     def push(self, source, destination):
+        self.authorize()
         run(
             "scp",
             *self.options(),
@@ -97,6 +202,7 @@ class Guest:
         )
 
     def pull(self, source, destination):
+        self.authorize()
         Path(destination).parent.mkdir(parents=True, exist_ok=True)
         run(
             "scp",
@@ -109,6 +215,8 @@ class Guest:
         )
 
     def host_run(self, command, **kwargs):
+        self.authorize()
+        check = kwargs.pop("check", True)
         return subprocess.run(
             [
                 "ssh",
@@ -119,7 +227,7 @@ class Guest:
                 self.host,
                 command,
             ],
-            check=True,
+            check=check,
             **kwargs,
         )
 
@@ -141,8 +249,34 @@ def host_info(guest):
     }
 
 
+def deadlines(guest, terminate_at, now=None):
+    """SIGTERM and SIGKILL times for a new guest, inside any authorization window."""
+    now = now or utc_now()
+    grace = TERMINATE_MARGIN - KILL_MARGIN
+    if guest.authorization:
+        end = guest.authorization["end"]
+        terminate = end - TERMINATE_MARGIN
+        if terminate_at is not None:
+            terminate = min(terminate, terminate_at)
+        elif terminate - now < BOOT_MARGIN:
+            raise SystemExit("less than 15 minutes remain in the window; not booting")
+        kill = min(terminate + grace, end - KILL_MARGIN)
+    else:
+        if terminate_at is None:
+            raise SystemExit(
+                "--terminate-at is required without an authorization window"
+            )
+        terminate, kill = terminate_at, terminate_at + grace
+    if terminate <= now + timedelta(seconds=60):
+        raise SystemExit("guest deadline leaves no usable time")
+    return terminate, kill
+
+
 def boot(args):
-    guest = Guest(args.name, args.host)
+    guest = Guest(args.name, args.host, args.authorization)
+    terminate_at, kill_at = deadlines(
+        guest, parse_utc(args.terminate_at) if args.terminate_at else None
+    )
     if (
         not 1 <= args.port <= 65535
         or not 1 <= args.cpus <= 3
@@ -211,6 +345,7 @@ def boot(args):
                 "-device",
                 f"virtio-blk-pci,drive=storage{index},serial=limeos-test-{index}",
             ]
+    marker = f"limeos-arm64-{args.name}-{secrets.token_hex(8)}"
     qemu = [
         "sudo",
         "nice",
@@ -220,6 +355,9 @@ def boot(args):
         "-c",
         "3",
         "qemu-system-aarch64",
+        # Unique argv marker binds the host-side supervisor to this guest.
+        "-name",
+        marker,
         "-machine",
         "virt,gic-version=host",
         "-accel",
@@ -271,7 +409,48 @@ def boot(args):
             " ".join(q if q.startswith("$(") else shlex.quote(q) for q in qemu),
         ]
     )
+    guest.host_run(f"mkdir -p {guest.remote}")
+    run(
+        "scp",
+        "-o",
+        "BatchMode=yes",
+        str(SUPERVISOR),
+        f"{args.host}:{guest.remote}/guest_supervisor.py",
+    )
     guest.host_run(script)
+    # Bind the supervisor to the daemonized QEMU process before anything else.
+    # Newline-separated so only the supervisor itself runs in the background.
+    supervise = "\n".join(
+        [
+            "set -e",
+            f"cd {guest.remote}",
+            "pid=$(sudo cat qemu.pid)",
+            'start=$(sed "s/.*) //" /proc/$pid/stat | cut -d" " -f20)',
+            "uid=$(awk '/^Uid:/{print $2}' /proc/$pid/status)",
+            'test "$uid" = "$(id -u)"',
+            (
+                "setsid nohup python3 guest_supervisor.py --pid $pid --start-ticks $start "
+                f"--uid $uid --marker {shlex.quote(marker)} "
+                f"--terminate-at {terminate_at.timestamp():.0f} "
+                f"--kill-at {kill_at.timestamp():.0f} "
+                "--log supervisor.log < /dev/null > supervisor.out 2>&1 &"
+            ),
+            "echo $! > supervisor.pid",
+            "sleep 1",
+            'grep -q \'"event": "bound"\' supervisor.log',
+            "echo qemu=$pid supervisor=$(cat supervisor.pid)",
+        ]
+    )
+    try:
+        bound = guest.host_run(supervise, capture_output=True, text=True, timeout=60)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        # Never leave a guest running without its deadline supervisor.
+        guest.host_run(
+            f"cd {guest.remote} && pid=$(sudo cat qemu.pid) && "
+            'test "$(sudo readlink /proc/$pid/cwd)" = "$PWD" && sudo kill $pid',
+            check=False,
+        )
+        raise SystemExit("supervisor did not bind; guest stopped")
     (guest.local / "guest.json").write_text(
         json.dumps(
             {
@@ -284,6 +463,21 @@ def boot(args):
                 "storage_disks": args.storage_disks,
                 "image_sha512": args.image_sha512,
                 "qemu": " ".join(qemu),
+                "marker": marker,
+                "supervisor": {
+                    "sha256": hashlib.sha256(SUPERVISOR.read_bytes()).hexdigest(),
+                    "terminate_at": terminate_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "kill_at": kill_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "bound": bound.stdout.strip(),
+                },
+                "authorization": (
+                    {
+                        k: guest.authorization[k]
+                        for k in sorted(AUTHORIZATION_KEYS | {"sha256"})
+                    }
+                    if guest.authorization
+                    else None
+                ),
                 "started": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
             },
             indent=2,
@@ -307,7 +501,7 @@ def boot(args):
 
 
 def stop(args):
-    guest = Guest(args.name, args.host)
+    guest = Guest(args.name, args.host, args.authorization)
     if guest.port is None:
         raise SystemExit("recorded guest state required for stop")
     (guest.local / "host-after.json").write_text(
@@ -315,11 +509,16 @@ def stop(args):
     )
     guest.host_run(
         # The pidfile is root-owned (written before -runas drops privileges).
+        # A supervisor may already have stopped the guest at its deadline.
         f"cd {guest.remote} && pid=$(sudo cat qemu.pid) && "
-        'test "$(sudo readlink /proc/$pid/cwd)" = "$PWD" && sudo kill $pid && '
+        'if [ -e /proc/$pid ]; then test "$(sudo readlink /proc/$pid/cwd)" = "$PWD" && sudo kill $pid; fi && '
         "for i in $(seq 1 60); do [ -e /proc/$pid ] || break; sleep 1; done && "
         "[ ! -e /proc/$pid ] && "
-        f"{{ sudo cat console.log > /tmp/limeos-arm64-{args.name}-console.log 2>/dev/null; true; }}"
+        # The supervisor exits on its own once its pidfd reports the exit.
+        "spid=$(cat supervisor.pid 2>/dev/null || true) && "
+        'for i in $(seq 1 30); do [ -n "$spid" ] && grep -qa guest_supervisor.py /proc/$spid/cmdline 2>/dev/null || break; sleep 1; done && '
+        f"{{ sudo cat console.log > /tmp/limeos-arm64-{args.name}-console.log 2>/dev/null; "
+        f"cp supervisor.log /tmp/limeos-arm64-{args.name}-supervisor.log 2>/dev/null; true; }}"
     )
     run(
         "scp",
@@ -328,7 +527,17 @@ def stop(args):
         f"{args.host}:/tmp/limeos-arm64-{args.name}-console.log",
         str(guest.local / "console.log"),
     )
-    guest.host_run(f"rm -rf {guest.remote} /tmp/limeos-arm64-{args.name}-console.log")
+    run(
+        "scp",
+        "-o",
+        "BatchMode=yes",
+        f"{args.host}:/tmp/limeos-arm64-{args.name}-supervisor.log",
+        str(guest.local / "supervisor.log"),
+    )
+    guest.host_run(
+        f"rm -rf {guest.remote} /tmp/limeos-arm64-{args.name}-console.log "
+        f"/tmp/limeos-arm64-{args.name}-supervisor.log"
+    )
     archive = STATE / "stopped" / args.name
     archive.parent.mkdir(parents=True, exist_ok=True)
     guest.local.rename(archive)
@@ -341,6 +550,11 @@ def main():
         "--host",
         required=True,
         help="Explicitly available isolated native ARM64 SSH host",
+    )
+    parser.add_argument(
+        "--authorization",
+        type=Path,
+        help="Recorded JSON window required for a production host",
     )
     sub = parser.add_subparsers(dest="command", required=True)
     b = sub.add_parser("boot")
@@ -356,6 +570,10 @@ def main():
         help="Debian SHA512SUMS digest for the installed base image",
     )
     b.add_argument("--timeout", type=int, default=900)
+    b.add_argument(
+        "--terminate-at",
+        help="Earlier UTC guest deadline, e.g. for a short deadline proof",
+    )
     e = sub.add_parser("exec")
     e.add_argument("name")
     e.add_argument("remote_command")
@@ -376,14 +594,17 @@ def main():
     args = parser.parse_args()
     if args.command == "host-info":
         args.output.write_text(
-            json.dumps(host_info(Guest("host-info", args.host)), indent=2) + "\n"
+            json.dumps(
+                host_info(Guest("host-info", args.host, args.authorization)), indent=2
+            )
+            + "\n"
         )
     elif args.command == "boot":
         boot(args)
     elif args.command == "stop":
         stop(args)
     else:
-        guest = Guest(args.name, args.host)
+        guest = Guest(args.name, args.host, args.authorization)
         if guest.port is None:
             parser.error("recorded guest state required; boot the named guest first")
         if args.command == "exec":

@@ -48,6 +48,32 @@ Commit small shared fixture adaptations separately. The bundle's
 `--commit`. Execute the bundled fixture scripts, not the historical scripts
 in `source/tests/` or an uncommitted workstation copy.
 
+## Production host authorization and guest deadlines
+
+`--host` still rejects production hosts by default: `wybie` by name, and any
+alias or address that resolves to it (`ssh -G` without connecting, then
+address comparison). A production host is usable only with
+`--authorization FILE`, a recorded JSON window with exactly `version` (1),
+`host` (the exact `user@host` string passed to `--host`), `not_before` and
+`not_after` (UTC, `YYYY-MM-DDTHH:MM:SSZ`, at most 12 hours apart),
+`authorized_by`, `reference` and `scope`. Absent, malformed, mismatched,
+not-yet-valid or expired authorization is refused before any SSH. Every later
+host or guest SSH re-checks the window, so nothing reaches the host after
+`not_after`. The authorization's SHA-256 is stored in each guest's state.
+
+Every guest has a host-side deadline. Immediately after QEMU daemonizes,
+`boot` copies `guest_supervisor.py` into the guest's work directory and starts
+it detached as the SSH user, so workstation or SSH loss cannot leave the guest
+running. The supervisor binds a pidfd to the exact QEMU process (PID, kernel
+start time, real UID and a unique `-name` marker), sends SIGTERM at the
+deadline and SIGKILL two minutes later, and exits without signalling if the
+guest already stopped or its identity differs. For an authorized host the
+deadline is `not_after` minus 5 minutes (SIGKILL at minus 3); `boot` refuses
+when less than 15 minutes remain. `--terminate-at` sets an earlier deadline,
+for example a short proof run. If the supervisor fails to bind, `boot` stops
+the guest. `stop` tolerates a guest the supervisor already stopped and copies
+`supervisor.log` into the local guest state.
+
 ## Host prerequisites
 
 An explicitly available native ARM64 host needs KVM, passwordless sudo,
