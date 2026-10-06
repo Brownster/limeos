@@ -787,7 +787,7 @@ def main():
                 "restart_posts": sum(control.posts.values()),
                 "restart_effect_ms": control.effects_ms,
                 "footprint": {
-                    "architecture": "amd64",
+                    "architecture": run("dpkg", "--print-architecture").stdout.strip(),
                     "app_pss_kib": memory,
                     "combined_pss_kib": sum(memory.values()),
                     "overview_p95_ms": round(sorted(elapsed)[18], 3),

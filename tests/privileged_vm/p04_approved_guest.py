@@ -29,7 +29,9 @@ http = planning.http
 eventually = containers.eventually
 
 
-def main():
+def main(package_version="0.4.4", qualify_upgrade=True):
+    global VERSION
+    VERSION = package_version
     if (
         os.geteuid() != 0
         or Path("/etc/hostname").read_text().strip() != "limeos-p01-test"
@@ -37,13 +39,17 @@ def main():
         raise SystemExit("Refusing outside disposable VM")
     repo, output = map(Path, sys.argv[1:])
     locks.VERSION = VERSION
-    upgrade = locks.upgrade(
-        repo,
-        previous_version="0.4.3",
-        previous_schema=7,
-        authority_schema=8,
-        previous_package_sha256="c5e49b2117a19d0983b5afb9a3ea756f479c2ab9dc67be7001758265737204b6",
-        previous_core_sha256="99c2c8a2a19919e093476e33fbaae9fc0d4da8559bfa8b5a2151135b23243c33",
+    upgrade = (
+        locks.upgrade(
+            repo,
+            previous_version="0.4.3",
+            previous_schema=7,
+            authority_schema=8,
+            previous_package_sha256="c5e49b2117a19d0983b5afb9a3ea756f479c2ab9dc67be7001758265737204b6",
+            previous_core_sha256="99c2c8a2a19919e093476e33fbaae9fc0d4da8559bfa8b5a2151135b23243c33",
+        )
+        if qualify_upgrade
+        else None
     )
     locks.main(VERSION, authority_schema=8, qualify_upgrade=False)
     evidence = json.loads(output.read_text())
@@ -90,7 +96,8 @@ def main():
         != 0
     )
     assert not POLICY.exists()
-    shadow = next(repo.rglob(f"limeos-shadow_{VERSION}_amd64.deb"))
+    architecture = run("dpkg", "--print-architecture").stdout.strip()
+    shadow = next(repo.rglob(f"limeos-shadow_{VERSION}_{architecture}.deb"))
     with tempfile.TemporaryDirectory(prefix="limeos-target-shadow-") as extracted:
         run("dpkg-deb", "-x", str(shadow), extracted)
         assert not (
@@ -530,7 +537,7 @@ def main():
         },
     )
     evidence["limitations"] = [
-        "Disposable AMD64 VM; no new native ARM64/Pi qualification",
+        f"Disposable {architecture} VM; no bare-metal/Pi qualification",
         "Only empty target directory preparation is executable; mount/fstab, live dependency discovery, unmount/loss handling and guided UI remain pending",
         "Root operator journal and core job authority retain independent barriers; root reconciliation remains explicit",
     ]

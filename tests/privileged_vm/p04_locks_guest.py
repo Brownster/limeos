@@ -100,7 +100,8 @@ def upgrade(
     previous = Path("/opt/limeos-previous-repo")
     if not previous.is_dir():
         return None
-    old_package = next(previous.rglob(f"limeos_{previous_version}_amd64.deb"))
+    architecture = run("dpkg", "--print-architecture").stdout.strip()
+    old_package = next(previous.rglob(f"limeos_{previous_version}_{architecture}.deb"))
     assert digest(old_package) == previous_package_sha256, (
         "Genuinely frozen previous package required"
     )
