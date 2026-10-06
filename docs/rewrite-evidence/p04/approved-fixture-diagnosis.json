@@ -40,5 +40,13 @@
     "inference": "dependent fixture proposed immediately after systemctl start of a simple service, before socket readiness",
     "correction": "af3d037 waits for the socket and final 0660 mode",
     "runtime_changed": false
+  },
+  "ci_start_counter_failure": {
+    "run": 37448086382,
+    "fixture_line": 66,
+    "cause": "intentional repaired startup-corruption scenarios plus real SIGKILL exhausted systemd start counter before the distinct approved suite",
+    "fix": "115257f resets only the disposable unit counter after fixture restoration",
+    "current_only_local_groups_passed": 50,
+    "production_limits_changed": false
   }
 }

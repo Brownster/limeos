@@ -1,0 +1,35 @@
+{
+  "integration_source": "eb6564de5c20a30a98876689976421a0ff8ac094",
+  "integrated_engineer_commits": [
+    "3bd1746",
+    "933b85b",
+    "7683229"
+  ],
+  "source_tests_passed": 185,
+  "additional_regressions": 30,
+  "strict_clippy": "pass",
+  "rust_format": "pass",
+  "generated_contracts": "pass",
+  "repository_boundaries": "pass",
+  "source_sha256": {
+    "Cargo.lock": "906d8533a4746ff2883e4cfee4fd422d09d5f765474b23497850552e1552bb41",
+    "crates/domain/src/lib.rs": "c3e73fe26fbce88c0d25a54786c37ec4832761dfa6734d961cc8973ea965919d",
+    "bins/schema/src/main.rs": "ba7b4e0d9fb2b766ba82e53a9310870d3e724eed06998a741575cc9dcf8c881c",
+    "contracts/generated/types.ts": "15ec2e75e0f5c64096dbdc4effe0502a0c5c75a436d89138a1da4151e544f1f0",
+    "crates/observations/Cargo.toml": "0cd564999cbe53c408701830ef0690fde9f2321c236107cbbc92625c912e7ba7",
+    "crates/domain/src/pools.rs": "6b52beb20b43b2518c221d874eb00ae52ad344f1120386f15720fedc72fa7b96",
+    "crates/domain/src/protection.rs": "6d73cc0e52f25fc168400f763f56ae62bcd6cded5bb2b52370e7a69ad2804aca",
+    "crates/observations/src/pool_protection/imports.rs": "65fd2f8c4d0d506705ffae0b73f31965cc6166344d9ddbfd02cb6bcb30a6d1a8",
+    "crates/observations/src/pool_protection/reads.rs": "4643fe719a430d1640e23937be29c73e5dca92bfdea664fd297c539ba50115ee",
+    "crates/observations/src/pool_protection/tests.rs": "4d378b094b4cefdc639c5d7953a610ed92042938d5f4fca89bf986cbc583e88e"
+  },
+  "frozen_installed_payload": "9170b5d / AMD64 0.4.4; 155 tests and separate 51+38 VM qualification",
+  "new_installed_payload_qualification": false,
+  "host_effects_added_by_planners": false,
+  "defect_register_rows_closed": [],
+  "limits": [
+    "engineer branch 161-test evidence is historical and retained unchanged",
+    "installed/native qualification does not carry forward to this new source automatically",
+    "protected collection and pool/protection operations remain pending"
+  ]
+}
