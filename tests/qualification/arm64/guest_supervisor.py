@@ -72,8 +72,13 @@ def main():
         parser.error("pid > 1, kill-at after terminate-at and 0 < poll <= 10 required")
 
     def log(event, **extra):
+        # time.gmtime() without an argument reads the coarse clock, which can still
+        # show the previous second just after a deadline; stamp from time.time().
+        stamp = time.time()
         record = {
-            "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "utc": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(stamp))
+            + f".{int(stamp % 1 * 1000):03d}Z",
+            "epoch": round(stamp, 3),
             "event": event,
             **extra,
         }

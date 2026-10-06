@@ -479,8 +479,12 @@ def supervise(target, log, terminate_in, kill_in, marker=None, ticks=None):
     )
 
 
+def records(log):
+    return [json.loads(line) for line in Path(log).read_text().splitlines()]
+
+
 def events(log):
-    return [json.loads(line)["event"] for line in Path(log).read_text().splitlines()]
+    return [record["event"] for record in records(log)]
 
 
 class SupervisorTests(unittest.TestCase):
@@ -511,6 +515,9 @@ class SupervisorTests(unittest.TestCase):
         )
         self.assertEqual(guest.wait(timeout=5), -9)
         self.assertIsNone(unrelated.poll(), "an unrelated process was signalled")
+        bound, sigterm, sigkill, _ = records(self.log)
+        self.assertGreaterEqual(sigterm["epoch"], round(bound["terminate_at"], 3))
+        self.assertGreaterEqual(sigkill["epoch"], round(bound["kill_at"], 3))
 
     def test_cooperative_guest_stops_at_sigterm(self):
         guest = self.start("cooperative", "limeos-arm64-run-cccc")
