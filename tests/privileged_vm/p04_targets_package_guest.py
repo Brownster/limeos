@@ -40,7 +40,8 @@ def check(repo, version="0.4.4"):
         "systemctl", "show", "limeos-storage-targets", "-p", "MainPID", "--value"
     ).stdout.strip()
     assert pid != "0"
-    package = next(repo.rglob(f"limeos-shadow_{version}_amd64.deb"))
+    architecture = run("dpkg", "--print-architecture").stdout.strip()
+    package = next(repo.rglob(f"limeos-shadow_{version}_{architecture}.deb"))
     control = subprocess.check_output(["dpkg-deb", "--ctrl-tarfile", str(package)])
     with tarfile.open(fileobj=io.BytesIO(control)) as archive:
         script = archive.extractfile("./prerm").read().decode()
