@@ -1,0 +1,19 @@
+# Bind container sources to fresh filesystem identities
+
+Status: accepted for a bounded RW-040 library slice, 2026-10-06. Storage effects and installed collection remain gated.
+
+Retained source descriptors identify host mounts, but their device numbers do not establish filesystem UUIDs or backing relationships. Bind them to a newly collected storage inventory in the same host mount namespace. Keep both sets of handles alive and revalidate them before returning evidence. This work stays with the integrator while the other engineers own archive staging and overnight ARM64 qualification.
+
+Extend the existing protected storage inventory collector with a private evidence object that retains its raw block descriptors, probe results, topology, swap snapshot, fstab descriptor and complete mount-table digest. Preserve the existing wire inventory and `inventory()` entry point. Its new revalidation checks every raw signature again, including unmounted devices, and requires unchanged topology, swap, namespace, mount table and fstab identity. Serialized inventory cannot construct this evidence.
+
+Use a combined read-only collector rather than accepting caller-supplied reports as authority or extending the RPC before the remaining runtime safeguards exist. Validate the storage contract and Docker inventory, collect storage and source evidence, bind their complete mount-table digests, and revalidate both. The result binds the full contract, Docker inventory, storage inventory and source report digests. Its private owner retains both evidence objects; its serializable snapshot is observation only.
+
+Resolve each configured UUID uniquely from direct probes. Refuse missing or duplicate UUIDs, unsupported filesystems, boot/swap backing and mismatched configured filesystem or serial. Match every source candidate mount to its exact probed block filesystem. Bind aliases and ordinary symlinks therefore match by filesystem identity rather than their visible path. Directory candidates retain nested mounts. Record exact-filesystem consumers separately from conservative consumers sharing the collected connected block graph; sibling partitions can produce a conservative shared-backing match.
+
+An explicit tmpfs mount with device major zero has no block backing and can be skipped, while its nested candidates are still examined. Unknown mounts, unprobed loop devices, remote/FUSE sources and btrfs multi-device graphs cause refusal of the complete report. Refuse more than 512 dependency matches or a report larger than 48 KiB. Keep the Docker collection-start age limit and a four-second cooperative combined budget; async probe waiting is deadline-bounded. Synchronous filesystem work still requires the later service's process deadline and single-flight admission.
+
+Test aliases, nested mounts, named volumes, stopped consumers, shared backing, independent disks, duplicate/unavailable UUIDs, changed table identity, unknown filesystems and output bounds locally with synthetic kernel/probe facts. Exercise retained fstab descriptor replacement independently using private temporary files. Existing source tests continue to exercise real unprivileged resolution. No production Pi or Python tests are needed for this slice.
+
+The estimate for this slice is eight engineering hours, with scope review at twelve. This is part of the existing 320-hour P04 estimate, not an additional phase. Record actual agent elapsed time separately from human engineering effort.
+
+Before effects, running-container namespace inspection, Engine reacquisition, pool/protection/share propagation, shared claims, root ceilings, bounded service admission, installed qualification and effect-time checks remain required. This report does not establish mount readiness or absence of all consumers. DSK-001, MNT-001, MNT-002 and RT-001 remain open.
