@@ -43,6 +43,10 @@ class Guest:
             )
         if not re.fullmatch(r"(?:[A-Za-z0-9_.-]+@)?[A-Za-z0-9][A-Za-z0-9_.-]*", host):
             raise ValueError("host must be an explicit SSH alias or user@hostname")
+        if host.rsplit("@", 1)[-1].split(".", 1)[0].casefold() == "wybie":
+            raise ValueError(
+                "wybie is in production and is excluded from qualification"
+            )
         self.name = name
         self.host = host
         self.local = STATE / name

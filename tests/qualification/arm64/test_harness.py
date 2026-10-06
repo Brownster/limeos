@@ -64,6 +64,21 @@ def build_fixture():
 
 
 class IdentityTests(unittest.TestCase):
+    def test_production_wybie_is_rejected_before_any_ssh(self):
+        with patch("native_vm.subprocess.run") as run:
+            for host in (
+                "wybie",
+                "holly@wybie",
+                "Wybie.local",
+                "root@WYBIE.example.test",
+            ):
+                with (
+                    self.subTest(host=host),
+                    self.assertRaisesRegex(ValueError, "production"),
+                ):
+                    Guest("run", host)
+            run.assert_not_called()
+
     def test_rejects_mixed_package_architecture_failed_gate_and_incomplete_build(self):
         original = build_fixture()
         mutations = []
