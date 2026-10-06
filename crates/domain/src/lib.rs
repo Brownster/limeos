@@ -17,6 +17,7 @@ mod pools;
 pub use pools::*;
 mod protection;
 pub use protection::*;
+pub mod backups;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
