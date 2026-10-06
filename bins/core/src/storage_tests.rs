@@ -1,4 +1,42 @@
 use super::*;
+#[test]
+fn failed_container_dependency_receipts_preserve_errors_after_version_validation() {
+    for code in [
+        ErrorCode::Conflict,
+        ErrorCode::Forbidden,
+        ErrorCode::Overloaded,
+        ErrorCode::Unavailable,
+    ] {
+        let mut receipt = limeos_executor_protocol::Receipt::empty();
+        receipt.ready = false;
+        receipt.error = Some(code);
+        // Match the actual failed receipt emitted by the executor, including
+        // its false readiness flag, across the JSON response boundary.
+        let wire = serde_json::to_vec(&receipt).unwrap();
+        let decoded = serde_json::from_slice(&wire).unwrap();
+        assert_eq!(
+            storage::container_storage_receipt(decoded, 100, 100)
+                .unwrap_err()
+                .0,
+            code
+        );
+        receipt.version = VERSION + 1;
+        assert_eq!(
+            storage::container_storage_receipt(receipt, 100, 100)
+                .unwrap_err()
+                .0,
+            ErrorCode::Unavailable
+        );
+    }
+    let mut receipt = limeos_executor_protocol::Receipt::empty();
+    receipt.ready = false;
+    assert_eq!(
+        storage::container_storage_receipt(receipt, 100, 100)
+            .unwrap_err()
+            .0,
+        ErrorCode::Unavailable
+    );
+}
 #[tokio::test]
 async fn core_owned_container_sockets_cannot_forge_storage_declarations() {
     let dir = tempfile::tempdir().unwrap();

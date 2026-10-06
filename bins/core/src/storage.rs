@@ -3,6 +3,29 @@ use limeos_domain::{
     PlanApproval, PlannedStorageSetup, Principal, StorageInventory, StorageInventoryView,
     StorageSetupInput,
 };
+pub(super) fn container_storage_receipt(
+    receipt: limeos_executor_protocol::Receipt,
+    requested_at: i64,
+    received_at: i64,
+) -> Result<limeos_domain::ContainerStorageInventory> {
+    if receipt.version != VERSION {
+        return Err(Error(ErrorCode::Unavailable));
+    }
+    if let Some(code) = receipt.error {
+        return Err(Error(code));
+    }
+    if !receipt.ready {
+        return Err(Error(ErrorCode::Unavailable));
+    }
+    let inventory = receipt
+        .container_storage
+        .ok_or(Error(ErrorCode::Unavailable))?;
+    inventory.validate(received_at)?;
+    if inventory.observed_at < requested_at {
+        return Err(Error(ErrorCode::Conflict));
+    }
+    Ok(inventory)
+}
 impl Core {
     pub(super) async fn fresh_container_storage(
         &self,
@@ -41,20 +64,7 @@ impl Core {
             .await?;
             let receipt: limeos_executor_protocol::Receipt =
                 limeos_contracts::read_frame(&mut stream).await?;
-            if receipt.version != VERSION || !receipt.ready {
-                return Err(Error(ErrorCode::Unavailable));
-            }
-            if let Some(code) = receipt.error {
-                return Err(Error(code));
-            }
-            let inventory = receipt
-                .container_storage
-                .ok_or(Error(ErrorCode::Unavailable))?;
-            inventory.validate(now())?;
-            if inventory.observed_at < requested_at {
-                return Err(Error(ErrorCode::Conflict));
-            }
-            Ok(inventory)
+            container_storage_receipt(receipt, requested_at, now())
         })
         .await
         .map_err(|_| Error(ErrorCode::Unavailable))?
