@@ -3,6 +3,7 @@ mod fstab;
 mod inventory;
 mod mounts;
 mod path;
+mod sources;
 mod swaps;
 mod targets;
 mod topology;
@@ -10,6 +11,10 @@ pub use fstab::planned_fstab;
 pub use inventory::inventory;
 use limeos_domain::{StorageFilesystem, StorageMountWaitPlan};
 use serde::Serialize;
+pub use sources::{
+    ContainerSourceEvidence, ContainerSourceIdentity, ContainerSourceKind, ContainerSourceMount,
+    ContainerSourcePath, ContainerSourceSnapshot, inspect_container_sources,
+};
 use std::{
     collections::BTreeMap,
     io::Read,
