@@ -31,6 +31,12 @@ pub struct IssuedSession {
     pub view: SessionView,
 }
 pub trait Backend: Clone + Send + Sync + 'static {
+    fn container_storage_inventory(
+        &self,
+        _token: String,
+    ) -> impl Future<Output = Result<limeos_domain::ContainerStorageInventoryView>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
     fn plan_storage_targets(
         &self,
         _token: String,
@@ -313,6 +319,10 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
             post(storage::target_cancel_job::<B>),
         )
         .route("/api/v1/storage/inventory", get(storage::inventory::<B>))
+        .route(
+            "/api/v1/storage/container-dependencies",
+            get(storage::container_dependencies::<B>),
+        )
         .route("/api/v1/storage/plans", post(storage::plan::<B>))
         .route("/api/v1/storage/plans/{id}", get(storage::read::<B>))
         .route(

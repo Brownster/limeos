@@ -30,6 +30,9 @@ pub struct Ceiling {
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Request {
+    ContainerStorageInventory {
+        version: u16,
+    },
     InspectStorageTargets {
         version: u16,
         contract: limeos_domain::StorageContract,
@@ -104,6 +107,8 @@ pub struct Receipt {
     pub storage_targets: Option<limeos_domain::StorageTargetSnapshot>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_preparation: Option<limeos_domain::TargetPreparationReceipt>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub container_storage: Option<limeos_domain::ContainerStorageInventory>,
 }
 /// A separate root-owned ceiling for the dormant directory-preparation service.
 /// Exact UUID/path pairs constrain the core even if its authority is compromised.
@@ -189,6 +194,11 @@ impl Ceiling {
             return Err(Error(ErrorCode::Forbidden));
         }
         match request {
+            Request::ContainerStorageInventory { version }
+                if *version == VERSION && self.allow_container_read =>
+            {
+                Ok(Receipt::empty())
+            }
             Request::StorageInventory { version }
                 if *version == VERSION && self.allow_storage_read =>
             {
@@ -206,6 +216,7 @@ impl Ceiling {
                     storage: None,
                     storage_targets: None,
                     target_preparation: None,
+                    container_storage: None,
                 })
             }
             Request::Observe {
@@ -226,6 +237,7 @@ impl Ceiling {
                     storage: None,
                     storage_targets: None,
                     target_preparation: None,
+                    container_storage: None,
                 })
             }
             Request::Inspect { version, resource }
@@ -331,12 +343,44 @@ impl Receipt {
             storage: None,
             storage_targets: None,
             target_preparation: None,
+            container_storage: None,
         }
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn container_storage_read_requires_the_container_ceiling_and_accepts_no_filters() {
+        let mut ceiling: Ceiling = serde_json::from_str(
+            r#"{"version":1,"core_uid":1001,"allow_health":true,"allow_container_read":true}"#,
+        )
+        .unwrap();
+        let request = Request::ContainerStorageInventory { version: VERSION };
+        assert!(ceiling.validate(1001, &request).is_ok());
+        assert!(ceiling.validate(1002, &request).is_err());
+        assert!(
+            ceiling
+                .validate(1001, &Request::ContainerStorageInventory { version: 2 })
+                .is_err()
+        );
+        assert!(!ceiling.can_write());
+        ceiling.allow_container_read = false;
+        ceiling.allow_host_read = true;
+        assert!(ceiling.validate(1001, &request).is_err());
+        for field in [
+            "resource",
+            "paths",
+            "principal",
+            "managed_containers",
+            "command",
+        ] {
+            let mut value =
+                serde_json::json!({"operation":"container_storage_inventory","version":1});
+            value[field] = serde_json::json!("caller supplied");
+            assert!(serde_json::from_value::<Request>(value).is_err());
+        }
+    }
     #[test]
     fn target_preparation_ceiling_requires_exact_uuid_and_literal_path_and_core_uid() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(

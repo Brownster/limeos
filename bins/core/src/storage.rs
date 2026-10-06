@@ -4,6 +4,75 @@ use limeos_domain::{
     StorageSetupInput,
 };
 impl Core {
+    pub(super) async fn fresh_container_storage(
+        &self,
+    ) -> Result<limeos_domain::ContainerStorageInventory> {
+        use std::os::unix::fs::{FileTypeExt, MetadataExt};
+        let _permit = self
+            .storage_readers
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| Error(ErrorCode::Overloaded))?;
+        let requested_at = now();
+        tokio::time::timeout(limeos_contracts::RPC_DEADLINE, async {
+            let owner = std::fs::symlink_metadata(self.container_socket.as_ref())
+                .map_err(|_| Error(ErrorCode::Unavailable))?;
+            let core_uid = std::fs::metadata("/proc/self")
+                .map_err(|_| Error(ErrorCode::Unavailable))?
+                .uid();
+            if !owner.file_type().is_socket() || owner.uid() == 0 || owner.uid() == core_uid {
+                return Err(Error(ErrorCode::Forbidden));
+            }
+            let mut stream = UnixStream::connect(self.container_socket.as_ref())
+                .await
+                .map_err(|_| Error(ErrorCode::Unavailable))?;
+            if stream
+                .peer_cred()
+                .map_err(|_| Error(ErrorCode::Unavailable))?
+                .uid()
+                != owner.uid()
+            {
+                return Err(Error(ErrorCode::Forbidden));
+            }
+            limeos_contracts::write_frame(
+                &mut stream,
+                &limeos_executor_protocol::Request::ContainerStorageInventory { version: VERSION },
+            )
+            .await?;
+            let receipt: limeos_executor_protocol::Receipt =
+                limeos_contracts::read_frame(&mut stream).await?;
+            if receipt.version != VERSION || !receipt.ready {
+                return Err(Error(ErrorCode::Unavailable));
+            }
+            if let Some(code) = receipt.error {
+                return Err(Error(code));
+            }
+            let inventory = receipt
+                .container_storage
+                .ok_or(Error(ErrorCode::Unavailable))?;
+            inventory.validate(now())?;
+            if inventory.observed_at < requested_at {
+                return Err(Error(ErrorCode::Conflict));
+            }
+            Ok(inventory)
+        })
+        .await
+        .map_err(|_| Error(ErrorCode::Unavailable))?
+    }
+    pub(super) async fn human_container_storage(
+        &self,
+        token: String,
+    ) -> Result<limeos_domain::ContainerStorageInventoryView> {
+        self.storage_principal(token.clone(), None).await?;
+        let inventory = self.fresh_container_storage().await?;
+        self.storage_principal(token, None).await?;
+        inventory.validate(now())?;
+        let body = serde_json::to_string(&inventory).map_err(|_| Error(ErrorCode::Unavailable))?;
+        Ok(limeos_domain::ContainerStorageInventoryView {
+            inventory,
+            digest: limeos_identity::digest(&body),
+        })
+    }
     pub(super) async fn storage_principal(
         &self,
         token: String,

@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ContainerStorageInventoryView",
+  "type": "object",
+  "properties": {
+    "digest": {
+      "type": "string"
+    },
+    "inventory": {
+      "$ref": "#/$defs/ContainerStorageInventory"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "inventory",
+    "digest"
+  ],
+  "$defs": {
+    "ContainerSnapshot": {
+      "description": "Selected inspection evidence. Environment variables, labels and host paths\nnever enter a plan. The full ID, image and start timestamp identify an instance.",
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "resource": {
+          "type": "string"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "started_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "image",
+        "started_at",
+        "running"
+      ]
+    },
+    "ContainerStorageConsumer": {
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/$defs/ContainerSnapshot"
+        },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContainerStorageMount"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "container",
+        "mounts"
+      ]
+    },
+    "ContainerStorageInventory": {
+      "type": "object",
+      "properties": {
+        "containers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContainerStorageConsumer"
+          }
+        },
+        "engine_id": {
+          "type": "string"
+        },
+        "observed_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "engine_id",
+        "observed_at",
+        "containers"
+      ]
+    },
+    "ContainerStorageMount": {
+      "type": "object",
+      "properties": {
+        "destination": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/ContainerStorageSource"
+        },
+        "writable": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "destination",
+        "writable"
+      ]
+    },
+    "ContainerStorageSource": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "bind"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "path"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "driver": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "volume"
+            },
+            "name": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "path",
+            "name",
+            "driver"
+          ]
+        }
+      ]
+    }
+  }
+}

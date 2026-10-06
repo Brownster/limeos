@@ -11,6 +11,8 @@ mod storage;
 pub use storage::*;
 mod storage_targets;
 pub use storage_targets::*;
+mod storage_dependencies;
+pub use storage_dependencies::*;
 mod pools;
 pub use pools::*;
 mod protection;

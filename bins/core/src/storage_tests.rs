@@ -1,5 +1,38 @@
 use super::*;
 #[tokio::test]
+async fn core_owned_container_sockets_cannot_forge_storage_declarations() {
+    let dir = tempfile::tempdir().unwrap();
+    let socket = dir.path().join("container.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let core = Core {
+        db: Database::open(&dir.path().join("core.sqlite")).unwrap(),
+        container_socket: Arc::new(socket),
+        storage_socket: Arc::new("/unused".into()),
+        storage_target_socket: Arc::new("/unused-targets".into()),
+        storage_readers: Arc::new(Semaphore::new(1)),
+        compose_catalog: None,
+        password_workers: Arc::new(Semaphore::new(2)),
+        dummy_hash: "unused".into(),
+        observations: Default::default(),
+        telemetry: None,
+    };
+    assert_eq!(
+        core.fresh_container_storage().await.unwrap_err().0,
+        ErrorCode::Forbidden
+    );
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(20), listener.accept())
+            .await
+            .is_err()
+    );
+    let permit = core.storage_readers.clone().acquire_owned().await.unwrap();
+    assert_eq!(
+        core.fresh_container_storage().await.unwrap_err().0,
+        ErrorCode::Overloaded
+    );
+    drop(permit);
+}
+#[tokio::test]
 async fn storage_authority_is_checked_before_contacting_a_reader_and_tasks_cannot_approve() {
     for role in [
         limeos_domain::Role::Viewer,
@@ -42,6 +75,24 @@ async fn storage_authority_is_checked_before_contacting_a_reader_and_tasks_canno
             } else {
                 ErrorCode::Forbidden
             }
+        );
+        assert_eq!(
+            core.container_storage_inventory(token.clone())
+                .await
+                .unwrap_err()
+                .0,
+            if role == limeos_domain::Role::Administrator {
+                ErrorCode::Unavailable
+            } else {
+                ErrorCode::Forbidden
+            }
+        );
+        assert_eq!(
+            core.container_storage_inventory("b".repeat(64))
+                .await
+                .unwrap_err()
+                .0,
+            ErrorCode::Unauthenticated
         );
         assert_eq!(
             core.approve_storage("b".repeat(64), csrf, "c".repeat(64), "d".repeat(64))

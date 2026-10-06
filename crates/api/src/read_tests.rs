@@ -11,6 +11,23 @@ struct ReadBackend {
     size: usize,
 }
 impl Backend for ReadBackend {
+    async fn container_storage_inventory(
+        &self,
+        _: String,
+    ) -> Result<limeos_domain::ContainerStorageInventoryView> {
+        if !self.authorized.load(Ordering::Relaxed) {
+            return Err(Error(ErrorCode::Unauthenticated));
+        }
+        Ok(limeos_domain::ContainerStorageInventoryView {
+            inventory: limeos_domain::ContainerStorageInventory {
+                version: 1,
+                engine_id: "fixture-engine".into(),
+                observed_at: 100,
+                containers: vec![],
+            },
+            digest: "a".repeat(64),
+        })
+    }
     async fn login(&self, _: Login) -> Result<IssuedSession> {
         Err(Error(ErrorCode::Unauthenticated))
     }
@@ -67,6 +84,53 @@ fn request(path: &str) -> Request {
         .header("cookie", format!("__Host-limeos={}", "a".repeat(64)))
         .body(Body::empty())
         .unwrap()
+}
+#[tokio::test]
+async fn container_storage_read_requires_authentication_has_no_filters_and_rejects_post() {
+    let b = backend(0);
+    let app = router(b.clone(), "https://localhost".into());
+    let path = "/api/v1/storage/container-dependencies";
+    assert_eq!(
+        app.clone()
+            .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        app.clone()
+            .oneshot(request(&format!("{path}?paths=/mnt/data")))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        app.clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(path)
+                    .body(Body::empty())
+                    .unwrap()
+            )
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::METHOD_NOT_ALLOWED
+    );
+    let response = app.clone().oneshot(request(path)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    let view: limeos_domain::ContainerStorageInventoryView =
+        serde_json::from_slice(&to_bytes(response.into_body(), 65536).await.unwrap()).unwrap();
+    assert!(view.inventory.containers.is_empty());
+    b.authorized.store(false, Ordering::Relaxed);
+    assert_eq!(
+        app.oneshot(request(path)).await.unwrap().status(),
+        StatusCode::UNAUTHORIZED
+    );
 }
 #[tokio::test]
 async fn reads_require_session_reject_bad_queries_and_paginate_with_revision() {

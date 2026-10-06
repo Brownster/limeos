@@ -120,6 +120,12 @@ impl Core {
     }
 }
 impl Backend for Core {
+    async fn container_storage_inventory(
+        &self,
+        token: String,
+    ) -> Result<limeos_domain::ContainerStorageInventoryView> {
+        self.human_container_storage(token).await
+    }
     async fn plan_storage_targets(
         &self,
         token: String,

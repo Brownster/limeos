@@ -259,6 +259,14 @@ async fn run() -> std::io::Result<()> {
                 .map_err(|_| limeos_domain::Error(limeos_domain::ErrorCode::Unavailable))??;
                 let mut receipt = ceiling.validate(peer.uid(), &request)?;
                 match request {
+                    Request::ContainerStorageInventory { .. }
+                        if source == limeos_contracts::Source::Docker =>
+                    {
+                        let _single_flight = storage_permit.try_lock().map_err(|_| {
+                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
+                        })?;
+                        receipt.container_storage = Some(engine.storage_inventory().await?);
+                    }
                     Request::StorageInventory { .. } if storage_reader => {
                         let _single_flight = storage_permit.try_lock().map_err(|_| {
                             limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)

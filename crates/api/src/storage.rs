@@ -2,6 +2,25 @@ use super::*;
 use axum::extract::Path;
 use operations::{credentials, input};
 
+pub(super) async fn container_dependencies<B: Backend>(
+    State(app): State<App<B>>,
+    uri: axum::http::Uri,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let token = cookie(&headers)?;
+        if uri.query().is_some() {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
+        app.backend.container_storage_inventory(token).await
+    }
+    .await;
+    match result {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(e) => failure(e),
+    }
+}
+
 pub(super) async fn target_plan<B: Backend>(
     State(app): State<App<B>>,
     request: Request,
