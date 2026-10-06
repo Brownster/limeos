@@ -64,6 +64,18 @@ def rpc(request):
         return json.loads(body)
 
 
+def refused_executor_reply(body, error):
+    # The current protocol sends a bounded refusal. EOF/reset is also a refusal;
+    # a successful health response or any observation/effect evidence is not.
+    if body.strip() == "denied":
+        return True
+    try:
+        value = json.loads(body)
+    except json.JSONDecodeError:
+        return False
+    return value == {"version": 1, "ready": False, "error": error}
+
+
 def main():
     if (
         os.geteuid() != 0
@@ -288,7 +300,7 @@ print(body.decode())
             *args,
             json.dumps({"operation": "health", "version": 1}),
         )
-        assert denied.stdout.strip() == "denied"
+        assert refused_executor_reply(denied.stdout, "forbidden")
         forged = run(
             "runuser",
             "-u",
@@ -298,7 +310,7 @@ print(body.decode())
             *args,
             json.dumps({"operation": "health", "version": 1, "actor": "root"}),
         )
-        assert forged.stdout.strip() == "denied"
+        assert refused_executor_reply(forged.stdout, "invalid_input")
     assert (
         run(
             "runuser",

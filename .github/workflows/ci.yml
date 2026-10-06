@@ -115,6 +115,9 @@ jobs:
           python3 tests/privileged_vm/run.py --repository dist/test-repo --storage-disks --guest-script tests/privileged_vm/p04_storage_guest.py --output docs/rewrite-evidence/p04/storage-vm-result.json
           python3 tests/privileged_vm/run.py --repository dist/test-repo --storage-disks --guest-script tests/privileged_vm/p04_locks_guest.py --output docs/rewrite-evidence/p04/locks-vm-result.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
         with:
           name: debian-vm-evidence
-          path: docs/rewrite-evidence/p*/*vm-result.json
+          path: |
+            docs/rewrite-evidence/p*/*vm-result.json
+            docs/rewrite-evidence/p*/*vm-failure.txt
