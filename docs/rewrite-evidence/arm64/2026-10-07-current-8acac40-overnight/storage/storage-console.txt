@@ -1,0 +1,52 @@
+PASS signed 0.4.7+arm64.1 install, protected executable/libraries and dormant bounded readiness unit
+PASS single_disk: UUID, inherited disk serial, exact descriptor mount and host namespace
+PASS separate_downloads: UUID, inherited disk serial, exact descriptor mount and host namespace
+PASS protected_pool: UUID, inherited disk serial, exact descriptor mount and host namespace
+PASS readiness does not require or create media and downloads subdirectories
+PASS filesystem type and physical serial mismatches are refused without rewriting the plan
+PASS root filesystem alias and another partition on the boot disk are excluded
+PASS fresh raw probes detect an unmounted duplicate UUID without relying on udev
+PASS replacement disk at the same path and a leftover unmounted directory fail readiness
+PASS an unsatisfied installed device wait fails within its three-second plan deadline
+PASS systemd independently kills a longer wait at the configured watchdog bound
+PASS symlink plan/mount aliases and writable ancestors cannot verify storage
+PASS free-form unit text, oversized files and a reader-blocking FIFO are refused without writes
+PASS a private mount namespace is refused even when it sees the same filesystem
+PASS a live device-mapper alias cannot broaden or duplicate filesystem identity
+PASS all synthetic data survives identity, replacement, alias and wait failures
+PASS installed scrypt and PBKDF2 wrong/correct login and successful-only Argon2 upgrade
+PASS schema 8, dormant standard/shadow reader payload and installed empty-capability host reader
+PASS fresh raw disk inventory agrees across CLI/RPC/HTTP and excludes fstab credentials
+PASS three guided profiles persist deterministic UUID/fstab/readiness previews without disk or fstab writes
+PASS restart preserves human session and preview; approval is hashed and creates no executable job
+PASS operator fstab edit invalidates stale proposal/approval while review and withdrawal remain available
+PASS boot backing, changed serial and unmanaged fstab ownership conflict are refused without overwriting the operator entry
+PASS mount loss prevents old approval; unmounted filesystems can be selected and duplicate raw UUIDs cannot
+PASS storage routes require current grants, Origin/CSRF and POST; malformed fstab remains unchanged and execution is unavailable
+PASS all synthetic data and original fstab survive preview, approval, restart and refusal scenarios
+PASS package pre-removal stops a manually started storage reader before replacing binaries
+PASS fresh active swap file identity excludes its backing disk and sibling partition; HTTP creation/stale approval refuse it and swapoff restores the fingerprint
+PASS installed root operator preparation creates only an empty 0755 target; verified receipts survive lookup and idempotent replay
+PASS symlinks, writable or foreign-owned paths, bare data, absent parents and targets beneath another mount are refused without alteration
+PASS changed target/fstab, expiry, free-form requests and old API previews cannot authorize target preparation or create receipts
+PASS separate-downloads preparation verifies existing data and creates its second physical target without media leaves
+PASS protected-pool preparation verifies four physical role targets without creating the virtual pool or backup leaves
+PASS real executor death after durable dispatch preserves three resource claims; receipt lookup and retry cannot replay mkdir or bypass uncertainty
+PASS explicit fresh reconciliation proves an unchanged target and releases its claims without replaying the effect
+PASS real executor death after mkdir keeps five claims; partial preparation and unexpected data block reconciliation; root-completed postconditions resolve without executor replay
+PASS all synthetic filesystem data, original fstab and media paths survive target preparation and interruption
+PASS installed schema acquires complete claim sets atomically; overlap has no partial locks and an unrelated job can dispatch
+PASS installed active claims, required sets and job identity reject deletion or expiry extension
+PASS real installed core SIGKILL and automatic restart retain every claim and recover running work without effect replay
+PASS installed startup refuses missing dependency locks without advancing generation, writing recovery events or automatically rebuilding claims
+PASS installed startup rejects altered dispatch guards even when SQLite quick_check and every existing claim are valid
+PASS dormant standard-only target service requires an explicit exact UUID/path ceiling and kernel core UID; only CAP_CHOWN is effective and no mount capability exists
+PASS new human approval binds the complete target plan, rejects preview tokens and edits, creates only one empty root-owned directory, and commits independent inode verification before releasing core claims; read/replay remains pure with the executor stopped
+PASS fresh target identity changes after review block approval and cancellation remains independent of inspection
+PASS real installed core and target-service SIGKILL after Prepared keeps all core/root claims; receipt-only recovery and lost-response replay cannot repeat mkdir, cancel uncertain work or dispatch a conflicting job
+PASS explicit root observation resolves unchanged interrupted targets without replay; the bound terminal receipt releases core claims and permits the already approved waiting job
+PASS private pre-delivery core fault retains complete claims despite a missing root receipt; explicit protected-plan reconciliation independently proves unchanged targets and releases the bound job without mkdir
+PASS approved target jobs and interruption preserve fstab, mounted fixture data and all media/download path leaves
+{"shadow_service_names_scoped": true, "target_service_active_after_prerm": false}
+PASS installed shadow removal preserves the active standard target service and policy; standard prerm stops every optional root service before binary replacement, and configure leaves the target service dormant
+exit 0
