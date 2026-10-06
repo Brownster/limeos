@@ -8,6 +8,14 @@ quiet window on wybie or Holly's production Pi. `--host` has no default, and
 the runner rejects wybie by name before any SSH command. Only supply an
 isolated host; alternate aliases and IP addresses are not isolation proof.
 
+The operator subsequently authorized [one overnight window](../../../docs/plans/2026-10-06-engineer-arm64-overnight-qualification.md)
+for `holly@wybie`, ending **2026-10-07 07:00 Europe/London (06:00 UTC)**.
+Engineer 1 owns that window. The new brief requires an explicit expiring
+authorization and host-side guest shutdown; the current runner still rejects
+wybie until that separately tested change exists. Preserve default exclusion
+and the historical input bundles. Production Python/services/data remain
+untouched, and all LimeOS effects stay in disposable guests.
+
 The original engineer preparation freezes runtime source at
 `60e6309384c6a93caa63c0d578dc57d981897863`, authority schema 8. Use a distinct
 qualification package version, for example `0.4.4+arm64.1`. Package labels

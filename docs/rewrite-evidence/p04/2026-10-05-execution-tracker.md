@@ -17,6 +17,8 @@ The first slice ports the frozen storage contract into typed, generated domain c
 
 Representative capture found a literal Navidrome `/data"` bind target beside an anonymous `/data` volume, case-sensitive `/mnt/storage/TV` and `/mnt/storage/Movies` paths, and VPN capabilities/shared network namespaces. Import/deployment must report and preserve unsupported or malformed settings rather than silently flatten them. No correction was made on wybie.
 
+The [next engineer assignments](../../plans/2026-10-06-engineer-assignments.md) give engineer 1 current native ARM64 qualification during the operator's named overnight window, and engineer 2 verified archive replay/private staging. The integrator keeps RW-040 physical dependencies and mount/fstab integration. Work is assigned, not yet accepted; no new native installed result or restore effect is claimed. The Pi window ends at 07:00 Europe/London on 2026-10-07, independently of the engineering estimates.
+
 No P04 defect-register row is closed. Destructive/storage tests require realistic virtual disks, boot protection, replacement/UUID races, lost mounts, dependent shutdown, concurrent edits, mount namespace checks and archive/restore failure scenarios. Schedules and notifications must work with all model providers disabled. The phase cannot complete until each existing feature has a mapped acceptance scenario and every assigned defect regression passes.
 
 ## First storage slice
