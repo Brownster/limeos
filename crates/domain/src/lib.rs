@@ -9,6 +9,8 @@ mod compose;
 pub use compose::*;
 mod storage;
 pub use storage::*;
+mod storage_targets;
+pub use storage_targets::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -183,6 +185,7 @@ pub enum Intent {
     ContainerRestart { plan: RestartPlan },
     ContainerStart { plan: ContainerPlan },
     ContainerStop { plan: ContainerPlan },
+    StoragePrepareTargets { plan: Box<StorageTargetPlan> },
 }
 impl Intent {
     pub fn resource(&self) -> &str {
@@ -191,6 +194,7 @@ impl Intent {
             Self::ContainerRestart { plan }
             | Self::ContainerStart { plan }
             | Self::ContainerStop { plan } => &plan.expected.resource,
+            Self::StoragePrepareTargets { .. } => "storage:configuration",
         }
     }
     pub fn container(plan: ContainerPlan) -> Self {

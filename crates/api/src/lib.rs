@@ -31,6 +31,61 @@ pub struct IssuedSession {
     pub view: SessionView,
 }
 pub trait Backend: Clone + Send + Sync + 'static {
+    fn plan_storage_targets(
+        &self,
+        _token: String,
+        _csrf: String,
+        _contract: limeos_domain::StorageContract,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageTargets>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn storage_target_plan(
+        &self,
+        _token: String,
+        _id: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageTargets>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn approve_storage_targets(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+        _digest: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn queue_storage_targets(
+        &self,
+        _token: String,
+        _csrf: String,
+        _input: limeos_contracts::QueueStorageTargetsInput,
+    ) -> impl Future<Output = Result<limeos_domain::StorageTargetJob>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn storage_target_job(
+        &self,
+        _token: String,
+        _id: String,
+    ) -> impl Future<Output = Result<limeos_domain::StorageTargetJob>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn cancel_storage_targets(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+    ) -> impl Future<Output = Result<()>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn cancel_storage_target_job(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+    ) -> impl Future<Output = Result<()>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
     fn storage_inventory(
         &self,
         _token: String,
@@ -229,6 +284,34 @@ impl Limiter {
 pub fn router<B: Backend>(backend: B, origin: String) -> Router {
     Router::new()
         .route("/api/v1/health", get(health::<B>))
+        .route(
+            "/api/v1/storage/targets/plans",
+            post(storage::target_plan::<B>),
+        )
+        .route(
+            "/api/v1/storage/targets/plans/{id}",
+            get(storage::target_read::<B>),
+        )
+        .route(
+            "/api/v1/storage/targets/plans/{id}/approval",
+            post(storage::target_approve::<B>),
+        )
+        .route(
+            "/api/v1/storage/targets/plans/{id}/cancel",
+            post(storage::target_cancel::<B>),
+        )
+        .route(
+            "/api/v1/storage/targets/jobs",
+            post(storage::target_queue::<B>),
+        )
+        .route(
+            "/api/v1/storage/targets/jobs/{id}",
+            get(storage::target_job::<B>),
+        )
+        .route(
+            "/api/v1/storage/targets/jobs/{id}/cancel",
+            post(storage::target_cancel_job::<B>),
+        )
         .route("/api/v1/storage/inventory", get(storage::inventory::<B>))
         .route("/api/v1/storage/plans", post(storage::plan::<B>))
         .route("/api/v1/storage/plans/{id}", get(storage::read::<B>))

@@ -1,12 +1,16 @@
 //! Root operator target preparation. This is separate from non-executable API previews.
 use crate::*;
-use limeos_domain::{StorageContract, StorageInventory, opaque_id};
+pub use limeos_domain::{
+    DirectoryIdentity, PreparationState, TargetEvidence, TargetPreparationPlan,
+    TargetPreparationReceipt,
+};
+use limeos_domain::{StorageContract, StorageInventory, StorageTargetSnapshot, opaque_id};
 use rusqlite::{Connection, OptionalExtension, params};
 use rustix::{
     fd::OwnedFd,
     fs::{FlockOperation, Mode, OFlags},
 };
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::de::DeserializeOwned;
 use std::{
     fs::File,
     io::Read,
@@ -15,52 +19,7 @@ use std::{
 
 const STATE: &str = "/var/lib/limeos/executors/storage";
 const OPERATION: &str = "storage.prepare_targets";
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DirectoryIdentity {
-    pub major: u32,
-    pub minor: u32,
-    pub mount_id: u64,
-    pub inode: u64,
-    pub mode: u16,
-    pub uid: u32,
-    pub gid: u32,
-}
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TargetEvidence {
-    pub mountpoint: String,
-    pub parent: DirectoryIdentity,
-    pub existing: Option<DirectoryIdentity>,
-}
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TargetPreparationPlan {
-    pub version: u16,
-    pub operation: String,
-    pub action: String,
-    pub expected: StorageInventory,
-    pub contract: StorageContract,
-    pub targets: Vec<TargetEvidence>,
-    pub created_at: i64,
-    pub expires_at: i64,
-}
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PreparationState {
-    Prepared,
-    Verified,
-    PreconditionChanged,
-    OutcomeUnknown,
-}
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TargetPreparationReceipt {
-    pub plan: TargetPreparationPlan,
-    pub digest: String,
-    pub state: PreparationState,
-    pub after: Vec<TargetEvidence>,
-}
+const JOURNAL_SCHEMA: &str = "BEGIN IMMEDIATE; CREATE TABLE receipts(action TEXT PRIMARY KEY,digest TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','verified','precondition_changed','outcome_unknown')),body TEXT NOT NULL) STRICT; CREATE TABLE locks(resource TEXT PRIMARY KEY,action TEXT NOT NULL REFERENCES receipts(action)) STRICT; PRAGMA user_version=1; COMMIT;";
 fn now() -> Result<i64> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -82,7 +41,7 @@ fn root() -> Result<()> {
     }
     Ok(())
 }
-fn read_json<T: DeserializeOwned>(file: &Path) -> Result<T> {
+pub fn read_protected_json<T: DeserializeOwned>(file: &Path) -> Result<T> {
     root()?;
     let fd = path::open(file, false, true)?;
     let s = path::stat(&fd)?;
@@ -100,10 +59,10 @@ fn read_json<T: DeserializeOwned>(file: &Path) -> Result<T> {
     serde_json::from_slice(&bytes).map_err(|_| Failure::InvalidPlan)
 }
 pub fn read_contract(file: &Path) -> Result<StorageContract> {
-    read_json(file)
+    read_protected_json(file)
 }
 pub fn read_target_plan(file: &Path) -> Result<TargetPreparationPlan> {
-    read_json(file)
+    read_protected_json(file)
 }
 fn identity(fd: &OwnedFd) -> Result<DirectoryIdentity> {
     let s = path::stat(fd)?;
@@ -211,34 +170,18 @@ fn inspect(contract: &StorageContract, inventory: &StorageInventory) -> Result<V
 fn evidence(targets: &[Target]) -> Vec<TargetEvidence> {
     targets.iter().map(|t| t.evidence.clone()).collect()
 }
-impl TargetPreparationPlan {
-    fn validate(&self, at: i64) -> Result<()> {
-        if self.version != 1
-            || self.operation != OPERATION
-            || !opaque_id(&self.action)
-            || self.created_at < 0
-            || self.expires_at <= self.created_at
-            || self.expires_at > self.created_at.saturating_add(300)
-            || at < self.created_at
-            || at >= self.expires_at
-            || self.targets.len() != self.contract.devices.len()
-        {
-            return Err(Failure::InvalidPlan);
-        }
-        self.contract.validate().map_err(|_| Failure::InvalidPlan)?;
-        self.expected.validate().map_err(|_| Failure::InvalidPlan)?;
-        Ok(())
+pub async fn target_snapshot(contract: &StorageContract) -> Result<StorageTargetSnapshot> {
+    root()?;
+    let expected = inventory().await?;
+    let targets = inspect(contract, &expected)?;
+    let targets = evidence(&targets);
+    if inventory().await? != expected || evidence(&inspect(contract, &expected)?) != targets {
+        return Err(Failure::Conflict);
     }
-    fn resources(&self) -> Vec<String> {
-        let mut resources = vec!["storage:configuration".into()];
-        for d in &self.contract.devices {
-            resources.push(format!("storage:uuid:{}", d.filesystem_uuid));
-            resources.push(format!("storage:mount:{}", d.mountpoint));
-        }
-        resources.sort();
-        resources.dedup();
-        resources
-    }
+    Ok(StorageTargetSnapshot {
+        inventory: expected,
+        targets,
+    })
 }
 pub async fn target_plan(contract: &StorageContract) -> Result<TargetPreparationPlan> {
     root()?;
@@ -260,7 +203,8 @@ pub async fn target_plan(contract: &StorageContract) -> Result<TargetPreparation
         created_at,
         expires_at: created_at + 300,
     };
-    plan.validate(created_at)?;
+    plan.validate(created_at)
+        .map_err(|_| Failure::InvalidPlan)?;
     if encode(&plan)?.len() > 65536 {
         return Err(Failure::InvalidPlan);
     }
@@ -333,11 +277,13 @@ impl Journal {
         {
             return Err(Failure::StateNotDurable);
         }
-        Ok(Self {
+        let journal = Self {
             conn,
             _lock: lock,
             directory,
-        })
+        };
+        journal.check()?;
+        Ok(journal)
     }
     fn at(state: &Path) -> Result<Self> {
         root()?;
@@ -398,9 +344,13 @@ impl Journal {
             return Err(Failure::StateNotDurable);
         }
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF; PRAGMA foreign_keys=ON; PRAGMA max_page_count=4096; PRAGMA wal_autocheckpoint=128; PRAGMA journal_size_limit=1048576;").map_err(durable)?;
-        match conn.pragma_query_value(None, "user_version", |r| r.get::<_,u32>(0)).map_err(durable)? {
-            0 => conn.execute_batch("BEGIN IMMEDIATE; CREATE TABLE receipts(action TEXT PRIMARY KEY,digest TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','verified','precondition_changed','outcome_unknown')),body TEXT NOT NULL) STRICT; CREATE TABLE locks(resource TEXT PRIMARY KEY,action TEXT NOT NULL REFERENCES receipts(action)) STRICT; PRAGMA user_version=1; COMMIT;").map_err(durable)?,
-            1 => {}, _ => return Err(Failure::StateNotDurable),
+        match conn
+            .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
+            .map_err(durable)?
+        {
+            0 => conn.execute_batch(JOURNAL_SCHEMA).map_err(durable)?,
+            1 => {}
+            _ => return Err(Failure::StateNotDurable),
         }
         if conn
             .query_row("PRAGMA quick_check(1)", [], |r| r.get::<_, String>(0))
@@ -423,11 +373,92 @@ impl Journal {
         )
         .map_err(|_| Failure::StateNotDurable)?;
         rustix::fs::fsync(&sync).map_err(|_| Failure::StateNotDurable)?;
-        Ok(Self {
+        let journal = Self {
             conn,
             _lock: lock,
             directory: sync,
-        })
+        };
+        journal.check()?;
+        Ok(journal)
+    }
+    fn check(&self) -> Result<()> {
+        let reference = Connection::open_in_memory().map_err(durable)?;
+        reference.execute_batch(JOURNAL_SCHEMA).map_err(durable)?;
+        for name in ["receipts", "locks"] {
+            let expected: String = reference
+                .query_row(
+                    "SELECT sql FROM sqlite_schema WHERE type='table' AND name=?",
+                    [name],
+                    |r| r.get(0),
+                )
+                .map_err(durable)?;
+            let actual: Option<String> = self
+                .conn
+                .query_row(
+                    "SELECT sql FROM sqlite_schema WHERE type='table' AND name=?",
+                    [name],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(durable)?;
+            if actual.as_ref() != Some(&expected) {
+                return Err(Failure::StateNotDurable);
+            }
+        }
+        if self
+            .conn
+            .query_row("PRAGMA quick_check(1)", [], |r| r.get::<_, String>(0))
+            .map_err(durable)?
+            != "ok"
+            || self
+                .conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM pragma_foreign_key_check)",
+                    [],
+                    |r| r.get::<_, bool>(0),
+                )
+                .map_err(durable)?
+        {
+            return Err(Failure::StateNotDurable);
+        }
+        let mut stmt = self
+            .conn
+            .prepare("SELECT action FROM receipts ORDER BY action")
+            .map_err(durable)?;
+        for row in stmt
+            .query_map([], |r| r.get::<_, String>(0))
+            .map_err(durable)?
+        {
+            let action = row.map_err(durable)?;
+            let receipt = self
+                .receipt(&action, None)?
+                .ok_or(Failure::StateNotDurable)?;
+            receipt
+                .plan
+                .validate(receipt.plan.created_at)
+                .map_err(|_| Failure::StateNotDurable)?;
+            let mut required = self
+                .conn
+                .prepare("SELECT resource FROM locks WHERE action=? ORDER BY resource")
+                .map_err(durable)?;
+            let actual = required
+                .query_map([&action], |r| r.get::<_, String>(0))
+                .map_err(durable)?
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(durable)?;
+            let expected = if matches!(
+                receipt.state,
+                PreparationState::Prepared | PreparationState::OutcomeUnknown
+            ) {
+                receipt.plan.resources()
+            } else {
+                vec![]
+            };
+            if actual != expected {
+                return Err(Failure::StateNotDurable);
+            }
+        }
+        Ok(())
     }
     fn receipt(
         &self,
@@ -524,7 +555,10 @@ pub async fn reconcile_targets(action: &str) -> Result<TargetPreparationReceipt>
     ) {
         return Ok(receipt);
     }
-    receipt.plan.validate(receipt.plan.created_at)?;
+    receipt
+        .plan
+        .validate(receipt.plan.created_at)
+        .map_err(|_| Failure::InvalidPlan)?;
     if inventory().await? != receipt.plan.expected {
         return Err(Failure::Conflict);
     }
@@ -565,6 +599,41 @@ pub async fn reconcile_targets(action: &str) -> Result<TargetPreparationReceipt>
     journal.finish(&receipt)?;
     Ok(receipt)
 }
+/// Explicit root review can resolve core death before IPC delivery. Absence of
+/// a receipt alone is insufficient: the full original fresh target/device
+/// evidence must still match. This never repeats creation and has no RPC path.
+pub async fn reconcile_target_plan(
+    plan: &TargetPreparationPlan,
+) -> Result<TargetPreparationReceipt> {
+    root()?;
+    plan.validate(plan.created_at)
+        .map_err(|_| Failure::InvalidPlan)?;
+    let mut journal = Journal::open()?;
+    let digest = limeos_identity::digest(&encode(plan)?);
+    if journal.receipt(&plan.action, Some(&digest))?.is_some() {
+        drop(journal);
+        return reconcile_targets(&plan.action).await;
+    }
+    let before = target_snapshot(&plan.contract).await?;
+    if before.inventory != plan.expected || before.targets != plan.targets {
+        return Err(Failure::Conflict);
+    }
+    let mut receipt = TargetPreparationReceipt {
+        plan: plan.clone(),
+        digest,
+        state: PreparationState::Prepared,
+        after: vec![],
+    };
+    journal.begin(&receipt)?;
+    // A race/death here retains the newly recorded barrier for explicit review.
+    if target_snapshot(&plan.contract).await? != before {
+        return Err(Failure::Conflict);
+    }
+    receipt.state = PreparationState::PreconditionChanged;
+    receipt.after = before.targets;
+    journal.finish(&receipt)?;
+    Ok(receipt)
+}
 pub async fn prepare_targets(plan: &TargetPreparationPlan) -> Result<TargetPreparationReceipt> {
     root()?;
     let mut journal = Journal::open()?;
@@ -572,7 +641,7 @@ pub async fn prepare_targets(plan: &TargetPreparationPlan) -> Result<TargetPrepa
     if let Some(receipt) = journal.receipt(&plan.action, Some(&digest))? {
         return Ok(receipt);
     }
-    plan.validate(now()?)?;
+    plan.validate(now()?).map_err(|_| Failure::InvalidPlan)?;
     if inventory().await? != plan.expected {
         return Err(Failure::Conflict);
     }
@@ -588,6 +657,7 @@ pub async fn prepare_targets(plan: &TargetPreparationPlan) -> Result<TargetPrepa
     };
     journal.begin(&receipt)?;
     let result = async {
+        let mut created_targets = Vec::new();
         // A durable prepared receipt exists before even the first directory.
         for target in &targets {
             if now()? >= plan.expires_at || inventory().await? != plan.expected {
@@ -603,13 +673,16 @@ pub async fn prepare_targets(plan: &TargetPreparationPlan) -> Result<TargetPrepa
             if selected.evidence != target.evidence {
                 return Err(Failure::Conflict);
             }
-            create(target)?;
+            let created = create(target)?;
+            let mut prepared = target.evidence.clone();
+            prepared.existing = Some(created);
+            created_targets.push(prepared);
         }
         if inventory().await? != plan.expected {
             return Err(Failure::Conflict);
         }
         let after = evidence(&inspect(&plan.contract, &plan.expected)?);
-        if after.iter().any(|t| t.existing.is_none()) {
+        if after != created_targets {
             return Err(Failure::Conflict);
         }
         Ok(after)
@@ -629,11 +702,11 @@ pub async fn prepare_targets(plan: &TargetPreparationPlan) -> Result<TargetPrepa
     journal.finish(&receipt)?;
     Ok(receipt)
 }
-fn create(target: &Target) -> Result<()> {
+fn create(target: &Target) -> Result<DirectoryIdentity> {
     if identity(&target.parent)? != target.evidence.parent {
         return Err(Failure::Conflict);
     }
-    if target.evidence.existing.is_none() {
+    let created = if target.evidence.existing.is_none() {
         rustix::fs::mkdirat(
             &target.parent,
             target.name.as_str(),
@@ -648,10 +721,19 @@ fn create(target: &Target) -> Result<()> {
         )
         .map_err(|_| Failure::Unavailable)?;
         rustix::fs::fchmod(&fd, Mode::from_raw_mode(0o755)).map_err(|_| Failure::Unavailable)?;
-        identity(&fd)?;
+        let created = identity(&fd)?;
         empty(&fd)?;
         rustix::fs::fsync(&fd).map_err(|_| Failure::StateNotDurable)?;
-    }
+        created
+    } else {
+        let fd = directory(&target.parent, &target.name)?.ok_or(Failure::Conflict)?;
+        let existing = identity(&fd)?;
+        if Some(&existing) != target.evidence.existing.as_ref() {
+            return Err(Failure::Conflict);
+        }
+        empty(&fd)?;
+        existing
+    };
     let parent = rustix::fs::openat(
         &target.parent,
         ".",
@@ -659,7 +741,8 @@ fn create(target: &Target) -> Result<()> {
         Mode::empty(),
     )
     .map_err(|_| Failure::Unavailable)?;
-    rustix::fs::fsync(parent).map_err(|_| Failure::StateNotDurable)
+    rustix::fs::fsync(parent).map_err(|_| Failure::StateNotDurable)?;
+    Ok(created)
 }
 
 #[cfg(test)]

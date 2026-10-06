@@ -5,12 +5,13 @@ use tokio::{
     net::UnixListener,
     sync::{Mutex, Semaphore},
 };
+mod storage_targets;
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let args: Vec<_> = std::env::args().collect();
     if args.iter().any(|s| matches!(s.as_str(), "--help" | "-h")) {
         println!(
-            "Usage: limeos-executor POLICY SOCKET host|container|storage [RECEIPT_DIRECTORY [read-only]]\n       limeos-executor storage-check|storage-wait --plan ROOT_OWNED_JSON\n       limeos-executor storage-inventory\n       limeos-executor storage-target-plan --contract ROOT_OWNED_JSON\n       limeos-executor storage-prepare-targets --plan ROOT_OWNED_JSON\n       limeos-executor storage-target-receipt|storage-reconcile-targets --action ACTION_ID\n\nRoot operator preparation creates empty mount target directories only.\nReconciliation observes targets and updates receipts. Other storage commands inspect.\nStdout is JSON; errors go to stderr.\nExit: 0 verified, 1 unsafe/unavailable/uncertain, 2 invalid plan/usage, 3 deadline expired."
+            "Usage: limeos-executor POLICY SOCKET host|container|storage|storage-targets [RECEIPT_DIRECTORY [read-only]]\n       limeos-executor storage-check|storage-wait --plan ROOT_OWNED_JSON\n       limeos-executor storage-inventory\n       limeos-executor storage-target-plan --contract ROOT_OWNED_JSON\n       limeos-executor storage-prepare-targets --plan ROOT_OWNED_JSON\n       limeos-executor storage-target-receipt|storage-reconcile-targets --action ACTION_ID\n       limeos-executor storage-reconcile-targets --plan ROOT_OWNED_JSON\n\nRoot operator preparation creates empty mount target directories only.\nReconciliation observes targets and updates receipts. Other storage commands inspect.\nStdout is JSON; errors go to stderr.\nExit: 0 verified, 1 unsafe/unavailable/uncertain, 2 invalid plan/usage, 3 deadline expired."
         );
         return;
     }
@@ -48,6 +49,21 @@ async fn storage_cli(args: &[String]) {
         if args.len() == 4 && args[1] == "storage-target-receipt" && args[2] == "--action" {
             return serde_json::to_value(limeos_executor_storage::target_receipt(&args[3])?)
                 .map_err(|_| Failure::Unavailable);
+        }
+        if args.len() == 4 && args[1] == "storage-reconcile-targets" && args[2] == "--plan" {
+            if std::env::current_exe().map_err(|_| Failure::Unavailable)?
+                != Path::new("/usr/lib/limeos/limeos-executor")
+            {
+                return Err(Failure::Unavailable);
+            }
+            let plan = limeos_executor_storage::read_target_plan(Path::new(&args[3]))?;
+            let value = tokio::time::timeout(
+                std::time::Duration::from_secs(30),
+                limeos_executor_storage::reconcile_target_plan(&plan),
+            )
+            .await
+            .map_err(|_| Failure::TimedOut)??;
+            return serde_json::to_value(value).map_err(|_| Failure::Unavailable);
         }
         if args.len() == 4 && args[1] == "storage-target-plan" && args[2] == "--contract" {
             let contract = limeos_executor_storage::read_contract(Path::new(&args[3]))?;
@@ -132,6 +148,9 @@ async fn storage_cli(args: &[String]) {
 }
 async fn run() -> std::io::Result<()> {
     let args: Vec<_> = std::env::args().collect();
+    if args.get(3).is_some_and(|s| s == "storage-targets") {
+        return storage_targets::run(&args).await;
+    }
     if !(4..=6).contains(&args.len()) {
         return Err(std::io::Error::other(
             "usage: limeos-executor POLICY SOCKET host|container|storage [RECEIPT_DIRECTORY [read-only]]",

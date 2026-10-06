@@ -12,7 +12,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 7;
+pub const SCHEMA_VERSION: u32 = 8;
 pub const QUEUE_CAPACITY: usize = 64;
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
@@ -128,7 +128,7 @@ impl Store {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(durable)?;
         match version {
-            0..=6 => {
+            0..=7 => {
                 let tx = conn
                     .transaction_with_behavior(TransactionBehavior::Immediate)
                     .map_err(durable)?;
@@ -156,7 +156,11 @@ impl Store {
                     tx.execute_batch(include_str!("migration-v6.sql"))
                         .map_err(durable)?;
                 }
-                tx.execute_batch(include_str!("migration-v7.sql"))
+                if version < 7 {
+                    tx.execute_batch(include_str!("migration-v7.sql"))
+                        .map_err(durable)?;
+                }
+                tx.execute_batch(include_str!("migration-v8.sql"))
                     .map_err(durable)?;
                 tx.commit().map_err(durable)?;
             }
@@ -246,11 +250,14 @@ mod jobs;
 mod plans;
 mod resources;
 mod storage;
+mod storage_targets;
 pub use compose::compose_scopes;
 pub use storage::storage_scope;
 
 #[cfg(test)]
 fn remove_v7_schema(conn: &Connection) {
+    conn.execute_batch("DROP TABLE storage_target_results; DROP TABLE storage_target_plans;")
+        .unwrap();
     // Existing migration fixtures must actually represent the older schema.
     let mut stmt = conn
         .prepare("SELECT name FROM sqlite_schema WHERE type='trigger' AND name IN ('jobs_primary_resource','jobs_identity_immutable','job_resources_insert','job_resources_update','job_resources_delete','jobs_acquire_resources','jobs_release_resources','resource_locks_insert','resource_locks_update','resource_locks_delete')")

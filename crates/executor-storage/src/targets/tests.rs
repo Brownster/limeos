@@ -13,7 +13,10 @@ fn receipt() -> TargetPreparationReceipt {
         "../../../../tests/fixtures/storage-contracts.json"
     ))
     .unwrap();
-    let contract = serde_json::from_value(fixture["cases"][0]["contract"].clone()).unwrap();
+    let contract: StorageContract =
+        serde_json::from_value(fixture["cases"][0]["contract"].clone()).unwrap();
+    let mountpoint = contract.devices[0].mountpoint.clone();
+    let uuid = contract.devices[0].filesystem_uuid.clone();
     let plan = TargetPreparationPlan {
         version: 1,
         operation: OPERATION.into(),
@@ -24,11 +27,19 @@ fn receipt() -> TargetPreparationReceipt {
             mounts_digest: "c".repeat(64),
             fstab_digest: "d".repeat(64),
             fstab_entries: vec![],
-            devices: vec![],
+            devices: vec![limeos_domain::StorageObservedDevice {
+                device: limeos_domain::StorageBlockDevice { major: 8, minor: 1 },
+                filesystem_uuid: uuid,
+                filesystem: "ext4".into(),
+                serial: None,
+                boot_backing: false,
+                in_use_as_swap: false,
+                mounts: vec![],
+            }],
         },
         contract,
         targets: vec![TargetEvidence {
-            mountpoint: "/mnt/data".into(),
+            mountpoint,
             parent: DirectoryIdentity {
                 major: 8,
                 minor: 1,
@@ -78,6 +89,40 @@ fn preparation_is_a_closed_distinct_operation_with_bounded_expiry() {
     let mut raw = serde_json::to_value(original).unwrap();
     raw["command"] = serde_json::json!("mount --all");
     assert!(serde_json::from_value::<TargetPreparationPlan>(raw).is_err());
+}
+#[test]
+fn missing_and_extra_dependent_claims_refuse_a_healthy_root_journal() {
+    for fault in ["missing", "extra", "schema"] {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = journal(&temp).unwrap();
+        let original = receipt();
+        store.begin(&original).unwrap();
+        if fault == "missing" {
+            store
+                .conn
+                .execute("DELETE FROM locks WHERE resource LIKE 'storage:uuid:%'", [])
+                .unwrap();
+        } else if fault == "extra" {
+            store
+                .conn
+                .execute(
+                    "INSERT INTO locks VALUES('storage:uuid:unexpected',?)",
+                    [&original.plan.action],
+                )
+                .unwrap();
+        } else {
+            store.conn.execute_batch("ALTER TABLE locks RENAME TO old_locks; CREATE TABLE locks(resource TEXT, action TEXT NOT NULL REFERENCES receipts(action)) STRICT; INSERT INTO locks SELECT * FROM old_locks; DROP TABLE old_locks;").unwrap();
+        }
+        assert_eq!(
+            store
+                .conn
+                .query_row("PRAGMA quick_check(1)", [], |r| r.get::<_, String>(0))
+                .unwrap(),
+            "ok"
+        );
+        drop(store);
+        assert!(matches!(journal(&temp), Err(Failure::StateNotDurable)));
+    }
 }
 #[test]
 fn durable_prepared_and_unknown_receipts_keep_all_resources_across_restarts() {

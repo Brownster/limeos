@@ -65,6 +65,8 @@ def main() -> None:
         units = stage / "lib/systemd/system"
         units.mkdir(parents=True)
         for unit in (ROOT / "packaging/systemd").glob("*.service"):
+            if shadow and unit.name == "limeos-storage-targets.service":
+                continue
             name = (
                 unit.name.replace("limeos-", "limeos-shadow-") if shadow else unit.name
             )
@@ -89,6 +91,7 @@ def main() -> None:
                 host_socket="/run/limeos-shadow-storaged/executor.sock",
                 container_socket="/run/limeos-shadow-containerd/executor.sock",
                 storage_socket="/run/limeos-shadow-storage-reader/executor.sock",
+                storage_target_socket="/run/limeos-shadow-storage-targets/executor.sock",
             )
         (etc / "core.json").write_text(json.dumps(config, indent=2) + "\n")
         documentation = stage / "usr/share/doc" / package

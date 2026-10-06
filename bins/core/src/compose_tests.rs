@@ -58,6 +58,7 @@ async fn fixture(
         compose_catalog: Some(Arc::new(catalog)),
         container_socket: Arc::new("/unreachable".into()),
         storage_socket: Arc::new("/unreachable".into()),
+        storage_target_socket: Arc::new("/unused-targets".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
         password_workers: Arc::new(Semaphore::new(2)),
         dummy_hash: "unused".into(),

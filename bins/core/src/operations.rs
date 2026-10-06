@@ -452,8 +452,26 @@ impl Core {
         // Bound recovery traffic and memory. Uncertain receipts are never retried
         // as mutations, even after their original plan has expired.
         let mut recovery = std::collections::HashMap::<String, Instant>::new();
+        let mut target_recovery = std::collections::HashMap::<String, Instant>::new();
         loop {
             tick.tick().await;
+            if let Ok(jobs) = self.db.call(|s| s.storage_target_candidates()).await {
+                target_recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));
+                for (principal, job) in jobs {
+                    if job.state != JobState::Queued {
+                        if target_recovery
+                            .get(&job.id)
+                            .is_some_and(|at| at.elapsed() < Duration::from_secs(30))
+                        {
+                            continue;
+                        }
+                        target_recovery.insert(job.id.clone(), Instant::now());
+                    }
+                    if let Err(e) = self.dispatch_target(principal, job).await {
+                        tracing::warn!(code=?e.0,"storage target job remains pending or requires reconciliation");
+                    }
+                }
+            }
             let Ok(jobs) = self.db.call(|s| s.container_candidates()).await else {
                 continue;
             };

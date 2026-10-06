@@ -112,6 +112,11 @@ async fn every_mutation_rejects_get_origin_csrf_and_untyped_extra_fields() {
     let mutations = Arc::new(AtomicUsize::new(0));
     let router = router(Mutations(mutations.clone()), "https://localhost".into());
     for path in [
+        "/api/v1/storage/targets/plans".into(),
+        format!("/api/v1/storage/targets/plans/{}/approval", "a".repeat(64)),
+        format!("/api/v1/storage/targets/plans/{}/cancel", "a".repeat(64)),
+        "/api/v1/storage/targets/jobs".into(),
+        format!("/api/v1/storage/targets/jobs/{}/cancel", "a".repeat(64)),
         "/api/v1/storage/plans".into(),
         format!("/api/v1/storage/plans/{}/approval", "a".repeat(64)),
         format!("/api/v1/storage/plans/{}/cancel", "a".repeat(64)),

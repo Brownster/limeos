@@ -26,6 +26,7 @@ async fn storage_authority_is_checked_before_contacting_a_reader_and_tasks_canno
         let core = Core {
             db,
             storage_socket: Arc::new("/unreachable".into()),
+            storage_target_socket: Arc::new("/unused-targets".into()),
             storage_readers: Arc::new(Semaphore::new(1)),
             container_socket: Arc::new("/unused".into()),
             compose_catalog: None,
@@ -70,6 +71,7 @@ async fn an_unprivileged_reader_socket_cannot_forge_storage_evidence() {
     let core = Core {
         db: Database::open(&dir.path().join("core.sqlite")).unwrap(),
         storage_socket: Arc::new(path),
+        storage_target_socket: Arc::new("/unused-targets".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
         container_socket: Arc::new("/unused".into()),
         compose_catalog: None,

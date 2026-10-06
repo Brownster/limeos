@@ -1,411 +1,25 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Request",
-  "oneOf": [
-    {
-      "type": "object",
-      "properties": {
-        "contract": {
-          "$ref": "#/$defs/StorageContract"
-        },
-        "operation": {
-          "type": "string",
-          "const": "inspect_storage_targets"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "version",
-        "contract"
-      ]
+  "title": "StorageTargetJob",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
     },
-    {
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "prepare_storage_targets"
-        },
-        "plan": {
-          "$ref": "#/$defs/TargetPreparationPlan"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "version",
-        "plan"
-      ]
+    "plan": {
+      "$ref": "#/$defs/StorageTargetPlan"
     },
-    {
-      "type": "object",
-      "properties": {
-        "action": {
-          "type": "string"
-        },
-        "digest": {
-          "type": "string"
-        },
-        "operation": {
-          "type": "string",
-          "const": "storage_target_receipt"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "version",
-        "action",
-        "digest"
-      ]
-    },
-    {
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "storage_inventory"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "version"
-      ]
-    },
-    {
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "health"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "version"
-      ]
-    },
-    {
-      "type": "object",
-      "properties": {
-        "active": {
-          "type": "boolean"
-        },
-        "operation": {
-          "type": "string",
-          "const": "observe"
-        },
-        "source": {
-          "$ref": "#/$defs/Source"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "version",
-        "source",
-        "active"
-      ]
-    },
-    {
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "inspect"
-        },
-        "resource": {
-          "type": "string"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "version",
-        "resource"
-      ]
-    },
-    {
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "container_logs"
-        },
-        "options": {
-          "$ref": "#/$defs/LogOptions"
-        },
-        "resource": {
-          "type": "string"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "version",
-        "resource",
-        "options"
-      ]
-    },
-    {
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "restart"
-        },
-        "request": {
-          "$ref": "#/$defs/ContainerRequest"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "version",
-        "request"
-      ]
-    },
-    {
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "execute_container"
-        },
-        "request": {
-          "$ref": "#/$defs/ContainerRequest"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "version",
-        "request"
-      ]
-    },
-    {
-      "type": "object",
-      "properties": {
-        "action": {
-          "type": "string"
-        },
-        "digest": {
-          "type": "string"
-        },
-        "operation": {
-          "type": "string",
-          "const": "restart_receipt"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "version",
-        "action",
-        "digest"
-      ]
-    },
-    {
-      "type": "object",
-      "properties": {
-        "action": {
-          "type": "string"
-        },
-        "after": {
-          "$ref": "#/$defs/ContainerSnapshot"
-        },
-        "digest": {
-          "type": "string"
-        },
-        "operation": {
-          "type": "string",
-          "const": "verify_restart"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operation",
-        "version",
-        "action",
-        "digest",
-        "after"
-      ]
+    "state": {
+      "$ref": "#/$defs/JobState"
     }
+  },
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "state",
+    "plan"
   ],
   "$defs": {
-    "ContainerAction": {
-      "type": "string",
-      "enum": [
-        "restart",
-        "start",
-        "stop"
-      ]
-    },
-    "ContainerPlan": {
-      "type": "object",
-      "properties": {
-        "created_at": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "expected": {
-          "$ref": "#/$defs/ContainerSnapshot"
-        },
-        "expires_at": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "grant_revision": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "id": {
-          "type": "string"
-        },
-        "operation": {
-          "$ref": "#/$defs/ContainerAction"
-        },
-        "principal": {
-          "type": "string"
-        },
-        "version": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "version",
-        "principal",
-        "grant_revision",
-        "expected",
-        "created_at",
-        "expires_at"
-      ]
-    },
-    "ContainerRequest": {
-      "type": "object",
-      "properties": {
-        "action": {
-          "type": "string"
-        },
-        "plan": {
-          "$ref": "#/$defs/ContainerPlan"
-        },
-        "plan_digest": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "action",
-        "plan_digest",
-        "plan"
-      ]
-    },
-    "ContainerSnapshot": {
-      "description": "Selected inspection evidence. Environment variables, labels and host paths\nnever enter a plan. The full ID, image and start timestamp identify an instance.",
-      "type": "object",
-      "properties": {
-        "image": {
-          "type": "string"
-        },
-        "resource": {
-          "type": "string"
-        },
-        "running": {
-          "type": "boolean"
-        },
-        "started_at": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "resource",
-        "image",
-        "started_at",
-        "running"
-      ]
-    },
     "DirectoryIdentity": {
       "type": "object",
       "properties": {
@@ -457,27 +71,20 @@
         "gid"
       ]
     },
-    "LogOptions": {
-      "type": "object",
-      "properties": {
-        "tail": {
-          "type": "integer",
-          "format": "uint16",
-          "default": 100,
-          "maximum": 200,
-          "minimum": 1
-        }
-      },
-      "additionalProperties": false
-    },
-    "Source": {
+    "JobState": {
       "type": "string",
       "enum": [
-        "host",
-        "storage",
-        "pools",
-        "docker",
-        "history"
+        "planned",
+        "waiting_approval",
+        "queued",
+        "running",
+        "verifying",
+        "succeeded",
+        "failed",
+        "canceled",
+        "precondition_changed",
+        "outcome_unknown",
+        "needs_intervention"
       ]
     },
     "StorageBlockDevice": {
@@ -818,6 +425,38 @@
       "type": "string",
       "enum": [
         "1"
+      ]
+    },
+    "StorageTargetPlan": {
+      "type": "object",
+      "properties": {
+        "grant_revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "id": {
+          "type": "string"
+        },
+        "preparation": {
+          "$ref": "#/$defs/TargetPreparationPlan"
+        },
+        "principal": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "principal",
+        "grant_revision",
+        "preparation"
       ]
     },
     "TargetEvidence": {

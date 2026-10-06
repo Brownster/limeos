@@ -14,7 +14,8 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             include_str!("migration-v4.sql"),
             include_str!("migration-v5.sql"),
             include_str!("migration-v6.sql"),
-            include_str!("migration-v7.sql")
+            include_str!("migration-v7.sql"),
+            include_str!("migration-v8.sql")
         ))
         .map_err(durable)?;
     let mut stmt = reference
@@ -28,6 +29,26 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         let actual: Option<String> = conn
             .query_row(
                 "SELECT sql FROM sqlite_schema WHERE type='trigger' AND name=?",
+                [name],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(durable)?;
+        if actual.as_ref() != Some(&expected) {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
+    }
+    for name in ["storage_target_plans", "storage_target_results"] {
+        let expected: String = reference
+            .query_row(
+                "SELECT sql FROM sqlite_schema WHERE type='table' AND name=?",
+                [name],
+                |r| r.get(0),
+            )
+            .map_err(durable)?;
+        let actual: Option<String> = conn
+            .query_row(
+                "SELECT sql FROM sqlite_schema WHERE type='table' AND name=?",
                 [name],
                 |r| r.get(0),
             )
@@ -58,6 +79,50 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         .map_err(durable)?;
     if invalid {
         return Err(Error(ErrorCode::StateNotDurable));
+    }
+    // The required set must also match the closed operation, including queued
+    // work. A missing dependency is not permission to dispatch after restart.
+    let mut stmt = conn.prepare("SELECT id,principal,intent,digest,resource,revision,deadline FROM jobs WHERE json_extract(intent,'$.operation')='storage_prepare_targets'").map_err(durable)?;
+    for row in stmt
+        .query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, String>(4)?,
+                r.get::<_, i64>(5)?,
+                r.get::<_, i64>(6)?,
+            ))
+        })
+        .map_err(durable)?
+    {
+        let (id, principal, intent, digest, resource, revision, deadline) = row.map_err(durable)?;
+        let Intent::StoragePrepareTargets { plan } = parse::<Intent>(&intent)? else {
+            return Err(Error(ErrorCode::StateNotDurable));
+        };
+        plan.validate(plan.preparation.created_at)
+            .map_err(|_| Error(ErrorCode::StateNotDurable))?;
+        let mut required = conn
+            .prepare("SELECT resource FROM job_resources WHERE job=? ORDER BY resource")
+            .map_err(durable)?;
+        let resources = required
+            .query_map([&id], |r| r.get::<_, String>(0))
+            .map_err(durable)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(durable)?;
+        let approved: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM storage_target_plans WHERE id=? AND principal=? AND body=? AND digest=? AND revision=? AND expires=? AND job=? AND canceled=0 AND approval_digest IS NOT NULL)",params![plan.id,principal,json(&plan)?,limeos_identity::digest(&json(&plan)?),revision,deadline,id],|r|r.get(0)).map_err(durable)?;
+        if plan.preparation.action != id
+            || plan.principal != principal
+            || plan.grant_revision != revision
+            || plan.preparation.expires_at != deadline
+            || resource != "storage:configuration"
+            || digest != limeos_identity::digest(&intent)
+            || resources != plan.preparation.resources()
+            || !approved
+        {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
     }
     Ok(())
 }

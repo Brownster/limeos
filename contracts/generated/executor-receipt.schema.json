@@ -66,6 +66,26 @@
         }
       ]
     },
+    "storage_targets": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StorageTargetSnapshot"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "target_preparation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TargetPreparationReceipt"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "version": {
       "type": "integer",
       "format": "uint16",
@@ -177,6 +197,57 @@
         "image",
         "started_at",
         "running"
+      ]
+    },
+    "DirectoryIdentity": {
+      "type": "object",
+      "properties": {
+        "gid": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "inode": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "major": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "minor": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "mode": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "mount_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "uid": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "major",
+        "minor",
+        "mount_id",
+        "inode",
+        "mode",
+        "uid",
+        "gid"
       ]
     },
     "ErrorCode": {
@@ -320,6 +391,15 @@
         "sources"
       ]
     },
+    "PreparationState": {
+      "type": "string",
+      "enum": [
+        "prepared",
+        "verified",
+        "precondition_changed",
+        "outcome_unknown"
+      ]
+    },
     "Resource": {
       "type": "object",
       "properties": {
@@ -446,6 +526,95 @@
         "minor"
       ]
     },
+    "StorageContract": {
+      "type": "object",
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageDevice"
+          },
+          "maxItems": 32,
+          "minItems": 1
+        },
+        "locations": {
+          "$ref": "#/$defs/StorageLocations"
+        },
+        "media_identity": {
+          "$ref": "#/$defs/StorageMediaIdentity"
+        },
+        "profile": {
+          "$ref": "#/$defs/StorageProfile"
+        },
+        "schema_version": {
+          "$ref": "#/$defs/StorageSchemaVersion"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "profile",
+        "media_identity",
+        "locations",
+        "devices"
+      ]
+    },
+    "StorageDevice": {
+      "type": "object",
+      "properties": {
+        "filesystem": {
+          "$ref": "#/$defs/StorageFilesystem"
+        },
+        "filesystem_uuid": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "mountpoint": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "role": {
+          "$ref": "#/$defs/StorageRole"
+        },
+        "serial": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role",
+        "filesystem_uuid",
+        "filesystem",
+        "mountpoint"
+      ]
+    },
+    "StorageFilesystem": {
+      "type": "string",
+      "enum": [
+        "btrfs",
+        "exfat",
+        "ext2",
+        "ext3",
+        "ext4",
+        "ntfs",
+        "vfat",
+        "xfs"
+      ]
+    },
     "StorageFstabEntry": {
       "description": "Only identity/target fields leave the protected reader. Fstab options may\ncontain credentials and are never copied into RPC, plans or HTTP responses.",
       "type": "object",
@@ -519,6 +688,71 @@
         "devices"
       ]
     },
+    "StorageLocations": {
+      "type": "object",
+      "properties": {
+        "application_config_host": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "backup_host": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "config_container": {
+          "type": "string",
+          "pattern": "^/config$"
+        },
+        "downloads_container": {
+          "type": "string",
+          "pattern": "^/data/downloads$"
+        },
+        "downloads_host": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "media_container": {
+          "type": "string",
+          "pattern": "^/data/media$"
+        },
+        "media_host": {
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "media_host",
+        "downloads_host",
+        "application_config_host",
+        "backup_host",
+        "media_container",
+        "downloads_container",
+        "config_container"
+      ]
+    },
+    "StorageMediaIdentity": {
+      "type": "object",
+      "properties": {
+        "gid": {
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 2147483647,
+          "minimum": 1
+        },
+        "uid": {
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 2147483647,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "uid",
+        "gid"
+      ]
+    },
     "StorageObservedDevice": {
       "type": "object",
       "properties": {
@@ -587,6 +821,150 @@
         "filesystem_root",
         "filesystem",
         "writable"
+      ]
+    },
+    "StorageProfile": {
+      "type": "string",
+      "enum": [
+        "single_disk",
+        "separate_downloads",
+        "protected_pool"
+      ]
+    },
+    "StorageRole": {
+      "type": "string",
+      "enum": [
+        "data",
+        "downloads",
+        "parity",
+        "config_backup"
+      ]
+    },
+    "StorageSchemaVersion": {
+      "type": "string",
+      "enum": [
+        "1"
+      ]
+    },
+    "StorageTargetSnapshot": {
+      "type": "object",
+      "properties": {
+        "inventory": {
+          "$ref": "#/$defs/StorageInventory"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TargetEvidence"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "inventory",
+        "targets"
+      ]
+    },
+    "TargetEvidence": {
+      "type": "object",
+      "properties": {
+        "existing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DirectoryIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mountpoint": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/DirectoryIdentity"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "mountpoint",
+        "parent"
+      ]
+    },
+    "TargetPreparationPlan": {
+      "description": "This root-executor contract preserves the original operator receipt bytes.\nIt does not itself carry human authority; API authority is the v2 wrapper.",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "contract": {
+          "$ref": "#/$defs/StorageContract"
+        },
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "expected": {
+          "$ref": "#/$defs/StorageInventory"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TargetEvidence"
+          }
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "operation",
+        "action",
+        "expected",
+        "contract",
+        "targets",
+        "created_at",
+        "expires_at"
+      ]
+    },
+    "TargetPreparationReceipt": {
+      "type": "object",
+      "properties": {
+        "after": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TargetEvidence"
+          }
+        },
+        "digest": {
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/$defs/TargetPreparationPlan"
+        },
+        "state": {
+          "$ref": "#/$defs/PreparationState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "plan",
+        "digest",
+        "state",
+        "after"
       ]
     }
   }

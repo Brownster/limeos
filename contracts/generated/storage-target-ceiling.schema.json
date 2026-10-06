@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StorageTargetCeiling",
+  "description": "A separate root-owned ceiling for the dormant directory-preparation service.\nExact UUID/path pairs constrain the core even if its authority is compromised.",
+  "type": "object",
+  "properties": {
+    "allow_prepare_targets": {
+      "type": "boolean"
+    },
+    "core_uid": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "managed_targets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ManagedStorageTarget"
+      }
+    },
+    "version": {
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "core_uid",
+    "allow_prepare_targets",
+    "managed_targets"
+  ],
+  "$defs": {
+    "ManagedStorageTarget": {
+      "type": "object",
+      "properties": {
+        "filesystem_uuid": {
+          "type": "string"
+        },
+        "mountpoint": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "filesystem_uuid",
+        "mountpoint"
+      ]
+    }
+  }
+}

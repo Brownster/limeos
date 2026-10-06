@@ -25,6 +25,13 @@ pub struct QueueRestartInput {
     pub approval: String,
     pub idempotency_key: String,
 }
+#[derive(Clone, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct QueueStorageTargetsInput {
+    pub proposal: limeos_domain::PlannedStorageTargets,
+    pub approval: String,
+    pub idempotency_key: String,
+}
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct JobProgress {

@@ -30,6 +30,19 @@ pub struct Ceiling {
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Request {
+    InspectStorageTargets {
+        version: u16,
+        contract: limeos_domain::StorageContract,
+    },
+    PrepareStorageTargets {
+        version: u16,
+        plan: Box<limeos_domain::TargetPreparationPlan>,
+    },
+    StorageTargetReceipt {
+        version: u16,
+        action: String,
+        digest: String,
+    },
     StorageInventory {
         version: u16,
     },
@@ -87,6 +100,71 @@ pub struct Receipt {
     pub error: Option<ErrorCode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub storage: Option<limeos_domain::StorageInventory>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage_targets: Option<limeos_domain::StorageTargetSnapshot>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_preparation: Option<limeos_domain::TargetPreparationReceipt>,
+}
+/// A separate root-owned ceiling for the dormant directory-preparation service.
+/// Exact UUID/path pairs constrain the core even if its authority is compromised.
+#[derive(Clone, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct StorageTargetCeiling {
+    pub version: u16,
+    pub core_uid: u32,
+    pub allow_prepare_targets: bool,
+    pub managed_targets: Vec<ManagedStorageTarget>,
+}
+#[derive(Clone, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct ManagedStorageTarget {
+    pub filesystem_uuid: String,
+    pub mountpoint: String,
+}
+impl StorageTargetCeiling {
+    pub fn configuration_valid(&self) -> bool {
+        let mut pairs = std::collections::BTreeSet::new();
+        let mut paths = std::collections::BTreeSet::new();
+        self.version == VERSION
+            && self.core_uid != 0
+            && self.managed_targets.len() <= 32
+            && self.managed_targets.iter().all(|t| {
+                !t.filesystem_uuid.is_empty()
+                    && t.filesystem_uuid.len() <= 128
+                    && t.filesystem_uuid
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+                    && t.mountpoint.starts_with("/mnt/")
+                    && t.mountpoint.len() <= 512
+                    && !t.mountpoint.chars().any(char::is_control)
+                    && !t.mountpoint.contains('\\')
+                    && t.mountpoint
+                        .split('/')
+                        .skip(1)
+                        .all(|p| !p.is_empty() && p != "." && p != "..")
+                    && pairs.insert((&t.filesystem_uuid, &t.mountpoint))
+                    && paths.insert(&t.mountpoint)
+            })
+    }
+    pub fn authorize_contract(
+        &self,
+        uid: u32,
+        contract: &limeos_domain::StorageContract,
+    ) -> Result<()> {
+        if !self.configuration_valid() || uid != self.core_uid || !self.allow_prepare_targets {
+            return Err(Error(ErrorCode::Forbidden));
+        }
+        contract.validate()?;
+        if contract.devices.iter().any(|d| {
+            !self
+                .managed_targets
+                .iter()
+                .any(|t| t.filesystem_uuid == d.filesystem_uuid && t.mountpoint == d.mountpoint)
+        }) {
+            return Err(Error(ErrorCode::Forbidden));
+        }
+        Ok(())
+    }
 }
 impl Ceiling {
     pub fn configuration_valid(&self) -> bool {
@@ -126,6 +204,8 @@ impl Ceiling {
                     logs: None,
                     error: None,
                     storage: None,
+                    storage_targets: None,
+                    target_preparation: None,
                 })
             }
             Request::Observe {
@@ -144,6 +224,8 @@ impl Ceiling {
                     logs: None,
                     error: None,
                     storage: None,
+                    storage_targets: None,
+                    target_preparation: None,
                 })
             }
             Request::Inspect { version, resource }
@@ -247,12 +329,77 @@ impl Receipt {
             logs: None,
             error: None,
             storage: None,
+            storage_targets: None,
+            target_preparation: None,
         }
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn target_preparation_ceiling_requires_exact_uuid_and_literal_path_and_core_uid() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/storage-contracts.json"
+        ))
+        .unwrap();
+        let contract: limeos_domain::StorageContract =
+            serde_json::from_value(fixture["cases"][0]["contract"].clone()).unwrap();
+        let mut ceiling = StorageTargetCeiling {
+            version: VERSION,
+            core_uid: 104,
+            allow_prepare_targets: false,
+            managed_targets: contract
+                .devices
+                .iter()
+                .map(|d| ManagedStorageTarget {
+                    filesystem_uuid: d.filesystem_uuid.clone(),
+                    mountpoint: d.mountpoint.clone(),
+                })
+                .collect(),
+        };
+        assert!(ceiling.configuration_valid());
+        assert_eq!(
+            ceiling.authorize_contract(104, &contract).unwrap_err().0,
+            ErrorCode::Forbidden
+        );
+        ceiling.allow_prepare_targets = true;
+        assert!(ceiling.authorize_contract(104, &contract).is_ok());
+        assert!(ceiling.authorize_contract(0, &contract).is_err());
+        assert!(ceiling.authorize_contract(105, &contract).is_err());
+        ceiling.managed_targets[0].filesystem_uuid = "replacement".into();
+        assert!(ceiling.authorize_contract(104, &contract).is_err());
+        ceiling.managed_targets[0].filesystem_uuid = contract.devices[0].filesystem_uuid.clone();
+        for path in [
+            "/",
+            "/mnt/Data",
+            "/mnt/data/../other",
+            "/mnt//data",
+            "/mnt/data/",
+            "/mnt/data\n",
+        ] {
+            ceiling.managed_targets[0].mountpoint = path.into();
+            assert!(
+                ceiling.authorize_contract(104, &contract).is_err(),
+                "{path:?}"
+            );
+        }
+        let read_only: Ceiling = serde_json::from_str(
+            r#"{"version":1,"core_uid":104,"allow_health":true,"allow_storage_read":true}"#,
+        )
+        .unwrap();
+        assert!(
+            read_only
+                .validate(
+                    104,
+                    &Request::InspectStorageTargets {
+                        version: VERSION,
+                        contract
+                    }
+                )
+                .is_err()
+        );
+    }
     #[test]
     fn storage_reader_has_an_independent_read_only_ceiling_and_no_path_or_effect_input() {
         let old: Ceiling =

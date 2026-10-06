@@ -19,6 +19,7 @@ use tokio::{
 mod compose;
 mod operations;
 mod storage;
+mod storage_targets;
 
 fn now() -> i64 {
     SystemTime::now()
@@ -37,6 +38,7 @@ struct Core {
     container_socket: Arc<PathBuf>,
     compose_catalog: Option<Arc<limeos_domain::ComposeCatalog>>,
     storage_socket: Arc<PathBuf>,
+    storage_target_socket: Arc<PathBuf>,
     storage_readers: Arc<Semaphore>,
 }
 impl Core {
@@ -118,6 +120,64 @@ impl Core {
     }
 }
 impl Backend for Core {
+    async fn plan_storage_targets(
+        &self,
+        token: String,
+        csrf: String,
+        contract: limeos_domain::StorageContract,
+    ) -> Result<limeos_domain::PlannedStorageTargets> {
+        self.human_plan_targets(token, csrf, contract).await
+    }
+    async fn storage_target_plan(
+        &self,
+        token: String,
+        id: String,
+    ) -> Result<limeos_domain::PlannedStorageTargets> {
+        let p = self.storage_principal(token, None).await?;
+        self.db.call(move |s| s.storage_target_plan(&p, &id)).await
+    }
+    async fn approve_storage_targets(
+        &self,
+        token: String,
+        csrf: String,
+        id: String,
+        digest: String,
+    ) -> Result<limeos_domain::PlanApproval> {
+        self.human_approve_targets(token, csrf, id, digest).await
+    }
+    async fn queue_storage_targets(
+        &self,
+        token: String,
+        csrf: String,
+        input: limeos_contracts::QueueStorageTargetsInput,
+    ) -> Result<limeos_domain::StorageTargetJob> {
+        self.human_queue_targets(token, csrf, input).await
+    }
+    async fn storage_target_job(
+        &self,
+        token: String,
+        id: String,
+    ) -> Result<limeos_domain::StorageTargetJob> {
+        let p = self.storage_principal(token, None).await?;
+        self.db.call(move |s| s.storage_target_job(&p, &id)).await
+    }
+    async fn cancel_storage_targets(&self, token: String, csrf: String, id: String) -> Result<()> {
+        let p = self.storage_principal(token, Some(csrf)).await?;
+        self.db
+            .call(move |s| s.cancel_storage_targets(&p, &id, now()))
+            .await
+    }
+    async fn cancel_storage_target_job(
+        &self,
+        token: String,
+        csrf: String,
+        id: String,
+    ) -> Result<()> {
+        let p = self.storage_principal(token, Some(csrf)).await?;
+        self.db
+            .call(move |s| s.cancel_storage_target_job(&p, &id, now()))
+            .await
+    }
     async fn storage_inventory(
         &self,
         token: String,
@@ -668,6 +728,7 @@ async fn run() -> Result<()> {
         telemetry,
         container_socket: Arc::new(config.container_socket.into()),
         storage_socket: Arc::new(config.storage_socket.into()),
+        storage_target_socket: Arc::new(config.storage_target_socket.into()),
         storage_readers: Arc::new(Semaphore::new(1)),
         compose_catalog: config::read_compose_catalog(
             &config_path.with_file_name("compose-catalog.json"),

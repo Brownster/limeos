@@ -23,6 +23,8 @@ pub struct Config {
     pub container_socket: String,
     #[serde(default = "default_storage_socket")]
     pub storage_socket: String,
+    #[serde(default = "default_storage_target_socket")]
+    pub storage_target_socket: String,
 }
 fn default_host_socket() -> String {
     "/run/limeos-storaged/executor.sock".into()
@@ -33,6 +35,9 @@ fn default_container_socket() -> String {
 fn default_storage_socket() -> String {
     "/run/limeos-storage-reader/executor.sock".into()
 }
+fn default_storage_target_socket() -> String {
+    "/run/limeos-storage-targets/executor.sock".into()
+}
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -42,6 +47,7 @@ impl Default for Config {
             host_socket: default_host_socket(),
             container_socket: default_container_socket(),
             storage_socket: default_storage_socket(),
+            storage_target_socket: default_storage_target_socket(),
         }
     }
 }
@@ -57,6 +63,7 @@ impl Config {
                 &self.host_socket,
                 &self.container_socket,
                 &self.storage_socket,
+                &self.storage_target_socket,
             ]
             .iter()
             .any(|s| {

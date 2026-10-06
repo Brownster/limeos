@@ -17,6 +17,7 @@ limeos-domain = { path = "../../crates/domain", version = "=0.2.0" }
 limeos-executor-container = { path = "../../crates/executor-container", version = "=0.2.0" }
 limeos-executor-storage = { path = "../../crates/executor-storage", version = "=0.2.0" }
 tokio.workspace = true
+rustix.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

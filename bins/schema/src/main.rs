@@ -74,6 +74,16 @@ fn main() {
     emit!("storage-inventory", limeos_domain::StorageInventoryView);
     emit!("storage-setup-input", limeos_domain::StorageSetupInput);
     emit!("storage-setup-plan", limeos_domain::PlannedStorageSetup);
+    emit!("storage-target-plan", limeos_domain::PlannedStorageTargets);
+    emit!("storage-target-job", limeos_domain::StorageTargetJob);
+    emit!(
+        "storage-target-ceiling",
+        limeos_executor_protocol::StorageTargetCeiling
+    );
+    emit!(
+        "queue-storage-targets-input",
+        limeos_contracts::QueueStorageTargetsInput
+    );
     emit!(
         "storage-mount-wait-plan",
         limeos_domain::StorageMountWaitPlan
@@ -133,6 +143,18 @@ fn main() {
     ts!(limeos_domain::StorageSetupInput);
     ts!(limeos_domain::StorageSetupPlan);
     ts!(limeos_domain::PlannedStorageSetup);
+    ts!(limeos_domain::DirectoryIdentity);
+    ts!(limeos_domain::TargetEvidence);
+    ts!(limeos_domain::StorageTargetSnapshot);
+    ts!(limeos_domain::TargetPreparationPlan);
+    ts!(limeos_domain::PreparationState);
+    ts!(limeos_domain::TargetPreparationReceipt);
+    ts!(limeos_domain::StorageTargetPlan);
+    ts!(limeos_domain::PlannedStorageTargets);
+    ts!(limeos_domain::StorageTargetJob);
+    ts!(limeos_executor_protocol::StorageTargetCeiling);
+    ts!(limeos_executor_protocol::ManagedStorageTarget);
+    ts!(limeos_contracts::QueueStorageTargetsInput);
     ts!(limeos_domain::RestartPlan);
     ts!(limeos_domain::PlannedRestart);
     ts!(limeos_domain::PlanApproval);
@@ -203,6 +225,24 @@ fn main() {
     openapi["paths"]["/api/v1/observations/stream"] = serde_json::json!({"get":{"security":[{"session":[]}],"description":"Full authorized snapshot on connect and reconnect. Maximum eight readers, 25 seconds and 128 KiB per stream. Identity rechecked every five seconds.","parameters":[{"name":"Last-Event-ID","in":"header","schema":{"type":"string","pattern":"^[0-9]{1,20}$"}}],"responses":{"200":{"description":"snapshot events; id is the current revision","content":{"text/event-stream":{"schema":{"type":"string"}}}}}}});
     for (path, input, output, status) in [
         (
+            "/api/v1/storage/targets/plans",
+            serde_json::to_value(schema_for!(limeos_domain::StorageContract)).unwrap(),
+            serde_json::to_value(schema_for!(limeos_domain::PlannedStorageTargets)).unwrap(),
+            "201",
+        ),
+        (
+            "/api/v1/storage/targets/plans/{id}/approval",
+            serde_json::to_value(schema_for!(limeos_contracts::ApprovalInput)).unwrap(),
+            serde_json::to_value(schema_for!(limeos_domain::PlanApproval)).unwrap(),
+            "200",
+        ),
+        (
+            "/api/v1/storage/targets/jobs",
+            serde_json::to_value(schema_for!(limeos_contracts::QueueStorageTargetsInput)).unwrap(),
+            serde_json::to_value(schema_for!(limeos_domain::StorageTargetJob)).unwrap(),
+            "202",
+        ),
+        (
             "/api/v1/storage/plans",
             serde_json::to_value(schema_for!(limeos_domain::StorageSetupInput)).unwrap(),
             serde_json::to_value(schema_for!(limeos_domain::PlannedStorageSetup)).unwrap(),
@@ -260,6 +300,8 @@ fn main() {
     openapi["paths"]["/api/v1/container/restart/jobs"]["get"] = serde_json::json!({"security":[{"session":[]}],"responses":{"200":{"description":"Latest 32 owned, currently authorized jobs","content":{"application/json":{"schema":schema_for!(Vec<limeos_domain::RestartJob>)}}}}});
     for path in [
         "/api/v1/compose/plans/{id}/cancel",
+        "/api/v1/storage/targets/plans/{id}/cancel",
+        "/api/v1/storage/targets/jobs/{id}/cancel",
         "/api/v1/storage/plans/{id}/cancel",
         "/api/v1/container/restart/plans/{id}/cancel",
         "/api/v1/container/restart/jobs/{id}/cancel",
@@ -274,6 +316,23 @@ fn main() {
     openapi["paths"]["/api/v1/storage/plans"]["post"]["description"] = serde_json::json!(
         "Persist guided assignments and a generated managed fstab section against fresh evidence. Preview only; storage execution requires a new operation version and new approval."
     );
+    openapi["paths"]["/api/v1/storage/targets/plans"]["post"]["description"] = serde_json::json!(
+        "Create a version-2 executable proposal to prepare empty mount directories only. Fresh protected target and device evidence plus an independent exact UUID/path ceiling are required. Existing preview approvals do not authorize this operation."
+    );
+    for (path, schema, description) in [
+        (
+            "/api/v1/storage/targets/plans/{id}",
+            serde_json::to_value(schema_for!(limeos_domain::PlannedStorageTargets)).unwrap(),
+            "Owner-scoped durable target proposal; read only, no expiry refresh or inspection",
+        ),
+        (
+            "/api/v1/storage/targets/jobs/{id}",
+            serde_json::to_value(schema_for!(limeos_domain::StorageTargetJob)).unwrap(),
+            "Owner-scoped durable target job; read only, no dispatch or reconciliation",
+        ),
+    ] {
+        openapi["paths"][path] = serde_json::json!({"get":{"security":[{"session":[]}],"responses":{"200":{"description":description,"content":{"application/json":{"schema":schema}}}}}});
+    }
     for suffix in [
         "/plans",
         "/plans/{id}/approval",
@@ -393,6 +452,16 @@ fn main() {
             include_str!("../../../crates/persistence/src/migration-v5.sql"),
             include_str!("../../../crates/persistence/src/migration-v6.sql"),
             include_str!("../../../crates/persistence/src/migration-v7.sql")
+        ),
+    )
+    .unwrap();
+    let authority = std::fs::read_to_string(dir.join("authority-v7.sql")).unwrap();
+    std::fs::write(
+        dir.join("authority-v8.sql"),
+        format!(
+            "{}{}",
+            authority,
+            include_str!("../../../crates/persistence/src/migration-v8.sql")
         ),
     )
     .unwrap();

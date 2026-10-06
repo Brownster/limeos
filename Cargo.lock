@@ -752,6 +752,7 @@ dependencies = [
  "limeos-executor-protocol",
  "limeos-executor-storage",
  "limeos-observations",
+ "rustix",
  "serde_json",
  "tokio",
  "tracing",

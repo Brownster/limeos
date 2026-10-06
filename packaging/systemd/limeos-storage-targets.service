@@ -1,0 +1,38 @@
+[Unit]
+Description=LimeOS approved empty storage target preparation
+After=local-fs.target
+ConditionPathExists=/etc/limeos/system-policy/storage-targets.json
+
+[Service]
+Type=exec
+User=root
+Group=limeos-host-access
+ExecStart=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/storage-targets.json /run/limeos-storage-targets/executor.sock storage-targets
+RuntimeDirectory=limeos-storage-targets
+RuntimeDirectoryMode=0750
+UMask=0077
+LimitCORE=0
+MemorySwapMax=0
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=15s
+TimeoutStopSec=5s
+NoNewPrivileges=yes
+PrivateMounts=no
+PrivateDevices=no
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+# mkdir/fchmod operate only on root-owned paths; fchown normalizes the new
+# directory's group. No mount or DAC bypass capability is granted.
+CapabilityBoundingSet=CAP_CHOWN
+AmbientCapabilities=CAP_CHOWN
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+LimitNOFILE=256
+TasksMax=16
+MemoryMax=64M
+CPUQuota=50%
+# Dormant: independent protected policy and an explicit operator start required.
