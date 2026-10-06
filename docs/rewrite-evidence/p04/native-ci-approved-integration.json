@@ -1,0 +1,37 @@
+{
+  "run": 37461554240,
+  "url": "https://github.com/Brownster/limeos/actions/runs/37461554240",
+  "source_commit": "115257ff8965c92ada281e6f9bd1180a3d3c7fd9",
+  "conclusion": "success",
+  "native_workspace_tests": {
+    "check (ubuntu-24.04)": 185,
+    "check (ubuntu-24.04-arm)": 185
+  },
+  "jobs": [
+    {
+      "name": "check (ubuntu-24.04)",
+      "conclusion": "success",
+      "started_at": "2026-10-06T12:12:03Z",
+      "completed_at": "2026-10-06T12:20:48Z"
+    },
+    {
+      "name": "check (ubuntu-24.04-arm)",
+      "conclusion": "success",
+      "started_at": "2026-10-06T12:12:05Z",
+      "completed_at": "2026-10-06T12:21:32Z"
+    },
+    {
+      "name": "debian-vm",
+      "conclusion": "success",
+      "started_at": "2026-10-06T12:21:36Z",
+      "completed_at": "2026-10-06T12:33:35Z"
+    }
+  ],
+  "log_sha256": "1c2b2077d9e0d6cb39b73c5dc6f952c387fa66204ad969f15cedc13b33205e47",
+  "vm_scope": "four fresh AMD64 guests: foundation/revision lifecycle, observations, representative container/Compose layouts and approved storage/teardown; current source only, no historical upgrade claim",
+  "local_genuine_upgrade_evidence": "storage-approved-validation.json binds frozen 9170b5d and genuine 0.4.3 payload separately",
+  "limits": [
+    "native ARM64 source/package gates; new installed native/Pi runtime qualification remains pending",
+    "historical payload metadata is not attributed to the integrated source"
+  ]
+}
