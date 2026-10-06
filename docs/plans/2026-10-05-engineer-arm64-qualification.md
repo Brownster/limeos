@@ -1,5 +1,7 @@
 # Engineer 1: native ARM64 qualification and footprint
 
+Delivery received on 2026-10-06: [native ARM64 report](../rewrite-evidence/arm64/2026-10-06-native-arm64-report.md) and reproducible scripts are committed. Corrected older source `5848bce` passes 132 native tests and 35 storage groups. The frozen source supplied the memory/idle measurements; corrected and current 0.4.4 measurements remain distinct. This handoff stays as its original scope record.
+
 Objective: close the native architecture and measurement gaps while the main implementer continues RW-040. Work on a separate branch/worktree from `589cf9a6de587d301ecaacff9eeb92869af40e7c`, the frozen 0.4.2 runtime source. Estimated first delivery: two to three engineer days, subject to hardware availability. Record actual effort and infrastructure waits separately.
 
 Update on 2026-10-06: the first GitHub native ARM64 run reproduced a symlink-refusal failure caused by numeric x86 open flags. Cherry-pick independent correction `1087f24` when qualifying this baseline, and report the changed source/payload separately from frozen 0.4.2. That correction uses already-pinned rustix flags for configuration, core lock files and container receipts. The latest integrating source also contains schema-7 lock work; do not mix its qualification with the older payload. Native CI and Debian/Pi performance remain separate claims.

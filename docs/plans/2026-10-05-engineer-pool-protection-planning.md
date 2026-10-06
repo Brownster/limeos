@@ -1,5 +1,7 @@
 # Engineer 2: RW-041 pool and SnapRAID planning foundation
 
+Delivery integrated on 2026-10-06: [pool/SnapRAID planning](../p04-pool-protection-planning.md) and the engineer’s original acceptance are committed. The combined workspace passes [185 tests](../rewrite-evidence/p04/rw041/2026-10-06-integration-acceptance.json). Protected collection, executable operations and the remaining RW-041 features stay open. This handoff stays as its original scope record.
+
 Objective: deliver pure Rust pool/protection planning and read-only parsing while the main implementer owns RW-040 target/mount/fstab execution. Use a separate branch/worktree from `589cf9a6de587d301ecaacff9eeb92869af40e7c`. Estimated first delivery: two to four engineer days for this bounded foundation, not all of RW-041. Record actual effort and unresolved decisions.
 
 Read [RW-041](2026-10-04-rust-rewrite-roadmap.md), the [architecture](2026-10-04-rust-rewrite-architecture.md), [defect register](2026-10-04-rust-rewrite-defect-register.md), [storage contract ADR](../adr/0006-p04-storage-contract.md) and [target preparation ADR](../adr/0008-p04-protected-storage-targets.md). Source parity from `/home/marc/Documents/github/pi-health` at frozen `80593b2`; inspect it without edits or running host commands. Focus on `storage_plugins/mergerfs_plugin.py`, `snapraid_plugin.py`, `snapraid_logtags.py`, `storage_capability_adapters.py`, their schemas/manifests and corresponding tests.
