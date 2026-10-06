@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-06T19:56:15.459479+00:00",
+  "recorded_at": "2026-10-06T20:01:45.449399+00:00",
   "source_commit": "63bcd78abfd1a0dd413183d3d2899d0aab4afa2c",
   "fixture_commit": "63bcd78abfd1a0dd413183d3d2899d0aab4afa2c",
   "bundle": {
@@ -39,7 +39,7 @@
   "rust_tests": {
     "passed": 199,
     "failed": 0,
-    "transcript_sha256": "daca97747e830f3296795602c30d5931ad0dbe4532bcee0dfdc1496137732ad7"
+    "transcript_sha256": "bd7d094aa77f09cb9ed65c63203eaf1c758a445411f4b97210448300a68f2663"
   },
   "installed": {
     "groups": 49,
