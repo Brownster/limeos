@@ -72,7 +72,7 @@ def main():
     log_name = f"rust-{args.slice}-tests.txt"
     vm = json.loads((evidence / vm_name).read_text())
     assert len(vm["passed"]) >= (
-        50 if approved else 43 if locks else 37 if targets else 27 if planning else 17
+        51 if approved else 43 if locks else 37 if targets else 27 if planning else 17
     )
     assert "three-second plan deadline" in " ".join(vm["passed"])
     assert "watchdog bound" in " ".join(vm["passed"])
@@ -128,6 +128,7 @@ def main():
             "SIGKILL",
             "missing root receipt",
             "without mkdir",
+            "standard prerm stops every optional root service",
         ]:
             assert scenario in " ".join(vm["passed"])
     assert 2.5 <= vm["plan_wait_seconds"] <= 7
@@ -388,6 +389,7 @@ def main():
             "p04_targets_guest.py",
             "p04_locks_guest.py",
             "p04_approved_guest.py",
+            "p04_targets_package_guest.py",
         ]:
             path = "tests/privileged_vm/" + name
             committed = subprocess.check_output(
