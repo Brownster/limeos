@@ -63,6 +63,9 @@ def main():
         db.execute(
             "UPDATE jobs SET state='canceled' WHERE json_extract(intent,'$.operation')='health_probe' AND resource LIKE 'fixture:%' AND state IN ('queued','running','verifying','outcome_unknown','needs_intervention')"
         )
+    # The preceding repaired startup-corruption fixtures intentionally make
+    # several rapid starts. Reset their unit counter before this distinct suite.
+    run("systemctl", "reset-failed", "limeos-core")
     run("systemctl", "start", "limeos-core")
     eventually(
         lambda: run("/usr/lib/limeos/limeosctl", "status", check=False).returncode == 0
