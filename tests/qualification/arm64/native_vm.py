@@ -595,11 +595,43 @@ def main():
     q.add_argument("destination")
     s = sub.add_parser("stop")
     s.add_argument("name")
+    hexec = sub.add_parser(
+        "host-exec",
+        help="Run one recorded host command (operator-approved preparation/cleanup)",
+    )
+    hexec.add_argument("--log", type=Path, required=True, help="JSON lines record")
+    hexec.add_argument("host_command")
     info = sub.add_parser(
         "host-info", help="Capture read-only host pressure/platform evidence"
     )
     info.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.command == "host-exec":
+        guest = Guest("host-exec", args.host, args.authorization)
+        started = utc_now()
+        result = guest.host_run(
+            args.host_command, check=False, capture_output=True, text=True, timeout=1800
+        )
+        with args.log.open("a") as stream:
+            stream.write(
+                json.dumps(
+                    {
+                        "started": started.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "host": args.host,
+                        "authorization_sha256": (guest.authorization or {}).get(
+                            "sha256"
+                        ),
+                        "command": args.host_command,
+                        "exit": result.returncode,
+                        "stdout": result.stdout[-65536:],
+                        "stderr": result.stderr[-16384:],
+                    }
+                )
+                + "\n"
+            )
+        sys.stdout.write(result.stdout)
+        sys.stderr.write(result.stderr)
+        sys.exit(result.returncode)
     if args.command == "host-info":
         args.output.write_text(
             json.dumps(
