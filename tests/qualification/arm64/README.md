@@ -1,60 +1,182 @@
 # Native ARM64 qualification
 
-These scripts build, install and measure LimeOS on real ARM64 hardware. Every LimeOS process runs inside a disposable Debian 12 arm64 KVM guest. The Raspberry Pi only hosts QEMU, and nothing from LimeOS is installed on it. The workstation drives everything over SSH, using the Pi as a jump host to reach the guest's loopback-forwarded SSH port.
+Run LimeOS only in disposable Debian 12 ARM64 KVM guests on an explicitly
+available isolated host. The workstation uses SSH through the host to a
+loopback guest port. The host runs QEMU; packages, policy changes, synthetic
+disks and fault injection stay inside guests. This assignment grants no new
+quiet window on wybie or Holly's production Pi. `--host` has no default.
 
-| Script | Runs on | Purpose |
+The current assignment freezes runtime source at
+`60e6309384c6a93caa63c0d578dc57d981897863`, authority schema 8. Use a distinct
+qualification package version, for example `0.4.4+arm64.1`. Package labels
+identify an artifact; the source, fixture, binary and package hashes identify
+the code tested. Earlier evidence stays under its original directory.
+
+## Inputs and scripts
+
+| Script | Location | Purpose |
 |---|---|---|
-| `native_vm.py` | workstation | Boot, reach, copy to/from and stop a guest on the Pi |
-| `make_bundle.py` | workstation | `git archive` of the frozen commit plus built `frontend/dist`, with a SHA-256 manifest |
-| `build_guest.py` | build guest | Rust 1.88 via rustup, `cargo fetch --locked`, fmt, strict Clippy, tests, contract check, release build, standard/shadow `.deb` packages, signed test repository |
-| `install_guest.py` | clean guest | Install from the signed repository; identity, units, accounts, capabilities, ownership, Docker access, enrollment, imported hashes, password worker, session durability, shadow ceiling; memory, CPU, startup, latency and bytes written |
-| `upgrade_guest.py` | clean guest | Upgrade from an exact earlier ARM64 artifact (hash-checked) to the native build |
+| `native_vm.py` | Workstation | Explicit host, checked image, bounded guest resources, synthetic disks, platform/pressure capture, SSH copy/exec and teardown |
+| `make_bundle.py` | Workstation | Archive frozen runtime and separate fixture commits; build/test UI against archived source; hash all inputs |
+| `build_guest.py` | Native build guest | Verify inputs and Rust 1.88.0 native toolchain; locked tests, strict Clippy, contracts, dependency checks, release binaries, standard/shadow packages and signed repository |
+| `install_guest.py` | Fresh guest | Signed install, schema/identity, dormant units, ownership/capabilities, imported hashes, bounded workers, durable sessions, shadow refusals and footprint |
+| `approved_guest.py` | Fresh storage/container guests | Reuse current approved-operation suites with original assertions; actual apt replacement/removal on storage guest |
+| `upgrade_guest.py` | Fresh upgrade guest | Genuine recorded schema 6/7 artifact upgrade, sessions, pending approval, receipts, active locks/claims and replay |
+| `extra_guest.py` | Storage guest after approved suite | Exact installed hashes, command timings and separate optional reader/target memory/capabilities |
+| `record_run.py` | Workstation | Reject mixed identities/overwrites; collect raw artifacts, summaries, budget comparisons and evidence hashes |
+| `test_harness.py` | Workstation | Local regressions without SSH or installed-service mutations |
 
-The P04 storage-target suite runs unchanged from `tests/privileged_vm/` on a guest with four empty 128 MiB disks (`--storage-disks`). Its only ARM64 change is reading the package architecture from `dpkg`.
+Guest scripts use Debian's Python 3.11 stdlib; workstation scripts use `uv`.
+All scripts support `--help`. Exit 0 means checks passed, 1 means a failed
+runtime gate, and argparse uses 2 for invalid usage. Save command stdout/stderr
+and exit codes, including failures. A failed installed identity refuses
+footprint measurement. A failed suite is retained in its result JSON.
 
-## Host requirements
+Commit small shared fixture adaptations separately. The bundle's
+`--fixtures-commit` includes both `tests/qualification/arm64/` and
+`tests/privileged_vm/`; guest wrappers verify these bytes independently of
+`--commit`. Execute the bundled fixture scripts, not the historical scripts
+in `source/tests/` or an uncommitted workstation copy.
 
-- An ARM64 machine with KVM (for example a Pi 5), passwordless `sudo` and these packages: `qemu-system-arm qemu-efi-aarch64 qemu-utils` (install with `--no-install-recommends`).
-- Under `~/limeos-arm64-qual/image/`, the Debian cloud image `debian-12-genericcloud-arm64.qcow2`, checked against Debian's `SHA512SUMS`.
-- QEMU starts with `sudo` so it can open `/dev/kvm`, then drops to the SSH user with `-runas`. No group or ACL changes are needed. The guest runs at `nice 19` and idle I/O priority.
+## Host prerequisites
 
-Keep the guest's memory well below the host's available memory. A 2.5 GiB build guest pushed about 190 MiB of the Pi's services into swap; 1.5 GiB guests did not.
+An explicitly available native ARM64 host needs KVM, passwordless sudo,
+`qemu-system-arm qemu-efi-aarch64 qemu-utils` installed without recommends,
+and `~/limeos-arm64-qual/image/debian-12-genericcloud-arm64.qcow2`. Verify the
+image against Debian's `SHA512SUMS`; pass the full verified SHA-512 to every
+boot. The runner checks native host architecture, `/dev/kvm` and image bytes
+before creating a guest. The workstation needs SSH/scp, `genisoimage`, Node
+and npm compatible with the frozen frontend, and `uv`.
 
-## Reproduce
+Build guests use at most 3 CPUs and 2048 MiB; test guests use 2 CPUs and
+1536 MiB. Run one guest at a time and check host pressure before each boot.
+The earlier 2.5 GiB guest forced host services into swap. Resource ceilings
+are maxima, not evidence that a busy host has sufficient free memory. QEMU
+uses native KVM, nice 19 and idle I/O priority, opening KVM as root then
+dropping to the SSH account. Capture host pressure during long runs with
+`host-info`; keep host/build load separate from installed-service results.
+
+## Reproduce a current run
+
+In the qualification worktree, after committing the harness:
 
 ```bash
-# Workstation, in a worktree at the frozen commit
-(cd frontend && npm ci --ignore-scripts && npm test && npm run build)
-uv run tests/qualification/arm64/make_bundle.py --commit <commit> \
-  --output .cache/arm64-qual/bundle/source.tar.gz --manifest .cache/arm64-qual/bundle/source-manifest.json
+uv run tests/qualification/arm64/test_harness.py -v
+uv run tests/qualification/arm64/make_bundle.py \
+  --commit 60e6309384c6a93caa63c0d578dc57d981897863 \
+  --fixtures-commit <committed-harness-revision> \
+  --package-version 0.4.4+arm64.1 --authority-schema 8 \
+  --output .cache/arm64-qual/current/source.tar.gz \
+  --manifest .cache/arm64-qual/current/source-manifest.json
 
-V="uv run tests/qualification/arm64/native_vm.py --host <user>@<pi>"
-$V boot build --port 22801 --cpus 3 --memory 2048 --disk 24G
-$V exec build 'mkdir -p /root/qual'
-$V push build .cache/arm64-qual/bundle/source.tar.gz /root/qual/source.tar.gz
-$V push build tests/qualification/arm64/build_guest.py /root/qual/build_guest.py
-$V exec build 'cd /root/qual && tar -xzf source.tar.gz && python3 build_guest.py'
-$V exec build 'cd /root/qual/source && PATH=/root/.cargo/bin:$PATH cargo test --workspace --locked --no-fail-fast'
-# Pull /root/qual/{repo,packages,logs,build-result.json} and target/release binaries, then:
-$V stop build
-
-$V boot install --port 22802 --cpus 2 --memory 1536 --disk 16G
-$V push install <repo> /opt/limeos-repo        # plus expected.json, tests/fixtures/werkzeug-hashes.json, install_guest.py
-$V exec install 'cd /root/qual && python3 install_guest.py /opt/limeos-repo expected.json werkzeug-hashes.json install-result.json'
-$V stop install
-
-$V boot upgrade --port 22803 --cpus 2 --memory 1536 --disk 16G
-$V exec upgrade 'python3 /root/qual/upgrade_guest.py OLD.deb OLD_SHA256 /opt/limeos-repo expected.json result.json'
-
-$V boot storage --port 22804 --cpus 2 --memory 1536 --disk 16G --storage-disks
-# copy p04_targets_guest.py, p04_planning_guest.py, p04_storage_guest.py and werkzeug-hashes.json to /root
-$V exec storage 'cd /root && python3 guest.py /opt/limeos-repo /root/result.json'   # guest.py = p04_targets_guest.py
+# Substitute the explicitly available test host and verified image digest.
+V=(uv run tests/qualification/arm64/native_vm.py --host user@isolated-arm64)
+IMAGE_SHA512=<full-verified-Debian-digest>
+"${V[@]}" host-info --output .cache/arm64-qual/current/host-preflight.json
+"${V[@]}" boot current-build --port 22801 --cpus 3 --memory 2048 --disk 24G \
+  --image-sha512 "$IMAGE_SHA512"
+"${V[@]}" exec current-build 'mkdir -p /root/qual'
+"${V[@]}" push current-build .cache/arm64-qual/current/source.tar.gz /root/qual/source.tar.gz
+"${V[@]}" exec current-build 'cd /root/qual && tar -xzf source.tar.gz'
+# Replace the internal manifest with the external copy that includes bundle hash.
+"${V[@]}" push current-build .cache/arm64-qual/current/source-manifest.json /root/qual/source-manifest.json
+"${V[@]}" exec current-build 'python3 /root/qual/fixtures/tests/qualification/arm64/build_guest.py --work /root/qual --manifest /root/qual/source-manifest.json'
+"${V[@]}" pull current-build /root/qual/build-result.json .cache/arm64-qual/current/build-result.json
+"${V[@]}" pull current-build /root/qual/logs .cache/arm64-qual/current/logs
+"${V[@]}" pull current-build /root/qual/packages .cache/arm64-qual/current/packages
+"${V[@]}" pull current-build /root/qual/repo .cache/arm64-qual/current/repo
+"${V[@]}" host-info --output .cache/arm64-qual/current/host-after-build.json
+"${V[@]}" stop current-build
 ```
 
-`expected.json` holds the build's binary and package SHA-256 values; the install and upgrade guests refuse binaries that differ. Each run's evidence goes in its own directory under `docs/rewrite-evidence/arm64/`.
+Create fresh guests named `current-install`, `current-storage`,
+`current-container`, and `current-upgrade` in sequence (ports 22802–22805).
+Use 1536 MiB, 2 CPUs, 16G and the same image digest. Only the storage guest
+needs `--storage-disks`: four empty 128 MiB qcow2 devices with fixed serials
+`limeos-test-0` through `limeos-test-3`. The reused storage suite validates
+every serial, size and absence of mounts before partition/format operations.
 
-## Limits
+For each guest, copy/extract the same bundle under `/root/qual`, copy the
+native signed repository to `/opt/limeos-repo`, native `build-result.json`
+to `/root/qual/build-result.json`, and frozen
+`source/tests/fixtures/werkzeug-hashes.json` to `/root/werkzeug-hashes.json`.
+Copy the external manifest when retaining source-manifest bytes. Execute:
 
-- Results come from a KVM guest on a Cortex-A76 (Pi 5), not bare metal. The guest kernel uses 4 KiB pages; the Pi's own kernel uses 16 KiB pages, which raises RSS and PSS for the same binary.
-- The Pi's own services keep running beside the guest. Host load is recorded with each run.
-- Docker inside the guest uses Debian's `docker.io` with a static busybox workload, not real media applications.
+```bash
+# Fresh install guest: allow about 20 minutes for the recorded workload/windows.
+python3 /root/qual/fixtures/tests/qualification/arm64/install_guest.py \
+  --repo /opt/limeos-repo --expected /root/qual/build-result.json \
+  --hashes /root/werkzeug-hashes.json --output /root/qual/install-result.json
+
+# Fresh storage guest, with the guarded synthetic disks.
+python3 /root/qual/fixtures/tests/qualification/arm64/approved_guest.py \
+  --suite storage --repo /opt/limeos-repo --expected /root/qual/build-result.json \
+  --hashes /root/werkzeug-hashes.json --output /root/qual/storage-result.json
+python3 /root/qual/fixtures/tests/qualification/arm64/extra_guest.py \
+  --expected /root/qual/build-result.json --output /root/qual/extra-result.json
+
+# Separate fresh container guest.
+python3 /root/qual/fixtures/tests/qualification/arm64/approved_guest.py \
+  --suite container --repo /opt/limeos-repo --expected /root/qual/build-result.json \
+  --hashes /root/werkzeug-hashes.json --output /root/qual/container-result.json
+```
+
+For upgrade, copy a signed repository containing the exact earlier ARM64
+artifact to `/opt/limeos-previous-repo`. If the historical disposable key has
+expired, sign a new test repository around those unchanged package bytes
+using `source/packaging/repository.sh`; retain the new signing fingerprint.
+Do not rebuild or relabel the artifact. The previous provenance JSON needs
+`source_commit`, `package_version`, `architecture`, `authority_schema`,
+`package_sha256`, `core_sha256`, original evidence paths and their SHA-256s.
+The corrected historical `0.4.2` artifact is available for schema 6 → 8;
+its provenance is in the current preparation evidence directory. A schema
+7 → 8 claim additionally requires an original schema 7 ARM64 artifact.
+
+```bash
+python3 /root/qual/fixtures/tests/qualification/arm64/upgrade_guest.py \
+  --repo /opt/limeos-repo --expected /root/qual/build-result.json \
+  --previous-repo /opt/limeos-previous-repo \
+  --previous-provenance /root/qual/previous-artifact.json \
+  --output /root/qual/upgrade-result.json
+```
+
+Pull each result, fixture result, complete stdout/stderr, journal and host
+samples before stopping its guest. `stop` retains console/metadata locally
+under `.cache/arm64-qual/stopped/<guest>/`. A failure is evidence to retain;
+record the attempted command, exit and untested subsequent gates. Runtime
+fixes require an independent minimal commit and a new qualification identity.
+
+```bash
+uv run tests/qualification/arm64/record_run.py \
+  --run 2026-10-06-current-60e6309-native-1 \
+  --source-manifest .cache/arm64-qual/current/source-manifest.json \
+  --build-result .cache/arm64-qual/current/build-result.json \
+  --install-result .cache/arm64-qual/current/install-result.json \
+  --extra-result .cache/arm64-qual/current/extra-result.json \
+  --suite-result .cache/arm64-qual/current/storage-result.json \
+  --suite-result .cache/arm64-qual/current/container-result.json \
+  --suite-result .cache/arm64-qual/current/upgrade-result.json \
+  --artifact .cache/arm64-qual/current/logs=build/logs \
+  --artifact .cache/arm64-qual/current/host-preflight.json=host/preflight.json
+```
+
+## Measurement limits
+
+Idle CPU uses at least 600 seconds. Store per-service PSS/RSS/swap, raw memory
+and counter samples, actual enabled services, CPU/kernel/page size/RAM/storage
+and load. Timings retain individual samples. The footprint workload contains
+20 static busybox containers, three dashboard streams in their separate
+window and zero synthetic registered storage disks; the storage suite uses
+four disks separately. The architecture's eight-disk footprint workload
+and assistant-inclusive total remain separate untested gates.
+
+Reader/target services use separate samples; password workers are transient.
+Docker/containerd/workload memory is reported separately. Resident write
+MB/day is an estimate extrapolated from the stated interval. Missing process
+counters produce an unavailable result. Native CI, native KVM, bare-metal Pi
+and a comparable Python baseline are separate claims. Never attribute the
+old uncorrected build's 9.68 MiB PSS to the current or corrected payload.
+
+Historical command interfaces and evidence remain reproducible from the
+historical source/fixture commits recorded in those runs' manifests. The
+current explicit-argument interface replaces their hardcoded version/schema.

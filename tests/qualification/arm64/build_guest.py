@@ -6,33 +6,38 @@ gate is reported and the remaining steps still run, so failures stay explicit
 instead of hiding later results.
 """
 
-import hashlib
+import argparse
 import json
 import os
 import platform
 import re
-import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-WORK = Path("/root/qual")
-SOURCE = WORK / "source"
-LOGS = WORK / "logs"
-VERSION = "0.4.2"
-BINARIES = ["limeos-core", "limeos-password-worker", "limeos-executor", "limeosctl"]
-
-
-def sha(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+from qualification import BINARIES, guest_guard, load_manifest, sha, verify_source
 
 
 def main():
-    if os.getuid() != 0 or socket.gethostname() != "limeos-p01-test":
-        raise SystemExit("Disposable guest required")
-    if platform.machine() != "aarch64":
-        raise SystemExit("Native aarch64 guest required")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--work",
+        type=Path,
+        required=True,
+        help="Extracted bundle and new build output directory",
+    )
+    parser.add_argument("--manifest", type=Path, required=True)
+    args = parser.parse_args()
+    guest_guard()
+    WORK = args.work.resolve()
+    SOURCE = WORK / "source"
+    LOGS = WORK / "logs"
+    if LOGS.exists() or (WORK / "build-result.json").exists():
+        parser.error("build output already exists; use a fresh guest/run directory")
+    manifest = load_manifest(args.manifest)
+    verify_source(WORK, manifest)
+    VERSION = manifest["identity"]["package_version"]
     LOGS.mkdir(parents=True, exist_ok=True)
     env = dict(
         os.environ,
@@ -83,7 +88,13 @@ def main():
     def result_doc(steps):
         return {"version": VERSION, "steps": steps, **extra}
 
-    extra = {}
+    extra = {
+        "identity": manifest["identity"],
+        "source_manifest_sha256": sha(args.manifest),
+        "runtime_source_sha256": manifest["runtime_source_sha256"],
+        "frontend_dist_sha256": manifest["frontend_dist_sha256"],
+        "fixtures_sha256": manifest["fixtures_sha256"],
+    }
     step(
         "apt",
         "sh",
@@ -91,7 +102,6 @@ def main():
         "apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "
         "build-essential pkg-config ca-certificates curl gnupg apt-utils dpkg-dev binutils file",
         cwd=WORK,
-        gate=False,
     )
     step(
         "rustup",
@@ -100,7 +110,6 @@ def main():
         "curl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal "
         "--default-toolchain 1.88.0 -c clippy -c rustfmt --no-modify-path",
         cwd=WORK,
-        gate=False,
     )
     toolchain = subprocess.run(
         ["/root/.cargo/bin/rustc", "-vV"],
@@ -144,7 +153,15 @@ def main():
             check=False,
         ).stdout.strip(),
         "native_linker": linker,
+        "loadavg": Path("/proc/loadavg").read_text().strip(),
+        "meminfo": Path("/proc/meminfo").read_text(),
     }
+    if (
+        "release: 1.88.0\n" not in toolchain
+        or "host: aarch64-unknown-linux-gnu\n" not in toolchain
+    ):
+        write(steps)
+        raise SystemExit("Rust 1.88.0 with native aarch64 host required")
     write(steps)
     step("fetch", "cargo", "fetch", "--locked")
     step("fmt", "cargo", "fmt", "--all", "--", "--check")
@@ -160,8 +177,10 @@ def main():
         "warnings",
         jobs=3,
     )
-    step("test", "cargo", "test", "--workspace", "--locked", jobs=3)
+    step("test", "cargo", "test", "--workspace", "--locked", "--no-fail-fast", jobs=3)
     step("contracts", "python3", "scripts/check_contracts.py", jobs=3)
+    step("dependency-direction", "python3", "scripts/check_repository.py")
+    verify_source(WORK, manifest)
     built = step(
         "release",
         "cargo",
@@ -227,7 +246,6 @@ def main():
             "rsa2048",
             "sign",
             "2d",
-            gate=False,
         )
         listing = subprocess.check_output(
             ["gpg", "--batch", "--with-colons", "--list-secret-keys"], text=True
@@ -247,6 +265,13 @@ def main():
         )
         extra["signing_fingerprint"] = key
         extra["packages"] = {p.name: sha(p) for p in sorted(packages.glob("*.deb"))}
+        extra["package_control"] = {
+            p.name: subprocess.check_output(
+                ["dpkg-deb", "-f", str(p), "Package", "Version", "Architecture"],
+                text=True,
+            )
+            for p in sorted(packages.glob("*.deb"))
+        }
     write(steps)
     failed = [s["step"] for s in steps if s["gate"] and s["exit"] != 0]
     print(

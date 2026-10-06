@@ -18,6 +18,7 @@ passwordless sudo. QEMU opens /dev/kvm as root, then drops to the SSH user with
 
 import argparse
 import json
+import re
 import shlex
 import subprocess
 import sys
@@ -36,13 +37,22 @@ def run(*args, **kwargs):
 
 class Guest:
     def __init__(self, name, host):
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", name):
+            raise ValueError(
+                "guest name must use lowercase letters, digits and hyphens (max 64)"
+            )
+        if not re.fullmatch(r"(?:[A-Za-z0-9_.-]+@)?[A-Za-z0-9][A-Za-z0-9_.-]*", host):
+            raise ValueError("host must be an explicit SSH alias or user@hostname")
         self.name = name
         self.host = host
         self.local = STATE / name
         self.remote = f"{REMOTE_BASE}/runs/{name}"
         self.key = self.local / "key"
         meta = self.local / "guest.json"
-        self.port = json.loads(meta.read_text())["port"] if meta.exists() else None
+        stored = json.loads(meta.read_text()) if meta.exists() else None
+        if stored and stored["host"] != host:
+            raise ValueError("host differs from recorded guest host")
+        self.port = stored["port"] if stored else None
 
     def options(self):
         return [
@@ -96,15 +106,64 @@ class Guest:
 
     def host_run(self, command, **kwargs):
         return subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", self.host, command], check=True, **kwargs
+            [
+                "ssh",
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=10",
+                self.host,
+                command,
+            ],
+            check=True,
+            **kwargs,
         )
+
+
+def host_info(guest):
+    result = guest.host_run(
+        "uname -a; getconf PAGESIZE; cat /proc/cpuinfo; cat /proc/meminfo; "
+        "cat /proc/loadavg; cat /proc/pressure/memory; "
+        "lsblk -d -o NAME,SIZE,ROTA,MODEL; systemctl list-units --state=running --no-pager",
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+    return {
+        "host": guest.host,
+        "captured": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "raw": result.stdout,
+        "stderr": result.stderr,
+    }
 
 
 def boot(args):
     guest = Guest(args.name, args.host)
+    if (
+        not 1 <= args.port <= 65535
+        or not 1 <= args.cpus <= 3
+        or not 512 <= args.memory <= 2048
+    ):
+        raise SystemExit("port 1..65535, CPUs 1..3 and memory 512..2048 MiB required")
+    if not re.fullmatch(r"[1-9][0-9]*G", args.disk):
+        raise SystemExit("disk must be an integer GiB size, e.g. 24G")
+    if not re.fullmatch(r"[0-9a-f]{128}", args.image_sha512):
+        raise SystemExit("verified Debian cloud image SHA-512 required")
     if guest.local.exists():
         raise SystemExit(f"{guest.local} exists; stop that guest first")
+    # Read-only host checks precede all guest files and QEMU startup.
+    preflight = guest.host_run(
+        f'test "$(uname -m)" = aarch64 && test -c /dev/kvm && '
+        f"test ! -e {guest.remote} && sha512sum {REMOTE_BASE}/{IMAGE}",
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if preflight.stdout.split()[0] != args.image_sha512:
+        raise SystemExit("host image SHA-512 differs from verified Debian image")
+    before = host_info(guest)
     guest.local.mkdir(parents=True)
+    (guest.local / "host-before.json").write_text(json.dumps(before, indent=2) + "\n")
     run("ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(guest.key))
     public = guest.key.with_suffix(".pub").read_text().strip()
     # The AMD64 guest suites refuse to run unless the hostname marks a disposable VM.
@@ -219,6 +278,7 @@ def boot(args):
                 "memory_mib": args.memory,
                 "disk": args.disk,
                 "storage_disks": args.storage_disks,
+                "image_sha512": args.image_sha512,
                 "qemu": " ".join(qemu),
                 "started": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
             },
@@ -244,9 +304,15 @@ def boot(args):
 
 def stop(args):
     guest = Guest(args.name, args.host)
+    if guest.port is None:
+        raise SystemExit("recorded guest state required for stop")
+    (guest.local / "host-after.json").write_text(
+        json.dumps(host_info(guest), indent=2) + "\n"
+    )
     guest.host_run(
         # The pidfile is root-owned (written before -runas drops privileges).
-        f"cd {guest.remote} && pid=$(sudo cat qemu.pid) && sudo kill $pid && "
+        f"cd {guest.remote} && pid=$(sudo cat qemu.pid) && "
+        'test "$(sudo readlink /proc/$pid/cwd)" = "$PWD" && sudo kill $pid && '
         "for i in $(seq 1 60); do [ -e /proc/$pid ] || break; sleep 1; done && "
         "[ ! -e /proc/$pid ] && "
         f"{{ sudo cat console.log > /tmp/limeos-arm64-{args.name}-console.log 2>/dev/null; true; }}"
@@ -267,7 +333,11 @@ def stop(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", default="holly@wybie")
+    parser.add_argument(
+        "--host",
+        required=True,
+        help="Explicitly available isolated native ARM64 SSH host",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     b = sub.add_parser("boot")
     b.add_argument("name")
@@ -276,6 +346,11 @@ def main():
     b.add_argument("--memory", type=int, default=1536)
     b.add_argument("--disk", default="24G")
     b.add_argument("--storage-disks", action="store_true")
+    b.add_argument(
+        "--image-sha512",
+        required=True,
+        help="Debian SHA512SUMS digest for the installed base image",
+    )
     b.add_argument("--timeout", type=int, default=900)
     e = sub.add_parser("exec")
     e.add_argument("name")
@@ -290,13 +365,23 @@ def main():
     q.add_argument("destination")
     s = sub.add_parser("stop")
     s.add_argument("name")
+    info = sub.add_parser(
+        "host-info", help="Capture read-only host pressure/platform evidence"
+    )
+    info.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    if args.command == "boot":
+    if args.command == "host-info":
+        args.output.write_text(
+            json.dumps(host_info(Guest("host-info", args.host)), indent=2) + "\n"
+        )
+    elif args.command == "boot":
         boot(args)
     elif args.command == "stop":
         stop(args)
     else:
         guest = Guest(args.name, args.host)
+        if guest.port is None:
+            parser.error("recorded guest state required; boot the named guest first")
         if args.command == "exec":
             sys.exit(guest.ssh(args.remote_command, check=False).returncode)
         if args.command == "push":

@@ -1,261 +1,100 @@
 #!/usr/bin/env python3
-"""Real package upgrade from a genuine older ARM64 payload to the native 0.4.2 build.
+"""Qualify a genuine schema-6/7 ARM64 upgrade using the existing authority fixtures.
 
-Runs only inside the disposable guest, as root:
-  upgrade_guest.py OLD_DEB OLD_SHA256 REPO EXPECTED_JSON OUTPUT_JSON
-
-The older package is the exact previously recorded artifact (its SHA-256 is
-checked first); it is never rebuilt from current source with an older label.
+The previous repository must contain the recorded original artifact. Provenance
+binds its SHA-256 and original source; changing the package version is no proof.
+No schema-7 claim is emitted for a schema-6 artifact.
 """
 
-import hashlib
-import http.client
+import argparse
 import json
-import os
-import platform
-import socket
-import sqlite3
+import re
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-OLD_DEB, OLD_SHA, REPO, EXPECTED, OUTPUT = sys.argv[1:6]
-OLD_DEB, REPO, EXPECTED, OUTPUT = (
-    Path(OLD_DEB),
-    Path(REPO),
-    Path(EXPECTED),
-    Path(OUTPUT),
-)
-VERSION = "0.4.2"
-LIMEOS = Path("/usr/lib/limeos")
-DB = "/var/lib/limeos/core/core.sqlite"
-RESULT = {"checks": [], "observations": {}}
-
-
-def save():
-    OUTPUT.write_text(json.dumps(RESULT, indent=2, default=str) + "\n")
-
-
-def run(*args, check=True, input=None, timeout=900):
-    env = dict(os.environ, DEBIAN_FRONTEND="noninteractive")
-    result = subprocess.run(
-        args,
-        check=False,
-        input=input,
-        text=True,
-        capture_output=True,
-        timeout=timeout,
-        env=env,
-    )
-    if check and result.returncode != 0:
-        raise RuntimeError(
-            f"{args} failed ({result.returncode}): {result.stdout[-1500:]} {result.stderr[-1500:]}"
-        )
-    return result
-
-
-def http_request(method, path, body=None, cookie=None):
-    connection = http.client.HTTPConnection("127.0.0.1", 8003, timeout=15)
-    headers = {"Origin": "https://localhost", "Content-Type": "application/json"}
-    if cookie:
-        headers["Cookie"] = cookie
-    connection.request(
-        method, path, json.dumps(body) if body is not None else None, headers
-    )
-    response = connection.getresponse()
-    data = response.read()
-    connection.close()
-    return (
-        response.status,
-        dict(response.getheaders()),
-        (json.loads(data) if data else None),
-    )
-
-
-def ready(timeout=15):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if run(str(LIMEOS / "limeosctl"), "status", check=False).returncode == 0:
-            return True
-        time.sleep(0.05)
-    return False
-
-
-def schema():
-    with sqlite3.connect(f"file:{DB}?mode=ro", uri=True) as db:
-        return db.execute("PRAGMA user_version").fetchone()[0], db.execute(
-            "SELECT count(*) FROM users"
-        ).fetchone()[0]
-
-
-def units():
-    listing = run(
-        "systemctl", "list-unit-files", "limeos*", "--no-legend", "--no-pager"
-    ).stdout
-    active = {
-        u: run("systemctl", "is-active", u, check=False).stdout.strip()
-        for u in ["limeos-core", "limeos-containerd", "limeos-storaged"]
-    }
-    return {"unit_files": listing, "active": active}
-
-
-def step(name, fn):
-    try:
-        observation = fn()
-        RESULT["checks"].append(
-            {"name": name, "result": "pass", "observation": observation}
-        )
-        print("PASS " + name, flush=True)
-    except Exception as error:  # noqa: BLE001 - record every failure, then continue
-        RESULT["checks"].append(
-            {"name": name, "result": "fail", "error": repr(error)[-3000:]}
-        )
-        print("FAIL " + name + ": " + repr(error)[-400:], flush=True)
-        save()
-        raise SystemExit(1)
-    save()
+from qualification import guest_guard, installed_binaries, load_build, sha, verify_files
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo", type=Path, required=True)
+    parser.add_argument("--expected", type=Path, required=True)
+    parser.add_argument("--previous-repo", type=Path, required=True)
+    parser.add_argument("--previous-provenance", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    guest_guard()
+    if args.output.exists():
+        parser.error("output exists; select a new result file")
+    build = load_build(args.expected, args.repo)
+    if build["identity"]["authority_schema"] != 8:
+        parser.error("current approved-operation fixtures require schema 8")
+    fixtures = Path(__file__).resolve().parents[3]
+    verify_files(fixtures, build["fixtures_sha256"])
+    previous = json.loads(args.previous_provenance.read_text())
+    if not re.fullmatch(r"[0-9a-f]{40}", previous["source_commit"]):
+        parser.error("previous original source commit required")
+    if previous["source_commit"] == build["identity"]["source_commit"]:
+        parser.error("previous artifact must come from a different original source")
     if (
-        os.getuid() != 0
-        or socket.gethostname() != "limeos-p01-test"
-        or platform.machine() != "aarch64"
+        previous["authority_schema"] not in (6, 7)
+        or previous["architecture"] != "arm64"
     ):
-        raise SystemExit("Disposable native aarch64 guest required")
-    expected = json.loads(EXPECTED.read_text())
-    state = {}
-
-    def genuine():
-        digest = hashlib.sha256(OLD_DEB.read_bytes()).hexdigest()
-        assert digest == OLD_SHA, digest
-        info = run(
-            "dpkg-deb", "-f", str(OLD_DEB), "Package", "Version", "Architecture"
-        ).stdout
-        return {"sha256": digest, "control": info}
-
-    step("older payload is the exact recorded artifact", genuine)
-
-    def install_old():
-        run("apt-get", "update", "-qq")
-        run("apt-get", "install", "-y", str(OLD_DEB))
-        assert ready()
-        version = run("dpkg-query", "-W", "-f", "${Version}", "limeos").stdout
-        issued = json.loads(run(str(LIMEOS / "limeosctl"), "bootstrap").stdout)
-        state["password"] = "upgrade-" + hashlib.sha256(os.urandom(16)).hexdigest()[:20]
-        run(
-            str(LIMEOS / "limeosctl"),
-            "enroll",
-            input=json.dumps(
-                {
-                    "token": issued["token"],
-                    "username": "alice",
-                    "password": state["password"],
-                }
-            ),
+        parser.error(
+            "authority preservation fixture supports genuine schema 6 or 7 ARM64 artifacts"
         )
-        code, headers, _ = http_request(
-            "POST",
-            "/api/v1/auth/login",
-            {"username": "alice", "password": state["password"]},
-        )
-        assert code == 200, code
-        state["cookie"] = headers["set-cookie"].split(";", 1)[0]
-        assert (
-            http_request("GET", "/api/v1/auth/session", cookie=state["cookie"])[0]
-            == 200
-        )
-        state["old_schema"] = schema()
-        return {
-            "installed_version": version,
-            "schema_user_version_and_users": state["old_schema"],
-            **units(),
-        }
-
-    step(
-        "older package installs, enrolls and holds an authenticated session",
-        install_old,
+    package = next(
+        args.previous_repo.rglob(f"limeos_{previous['package_version']}_arm64.deb")
     )
-
-    def upgrade():
-        run(
-            "install",
-            "-m",
-            "0644",
-            str(REPO / "limeos-archive-keyring.gpg"),
-            "/usr/share/keyrings/limeos-test.gpg",
-        )
-        Path("/etc/apt/sources.list.d/limeos-test.list").write_text(
-            f"deb [signed-by=/usr/share/keyrings/limeos-test.gpg] file:{REPO} stable main\n"
-        )
-        run("apt-get", "update", "-qq")
-        started = time.monotonic()
-        output = run(
-            "apt-get",
-            "install",
-            "-y",
-            "-o",
-            "Dpkg::Options::=--force-confdef",
-            "-o",
-            "Dpkg::Options::=--force-confold",
-            f"limeos={VERSION}",
-        )
-        seconds = round(time.monotonic() - started, 1)
-        assert ready(20)
-        identity = run(
-            "dpkg-query", "-W", "-f", "${Package} ${Version} ${Architecture}", "limeos"
-        ).stdout
-        assert identity == f"limeos {VERSION} arm64", identity
-        verify = run("dpkg", "--verify", "limeos", check=False)
-        installed = {
-            n: hashlib.sha256((LIMEOS / n).read_bytes()).hexdigest()
-            for n in expected["binaries"]
-        }
-        assert all(
-            installed[n] == expected["binaries"][n]["sha256"] for n in installed
-        ), installed
-        return {
-            "identity": identity,
-            "apt_seconds": seconds,
-            "dpkg_verify": verify.stdout,
-            "apt_tail": output.stdout[-1500:],
-            "installed_sha256": installed,
-        }
-
-    step("apt upgrades the genuine older package to the native 0.4.2 build", upgrade)
-
-    def preserved():
-        new_schema = schema()
-        assert new_schema[0] == 6, new_schema
-        assert new_schema[1] == state["old_schema"][1], (
-            state["old_schema"],
-            new_schema,
-        )
-        session = http_request("GET", "/api/v1/auth/session", cookie=state["cookie"])[0]
-        assert session == 200, session
-        code = http_request(
-            "POST",
-            "/api/v1/auth/login",
-            {"username": "alice", "password": state["password"]},
-        )[0]
-        assert code == 200, code
-        assert http_request("GET", "/api/v1/overview", cookie=state["cookie"])[0] == 200
-        current = units()
-        assert all(v == "active" for v in current["active"].values()), current
-        return {
-            "schema_before": state["old_schema"],
-            "schema_after": new_schema,
-            "session_after_upgrade": session,
-            **current,
-        }
-
-    step(
-        "upgrade migrates authority to schema 6 and preserves users and the live session",
-        preserved,
+    if sha(package) != previous["package_sha256"]:
+        parser.error("previous package differs from original recorded SHA-256")
+    control = subprocess.check_output(
+        ["dpkg-deb", "-f", str(package), "Package", "Version", "Architecture"],
+        text=True,
     )
-    RESULT["summary"] = "pass"
-    save()
+    if (
+        control
+        != f"Package: limeos\nVersion: {previous['package_version']}\nArchitecture: arm64\n"
+    ):
+        parser.error("previous package control identity differs from provenance")
+    if args.previous_repo.resolve() != Path("/opt/limeos-previous-repo"):
+        parser.error(
+            "shared upgrade fixture requires --previous-repo /opt/limeos-previous-repo"
+        )
+    sys.path.insert(0, str(fixtures / "tests/privileged_vm"))
+    import p04_locks_guest as locks
+
+    result = {
+        "suite": "upgrade",
+        "identity": build["identity"],
+        "build_result_sha256": sha(args.expected),
+        "previous": previous,
+        "previous_provenance_sha256": sha(args.previous_provenance),
+        "started": time.time(),
+        "summary": "incomplete",
+    }
+    args.output.write_text(json.dumps(result, indent=2) + "\n")
+    try:
+        locks.VERSION = build["identity"]["package_version"]
+        result["upgrade"] = locks.upgrade(
+            args.repo,
+            previous_version=previous["package_version"],
+            previous_schema=previous["authority_schema"],
+            authority_schema=8,
+            previous_package_sha256=previous["package_sha256"],
+            previous_core_sha256=previous["core_sha256"],
+        )
+        assert result["upgrade"] is not None, "upgrade was not exercised"
+        result["installed_sha256"] = installed_binaries(build)
+        result["summary"] = "pass"
+    except Exception as error:
+        result.update(summary="fail", error=repr(error))
+        raise
+    finally:
+        result["finished"] = time.time()
+        args.output.write_text(json.dumps(result, indent=2) + "\n")
 
 
 if __name__ == "__main__":

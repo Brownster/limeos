@@ -2,19 +2,19 @@
 """Install native ARM64 packages and qualify service behaviour and footprint.
 
 Runs only inside the disposable guest, as root:
-  install_guest.py REPO EXPECTED_JSON HASHES_JSON OUTPUT_JSON
+  install_guest.py --repo REPO --expected BUILD_JSON --hashes HASHES --output RESULT
 
 Every check records its raw observation and continues after a failure, so the
 report shows exactly which gates passed, failed or were not reached.
 """
 
+import argparse
 import hashlib
 import http.client
 import json
 import os
 import platform
 import re
-import socket
 import sqlite3
 import subprocess
 import sys
@@ -22,13 +22,20 @@ import threading
 import time
 from pathlib import Path
 
-VERSION = "0.4.2"
-REPO, EXPECTED, HASHES, OUTPUT = map(Path, sys.argv[1:5])
+from qualification import (
+    BASE_UNITS,
+    BINARIES,
+    OPTIONAL_UNITS,
+    guest_guard,
+    installed_binaries,
+    load_build,
+    sha,
+)
+
 LIMEOS = Path("/usr/lib/limeos")
-BINARIES = ["limeos-core", "limeos-password-worker", "limeos-executor", "limeosctl"]
-UNITS = ["limeos-core", "limeos-containerd", "limeos-storaged"]
+UNITS = list(BASE_UNITS)
 DB = "/var/lib/limeos/core/core.sqlite"
-RESULT = {"version": VERSION, "checks": [], "observations": {}, "started": time.time()}
+RESULT = {"kind": "install", "checks": [], "observations": {}}
 
 
 def save():
@@ -128,12 +135,7 @@ def identity(expected):
     # Configuration files legitimately change after setup; every other path must match.
     conffiles = [line for line in lines if re.match(r"^\S+\s+c\s", line)]
     assert not [line for line in lines if line not in conffiles], verify.stdout
-    installed = {
-        name: hashlib.sha256((LIMEOS / name).read_bytes()).hexdigest()
-        for name in BINARIES
-    }
-    for name, digest in installed.items():
-        assert digest == expected["binaries"][name]["sha256"], name
+    installed = installed_binaries(expected)
     pool = {
         p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in REPO.rglob("*.deb")
     }
@@ -141,12 +143,16 @@ def identity(expected):
         assert expected["packages"][name] == digest, name
     machines = {n: elf_machine(LIMEOS / n) for n in BINARIES}
     assert set(machines.values()) == {"AArch64"}, machines
+    with sqlite3.connect(f"file:{DB}?mode=ro", uri=True) as db:
+        schema = db.execute("PRAGMA user_version").fetchone()[0]
+    assert schema == expected["identity"]["authority_schema"], schema
     return {
         "dpkg_verify_non_conffile_mismatches": 0,
         "changed_conffiles": conffiles,
         "installed_sha256": installed,
         "repository_packages": pool,
         "elf_machine": machines,
+        "authority_schema": schema,
     }
 
 
@@ -212,6 +218,7 @@ def summary(values):
         "p95": percentile(values, 0.95),
         "p99": percentile(values, 0.99),
         "max": max(values),
+        "samples": values,
     }
 
 
@@ -241,6 +248,10 @@ def memory_snapshot():
             k: sum(s[k] for s in services.values())
             for k in ["pss_kib", "rss_kib", "swap_kib"]
         },
+        "optional_services": {
+            u: smaps(main_pid(u)) for u in OPTIONAL_UNITS if main_pid(u)
+        },
+        "loadavg": Path("/proc/loadavg").read_text().strip(),
         "docker_engine": docker,
         "containerd_shims": {
             "count": len(shims),
@@ -272,10 +283,28 @@ def window(seconds, label, during=None):
         for u, p in pids.items()
     }
     sectors, wall = vda_sectors_written(), time.monotonic()
-    if during:
-        during(seconds)
-    else:
-        time.sleep(seconds)
+    samples = []
+    thread = threading.Thread(target=during, args=(seconds,)) if during else None
+    if thread:
+        thread.start()
+    while time.monotonic() - wall < seconds:
+        samples.append(
+            {
+                "elapsed_seconds": time.monotonic() - wall,
+                "memory": memory_snapshot(),
+                "counters": {
+                    u: {
+                        "cpu_usec": cpu_usec(u),
+                        "cgroup_written_bytes": written_bytes(u),
+                    }
+                    for u in units
+                },
+            }
+        )
+        time.sleep(min(10, max(0, seconds - (time.monotonic() - wall))))
+    if thread:
+        thread.join(timeout=30)
+        assert not thread.is_alive(), "dashboard workload failed to stop"
     elapsed = time.monotonic() - wall
     after = {u: (cpu_usec(u), written_bytes(u)) for u in units}
     per_unit = {}
@@ -296,6 +325,9 @@ def window(seconds, label, during=None):
     limeos_cpu = sum(per_unit[u]["cpu_seconds"] for u in UNITS)
     limeos_written = sum(per_unit[u]["cgroup_written_bytes"] for u in UNITS)
     return {
+        "raw_samples": samples,
+        "counters_before": before,
+        "counters_after": after,
         "label": label,
         "seconds": round(elapsed, 1),
         "per_unit": per_unit,
@@ -310,20 +342,33 @@ def window(seconds, label, during=None):
 
 
 def main():
-    if (
-        os.getuid() != 0
-        or socket.gethostname() != "limeos-p01-test"
-        or platform.machine() != "aarch64"
-    ):
-        raise SystemExit("Disposable native aarch64 guest required")
-    expected = json.loads(EXPECTED.read_text())
-    if len(sys.argv) > 5 and sys.argv[5] == "identity-only":
+    global REPO, OUTPUT, VERSION
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo", type=Path, required=True)
+    parser.add_argument("--expected", type=Path, required=True)
+    parser.add_argument("--hashes", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--identity-only", action="store_true")
+    args = parser.parse_args()
+    guest_guard()
+    REPO, OUTPUT = args.repo, args.output
+    if OUTPUT.exists():
+        parser.error("output exists; select a new result file")
+    expected = load_build(args.expected, REPO)
+    VERSION = expected["identity"]["package_version"]
+    RESULT.update(
+        identity=expected["identity"],
+        build_result_sha256=sha(args.expected),
+        version=VERSION,
+        started=time.time(),
+    )
+    if args.identity_only:
         # Rerun only the identity check against an already installed guest.
         check(
             "package identity: installed files match the package and the native build"
         )(lambda: identity(expected))
-        return
-    passwords = json.loads(HASHES.read_text())
+        sys.exit(1 if any(c["result"] == "fail" for c in RESULT["checks"]) else 0)
+    passwords = json.loads(args.hashes.read_text())
     cpuinfo = Path("/proc/cpuinfo").read_text()
     RESULT["observations"]["platform"] = {
         "uname": " ".join(platform.uname()),
@@ -340,14 +385,22 @@ def main():
         ),
         "os_release": Path("/etc/os-release").read_text().splitlines()[:4],
         "block_devices": run("lsblk", "-d", "-o", "NAME,SIZE,ROTA,SERIAL").stdout,
+        "loadavg": Path("/proc/loadavg").read_text().strip(),
+        "enabled_services": run(
+            "systemctl", "list-unit-files", "--state=enabled", "--no-pager"
+        ).stdout,
+        "workload": {
+            "containers": 20,
+            "dashboards": 3,
+            "synthetic_registered_disks": 0,
+        },
     }
     save()
 
-    @check("native aarch64 under KVM on Cortex-A76, not emulation")
+    @check("native aarch64 under KVM")
     def _():
         p = RESULT["observations"]["platform"]
         assert p["virtualization"] == "kvm", p["virtualization"]
-        assert p["cpu_implementer"] == ["0x41"] and p["cpu_part"] == ["0xd0b"], p
         return {
             k: p[k]
             for k in [
@@ -359,7 +412,7 @@ def main():
             ]
         }
 
-    @check("Debian docker.io and a static busybox workload of 18 containers")
+    @check("Debian docker.io and a static busybox workload of 20 containers")
     def _():
         run("apt-get", "update", "-qq", timeout=900)
         run(
@@ -384,7 +437,7 @@ def main():
             check=True,
             capture_output=True,
         )
-        for index in range(18):
+        for index in range(20):
             run(
                 "docker",
                 "run",
@@ -412,7 +465,7 @@ def main():
             "versions": versions,
         }
 
-    @check("signed test repository installs limeos 0.4.2 for arm64")
+    @check(f"signed test repository installs limeos {VERSION} for arm64")
     def _():
         run(
             "install",
@@ -436,6 +489,11 @@ def main():
     def _():
         return identity(expected)
 
+    if RESULT["checks"][-1]["result"] != "pass":
+        raise SystemExit(
+            "installed identity gate failed; footprint measurement refused"
+        )
+
     @check("unit files, enabled state and running services")
     def _():
         files = run(
@@ -448,6 +506,7 @@ def main():
             "limeos-storaged",
             "limeos-storage-reader",
             "limeos-storage-ready",
+            "limeos-storage-targets",
         ]:
             state[unit] = {
                 "enabled": run(
@@ -459,6 +518,9 @@ def main():
             }
         for unit in UNITS:
             assert state[unit]["active"] == "active", (unit, state[unit])
+        for unit in [*OPTIONAL_UNITS, "limeos-storage-ready"]:
+            assert state[unit]["enabled"] == "static", (unit, state[unit])
+            assert state[unit]["active"] != "active", (unit, state[unit])
         assert wait_ready(10)
         return {"unit_files": files, "state": state}
 
@@ -626,6 +688,8 @@ def main():
             "max_concurrent": 0,
             "max_vmhwm_kib": 0,
             "max_rss_kib": 0,
+            "max_pss_kib": 0,
+            "max_swap_kib": 0,
             "pids": set(),
         }
         stop = threading.Event()
@@ -647,6 +711,13 @@ def main():
                         rss = int(re.search(r"VmRSS:\s+(\d+)", status).group(1))
                         samples["max_vmhwm_kib"] = max(samples["max_vmhwm_kib"], hwm)
                         samples["max_rss_kib"] = max(samples["max_rss_kib"], rss)
+                        memory = smaps(pid)
+                        samples["max_pss_kib"] = max(
+                            samples["max_pss_kib"], memory["pss_kib"]
+                        )
+                        samples["max_swap_kib"] = max(
+                            samples["max_swap_kib"], memory["swap_kib"]
+                        )
                     except (FileNotFoundError, AttributeError, ProcessLookupError):
                         pass
 
@@ -689,6 +760,8 @@ def main():
             "max_concurrent_workers": samples["max_concurrent"],
             "max_worker_vmhwm_kib": samples["max_vmhwm_kib"],
             "max_worker_rss_kib": samples["max_rss_kib"],
+            "max_worker_pss_kib": samples["max_pss_kib"],
+            "max_worker_swap_kib": samples["max_swap_kib"],
             "core_after": core_after,
         }
 
@@ -753,6 +826,7 @@ def main():
     def dashboards(seconds):
         stop = threading.Event()
         received = []
+        failures = []
 
         def subscriber():
             connection = http.client.HTTPConnection(
@@ -763,27 +837,45 @@ def main():
                 "/api/v1/observations/stream",
                 headers={"Cookie": state["cookie"], "Origin": "https://localhost"},
             )
-            response = connection.getresponse()
-            count = 0
-            while not stop.is_set():
-                line = response.fp.readline()
-                if not line:
-                    break
-                count += line.startswith(b"data:")
-            received.append(count)
-            connection.close()
+            try:
+                response = connection.getresponse()
+                assert response.status == 200, response.status
+                count = 0
+                while not stop.is_set():
+                    line = response.fp.readline()
+                    if not line:
+                        break
+                    count += line.startswith(b"data:")
+                received.append(count)
+            except (
+                OSError,
+                ValueError,
+                http.client.HTTPException,
+                AssertionError,
+            ) as error:
+                failures.append(repr(error))
+            finally:
+                connection.close()
 
         threads = [threading.Thread(target=subscriber, daemon=True) for _ in range(3)]
         for t in threads:
             t.start()
         time.sleep(seconds)
         stop.set()
+        for thread in threads:
+            thread.join(timeout=5)
         state["sse_events"] = received
+        state["sse_failures"] = failures
 
     @check("CPU and bytes written over 300 seconds with 3 open dashboard streams")
     def _():
         measured = window(300, "3 SSE dashboard subscribers", during=dashboards)
         measured["sse_streams_events"] = state.get("sse_events")
+        measured["sse_failures"] = state.get("sse_failures")
+        assert (
+            not measured["sse_failures"] and len(measured["sse_streams_events"]) == 3
+        ), measured
+        assert all(measured["sse_streams_events"]), measured
         measured["memory_after"] = memory_snapshot()
         return measured
 
@@ -801,10 +893,13 @@ def main():
             for i in range(200):
                 path = paths[(i + offset) % len(paths)]
                 started = time.monotonic()
-                code = http_request("GET", path, cookie=state["cookie"])[0]
-                timings[path].append(round((time.monotonic() - started) * 1000, 3))
-                if code != 200:
-                    errors.append((path, code))
+                try:
+                    code = http_request("GET", path, cookie=state["cookie"])[0]
+                    timings[path].append(round((time.monotonic() - started) * 1000, 3))
+                    if code != 200:
+                        errors.append((path, code))
+                except (OSError, ValueError, http.client.HTTPException) as error:
+                    errors.append((path, repr(error)))
 
         threads = [threading.Thread(target=client, args=(n,)) for n in range(3)]
         started = time.monotonic()
@@ -822,6 +917,9 @@ def main():
             )
             sequential.append(round((time.monotonic() - began) * 1000, 3))
         assert not errors, errors[:5]
+        assert sum(len(v) for v in timings.values()) == 600, (
+            "incomplete latency workload"
+        )
         return {
             "per_endpoint_ms": {p: summary(v) for p, v in timings.items()},
             "all_ms": summary([x for v in timings.values() for x in v]),
@@ -836,6 +934,10 @@ def main():
     def _():
         core_pid = main_pid("limeos-core")
         run("apt-get", "install", "-y", f"limeos-shadow={VERSION}", timeout=900)
+        installed_binaries(expected, Path("/usr/lib/limeos-shadow"))
+        assert not Path(
+            "/lib/systemd/system/limeos-shadow-storage-targets.service"
+        ).exists()
         units = run(
             "systemctl",
             "list-units",
@@ -931,6 +1033,11 @@ def main():
     RESULT["observations"]["database_bytes"] = {
         p.name: p.stat().st_size for p in Path("/var/lib/limeos/core").glob("*")
     }
+    RESULT["observations"]["installed_bytes"] = sum(
+        Path(p).stat().st_size
+        for p in run("dpkg-query", "-L", "limeos").stdout.splitlines()
+        if Path(p).is_file() and not Path(p).is_symlink()
+    )
     RESULT["observations"]["journal_limeos_lines"] = len(
         run(
             "journalctl", "-u", "limeos-*", "--no-pager", "-o", "cat"
@@ -943,6 +1050,7 @@ def main():
     }
     save()
     print("SUMMARY", json.dumps(RESULT["summary"]), flush=True)
+    sys.exit(1 if failed else 0)
 
 
 if __name__ == "__main__":
