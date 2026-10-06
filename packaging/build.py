@@ -24,7 +24,7 @@ def profile_text(text: str, shadow: bool) -> str:
         text = text.replace(prefix, prefix.replace("limeos", "limeos-shadow"))
     # Account/service names, preserving executable basenames following '/'.
     text = re.sub(
-        r"(?<!/)\blimeos-(core|containerd|storaged|storage-reader|assistant|rpc|host-access|container-access)\b",
+        r"(?<!/)\blimeos-(core|containerd|storaged|storage-reader|storage-ready|storage-targets|assistant|rpc|host-access|container-access)\b",
         r"limeos-shadow-\1",
         text,
     )
