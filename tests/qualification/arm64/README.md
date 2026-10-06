@@ -33,6 +33,8 @@ reproducing the integration preparation; preserve the older bundle too.
 | `approved_guest.py` | Fresh storage/container guests | Reuse current approved-operation suites with original assertions; actual apt replacement/removal on storage guest |
 | `upgrade_guest.py` | Fresh upgrade guest | Genuine recorded schema 6/7 artifact upgrade, sessions, pending approval, receipts, active locks/claims and replay |
 | `extra_guest.py` | Storage guest after approved suite | Exact installed hashes, command timings and separate optional reader/target memory/capabilities |
+| `guest_supervisor.py` | KVM host, detached beside each guest | Bind one QEMU process by pidfd, start time, UID and `-name` marker; SIGTERM and SIGKILL it at the recorded deadlines; never signal anything else |
+| `inspector_guest.py` | Fresh native build guest | Build the frozen archive inspector example natively and record its own `VmHWM` over synthetic archives (standalone RSS, not service PSS) |
 | `record_run.py` | Workstation | Reject mixed identities/overwrites; collect raw artifacts, summaries, budget comparisons and evidence hashes |
 | `test_harness.py` | Workstation | Local regressions without SSH or installed-service mutations |
 
