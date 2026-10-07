@@ -288,7 +288,7 @@ impl CustodyIo for Faults<'_> {
         if let Some(errno) = self.rename_fail {
             return Err(errno.into());
         }
-        rustix::fs::renameat_with(root, from, root, to, RenameFlags::NOREPLACE).map_err(Into::into)
+        rename_no_replace(root, from, to)
     }
     fn reached(&mut self, point: Point) {
         if let Some((at, flag)) = self.cancel

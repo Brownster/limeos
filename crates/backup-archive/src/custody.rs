@@ -386,9 +386,14 @@ trait CustodyIo {
         file.sync_all()
     }
     fn rename(&mut self, root: &File, from: &str, to: &str) -> io::Result<()> {
-        rustix::fs::renameat_with(root, from, root, to, RenameFlags::NOREPLACE).map_err(Into::into)
+        rename_no_replace(root, from, to)
     }
     fn reached(&mut self, _point: Point) {}
+}
+
+/// Publication never replaces an existing name, and needs `renameat2`.
+fn rename_no_replace(root: &File, from: &str, to: &str) -> io::Result<()> {
+    rustix::fs::renameat_with(root, from, root, to, RenameFlags::NOREPLACE).map_err(Into::into)
 }
 
 struct RealIo;
