@@ -1,0 +1,72 @@
+# Static scope scan of custody library source at 9a8232262d8de552e10bd88126395cfe197ee634
+# Patterns that would indicate extraction processes, live destination access, ownership/mode application or imports.
+## std::process
+(no match)
+## Command
+(no match)
+## unpack
+(no match)
+## Archive::new
+(no match)
+## chown
+(no match)
+## set_permissions
+(no match)
+## set_mode
+(no match)
+## destination_root
+crates/backup-archive/src/custody/identity.rs:126:        destination_root,
+crates/backup-archive/src/custody/identity.rs:130:        e.str(destination_root);
+## File::open
+(no match)
+## File::create
+(no match)
+## OpenOptions
+(no match)
+## fs::
+crates/backup-archive/src/custody.rs:24:use rustix::fs::{AtFlags, FileType, Mode, OFlags, RenameFlags, ResolveFlags, Stat};
+crates/backup-archive/src/custody.rs:31:    fs::File,
+crates/backup-archive/src/custody.rs:33:    os::unix::fs::FileExt,
+crates/backup-archive/src/custody.rs:333:        let fd = rustix::fs::openat2(
+crates/backup-archive/src/custody.rs:334:            rustix::fs::CWD,
+crates/backup-archive/src/custody.rs:341:        let stat = rustix::fs::fstat(&fd).map_err(|e| io_error("stat custody root", e))?;
+crates/backup-archive/src/custody.rs:396:    rustix::fs::renameat_with(root, from, root, to, RenameFlags::NOREPLACE).map_err(Into::into)
+crates/backup-archive/src/custody.rs:532:    rustix::fs::openat(
+crates/backup-archive/src/custody.rs:552:    rustix::fs::statat(directory, name, AtFlags::SYMLINK_NOFOLLOW)
+crates/backup-archive/src/custody.rs:578:        match rustix::fs::statat(
+crates/backup-archive/src/custody.rs:588:        match rustix::fs::mkdirat(&root, name.as_str(), Mode::from_raw_mode(0o700)) {
+crates/backup-archive/src/custody.rs:593:        let opened = rustix::fs::openat(
+crates/backup-archive/src/custody.rs:601:            rustix::fs::fchmod(&directory, Mode::from_raw_mode(0o700))?;
+crates/backup-archive/src/custody.rs:602:            Ok((rustix::fs::fstat(&directory)?, directory))
+crates/backup-archive/src/custody.rs:610:                    match rustix::fs::unlinkat(&root, name.as_str(), AtFlags::REMOVEDIR) {
+crates/backup-archive/src/custody.rs:642:        let file = rustix::fs::openat(
+crates/backup-archive/src/custody.rs:653:        let identity = rustix::fs::fstat(&file).map_err(|e| io_error("stat custody object", e));
+crates/backup-archive/src/custody.rs:659:                    match rustix::fs::unlinkat(&self.directory, name, AtFlags::empty()) {
+crates/backup-archive/src/custody.rs:721:    match rustix::fs::statat(directory, name, AtFlags::SYMLINK_NOFOLLOW) {
+crates/backup-archive/src/custody.rs:723:            rustix::fs::unlinkat(directory, name, AtFlags::empty()).map_err(|e| {
+crates/backup-archive/src/custody.rs:747:    match rustix::fs::statat(root, name, AtFlags::SYMLINK_NOFOLLOW) {
+crates/backup-archive/src/custody.rs:753:            rustix::fs::unlinkat(root, name, AtFlags::REMOVEDIR).map_err(|e| CleanupFailure::Io {
+crates/backup-archive/src/custody.rs:773:    let mut listing = rustix::fs::Dir::read_from(directory).map_err(io)?;
+crates/backup-archive/src/custody.rs:824:    let stat = rustix::fs::fstat(&source).map_err(|e| io_error("stat selected archive", e))?;
+crates/backup-archive/src/custody.rs:862:    rustix::fs::fchmod(&writable, Mode::from_raw_mode(0o400))
+crates/backup-archive/src/custody.rs:864:    let stat = rustix::fs::fstat(&writable).map_err(|e| io_error("stat retained archive", e))?;
+crates/backup-archive/src/custody.rs:873:    let stat = rustix::fs::fstat(&archive).map_err(|e| io_error("stat retained archive", e))?;
+crates/backup-archive/src/custody.rs:891:    let after = rustix::fs::fstat(&archive).map_err(|e| io_error("stat retained archive", e))?;
+crates/backup-archive/src/custody.rs:932:        rustix::fs::fchmod(&record, Mode::from_raw_mode(0o400))
+crates/backup-archive/src/custody.rs:934:        let stat = rustix::fs::fstat(&record).map_err(|e| io_error("stat custody record", e))?;
+crates/backup-archive/src/custody.rs:1026:    let directory = rustix::fs::openat(
+crates/backup-archive/src/custody.rs:1039:        rustix::fs::fstat(&directory).map_err(|e| io_error("stat record directory", e))?;
+crates/backup-archive/src/custody.rs:1066:        rustix::fs::fstat(&archive).map_err(|e| io_error("stat retained archive", e))?;
+crates/backup-archive/src/custody.rs:1090:    let after = rustix::fs::fstat(&archive).map_err(|e| io_error("stat retained archive", e))?;
+crates/backup-archive/src/custody.rs:1116:    let mut listing = rustix::fs::Dir::read_from(directory).map_err(io)?;
+crates/backup-archive/src/custody.rs:1138:    let stat = rustix::fs::fstat(&file).map_err(|e| io_error("stat custody record", e))?;
+crates/backup-archive/src/custody.rs:1155:    let after = rustix::fs::fstat(&file).map_err(|e| io_error("stat custody record", e))?;
+crates/backup-archive/src/custody.rs:1183:            rustix::fs::fstat(&self.archive).map_err(|e| io_error("stat retained archive", e))?;
+## CWD
+crates/backup-archive/src/custody.rs:334:            rustix::fs::CWD,
+## openat2
+crates/backup-archive/src/custody.rs:179:    /// without symlinks, or the kernel lacks `openat2` protection.
+crates/backup-archive/src/custody.rs:327:    /// Open with `openat2`, refusing symlink and magic-link components. The
+crates/backup-archive/src/custody.rs:333:        let fd = rustix::fs::openat2(
+## unsafe
+crates/backup-archive/src/custody.rs:249:            Self::UnsafeObject(what) => write!(f, "unsafe custody object: {what}"),

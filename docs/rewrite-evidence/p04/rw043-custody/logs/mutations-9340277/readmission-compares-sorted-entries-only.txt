@@ -1,0 +1,57 @@
+   Compiling limeos-backup-archive v0.2.0 (/home/marc/Documents/github/lime-os-backup-catalog-recovery/crates/backup-archive)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.67s
+     Running unittests src/lib.rs (target/debug/deps/limeos_backup_archive-54e87fbd0b9f5d02)
+
+running 20 tests
+test custody::tests::crash_child ... ok
+test custody::tests::identity_encoding_is_versioned_order_sensitive_and_bounded ... ok
+test custody::tests::pending_cleanup_reports_replaced_and_foreign_objects_and_keeps_them ... ok
+test staging::tests::allocation_and_total_file_byte_quotas_fail_before_creating_files ... ok
+test staging::tests::cleanup_refuses_a_replaced_attempt_name_and_keeps_foreign_directory ... ok
+test staging::tests::existing_attempt_and_file_symlink_attacks_never_overwrite_or_delete_foreign_files ... ok
+test staging::tests::independent_size_and_hash_verification_refuse_a_lying_or_corrupt_writer ... ok
+test staging::tests::input_io_failure_is_not_misclassified_as_archive_syntax ... ok
+test staging::tests::partial_write_and_each_durability_failure_are_typed_and_cleaned ... ok
+test staging::tests::short_interrupted_zero_writes_and_cancellation_before_completion ... ok
+test tests::exactly_the_limit_is_accepted_and_cancellation_interrupts ... ok
+test tests::reads_stop_one_byte_past_the_limit_of_an_endless_source ... ok
+test tests::stop_reasons_survive_wrapping_by_decoders_and_parsers ... ok
+test custody::tests::short_and_interrupted_reads_and_writes_preserve_the_exact_copy ... ok
+test custody::tests::changing_source_is_refused_after_reading_only_the_sentinel ... ok
+test custody::tests::zero_failed_and_full_writes_are_typed_and_cleaned ... ok
+test custody::tests::cancellation_rolls_back_only_before_publication ... ok
+test custody::tests::rename_failures_and_generated_name_collisions_never_replace_foreign_entries ... ok
+test custody::tests::every_durability_barrier_failure_is_typed_and_publication_is_never_rolled_back ... ok
+test custody::tests::sigkill_at_every_custody_point_leaves_untrusted_or_freshly_validated_state ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.11s
+
+     Running tests/custody.rs (target/debug/deps/custody-3e02933b0c31c6ee)
+
+running 10 tests
+test custody_binding_substitution_is_refused_by_exact_binding_validation ... ok
+test custody_root_and_object_substitution_never_follows_clobbers_or_deletes ... ok
+test custody_owners_are_independent_and_drop_never_removes_published_state ... ok
+test custody_forged_malformed_oversized_and_foreign_records_are_refused ... ok
+test custody_source_replacement_cannot_redirect_the_selected_descriptor ... ok
+test custody_limits_and_policy_are_validated_before_any_custody_state ... ok
+test custody_sealed_byte_size_order_and_inode_changes_refuse ... FAILED
+test custody_small_archives_retain_recover_stage_and_discard_in_both_formats ... ok
+test custody_full_policy_changes_refuse_recovery_and_staging_even_with_the_same_revision ... ok
+test custody_preserves_current_fixture_decisions_and_the_inert_self_repeat ... ok
+
+failures:
+
+---- custody_sealed_byte_size_order_and_inode_changes_refuse stdout ----
+
+thread 'custody_sealed_byte_size_order_and_inode_changes_refuse' panicked at crates/backup-archive/tests/custody.rs:225:14:
+recovery must refuse: RetainedArchive { root: File { fd: 6, path: "/tmp/.tmpyr9ORr/custody", read: true, write: false }, directory: File { fd: 9, path: "/tmp/.tmpyr9ORr/custody/retained-d06fe24a60423b37ae3d78cd3a06aa1f", read: true, write: false }, name: "retained-d06fe24a60423b37ae3d78cd3a06aa1f", directory_identity: Stat { st_dev: 46, st_ino: 1067090, st_nlink: 2, st_mode: 16832, st_uid: 1000, st_gid: 1000, __pad0: 0, st_rdev: 0, st_size: 80, st_blksize: 4096, st_blocks: 0, st_atime: 1791403140, st_atime_nsec: 563215402, st_mtime: 1791403140, st_mtime_nsec: 562563368, st_ctime: 1791403140, st_ctime_nsec: 562581864, __unused: [0, 0, 0] }, archive: File { fd: 3, path: "/tmp/.tmpyr9ORr/custody/retained-d06fe24a60423b37ae3d78cd3a06aa1f/archive", read: true, write: false }, archive_identity: Stat { st_dev: 46, st_ino: 1067091, st_nlink: 1, st_mode: 33024, st_uid: 1000, st_gid: 1000, __pad0: 0, st_rdev: 0, st_size: 3095, st_blksize: 4096, st_blocks: 8, st_atime: 1791403140, st_atime_nsec: 561482336, st_mtime: 1791403140, st_mtime_nsec: 563265217, st_ctime: 1791403140, st_ctime_nsec: 563265217, __unused: [0, 0, 0] }, record_identity: Stat { st_dev: 46, st_ino: 1067117, st_nlink: 1, st_mode: 33024, st_uid: 1000, st_gid: 1000, __pad0: 0, st_rdev: 0, st_size: 2001, st_blksize: 4096, st_blocks: 8, st_atime: 1791403140, st_atime_nsec: 563215402, st_mtime: 1791403140, st_mtime_nsec: 562581864, st_ctime: 1791403140, st_ctime_nsec: 562581864, __unused: [0, 0, 0] }, admitted: AdmittedArchive { manifest: RestoreManifest { manifest_version: 2, archive_sha256: "62055578d14e9762022c9e0ee1898c0de66d2126f7ee5f931a894c15c0fcc471", format: TarGzip, policy_revision: 3, compressed_bytes: 3095, decompressed_bytes: 3072, header_count: 2, coalesced_self_hardlinks: 0, file_count: 2, directory_count: 0, file_bytes: 10, entries: [ManifestEntry { resource: "limeos-config", relative_path: "a.json", kind: File, size: 5, sha256: Some("a7937b64b8caa58f03721bb6bacf5c78cb235febe0e70b1b84cd99541461a08e"), archived_permissions: 420, archive_path: "etc/limeos/a.json" }, ManifestEntry { resource: "limeos-config", relative_path: "b.json", kind: File, size: 5, sha256: Some("d9298a10d1b0735837dc4bd85dac641b0f3cef27a47e5d53a54f2f3f5b2fcffa"), archived_permissions: 420, archive_path: "etc/limeos/b.json" }] }, policy: PolicySnapshot { policy: AdmissionPolicy { revision: 3, formats: [TarGzip, TarZstd], limits: ArchiveLimits { max_compressed_bytes: 1048576, max_decompressed_bytes: 4194304, max_file_bytes: 1048576, max_entries: 64, max_path_bytes: 256, max_path_depth: 16, max_component_bytes: 128, max_metadata_bytes: 4096, max_total_metadata_bytes: 16384, max_zstd_window_log: 21 }, resources: [ManagedResource { id: "limeos-config", destination_root: "/etc/limeos" }, ManagedResource { id: "limeos-state", destination_root: "/var/lib/limeos" }, ManagedResource { id: "stacks", destination_root: "/opt/stacks" }, ManagedResource { id: "app-config", destination_root: "/home/pi/docker" }], legacy_mappings: [LegacyMapping { archive_prefix: "etc/limeos", resource: "limeos-config", resource_prefix: "" }, LegacyMapping { archive_prefix: "var/lib/limeos", resource: "limeos-state", resource_prefix: "" }, LegacyMapping { archive_prefix: "opt/stacks", resource: "stacks", resource_prefix: "" }, LegacyMapping { archive_prefix: "home/pi/docker", resource: "app-config", resource_prefix: "" }] }, archive_sha256: "62055578d14e9762022c9e0ee1898c0de66d2126f7ee5f931a894c15c0fcc471" } }, binding: CustodyBinding { format_version: 1, record_id: "d06fe24a60423b37ae3d78cd3a06aa1f", archive_sha256: "fff530504cefebfc68b08b63f9f799e538a87a1218da6941f7fd8b5d0449e643", archive_bytes: 3095, policy_identity: "f6c3f585d57385242036d6e5d565653af6301f8912cbd143710267722ae94dce", manifest_identity: "183bec4e0b9c0cf764273bfc8e2470e5a6601d544641d0a30fb2c1132ec23d84" }, limits: CustodyLimits { max_archive_bytes: 100663296, max_record_bytes: 1048576 } }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    custody_sealed_byte_size_order_and_inode_changes_refuse
+
+test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.08s
+
+error: test failed, to rerun pass `-p limeos-backup-archive --test custody`

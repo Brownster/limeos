@@ -1,0 +1,89 @@
+   Compiling limeos-backup-archive v0.2.0 (/home/marc/Documents/github/lime-os-backup-catalog-recovery/crates/backup-archive)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.22s
+     Running unittests src/lib.rs (target/debug/deps/limeos_backup_archive-54e87fbd0b9f5d02)
+
+running 20 tests
+test custody::tests::crash_child ... ok
+test custody::tests::identity_encoding_is_versioned_order_sensitive_and_bounded ... ok
+test custody::tests::pending_cleanup_reports_replaced_and_foreign_objects_and_keeps_them ... ok
+test staging::tests::allocation_and_total_file_byte_quotas_fail_before_creating_files ... ok
+test staging::tests::cleanup_refuses_a_replaced_attempt_name_and_keeps_foreign_directory ... ok
+test staging::tests::existing_attempt_and_file_symlink_attacks_never_overwrite_or_delete_foreign_files ... ok
+test staging::tests::independent_size_and_hash_verification_refuse_a_lying_or_corrupt_writer ... ok
+test staging::tests::input_io_failure_is_not_misclassified_as_archive_syntax ... ok
+test staging::tests::partial_write_and_each_durability_failure_are_typed_and_cleaned ... ok
+test staging::tests::short_interrupted_zero_writes_and_cancellation_before_completion ... ok
+test tests::exactly_the_limit_is_accepted_and_cancellation_interrupts ... ok
+test tests::reads_stop_one_byte_past_the_limit_of_an_endless_source ... ok
+test tests::stop_reasons_survive_wrapping_by_decoders_and_parsers ... ok
+test custody::tests::short_and_interrupted_reads_and_writes_preserve_the_exact_copy ... ok
+test custody::tests::zero_failed_and_full_writes_are_typed_and_cleaned ... ok
+test custody::tests::changing_source_is_refused_after_reading_only_the_sentinel ... ok
+test custody::tests::every_durability_barrier_failure_is_typed_and_publication_is_never_rolled_back ... ok
+test custody::tests::rename_failures_and_generated_name_collisions_never_replace_foreign_entries ... ok
+test custody::tests::cancellation_rolls_back_only_before_publication ... ok
+test custody::tests::sigkill_at_every_custody_point_leaves_untrusted_or_freshly_validated_state ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s
+
+     Running tests/archives.rs (target/debug/deps/archives-6df165551bd6db45)
+
+running 32 tests
+test format_policy_and_invalid_policy_are_enforced_before_decoding ... ok
+test completed_regular_file_self_links_are_inert_legacy_repeats ... ok
+test extension_records_set_the_effective_name_that_is_checked ... ok
+test duplicate_and_colliding_destinations_are_rejected ... ok
+test gnu_tar_fixtures_match_their_recorded_hashes_and_expected_decisions ... ok
+test manifest_is_bound_to_the_exact_archive_and_file_contents ... ok
+test ambiguous_or_unsupported_extension_records_are_rejected ... ok
+test legacy_repeat_cannot_create_links_or_bypass_destination_checks ... ok
+test malformed_and_truncated_streams_are_rejected ... ok
+test oversized_declarations_are_refused_before_any_read ... ok
+test staging_attempts_are_independent_and_cleanup_uses_held_root_descriptor ... ok
+test staging_changed_payload_order_header_format_and_matching_supplied_digest_refuse ... ok
+test staging_crash_child ... ok
+test links_devices_and_other_member_types_are_rejected ... ok
+test rejections_produce_no_manifest_and_change_no_managed_destination ... ok
+test staging_refuses_full_policy_edits_even_with_the_same_revision_before_reads ... ok
+test short_and_interrupted_reads_preserve_format_digest_and_complete_admission ... ok
+test staging_repeated_interrupted_reads_preserve_bytes ... ok
+test staging_corrupt_truncated_trailing_and_hostile_streams_clean_private_attempts ... ok
+test staging_root_symlink_and_foreign_path_attacks_refuse_without_overwrite ... ok
+test cancellation_returns_no_report ... ok
+test staging_revalidates_every_manifest_field_and_never_uses_forged_paths ... ok
+test staging_short_interrupted_reads_and_cancellation_mid_stream_and_near_eof ... ok
+test staging_replays_real_formats_and_gnu_fixtures_to_flat_private_files ... ok
+test zstd_windows_beyond_the_decoder_memory_limit_are_refused ... ok
+test valid_archives_yield_identical_deterministic_manifests_in_both_formats ... ok
+test traversal_and_absolute_names_are_rejected ... ok
+test quota_boundaries_admit_exactly_the_limit ... ok
+test staging_footer_failure_and_mid_file_cancellation_follow_tentative_writes ... ok
+test staging_sigkill_leaves_private_incomplete_artifacts_and_never_resumes_them ... ok
+test staging_enforces_declared_metadata_file_entry_and_decoder_limits ... ok
+test entry_floods_and_decompression_bombs_stop_at_policy_limits ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+
+     Running tests/custody.rs (target/debug/deps/custody-3e02933b0c31c6ee)
+
+running 11 tests
+test custody_limits_and_policy_are_validated_before_any_custody_state ... ok
+test custody_binding_substitution_is_refused_by_exact_binding_validation ... ok
+test custody_forged_malformed_oversized_and_foreign_records_are_refused ... ok
+test custody_owners_are_independent_and_drop_never_removes_published_state ... ok
+test custody_root_and_object_substitution_never_follows_clobbers_or_deletes ... ok
+test custody_full_policy_changes_refuse_recovery_and_staging_even_with_the_same_revision ... ok
+test custody_source_replacement_cannot_redirect_the_selected_descriptor ... ok
+test custody_sealed_byte_size_order_and_inode_changes_refuse ... ok
+test custody_small_archives_retain_recover_stage_and_discard_in_both_formats ... ok
+test custody_preserves_current_fixture_decisions_and_the_inert_self_repeat ... ok
+test custody_64_mib_compressed_and_expanded_archives_complete_the_lifecycle ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 19.89s
+
+   Doc-tests limeos_backup_archive
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
