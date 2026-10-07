@@ -386,15 +386,28 @@ def boot(args):
                 f"virtio-blk-pci,drive=storage{index},serial=limeos-test-{index}",
             ]
     marker = f"limeos-arm64-{args.name}-{secrets.token_hex(8)}"
+    host_identity = guest.host_run(
+        f"cd {guest.remote} && pwd && id -u && id -un",
+        capture_output=True,
+        text=True,
+        timeout=30,
+    ).stdout.splitlines()
+    if (
+        len(host_identity) != 3
+        or not host_identity[0].startswith("/")
+        or not host_identity[1].isdigit()
+        or not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", host_identity[2])
+    ):
+        raise SystemExit("host directory and account identity unavailable")
+    work_directory, host_uid, host_user = host_identity
     qemu = [
-        "sudo",
-        "nice",
+        "/usr/bin/nice",
         "-n",
         "19",
-        "ionice",
+        "/usr/bin/ionice",
         "-c",
         "3",
-        "qemu-system-aarch64",
+        "/usr/bin/qemu-system-aarch64",
         # Unique argv marker binds the host-side supervisor to this guest.
         "-name",
         marker,
@@ -434,10 +447,7 @@ def boot(args):
         # No iPXE option ROM is installed on the host; the guest boots from disk.
         "virtio-net-pci,netdev=n1,romfile=",
         "-runas",
-        "$(id -un)",
-        "-pidfile",
-        "qemu.pid",
-        "-daemonize",
+        host_user,
     ]
     script = " && ".join(
         [
@@ -446,47 +456,37 @@ def boot(args):
             "cp /usr/share/AAVMF/AAVMF_VARS.fd vars.fd",
             "touch console.log",
             *[d.replace(f"{guest.remote}/", "") for d in disks],
-            " ".join(q if q.startswith("$(") else shlex.quote(q) for q in qemu),
         ]
     )
     guest.host_run(f"mkdir -p {guest.remote}")
     guest.host_push(SUPERVISOR, f"{guest.remote}/guest_supervisor.py")
     guest.host_run(script)
-    # Bind the supervisor to the daemonized QEMU process before anything else.
-    # Newline-separated so only the supervisor itself runs in the background.
-    supervise = "\n".join(
-        [
-            "set -e",
-            f"cd {guest.remote}",
-            "pid=$(sudo cat qemu.pid)",
-            'start=$(sed "s/.*) //" /proc/$pid/stat | cut -d" " -f20)',
-            "uid=$(awk '/^Uid:/{print $2}' /proc/$pid/status)",
-            'test "$uid" = "$(id -u)"',
-            (
-                "setsid nohup python3 guest_supervisor.py --pid $pid --start-ticks $start "
-                f"--uid $uid --marker {shlex.quote(marker)} "
-                f"--terminate-at {terminate_at.timestamp():.0f} "
-                f"--kill-at {kill_at.timestamp():.0f} "
-                "--state process.json --log supervisor.log < /dev/null > supervisor.out 2>&1 &"
-            ),
-            "echo $! > supervisor.pid",
-            # QEMU deletes qemu.pid when it exits; keep the bound PID for stop.
-            "echo $pid > qemu.bound-pid",
-            "sleep 1",
-            'grep -q \'"event": "bound"\' supervisor.log',
-            "echo qemu=$pid supervisor=$(cat supervisor.pid)",
-        ]
-    )
-    try:
-        bound = guest.host_run(supervise, capture_output=True, text=True, timeout=60)
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        # Never leave a guest running without its deadline supervisor.
-        guest.host_run(
-            f"cd {guest.remote} && pid=$(sudo cat qemu.pid) && "
-            f"grep -qaF -- {shlex.quote(marker)} /proc/$pid/cmdline && kill $pid",
-            check=False,
-        )
-        raise SystemExit("supervisor did not bind; guest stopped")
+    command_file = guest.local / "launch.json"
+    command_file.write_text(json.dumps({"argv": qemu, "cwd": work_directory}) + "\n")
+    guest.host_push(command_file, f"{guest.remote}/launch.json")
+    control = guest.host_run(
+        "sudo -n /usr/bin/mktemp -d -- /tmp/limeos-arm64-supervisor-XXXXXXXX",
+        capture_output=True,
+        text=True,
+        timeout=30,
+    ).stdout.strip()
+    if not re.fullmatch(r"/tmp/limeos-arm64-supervisor-[A-Za-z0-9]{8}", control):
+        raise SystemExit("root-controlled supervisor directory unavailable")
+    # Root executes only protected copies whose bytes match the local inputs.
+    copied = guest.host_run(
+        f"sudo -n /usr/bin/install -o root -g root -m 0500 {guest.remote}/guest_supervisor.py {control}/guest_supervisor.py && "
+        f"sudo -n /usr/bin/install -o root -g root -m 0400 {guest.remote}/launch.json {control}/launch.json && "
+        f"sudo -n /usr/bin/sha256sum {control}/guest_supervisor.py {control}/launch.json",
+        capture_output=True,
+        text=True,
+        timeout=30,
+    ).stdout.splitlines()
+    supervisor_sha = hashlib.sha256(SUPERVISOR.read_bytes()).hexdigest()
+    if [line.split()[0] for line in copied] != [
+        supervisor_sha,
+        hashlib.sha256(command_file.read_bytes()).hexdigest(),
+    ]:
+        raise SystemExit("protected launcher inputs differ; no guest launched")
     (guest.local / "guest.json").write_text(
         json.dumps(
             {
@@ -501,10 +501,11 @@ def boot(args):
                 "qemu": " ".join(qemu),
                 "marker": marker,
                 "supervisor": {
-                    "sha256": hashlib.sha256(SUPERVISOR.read_bytes()).hexdigest(),
+                    "sha256": supervisor_sha,
                     "terminate_at": terminate_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
                     "kill_at": kill_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                    "bound": bound.stdout.strip(),
+                    "control_directory": control,
+                    "bound": None,
                 },
                 "authorization": (
                     {
@@ -520,6 +521,55 @@ def boot(args):
         )
         + "\n"
     )
+    not_after = (
+        guest.authorization["end"]
+        if guest.authorization
+        else kill_at + timedelta(seconds=1)
+    )
+    launch = "\n".join(
+        [
+            "set -euo pipefail",
+            f"cd {control}",
+            (
+                "/usr/bin/setsid /usr/bin/nohup /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C PYTHONDONTWRITEBYTECODE=1 "
+                f"/usr/bin/python3 -I {control}/guest_supervisor.py launch "
+                f"--command {control}/launch.json --state {control}/process.json --log {control}/supervisor.log "
+                f"--uid {host_uid} --marker {shlex.quote(marker)} "
+                f"--terminate-at {terminate_at.timestamp():.0f} --kill-at {kill_at.timestamp():.0f} "
+                f"--not-after {not_after.timestamp():.0f} < /dev/null > supervisor.out 2>&1 &"
+            ),
+            "echo $! > supervisor.pid",
+        ]
+    )
+    # This one detached host operation starts the owner first. It alone spawns
+    # foreground QEMU and owns cleanup even if this SSH/workstation disappears.
+    guest.host_run(
+        "sudo -n /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C "
+        f"/bin/bash --noprofile --norc -c {shlex.quote(launch)}",
+        timeout=30,
+    )
+    bound_until = time.monotonic() + 15
+    while time.monotonic() < bound_until:
+        result = guest.host_run(
+            f"sudo -n /usr/bin/cat {control}/process.json",
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            bound = json.loads(result.stdout)
+            if bound.get("marker") != marker or bound.get("uid") != int(host_uid):
+                raise SystemExit("launcher identity differs; inspect protected state")
+            metadata = json.loads((guest.local / "guest.json").read_text())
+            metadata["supervisor"]["bound"] = bound
+            (guest.local / "guest.json").write_text(
+                json.dumps(metadata, indent=2) + "\n"
+            )
+            break
+        time.sleep(0.2)
+    else:
+        raise SystemExit("launcher has no published guest; inspect its protected log")
     guest.port = args.port
     deadline = time.monotonic() + args.timeout
     while time.monotonic() < deadline:
@@ -540,24 +590,24 @@ def stop(args):
     guest = Guest(args.name, args.host, args.authorization)
     if guest.port is None:
         raise SystemExit("recorded guest state required for stop")
-    marker = json.loads((guest.local / "guest.json").read_text()).get("marker")
+    metadata = json.loads((guest.local / "guest.json").read_text())
+    marker = metadata.get("marker")
     if not marker:
         raise SystemExit("guest has no recorded QEMU marker; stop it on the host")
+    control = metadata.get("supervisor", {}).get("control_directory", "")
+    if not re.fullmatch(r"/tmp/limeos-arm64-supervisor-[A-Za-z0-9]{8}", control):
+        raise SystemExit("protected launcher state required; no numeric PID fallback")
     (guest.local / "host-after.json").write_text(
         json.dumps(host_info(guest), indent=2) + "\n"
     )
     guest.host_run(
-        # The pidfile is root-owned (written before -runas drops privileges).
-        # A supervisor may already have stopped the guest at its deadline.
         f"cd {guest.remote} && "
         # pidfd signals cannot reach a reused PID; the helper also checks kernel
         # start time, UID and exact marker argv before sending any signal.
-        "python3 -I guest_supervisor.py stop process.json && "
-        # The supervisor exits on its own once its pidfd reports the exit.
-        "spid=$(cat supervisor.pid 2>/dev/null || true) && "
-        'for i in $(seq 1 30); do [ -n "$spid" ] && grep -qa guest_supervisor.py /proc/$spid/cmdline 2>/dev/null || break; sleep 1; done && '
-        f"{{ sudo cat console.log > /tmp/limeos-arm64-{args.name}-console.log 2>/dev/null; "
-        f"cp supervisor.log /tmp/limeos-arm64-{args.name}-supervisor.log 2>/dev/null; true; }}"
+        f"sudo -n /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /usr/bin/python3 -I {control}/guest_supervisor.py stop {control}/process.json --marker {shlex.quote(marker)} && "
+        f"sudo -n /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /usr/bin/python3 -I {control}/guest_supervisor.py wait {control}/owner.json --marker {shlex.quote(marker)} && "
+        f"{{ sudo -n /usr/bin/cat console.log > /tmp/limeos-arm64-{args.name}-console.log 2>/dev/null; "
+        f"sudo -n /usr/bin/cat {control}/supervisor.log > /tmp/limeos-arm64-{args.name}-supervisor.log; }}"
     )
     guest.host_pull(
         f"/tmp/limeos-arm64-{args.name}-console.log", guest.local / "console.log"
@@ -566,7 +616,7 @@ def stop(args):
         f"/tmp/limeos-arm64-{args.name}-supervisor.log", guest.local / "supervisor.log"
     )
     guest.host_run(
-        f"rm -rf {guest.remote} /tmp/limeos-arm64-{args.name}-console.log "
+        f"sudo -n /usr/bin/rm -rf -- {control} && rm -rf {guest.remote} /tmp/limeos-arm64-{args.name}-console.log "
         f"/tmp/limeos-arm64-{args.name}-supervisor.log"
     )
     archive = STATE / "stopped" / args.name

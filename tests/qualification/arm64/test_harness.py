@@ -387,6 +387,9 @@ class AuthorizationTests(unittest.TestCase):
                         "host": "holly@wybie",
                         "port": 22801,
                         "marker": "exact-marker",
+                        "supervisor": {
+                            "control_directory": "/tmp/limeos-arm64-supervisor-12345678"
+                        },
                     }
                 )
             )
@@ -719,6 +722,252 @@ class SupervisorTests(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 10)
         self.assertEqual(events(self.log), ["bound", "guest_gone"])
         self.assertEqual(guest.wait(timeout=5), 0)
+
+
+class LauncherTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.processes = []
+        self.pidfds = []
+
+    def tearDown(self):
+        for fd in self.pidfds:
+            try:
+                import signal
+
+                signal.pidfd_send_signal(fd, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            finally:
+                os.close(fd)
+        for process in self.processes:
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=10)
+        self.directory.cleanup()
+
+    def args(self, terminate_in=0.5, kill_in=1.0):
+        now = time.time()
+        return SimpleNamespace(
+            terminate_at=now + terminate_in,
+            kill_at=now + kill_in,
+            not_after=now + kill_in + 1,
+            uid=os.getuid(),
+            marker="limeos-arm64-owned-fixture",
+            state=self.root / "process.json",
+            log=self.root / "supervisor.log",
+            poll=0.05,
+        )
+
+    def invoke(self, args, marker=None):
+        original = subprocess.Popen
+
+        def spawn_owned(*a, **kw):
+            child = original(*a, **kw)
+            self.processes.append(child)
+            return child
+
+        with patch("guest_supervisor.subprocess.Popen", side_effect=spawn_owned):
+            return guest_supervisor.launch_owned(
+                [sys.executable, "-c", TARGET, "stubborn", "60", marker or args.marker],
+                self.root,
+                args,
+            )
+
+    def assert_reaped(self):
+        self.assertEqual(len(self.processes), 1)
+        self.assertIsNotNone(self.processes[0].returncode)
+        self.assertIsNone(guest_supervisor.identity(self.processes[0].pid))
+
+    def test_expired_host_deadline_prevents_process_creation(self):
+        args = self.args(terminate_in=-1)
+        with (
+            patch("guest_supervisor.subprocess.Popen") as created,
+            self.assertRaisesRegex(ValueError, "usable deadlines"),
+        ):
+            guest_supervisor.launch_owned([], self.root, args)
+        created.assert_not_called()
+
+    def test_prelaunch_io_crossing_deadline_prevents_process_creation(self):
+        args = self.args()
+        original = guest_supervisor.log_event
+
+        def blocked_log(*a, **kw):
+            original(*a, **kw)
+            args.terminate_at = time.time() - 1
+
+        with (
+            patch("guest_supervisor.log_event", side_effect=blocked_log),
+            patch("guest_supervisor.subprocess.Popen") as created,
+            self.assertRaisesRegex(ValueError, "before process creation"),
+        ):
+            guest_supervisor.launch_owned([], self.root, args)
+        created.assert_not_called()
+
+    def test_pidfd_failure_kills_and_reaps_only_the_owned_child(self):
+        with (
+            patch("guest_supervisor.os.pidfd_open", side_effect=OSError("unsupported")),
+            self.assertRaisesRegex(OSError, "unsupported"),
+        ):
+            self.invoke(self.args())
+        self.assert_reaped()
+
+    def test_state_publication_failure_kills_and_reaps_the_child(self):
+        args = self.args()
+        args.state.mkdir()
+        with self.assertRaises(OSError):
+            self.invoke(args)
+        self.assert_reaped()
+
+    def test_bound_log_failure_kills_and_reaps_the_child(self):
+        original = guest_supervisor.log_event
+
+        def fail_bound(path, event, **kw):
+            if event == "bound":
+                raise OSError("bound log fault")
+            return original(path, event, **kw)
+
+        with (
+            patch("guest_supervisor.log_event", side_effect=fail_bound),
+            self.assertRaisesRegex(OSError, "bound log fault"),
+        ):
+            self.invoke(self.args())
+        self.assert_reaped()
+
+    def test_log_failure_after_term_cannot_skip_forced_cleanup(self):
+        original = guest_supervisor.log_event
+
+        def fail_term(path, event, **kw):
+            if event == "sigterm":
+                raise OSError("TERM log fault")
+            return original(path, event, **kw)
+
+        with (
+            patch("guest_supervisor.log_event", side_effect=fail_term),
+            self.assertRaisesRegex(OSError, "TERM log fault"),
+        ):
+            self.invoke(self.args())
+        self.assert_reaped()
+        self.assertEqual(self.processes[0].returncode, -9)
+
+    def test_identity_not_established_before_deadline_reaps_the_child(self):
+        with self.assertRaisesRegex(RuntimeError, "establish its identity"):
+            self.invoke(self.args(), marker="limeos-arm64-wrong-fixture")
+        self.assert_reaped()
+        self.assertFalse((self.root / "process.json").exists())
+
+    def test_both_daemonize_spellings_are_refused_before_launch(self):
+        command = self.root / "launch.json"
+        for option in ("-daemonize", "--daemonize"):
+            command.write_text(
+                json.dumps(
+                    {
+                        "cwd": str(self.root),
+                        "argv": [
+                            "/usr/bin/nice",
+                            "-n",
+                            "19",
+                            "/usr/bin/ionice",
+                            "-c",
+                            "3",
+                            "/usr/bin/qemu-system-aarch64",
+                            "-name",
+                            "exact",
+                            option,
+                        ],
+                    }
+                )
+            )
+            with (
+                self.subTest(option=option),
+                patch("guest_supervisor.launch_owned") as created,
+                self.assertRaisesRegex(ValueError, "closed foreground"),
+            ):
+                guest_supervisor.launch_main(
+                    [
+                        "--command",
+                        str(command),
+                        "--state",
+                        str(self.root / "process.json"),
+                        "--log",
+                        str(self.root / "supervisor.log"),
+                        "--uid",
+                        str(os.getuid()),
+                        "--marker",
+                        "exact",
+                        "--terminate-at",
+                        "1",
+                        "--kill-at",
+                        "2",
+                        "--not-after",
+                        "3",
+                    ]
+                )
+            created.assert_not_called()
+
+    def test_disconnected_parent_before_publication_leaves_a_supervised_child(self):
+        # A fake SSH parent starts the detached host owner. Its child initially
+        # lacks the marker and publishes its PID before adopting the guest argv.
+        birth = self.root / "birth.pid"
+        actor = (
+            "import os,sys,time; from pathlib import Path; "
+            "Path(sys.argv[1]).write_text(str(os.getpid())); time.sleep(0.8); "
+            f"os.execv(sys.executable,[sys.executable,'-c',{TARGET!r},'stubborn','60',"
+            "'limeos-arm64-disconnected'])"
+        )
+        owner_code = (
+            "import os,runpy,sys,time; from pathlib import Path; "
+            "from types import SimpleNamespace; "
+            f"m=runpy.run_path({str(HERE / 'guest_supervisor.py')!r}); "
+            "r=Path(sys.argv[1]); now=time.time(); "
+            "args=SimpleNamespace(terminate_at=now+1.6,kill_at=now+2.4,not_after=now+3.4,"
+            "uid=os.getuid(),marker='limeos-arm64-disconnected',state=r/'process.json',"
+            "log=r/'supervisor.log',poll=0.05); "
+            f"sys.exit(m['launch_owned']([sys.executable,'-c',{actor!r},str(r/'birth.pid')],r,args))"
+        )
+        parent_code = (
+            "import subprocess,sys,time; from pathlib import Path; "
+            f"p=subprocess.Popen([sys.executable,'-I','-c',{owner_code!r},sys.argv[1]],"
+            "start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,"
+            "stderr=subprocess.DEVNULL); "
+            "Path(sys.argv[1],'owner.pid').write_text(str(p.pid)); time.sleep(60)"
+        )
+        parent = subprocess.Popen(
+            [sys.executable, "-I", "-c", parent_code, str(self.root)]
+        )
+        self.processes.append(parent)
+        until = time.monotonic() + 5
+        while not birth.exists() and time.monotonic() < until:
+            time.sleep(0.01)
+        self.assertTrue(birth.exists())
+        self.assertFalse((self.root / "process.json").exists())
+        child_pid = int(birth.read_text())
+        owner_pid = int((self.root / "owner.pid").read_text())
+        self.pidfds.extend([os.pidfd_open(child_pid), os.pidfd_open(owner_pid)])
+        parent.kill()
+        self.assertEqual(parent.wait(timeout=5), -9)
+        until = time.monotonic() + 6
+        while (
+            guest_supervisor.identity(owner_pid) is not None
+            and time.monotonic() < until
+        ):
+            time.sleep(0.02)
+        self.assertIsNone(guest_supervisor.identity(owner_pid))
+        self.assertIsNone(guest_supervisor.identity(child_pid))
+        self.assertEqual(
+            events(self.root / "supervisor.log"),
+            [
+                "launching",
+                "bound",
+                "sigterm",
+                "sigkill",
+                "guest_gone",
+            ],
+        )
+        self.assertEqual(
+            json.loads((self.root / "process.json").read_text())["pid"], child_pid
+        )
 
 
 if __name__ == "__main__":
