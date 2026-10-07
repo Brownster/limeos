@@ -181,8 +181,21 @@ class Guest:
         if self.authorization and utc_now() >= self.authorization["end"]:
             raise SystemExit("authorization window expired; no further host access")
 
-    def ssh(self, command, check=True, **kwargs):
+    def dispatch_options(self, kwargs=None):
+        options = dict(kwargs or {})
         self.authorize()
+        if self.authorization:
+            remaining = (self.authorization["end"] - utc_now()).total_seconds() - 1
+            if remaining <= 0:
+                raise SystemExit("authorization window expired or too short for access")
+            limit = options.get("timeout")
+            options["timeout"] = (
+                min(limit, remaining) if limit is not None else remaining
+            )
+        return options
+
+    def ssh(self, command, check=True, **kwargs):
+        kwargs = self.dispatch_options(kwargs)
         return subprocess.run(
             ["ssh", *self.options(), "-p", str(self.port), "root@127.0.0.1", command],
             check=check,
@@ -190,7 +203,7 @@ class Guest:
         )
 
     def push(self, source, destination):
-        self.authorize()
+        options = self.dispatch_options()
         run(
             "scp",
             *self.options(),
@@ -199,11 +212,12 @@ class Guest:
             "-r",
             str(source),
             f"root@127.0.0.1:{destination}",
+            **options,
         )
 
     def pull(self, source, destination):
-        self.authorize()
         Path(destination).parent.mkdir(parents=True, exist_ok=True)
+        options = self.dispatch_options()
         run(
             "scp",
             *self.options(),
@@ -212,11 +226,12 @@ class Guest:
             "-r",
             f"root@127.0.0.1:{source}",
             str(destination),
+            **options,
         )
 
     def host_run(self, command, **kwargs):
-        self.authorize()
         check = kwargs.pop("check", True)
+        kwargs = self.dispatch_options(kwargs)
         return subprocess.run(
             [
                 "ssh",
@@ -232,24 +247,26 @@ class Guest:
         )
 
     def host_push(self, source, destination):
-        self.authorize()
+        options = self.dispatch_options()
         return run(
             "scp",
             "-o",
             "BatchMode=yes",
             str(source),
             f"{self.host}:{destination}",
+            **options,
         )
 
     def host_pull(self, source, destination):
         Path(destination).parent.mkdir(parents=True, exist_ok=True)
-        self.authorize()
+        options = self.dispatch_options()
         return run(
             "scp",
             "-o",
             "BatchMode=yes",
             f"{self.host}:{source}",
             str(destination),
+            **options,
         )
 
 

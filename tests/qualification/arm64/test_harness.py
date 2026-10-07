@@ -302,6 +302,39 @@ INSIDE = native_vm.parse_utc("2026-10-06T23:00:00Z")
 
 
 class AuthorizationTests(unittest.TestCase):
+    def test_dispatch_timeouts_end_before_the_authorized_cutoff(self):
+        with tempfile.TemporaryDirectory() as directory:
+            now = native_vm.parse_utc("2026-10-07T05:59:55Z")
+            with (
+                patch("native_vm.STATE", Path(directory)),
+                patch("native_vm.utc_now", return_value=now),
+                patch("native_vm.subprocess.run") as dispatched,
+            ):
+                guest = Guest("bounded", "holly@wybie", write_authorization(directory))
+                guest.port = 22801
+                for action in (
+                    lambda: guest.host_run("true", timeout=60),
+                    lambda: guest.ssh("true"),
+                    lambda: guest.push("a", "b"),
+                    lambda: guest.pull("a", Path(directory) / "b"),
+                    lambda: guest.host_push("a", "b"),
+                    lambda: guest.host_pull("a", Path(directory) / "b"),
+                ):
+                    action()
+                    self.assertEqual(dispatched.call_args.kwargs["timeout"], 4)
+                guest.host_run("true", timeout=0.5)
+                self.assertEqual(dispatched.call_args.kwargs["timeout"], 0.5)
+                dispatched.reset_mock()
+                with (
+                    patch(
+                        "native_vm.utc_now",
+                        return_value=native_vm.parse_utc("2026-10-07T05:59:59Z"),
+                    ),
+                    self.assertRaisesRegex(SystemExit, "too short"),
+                ):
+                    guest.host_pull("a", Path(directory) / "b")
+                dispatched.assert_not_called()
+
     def test_boot_rechecks_expiry_after_preparation_before_host_copy(self):
         with tempfile.TemporaryDirectory() as directory:
             now = [INSIDE]
