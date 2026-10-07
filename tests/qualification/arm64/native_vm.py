@@ -231,6 +231,27 @@ class Guest:
             **kwargs,
         )
 
+    def host_push(self, source, destination):
+        self.authorize()
+        return run(
+            "scp",
+            "-o",
+            "BatchMode=yes",
+            str(source),
+            f"{self.host}:{destination}",
+        )
+
+    def host_pull(self, source, destination):
+        Path(destination).parent.mkdir(parents=True, exist_ok=True)
+        self.authorize()
+        return run(
+            "scp",
+            "-o",
+            "BatchMode=yes",
+            f"{self.host}:{source}",
+            str(destination),
+        )
+
 
 def host_info(guest):
     result = guest.host_run(
@@ -333,13 +354,7 @@ def boot(args):
         str(guest.local / "meta-data"),
     )
     guest.host_run(f"mkdir -p {guest.remote}")
-    run(
-        "scp",
-        "-o",
-        "BatchMode=yes",
-        str(guest.local / "seed.iso"),
-        f"{args.host}:{guest.remote}/seed.iso",
-    )
+    guest.host_push(guest.local / "seed.iso", f"{guest.remote}/seed.iso")
     storage = []
     disks = []
     if args.storage_disks:
@@ -418,13 +433,7 @@ def boot(args):
         ]
     )
     guest.host_run(f"mkdir -p {guest.remote}")
-    run(
-        "scp",
-        "-o",
-        "BatchMode=yes",
-        str(SUPERVISOR),
-        f"{args.host}:{guest.remote}/guest_supervisor.py",
-    )
+    guest.host_push(SUPERVISOR, f"{guest.remote}/guest_supervisor.py")
     guest.host_run(script)
     # Bind the supervisor to the daemonized QEMU process before anything else.
     # Newline-separated so only the supervisor itself runs in the background.
@@ -537,19 +546,11 @@ def stop(args):
         f"{{ sudo cat console.log > /tmp/limeos-arm64-{args.name}-console.log 2>/dev/null; "
         f"cp supervisor.log /tmp/limeos-arm64-{args.name}-supervisor.log 2>/dev/null; true; }}"
     )
-    run(
-        "scp",
-        "-o",
-        "BatchMode=yes",
-        f"{args.host}:/tmp/limeos-arm64-{args.name}-console.log",
-        str(guest.local / "console.log"),
+    guest.host_pull(
+        f"/tmp/limeos-arm64-{args.name}-console.log", guest.local / "console.log"
     )
-    run(
-        "scp",
-        "-o",
-        "BatchMode=yes",
-        f"{args.host}:/tmp/limeos-arm64-{args.name}-supervisor.log",
-        str(guest.local / "supervisor.log"),
+    guest.host_pull(
+        f"/tmp/limeos-arm64-{args.name}-supervisor.log", guest.local / "supervisor.log"
     )
     guest.host_run(
         f"rm -rf {guest.remote} /tmp/limeos-arm64-{args.name}-console.log "

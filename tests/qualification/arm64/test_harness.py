@@ -14,6 +14,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import native_vm
@@ -300,6 +301,84 @@ INSIDE = native_vm.parse_utc("2026-10-06T23:00:00Z")
 
 
 class AuthorizationTests(unittest.TestCase):
+    def test_boot_rechecks_expiry_after_preparation_before_host_copy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            now = [INSIDE]
+            commands = []
+            path = write_authorization(directory)
+
+            def dispatch(argv, **kwargs):
+                commands.append(argv)
+                if argv[0] == "ssh-keygen":
+                    Path(argv[-1]).with_suffix(".pub").write_text("fixture public key")
+                if argv[0] == "ssh" and argv[-1].startswith("mkdir -p "):
+                    now[0] = native_vm.parse_utc("2026-10-07T06:00:00Z")
+                return subprocess.CompletedProcess(
+                    argv, 0, stdout="a" * 128 + " image\n"
+                )
+
+            args = SimpleNamespace(
+                name="expiry-boot",
+                host="holly@wybie",
+                authorization=path,
+                terminate_at=None,
+                port=22801,
+                cpus=1,
+                memory=512,
+                disk="1G",
+                image_sha512="a" * 128,
+                storage_disks=False,
+                timeout=60,
+            )
+            with (
+                patch("native_vm.STATE", Path(directory)),
+                patch("native_vm.utc_now", side_effect=lambda: now[0]),
+                patch("native_vm.host_info", return_value={}),
+                patch("native_vm.subprocess.run", side_effect=dispatch),
+                self.assertRaisesRegex(SystemExit, "expired"),
+            ):
+                native_vm.boot(args)
+            self.assertFalse(any(command[0] == "scp" for command in commands))
+
+    def test_stop_rechecks_expiry_before_collecting_host_logs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            now = [INSIDE]
+            commands = []
+            path = write_authorization(directory)
+            local = Path(directory) / "expiry-stop"
+            local.mkdir()
+            (local / "guest.json").write_text(
+                json.dumps(
+                    {
+                        "host": "holly@wybie",
+                        "port": 22801,
+                        "marker": "exact-marker",
+                    }
+                )
+            )
+
+            def dispatch(argv, **kwargs):
+                commands.append(argv)
+                if argv[0] == "ssh":
+                    now[0] = native_vm.parse_utc("2026-10-07T06:00:00Z")
+                return subprocess.CompletedProcess(argv, 0, stdout="")
+
+            with (
+                patch("native_vm.STATE", Path(directory)),
+                patch("native_vm.utc_now", side_effect=lambda: now[0]),
+                patch("native_vm.host_info", return_value={}),
+                patch("native_vm.subprocess.run", side_effect=dispatch),
+                self.assertRaisesRegex(SystemExit, "expired"),
+            ):
+                native_vm.stop(
+                    SimpleNamespace(
+                        name="expiry-stop",
+                        host="holly@wybie",
+                        authorization=path,
+                    )
+                )
+            self.assertFalse(any(command[0] == "scp" for command in commands))
+
     def test_aliases_and_addresses_of_production_are_production(self):
         def fake_ssh_g(argv, **kwargs):
             host = argv[-1].rsplit("@", 1)[-1]
