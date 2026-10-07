@@ -1,0 +1,2 @@
+30 20 8:1 / / rw,relatime shared:7 - ext4 /dev/sda1 rw
+31 30 0:42 / /data\040files ro,nosuid master:7 - tmpfs tmpfs rw,size=1024k

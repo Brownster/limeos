@@ -1,0 +1,6 @@
+Name:	private ) ( name
+Tgid:	200
+Pid:	200
+Uid:	1000	1001	1002	1003
+Gid:	2000	2001	2002	2003
+Threads:	1
