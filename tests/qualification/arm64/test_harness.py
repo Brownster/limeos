@@ -17,6 +17,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import guest_supervisor
 import native_vm
 import qualification as q
 import record_run
@@ -583,6 +584,70 @@ class SupervisorTests(unittest.TestCase):
         self.processes.append(process)
         time.sleep(0.3)
         return process
+
+    def process_state(self, guest, **overrides):
+        state = {
+            "pid": guest.pid,
+            "start_ticks": start_ticks(guest.pid),
+            "uid": os.getuid(),
+            "marker": guest.args[-1],
+        }
+        state.update(overrides)
+        path = Path(self.directory.name) / "process.json"
+        path.write_text(json.dumps(state))
+        return path
+
+    def test_orderly_stop_matches_exact_marker_and_spares_substring(self):
+        guest = self.start("cooperative", "limeos-arm64-exact")
+        other = self.start("cooperative", "limeos-arm64-exact-suffix")
+        self.assertEqual(
+            guest_supervisor.stop_record(
+                self.process_state(other, marker="limeos-arm64-exact"),
+                grace=0.1,
+            ),
+            2,
+        )
+        self.assertIsNone(other.poll())
+        self.assertEqual(guest_supervisor.stop_record(self.process_state(guest)), 0)
+        self.assertEqual(guest.wait(timeout=5), -15)
+        self.assertIsNone(other.poll())
+
+    def test_orderly_stop_refuses_reused_pid_and_wrong_uid(self):
+        guest = self.start("cooperative", "limeos-arm64-reused")
+        for mismatch in ({"start_ticks": 1}, {"uid": os.getuid() + 1}):
+            with self.subTest(**mismatch):
+                self.assertEqual(
+                    guest_supervisor.stop_record(
+                        self.process_state(guest, **mismatch),
+                        grace=0.1,
+                    ),
+                    2,
+                )
+                self.assertIsNone(guest.poll())
+
+    def test_orderly_stop_pidfd_cannot_signal_a_replacement_process(self):
+        original = self.start("cooperative", "limeos-arm64-old")
+        pidfd = os.pidfd_open(original.pid)
+        original.kill()
+        original.wait()
+        replacement = self.start("cooperative", "limeos-arm64-replacement")
+        try:
+            # Simulate PID reuse between pidfd_open and /proc identity reads.
+            with patch("guest_supervisor.os.pidfd_open", return_value=pidfd):
+                self.assertEqual(
+                    guest_supervisor.stop_record(
+                        self.process_state(replacement),
+                        grace=0.1,
+                    ),
+                    0,
+                )
+            self.assertIsNone(replacement.poll())
+        finally:
+            # stop_record closes the descriptor even when its process is gone.
+            try:
+                os.close(pidfd)
+            except OSError:
+                pass
 
     def test_deadline_forces_only_the_bound_guest_and_spares_others(self):
         guest = self.start("stubborn", "limeos-arm64-run-aaaa")

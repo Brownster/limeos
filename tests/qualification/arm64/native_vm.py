@@ -450,7 +450,7 @@ def boot(args):
                 f"--uid $uid --marker {shlex.quote(marker)} "
                 f"--terminate-at {terminate_at.timestamp():.0f} "
                 f"--kill-at {kill_at.timestamp():.0f} "
-                "--log supervisor.log < /dev/null > supervisor.out 2>&1 &"
+                "--state process.json --log supervisor.log < /dev/null > supervisor.out 2>&1 &"
             ),
             "echo $! > supervisor.pid",
             # QEMU deletes qemu.pid when it exits; keep the bound PID for stop.
@@ -533,13 +533,9 @@ def stop(args):
         # The pidfile is root-owned (written before -runas drops privileges).
         # A supervisor may already have stopped the guest at its deadline.
         f"cd {guest.remote} && "
-        "pid=$(cat qemu.bound-pid 2>/dev/null || sudo cat qemu.pid 2>/dev/null || true) && "
-        # Identify the guest by its unique -name marker: QEMU's -daemonize
-        # changes its working directory to /, so a cwd check never matches.
-        'if [ -n "$pid" ] && [ -e /proc/$pid ]; then '
-        f"grep -qaF -- {shlex.quote(marker)} /proc/$pid/cmdline && kill $pid; fi && "
-        'for i in $(seq 1 60); do [ -n "$pid" ] && [ -e /proc/$pid ] || break; sleep 1; done && '
-        '{ [ -z "$pid" ] || [ ! -e /proc/$pid ]; } && '
+        # pidfd signals cannot reach a reused PID; the helper also checks kernel
+        # start time, UID and exact marker argv before sending any signal.
+        "python3 -I guest_supervisor.py stop process.json && "
         # The supervisor exits on its own once its pidfd reports the exit.
         "spid=$(cat supervisor.pid 2>/dev/null || true) && "
         'for i in $(seq 1 30); do [ -n "$spid" ] && grep -qa guest_supervisor.py /proc/$spid/cmdline 2>/dev/null || break; sleep 1; done && '

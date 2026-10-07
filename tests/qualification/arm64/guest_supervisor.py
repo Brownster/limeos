@@ -51,7 +51,61 @@ def matches(pid, start, uid, marker):
     )
 
 
+def bind_process(record):
+    """Hold the exact process before inspecting its numeric PID."""
+    try:
+        pidfd = os.pidfd_open(record["pid"])
+    except OSError:
+        return None
+    if not matches(
+        record["pid"], record["start_ticks"], record["uid"], record["marker"]
+    ):
+        os.close(pidfd)
+        return None
+    return pidfd
+
+
+def wait_process(pidfd, seconds):
+    exited = select.poll()
+    exited.register(pidfd, select.POLLIN)
+    return bool(exited.poll(max(0, int(seconds * 1000))))
+
+
+def stop_record(path, grace=30):
+    """Stop only a recorded process; a reused PID or substring cannot match."""
+    record = json.loads(Path(path).read_text())
+    if (
+        not isinstance(record, dict)
+        or set(record) != {"pid", "start_ticks", "uid", "marker"}
+        or any(type(record[k]) is not int for k in ("pid", "start_ticks", "uid"))
+        or record["pid"] <= 1
+        or record["start_ticks"] <= 0
+        or record["uid"] < 0
+        or not isinstance(record["marker"], str)
+        or not record["marker"]
+    ):
+        raise ValueError("complete process identity required")
+    pidfd = bind_process(record)
+    if pidfd is None:
+        return 0 if identity(record["pid"]) is None else 2
+    try:
+        signal.pidfd_send_signal(pidfd, signal.SIGTERM)
+        if wait_process(pidfd, grace):
+            return 0
+        signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+        return 0 if wait_process(pidfd, 10) else 1
+    except ProcessLookupError:
+        return 0
+    finally:
+        os.close(pidfd)
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "stop":
+        parser = argparse.ArgumentParser(description="Stop one recorded guest")
+        parser.add_argument("state", type=Path)
+        args = parser.parse_args(sys.argv[2:])
+        return stop_record(args.state)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pid", type=int, required=True)
     parser.add_argument("--start-ticks", type=int, required=True)
@@ -66,6 +120,9 @@ def main():
         "--kill-at", type=float, required=True, help="UTC epoch seconds"
     )
     parser.add_argument("--log", type=Path, required=True)
+    parser.add_argument(
+        "--state", type=Path, help="Publish the verified process identity"
+    )
     parser.add_argument("--poll", type=float, default=2.0)
     args = parser.parse_args()
     if not (args.pid > 1 and args.kill_at > args.terminate_at and 0 < args.poll <= 10):
@@ -91,14 +148,12 @@ def main():
         "uid": args.uid,
         "marker": args.marker,
     }
-    try:
-        # A pidfd names this exact process; it can never signal a reused PID.
-        pidfd = os.pidfd_open(args.pid)
-    except OSError:
-        pidfd = None
-    if pidfd is None or not matches(args.pid, args.start_ticks, args.uid, args.marker):
+    pidfd = bind_process(bound)
+    if pidfd is None:
         log("refused_unbound", **bound)
         return 2
+    if args.state:
+        args.state.write_text(json.dumps(bound) + "\n")
     log(
         "bound",
         supervisor_pid=os.getpid(),
