@@ -363,6 +363,177 @@ fn identity_encoding_is_versioned_order_sensitive_and_bounded() {
     }
 }
 
+#[derive(Default)]
+struct RecordAllocation {
+    sizes: Vec<usize>,
+    fail: bool,
+}
+impl CustodyIo for RecordAllocation {
+    fn record_buffer(&mut self, size: usize) -> Result<Vec<u8>, CustodyError> {
+        self.sizes.push(size);
+        if self.fail {
+            return Err(CustodyError::Allocation);
+        }
+        let mut bytes = Vec::new();
+        bytes
+            .try_reserve_exact(size)
+            .map_err(|_| CustodyError::Allocation)?;
+        Ok(bytes)
+    }
+}
+
+#[test]
+fn canonical_record_escaping_is_counted_before_allocation_at_the_exact_cap() {
+    let scene = Scene::new();
+    let mut policy = policy();
+    policy.resources[0].destination_root = format!("/synthetic/{}", "\"".repeat(100));
+    let retained = retain(
+        scene.source(),
+        policy.clone(),
+        &scene.root(),
+        &limits(),
+        &never,
+    )
+    .unwrap();
+    let record = RecordRef {
+        binding: retained.binding(),
+        policy: &policy,
+        manifest: retained.manifest(),
+    };
+    let expected = serde_json::to_vec(&record).unwrap();
+    assert!(
+        expected
+            .windows(2)
+            .filter(|bytes| *bytes == b"\\\"")
+            .count()
+            >= 100
+    );
+    let mut allocation = RecordAllocation::default();
+    assert!(matches!(
+        encode_record(
+            record.binding,
+            &policy,
+            record.manifest,
+            expected.len() as u64 - 1,
+            &mut allocation
+        ),
+        Err(CustodyError::Limit(CustodyLimit::Record))
+    ));
+    assert!(allocation.sizes.is_empty(), "JSON cap must precede reserve");
+    let bytes = encode_record(
+        record.binding,
+        &policy,
+        record.manifest,
+        expected.len() as u64,
+        &mut allocation,
+    )
+    .unwrap();
+    assert_eq!(bytes, expected, "canonical bytes changed");
+    assert_eq!(allocation.sizes, [expected.len()]);
+    allocation.fail = true;
+    assert!(matches!(
+        encode_record(
+            record.binding,
+            &policy,
+            record.manifest,
+            expected.len() as u64,
+            &mut allocation
+        ),
+        Err(CustodyError::Allocation)
+    ));
+    retained.discard().unwrap();
+    scene.assert_clean();
+}
+
+#[test]
+fn recovery_counts_canonical_amplification_before_allocation_and_preserves_exact_bytes() {
+    let scene = Scene::new();
+    let mut policy = policy();
+    policy.resources[0].destination_root = format!("/synthetic/{}", "\"".repeat(100));
+    let retained = retain(
+        scene.source(),
+        policy.clone(),
+        &scene.root(),
+        &limits(),
+        &never,
+    )
+    .unwrap();
+    let record_path = scene
+        .path("custody")
+        .join(scene.one(PUBLISHED))
+        .join(RECORD);
+    let bytes = fs::read(&record_path).unwrap();
+    let exact = CustodyLimits {
+        max_record_bytes: bytes.len() as u64,
+        ..limits()
+    };
+    let recovered = recover(
+        &scene.root(),
+        retained.binding(),
+        policy.clone(),
+        &exact,
+        &never,
+    )
+    .unwrap();
+    assert_eq!(recovered.manifest(), retained.manifest());
+    assert_eq!(fs::read(&record_path).unwrap(), bytes);
+    drop(recovered);
+    let mut allocation = RecordAllocation::default();
+    let tiny = CustodyLimits {
+        max_record_bytes: 1,
+        ..limits()
+    };
+    assert!(matches!(
+        recover_with_io(
+            &scene.root(),
+            retained.binding(),
+            policy.clone(),
+            &tiny,
+            &never,
+            &mut allocation
+        ),
+        Err(CustodyError::Limit(CustodyLimit::Record))
+    ));
+    assert!(allocation.sizes.is_empty());
+
+    // Serde permits an omitted Option field, but canonical serialization adds
+    // sha256:null. The decoded record therefore exceeds this input-sized cap.
+    let mut forged: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    forged["manifest"]["entries"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("sha256");
+    let forged = serde_json::to_vec(&forged).unwrap();
+    let short = CustodyLimits {
+        max_record_bytes: forged.len() as u64,
+        ..limits()
+    };
+    fs::set_permissions(&record_path, fs::Permissions::from_mode(0o600)).unwrap();
+    fs::write(&record_path, &forged).unwrap();
+    fs::set_permissions(&record_path, fs::Permissions::from_mode(0o400)).unwrap();
+    assert!(matches!(
+        recover_with_io(
+            &scene.root(),
+            retained.binding(),
+            policy.clone(),
+            &short,
+            &never,
+            &mut allocation
+        ),
+        Err(CustodyError::Limit(CustodyLimit::Record))
+    ));
+    assert!(
+        allocation.sizes.is_empty(),
+        "canonical recovery allocated beyond cap"
+    );
+    fs::set_permissions(&record_path, fs::Permissions::from_mode(0o600)).unwrap();
+    fs::write(&record_path, &bytes).unwrap();
+    fs::set_permissions(&record_path, fs::Permissions::from_mode(0o400)).unwrap();
+    recover(&scene.root(), retained.binding(), policy, &exact, &never).unwrap();
+    retained.discard().unwrap();
+    scene.assert_clean();
+}
+
 #[test]
 fn changing_source_is_refused_after_reading_only_the_sentinel() {
     let scene = Scene::new();

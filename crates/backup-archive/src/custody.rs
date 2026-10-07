@@ -127,17 +127,96 @@ struct Record {
     manifest: RestoreManifest,
 }
 
-fn encode_record(
+fn encode_record<I: CustodyIo>(
     binding: &CustodyBinding,
     policy: &AdmissionPolicy,
     manifest: &RestoreManifest,
+    limit: u64,
+    io: &mut I,
 ) -> Result<Vec<u8>, CustodyError> {
-    serde_json::to_vec(&RecordRef {
+    let record = RecordRef {
         binding,
         policy,
         manifest,
-    })
-    .map_err(|e| io_error("encode custody record", io::Error::other(e)))
+    };
+    // Count canonical JSON, including escaping, before reserving its buffer.
+    // This writer stops immediately at the trusted cap without allocating JSON.
+    struct Count {
+        bytes: u64,
+        limit: u64,
+        exceeded: bool,
+    }
+    impl Write for Count {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            let Some(next) = self
+                .bytes
+                .checked_add(bytes.len() as u64)
+                .filter(|&size| size <= self.limit)
+            else {
+                self.exceeded = true;
+                return Err(io::Error::other("custody record limit exceeded"));
+            };
+            self.bytes = next;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut count = Count {
+        bytes: 0,
+        limit,
+        exceeded: false,
+    };
+    if let Err(error) = serde_json::to_writer(&mut count, &record) {
+        return Err(if count.exceeded {
+            CustodyError::Limit(CustodyLimit::Record)
+        } else {
+            io_error("encode custody record", io::Error::other(error))
+        });
+    }
+    let size = usize::try_from(count.bytes).map_err(|_| CustodyError::Allocation)?;
+    let bytes = io.record_buffer(size)?;
+    if bytes.capacity() < size || !bytes.is_empty() {
+        return Err(CustodyError::Allocation);
+    }
+    struct Buffer {
+        bytes: Vec<u8>,
+        size: usize,
+        exceeded: bool,
+    }
+    impl Write for Buffer {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            if self
+                .bytes
+                .len()
+                .checked_add(bytes.len())
+                .is_none_or(|next| next > self.size)
+            {
+                self.exceeded = true;
+                return Err(io::Error::other("custody record limit exceeded"));
+            }
+            // Capacity was reserved fallibly and cannot grow on this path.
+            self.bytes.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut buffer = Buffer {
+        bytes,
+        size,
+        exceeded: false,
+    };
+    if let Err(error) = serde_json::to_writer(&mut buffer, &record) {
+        return Err(if buffer.exceeded {
+            CustodyError::Limit(CustodyLimit::Record)
+        } else {
+            io_error("encode custody record", io::Error::other(error))
+        });
+    }
+    Ok(buffer.bytes)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -373,6 +452,13 @@ enum Point {
 
 // Private fault-injection boundary. Production callers cannot supply it.
 trait CustodyIo {
+    fn record_buffer(&mut self, size: usize) -> Result<Vec<u8>, CustodyError> {
+        let mut bytes = Vec::new();
+        bytes
+            .try_reserve_exact(size)
+            .map_err(|_| CustodyError::Allocation)?;
+        Ok(bytes)
+    }
     fn random(&mut self, bytes: &mut [u8; 16]) -> io::Result<()> {
         getrandom::getrandom(bytes).map_err(|e| io::Error::other(e.to_string()))
     }
@@ -922,10 +1008,13 @@ fn publish<I: CustodyIo>(
             manifest_identity: identity::manifest(admitted.manifest(), limits.max_record_bytes)?,
         };
         io.reached(Point::Admitted);
-        let bytes = encode_record(&binding, policy, admitted.manifest())?;
-        if bytes.len() as u64 > limits.max_record_bytes {
-            return Err(CustodyError::Limit(CustodyLimit::Record));
-        }
+        let bytes = encode_record(
+            &binding,
+            policy,
+            admitted.manifest(),
+            limits.max_record_bytes,
+            io,
+        )?;
         let mut record = pending.create_file(RECORD)?;
         write_all(io, &mut record, &bytes, cancelled, "write custody record")?;
         let created = *pending.identity(RECORD).ok_or(CustodyError::Allocation)?;
@@ -1041,7 +1130,7 @@ fn recover_with_io<I: CustodyIo>(
         return Err(CustodyError::UnsafeObject("record directory"));
     }
     exact_entries(&directory)?;
-    let (record, record_identity) = read_record(&directory, limits)?;
+    let (record, record_identity) = read_record(&directory, limits, io)?;
     let bound_record = |record: &Record| -> Result<bool, CustodyError> {
         Ok(record.binding == *expected
             && identity::policy(&record.policy, limits.max_record_bytes)?
@@ -1133,7 +1222,11 @@ fn exact_entries(directory: &File) -> Result<(), CustodyError> {
     Ok(())
 }
 
-fn read_record(directory: &File, limits: &CustodyLimits) -> Result<(Record, Stat), CustodyError> {
+fn read_record<I: CustodyIo>(
+    directory: &File,
+    limits: &CustodyLimits,
+    io: &mut I,
+) -> Result<(Record, Stat), CustodyError> {
     let file = open_private_file(directory, RECORD)?;
     let stat = rustix::fs::fstat(&file).map_err(|e| io_error("stat custody record", e))?;
     let size = u64::try_from(stat.st_size).map_err(|_| CustodyError::MalformedRecord)?;
@@ -1160,7 +1253,13 @@ fn read_record(directory: &File, limits: &CustodyLimits) -> Result<(Record, Stat
         serde_json::from_slice(&bytes).map_err(|_| CustodyError::MalformedRecord)?;
     // Closed form: the stored bytes must be exactly the canonical encoding.
     if !record.binding.well_formed()
-        || encode_record(&record.binding, &record.policy, &record.manifest)? != bytes
+        || encode_record(
+            &record.binding,
+            &record.policy,
+            &record.manifest,
+            limits.max_record_bytes,
+            io,
+        )? != bytes
     {
         return Err(CustodyError::MalformedRecord);
     }
