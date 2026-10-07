@@ -150,6 +150,10 @@ pub enum FindingCode {
     Malformed,
     TrailingData,
     Cancelled,
+    /// A bounded input reader failed independently of archive syntax.
+    Io,
+    /// A checked buffer/catalog reservation failed.
+    Allocation,
     // Counts and sizes.
     EntryLimit,
     FileSizeLimit,

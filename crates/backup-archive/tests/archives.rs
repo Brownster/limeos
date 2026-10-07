@@ -4,6 +4,7 @@
 //! compressed with real gzip and zstd encoders. Test quotas are small so a
 //! decompression-bomb regression stays bounded.
 
+use limeos_backup_archive::staging::{StagingError, StagingRoot, admit_for_staging, replay};
 use limeos_backup_archive::{inspect, inspect_and_admit};
 use limeos_domain::backups::{
     AdmissionPolicy, ArchiveFormat, ArchiveLimits, EntryKind, FindingCode, LegacyMapping,
@@ -17,6 +18,748 @@ use std::{
     path::{Path, PathBuf},
 };
 use tar::{EntryType, Header};
+
+use std::os::unix::fs::{PermissionsExt, symlink};
+
+fn private_tempdir() -> tempfile::TempDir {
+    tempfile::Builder::new()
+        .permissions(std::fs::Permissions::from_mode(0o700))
+        .tempdir()
+        .unwrap()
+}
+
+fn empty(root: &Path) -> bool {
+    std::fs::read_dir(root).unwrap().next().is_none()
+}
+
+fn verify_catalog(catalog: &limeos_backup_archive::staging::VerifiedCatalog) {
+    for entry in catalog.entries() {
+        if let Some(mut reader) = entry.reader() {
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).unwrap();
+            assert_eq!(bytes.len() as u64, entry.metadata().size);
+            assert_eq!(
+                entry.metadata().sha256.as_deref(),
+                Some(hex::encode(Sha256::digest(&bytes)).as_str())
+            );
+            // Independent readers have independent positions.
+            let mut second = entry.reader().unwrap();
+            let mut again = Vec::new();
+            second.read_to_end(&mut again).unwrap();
+            assert_eq!(bytes, again);
+        } else {
+            assert_eq!(entry.metadata().kind, EntryKind::Directory);
+        }
+    }
+}
+
+#[test]
+fn staging_replays_real_formats_and_gnu_fixtures_to_flat_private_files() {
+    let managed = private_tempdir();
+    std::fs::write(
+        managed.path().join("sentinel"),
+        b"managed bytes stay unchanged",
+    )
+    .unwrap();
+    for archive in [
+        gz(&sample()),
+        zst(&sample()),
+        std::fs::read(fixtures().join("legacy-valid.tar.gz")).unwrap(),
+        std::fs::read(fixtures().join("legacy-valid.tar.zst")).unwrap(),
+        std::fs::read(fixtures().join("legacy-posix.tar.gz")).unwrap(),
+        std::fs::read(fixtures().join("legacy-primary-overlap.tar.zst")).unwrap(),
+    ] {
+        let mut policy = policy();
+        policy.resources[0].destination_root = managed.path().to_str().unwrap().into();
+        let admitted = admit_for_staging(&archive[..], policy.clone(), &never).unwrap();
+        let root = private_tempdir();
+        let trusted = StagingRoot::open(root.path()).unwrap();
+        let catalog = replay(
+            &archive[..],
+            &policy,
+            admitted.manifest(),
+            admitted.policy_snapshot(),
+            &trusted,
+            &never,
+        )
+        .unwrap();
+        assert_eq!(catalog.manifest(), admitted.manifest());
+        verify_catalog(&catalog);
+        let attempts: Vec<_> = std::fs::read_dir(root.path())
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(attempts.len(), 1);
+        assert!(
+            attempts[0]
+                .file_name()
+                .to_str()
+                .unwrap()
+                .starts_with("incomplete-")
+        );
+        assert_eq!(
+            attempts[0].metadata().unwrap().permissions().mode() & 0o7777,
+            0o700
+        );
+        let files: Vec<_> = std::fs::read_dir(attempts[0].path())
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(files.len() as u64, admitted.manifest().file_count);
+        for file in files {
+            assert!(file.file_name().to_str().unwrap().starts_with("file-"));
+            assert!(file.file_type().unwrap().is_file());
+            assert_eq!(
+                file.metadata().unwrap().permissions().mode() & 0o7777,
+                0o400
+            );
+        }
+        drop(catalog);
+        assert!(empty(root.path()));
+        assert_eq!(
+            std::fs::read(managed.path().join("sentinel")).unwrap(),
+            b"managed bytes stay unchanged"
+        );
+    }
+}
+
+#[test]
+fn staging_refuses_full_policy_edits_even_with_the_same_revision_before_reads() {
+    let archive = gz(&sample());
+    let policy = policy();
+    let admitted = admit_for_staging(&archive[..], policy.clone(), &never).unwrap();
+    let mut changes = Vec::new();
+    let mut p = policy.clone();
+    p.revision += 1;
+    changes.push(p);
+    let mut p = policy.clone();
+    p.limits.max_entries += 1;
+    changes.push(p);
+    let mut p = policy.clone();
+    p.limits.max_zstd_window_log += 1;
+    changes.push(p);
+    let mut p = policy.clone();
+    p.formats.reverse();
+    changes.push(p);
+    let mut p = policy.clone();
+    p.resources[0].destination_root = "/private/other".into();
+    changes.push(p);
+    let mut p = policy.clone();
+    p.legacy_mappings[0].resource_prefix = "other".into();
+    changes.push(p);
+    let root = private_tempdir();
+    let trusted = StagingRoot::open(root.path()).unwrap();
+    struct MustNotRead;
+    impl Read for MustNotRead {
+        fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+            panic!("policy refusal must precede archive reads")
+        }
+    }
+    for changed in changes {
+        assert!(matches!(
+            replay(
+                MustNotRead,
+                &changed,
+                admitted.manifest(),
+                admitted.policy_snapshot(),
+                &trusted,
+                &never
+            ),
+            Err(StagingError::PolicyChanged)
+        ));
+        assert!(empty(root.path()));
+    }
+}
+
+#[test]
+fn staging_revalidates_every_manifest_field_and_never_uses_forged_paths() {
+    let archive = gz(&sample());
+    let policy = policy();
+    let admitted = admit_for_staging(&archive[..], policy.clone(), &never).unwrap();
+    let base = admitted.manifest();
+    type Mutation = Box<dyn Fn(&mut RestoreManifest)>;
+    let mutations: Vec<Mutation> = vec![
+        Box::new(|m| m.manifest_version = 1),
+        Box::new(|m| m.policy_revision += 1),
+        Box::new(|m| m.archive_sha256 = "a".repeat(64)),
+        Box::new(|m| m.format = ArchiveFormat::TarZstd),
+        Box::new(|m| m.compressed_bytes += 1),
+        Box::new(|m| m.decompressed_bytes += 512),
+        Box::new(|m| m.header_count += 1),
+        Box::new(|m| m.coalesced_self_hardlinks += 1),
+        Box::new(|m| m.file_count += 1),
+        Box::new(|m| m.directory_count += 1),
+        Box::new(|m| m.file_bytes += 1),
+        Box::new(|m| m.entries[0].resource = "forged-resource".into()),
+        Box::new(|m| m.entries[0].relative_path = "../../foreign-sentinel".into()),
+        Box::new(|m| m.entries[0].archive_path = "/foreign-sentinel".into()),
+        Box::new(|m| m.entries[0].sha256 = Some("a".repeat(64))),
+        Box::new(|m| m.entries[0].size += 1),
+        Box::new(|m| m.entries[0].archived_permissions = 0o4777),
+        Box::new(|m| m.entries.reverse()),
+        Box::new(|m| m.entries.push(m.entries[0].clone())),
+        Box::new(|m| m.file_bytes = u64::MAX),
+        Box::new(|m| m.header_count = u64::MAX),
+    ];
+    let root = private_tempdir();
+    let trusted = StagingRoot::open(root.path()).unwrap();
+    let foreign = root.path().join("foreign-sentinel");
+    std::fs::write(&foreign, b"foreign").unwrap();
+    for (index, mutation) in mutations.iter().enumerate() {
+        let mut forged = base.clone();
+        mutation(&mut forged);
+        assert!(
+            replay(
+                &archive[..],
+                &policy,
+                &forged,
+                admitted.policy_snapshot(),
+                &trusted,
+                &never
+            )
+            .is_err(),
+            "forged field {index}"
+        );
+        assert_eq!(std::fs::read(&foreign).unwrap(), b"foreign");
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1);
+    }
+}
+
+#[test]
+fn staging_changed_payload_order_header_format_and_matching_supplied_digest_refuse() {
+    let original = Tar::default()
+        .file("etc/limeos/a", b"one")
+        .file("etc/limeos/b", b"two")
+        .end();
+    let archive = gz(&original);
+    let policy = policy();
+    let admitted = admit_for_staging(&archive[..], policy.clone(), &never).unwrap();
+    let mut changed_mode = Tar::header(EntryType::Regular, b"etc/limeos/a", 3);
+    changed_mode.set_mode(0o600);
+    changed_mode.set_cksum();
+    let changed = [
+        gz(&Tar::default()
+            .file("etc/limeos/a", b"new")
+            .file("etc/limeos/b", b"two")
+            .end()),
+        gz(&Tar::default()
+            .file("etc/limeos/b", b"two")
+            .file("etc/limeos/a", b"one")
+            .end()),
+        gz(&Tar::default()
+            .push(&changed_mode, b"one")
+            .file("etc/limeos/b", b"two")
+            .end()),
+        zst(&original),
+    ];
+    let root = private_tempdir();
+    let trusted = StagingRoot::open(root.path()).unwrap();
+    for bytes in changed {
+        let mut forged = admitted.manifest().clone();
+        // Even a correct supplied compressed digest is not sufficient proof.
+        forged.archive_sha256 = hex::encode(Sha256::digest(&bytes));
+        assert!(
+            replay(
+                &bytes[..],
+                &policy,
+                &forged,
+                admitted.policy_snapshot(),
+                &trusted,
+                &never
+            )
+            .is_err()
+        );
+        assert!(empty(root.path()));
+    }
+}
+
+#[test]
+fn staging_corrupt_truncated_trailing_and_hostile_streams_clean_private_attempts() {
+    let archive = gz(&sample());
+    let policy = policy();
+    let admitted = admit_for_staging(&archive[..], policy.clone(), &never).unwrap();
+    let mut corrupt = archive.clone();
+    let at = corrupt.len() - 8;
+    corrupt[at] ^= 0x55;
+    let mut trailing = archive.clone();
+    trailing.extend_from_slice(b"trailing");
+    let mut inputs = vec![corrupt, archive[..archive.len() - 5].to_vec(), trailing];
+    for name in [
+        "parent-name.tar.gz",
+        "absolute-name.tar.gz",
+        "symlink-escape.tar.gz",
+        "sparse.tar.gz",
+        "fifo.tar.gz",
+    ] {
+        inputs.push(std::fs::read(fixtures().join(name)).unwrap());
+    }
+    for tar in [
+        Tar::default()
+            .typed(EntryType::Link, "etc/limeos/core.json", "../../foreign")
+            .end(),
+        Tar::default()
+            .typed(EntryType::Char, "etc/limeos/device", "")
+            .end(),
+        Tar::default()
+            .file("etc/limeos/core.json", b"x")
+            .file("etc/limeos/core.json", b"y")
+            .end(),
+        Tar::default()
+            .pax(&[("size", b"100")])
+            .file("etc/limeos/core.json", b"x")
+            .end(),
+    ] {
+        inputs.extend([gz(&tar), zst(&tar)]);
+    }
+    let root = private_tempdir();
+    let trusted = StagingRoot::open(root.path()).unwrap();
+    for input in inputs {
+        assert!(
+            replay(
+                &input[..],
+                &policy,
+                admitted.manifest(),
+                admitted.policy_snapshot(),
+                &trusted,
+                &never
+            )
+            .is_err()
+        );
+        assert!(empty(root.path()));
+    }
+}
+
+#[test]
+fn staging_short_interrupted_reads_and_cancellation_mid_stream_and_near_eof() {
+    let policy = policy();
+    for archive in [gz(&sample()), zst(&sample())] {
+        let admitted = admit_for_staging(&archive[..], policy.clone(), &never).unwrap();
+        let root = private_tempdir();
+        let trusted = StagingRoot::open(root.path()).unwrap();
+        let source = Fragmented {
+            inner: &archive[..],
+            maximum: 1,
+            interrupt: true,
+        };
+        let catalog = replay(
+            source,
+            &policy,
+            admitted.manifest(),
+            admitted.policy_snapshot(),
+            &trusted,
+            &never,
+        )
+        .unwrap();
+        verify_catalog(&catalog);
+        drop(catalog);
+        assert!(empty(root.path()));
+        for threshold in [0, 5, archive.len() / 2, archive.len() - 1, archive.len()] {
+            struct Counted<'a> {
+                bytes: &'a [u8],
+                served: &'a Cell<usize>,
+            }
+            impl Read for Counted<'_> {
+                fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+                    let n = self.bytes.read(&mut buf[..1])?;
+                    self.served.set(self.served.get() + n);
+                    Ok(n)
+                }
+            }
+            let served = Cell::new(0);
+            let source = Counted {
+                bytes: &archive,
+                served: &served,
+            };
+            assert!(matches!(
+                replay(
+                    source,
+                    &policy,
+                    admitted.manifest(),
+                    admitted.policy_snapshot(),
+                    &trusted,
+                    &|| served.get() >= threshold
+                ),
+                Err(StagingError::Cancelled)
+            ));
+            assert!(empty(root.path()));
+        }
+    }
+}
+
+#[test]
+fn staging_root_symlink_and_foreign_path_attacks_refuse_without_overwrite() {
+    let parent = private_tempdir();
+    let private = parent.path().join("private");
+    std::fs::create_dir(&private).unwrap();
+    std::fs::set_permissions(&private, std::fs::Permissions::from_mode(0o700)).unwrap();
+    std::fs::write(private.join("sentinel"), b"foreign").unwrap();
+    let link = parent.path().join("link");
+    symlink(&private, &link).unwrap();
+    assert!(matches!(
+        StagingRoot::open(&link),
+        Err(StagingError::UnsafeRoot)
+    ));
+    let nested = private.join("nested");
+    std::fs::create_dir(&nested).unwrap();
+    std::fs::set_permissions(&nested, std::fs::Permissions::from_mode(0o700)).unwrap();
+    assert!(StagingRoot::open(&link.join("nested")).is_err());
+    assert!(StagingRoot::open(&private.join("sentinel")).is_err());
+    std::fs::set_permissions(&private, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(StagingRoot::open(&private).is_err());
+    assert_eq!(std::fs::read(private.join("sentinel")).unwrap(), b"foreign");
+}
+
+#[test]
+fn staging_attempts_are_independent_and_cleanup_uses_held_root_descriptor() {
+    let parent = private_tempdir();
+    let path = parent.path().join("private");
+    std::fs::create_dir(&path).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let root = StagingRoot::open(&path).unwrap();
+    let archive = gz(&sample());
+    let policy = policy();
+    let admitted = admit_for_staging(&archive[..], policy.clone(), &never).unwrap();
+    let a = replay(
+        &archive[..],
+        &policy,
+        admitted.manifest(),
+        admitted.policy_snapshot(),
+        &root,
+        &never,
+    )
+    .unwrap();
+    let b = replay(
+        &archive[..],
+        &policy,
+        admitted.manifest(),
+        admitted.policy_snapshot(),
+        &root,
+        &never,
+    )
+    .unwrap();
+    assert_eq!(std::fs::read_dir(&path).unwrap().count(), 2);
+    let moved = parent.path().join("moved");
+    std::fs::rename(&path, &moved).unwrap();
+    std::fs::create_dir(&path).unwrap();
+    std::fs::write(path.join("foreign"), b"untouched").unwrap();
+    a.discard().unwrap();
+    assert_eq!(std::fs::read_dir(&moved).unwrap().count(), 1);
+    verify_catalog(&b);
+    drop(b);
+    assert!(empty(&moved));
+    assert_eq!(std::fs::read(path.join("foreign")).unwrap(), b"untouched");
+}
+
+// Deterministic incompressible data keeps the decoder asking for source reads
+// after at least one 64 KiB chunk has actually reached quarantine.
+fn staging_large_archive() -> Vec<u8> {
+    let mut data = Vec::with_capacity(256 * 1024);
+    for n in 0u64..8192 {
+        data.extend_from_slice(&Sha256::digest(n.to_le_bytes()));
+    }
+    gz(&Tar::default().file("etc/limeos/MixedCase", &data).end())
+}
+
+fn tentative_bytes(root: &Path) -> u64 {
+    std::fs::read_dir(root)
+        .unwrap()
+        .map(Result::unwrap)
+        .filter(|e| e.file_type().unwrap().is_dir())
+        .flat_map(|e| std::fs::read_dir(e.path()).unwrap().map(Result::unwrap))
+        .map(|e| e.metadata().unwrap().len())
+        .sum()
+}
+
+#[test]
+fn staging_footer_failure_and_mid_file_cancellation_follow_tentative_writes() {
+    let archive = staging_large_archive();
+    let policy = policy();
+    let admitted = admit_for_staging(&archive[..], policy.clone(), &never).unwrap();
+    let mut corrupt = archive.clone();
+    let at = corrupt.len() - 8;
+    corrupt[at] ^= 1;
+    let truncated = archive[..archive.len() - 5].to_vec();
+    let mut trailing = archive.clone();
+    trailing.extend_from_slice(b"trailing");
+    for (cancel, input) in [
+        (true, archive.clone()),
+        (false, corrupt),
+        (false, truncated),
+        (false, trailing),
+    ] {
+        let root = private_tempdir();
+        let trusted = StagingRoot::open(root.path()).unwrap();
+        let observed = Cell::new(false);
+        struct Observe<'a> {
+            bytes: &'a [u8],
+            root: &'a Path,
+            observed: &'a Cell<bool>,
+        }
+        impl Read for Observe<'_> {
+            fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                if tentative_bytes(self.root) > 0 {
+                    self.observed.set(true);
+                }
+                let n = buffer.len().min(4096);
+                self.bytes.read(&mut buffer[..n])
+            }
+        }
+        let source = Observe {
+            bytes: &input,
+            root: root.path(),
+            observed: &observed,
+        };
+        let result = replay(
+            source,
+            &policy,
+            admitted.manifest(),
+            admitted.policy_snapshot(),
+            &trusted,
+            &|| cancel && observed.get(),
+        );
+        assert!(result.is_err());
+        if cancel {
+            assert!(matches!(result, Err(StagingError::Cancelled)));
+        }
+        assert!(observed.get(), "must write tentative bytes before refusal");
+        assert!(empty(root.path()));
+    }
+}
+
+#[test]
+fn staging_repeated_interrupted_reads_preserve_bytes() {
+    struct Alternating<'a> {
+        bytes: &'a [u8],
+        interrupt: bool,
+    }
+    impl Read for Alternating<'_> {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            self.interrupt = !self.interrupt;
+            if self.interrupt {
+                return Err(io::ErrorKind::Interrupted.into());
+            }
+            let n = buffer.len().min(1);
+            self.bytes.read(&mut buffer[..n])
+        }
+    }
+    for archive in [gz(&sample()), zst(&sample())] {
+        let policy = policy();
+        let admitted = admit_for_staging(&archive[..], policy.clone(), &never).unwrap();
+        let root = private_tempdir();
+        let trusted = StagingRoot::open(root.path()).unwrap();
+        let catalog = replay(
+            Alternating {
+                bytes: &archive,
+                interrupt: false,
+            },
+            &policy,
+            admitted.manifest(),
+            admitted.policy_snapshot(),
+            &trusted,
+            &never,
+        )
+        .unwrap();
+        verify_catalog(&catalog);
+        catalog.discard().unwrap();
+        assert!(empty(root.path()));
+    }
+}
+
+#[test]
+fn staging_enforces_declared_metadata_file_entry_and_decoder_limits() {
+    let huge_name = Tar::header(EntryType::GNULongName, b"././@LongLink", 1 << 30);
+    let huge_file = Tar::header(EntryType::Regular, b"opt/stacks/big", 1 << 40);
+    let mut flood = Tar::default();
+    for i in 0..65 {
+        flood = flood.dir(&format!("opt/stacks/{i}/"));
+    }
+    let mut bomb = Tar::default();
+    for i in 0..5 {
+        bomb = bomb.file(&format!("opt/stacks/zero-{i}"), &vec![0; 900 * 1024]);
+    }
+    for format in [ArchiveFormat::TarGzip, ArchiveFormat::TarZstd] {
+        let encode = |data: &[u8]| match format {
+            ArchiveFormat::TarGzip => gz(data),
+            ArchiveFormat::TarZstd => zst(data),
+        };
+        // Roomy baseline totals let declarations reach the trusted per-file
+        // and metadata guards; the expected totals still cap aggregate output.
+        let mut baseline = Tar::default();
+        for i in 0..64 {
+            baseline = baseline.dir(&format!("opt/stacks/{i}/"));
+        }
+        let mut baseline = baseline.end();
+        baseline.extend(std::iter::repeat_n(0, 3 * MIB as usize));
+        let archive = encode(&baseline);
+        let policy = policy();
+        let admitted = admit_for_staging(&archive[..], policy.clone(), &never).unwrap();
+        let root = private_tempdir();
+        let trusted = StagingRoot::open(root.path()).unwrap();
+        for data in [
+            Tar::default().push(&huge_name, &[]).end(),
+            Tar::default().push(&huge_file, &[]).end(),
+            flood.0.clone(),
+            bomb.0.clone(),
+        ] {
+            let input = encode(&data);
+            assert!(
+                replay(
+                    &input[..],
+                    &policy,
+                    admitted.manifest(),
+                    admitted.policy_snapshot(),
+                    &trusted,
+                    &never
+                )
+                .is_err()
+            );
+            assert!(empty(root.path()));
+        }
+    }
+    let mut encoder = zstd::stream::write::Encoder::new(Vec::new(), 3).unwrap();
+    encoder
+        .set_parameter(zstd::stream::raw::CParameter::WindowLog(23))
+        .unwrap();
+    encoder.write_all(&sample()).unwrap();
+    let oversized_window = encoder.finish().unwrap();
+    let archive = zst(&sample());
+    let policy = policy();
+    let admitted = admit_for_staging(&archive[..], policy.clone(), &never).unwrap();
+    let root = private_tempdir();
+    let trusted = StagingRoot::open(root.path()).unwrap();
+    assert!(
+        matches!(replay(&oversized_window[..], &policy, admitted.manifest(),
+        admitted.policy_snapshot(), &trusted, &never), Err(StagingError::Admission(r))
+        if r.codes().contains(&FindingCode::DecoderMemoryLimit))
+    );
+    assert!(empty(root.path()));
+}
+
+#[test]
+fn staging_crash_child() {
+    let Some(path) = std::env::var_os("LIMEOS_STAGING_CRASH_ROOT") else {
+        return;
+    };
+    let path = PathBuf::from(path);
+    let archive = staging_large_archive();
+    let policy = policy();
+    let admitted = admit_for_staging(&archive[..], policy.clone(), &never).unwrap();
+    let root = StagingRoot::open(&path).unwrap();
+    struct Block<'a> {
+        bytes: &'a [u8],
+        root: &'a Path,
+    }
+    impl Read for Block<'_> {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            if tentative_bytes(self.root) > 0 {
+                loop {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+            }
+            let n = buffer.len().min(4096);
+            self.bytes.read(&mut buffer[..n])
+        }
+    }
+    let _catalog = replay(
+        Block {
+            bytes: &archive,
+            root: &path,
+        },
+        &policy,
+        admitted.manifest(),
+        admitted.policy_snapshot(),
+        &root,
+        &never,
+    )
+    .unwrap();
+    panic!("child must be killed before verified completion");
+}
+
+#[test]
+fn staging_sigkill_leaves_private_incomplete_artifacts_and_never_resumes_them() {
+    use std::{
+        process::{Command, Stdio},
+        time::{Duration, Instant},
+    };
+    struct Child(std::process::Child);
+    impl Drop for Child {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    let temp = private_tempdir();
+    let mut child = Child(
+        Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "staging_crash_child", "--nocapture"])
+            .env("LIMEOS_STAGING_CRASH_ROOT", temp.path())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap(),
+    );
+    let start = Instant::now();
+    while tentative_bytes(temp.path()) == 0 {
+        assert!(
+            child.0.try_wait().unwrap().is_none(),
+            "child exited before tentative write"
+        );
+        assert!(
+            start.elapsed() < Duration::from_secs(10),
+            "child made no progress"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    child.0.kill().unwrap();
+    let status = child.0.wait().unwrap();
+    use std::os::unix::process::ExitStatusExt;
+    assert_eq!(status.signal(), Some(9));
+    let attempts: Vec<_> = std::fs::read_dir(temp.path())
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(attempts.len(), 1);
+    assert!(
+        attempts[0]
+            .file_name()
+            .to_str()
+            .unwrap()
+            .starts_with("incomplete-")
+    );
+    assert_eq!(
+        attempts[0].metadata().unwrap().permissions().mode() & 0o7777,
+        0o700
+    );
+    for file in std::fs::read_dir(attempts[0].path())
+        .unwrap()
+        .map(Result::unwrap)
+    {
+        assert!(file.file_name().to_str().unwrap().starts_with("file-"));
+        assert_eq!(
+            file.metadata().unwrap().permissions().mode() & 0o7777,
+            0o600
+        );
+    }
+    let old_bytes = tentative_bytes(temp.path());
+    let archive = gz(&sample());
+    let policy = policy();
+    let admitted = admit_for_staging(&archive[..], policy.clone(), &never).unwrap();
+    let root = StagingRoot::open(temp.path()).unwrap();
+    let catalog = replay(
+        &archive[..],
+        &policy,
+        admitted.manifest(),
+        admitted.policy_snapshot(),
+        &root,
+        &never,
+    )
+    .unwrap();
+    assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 2);
+    verify_catalog(&catalog);
+    catalog.discard().unwrap();
+    assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 1);
+    assert_eq!(tentative_bytes(temp.path()), old_bytes);
+}
 
 const MIB: u64 = 1 << 20;
 

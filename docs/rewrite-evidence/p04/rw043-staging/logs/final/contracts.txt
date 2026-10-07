@@ -1,0 +1,8 @@
+   Compiling tokio-macros v2.6.1
+   Compiling tokio v1.48.0
+   Compiling limeos-contracts v0.2.0 (/tmp/limeos-backup-staging/crates/contracts)
+   Compiling limeos-executor-protocol v0.2.0 (/tmp/limeos-backup-staging/crates/executor-protocol)
+   Compiling limeos-schema v0.2.0 (/tmp/limeos-backup-staging/bins/schema)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.34s
+     Running `/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/limeos-schema /tmp/limeos-contracts-tpexbz8f`
+Generated schemas and TypeScript match Rust contracts.

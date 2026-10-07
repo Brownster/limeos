@@ -1,0 +1,87 @@
+   Compiling limeos-backup-archive v0.2.0 (/tmp/limeos-backup-staging/crates/backup-archive)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.80s
+     Running unittests src/lib.rs (/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_backup_archive-6773b6fe951372a7)
+
+running 3 tests
+test tests::exactly_the_limit_is_accepted_and_cancellation_interrupts ... ok
+test tests::stop_reasons_survive_wrapping_by_decoders_and_parsers ... ok
+test tests::reads_stop_one_byte_past_the_limit_of_an_endless_source ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/archives.rs (/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/archives-4599f32179ceb4ff)
+
+running 27 tests
+test format_policy_and_invalid_policy_are_enforced_before_decoding ... ok
+test completed_regular_file_self_links_are_inert_legacy_repeats ... ok
+test extension_records_set_the_effective_name_that_is_checked ... ok
+test duplicate_and_colliding_destinations_are_rejected ... ok
+test gnu_tar_fixtures_match_their_recorded_hashes_and_expected_decisions ... ok
+test manifest_is_bound_to_the_exact_archive_and_file_contents ... ok
+test legacy_repeat_cannot_create_links_or_bypass_destination_checks ... ok
+test ambiguous_or_unsupported_extension_records_are_rejected ... ok
+test oversized_declarations_are_refused_before_any_read ... ok
+test malformed_and_truncated_streams_are_rejected ... ok
+test staging_attempts_are_independent_and_cleanup_uses_held_root_descriptor ... ok
+test links_devices_and_other_member_types_are_rejected ... ok
+test staging_changed_payload_order_header_format_and_matching_supplied_digest_refuse ... FAILED
+test staging_refuses_full_policy_edits_even_with_the_same_revision_before_reads ... FAILED
+test staging_corrupt_truncated_trailing_and_hostile_streams_clean_private_attempts ... FAILED
+test staging_root_symlink_and_foreign_path_attacks_refuse_without_overwrite ... ok
+test staging_replays_real_formats_and_gnu_fixtures_to_flat_private_files ... FAILED
+test staging_revalidates_every_manifest_field_and_never_uses_forged_paths ... FAILED
+test staging_short_interrupted_reads_and_cancellation_mid_stream_and_near_eof ... FAILED
+test rejections_produce_no_manifest_and_change_no_managed_destination ... ok
+test zstd_windows_beyond_the_decoder_memory_limit_are_refused ... ok
+test valid_archives_yield_identical_deterministic_manifests_in_both_formats ... ok
+test short_and_interrupted_reads_preserve_format_digest_and_complete_admission ... ok
+test cancellation_returns_no_report ... ok
+test traversal_and_absolute_names_are_rejected ... ok
+test quota_boundaries_admit_exactly_the_limit ... ok
+test entry_floods_and_decompression_bombs_stop_at_policy_limits ... ok
+
+failures:
+
+---- staging_changed_payload_order_header_format_and_matching_supplied_digest_refuse stdout ----
+
+thread 'staging_changed_payload_order_header_format_and_matching_supplied_digest_refuse' panicked at crates/backup-archive/tests/archives.rs:248:50:
+called `Result::unwrap()` on an `Err` value: UnsafeRoot
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- staging_refuses_full_policy_edits_even_with_the_same_revision_before_reads stdout ----
+
+thread 'staging_refuses_full_policy_edits_even_with_the_same_revision_before_reads' panicked at crates/backup-archive/tests/archives.rs:144:50:
+called `Result::unwrap()` on an `Err` value: UnsafeRoot
+
+---- staging_corrupt_truncated_trailing_and_hostile_streams_clean_private_attempts stdout ----
+
+thread 'staging_corrupt_truncated_trailing_and_hostile_streams_clean_private_attempts' panicked at crates/backup-archive/tests/archives.rs:307:50:
+called `Result::unwrap()` on an `Err` value: UnsafeRoot
+
+---- staging_replays_real_formats_and_gnu_fixtures_to_flat_private_files stdout ----
+
+thread 'staging_replays_real_formats_and_gnu_fixtures_to_flat_private_files' panicked at crates/backup-archive/tests/archives.rs:69:54:
+called `Result::unwrap()` on an `Err` value: UnsafeRoot
+
+---- staging_revalidates_every_manifest_field_and_never_uses_forged_paths stdout ----
+
+thread 'staging_revalidates_every_manifest_field_and_never_uses_forged_paths' panicked at crates/backup-archive/tests/archives.rs:197:50:
+called `Result::unwrap()` on an `Err` value: UnsafeRoot
+
+---- staging_short_interrupted_reads_and_cancellation_mid_stream_and_near_eof stdout ----
+
+thread 'staging_short_interrupted_reads_and_cancellation_mid_stream_and_near_eof' panicked at crates/backup-archive/tests/archives.rs:330:54:
+called `Result::unwrap()` on an `Err` value: UnsafeRoot
+
+
+failures:
+    staging_changed_payload_order_header_format_and_matching_supplied_digest_refuse
+    staging_corrupt_truncated_trailing_and_hostile_streams_clean_private_attempts
+    staging_refuses_full_policy_edits_even_with_the_same_revision_before_reads
+    staging_replays_real_formats_and_gnu_fixtures_to_flat_private_files
+    staging_revalidates_every_manifest_field_and_never_uses_forged_paths
+    staging_short_interrupted_reads_and_cancellation_mid_stream_and_near_eof
+
+test result: FAILED. 21 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+
+error: test failed, to rerun pass `-p limeos-backup-archive --test archives`

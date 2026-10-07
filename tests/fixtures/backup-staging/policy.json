@@ -1,0 +1,18 @@
+{
+  "revision": 1,
+  "formats": ["tar_gzip", "tar_zstd"],
+  "limits": {
+    "max_compressed_bytes": 134217728,
+    "max_decompressed_bytes": 134217728,
+    "max_file_bytes": 67108864,
+    "max_entries": 10000,
+    "max_path_bytes": 4096,
+    "max_path_depth": 64,
+    "max_component_bytes": 255,
+    "max_metadata_bytes": 65536,
+    "max_total_metadata_bytes": 1048576,
+    "max_zstd_window_log": 21
+  },
+  "resources": [{"id": "synthetic-stacks", "destination_root": "/synthetic/stacks"}],
+  "legacy_mappings": [{"archive_prefix": "opt/stacks", "resource": "synthetic-stacks", "resource_prefix": ""}]
+}

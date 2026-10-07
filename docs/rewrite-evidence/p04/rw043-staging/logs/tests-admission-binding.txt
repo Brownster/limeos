@@ -1,0 +1,56 @@
+   Compiling limeos-backup-archive v0.2.0 (/tmp/limeos-backup-staging/crates/backup-archive)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.55s
+     Running unittests src/lib.rs (/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_backup_archive-6773b6fe951372a7)
+
+running 9 tests
+test tests::exactly_the_limit_is_accepted_and_cancellation_interrupts ... ok
+test staging::tests::allocation_and_total_file_byte_quotas_fail_before_creating_files ... ok
+test staging::tests::cleanup_refuses_a_replaced_attempt_name_and_keeps_foreign_directory ... ok
+test staging::tests::existing_attempt_and_file_symlink_attacks_never_overwrite_or_delete_foreign_files ... ok
+test tests::stop_reasons_survive_wrapping_by_decoders_and_parsers ... ok
+test tests::reads_stop_one_byte_past_the_limit_of_an_endless_source ... ok
+test staging::tests::input_io_failure_is_not_misclassified_as_archive_syntax ... ok
+test staging::tests::independent_size_and_hash_verification_refuse_a_lying_or_corrupt_writer ... ok
+test staging::tests::partial_write_and_each_durability_failure_are_typed_and_cleaned ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/archives.rs (/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/archives-4599f32179ceb4ff)
+
+running 27 tests
+test completed_regular_file_self_links_are_inert_legacy_repeats ... ok
+test format_policy_and_invalid_policy_are_enforced_before_decoding ... ok
+test extension_records_set_the_effective_name_that_is_checked ... ok
+test duplicate_and_colliding_destinations_are_rejected ... ok
+test manifest_is_bound_to_the_exact_archive_and_file_contents ... ok
+test gnu_tar_fixtures_match_their_recorded_hashes_and_expected_decisions ... ok
+test oversized_declarations_are_refused_before_any_read ... ok
+test malformed_and_truncated_streams_are_rejected ... ok
+test ambiguous_or_unsupported_extension_records_are_rejected ... ok
+test legacy_repeat_cannot_create_links_or_bypass_destination_checks ... ok
+test staging_changed_payload_order_header_format_and_matching_supplied_digest_refuse ... ok
+test staging_attempts_are_independent_and_cleanup_uses_held_root_descriptor ... ok
+test links_devices_and_other_member_types_are_rejected ... ok
+test staging_refuses_full_policy_edits_even_with_the_same_revision_before_reads ... ok
+test rejections_produce_no_manifest_and_change_no_managed_destination ... ok
+test staging_root_symlink_and_foreign_path_attacks_refuse_without_overwrite ... ok
+test staging_revalidates_every_manifest_field_and_never_uses_forged_paths ... ok
+test staging_corrupt_truncated_trailing_and_hostile_streams_clean_private_attempts ... ok
+test short_and_interrupted_reads_preserve_format_digest_and_complete_admission ... ok
+test zstd_windows_beyond_the_decoder_memory_limit_are_refused ... ok
+test valid_archives_yield_identical_deterministic_manifests_in_both_formats ... ok
+test cancellation_returns_no_report ... ok
+test staging_replays_real_formats_and_gnu_fixtures_to_flat_private_files ... ok
+test staging_short_interrupted_reads_and_cancellation_mid_stream_and_near_eof ... ok
+test traversal_and_absolute_names_are_rejected ... ok
+test quota_boundaries_admit_exactly_the_limit ... ok
+test entry_floods_and_decompression_bombs_stop_at_policy_limits ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+
+   Doc-tests limeos_backup_archive
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

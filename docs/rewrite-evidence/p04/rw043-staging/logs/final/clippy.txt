@@ -1,0 +1,2 @@
+    Checking limeos-backup-archive v0.2.0 (/tmp/limeos-backup-staging/crates/backup-archive)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.75s

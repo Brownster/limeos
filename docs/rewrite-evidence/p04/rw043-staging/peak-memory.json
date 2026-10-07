@@ -1,0 +1,100 @@
+{
+  "binary_bytes": 894376,
+  "binary_sha256": "2edc5cde58236c52b201dce6d8f505bfea44bd0334bd4fc30096d0ec8c103430",
+  "cases": [
+    {
+      "all_roots_empty_after_discard": true,
+      "archive": "large.tar.gz",
+      "archive_sha256": "80f1a077356efe4a28f54726628cf6b0f19d939a049bb07cc6dd2798d2321f31",
+      "compressed_bytes": 67129473,
+      "elapsed_median_seconds": 2.1753879570169374,
+      "file_bytes": 67108864,
+      "file_count": 1,
+      "payload_sha256": "d586f85abf200a5e25cb95cb384e6b4c81c605ba7b47c4d7799aed7fa0adc897",
+      "peak_rss_max_kib": 3076,
+      "peak_rss_min_kib": 2956,
+      "samples": 3
+    },
+    {
+      "all_roots_empty_after_discard": true,
+      "archive": "large.tar.zst",
+      "archive_sha256": "7cf10e8ce90269adae574f766994009c46728461b7570a1d4d1b83d8e39a5d17",
+      "compressed_bytes": 67110941,
+      "elapsed_median_seconds": 2.06649167498108,
+      "file_bytes": 67108864,
+      "file_count": 1,
+      "payload_sha256": "d586f85abf200a5e25cb95cb384e6b4c81c605ba7b47c4d7799aed7fa0adc897",
+      "peak_rss_max_kib": 5348,
+      "peak_rss_min_kib": 5292,
+      "samples": 3
+    },
+    {
+      "all_roots_empty_after_discard": true,
+      "archive": "metadata-1000.tar.zst",
+      "archive_sha256": "05c7d34c3b04fda5cadcdfe0b129499aa29b1e7bab5704b6dbbd78ec4374f70e",
+      "compressed_bytes": 3150,
+      "elapsed_median_seconds": 7.804590874002315,
+      "file_bytes": 0,
+      "file_count": 1000,
+      "payload_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "peak_rss_max_kib": 5116,
+      "peak_rss_min_kib": 5096,
+      "samples": 3
+    },
+    {
+      "all_roots_empty_after_discard": true,
+      "archive": "small.tar.gz",
+      "archive_sha256": "885632cab5f01283464c18bc4e211019f0f0963b354c5bebbdafd01ea35480a6",
+      "compressed_bytes": 131306,
+      "elapsed_median_seconds": 0.3039582259953022,
+      "file_bytes": 131072,
+      "file_count": 1,
+      "payload_sha256": "1af6da656624174e4940374fc9779b5a551c25b813c94c7dea2a3d83fc8168a5",
+      "peak_rss_max_kib": 2992,
+      "peak_rss_min_kib": 2952,
+      "samples": 3
+    },
+    {
+      "all_roots_empty_after_discard": true,
+      "archive": "small.tar.zst",
+      "archive_sha256": "0633ac05e7c1904a6709f6679c6174a34788f52ba01c5f0777c83eb6d8b172a0",
+      "compressed_bytes": 131613,
+      "elapsed_median_seconds": 0.27137890097219497,
+      "file_bytes": 131072,
+      "file_count": 1,
+      "payload_sha256": "1af6da656624174e4940374fc9779b5a551c25b813c94c7dea2a3d83fc8168a5",
+      "peak_rss_max_kib": 3244,
+      "peak_rss_min_kib": 3164,
+      "samples": 3
+    },
+    {
+      "all_roots_empty_after_discard": true,
+      "archive": "zeros-64m.tar.zst",
+      "archive_sha256": "69d6133a8e4f7ad9617ea91d5de8575caba2e89ce52ff4d7c2fbd57835a02d5c",
+      "compressed_bytes": 2214,
+      "elapsed_median_seconds": 1.3110863979673013,
+      "file_bytes": 67108864,
+      "file_count": 1,
+      "payload_sha256": null,
+      "peak_rss_max_kib": 5412,
+      "peak_rss_min_kib": 5360,
+      "samples": 3
+    }
+  ],
+  "generator_sha256": "a379aae45be86fc6637ffceb640d97dee82aa78a7777e8f63dafad83b67f3151",
+  "platform": {
+    "machine": "x86_64",
+    "node": "fedora",
+    "processor": "",
+    "release": "7.0.14-101.fc43.x86_64",
+    "system": "Linux",
+    "version": "#1 SMP PREEMPT_DYNAMIC Wed Jul  1 13:50:13 UTC 2026"
+  },
+  "policy_sha256": "66cd55aa525b751f451bfb207b0907728b3aff9adfb56576a545e6199e3f60a9",
+  "raw_gzip_sha256": "d5da38a655a27e12931b1d3e913320c14aef54e0aa7e259a2a92979546d7f7c5",
+  "recorded_utc": "2026-10-06T22:47:55.829395+00:00",
+  "scope": "local release example: admission, replay, independent catalog reads, discard; no installed restore",
+  "source_commit": "ffef192fc51110557e87b4555e1b68f1c3b650b9",
+  "uid": 1000,
+  "zstd_version": "*** Zstandard CLI (64-bit) v1.5.7, by Yann Collet ***"
+}
