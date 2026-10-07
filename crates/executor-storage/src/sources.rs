@@ -503,7 +503,7 @@ fn check_deadline(deadline: Instant) -> Result<()> {
         Ok(())
     }
 }
-fn now() -> Result<i64> {
+pub(crate) fn now() -> Result<i64> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .ok()

@@ -1,4 +1,5 @@
 //! Fresh storage evidence and protected root operator target preparation.
+mod dependencies;
 mod fstab;
 mod inventory;
 mod mounts;
@@ -7,8 +8,13 @@ mod sources;
 mod swaps;
 mod targets;
 mod topology;
+pub use dependencies::{
+    ContainerDependencyEvidence, ContainerDependencySnapshot, ContainerFilesystemConsumer,
+    ContainerFilesystemMatch, ContainerFilesystemRelation, PhysicalContainerStorageDependency,
+    inspect_container_dependencies,
+};
 pub use fstab::planned_fstab;
-pub use inventory::inventory;
+pub use inventory::{StorageInventoryEvidence, inspect_storage_inventory, inventory};
 use limeos_domain::{StorageFilesystem, StorageMountWaitPlan};
 use serde::Serialize;
 pub use sources::{
