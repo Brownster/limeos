@@ -5,16 +5,18 @@ available isolated host. The workstation uses SSH through the host to a
 loopback guest port. The host runs QEMU; packages, policy changes, synthetic
 disks and fault injection stay inside guests. This assignment grants no new
 quiet window on wybie or Holly's production Pi. `--host` has no default, and
-the runner rejects wybie by name before any SSH command. Only supply an
-isolated host; alternate aliases and IP addresses are not isolation proof.
+the runner rejects production hosts without a current recorded authorization.
+Only supply an explicitly available host; alternate aliases and IP addresses
+are not isolation proof.
 
 The operator subsequently authorized [one overnight window](../../../docs/plans/2026-10-06-engineer-arm64-overnight-qualification.md)
 for `holly@wybie`, ending **2026-10-07 07:00 Europe/London (06:00 UTC)**.
-Engineer 1 owns that window. The new brief requires an explicit expiring
-authorization and host-side guest shutdown; the current runner still rejects
-wybie until that separately tested change exists. Preserve default exclusion
-and the historical input bundles. Production Python/services/data remain
-untouched, and all LimeOS effects stay in disposable guests.
+That window has expired. The reviewed runner checks explicit expiring
+authorization before every SSH/SCP dispatch and uses a host-owned guest
+launcher. Default wybie rejection applies outside a current window; historical
+authorization grants no new host work. Preserve the historical input bundles
+and [native run evidence](../../../docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/README.md),
+including its recorded temporary host packages and remaining limits.
 
 The original engineer preparation freezes runtime source at
 `60e6309384c6a93caa63c0d578dc57d981897863`, authority schema 8. Use a distinct
@@ -26,9 +28,13 @@ The integrated preparation pins runtime and fixtures to
 `8acac403e32d3692b028a036a11f4fead2050580`, schema 8, version
 `0.4.7+arm64.1`. Its bundle is under
 `.cache/arm64-qual/2026-10-06-integration/`; the [integration evidence](../../../docs/rewrite-evidence/p04/2026-10-06-handoff-integration/README.md)
-records its digest. No native build, package installation or footprint run
-has been performed for that bundle. Supply these exact identities when
-reproducing the integration preparation; preserve the older bundle too.
+records its digest. The [overnight report](../../../docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/README.md)
+records native build/install/footprint and genuine upgrades for that runtime
+with separately committed build-fixture fixes and a rebuilt bundle. The later
+[integration record](../../../docs/rewrite-evidence/p04/2026-10-07-handoff-integration/README.md)
+keeps corrected runner proof separate from that historical native run.
+Supply exact committed identities when reproducing a preparation; preserve
+the older bundles too.
 
 ## Inputs and scripts
 
@@ -41,7 +47,7 @@ reproducing the integration preparation; preserve the older bundle too.
 | `approved_guest.py` | Fresh storage/container guests | Reuse current approved-operation suites with original assertions; actual apt replacement/removal on storage guest |
 | `upgrade_guest.py` | Fresh upgrade guest | Genuine recorded schema 6/7 artifact upgrade, sessions, pending approval, receipts, active locks/claims and replay |
 | `extra_guest.py` | Storage guest after approved suite | Exact installed hashes, command timings and separate optional reader/target memory/capabilities |
-| `guest_supervisor.py` | KVM host, detached beside each guest | Bind one QEMU process by pidfd, start time, UID and `-name` marker; SIGTERM and SIGKILL it at the recorded deadlines; never signal anything else |
+| `guest_supervisor.py` | KVM host, detached root-owned launcher | Start foreground QEMU, retain its child/pidfd, verify exact process identities and enforce shutdown/cleanup independently of workstation SSH |
 | `inspector_guest.py` | Fresh native build guest | Build the frozen archive inspector example natively and record its own `VmHWM` over synthetic archives (standalone RSS, not service PSS) |
 | `record_run.py` | Workstation | Reject mixed identities/overwrites; collect raw artifacts, summaries, budget comparisons and evidence hashes |
 | `test_harness.py` | Workstation | Local regressions without SSH or installed-service mutations |
@@ -67,22 +73,34 @@ address comparison). A production host is usable only with
 `host` (the exact `user@host` string passed to `--host`), `not_before` and
 `not_after` (UTC, `YYYY-MM-DDTHH:MM:SSZ`, at most 12 hours apart),
 `authorized_by`, `reference` and `scope`. Absent, malformed, mismatched,
-not-yet-valid or expired authorization is refused before any SSH. Every later
-host or guest SSH re-checks the window, so nothing reaches the host after
-`not_after`. The authorization's SHA-256 is stored in each guest's state.
+not-yet-valid or expired authorization is refused before dispatch. Every host
+and guest SSH/SCP entry point re-checks the window and limits its local client
+timeout to the remaining interval minus one second, preserving a stricter
+caller timeout. The authorization's SHA-256 is stored in each guest's state.
+Stopping an SSH client does not terminate arbitrary work already dispatched
+on the host; generic remote background commands have no lifetime guarantee
+from this transport limit.
 
-Every guest has a host-side deadline. Immediately after QEMU daemonizes,
-`boot` copies `guest_supervisor.py` into the guest's work directory and starts
-it detached as the SSH user, so workstation or SSH loss cannot leave the guest
-running. The supervisor binds a pidfd to the exact QEMU process (PID, kernel
-start time, real UID and a unique `-name` marker), sends SIGTERM at the
-deadline and SIGKILL two minutes later, and exits without signalling if the
-guest already stopped or its identity differs. For an authorized host the
-deadline is `not_after` minus 5 minutes (SIGKILL at minus 3); `boot` refuses
-when less than 15 minutes remain. `--terminate-at` sets an earlier deadline,
-for example a short proof run. If the supervisor fails to bind, `boot` stops
-the guest. `stop` tolerates a guest the supervisor already stopped and copies
-`supervisor.log` into the local guest state.
+Every guest has a separate host-side owner and deadline. `boot` copies the
+launcher and command into a private root-owned directory and verifies their
+hashes. A detached root-owned launcher starts foreground QEMU itself, using
+a cleared environment and isolated Python imports. It retains the child and
+pidfd before publishing its identities; bind/state/log failures trigger
+owned-child termination and reaping. It never relies on another workstation
+SSH round trip to establish guest supervision.
+
+The owner sends SIGTERM at the deadline and SIGKILL two minutes later. For
+an authorized host those times are `not_after` minus 5 and 3 minutes; `boot`
+refuses when less than 15 minutes remain. `--terminate-at` can set an earlier
+proof deadline. Orderly stop validates start time, UID and the exact `-name`
+marker before signalling through a pidfd; there is no numeric-PID fallback.
+It waits for the owner before removing the protected control directory.
+
+The corrected launch path has local process/mock proof, including loss of
+its simulated SSH parent before identity publication; current-source CI is
+reported separately in the integration record. It has not run on a new native
+host. The historical overnight deadline proof used the earlier supervisor;
+preserve that distinction when planning another isolated run.
 
 ## Host prerequisites
 
@@ -183,7 +201,8 @@ The integrator verified a genuine schema 7 candidate in
 original source `f39396b`, package `dist/ci-37386421570-arm64/limeos_0.4.3_arm64.deb`.
 Run the schema 6 and schema 7 upgrades in separate fresh guests, with each
 candidate's exact provenance and package bytes. Both integrated upgrades
-remain untested.
+pass for frozen runtime `8acac40` in the overnight report. A later runtime or
+hardened host launcher still requires its own source-pinned qualification.
 
 ```bash
 python3 /root/qual/fixtures/tests/qualification/arm64/upgrade_guest.py \
