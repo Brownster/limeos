@@ -27,9 +27,9 @@ PACKAGE_VERSION = "0.3.0"
 checks = []
 
 
-def run(*args, input=None, check=True):
+def run(*args, input=None, check=True, timeout=None):
     result = subprocess.run(
-        args, input=input, text=True, capture_output=True, check=False
+        args, input=input, text=True, capture_output=True, check=False, timeout=timeout
     )
     if check and result.returncode:
         raise RuntimeError(f"{args[0]} failed: {result.stderr[-2000:]}")
@@ -99,36 +99,70 @@ def restart_container():
     wait_container_ready()
 
 
-def wait_container_ready():
+def wait_container_ready(timeout=10):
     # Type=exec guarantees execve, not that policy/receipt initialization and
     # the Unix listener are ready. Probe as the authorized kernel UID.
-    code = "import json,socket,struct; s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect('/run/limeos-containerd/executor.sock'); d=json.dumps({'operation':'health','version':1}).encode(); s.sendall(struct.pack('!I',len(d))+d); n=struct.unpack('!I',s.recv(4))[0]; b=b''\nwhile len(b)<n: b+=s.recv(n-len(b))\nprint(b.decode())"
-
+    code = """import json, socket, struct
+s = socket.socket(socket.AF_UNIX)
+s.settimeout(2)
+s.connect('/run/limeos-containerd/executor.sock')
+def receive(size):
+    data = b''
+    while len(data) < size:
+        chunk = s.recv(size - len(data))
+        if not chunk:
+            raise OSError('executor closed an incomplete health frame')
+        data += chunk
+    return data
+d = json.dumps({'operation':'health','version':1}).encode()
+s.sendall(struct.pack('!I', len(d)) + d)
+n = struct.unpack('!I', receive(4))[0]
+if not 0 < n <= 65536:
+    raise OSError('invalid executor health frame size')
+print(receive(n).decode())
+"""
+    deadline = time.monotonic() + timeout
     last_error = ""
+    while (remaining := deadline - time.monotonic()) > 0:
+        try:
+            result = run(
+                "runuser",
+                "-u",
+                "limeos-core",
+                "-g",
+                "limeos-container-access",
+                "--",
+                "python3",
+                "-c",
+                code,
+                check=False,
+                timeout=min(2, remaining),
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            last_error = str(error)[-1000:]
+        else:
+            last_error = result.stderr[-1000:]
+            if (
+                result.returncode == 0
+                and json.loads(result.stdout).get("ready") is True
+            ):
+                return
+        time.sleep(min(0.1, max(0, deadline - time.monotonic())))
+    raise AssertionError("Executor readiness probe failed: " + last_error)
 
-    def ready():
-        nonlocal last_error
-        result = run(
-            "runuser",
-            "-u",
-            "limeos-core",
-            "-g",
-            "limeos-container-access",
-            "--",
-            "python3",
-            "-c",
-            code,
-            check=False,
+
+def wait_recovered_service(target):
+    if target == "limeos-containerd":
+        # A terminal interrupted job and an old active unit state can precede
+        # systemd's restart. Require the executor listener before progressing.
+        wait_container_ready(timeout=45)
+        return
+    eventually(
+        lambda: (
+            run("systemctl", "is-active", target, check=False).stdout.strip()
+            == "active"
         )
-        last_error = result.stderr[-1000:]
-        return result.returncode == 0 and json.loads(result.stdout).get("ready") is True
-
-    try:
-        eventually(ready, timeout=10)
-    except AssertionError as error:
-        raise AssertionError(
-            "Executor readiness probe failed: " + last_error
-        ) from error
+    )
 
 
 def enroll(prefix="limeos", port=8003):
@@ -685,12 +719,7 @@ def main():
         control.release.set()
         # Stop arming before a restarted core begins independent reconciliation.
         control.mode = ""
-        eventually(
-            lambda target=target: (
-                run("systemctl", "is-active", target, check=False).stdout.strip()
-                == "active"
-            )
-        )
+        wait_recovered_service(target)
         expected = "succeeded" if target == "limeos-core" else "needs_intervention"
         eventually(lambda job=job, expected=expected: state(job["id"]) == expected)
         if target == "limeos-containerd" and mode == "before_prepare":
