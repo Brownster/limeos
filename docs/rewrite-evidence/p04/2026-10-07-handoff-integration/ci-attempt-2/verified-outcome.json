@@ -1,0 +1,75 @@
+{
+  "conclusion": "success",
+  "installed_group_total": 180,
+  "installed_suites": [
+    {
+      "binary_hashes_verified": false,
+      "image": {
+        "name": "debian-12-genericcloud-amd64.qcow2",
+        "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+      },
+      "package_hashes_verified": false,
+      "passed_groups": 14,
+      "path": "p01/ci-vm-result.json",
+      "sha256": "4b6614d81c65c0f2bfee0f90d960904c3112e7a0a0a389bb100c86d0c657edfe"
+    },
+    {
+      "binary_hashes_verified": false,
+      "image": {
+        "name": "debian-12-genericcloud-amd64.qcow2",
+        "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+      },
+      "package_hashes_verified": false,
+      "passed_groups": 6,
+      "path": "p02/ci-vm-result.json",
+      "sha256": "e650430173548b940b3906d57d424eb6f7748a3e5ca68441470ac03476f57d8e"
+    },
+    {
+      "binary_hashes_verified": false,
+      "image": {
+        "name": "debian-12-genericcloud-amd64.qcow2",
+        "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+      },
+      "package_hashes_verified": true,
+      "passed_groups": 61,
+      "path": "p03/ci-reference-vm-result.json",
+      "sha256": "d195460fe082a5529015c48229e2c80cacc228abdf3974786957b1000ac7348f"
+    },
+    {
+      "binary_hashes_verified": true,
+      "image": {
+        "name": "debian-12-genericcloud-amd64.qcow2",
+        "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+      },
+      "package_hashes_verified": false,
+      "passed_groups": 50,
+      "path": "p04/ci-approved-vm-result.json",
+      "sha256": "cec82f14e530fb5fcc89be99d62535f8efe08fc867efb4a1b19f84554b94fd2b"
+    },
+    {
+      "binary_hashes_verified": true,
+      "image": {
+        "name": "debian-12-genericcloud-amd64.qcow2",
+        "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+      },
+      "package_hashes_verified": true,
+      "passed_groups": 49,
+      "path": "p04/ci-dependencies-vm-result.json",
+      "sha256": "4b6de340906f1c8b5304b5369c704efc76909f1271deefc32327eefd86c17ffb"
+    }
+  ],
+  "native_arm_harness_tests_each": 33,
+  "native_rust_tests_each": 291,
+  "original_executor_crash_cases": [
+    "kill limeos-core before_prepare: no unjustified second effect",
+    "kill limeos-containerd before_prepare: no unjustified second effect",
+    "kill limeos-core during: no unjustified second effect",
+    "kill limeos-containerd during: no unjustified second effect",
+    "kill limeos-core after_effect: no unjustified second effect",
+    "kill limeos-containerd after_effect: no unjustified second effect"
+  ],
+  "run_url": "https://github.com/Brownster/limeos/actions/runs/37634463402",
+  "scope": "fresh five-suite AMD64 VM proof and exact native package/binary matching; not hardened native launch or live restore qualification",
+  "source_commit": "e330065146fdf2bcd7668a05476bb3b994a82c26",
+  "vm_reference_unit_tests": 9
+}

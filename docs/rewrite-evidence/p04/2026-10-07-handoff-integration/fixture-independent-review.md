@@ -1,0 +1,15 @@
+# Independent crash readiness fixture review
+
+GO for the two-file working correction in `/home/marc/Documents/github/lime-os/tests/privileged_vm/p03_guest.py` and `/home/marc/Documents/github/lime-os/tests/reference/test_recovery_readiness.py`. Exact reviewed source/evidence hashes are in `/tmp/limeos-recovery-readiness-review.json`. No runtime change is included; no blockers remain.
+
+The recovery loop now requires a successful framed health RPC from the actual executor Unix socket as limeos-core/limeos-container-access, with literal JSON ready=true (fixture lines 102–149). A stale active unit or already-terminal interrupted job cannot substitute for this listener readiness. Core recovery retains its prior active-state wait (lines 154–165).
+
+Both header and body use exact reads; EOF raises immediately rather than spinning, fragmented frames are accepted, and declared sizes outside 1..65536 are refused before reading the body (lines 109–122). The parent uses one monotonic recovery deadline, caps each subprocess timeout at min(2 seconds, remaining time), catches timeout failures, caps poll sleep at remaining time, and fails closed with bounded diagnostic text when the original 45-second crash-recovery interval expires (lines 124–158).
+
+The six before_prepare/during/after_effect crash cases across core and containerd retain SIGKILL, the automatic-restart path, expected succeeded versus needs_intervention states, zero/one-effect checks, delayed no-second-effect check and prepared-receipt verification. The complete crash block is byte-identical to a7c73459 after replacing only its old active-state wait with wait_recovered_service(target).
+
+Read all seven new regression cases and raw evidence. recovery-before.log records two failures/one pass for stale-active behavior; probe-before.log records two failures/three passes for the former EOF/unbounded-child behavior; probe-after.log records five passing cases. Final discovery output fixture-reference-final.log records nine passes (seven new plus two existing), and fixture-harness.log separately records 33 ARM harness passes. Existing CI discovery at .github/workflows/ci.yml line 109 uses tests/reference/test_*.py, so the new file runs in CI without a workflow edit. These are verified retained results, not tests rerun by this reviewer.
+
+A preliminary concern about descendant-held pipes was withdrawn after checking the Debian-relevant [CPython 3.11.2 subprocess implementation](https://raw.githubusercontent.com/python/cpython/v3.11.2/Lib/subprocess.py): on POSIX, TimeoutExpired kills and waits the direct child without an unbounded post-kill communicate call. That concern does not invalidate the fixture recovery deadline or justify another lifecycle change.
+
+This review performed source/diff/log reads and hash comparisons only. No tests, source edits, Git mutation, remote host operation, Pi access or frozen Python runtime activity occurred. Review records were written only under /tmp. Installed-suite success remains unproven until the new exact-source CI run; the failed a7c73459 attempt remains separate evidence.

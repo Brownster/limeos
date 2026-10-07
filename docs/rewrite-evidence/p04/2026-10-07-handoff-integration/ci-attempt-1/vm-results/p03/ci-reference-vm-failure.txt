@@ -1,0 +1,102 @@
+Result=success
+NRestarts=2
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=signal
+NRestarts=1
+ExecMainStatus=9
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+Oct 07 10:51:44 limeos-p01-test systemd[1]: Starting docker.service - Docker Application Container Engine...
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.287987410Z" level=info msg="Starting up"
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.346616643Z" level=info msg="[core] parsed scheme: \"unix\"" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.346655155Z" level=info msg="[core] scheme \"unix\" not registered, fallback to default scheme" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.346686774Z" level=info msg="[core] ccResolverWrapper: sending update to cc: {[{unix:///run/containerd/containerd.sock  <nil> 0 <nil>}] <nil> <nil>}" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.346698205Z" level=info msg="[core] ClientConn switching balancer to \"pick_first\"" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.346705288Z" level=info msg="[core] Channel switches to new LB policy \"pick_first\"" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.346736436Z" level=info msg="[core] Subchannel Connectivity change to CONNECTING" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.346767464Z" level=info msg="[core] Subchannel picks a new address \"unix:///run/containerd/containerd.sock\" to connect" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.346956908Z" level=info msg="[core] Channel Connectivity change to CONNECTING" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.347486417Z" level=info msg="[core] Subchannel Connectivity change to READY" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.347506896Z" level=info msg="[core] Channel Connectivity change to READY" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.348213296Z" level=info msg="[core] parsed scheme: \"unix\"" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.348275392Z" level=info msg="[core] scheme \"unix\" not registered, fallback to default scheme" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.348294437Z" level=info msg="[core] ccResolverWrapper: sending update to cc: {[{unix:///run/containerd/containerd.sock  <nil> 0 <nil>}] <nil> <nil>}" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.348303274Z" level=info msg="[core] ClientConn switching balancer to \"pick_first\"" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.348311810Z" level=info msg="[core] Channel switches to new LB policy \"pick_first\"" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.348326146Z" level=info msg="[core] Subchannel Connectivity change to CONNECTING" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.348342027Z" level=info msg="[core] Subchannel picks a new address \"unix:///run/containerd/containerd.sock\" to connect" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.348820811Z" level=info msg="[core] Channel Connectivity change to CONNECTING" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.348932790Z" level=info msg="[core] Subchannel Connectivity change to READY" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.348957677Z" level=info msg="[core] Channel Connectivity change to READY" module=grpc
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.382914232Z" level=info msg="Loading containers: start."
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.587646657Z" level=info msg="Default bridge (docker0) is assigned with an IP address 172.17.0.0/16. Daemon option --bip can be used to set a preferred IP address"
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.718464472Z" level=info msg="Loading containers: done."
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.752738906Z" level=info msg="Docker daemon" commit=5d6db84 graphdriver(s)=overlay2 version=20.10.24+dfsg1
+Oct 07 10:51:44 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:44.752869921Z" level=info msg="Daemon has completed initialization"
+Oct 07 10:51:45 limeos-p01-test systemd[1]: Started docker.service - Docker Application Container Engine.
+Oct 07 10:51:45 limeos-p01-test dockerd[973]: time="2026-10-07T10:51:45.410534994Z" level=info msg="API listen on /run/docker.sock"
+Oct 07 10:51:57 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 07 10:51:57 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 07 10:51:57 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 07 10:51:57 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 07 10:51:57 limeos-p01-test limeos-core[5735]: {"timestamp":"2026-10-07T10:51:57.936037Z","level":"INFO","fields":{"message":"core ready","generation":1}}
+Oct 07 10:52:01 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Oct 07 10:52:01 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Oct 07 10:52:01 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 07 10:52:01 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 07 10:52:02 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 07 10:52:13 limeos-p01-test dockerd[973]: time="2026-10-07T10:52:13.990935859Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=e11ce964d28c31dc5f70224774c4bf98c1c9123f7c45631b10d6dbd71fab5bd4
+Oct 07 10:52:14 limeos-p01-test dockerd[973]: time="2026-10-07T10:52:14.020482402Z" level=info msg="ignoring event" container=e11ce964d28c31dc5f70224774c4bf98c1c9123f7c45631b10d6dbd71fab5bd4 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 07 10:52:15 limeos-p01-test dockerd[973]: time="2026-10-07T10:52:15.660571232Z" level=info msg="Container failed to exit within 1s of signal 15 - using the force" container=d53791647ee6dc9cfd2656bafdb10ce2c6229eb94751f52f4bc275c6190c2a96
+Oct 07 10:52:15 limeos-p01-test dockerd[973]: time="2026-10-07T10:52:15.688857995Z" level=info msg="ignoring event" container=d53791647ee6dc9cfd2656bafdb10ce2c6229eb94751f52f4bc275c6190c2a96 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 07 10:52:29 limeos-p01-test dockerd[973]: time="2026-10-07T10:52:29.985906954Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=43041d1623c3a43994cfc5baa9bc1f7e8128aa6f11953db6e7e0c212e55b41e9
+Oct 07 10:52:30 limeos-p01-test dockerd[973]: time="2026-10-07T10:52:30.027878846Z" level=info msg="ignoring event" container=43041d1623c3a43994cfc5baa9bc1f7e8128aa6f11953db6e7e0c212e55b41e9 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 07 10:52:41 limeos-p01-test dockerd[973]: time="2026-10-07T10:52:41.402368847Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=e11ce964d28c31dc5f70224774c4bf98c1c9123f7c45631b10d6dbd71fab5bd4
+Oct 07 10:52:41 limeos-p01-test dockerd[973]: time="2026-10-07T10:52:41.431852495Z" level=info msg="ignoring event" container=e11ce964d28c31dc5f70224774c4bf98c1c9123f7c45631b10d6dbd71fab5bd4 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 07 10:52:43 limeos-p01-test systemd[1]: limeos-core.service: Main process exited, code=killed, status=9/KILL
+Oct 07 10:52:43 limeos-p01-test systemd[1]: limeos-core.service: Failed with result 'signal'.
+Oct 07 10:52:45 limeos-p01-test systemd[1]: limeos-core.service: Scheduled restart job, restart counter is at 1.
+Oct 07 10:52:45 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 07 10:52:45 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 07 10:52:45 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 07 10:52:45 limeos-p01-test limeos-core[7414]: {"timestamp":"2026-10-07T10:52:45.511331Z","level":"INFO","fields":{"message":"core ready","generation":2}}
+Oct 07 10:52:45 limeos-p01-test limeos-core[7414]: {"timestamp":"2026-10-07T10:52:45.513929Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 07 10:52:45 limeos-p01-test limeos-core[7414]: {"timestamp":"2026-10-07T10:52:45.514138Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 07 10:52:53 limeos-p01-test dockerd[973]: time="2026-10-07T10:52:53.396053927Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=4c67363af763d0cc48f1e943fae7a2d6e6d87eeca29ffb42c740604cd2a06132
+Oct 07 10:52:53 limeos-p01-test dockerd[973]: time="2026-10-07T10:52:53.425568493Z" level=info msg="ignoring event" container=4c67363af763d0cc48f1e943fae7a2d6e6d87eeca29ffb42c740604cd2a06132 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 07 10:53:17 limeos-p01-test systemd[1]: limeos-containerd.service: Main process exited, code=killed, status=9/KILL
+Oct 07 10:53:17 limeos-p01-test systemd[1]: limeos-containerd.service: Failed with result 'signal'.
+Oct 07 10:53:19 limeos-p01-test limeos-core[7414]: {"timestamp":"2026-10-07T10:53:19.520047Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Unavailable"}}
+Oct 07 10:53:19 limeos-p01-test systemd[1]: limeos-containerd.service: Scheduled restart job, restart counter is at 1.
+Oct 07 10:53:19 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Oct 07 10:53:19 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 07 10:53:19 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 07 10:53:21 limeos-p01-test systemd[1]: limeos-core.service: Main process exited, code=killed, status=9/KILL
+Oct 07 10:53:21 limeos-p01-test systemd[1]: limeos-core.service: Failed with result 'signal'.
+Oct 07 10:53:23 limeos-p01-test systemd[1]: limeos-core.service: Scheduled restart job, restart counter is at 2.
+Oct 07 10:53:23 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Oct 07 10:53:23 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 07 10:53:23 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 07 10:53:23 limeos-p01-test limeos-core[7730]: {"timestamp":"2026-10-07T10:53:23.719010Z","level":"INFO","fields":{"message":"core ready","generation":3}}
+Oct 07 10:53:23 limeos-p01-test limeos-core[7730]: {"timestamp":"2026-10-07T10:53:23.721127Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 07 10:53:23 limeos-p01-test limeos-core[7730]: {"timestamp":"2026-10-07T10:53:23.721315Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 07 10:53:23 limeos-p01-test limeos-core[7730]: {"timestamp":"2026-10-07T10:53:23.721496Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Overloaded"}}
+Oct 07 10:53:31 limeos-p01-test dockerd[973]: time="2026-10-07T10:53:31.573350484Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=521b12ba618b8e9f1dd6a3905a4a6d7835535378b1adbe2badd729c10d6781e0
+Oct 07 10:53:31 limeos-p01-test dockerd[973]: time="2026-10-07T10:53:31.622951147Z" level=info msg="ignoring event" container=521b12ba618b8e9f1dd6a3905a4a6d7835535378b1adbe2badd729c10d6781e0 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Oct 07 10:53:57 limeos-p01-test systemd[1]: limeos-containerd.service: Main process exited, code=killed, status=9/KILL
+Oct 07 10:53:57 limeos-p01-test systemd[1]: limeos-containerd.service: Failed with result 'signal'.

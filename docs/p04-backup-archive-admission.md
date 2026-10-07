@@ -4,6 +4,8 @@ This is the first RW-043 slice. It supplies the checks BKP-001 requires before a
 
 Nothing here restores, writes, follows a link or resolves a destination. **BKP-001 stays open.** It closes only when the installed restore path enforces these checks and proves recovery.
 
+The subsequent [verified replay and private staging interface](p04-backup-verified-staging.md) uses this same inspector to write internally named tentative files in a private quarantine. It returns readers only after full archive, initial policy, manifest, stored-byte and fsync verification. That library does not resolve or apply live destinations; the executor requirements below remain open. [Its handoff evidence](rewrite-evidence/p04/rw043-staging/README.md) is preserved separately from [current integration validation](rewrite-evidence/p04/2026-10-07-handoff-integration/README.md).
+
 | Component | Contents |
 |---|---|
 | `limeos_domain::backups` | Closed admission policy, archive limits, the managed-resource registry, trusted legacy mappings, inspected entry facts, typed findings, admission and the restore manifest. Pure, with no filesystem, process or decoder dependency. |
@@ -92,7 +94,7 @@ Original engineer measurement before integration (`VmHWM` of a release build, wo
 
 For these inputs, streaming file data uses about 2.7 MiB plus the zstd window. Retained entry, path and extension metadata grows within the policy limits. See the [evidence](rewrite-evidence/p04/rw043/README.md).
 
-The [integrated manifest-v2 measurement](rewrite-evidence/p04/2026-10-06-handoff-integration/README.md) repeats the check with three runs per input: peak RSS ranges from 2,620 to 5,136 KiB across small, legacy-repeat and 64 MiB gzip/zstd archives. These are standalone workstation measurements. Native AMD64 and ARM64 CI also pass the combined 231-test workspace, including libzstd and the inspector; installed Pi qualification remains pending.
+The [integrated manifest-v2 measurement](rewrite-evidence/p04/2026-10-06-handoff-integration/README.md) repeats the check with three runs per input: peak RSS ranges from 2,620 to 5,136 KiB across small, legacy-repeat and 64 MiB gzip/zstd archives. These are standalone workstation measurements. Native AMD64 and ARM64 CI also pass the frozen 231-test workspace, including libzstd and the inspector. [The subsequent Pi 5 KVM run](rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/README.md) measures that frozen standalone inspector at a maximum 4.3 MiB RSS, separately from resident services and the later staging library. It does not qualify installed restore effects.
 
 ## Trusted legacy mapping
 

@@ -1,0 +1,204 @@
+{
+  "after_scope": "fixture-only focused proof; unchanged local291-Rust proof remains attributed to a7c73459, complete new CI has its own source identity",
+  "before_scope": "instrumented working-copy extraction of the original fixture active-state condition; not an unchanged a7c73459 checkout",
+  "changed_paths": [
+    "tests/privileged_vm/p03_guest.py",
+    "tests/reference/test_recovery_readiness.py"
+  ],
+  "checks": [
+    {
+      "chunk_id": "a59184",
+      "cmd": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline -m unittest discover -s tests/reference -p test_recovery_readiness.py -v",
+      "exit_code": 1,
+      "name": "recovery-before",
+      "original_token_count": 534,
+      "scope": "intermediate failing diagnostic",
+      "started": "2026-10-07T13:54:42.426Z",
+      "transcript": {
+        "compressed_sha256": "f1942c22829a6e2f81b9890d7bc1fe3dc9163eee7f62ce2af9c79cdf6976f13a",
+        "file": "recovery-before.log.gz",
+        "raw_bytes": 2133,
+        "raw_sha256": "8695a1878f983cabd697f7675d7324be44c2a446cd5b8f6fada770b2e3b3ec3d"
+      },
+      "wall_time_seconds": 0.565077795
+    },
+    {
+      "chunk_id": "deee7f",
+      "exit_code": 0,
+      "name": "recovery-after",
+      "original_token_count": 154,
+      "scope": "passing focused check",
+      "transcript": {
+        "compressed_sha256": "a256ebc59edf0174e65605a634734542ad7f661985ce75d7996dade7859fb633",
+        "file": "recovery-after.log.gz",
+        "raw_bytes": 613,
+        "raw_sha256": "88530ebb8573b11d9b7e5780c9d1e9b72eb3267ba53d1889cf519660fd35c4bb"
+      },
+      "wall_time_seconds": 0.018027024
+    },
+    {
+      "chunk_id": "dda670",
+      "exit_code": 1,
+      "name": "probe-before",
+      "original_token_count": 770,
+      "scope": "intermediate failing diagnostic",
+      "transcript": {
+        "compressed_sha256": "52b52028eac7161f14e3238f4dec0c518fc26ac4bb0a7767e896999e70c8cd24",
+        "file": "probe-before.log.gz",
+        "raw_bytes": 3080,
+        "raw_sha256": "25f18e395a332ca21ca6cbfa96c850b5818224f25bbf69e2d0b4906176b38b37"
+      },
+      "wall_time_seconds": 0.128793988
+    },
+    {
+      "chunk_id": "15f8bf",
+      "exit_code": 0,
+      "name": "probe-after",
+      "original_token_count": 236,
+      "scope": "passing focused check",
+      "transcript": {
+        "compressed_sha256": "ca68776520fc5221ee3a5d8757cab5116a7a6fdfd71e9aa58e6a284dd36c0d7a",
+        "file": "probe-after.log.gz",
+        "raw_bytes": 941,
+        "raw_sha256": "4ab7edc85ed9e836bfda52f532818c6043ffb64c87e68f33511abe869f16d62a"
+      },
+      "wall_time_seconds": 0.082240016
+    },
+    {
+      "chunk_id": "465258",
+      "exit_code": 0,
+      "name": "fixture-reference-final",
+      "original_token_count": 400,
+      "scope": "passing focused check",
+      "transcript": {
+        "compressed_sha256": "6e12436dc29a0ab34a3b475bc1d353bda92010a6e55dd3d18df8bbc529f69805",
+        "file": "fixture-reference-final.log.gz",
+        "raw_bytes": 1597,
+        "raw_sha256": "16eb62b7e709b68a23feda29af69ceb6df0f8f6ab18e15747f008a52fe11f416"
+      },
+      "wall_time_seconds": 0.079011205
+    },
+    {
+      "chunk_id": "636862",
+      "exit_code": 0,
+      "name": "fixture-harness",
+      "original_token_count": 211,
+      "scope": "passing focused check",
+      "session_id": 33965,
+      "transcript": {
+        "compressed_sha256": "bdd94be7baa2422c356151958b14b9831a096d382736c6e585d70fb841556361",
+        "file": "fixture-harness.log.gz",
+        "raw_bytes": 5859,
+        "raw_sha256": "bd3dda81e8bb47cc51087464327aa18300080ebd1b44399d087fc528fece5607"
+      },
+      "wall_time_seconds": 1.312e-05
+    },
+    {
+      "chunk_id": "32ab4a",
+      "exit_code": 1,
+      "name": "fixture-lint-before",
+      "original_token_count": 188,
+      "scope": "intermediate failing diagnostic",
+      "transcript": {
+        "compressed_sha256": "d5d5e6f2defec4f26ce1e891acddd799c1b95009cbf8dc7ef57552ecffea42d5",
+        "file": "fixture-lint-before.log.gz",
+        "raw_bytes": 751,
+        "raw_sha256": "5ccad67c9aaf1044911024f16aef16b2c1abf1ae17142911df80e84a17db47b3"
+      },
+      "wall_time_seconds": 1.7762e-05
+    },
+    {
+      "chunk_id": "7d83e7",
+      "exit_code": 1,
+      "name": "fixture-probe-lint-before",
+      "original_token_count": 244,
+      "scope": "intermediate failing diagnostic",
+      "transcript": {
+        "compressed_sha256": "2b836d5f91fc15a9f26c71e67d415fcb9f9ac3d2ec7ef0b55bed379e04579c6d",
+        "file": "fixture-probe-lint-before.log.gz",
+        "raw_bytes": 973,
+        "raw_sha256": "95257d011013bcde8a46543a19345cf5883009cd2bfdda6d0ea37058417553cf"
+      },
+      "wall_time_seconds": 1.4623e-05
+    },
+    {
+      "chunk_id": "1ad5bd",
+      "exit_code": 0,
+      "name": "fixture-lint-final",
+      "original_token_count": 5,
+      "scope": "passing focused check",
+      "transcript": {
+        "compressed_sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53",
+        "file": "fixture-lint-final.log.gz",
+        "raw_bytes": 19,
+        "raw_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      "wall_time_seconds": 1.1451e-05
+    },
+    {
+      "chunk_id": "99124b",
+      "exit_code": 0,
+      "name": "fixture-format-final",
+      "original_token_count": 7,
+      "scope": "passing focused check",
+      "transcript": {
+        "compressed_sha256": "489c3e0940e4611f2dc7b232c22504e24d2e01c891cf3ed3237e907a5ae162fe",
+        "file": "fixture-format-final.log.gz",
+        "raw_bytes": 27,
+        "raw_sha256": "d41ae50829b47e318b0787bc39d2a2ea2d52b518cfc7900d2efd569e6d26ab88"
+      },
+      "wall_time_seconds": 1.6967e-05
+    },
+    {
+      "chunk_id": "f40f7d",
+      "exit_code": 0,
+      "name": "fixture-contracts-final",
+      "original_token_count": 50,
+      "scope": "passing focused check",
+      "transcript": {
+        "compressed_sha256": "1a7c6b98210700c98285809ba992ccd91a790b42c1bcc901033553c76cbcf648",
+        "file": "fixture-contracts-final.log.gz",
+        "raw_bytes": 200,
+        "raw_sha256": "f0a4f833673579870515bef2343c3bc58927c13dee9f4918d98fbffde951838e"
+      },
+      "wall_time_seconds": 0.256382543
+    },
+    {
+      "chunk_id": "4b6e96",
+      "exit_code": 0,
+      "name": "fixture-repository-final",
+      "original_token_count": 13,
+      "scope": "passing focused check",
+      "transcript": {
+        "compressed_sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+        "file": "fixture-repository-final.log.gz",
+        "raw_bytes": 49,
+        "raw_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df"
+      },
+      "wall_time_seconds": 1.279e-05
+    },
+    {
+      "chunk_id": "1dac78",
+      "exit_code": 0,
+      "name": "fixture-diff-final",
+      "original_token_count": 0,
+      "scope": "passing focused check",
+      "transcript": {
+        "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+        "file": "fixture-diff-final.log.gz",
+        "raw_bytes": 0,
+        "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "wall_time_seconds": 1.6593e-05
+    }
+  ],
+  "counts": {
+    "arm_harness_discovery": 33,
+    "new_readiness_regressions": 7,
+    "reference_discovery": 9
+  },
+  "failed_ci_diagnosis_sha256": "8e2e63b99c923b3ff588d7ec75f2e5c2d78258d208380a9c90888c1fdf4b197e",
+  "previous_full_local_source": "a7c73459c70b0555aff5a4f366e13c3ea063ae7f",
+  "probe_timeout_scope": "POSIX subprocess.run bounds its direct child; no claim of remotely terminating arbitrary background or descendant effects",
+  "source_commit": "e330065146fdf2bcd7668a05476bb3b994a82c26"
+}

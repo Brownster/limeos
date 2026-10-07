@@ -1,0 +1,27 @@
+{
+  "arm_harness_tests": 33,
+  "baseline_commit": "a7c73459c70b0555aff5a4f366e13c3ea063ae7f",
+  "blockers": [],
+  "crash_block_byte_equal_except_recovery_wait": true,
+  "evidence_sha256": {
+    "/tmp/limeos-handoff-checks/fixture-harness.log": "bd3dda81e8bb47cc51087464327aa18300080ebd1b44399d087fc528fece5607",
+    "/tmp/limeos-handoff-checks/fixture-reference-final.log": "16eb62b7e709b68a23feda29af69ceb6df0f8f6ab18e15747f008a52fe11f416",
+    "/tmp/limeos-handoff-checks/probe-after.log": "4ab7edc85ed9e836bfda52f532818c6043ffb64c87e68f33511abe869f16d62a",
+    "/tmp/limeos-handoff-checks/probe-before.log": "25f18e395a332ca21ca6cbfa96c850b5818224f25bbf69e2d0b4906176b38b37",
+    "/tmp/limeos-handoff-checks/recovery-before.log": "8695a1878f983cabd697f7675d7324be44c2a446cd5b8f6fada770b2e3b3ec3d"
+  },
+  "existing_reference_tests": 2,
+  "new_reference_regressions": 7,
+  "primary_source_checked": "https://raw.githubusercontent.com/python/cpython/v3.11.2/Lib/subprocess.py",
+  "recorded_utc": "2026-10-07T14:09:48.008983+00:00",
+  "reference_tests": 9,
+  "review_markdown_sha256": "22c3e3f7026ae19e1b84fa0ad125edb283f825631ff676eb260608e3b5770c9a",
+  "scope": "read-only two-file fixture/probe correction before commit; no runtime edits",
+  "source_sha256": {
+    ".github/workflows/ci.yml": "ea59d3c502f75f4f1897c89902cf04dc861904101d1ba70a438236bb0c72a100",
+    "tests/privileged_vm/p03_guest.py": "9f411bfb46aef1b7356f846c1df899a86f4e83d3f1669780973ca0f45805bda4",
+    "tests/reference/test_recovery_readiness.py": "e98ab30d7a305e53185de4cc1269d9149ccaced95e53062e95d3fab6dfd3dc50"
+  },
+  "tests_run_by_reviewer": 0,
+  "verdict": "go"
+}

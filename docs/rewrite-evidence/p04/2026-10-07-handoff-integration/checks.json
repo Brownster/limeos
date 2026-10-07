@@ -1,0 +1,283 @@
+{
+  "checks": [
+    {
+      "chunk_id": "8d4344",
+      "cmd": "env CCACHE_DIR=/tmp/limeos-ccache cargo fmt --all -- --check",
+      "exit_code": 0,
+      "finished_observed": "2026-10-07T10:37:52.453Z",
+      "name": "fmt",
+      "original_token_count": 0,
+      "required": true,
+      "started": "2026-10-07T10:28:40.843Z",
+      "transcript": {
+        "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+        "file": "fmt.log.gz",
+        "raw_bytes": 0,
+        "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "wall_time_seconds": 0.805962418
+    },
+    {
+      "chunk_id": "394f18",
+      "cmd": "env CCACHE_DIR=/tmp/limeos-ccache cargo test --workspace --locked --offline",
+      "exit_code": 0,
+      "finished_observed": "2026-10-07T10:31:19.747Z",
+      "name": "workspace",
+      "original_token_count": 22,
+      "required": true,
+      "started": "2026-10-07T10:29:29.468Z",
+      "transcript": {
+        "compressed_sha256": "3bc8cc9e4fd2b6dc6f05cbf9f2ffe2100bf03cd9c1d765bd535d48f3ab765842",
+        "file": "workspace.log.gz",
+        "raw_bytes": 33450,
+        "raw_sha256": "909fcfc2e4c438b3645cad55c5bd55c02661a1bc42d48fbd6db380ae4e4d0edf"
+      },
+      "wall_time_seconds": 1.000539568
+    },
+    {
+      "chunk_id": "3e57d2",
+      "cmd": "env CCACHE_DIR=/tmp/limeos-ccache cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+      "escalated": false,
+      "exit_code": 0,
+      "finished_observed": "2026-10-07T10:32:09.924Z",
+      "name": "clippy",
+      "original_token_count": 26,
+      "required": true,
+      "started": "2026-10-07T10:31:18.565Z",
+      "transcript": {
+        "compressed_sha256": "23c2af579d77f555f2ca6ef228e0309dc67dc6f118b724fd4cf3bc3c0b91db46",
+        "file": "clippy.log.gz",
+        "raw_bytes": 1576,
+        "raw_sha256": "7580b2f51c40bf205eae8045ea3c317737cb438de91d00eecab750cee67bd8eb"
+      },
+      "wall_time_seconds": 1.000711176
+    },
+    {
+      "chunk_id": "330924",
+      "cmd": "env CCACHE_DIR=/tmp/limeos-ccache CARGO_NET_OFFLINE=true UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline scripts/check_contracts.py",
+      "escalated": false,
+      "exit_code": 0,
+      "finished_observed": "2026-10-07T10:32:09.925Z",
+      "name": "contracts",
+      "original_token_count": 48,
+      "required": true,
+      "started": "2026-10-07T10:31:18.565Z",
+      "transcript": {
+        "compressed_sha256": "40faad2a0815e47dbe438aeb82e2f4cfc870d689c60dbb15b95557cc31553de3",
+        "file": "contracts.log.gz",
+        "raw_bytes": 674,
+        "raw_sha256": "237c986336fdd3d2606fba05491d0e4e1c8c69c19ae3230f549b4d32e6e32f2e"
+      },
+      "wall_time_seconds": 1.000483088
+    },
+    {
+      "chunk_id": "cfde60",
+      "cmd": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline scripts/check_repository.py",
+      "exit_code": 0,
+      "finished_observed": "2026-10-07T10:37:52.453Z",
+      "name": "repository",
+      "original_token_count": 13,
+      "required": true,
+      "started": "2026-10-07T10:28:40.956Z",
+      "transcript": {
+        "compressed_sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+        "file": "repository.log.gz",
+        "raw_bytes": 49,
+        "raw_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df"
+      },
+      "wall_time_seconds": 1.6642e-05
+    },
+    {
+      "chunk_id": "6c8dc4",
+      "cmd": "env PATH=/tmp/limeos-validation-bin:/usr/local/bin:/usr/bin:/bin cargo deny --offline check",
+      "escalated": true,
+      "exit_code": 0,
+      "finished_observed": "2026-10-07T10:32:09.928Z",
+      "name": "deny",
+      "original_token_count": 0,
+      "required": true,
+      "started": "2026-10-07T10:31:18.565Z",
+      "transcript": {
+        "compressed_sha256": "fc43553a24927b35b06c9136c96e565ad4439cd0a5dc2a0e27816b132ff5b032",
+        "file": "deny.log.gz",
+        "raw_bytes": 17634,
+        "raw_sha256": "b3a413364c9a1b1adbf2406d7b4d6001d90ae6c4d3181a7faf39da2d6416a5b1"
+      },
+      "wall_time_seconds": 1.001422186
+    },
+    {
+      "chunk_id": "9548a6",
+      "cmd": "env PATH=/tmp/limeos-validation-bin:/usr/local/bin:/usr/bin:/bin cargo audit --no-fetch",
+      "escalated": true,
+      "exit_code": 0,
+      "finished_observed": "2026-10-07T10:32:09.926Z",
+      "name": "audit",
+      "original_token_count": 66,
+      "required": true,
+      "started": "2026-10-07T10:31:18.565Z",
+      "transcript": {
+        "compressed_sha256": "6c0a76dc43c7536eec6b52e1520c1ec18c1b6dc6af7f6f460f0b4e96dd286885",
+        "file": "audit.log.gz",
+        "raw_bytes": 261,
+        "raw_sha256": "70d8e8c4c9ae7d6a4efeaf5bb88eb3e43d5e34f3f0c961a148c6de2a0cc5d2ce"
+      },
+      "wall_time_seconds": 1.000496878
+    },
+    {
+      "chunk_id": "7e0cfe",
+      "cmd": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline tests/qualification/arm64/test_harness.py -v",
+      "exit_code": 0,
+      "finished_observed": "2026-10-07T10:37:52.453Z",
+      "name": "harness",
+      "original_token_count": 695,
+      "required": true,
+      "started": "2026-10-07T10:28:40.956Z",
+      "transcript": {
+        "compressed_sha256": "ccdce679b9b4ed5d9e006629876cf93a5bb924d920239163942afa880ee1847e",
+        "file": "harness.log.gz",
+        "raw_bytes": 5615,
+        "raw_sha256": "593b531235e3b16a533b82de3a2f8fd2e9e14781e9f251df9d0b55551109ffb9"
+      },
+      "wall_time_seconds": 1.001169846
+    },
+    {
+      "chunk_id": "1a6282",
+      "cmd": "/home/marc/.cache/uv/archive-v0/c1zmhfqlO_amdfBn/bin/ruff check tests/qualification/arm64",
+      "exit_code": 0,
+      "finished_observed": "2026-10-07T10:31:19.747Z",
+      "name": "ruff-harness-check",
+      "original_token_count": 5,
+      "required": true,
+      "started": "2026-10-07T10:30:47.768Z",
+      "transcript": {
+        "compressed_sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53",
+        "file": "ruff-harness-check.log.gz",
+        "raw_bytes": 19,
+        "raw_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      "wall_time_seconds": 1.2557e-05
+    },
+    {
+      "chunk_id": "e77cc0",
+      "cmd": "/home/marc/.cache/uv/archive-v0/c1zmhfqlO_amdfBn/bin/ruff format --check tests/qualification/arm64",
+      "exit_code": 0,
+      "finished_observed": "2026-10-07T10:31:19.747Z",
+      "name": "ruff-harness-format",
+      "original_token_count": 7,
+      "required": true,
+      "started": "2026-10-07T10:30:47.769Z",
+      "transcript": {
+        "compressed_sha256": "1bdf2621a07f402338311dd6a119ce6dbe6ebfec80fe01dda7e9f9307a2a0f45",
+        "file": "ruff-harness-format.log.gz",
+        "raw_bytes": 27,
+        "raw_sha256": "04eb0d6e6734823dcd2b2b704729e976f683df7a8f334da7216520ef1cb319bf"
+      },
+      "wall_time_seconds": 2.0193e-05
+    },
+    {
+      "chunk_id": "edd5ee",
+      "cmd": "/tmp/limeos-validation-bin/shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh tests/fixtures/backup-archives/generate.sh",
+      "exit_code": 0,
+      "finished_observed": "2026-10-07T10:37:52.453Z",
+      "name": "shellcheck",
+      "original_token_count": 0,
+      "required": true,
+      "started": "2026-10-07T10:28:40.956Z",
+      "transcript": {
+        "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+        "file": "shellcheck.log.gz",
+        "raw_bytes": 0,
+        "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "wall_time_seconds": 0.148329397
+    },
+    {
+      "chunk_id": "18839e",
+      "cmd": "/home/marc/.cache/uv/archive-v0/c1zmhfqlO_amdfBn/bin/ruff check tests/qualification/arm64 docs/rewrite-evidence/p04/rw043-staging/run_checks.py docs/rewrite-evidence/p04/rw043-staging/measure_staging.py",
+      "exit_code": 1,
+      "finished_observed": "2026-10-07T10:37:52.453Z",
+      "name": "ruff-check",
+      "original_token_count": 293,
+      "required": false,
+      "started": "2026-10-07T10:28:40.956Z",
+      "transcript": {
+        "compressed_sha256": "4123b3fd0303c89d400e40fd11d2c6e279e67761419a27c99b40b94db51b8431",
+        "file": "ruff-check.log.gz",
+        "raw_bytes": 1169,
+        "raw_sha256": "a9de3ef6091a3bc0559cfdd88c8db30f5b0e14bba6c1672d445960f4d7dfde65"
+      },
+      "wall_time_seconds": 1.2877e-05
+    },
+    {
+      "chunk_id": "948b27",
+      "cmd": "/home/marc/.cache/uv/archive-v0/c1zmhfqlO_amdfBn/bin/ruff format --check tests/qualification/arm64 docs/rewrite-evidence/p04/rw043-staging/run_checks.py docs/rewrite-evidence/p04/rw043-staging/measure_staging.py",
+      "exit_code": 1,
+      "finished_observed": "2026-10-07T10:37:52.453Z",
+      "name": "ruff-format",
+      "original_token_count": 3031,
+      "required": false,
+      "started": "2026-10-07T10:28:40.956Z",
+      "transcript": {
+        "compressed_sha256": "6bd432d7af35f6a28266cd470476e20e87f34fe61fd5480babcddac6d2eb6950",
+        "file": "ruff-format.log.gz",
+        "raw_bytes": 12123,
+        "raw_sha256": "e5f57678649af3f52aa773314fd211b9fec791c4d6c34b8f24251290f38f85bf"
+      },
+      "wall_time_seconds": 1.7461e-05
+    }
+  ],
+  "counts": {
+    "external_packages_with_source": 211,
+    "harness": 33,
+    "lockfile": 227,
+    "rust": 291,
+    "rust_failed": 0,
+    "rust_ignored": 0
+  },
+  "diagnostic": {
+    "baseline_runner_commit": "e48831f9d5fd57bfad9611b09a8bfc5655e0f65d",
+    "baseline_runner_sha256": "35272851d1c84cdcc3102cf688539bca916e04784a1a0287c5b42b497aa943a2",
+    "discarded_initial_setup_log": "too-shallow path produced IndexError; overwritten before the retained two failing assertions",
+    "regression_tests": "loaded from main with runpy; log is instrumented baseline proof, not native qualification"
+  },
+  "extra_transcripts": {
+    "runner-expiry-before.log": {
+      "compressed_sha256": "bce3bcaff8ec2271e689f814f60ae603c540f9bb81b6b3aff9ae9202a25dd7e5",
+      "file": "runner-expiry-before.log.gz",
+      "raw_bytes": 1444,
+      "raw_sha256": "61ad0b15e7830a1aa60f04d20daff1277013da3f9bfb96c17cf7d025ea1efc66"
+    },
+    "runner-implementer-tests.log": {
+      "compressed_sha256": "977d3262160f28c96f34cc86eb559599e9acd777f26753df193e4283a284b116",
+      "file": "runner-implementer-tests.log.gz",
+      "raw_bytes": 872,
+      "raw_sha256": "5c37632d2d672c106ea98bd2ffb799b7f724ba78babef4180273ed8da41f2a13"
+    },
+    "runner-independent-boundaries.log": {
+      "compressed_sha256": "4e73cd97f955bcdc239a6c9894fd89791ec47e70d6b7d5884ab45a4c565e081b",
+      "file": "runner-independent-boundaries.log.gz",
+      "raw_bytes": 409,
+      "raw_sha256": "c6398c4b2dc9fb13ad312a8e6408d0b6e4281e68f30b1c468be1cfdb31c26c7b"
+    }
+  },
+  "generator_sha256": "35b6a41ec16e9412762dca104b3190c5c518e31a53318b3613148f2226a7e1e8",
+  "limits": [
+    "local AMD64 source/harness proof, no remote/native hardened launcher run",
+    "cached advisory checks without refresh",
+    "frozen native8acac40/231-test measurements separate from current291/33",
+    "historical inventory61.401ms exceeds20ms unchanged",
+    "no live restore or combined root collection qualification"
+  ],
+  "platform": {
+    "machine": "x86_64",
+    "node": "fedora",
+    "processor": "",
+    "release": "7.0.14-101.fc43.x86_64",
+    "system": "Linux",
+    "version": "#1 SMP PREEMPT_DYNAMIC Wed Jul  1 13:50:13 UTC 2026"
+  },
+  "proof_files_preserved": 160,
+  "recorded_utc": "2026-10-07T10:37:53.179567+00:00",
+  "source_commit": "a7c73459c70b0555aff5a4f366e13c3ea063ae7f",
+  "uid": 1000
+}

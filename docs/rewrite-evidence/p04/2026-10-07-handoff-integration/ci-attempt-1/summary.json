@@ -1,0 +1,246 @@
+{
+  "attempt": "1",
+  "conclusion": "failure",
+  "jobs": [
+    {
+      "conclusion": "success",
+      "failed_steps": [],
+      "harness_counts": [
+        "33"
+      ],
+      "id": 112748409673,
+      "name": "check (ubuntu-24.04)",
+      "raw_log_bytes": 253577,
+      "raw_log_sha256": "91dcecd1201d4219d8af0bec1a0d5ce078c2baf2c0e1f88ab1e8511bd59efece",
+      "rust_failed": 0,
+      "rust_passed": 291
+    },
+    {
+      "conclusion": "success",
+      "failed_steps": [],
+      "harness_counts": [
+        "33"
+      ],
+      "id": 112748409939,
+      "name": "check (ubuntu-24.04-arm)",
+      "raw_log_bytes": 240296,
+      "raw_log_sha256": "a278b1dd62fdf6023a1a14438d55b2a77ebfb8145ef3de1ff19474b181de8ba3",
+      "rust_failed": 0,
+      "rust_passed": 291
+    },
+    {
+      "conclusion": "failure",
+      "failed_steps": [
+        "Disposable Debian signed-apt and systemd acceptance"
+      ],
+      "harness_counts": [
+        "2"
+      ],
+      "id": 112752942286,
+      "name": "debian-vm",
+      "raw_log_bytes": 72489,
+      "raw_log_sha256": "68c484e29a8abe4c18ec01fef752d4702bec0467e805bdc3f2d914c2da475c8f",
+      "rust_failed": 0,
+      "rust_passed": 0
+    }
+  ],
+  "packages": [
+    {
+      "api_digest": "sha256:02e28a1787d517bd994c5a36edeb9d828254d68b119165b5bb28018573b22650",
+      "binaries": {
+        "./usr/lib/limeos-shadow/limeos-core": {
+          "elf_machine": 183,
+          "sha256": "a09295d15504cc76d587b623ff5776cfe18cbd18a210bcc50183c612d44fdfdd"
+        },
+        "./usr/lib/limeos-shadow/limeos-executor": {
+          "elf_machine": 183,
+          "sha256": "6d13d0c2d7601a4b2c13e6a171ff650a11fe25c0040419f92d0b2fbb1e4d29c1"
+        },
+        "./usr/lib/limeos-shadow/limeos-password-worker": {
+          "elf_machine": 183,
+          "sha256": "732e8ceba35f45d008f81a29607ba8e29fc2f68fe2051318c17b04ae8e255235"
+        },
+        "./usr/lib/limeos-shadow/limeosctl": {
+          "elf_machine": 183,
+          "sha256": "221e8f0db776e97f06d5aa9c04b45a55757f89fd94642f1eaa62bb0df9c20eec"
+        }
+      },
+      "bytes": 2744404,
+      "control": "Package: limeos-shadow\nVersion: 0.4.4\nArchitecture: arm64\n",
+      "file": "limeos-shadow_0.4.4_arm64.deb",
+      "id": 11477345241,
+      "name": "debian-ubuntu-24.04-arm",
+      "sha256": "9f1b69f7d1b7e97286ed610a6f264ed42e9f75f1bf5a9401e6f576c22b11113b",
+      "zip_sha256": "02e28a1787d517bd994c5a36edeb9d828254d68b119165b5bb28018573b22650"
+    },
+    {
+      "api_digest": "sha256:02e28a1787d517bd994c5a36edeb9d828254d68b119165b5bb28018573b22650",
+      "binaries": {
+        "./usr/lib/limeos/limeos-core": {
+          "elf_machine": 183,
+          "sha256": "a09295d15504cc76d587b623ff5776cfe18cbd18a210bcc50183c612d44fdfdd"
+        },
+        "./usr/lib/limeos/limeos-executor": {
+          "elf_machine": 183,
+          "sha256": "6d13d0c2d7601a4b2c13e6a171ff650a11fe25c0040419f92d0b2fbb1e4d29c1"
+        },
+        "./usr/lib/limeos/limeos-password-worker": {
+          "elf_machine": 183,
+          "sha256": "732e8ceba35f45d008f81a29607ba8e29fc2f68fe2051318c17b04ae8e255235"
+        },
+        "./usr/lib/limeos/limeosctl": {
+          "elf_machine": 183,
+          "sha256": "221e8f0db776e97f06d5aa9c04b45a55757f89fd94642f1eaa62bb0df9c20eec"
+        }
+      },
+      "bytes": 2745054,
+      "control": "Package: limeos\nVersion: 0.4.4+ci.1\nArchitecture: arm64\n",
+      "file": "limeos_0.4.4+ci.1_arm64.deb",
+      "id": 11477345241,
+      "name": "debian-ubuntu-24.04-arm",
+      "sha256": "b6ec20b7b71e55a90736982b6ef1a43ee3c3e734d1315a6c0fa66c02675be30c",
+      "zip_sha256": "02e28a1787d517bd994c5a36edeb9d828254d68b119165b5bb28018573b22650"
+    },
+    {
+      "api_digest": "sha256:02e28a1787d517bd994c5a36edeb9d828254d68b119165b5bb28018573b22650",
+      "binaries": {
+        "./usr/lib/limeos/limeos-core": {
+          "elf_machine": 183,
+          "sha256": "a09295d15504cc76d587b623ff5776cfe18cbd18a210bcc50183c612d44fdfdd"
+        },
+        "./usr/lib/limeos/limeos-executor": {
+          "elf_machine": 183,
+          "sha256": "6d13d0c2d7601a4b2c13e6a171ff650a11fe25c0040419f92d0b2fbb1e4d29c1"
+        },
+        "./usr/lib/limeos/limeos-password-worker": {
+          "elf_machine": 183,
+          "sha256": "732e8ceba35f45d008f81a29607ba8e29fc2f68fe2051318c17b04ae8e255235"
+        },
+        "./usr/lib/limeos/limeosctl": {
+          "elf_machine": 183,
+          "sha256": "221e8f0db776e97f06d5aa9c04b45a55757f89fd94642f1eaa62bb0df9c20eec"
+        }
+      },
+      "bytes": 2745048,
+      "control": "Package: limeos\nVersion: 0.4.4\nArchitecture: arm64\n",
+      "file": "limeos_0.4.4_arm64.deb",
+      "id": 11477345241,
+      "name": "debian-ubuntu-24.04-arm",
+      "sha256": "aca7cca66dd097f60a2f8cb8ca0e383950811d619c15f3f61dad9d3faebf0552",
+      "zip_sha256": "02e28a1787d517bd994c5a36edeb9d828254d68b119165b5bb28018573b22650"
+    },
+    {
+      "api_digest": "sha256:57e8e51ac35fa245aa89ae72ccc4c683e5197dbf80294c115a65d2170577b0f0",
+      "binaries": {
+        "./usr/lib/limeos-shadow/limeos-core": {
+          "elf_machine": 62,
+          "sha256": "9a11202409be0c3a3207eb5d66cf6d100c3a017935c9ece563ffaafcbc436260"
+        },
+        "./usr/lib/limeos-shadow/limeos-executor": {
+          "elf_machine": 62,
+          "sha256": "d8da68e859b2de19718b2fe2c11f1fed10a8939f4ee6028ce9de4d3d13fa4b60"
+        },
+        "./usr/lib/limeos-shadow/limeos-password-worker": {
+          "elf_machine": 62,
+          "sha256": "5566730a166697e58851460758f71e004577633333a331b750b86eebb8c587e7"
+        },
+        "./usr/lib/limeos-shadow/limeosctl": {
+          "elf_machine": 62,
+          "sha256": "ce583703a18634eb6679d0679b20ca0e2037e7ec3209383385dd0ca28acece75"
+        }
+      },
+      "bytes": 2926292,
+      "control": "Package: limeos-shadow\nVersion: 0.4.4\nArchitecture: amd64\n",
+      "file": "limeos-shadow_0.4.4_amd64.deb",
+      "id": 11476197807,
+      "name": "debian-ubuntu-24.04",
+      "sha256": "17f34c0ffd94334fd0a96706ad0b53d99ce3f37177fad645b6fc8b83f5a49960",
+      "zip_sha256": "57e8e51ac35fa245aa89ae72ccc4c683e5197dbf80294c115a65d2170577b0f0"
+    },
+    {
+      "api_digest": "sha256:57e8e51ac35fa245aa89ae72ccc4c683e5197dbf80294c115a65d2170577b0f0",
+      "binaries": {
+        "./usr/lib/limeos/limeos-core": {
+          "elf_machine": 62,
+          "sha256": "9a11202409be0c3a3207eb5d66cf6d100c3a017935c9ece563ffaafcbc436260"
+        },
+        "./usr/lib/limeos/limeos-executor": {
+          "elf_machine": 62,
+          "sha256": "d8da68e859b2de19718b2fe2c11f1fed10a8939f4ee6028ce9de4d3d13fa4b60"
+        },
+        "./usr/lib/limeos/limeos-password-worker": {
+          "elf_machine": 62,
+          "sha256": "5566730a166697e58851460758f71e004577633333a331b750b86eebb8c587e7"
+        },
+        "./usr/lib/limeos/limeosctl": {
+          "elf_machine": 62,
+          "sha256": "ce583703a18634eb6679d0679b20ca0e2037e7ec3209383385dd0ca28acece75"
+        }
+      },
+      "bytes": 2926894,
+      "control": "Package: limeos\nVersion: 0.4.4+ci.1\nArchitecture: amd64\n",
+      "file": "limeos_0.4.4+ci.1_amd64.deb",
+      "id": 11476197807,
+      "name": "debian-ubuntu-24.04",
+      "sha256": "9bb8078a98b7db6d71bd5fce8d42b950fda13ce8d430c2f0ec477ba375dee177",
+      "zip_sha256": "57e8e51ac35fa245aa89ae72ccc4c683e5197dbf80294c115a65d2170577b0f0"
+    },
+    {
+      "api_digest": "sha256:57e8e51ac35fa245aa89ae72ccc4c683e5197dbf80294c115a65d2170577b0f0",
+      "binaries": {
+        "./usr/lib/limeos/limeos-core": {
+          "elf_machine": 62,
+          "sha256": "9a11202409be0c3a3207eb5d66cf6d100c3a017935c9ece563ffaafcbc436260"
+        },
+        "./usr/lib/limeos/limeos-executor": {
+          "elf_machine": 62,
+          "sha256": "d8da68e859b2de19718b2fe2c11f1fed10a8939f4ee6028ce9de4d3d13fa4b60"
+        },
+        "./usr/lib/limeos/limeos-password-worker": {
+          "elf_machine": 62,
+          "sha256": "5566730a166697e58851460758f71e004577633333a331b750b86eebb8c587e7"
+        },
+        "./usr/lib/limeos/limeosctl": {
+          "elf_machine": 62,
+          "sha256": "ce583703a18634eb6679d0679b20ca0e2037e7ec3209383385dd0ca28acece75"
+        }
+      },
+      "bytes": 2926870,
+      "control": "Package: limeos\nVersion: 0.4.4\nArchitecture: amd64\n",
+      "file": "limeos_0.4.4_amd64.deb",
+      "id": 11476197807,
+      "name": "debian-ubuntu-24.04",
+      "sha256": "4b531f1d9522630fb29bb9979373e31c2a010d518edbb5f13237250119339238",
+      "zip_sha256": "57e8e51ac35fa245aa89ae72ccc4c683e5197dbf80294c115a65d2170577b0f0"
+    }
+  ],
+  "run_url": "https://github.com/Brownster/limeos/actions/runs/37608091754",
+  "source_commit": "a7c73459c70b0555aff5a4f366e13c3ea063ae7f",
+  "status": "completed",
+  "vm_artifacts": [
+    {
+      "api_digest": "sha256:47f1b8fab6fd4ebf3db08e1022b4ff956e34390e9e9930f6cf091e482b666377",
+      "id": 11478160717,
+      "name": "debian-vm-evidence",
+      "path": "p01/ci-vm-result.json",
+      "sha256": "98d287be5ceeb4fe950378d93e0d931c1d2fb3b20c64b5c15fac4f7de4bdaccf",
+      "zip_sha256": "47f1b8fab6fd4ebf3db08e1022b4ff956e34390e9e9930f6cf091e482b666377"
+    },
+    {
+      "api_digest": "sha256:47f1b8fab6fd4ebf3db08e1022b4ff956e34390e9e9930f6cf091e482b666377",
+      "id": 11478160717,
+      "name": "debian-vm-evidence",
+      "path": "p02/ci-vm-result.json",
+      "sha256": "fef1513df55a3a39fa161b39029bba9181413657118dbd1ff62725a617c37d39",
+      "zip_sha256": "47f1b8fab6fd4ebf3db08e1022b4ff956e34390e9e9930f6cf091e482b666377"
+    },
+    {
+      "api_digest": "sha256:47f1b8fab6fd4ebf3db08e1022b4ff956e34390e9e9930f6cf091e482b666377",
+      "id": 11478160717,
+      "name": "debian-vm-evidence",
+      "path": "p03/ci-reference-vm-failure.txt",
+      "sha256": "36375f1e229f7f2d992aae36f6f13aae649ff94d3133835f50951e6c78fab2a9",
+      "zip_sha256": "47f1b8fab6fd4ebf3db08e1022b4ff956e34390e9e9930f6cf091e482b666377"
+    }
+  ]
+}

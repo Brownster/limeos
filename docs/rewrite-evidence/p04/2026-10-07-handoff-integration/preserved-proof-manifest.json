@@ -1,0 +1,804 @@
+{
+  "proofs": [
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/README.md",
+      "sha256": "71253b54a9ead9b13b42594dba7c7f56660eba33efa6a04f2ff722b1dc648cab"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/check-initial.txt",
+      "sha256": "0ded92555b0b41ff4d6ff51b4ff8eabd101aef97fafa0b87a0727cf19e1d0dc3"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/audit.txt",
+      "sha256": "8b70ff8e86aaa03a2b5b18bdfdfe89d3e2fa8548c47df53feaebecb3115170e1"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/checks.json",
+      "sha256": "7a6902da9282dcb4f98634a57ccf3ab297281b837d160cfcbcdad86f432994ce"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/clippy.txt",
+      "sha256": "65b155928ee1284f01307495a1415a0e3630f16b8c03b09f1075351bfa9c7e74"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/contracts.txt",
+      "sha256": "0a340eb8a966469aabd9a34d09bf5b09bb8ed664c70e285b6e77e1566ce748f1"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/deny.txt",
+      "sha256": "f8662c6ffb9c9627c3f74b6012ada8493a4184fc558148d5960c2c2867385f8b"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/dependency-metadata.txt",
+      "sha256": "2d026324bed64b860a3507d2cc436e8b4691fb098257d1f87d0b6106fdadbfac"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/fmt.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/release-example.txt",
+      "sha256": "5a44f134ddbbb848a970632b8b9f3c7d129219c7bdbea358a70ef16613ab1f4f"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/repository.txt",
+      "sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/workspace-tests.txt",
+      "sha256": "c88b98a00cf1bf9d30a7d88110a03c88d4528a04786e67ddf4561eb6fb88d09d"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/tests-admission-binding.txt",
+      "sha256": "95db60494ee4f18cb8a4a695a0a70254c29e21282609eab659be06d88ad84677"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/tests-first.txt",
+      "sha256": "6663bf1ee54787407d76c089a8d95412b509ac66678440d7f67e9d9a1ff08806"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/tests-private-roots.txt",
+      "sha256": "71180040ba8db69b48ab0dafba0a87910a12221375b591223b47c0b340e6142c"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/measure_staging.py",
+      "sha256": "a379aae45be86fc6637ffceb640d97dee82aa78a7777e8f63dafad83b67f3151"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/peak-memory-raw.json.gz",
+      "sha256": "d5da38a655a27e12931b1d3e913320c14aef54e0aa7e259a2a92979546d7f7c5"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/peak-memory.json",
+      "sha256": "3032b363a48884afb1201243c02d278e3149e017bbbf82c2a1f0ca7ea4827c8a"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/run_checks.py",
+      "sha256": "493ff21141fc201b36ead9a00aeaa7da655c25d586e65a81bf696458d3e9b6dc"
+    },
+    {
+      "branch_tip": "edfdab9",
+      "path": "docs/rewrite-evidence/p04/rw043-staging/source-delta.json",
+      "sha256": "f3531b06372a627837a8fa09487c4ec7760cbb914d7e4156f81a2fe12eb2efd5"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/README.md",
+      "sha256": "56d6764b2efd9df3a0f241b6ad554d73c489c185a12501f116b22f1e8c57a733"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/build-console.txt",
+      "sha256": "f4cef34487a66045143b7fb6b7329d33abf8005950a3a184e5ca7dee4046a2d3"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/build-result.json",
+      "sha256": "1af46aa7412a156aed67220daf82a14d05c30922bcf984a63cf9791b9c8e5125"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/guest.json",
+      "sha256": "fb4f7912d786071d6d2588636c801a2890cbb33420c087d857fe93043f8bd3c3"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/host-after-build.json",
+      "sha256": "72f7da0bc00ca89104686639b1dc78efce5229f61d6476d4f74b7f29a90d18fe"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/host-after.json",
+      "sha256": "a06cb5b83db6471d68d313f1339d6c33c50e7e469c5d92d80c1d51d1edb1847d"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/apt.txt",
+      "sha256": "0014d85b427fa2a7d5c074f56de73bf902012fed6b52603c1898b8309328184f"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/clippy.txt",
+      "sha256": "bf968741dfb3b34875ffe3b3ce728fa866f83d13a9040ff0242595d8d74e046d"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/contracts.txt",
+      "sha256": "085b4f2310fd8b5bc7d95c81536ec7f4740881360b6c97188e2116e04d9a194f"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/dependency-direction.txt",
+      "sha256": "934e0b80a00775caca701d219f31e16b112b2e65e07b4dcfa9d5e38f8a7bfeaa"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/fetch.txt",
+      "sha256": "927ac232849db3298f397ea8617aa7aac54509015ad304e60acec9b91faf4411"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/fmt.txt",
+      "sha256": "5fcb04dce61431e03194e48dc201c4f32c352e4a96d055e73ed0191c5364579a"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/package-shadow.txt",
+      "sha256": "6af74a2d2473d485339ce396acfb15602e9f3c7cc5e9e644e390753f1f0e353a"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/package-standard.txt",
+      "sha256": "743be6baef6ad8421d8751fb16f87e3ee8c5995075e9547d9f65d8b625f4d396"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/release.txt",
+      "sha256": "069a6228068626dcb016d6acb1f0b3a6411407299b04e8ed7e1a25aa2e1fa4b3"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/repository.txt",
+      "sha256": "16c146a74b6f0a34859f618829a63b6f0b41833d410db0ff7b251c864a09270f"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/rustup.txt",
+      "sha256": "d933a04bce4e925b11170d384808767ba8c5a672802e14ecc1625347b950f8de"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/signing-key.txt",
+      "sha256": "989e1f3dc23e4f2282858b192cd441ad33c659ee35a3b9893386e0fdae5794b1"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/test.txt",
+      "sha256": "a89b7e54d79696a2ba5b83a21443793190ddbaa34d39b84a9bf24a16ccd0b9e7"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/supervisor.log",
+      "sha256": "6b1b2fcc93e9a9417349e45f4e077753e37237dcb7c4ef81ea8fe953307f56c1"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/supplementary-check-repository-with-git.txt",
+      "sha256": "2310b0c013b83b1b21bc864e4f3855f9fa8eb58ed5b5dbd4f7a75f4c9dc45e35"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/authorization.json",
+      "sha256": "7f1a58f55ef61e7eaa3e591ed7521d4f7d734b6b6858c0c1c649b70f7a64123d"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/artifacts.sha256",
+      "sha256": "01abea9372c2a3af09de8c2c24a259ddf58d185e22dd84ec5e52a63e4c42798f"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/build-console.txt",
+      "sha256": "ea273bed2ff5771d30ad6f33b351f7d9818b031d7db714c8271c5d336837babc"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/build-result.json",
+      "sha256": "8b6fe1dd64e3e4fedc454cc5a3ddbc630d5218bf5de187d285f56e774f31c50a"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/guest.json",
+      "sha256": "8fa0136b2532e253d908c0374b6bb501f09a1e6a6dc13949e0fc42203d92db19"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/host-after-build.json",
+      "sha256": "4b014cc58e3c321800b2f74345a57316921f4aad80e8fb90d146fe13a7e80f18"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/host-before-build.json",
+      "sha256": "924e489d5c344d46ef943897108723b3da759b708697b25e6544e96925ad6dff"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/apt.txt",
+      "sha256": "ad601fcfc75b9440065a2113b205953cbaa09db4b957979670f278b9ff6ff725"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/clippy.txt",
+      "sha256": "ec3cc4f48b5edd68a45e94250568bf321ab70e4c09b474713be07a65fec7822d"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/contracts.txt",
+      "sha256": "71a9d4bb9904f5dfa578b3da6cbdbeaeccc93fc97c1f3ee36d178098255e2560"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/dependency-direction.txt",
+      "sha256": "47a022219c43bc44630071877c14a17d076fdba79bf4f8757f99ee3eb30b5e5d"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/fetch.txt",
+      "sha256": "6c92e6910fc41467f77da95279a70bcb377556b83f25c895f16cdfd584044954"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/fmt.txt",
+      "sha256": "5fcb04dce61431e03194e48dc201c4f32c352e4a96d055e73ed0191c5364579a"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/package-shadow.txt",
+      "sha256": "6af74a2d2473d485339ce396acfb15602e9f3c7cc5e9e644e390753f1f0e353a"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/package-standard.txt",
+      "sha256": "743be6baef6ad8421d8751fb16f87e3ee8c5995075e9547d9f65d8b625f4d396"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/release.txt",
+      "sha256": "944acbe271d763a3844c292d32f565fd9430b317ef689745c7f1c62f8e1717e3"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/repository.txt",
+      "sha256": "fa2989fd1cb2d55a4efe1204a6e8ec892a0f6a0671825716b117a79f66ee96ea"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/rustup.txt",
+      "sha256": "d933a04bce4e925b11170d384808767ba8c5a672802e14ecc1625347b950f8de"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/signing-key.txt",
+      "sha256": "8e4341e609f8404cc97817384b62ce3956b9e4ae8c8b36785209961e4b42006c"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/test.txt",
+      "sha256": "7154b29cd4accfbe9d7ef116eeecc71b961c1131dfb3da7c6affa2a8297bc67a"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/source-manifest.json",
+      "sha256": "b0b983754544b3b6560cfbf8957bb3c327f7e5fcff8adce5b4c1efb4a7160ef4"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/supervisor.log",
+      "sha256": "8492705aeb2b2d161065805c95f3e1c797f60279624fbe744225ce6489616e4b"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/container-console.txt",
+      "sha256": "9a743ab6a56a83a6f8cbd3429504bcfecdf25f0601f18ab818af1e9814d15adc"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/container-result.json",
+      "sha256": "9e36e31973bbb316c00f009121dbf0c60291dfe9e8b2f9999a2ee4f0f6f0ee00"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/guest.json",
+      "sha256": "7021a622cf6e9273766ac428c2703207086e9389a574b9799293720c5b2b4a40"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/host-after.json",
+      "sha256": "30123950ab83499b284839ccda80e694ecd8e7191ebdf339bc79ef99c6757c43"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/host-before.json",
+      "sha256": "4f438ba12cd1d387bfaaf2c13f93f8299c62c8afce4514261a07caf2b04a1dec"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/journal-limeos.txt",
+      "sha256": "70c13dfc6855daaa63ac7c748e5da0ebe285b3a84b4b99fa6c86f235609e67eb"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/supervisor.log",
+      "sha256": "b69bf6890ed34a1cb675bfbce1b3867b9dd41d70e9bdbcccbe21eeec6c783881"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/deadline-proof/console.log",
+      "sha256": "63c1b29fbd01788f0e6483a4bb7237b8cd98104f45cb369e48a15a65a2f0a49f"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/deadline-proof/guest.json",
+      "sha256": "de2979d6cd990b107451b7e882608654c71d8e09e965cee73b34df45522edd01"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/deadline-proof/host-after.json",
+      "sha256": "33e94425fbef49dfde5f7c567a737c2ebd49a245fdc1037bdbf3f229d91d1332"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/deadline-proof/host-before.json",
+      "sha256": "44582ef32616a6723b5b12bb0ad72ddc27621c9b9d56f853e9723884b434f93a"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/deadline-proof/host-preflight-before.json",
+      "sha256": "af6af3cfef6e3323957ed7109dbcef70e8bc339362a5cce8e8ceaf30235558aa"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/deadline-proof/supervisor.log",
+      "sha256": "128fdca9c1a18da9a3d23b80c52ebf109f00a3de16cf5f8cf1defc18cc6d7a66"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-commands.jsonl",
+      "sha256": "9b221632ad56bca2f11449903c281c7433a1224423e7bf354e6bfc968fac5eae"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-package-decision.json",
+      "sha256": "a044956a34b9df86d868878872705410a9615ebdf42457354c4535d6f12f919f"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-packages-added.txt",
+      "sha256": "2c9b26057bf924189af8bc1ddaaa7161691e5d38c472b136985865f397826b44"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-packages-after-install.txt",
+      "sha256": "c128dae6d6d5bb6f84bce1573de9684a05253047beb2af6e73a6dd0d7f7f3af9"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-packages-after-teardown.txt",
+      "sha256": "253e889bd72a97711248604b3d3c569f01753711cbe0e680134c4c4a4f5c8b6e"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-packages-before.txt",
+      "sha256": "253e889bd72a97711248604b3d3c569f01753711cbe0e680134c4c4a4f5c8b6e"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-preflight.json",
+      "sha256": "4632e21a5db5b5dd7dc0fa4d4ef87c8d2990f1a1ae32c7eb6369662e5f05b6e8"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-purge-simulation.txt",
+      "sha256": "506d265d5e0929a752e3e6695e59bc9e25dd4a2d486720207271c6f8ebc15eaf"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/container-224054.json",
+      "sha256": "9154b6c2c62b8a8874707f76c61254a7989e3a56c7feca7cd48af468176fffec"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/container-224601.json",
+      "sha256": "2fd17b81de52e7a8a9e76351e23131faec07a75aa0a349601d56104bb603f18d"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/install-221513.json",
+      "sha256": "7fd2e8911b6b82df0ff73ab3779e005616a7820bb457d876b791c30c415764b5"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/install-222021.json",
+      "sha256": "c4819e1174a3216d5e1fef76dc4fd9575f872005f74989f5e738b0af46f8d4f1"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/install-222527.json",
+      "sha256": "5b3aea45776554848d7e6848f944fa9f1d4d01ef2d5ca4922f38daa3e8ebcd28"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/install-223034.json",
+      "sha256": "8791aeb43a99eb1b750ae7214c363836ab43c77b6d4ec4f18e5b86ee0b21e7ea"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/storage-223629.json",
+      "sha256": "69f43d2b1d47a9ba2b52d14884b873dbcbc98045f104ed74fb9ab032f993c6fb"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/inspector/guest.json",
+      "sha256": "3edb084801d2c557db4b5d911e2ba92a0a8490d463cb9deac441145929dc701b"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/inspector/host-after.json",
+      "sha256": "191d8238f79664f0d3c77e2b64eb3c7c75b276bc0ad262569bc9ccbc32960932"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/inspector/host-before.json",
+      "sha256": "3f90d0f9df569ee1a5786c29c32c8fbccfbc46e797d5ce8a4d7027bdc5b6ef4e"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/inspector/inspector-console.txt",
+      "sha256": "65d870f5ea963bfa4cef752e4250a10bb2d3d8e35a39099a6e42977669f97645"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/inspector/inspector-result.json",
+      "sha256": "e5c22c0d9345cb6b8eeb7719c8df6583dce169d7fb9444eeed572cf826f4df2d"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/inspector/supervisor.log",
+      "sha256": "ad26cad551b9eb31b4d8c744605aec764f10669b7e6179afc213cf75f9d65e74"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/guest.json",
+      "sha256": "a17232709c13eb1393b2a5b81539d9f8ce0876cfff8e5bfad3894fc9f6735f69"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/host-after.json",
+      "sha256": "96fb82bcc7e700782b3641e444d5b1e76ebba723e7f7a9fb7066165a1ab7c1a4"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/host-before.json",
+      "sha256": "f9a6c5eb7f26ec02422cc91dc8fed3d93b030e70b8aa27eb86ea864d829f9e06"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/host-preflight-before.json",
+      "sha256": "1ce5f7fb0469e459e27fc86390f32c381ec5cf749c1b33763a8d484eb55ac771"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/install-console.txt",
+      "sha256": "80b9a3955191c5fb6aec0d3d707f90a7c687d29f9c560b520d8ffd4c01796b56"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/install-result.json",
+      "sha256": "1212f525a463489bba0e6165d13ad2e242d0a2d58ab8e1c02bdb4f16c87c5f61"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/journal-limeos.txt",
+      "sha256": "ab65a5f0d55b89d944291ae49ab39a98ceb47854e4d64cd0bbba7a9e53069ddd"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/supervisor.log",
+      "sha256": "1e715e99c9130c7d75b8c91c8484b36ab707a66e2fdd1718f7272779392ad824"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/sign-previous.sh",
+      "sha256": "ea321303438a1decc9bdf15536637ce747ae58bd6de859fcac3c81b78ba24c20"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/extra-console.txt",
+      "sha256": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/extra-result.json",
+      "sha256": "c7a86c7702c7c01625cfbf4112b7040d962fd51945c99f4a34eb95d9a347b7d0"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/guest.json",
+      "sha256": "bb7896aed3ec76e42b67752ac315ca4ed1823d2e44776e86a0cd6c66b67e6988"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/host-after.json",
+      "sha256": "877825c317edd2fca3565157aea1a6a2f2fdf5b2b1818e8b13b709d415209a90"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/host-before.json",
+      "sha256": "5d6adb0c3e3b6fc352d630653ba25f8437840eb5ccacc27f81b924a82eb20f34"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/journal-limeos.txt",
+      "sha256": "8c166ead6bc044af0fcce705a619f4d70d7a96eed175dcc60b27ca46f5134ae1"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/storage-console.txt",
+      "sha256": "18ac7ebc1f5e4eb742bef68a34cb81c27e3dafe9dc7eb86ea420889f2acfc643"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/storage-result.json",
+      "sha256": "31ff39b6859ccc413e21ee7316aa2880b5910a0648fd94317e4012945e48a566"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/supervisor.log",
+      "sha256": "215a2c6254d9bf546f980143af84d0945c253f618361a879caab8c4ff16817be"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/guest.json",
+      "sha256": "cd4c0c39bc74697f9af6bd6cef36796fe9728ec1208f03888f77343d77bb22fe"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/host-after.json",
+      "sha256": "c0203da73e42468cccf48e0e61d12a436e210d19d932db9c4b067df0d50429af"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/host-before.json",
+      "sha256": "9d14460b97a0369d3bb773f828dc28f6f627290b6ee9c698dc0190d8e5114dcd"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/journal-limeos.txt",
+      "sha256": "57468d1e473db859d7b55d1fbc91c9ddd19eeb5975c245735921a489d2d31864"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/previous-artifact.json",
+      "sha256": "ea6f5fcb78887273ae8c6f8fe511366df3a0628f46560efab20644bef282308c"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/previous-signing-fingerprint.txt",
+      "sha256": "2b2f2870c799c478c077444dccd5244a9dc13dae484fcb61ba550634315c976b"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/sign-previous.txt",
+      "sha256": "51248f0ef57e9900b87f19fbc67156025a88430a40373dbadd9e6e8ed13b6511"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/supervisor.log",
+      "sha256": "ba20bc746b0bb2bb6229e4db43ffce714f9c701e1cadd75da6f54c6e04cc18a1"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/upgrade-console.txt",
+      "sha256": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/upgrade-result.json",
+      "sha256": "2e45a42ac40dcafdae6b773d49e123b33e380680bb88b8b1bd06f6c56740eb0a"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/guest.json",
+      "sha256": "ac217a7d9ff32641e1daa7e7507270267dba14b3432953e54a5bf29e37c52652"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/host-after.json",
+      "sha256": "0efffddadb15afa1691ac6d59326ef1218fdaba4d72031dd08f12f8888ec5a24"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/host-before.json",
+      "sha256": "c44ae48b9a771182d9adeee58a818f632f701c7d0b321d3e63d1cd849047a145"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/journal-limeos.txt",
+      "sha256": "59f782899493d76513dcbed035f3c92a4dfd303ddb847eff4fb84f88f3d4ba00"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/previous-artifact.json",
+      "sha256": "93c25d5fe0ce4b42ddaf354dd789f53b66adac633343f91188a0cb8c79b7c25e"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/previous-signing-fingerprint.txt",
+      "sha256": "ba53e0a8fff2d9282ebbec5d8aaa8494b8bbd14e378d33f3363ee1a95ec3e67e"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/sign-previous.txt",
+      "sha256": "0c39ef4893ca21f53e0ca7d9c137638182c0699efe8d18e7d5ab23e1ef36adf2"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/supervisor.log",
+      "sha256": "67545be51c41941413b394600223a0a04918105b7cc9faedcadb0be6193b8073"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/upgrade-console.txt",
+      "sha256": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/upgrade-result.json",
+      "sha256": "6e9f95c660b18807958f0bee5265164c9c14bd37e3a4cb915af72669c1052806"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/budgets.json",
+      "sha256": "2f451f5056db90cdfd5a90ea3cd88ead2ceda983da98c81e29361b725a5e45d0"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/build-result.json",
+      "sha256": "8b6fe1dd64e3e4fedc454cc5a3ddbc630d5218bf5de187d285f56e774f31c50a"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/apt.txt",
+      "sha256": "ad601fcfc75b9440065a2113b205953cbaa09db4b957979670f278b9ff6ff725"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/clippy.txt",
+      "sha256": "ec3cc4f48b5edd68a45e94250568bf321ab70e4c09b474713be07a65fec7822d"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/contracts.txt",
+      "sha256": "71a9d4bb9904f5dfa578b3da6cbdbeaeccc93fc97c1f3ee36d178098255e2560"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/dependency-direction.txt",
+      "sha256": "47a022219c43bc44630071877c14a17d076fdba79bf4f8757f99ee3eb30b5e5d"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/fetch.txt",
+      "sha256": "6c92e6910fc41467f77da95279a70bcb377556b83f25c895f16cdfd584044954"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/fmt.txt",
+      "sha256": "5fcb04dce61431e03194e48dc201c4f32c352e4a96d055e73ed0191c5364579a"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/package-shadow.txt",
+      "sha256": "6af74a2d2473d485339ce396acfb15602e9f3c7cc5e9e644e390753f1f0e353a"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/package-standard.txt",
+      "sha256": "743be6baef6ad8421d8751fb16f87e3ee8c5995075e9547d9f65d8b625f4d396"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/release.txt",
+      "sha256": "944acbe271d763a3844c292d32f565fd9430b317ef689745c7f1c62f8e1717e3"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/repository.txt",
+      "sha256": "fa2989fd1cb2d55a4efe1204a6e8ec892a0f6a0671825716b117a79f66ee96ea"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/rustup.txt",
+      "sha256": "d933a04bce4e925b11170d384808767ba8c5a672802e14ecc1625347b950f8de"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/signing-key.txt",
+      "sha256": "8e4341e609f8404cc97817384b62ce3956b9e4ae8c8b36785209961e4b42006c"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/test.txt",
+      "sha256": "7154b29cd4accfbe9d7ef116eeecc71b961c1131dfb3da7c6affa2a8297bc67a"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/evidence-sha256.json",
+      "sha256": "cda3668ea4a4b55b3d52765fff28e0688b4a2d8d906d9803db74a561cb8f3bbc"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/host/preflight.json",
+      "sha256": "4632e21a5db5b5dd7dc0fa4d4ef87c8d2990f1a1ae32c7eb6369662e5f05b6e8"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/qualification-status.json",
+      "sha256": "1b100394fcc6ebd27113fb5e784a3275dfa8e567f6cab8b30656eb3085df3324"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/results/container-result.json",
+      "sha256": "9e36e31973bbb316c00f009121dbf0c60291dfe9e8b2f9999a2ee4f0f6f0ee00"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/results/extra-result.json",
+      "sha256": "c7a86c7702c7c01625cfbf4112b7040d962fd51945c99f4a34eb95d9a347b7d0"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/results/install-result.json",
+      "sha256": "1212f525a463489bba0e6165d13ad2e242d0a2d58ab8e1c02bdb4f16c87c5f61"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/results/storage-result.json",
+      "sha256": "31ff39b6859ccc413e21ee7316aa2880b5910a0648fd94317e4012945e48a566"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/results/upgrade-schema6-result.json",
+      "sha256": "2e45a42ac40dcafdae6b773d49e123b33e380680bb88b8b1bd06f6c56740eb0a"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/results/upgrade-schema7-result.json",
+      "sha256": "6e9f95c660b18807958f0bee5265164c9c14bd37e3a4cb915af72669c1052806"
+    },
+    {
+      "branch_tip": "5866c49",
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/source-manifest.json",
+      "sha256": "b0b983754544b3b6560cfbf8957bb3c327f7e5fcff8adce5b4c1efb4a7160ef4"
+    }
+  ]
+}
