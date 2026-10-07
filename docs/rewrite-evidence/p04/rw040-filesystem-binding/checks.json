@@ -1,0 +1,128 @@
+{
+  "checks": [
+    {
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache cargo fmt --all --check",
+      "evidence": "tool result; no retained stdout transcript",
+      "exit_code": 0,
+      "log": null
+    },
+    {
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+      "exit_code": 0,
+      "log": "strict-clippy.log.gz"
+    },
+    {
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache cargo test -p limeos-executor-storage --locked --offline",
+      "exit_code": 0,
+      "log": "unit-tests.log.gz"
+    },
+    {
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache cargo test --workspace --locked --offline",
+      "exit_code": 0,
+      "log": "workspace-tests.log.gz"
+    },
+    {
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache CARGO_NET_OFFLINE=true UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline scripts/check_contracts.py",
+      "exit_code": 0,
+      "log": "contracts.log.gz"
+    },
+    {
+      "command": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline scripts/check_repository.py",
+      "evidence": "tool result; no retained stdout transcript",
+      "exit_code": 0,
+      "log": null
+    },
+    {
+      "command": "env PATH=/tmp/limeos-validation-bin:/usr/local/bin:/usr/bin:/bin cargo deny --offline check",
+      "exit_code": 0,
+      "log": "cargo-deny.log.gz"
+    },
+    {
+      "command": "env PATH=/tmp/limeos-validation-bin:/usr/local/bin:/usr/bin:/bin cargo audit --no-fetch",
+      "exit_code": 0,
+      "log": "cargo-audit.log.gz"
+    },
+    {
+      "command": "git diff --check",
+      "evidence": "tool result; no retained stdout transcript",
+      "exit_code": 0,
+      "log": null
+    }
+  ],
+  "counts": {
+    "cached_advisories": 1290,
+    "locked_dependencies": 227,
+    "new_binder_tests": 18,
+    "new_storage_tests": 3,
+    "rust_workspace": 271,
+    "storage_executor": 53
+  },
+  "logs": {
+    "cargo-audit": {
+      "bytes": 136,
+      "file": "cargo-audit.log.gz",
+      "raw_bytes": 144,
+      "raw_sha256": "5ab8a6f15ea0c9a169c08077d4e8ffa23218a435690b7d7c3df000b5ef4e11c9",
+      "sha256": "7c7c21997df1426228b326860914dc898fb7c3ec64bfc836b49c1a863eb83143"
+    },
+    "cargo-deny": {
+      "bytes": 1997,
+      "file": "cargo-deny.log.gz",
+      "raw_bytes": 17590,
+      "raw_sha256": "f88e07b47dd50059e3748331edb5fc41512e65401bed9045ee84ced71a7d91cf",
+      "sha256": "b5c5b6769ad208e54259a184620d3c10ed2ac6df3f850698d6837cdb10e1bf8d"
+    },
+    "contracts": {
+      "bytes": 166,
+      "file": "contracts.log.gz",
+      "raw_bytes": 200,
+      "raw_sha256": "aa9dd7fe951b5a10b4d792014de909909d1b814699eac387c4fb4dbf535fca02",
+      "sha256": "166d3d2f9765da4f1ba2720f15955682e830fb2e0e7b370e0e5dd8251d645f36"
+    },
+    "strict-clippy": {
+      "bytes": 203,
+      "file": "strict-clippy.log.gz",
+      "raw_bytes": 320,
+      "raw_sha256": "797d63dc8a394f39496b1eed4bca5a3ae40b5f381bfb3806651e2df3d41b23a5",
+      "sha256": "0d4eadc5f1c8b0d5cf6606486347d9067a6a6b06ccd68190a65b126dae661096"
+    },
+    "unit-tests": {
+      "bytes": 1938,
+      "file": "unit-tests.log.gz",
+      "raw_bytes": 5559,
+      "raw_sha256": "deb698fa8b423a57ba298b7b0bb35bbd088d727c3897dfcb9597e3cae79b9d20",
+      "sha256": "05b265ae93ed83e9cfeeb0ade9a3f9cf1bf26bdf0438dfa56537db67adae248c"
+    },
+    "workspace-tests": {
+      "bytes": 8139,
+      "file": "workspace-tests.log.gz",
+      "raw_bytes": 30656,
+      "raw_sha256": "54ce44955a042c0d64888bb4c5bdc6970a2a961c356eddd9af0c13c3fdb9decb",
+      "sha256": "0bccda7e7bfa6da882a4fb93f7c06294ffd6c52d6dd2d983a89831b88a67f402"
+    }
+  },
+  "platform": "Linux 7.0.14-101.fc43.x86_64 #1 SMP PREEMPT_DYNAMIC Wed Jul  1 13:50:13 UTC 2026 x86_64 GNU/Linux",
+  "previous_runtime_source": "f90a51c6c83d941dc35c99fe436b29a771ee2b34",
+  "scope": {
+    "combined_collection": "library only; successful installed/root combined collection untested",
+    "frontend": "unchanged; not rerun locally",
+    "fstab_identity": "real unprivileged private files",
+    "mapping": "synthetic retained-collector kernel/probe facts",
+    "pi_contacted": false,
+    "python_project_contacted": false,
+    "source_resolution": "existing real unprivileged source tests retained",
+    "storage_effect_added": false
+  },
+  "tested_source": "1628fd4f42f25cc38102ba6f4c1ed6fc2392f032",
+  "timing": {
+    "active_agent_seconds": null,
+    "design_commit_utc": "2026-10-06T22:51:52Z",
+    "human_engineering_hours": null,
+    "phase_estimate_hours": 320,
+    "phase_review_hours": 480,
+    "slice_estimate_hours": 8,
+    "slice_review_hours": 12,
+    "source_commit_utc": "2026-10-07T07:34:13Z",
+    "tool_suspension_seconds_approximate": 30972
+  }
+}

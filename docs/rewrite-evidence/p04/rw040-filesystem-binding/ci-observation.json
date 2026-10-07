@@ -1,0 +1,726 @@
+{
+  "jobs": {
+    "jobs": [
+      {
+        "check_run_url": "https://api.github.com/repos/Brownster/limeos/check-runs/112682978498",
+        "completed_at": "2026-10-07T07:43:47Z",
+        "conclusion": "success",
+        "created_at": "2026-10-07T07:34:18Z",
+        "head_branch": "main",
+        "head_sha": "1628fd4f42f25cc38102ba6f4c1ed6fc2392f032",
+        "html_url": "https://github.com/Brownster/limeos/actions/runs/37588143035/job/112682978498",
+        "id": 112682978498,
+        "labels": [
+          "ubuntu-24.04-arm"
+        ],
+        "name": "check (ubuntu-24.04-arm)",
+        "node_id": "CR_kwDOU9D-vc8AAAAaPG3Mwg",
+        "run_attempt": 1,
+        "run_id": 37588143035,
+        "run_url": "https://api.github.com/repos/Brownster/limeos/actions/runs/37588143035",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions",
+        "runner_id": 1000021215,
+        "runner_name": "GitHub Actions 1000021215",
+        "started_at": "2026-10-07T07:34:23Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completed_at": "2026-10-07T07:34:24Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "started_at": "2026-10-07T07:34:23Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:34:25Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "number": 2,
+            "started_at": "2026-10-07T07:34:24Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:34:28Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "number": 3,
+            "started_at": "2026-10-07T07:34:25Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:38:41Z",
+            "conclusion": "success",
+            "name": "Toolchain and native validation tools",
+            "number": 4,
+            "started_at": "2026-10-07T07:34:28Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:38:41Z",
+            "conclusion": "success",
+            "name": "Run cargo fmt --all -- --check",
+            "number": 5,
+            "started_at": "2026-10-07T07:38:41Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:39:13Z",
+            "conclusion": "success",
+            "name": "Run cargo clippy --workspace --all-targets --locked -- -D warnings",
+            "number": 6,
+            "started_at": "2026-10-07T07:38:41Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:40:07Z",
+            "conclusion": "success",
+            "name": "Run cargo test --workspace --locked",
+            "number": 7,
+            "started_at": "2026-10-07T07:39:13Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:40:08Z",
+            "conclusion": "success",
+            "name": "Run cargo deny check",
+            "number": 8,
+            "started_at": "2026-10-07T07:40:07Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:40:10Z",
+            "conclusion": "success",
+            "name": "Run cargo audit",
+            "number": 9,
+            "started_at": "2026-10-07T07:40:08Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:40:11Z",
+            "conclusion": "success",
+            "name": "Run shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh tests/fixtures/backup-archives/generate.sh",
+            "number": 10,
+            "started_at": "2026-10-07T07:40:10Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:40:33Z",
+            "conclusion": "success",
+            "name": "Unit validation",
+            "number": 11,
+            "started_at": "2026-10-07T07:40:11Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:40:33Z",
+            "conclusion": "success",
+            "name": "Run python3 scripts/check_repository.py",
+            "number": 12,
+            "started_at": "2026-10-07T07:40:33Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:40:45Z",
+            "conclusion": "success",
+            "name": "Run python3 scripts/check_contracts.py",
+            "number": 13,
+            "started_at": "2026-10-07T07:40:33Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:40:45Z",
+            "conclusion": "success",
+            "name": "ARM64 qualification evidence and host guards",
+            "number": 14,
+            "started_at": "2026-10-07T07:40:45Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:40:51Z",
+            "conclusion": "success",
+            "name": "Run npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high",
+            "number": 15,
+            "started_at": "2026-10-07T07:40:45Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:40:51Z",
+            "conclusion": "skipped",
+            "name": "Lifecycle, logs and keyboard-focus browser regression",
+            "number": 16,
+            "started_at": "2026-10-07T07:40:51Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:41:28Z",
+            "conclusion": "success",
+            "name": "Deliberate release-gate rejection probes",
+            "number": 17,
+            "started_at": "2026-10-07T07:40:51Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:43:44Z",
+            "conclusion": "success",
+            "name": "Debian 12 release builds on native architecture",
+            "number": 18,
+            "started_at": "2026-10-07T07:41:28Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:43:45Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+            "number": 19,
+            "started_at": "2026-10-07T07:43:44Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:43:45Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "number": 37,
+            "started_at": "2026-10-07T07:43:45Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:43:45Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "number": 38,
+            "started_at": "2026-10-07T07:43:45Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:43:45Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 39,
+            "started_at": "2026-10-07T07:43:45Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://api.github.com/repos/Brownster/limeos/actions/jobs/112682978498",
+        "workflow_name": "Foundation, observation and operation gates"
+      },
+      {
+        "check_run_url": "https://api.github.com/repos/Brownster/limeos/check-runs/112682978775",
+        "completed_at": "2026-10-07T07:46:40Z",
+        "conclusion": "success",
+        "created_at": "2026-10-07T07:34:18Z",
+        "head_branch": "main",
+        "head_sha": "1628fd4f42f25cc38102ba6f4c1ed6fc2392f032",
+        "html_url": "https://github.com/Brownster/limeos/actions/runs/37588143035/job/112682978775",
+        "id": 112682978775,
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "name": "check (ubuntu-24.04)",
+        "node_id": "CR_kwDOU9D-vc8AAAAaPG3N1w",
+        "run_attempt": 1,
+        "run_id": 37588143035,
+        "run_url": "https://api.github.com/repos/Brownster/limeos/actions/runs/37588143035",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions",
+        "runner_id": 1000021216,
+        "runner_name": "GitHub Actions 1000021216",
+        "started_at": "2026-10-07T07:34:21Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completed_at": "2026-10-07T07:34:22Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "started_at": "2026-10-07T07:34:22Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:34:23Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "number": 2,
+            "started_at": "2026-10-07T07:34:22Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:34:26Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "number": 3,
+            "started_at": "2026-10-07T07:34:23Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:39:39Z",
+            "conclusion": "success",
+            "name": "Toolchain and native validation tools",
+            "number": 4,
+            "started_at": "2026-10-07T07:34:26Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:39:40Z",
+            "conclusion": "success",
+            "name": "Run cargo fmt --all -- --check",
+            "number": 5,
+            "started_at": "2026-10-07T07:39:39Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:40:26Z",
+            "conclusion": "success",
+            "name": "Run cargo clippy --workspace --all-targets --locked -- -D warnings",
+            "number": 6,
+            "started_at": "2026-10-07T07:39:40Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:41:40Z",
+            "conclusion": "success",
+            "name": "Run cargo test --workspace --locked",
+            "number": 7,
+            "started_at": "2026-10-07T07:40:26Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:41:42Z",
+            "conclusion": "success",
+            "name": "Run cargo deny check",
+            "number": 8,
+            "started_at": "2026-10-07T07:41:40Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:41:45Z",
+            "conclusion": "success",
+            "name": "Run cargo audit",
+            "number": 9,
+            "started_at": "2026-10-07T07:41:42Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:41:45Z",
+            "conclusion": "success",
+            "name": "Run shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh tests/fixtures/backup-archives/generate.sh",
+            "number": 10,
+            "started_at": "2026-10-07T07:41:45Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:42:16Z",
+            "conclusion": "success",
+            "name": "Unit validation",
+            "number": 11,
+            "started_at": "2026-10-07T07:41:45Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:42:16Z",
+            "conclusion": "success",
+            "name": "Run python3 scripts/check_repository.py",
+            "number": 12,
+            "started_at": "2026-10-07T07:42:16Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:42:31Z",
+            "conclusion": "success",
+            "name": "Run python3 scripts/check_contracts.py",
+            "number": 13,
+            "started_at": "2026-10-07T07:42:16Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:42:32Z",
+            "conclusion": "success",
+            "name": "ARM64 qualification evidence and host guards",
+            "number": 14,
+            "started_at": "2026-10-07T07:42:31Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:42:38Z",
+            "conclusion": "success",
+            "name": "Run npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high",
+            "number": 15,
+            "started_at": "2026-10-07T07:42:32Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:42:58Z",
+            "conclusion": "success",
+            "name": "Lifecycle, logs and keyboard-focus browser regression",
+            "number": 16,
+            "started_at": "2026-10-07T07:42:38Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:43:46Z",
+            "conclusion": "success",
+            "name": "Deliberate release-gate rejection probes",
+            "number": 17,
+            "started_at": "2026-10-07T07:42:58Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:46:37Z",
+            "conclusion": "success",
+            "name": "Debian 12 release builds on native architecture",
+            "number": 18,
+            "started_at": "2026-10-07T07:43:46Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:46:38Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+            "number": 19,
+            "started_at": "2026-10-07T07:46:37Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:46:39Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+            "number": 37,
+            "started_at": "2026-10-07T07:46:38Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:46:39Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "number": 38,
+            "started_at": "2026-10-07T07:46:39Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:46:39Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 39,
+            "started_at": "2026-10-07T07:46:39Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://api.github.com/repos/Brownster/limeos/actions/jobs/112682978775",
+        "workflow_name": "Foundation, observation and operation gates"
+      },
+      {
+        "check_run_url": "https://api.github.com/repos/Brownster/limeos/check-runs/112687117892",
+        "completed_at": "2026-10-07T08:01:09Z",
+        "conclusion": "success",
+        "created_at": "2026-10-07T07:46:40Z",
+        "head_branch": "main",
+        "head_sha": "1628fd4f42f25cc38102ba6f4c1ed6fc2392f032",
+        "html_url": "https://github.com/Brownster/limeos/actions/runs/37588143035/job/112687117892",
+        "id": 112687117892,
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "name": "debian-vm",
+        "node_id": "CR_kwDOU9D-vc8AAAAaPKz2RA",
+        "run_attempt": 1,
+        "run_id": 37588143035,
+        "run_url": "https://api.github.com/repos/Brownster/limeos/actions/runs/37588143035",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions",
+        "runner_id": 1000021217,
+        "runner_name": "GitHub Actions 1000021217",
+        "started_at": "2026-10-07T07:46:43Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completed_at": "2026-10-07T07:46:45Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "started_at": "2026-10-07T07:46:43Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:46:47Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "number": 2,
+            "started_at": "2026-10-07T07:46:45Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T07:46:48Z",
+            "conclusion": "success",
+            "name": "Run actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+            "number": 3,
+            "started_at": "2026-10-07T07:46:47Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T08:01:07Z",
+            "conclusion": "success",
+            "name": "Disposable Debian signed-apt and systemd acceptance",
+            "number": 4,
+            "started_at": "2026-10-07T07:46:48Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T08:01:08Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+            "number": 5,
+            "started_at": "2026-10-07T08:01:07Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T08:01:08Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+            "number": 10,
+            "started_at": "2026-10-07T08:01:08Z",
+            "status": "completed"
+          },
+          {
+            "completed_at": "2026-10-07T08:01:08Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "started_at": "2026-10-07T08:01:08Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://api.github.com/repos/Brownster/limeos/actions/jobs/112687117892",
+        "workflow_name": "Foundation, observation and operation gates"
+      }
+    ],
+    "total_count": 3
+  },
+  "observed_at": "2026-10-07T08:40:06.795299+00:00",
+  "run": {
+    "actor": {
+      "avatar_url": "https://avatars.githubusercontent.com/u/6543166?v=4",
+      "events_url": "https://api.github.com/users/Brownster/events{/privacy}",
+      "followers_url": "https://api.github.com/users/Brownster/followers",
+      "following_url": "https://api.github.com/users/Brownster/following{/other_user}",
+      "gists_url": "https://api.github.com/users/Brownster/gists{/gist_id}",
+      "gravatar_id": "",
+      "html_url": "https://github.com/Brownster",
+      "id": 6543166,
+      "login": "Brownster",
+      "node_id": "MDQ6VXNlcjY1NDMxNjY=",
+      "organizations_url": "https://api.github.com/users/Brownster/orgs",
+      "received_events_url": "https://api.github.com/users/Brownster/received_events",
+      "repos_url": "https://api.github.com/users/Brownster/repos",
+      "site_admin": false,
+      "starred_url": "https://api.github.com/users/Brownster/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/Brownster/subscriptions",
+      "type": "User",
+      "url": "https://api.github.com/users/Brownster",
+      "user_view_type": "public"
+    },
+    "artifacts_url": "https://api.github.com/repos/Brownster/limeos/actions/runs/37588143035/artifacts",
+    "cancel_url": "https://api.github.com/repos/Brownster/limeos/actions/runs/37588143035/cancel",
+    "check_suite_id": 101821633535,
+    "check_suite_node_id": "CS_kwDOU9D-vc8AAAAXtQrT_w",
+    "check_suite_url": "https://api.github.com/repos/Brownster/limeos/check-suites/101821633535",
+    "conclusion": "success",
+    "created_at": "2026-10-07T07:34:17Z",
+    "display_title": "\u2728 feat: Bind container sources to fresh filesystem identities",
+    "event": "push",
+    "head_branch": "main",
+    "head_commit": {
+      "author": {
+        "email": "marcsmobile.brown@gmail.com",
+        "name": "marc"
+      },
+      "committer": {
+        "email": "marcsmobile.brown@gmail.com",
+        "name": "marc"
+      },
+      "id": "1628fd4f42f25cc38102ba6f4c1ed6fc2392f032",
+      "message": "\u2728 feat: Bind container sources to fresh filesystem identities\n\nRetain raw block probes, topology, swap, mount-table and fstab identity alongside host source descriptors. Report exact-filesystem and conservative shared-backing consumers without adding executor requests or storage effects.\n\nRefuse unavailable or duplicate UUIDs, unsupported backing evidence, changed identities, expired observations and excessive reports. Local validation passes 271 workspace tests, including 21 new storage tests, strict Clippy, generated contracts, repository boundaries, formatting and dependency policy/advisory checks.",
+      "timestamp": "2026-10-07T07:34:13Z",
+      "tree_id": "06bd5b01365afb7810a5ce3453bece1f496e7e1a"
+    },
+    "head_repository": {
+      "archive_url": "https://api.github.com/repos/Brownster/limeos/{archive_format}{/ref}",
+      "assignees_url": "https://api.github.com/repos/Brownster/limeos/assignees{/user}",
+      "blobs_url": "https://api.github.com/repos/Brownster/limeos/git/blobs{/sha}",
+      "branches_url": "https://api.github.com/repos/Brownster/limeos/branches{/branch}",
+      "collaborators_url": "https://api.github.com/repos/Brownster/limeos/collaborators{/collaborator}",
+      "comments_url": "https://api.github.com/repos/Brownster/limeos/comments{/number}",
+      "commits_url": "https://api.github.com/repos/Brownster/limeos/commits{/sha}",
+      "compare_url": "https://api.github.com/repos/Brownster/limeos/compare/{base}...{head}",
+      "contents_url": "https://api.github.com/repos/Brownster/limeos/contents/{+path}",
+      "contributors_url": "https://api.github.com/repos/Brownster/limeos/contributors",
+      "deployments_url": "https://api.github.com/repos/Brownster/limeos/deployments",
+      "description": "Media server",
+      "downloads_url": "https://api.github.com/repos/Brownster/limeos/downloads",
+      "events_url": "https://api.github.com/repos/Brownster/limeos/events",
+      "fork": false,
+      "forks_url": "https://api.github.com/repos/Brownster/limeos/forks",
+      "full_name": "Brownster/limeos",
+      "git_commits_url": "https://api.github.com/repos/Brownster/limeos/git/commits{/sha}",
+      "git_refs_url": "https://api.github.com/repos/Brownster/limeos/git/refs{/sha}",
+      "git_tags_url": "https://api.github.com/repos/Brownster/limeos/git/tags{/sha}",
+      "hooks_url": "https://api.github.com/repos/Brownster/limeos/hooks",
+      "html_url": "https://github.com/Brownster/limeos",
+      "id": 1406205629,
+      "issue_comment_url": "https://api.github.com/repos/Brownster/limeos/issues/comments{/number}",
+      "issue_events_url": "https://api.github.com/repos/Brownster/limeos/issues/events{/number}",
+      "issues_url": "https://api.github.com/repos/Brownster/limeos/issues{/number}",
+      "keys_url": "https://api.github.com/repos/Brownster/limeos/keys{/key_id}",
+      "labels_url": "https://api.github.com/repos/Brownster/limeos/labels{/name}",
+      "languages_url": "https://api.github.com/repos/Brownster/limeos/languages",
+      "merges_url": "https://api.github.com/repos/Brownster/limeos/merges",
+      "milestones_url": "https://api.github.com/repos/Brownster/limeos/milestones{/number}",
+      "name": "limeos",
+      "node_id": "R_kgDOU9D-vQ",
+      "notifications_url": "https://api.github.com/repos/Brownster/limeos/notifications{?since,all,participating}",
+      "owner": {
+        "avatar_url": "https://avatars.githubusercontent.com/u/6543166?v=4",
+        "events_url": "https://api.github.com/users/Brownster/events{/privacy}",
+        "followers_url": "https://api.github.com/users/Brownster/followers",
+        "following_url": "https://api.github.com/users/Brownster/following{/other_user}",
+        "gists_url": "https://api.github.com/users/Brownster/gists{/gist_id}",
+        "gravatar_id": "",
+        "html_url": "https://github.com/Brownster",
+        "id": 6543166,
+        "login": "Brownster",
+        "node_id": "MDQ6VXNlcjY1NDMxNjY=",
+        "organizations_url": "https://api.github.com/users/Brownster/orgs",
+        "received_events_url": "https://api.github.com/users/Brownster/received_events",
+        "repos_url": "https://api.github.com/users/Brownster/repos",
+        "site_admin": false,
+        "starred_url": "https://api.github.com/users/Brownster/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/Brownster/subscriptions",
+        "type": "User",
+        "url": "https://api.github.com/users/Brownster",
+        "user_view_type": "public"
+      },
+      "private": false,
+      "pulls_url": "https://api.github.com/repos/Brownster/limeos/pulls{/number}",
+      "releases_url": "https://api.github.com/repos/Brownster/limeos/releases{/id}",
+      "stargazers_url": "https://api.github.com/repos/Brownster/limeos/stargazers",
+      "statuses_url": "https://api.github.com/repos/Brownster/limeos/statuses/{sha}",
+      "subscribers_url": "https://api.github.com/repos/Brownster/limeos/subscribers",
+      "subscription_url": "https://api.github.com/repos/Brownster/limeos/subscription",
+      "tags_url": "https://api.github.com/repos/Brownster/limeos/tags",
+      "teams_url": "https://api.github.com/repos/Brownster/limeos/teams",
+      "trees_url": "https://api.github.com/repos/Brownster/limeos/git/trees{/sha}",
+      "url": "https://api.github.com/repos/Brownster/limeos"
+    },
+    "head_sha": "1628fd4f42f25cc38102ba6f4c1ed6fc2392f032",
+    "html_url": "https://github.com/Brownster/limeos/actions/runs/37588143035",
+    "id": 37588143035,
+    "jobs_url": "https://api.github.com/repos/Brownster/limeos/actions/runs/37588143035/jobs",
+    "logs_url": "https://api.github.com/repos/Brownster/limeos/actions/runs/37588143035/logs",
+    "name": "Foundation, observation and operation gates",
+    "node_id": "WFR_kwLOU9D-vc8AAAAIwG2Luw",
+    "path": ".github/workflows/ci.yml",
+    "previous_attempt_url": null,
+    "pull_requests": [],
+    "referenced_workflows": [],
+    "repository": {
+      "archive_url": "https://api.github.com/repos/Brownster/limeos/{archive_format}{/ref}",
+      "assignees_url": "https://api.github.com/repos/Brownster/limeos/assignees{/user}",
+      "blobs_url": "https://api.github.com/repos/Brownster/limeos/git/blobs{/sha}",
+      "branches_url": "https://api.github.com/repos/Brownster/limeos/branches{/branch}",
+      "collaborators_url": "https://api.github.com/repos/Brownster/limeos/collaborators{/collaborator}",
+      "comments_url": "https://api.github.com/repos/Brownster/limeos/comments{/number}",
+      "commits_url": "https://api.github.com/repos/Brownster/limeos/commits{/sha}",
+      "compare_url": "https://api.github.com/repos/Brownster/limeos/compare/{base}...{head}",
+      "contents_url": "https://api.github.com/repos/Brownster/limeos/contents/{+path}",
+      "contributors_url": "https://api.github.com/repos/Brownster/limeos/contributors",
+      "deployments_url": "https://api.github.com/repos/Brownster/limeos/deployments",
+      "description": "Media server",
+      "downloads_url": "https://api.github.com/repos/Brownster/limeos/downloads",
+      "events_url": "https://api.github.com/repos/Brownster/limeos/events",
+      "fork": false,
+      "forks_url": "https://api.github.com/repos/Brownster/limeos/forks",
+      "full_name": "Brownster/limeos",
+      "git_commits_url": "https://api.github.com/repos/Brownster/limeos/git/commits{/sha}",
+      "git_refs_url": "https://api.github.com/repos/Brownster/limeos/git/refs{/sha}",
+      "git_tags_url": "https://api.github.com/repos/Brownster/limeos/git/tags{/sha}",
+      "hooks_url": "https://api.github.com/repos/Brownster/limeos/hooks",
+      "html_url": "https://github.com/Brownster/limeos",
+      "id": 1406205629,
+      "issue_comment_url": "https://api.github.com/repos/Brownster/limeos/issues/comments{/number}",
+      "issue_events_url": "https://api.github.com/repos/Brownster/limeos/issues/events{/number}",
+      "issues_url": "https://api.github.com/repos/Brownster/limeos/issues{/number}",
+      "keys_url": "https://api.github.com/repos/Brownster/limeos/keys{/key_id}",
+      "labels_url": "https://api.github.com/repos/Brownster/limeos/labels{/name}",
+      "languages_url": "https://api.github.com/repos/Brownster/limeos/languages",
+      "merges_url": "https://api.github.com/repos/Brownster/limeos/merges",
+      "milestones_url": "https://api.github.com/repos/Brownster/limeos/milestones{/number}",
+      "name": "limeos",
+      "node_id": "R_kgDOU9D-vQ",
+      "notifications_url": "https://api.github.com/repos/Brownster/limeos/notifications{?since,all,participating}",
+      "owner": {
+        "avatar_url": "https://avatars.githubusercontent.com/u/6543166?v=4",
+        "events_url": "https://api.github.com/users/Brownster/events{/privacy}",
+        "followers_url": "https://api.github.com/users/Brownster/followers",
+        "following_url": "https://api.github.com/users/Brownster/following{/other_user}",
+        "gists_url": "https://api.github.com/users/Brownster/gists{/gist_id}",
+        "gravatar_id": "",
+        "html_url": "https://github.com/Brownster",
+        "id": 6543166,
+        "login": "Brownster",
+        "node_id": "MDQ6VXNlcjY1NDMxNjY=",
+        "organizations_url": "https://api.github.com/users/Brownster/orgs",
+        "received_events_url": "https://api.github.com/users/Brownster/received_events",
+        "repos_url": "https://api.github.com/users/Brownster/repos",
+        "site_admin": false,
+        "starred_url": "https://api.github.com/users/Brownster/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/Brownster/subscriptions",
+        "type": "User",
+        "url": "https://api.github.com/users/Brownster",
+        "user_view_type": "public"
+      },
+      "private": false,
+      "pulls_url": "https://api.github.com/repos/Brownster/limeos/pulls{/number}",
+      "releases_url": "https://api.github.com/repos/Brownster/limeos/releases{/id}",
+      "stargazers_url": "https://api.github.com/repos/Brownster/limeos/stargazers",
+      "statuses_url": "https://api.github.com/repos/Brownster/limeos/statuses/{sha}",
+      "subscribers_url": "https://api.github.com/repos/Brownster/limeos/subscribers",
+      "subscription_url": "https://api.github.com/repos/Brownster/limeos/subscription",
+      "tags_url": "https://api.github.com/repos/Brownster/limeos/tags",
+      "teams_url": "https://api.github.com/repos/Brownster/limeos/teams",
+      "trees_url": "https://api.github.com/repos/Brownster/limeos/git/trees{/sha}",
+      "url": "https://api.github.com/repos/Brownster/limeos"
+    },
+    "rerun_url": "https://api.github.com/repos/Brownster/limeos/actions/runs/37588143035/rerun",
+    "run_attempt": 1,
+    "run_number": 20,
+    "run_started_at": "2026-10-07T07:34:17Z",
+    "status": "completed",
+    "triggering_actor": {
+      "avatar_url": "https://avatars.githubusercontent.com/u/6543166?v=4",
+      "events_url": "https://api.github.com/users/Brownster/events{/privacy}",
+      "followers_url": "https://api.github.com/users/Brownster/followers",
+      "following_url": "https://api.github.com/users/Brownster/following{/other_user}",
+      "gists_url": "https://api.github.com/users/Brownster/gists{/gist_id}",
+      "gravatar_id": "",
+      "html_url": "https://github.com/Brownster",
+      "id": 6543166,
+      "login": "Brownster",
+      "node_id": "MDQ6VXNlcjY1NDMxNjY=",
+      "organizations_url": "https://api.github.com/users/Brownster/orgs",
+      "received_events_url": "https://api.github.com/users/Brownster/received_events",
+      "repos_url": "https://api.github.com/users/Brownster/repos",
+      "site_admin": false,
+      "starred_url": "https://api.github.com/users/Brownster/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/Brownster/subscriptions",
+      "type": "User",
+      "url": "https://api.github.com/users/Brownster",
+      "user_view_type": "public"
+    },
+    "updated_at": "2026-10-07T08:01:10Z",
+    "url": "https://api.github.com/repos/Brownster/limeos/actions/runs/37588143035",
+    "workflow_id": 375866151,
+    "workflow_url": "https://api.github.com/repos/Brownster/limeos/actions/workflows/375866151"
+  },
+  "scope": "current CI observation; in-progress is not qualification success",
+  "tested_source": "1628fd4f42f25cc38102ba6f4c1ed6fc2392f032"
+}

@@ -1,0 +1,138 @@
+{
+  "acceptance_groups": {
+    "approved": 50,
+    "dependencies": 49,
+    "foundation": 14,
+    "observations": 6,
+    "reference": 61
+  },
+  "archive_sha256": "eb1c64eddd4e7d0e404f69bb03ebfa17c4b3990416292fa79b4a2174fbfa398c",
+  "artifact": {
+    "archive_download_url": "https://api.github.com/repos/Brownster/limeos/actions/artifacts/11468626307/zip",
+    "created_at": "2026-10-07T08:01:08Z",
+    "digest": "sha256:eb1c64eddd4e7d0e404f69bb03ebfa17c4b3990416292fa79b4a2174fbfa398c",
+    "expired": false,
+    "expires_at": "2027-01-05T07:34:18Z",
+    "id": 11468626307,
+    "name": "debian-vm-evidence",
+    "node_id": "MDg6QXJ0aWZhY3QxMTQ2ODYyNjMwNw==",
+    "size_in_bytes": 71665,
+    "updated_at": "2026-10-07T08:01:08Z",
+    "url": "https://api.github.com/repos/Brownster/limeos/actions/artifacts/11468626307",
+    "workflow_run": {
+      "head_branch": "main",
+      "head_repository_id": 1406205629,
+      "head_sha": "1628fd4f42f25cc38102ba6f4c1ed6fc2392f032",
+      "id": 37588143035,
+      "repository_id": 1406205629
+    }
+  },
+  "files": {
+    "ci-approved-vm-result.json": {
+      "artifact_path": "p04/ci-approved-vm-result.json",
+      "bytes": 7700,
+      "result_keys": [
+        "passed",
+        "package_version",
+        "architecture",
+        "plan_wait_seconds",
+        "watchdog_seconds",
+        "payload_sha256",
+        "scope",
+        "limitations",
+        "reader_payload_sha256",
+        "target_payload_sha256",
+        "authority_schema",
+        "core_payload_sha256",
+        "upgrade",
+        "binary_sha256",
+        "image"
+      ],
+      "sha256": "7e4ae8d53eb1e317e585eba014e70bb2d79a30add53ec81f6202c2999df9582d"
+    },
+    "ci-dependencies-vm-result.json": {
+      "artifact_path": "p04/ci-dependencies-vm-result.json",
+      "bytes": 18847,
+      "result_keys": [
+        "checks",
+        "engine_version",
+        "container_fixture",
+        "restart_posts",
+        "restart_effect_ms",
+        "footprint",
+        "package_sha256",
+        "lifecycle_posts",
+        "operations",
+        "schemas",
+        "upgrade",
+        "package_version",
+        "dependency_inventory",
+        "dependency_cases",
+        "binary_sha256",
+        "limitations",
+        "image"
+      ],
+      "sha256": "557ba71a814c293862f3d44ee06a85607deb63e0d1e5552021fd1b800bccbf61"
+    },
+    "ci-foundation-vm-result.json": {
+      "artifact_path": "p01/ci-vm-result.json",
+      "bytes": 2003,
+      "result_keys": [
+        "platform",
+        "date_utc",
+        "kernel",
+        "vcpus",
+        "ram_mib",
+        "tests",
+        "measurements",
+        "startup_ms",
+        "status_cli_ms",
+        "combined_pss_kib",
+        "result",
+        "image"
+      ],
+      "sha256": "424c64780337e06d8f505a9ef241b7becc4335d8d9fd5c44e773f407d5b2f7a8"
+    },
+    "ci-observations-vm-result.json": {
+      "artifact_path": "p02/ci-vm-result.json",
+      "bytes": 1132,
+      "result_keys": [
+        "result",
+        "checks",
+        "shadow_pss_kib",
+        "combined_pss_kib",
+        "cached_http_p95_ms",
+        "engine_calls",
+        "scope",
+        "image"
+      ],
+      "sha256": "67b9b8c3943bcd280d9cb047b2ef90f84ade9dce7c0f1c59a3a69490cd305c49"
+    },
+    "ci-reference-vm-result.json": {
+      "artifact_path": "p03/ci-reference-vm-result.json",
+      "bytes": 8681,
+      "result_keys": [
+        "checks",
+        "engine_version",
+        "container_fixture",
+        "restart_posts",
+        "restart_effect_ms",
+        "footprint",
+        "package_sha256",
+        "lifecycle_posts",
+        "operations",
+        "schemas",
+        "upgrade",
+        "compose",
+        "reference",
+        "image"
+      ],
+      "sha256": "0ffe0425ab87fe0e72a1a758c17697dbf897c7f14787e1c8db5b636cc448244e"
+    }
+  },
+  "run_id": 37588143035,
+  "scope": "existing installed AMD64 suites; no end-to-end combined container filesystem evidence collection",
+  "selection": "Only the five exact CI output paths declared by the tested workflow; pre-existing historical files in the wildcard artifact are excluded.",
+  "tested_source": "1628fd4f42f25cc38102ba6f4c1ed6fc2392f032",
+  "total_acceptance_groups": 180
+}
