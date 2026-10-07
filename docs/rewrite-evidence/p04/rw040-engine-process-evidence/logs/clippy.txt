@@ -1,0 +1,3 @@
+    Checking limeos-executor-container v0.2.0 (/home/marc/Documents/github/lime-os/crates/executor-container)
+    Checking limeos-executor v0.2.0 (/home/marc/Documents/github/lime-os/bins/executor)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.03s

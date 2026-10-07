@@ -1,0 +1,967 @@
+{
+  "base": "b742f24fc31f940a6182c60f88bef0bbf93ff4ba",
+  "source_commit": "a216c101414056db203db5bae2752329808ebfa0",
+  "count": 160,
+  "files": [
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/budgets.json",
+      "git_blob": "99afd9c9187b81bb934e4725eddf6f09401e6cc4",
+      "sha256": "2f451f5056db90cdfd5a90ea3cd88ead2ceda983da98c81e29361b725a5e45d0",
+      "bytes": 1387
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/build-result.json",
+      "git_blob": "fb9fdf95a04d70ddb0ca5051d19c4ddd36a1ed8e",
+      "sha256": "8b6fe1dd64e3e4fedc454cc5a3ddbc630d5218bf5de187d285f56e774f31c50a",
+      "bytes": 82348
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/apt.txt",
+      "git_blob": "73b8dbede7852f2de5ff63c52b3939883fd53770",
+      "sha256": "ad601fcfc75b9440065a2113b205953cbaa09db4b957979670f278b9ff6ff725",
+      "bytes": 24529
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/clippy.txt",
+      "git_blob": "134713511c279e1176bb2153daae3eae018f940c",
+      "sha256": "ec3cc4f48b5edd68a45e94250568bf321ab70e4c09b474713be07a65fec7822d",
+      "bytes": 6397
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/contracts.txt",
+      "git_blob": "64c55a6eb6ca06c9090186809e6cd0b85b47d4c7",
+      "sha256": "71a9d4bb9904f5dfa578b3da6cbdbeaeccc93fc97c1f3ee36d178098255e2560",
+      "bytes": 1104
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/dependency-direction.txt",
+      "git_blob": "4d9b520428d51ff3e5910847c5300f6dd7ce0d5d",
+      "sha256": "47a022219c43bc44630071877c14a17d076fdba79bf4f8757f99ee3eb30b5e5d",
+      "bytes": 87
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/fetch.txt",
+      "git_blob": "f2ff79b8c1bcbe4efb30405d21b5973c476f21c2",
+      "sha256": "6c92e6910fc41467f77da95279a70bcb377556b83f25c895f16cdfd584044954",
+      "bytes": 6823
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/fmt.txt",
+      "git_blob": "8228710788ac9ac6fb87c66cb5ef382593a94039",
+      "sha256": "5fcb04dce61431e03194e48dc201c4f32c352e4a96d055e73ed0191c5364579a",
+      "bytes": 29
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/package-shadow.txt",
+      "git_blob": "524a7d0d9bfd24c29414cf516287404cf4db8064",
+      "sha256": "6af74a2d2473d485339ce396acfb15602e9f3c7cc5e9e644e390753f1f0e353a",
+      "bytes": 263
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/package-standard.txt",
+      "git_blob": "c7d3225e46127064ce00e81540af9e28fc6e1845",
+      "sha256": "743be6baef6ad8421d8751fb16f87e3ee8c5995075e9547d9f65d8b625f4d396",
+      "bytes": 251
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/release.txt",
+      "git_blob": "9fbb67ba8740e00811e7ec0b6a94828f2347e445",
+      "sha256": "944acbe271d763a3844c292d32f565fd9430b317ef689745c7f1c62f8e1717e3",
+      "bytes": 4758
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/repository.txt",
+      "git_blob": "95de1fd2af67cfb52ce30c272a1e82ab656a1f20",
+      "sha256": "fa2989fd1cb2d55a4efe1204a6e8ec892a0f6a0671825716b117a79f66ee96ea",
+      "bytes": 197
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/rustup.txt",
+      "git_blob": "8a6811fc6dbe7cbde7da53d98be44754719adb76",
+      "sha256": "d933a04bce4e925b11170d384808767ba8c5a672802e14ecc1625347b950f8de",
+      "bytes": 1696
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/signing-key.txt",
+      "git_blob": "00d148b66221fa709c0571398311d839217dac83",
+      "sha256": "8e4341e609f8404cc97817384b62ce3956b9e4ae8c8b36785209961e4b42006c",
+      "bytes": 450
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/build/logs/test.txt",
+      "git_blob": "7ddf5bbd7ba16f5e6b84f87de9b0d7db41955c33",
+      "sha256": "7154b29cd4accfbe9d7ef116eeecc71b961c1131dfb3da7c6affa2a8297bc67a",
+      "bytes": 32103
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/evidence-sha256.json",
+      "git_blob": "3c58a0606b6ed9df1a0815ca39f84b8cf29fbbb4",
+      "sha256": "cda3668ea4a4b55b3d52765fff28e0688b4a2d8d906d9803db74a561cb8f3bbc",
+      "bytes": 2365
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/host/preflight.json",
+      "git_blob": "2e013b63e0c5a036389acfa7bee672a0926b77a6",
+      "sha256": "4632e21a5db5b5dd7dc0fa4d4ef87c8d2990f1a1ae32c7eb6369662e5f05b6e8",
+      "bytes": 13235
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/qualification-status.json",
+      "git_blob": "d4192d14c24c3da58ff22970440b9fa59183bb8d",
+      "sha256": "1b100394fcc6ebd27113fb5e784a3275dfa8e567f6cab8b30656eb3085df3324",
+      "bytes": 1118
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/results/container-result.json",
+      "git_blob": "48cda49b069215ab4776b89983decf0b0755b954",
+      "sha256": "9e36e31973bbb316c00f009121dbf0c60291dfe9e8b2f9999a2ee4f0f6f0ee00",
+      "bytes": 6269
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/results/extra-result.json",
+      "git_blob": "248a864d735fbcf907da21f152f3caa8c228b42c",
+      "sha256": "c7a86c7702c7c01625cfbf4112b7040d962fd51945c99f4a34eb95d9a347b7d0",
+      "bytes": 3367
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/results/install-result.json",
+      "git_blob": "6b4b661f856ba1ea37e16c4dc2cc8c2c2b6a51fb",
+      "sha256": "1212f525a463489bba0e6165d13ad2e242d0a2d58ab8e1c02bdb4f16c87c5f61",
+      "bytes": 249751
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/results/storage-result.json",
+      "git_blob": "696423d908d1a599733c20c5f3f34542f44b8a7c",
+      "sha256": "31ff39b6859ccc413e21ee7316aa2880b5910a0648fd94317e4012945e48a566",
+      "bytes": 11023
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/results/upgrade-schema6-result.json",
+      "git_blob": "aac4802bf79bd0b2e76f49520b9750736b75904e",
+      "sha256": "2e45a42ac40dcafdae6b773d49e123b33e380680bb88b8b1bd06f6c56740eb0a",
+      "bytes": 2676
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/results/upgrade-schema7-result.json",
+      "git_blob": "44ac8dd497012a9b9596ced8d372b484a80a9924",
+      "sha256": "6e9f95c660b18807958f0bee5265164c9c14bd37e3a4cb915af72669c1052806",
+      "bytes": 2979
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded/source-manifest.json",
+      "git_blob": "091fe0a29c81e31cea38703e68ef934614b2098d",
+      "sha256": "b0b983754544b3b6560cfbf8957bb3c327f7e5fcff8adce5b4c1efb4a7160ef4",
+      "bytes": 75370
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/README.md",
+      "git_blob": "1def8392a4e3e47d2f0ce0161d13b9c5adf44282",
+      "sha256": "56d6764b2efd9df3a0f241b6ad554d73c489c185a12501f116b22f1e8c57a733",
+      "bytes": 26849
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/build-console.txt",
+      "git_blob": "93c2fea4e265bee24c367d35613025bdd6016858",
+      "sha256": "f4cef34487a66045143b7fb6b7329d33abf8005950a3a184e5ca7dee4046a2d3",
+      "bytes": 510
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/build-result.json",
+      "git_blob": "8873944c3896580421c46fd3272b149e29be225d",
+      "sha256": "1af46aa7412a156aed67220daf82a14d05c30922bcf984a63cf9791b9c8e5125",
+      "bytes": 82223
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/guest.json",
+      "git_blob": "12633566a6b0f3338bf1810ab02cc83a61485eff",
+      "sha256": "fb4f7912d786071d6d2588636c801a2890cbb33420c087d857fe93043f8bd3c3",
+      "bytes": 1953
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/host-after-build.json",
+      "git_blob": "f559c5f08e819d8cffee5b21973c738b42b87e24",
+      "sha256": "72f7da0bc00ca89104686639b1dc78efce5229f61d6476d4f74b7f29a90d18fe",
+      "bytes": 14187
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/host-after.json",
+      "git_blob": "fad684b6828ff115b0d910dcb0a0504358aec7a8",
+      "sha256": "a06cb5b83db6471d68d313f1339d6c33c50e7e469c5d92d80c1d51d1edb1847d",
+      "bytes": 14187
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/apt.txt",
+      "git_blob": "a7751756f05a7edf98d4ba173a767da6761ab718",
+      "sha256": "0014d85b427fa2a7d5c074f56de73bf902012fed6b52603c1898b8309328184f",
+      "bytes": 23479
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/clippy.txt",
+      "git_blob": "f54f7e738e7721b359c1a5f6fab0fd997b85388b",
+      "sha256": "bf968741dfb3b34875ffe3b3ce728fa866f83d13a9040ff0242595d8d74e046d",
+      "bytes": 6397
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/contracts.txt",
+      "git_blob": "558da250f01508f9a6e38f33abbc20a2968ef2ed",
+      "sha256": "085b4f2310fd8b5bc7d95c81536ec7f4740881360b6c97188e2116e04d9a194f",
+      "bytes": 1104
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/dependency-direction.txt",
+      "git_blob": "372ace0d23bcac35141c3541f6bd66ad4a28e93f",
+      "sha256": "934e0b80a00775caca701d219f31e16b112b2e65e07b4dcfa9d5e38f8a7bfeaa",
+      "bytes": 689
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/fetch.txt",
+      "git_blob": "fcfbbd2be16e51e2df26a571110eea313958bc51",
+      "sha256": "927ac232849db3298f397ea8617aa7aac54509015ad304e60acec9b91faf4411",
+      "bytes": 6823
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/fmt.txt",
+      "git_blob": "8228710788ac9ac6fb87c66cb5ef382593a94039",
+      "sha256": "5fcb04dce61431e03194e48dc201c4f32c352e4a96d055e73ed0191c5364579a",
+      "bytes": 29
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/package-shadow.txt",
+      "git_blob": "524a7d0d9bfd24c29414cf516287404cf4db8064",
+      "sha256": "6af74a2d2473d485339ce396acfb15602e9f3c7cc5e9e644e390753f1f0e353a",
+      "bytes": 263
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/package-standard.txt",
+      "git_blob": "c7d3225e46127064ce00e81540af9e28fc6e1845",
+      "sha256": "743be6baef6ad8421d8751fb16f87e3ee8c5995075e9547d9f65d8b625f4d396",
+      "bytes": 251
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/release.txt",
+      "git_blob": "63e9be8d397bb225a96d3b2dabffede7eb6d09c0",
+      "sha256": "069a6228068626dcb016d6acb1f0b3a6411407299b04e8ed7e1a25aa2e1fa4b3",
+      "bytes": 4758
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/repository.txt",
+      "git_blob": "01bc756fc16fea0182dd5a85bf49d167964cd122",
+      "sha256": "16c146a74b6f0a34859f618829a63b6f0b41833d410db0ff7b251c864a09270f",
+      "bytes": 197
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/rustup.txt",
+      "git_blob": "8a6811fc6dbe7cbde7da53d98be44754719adb76",
+      "sha256": "d933a04bce4e925b11170d384808767ba8c5a672802e14ecc1625347b950f8de",
+      "bytes": 1696
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/signing-key.txt",
+      "git_blob": "fd277e80f8e52728ab74f2d92df936cad1ac4b38",
+      "sha256": "989e1f3dc23e4f2282858b192cd441ad33c659ee35a3b9893386e0fdae5794b1",
+      "bytes": 450
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/logs/test.txt",
+      "git_blob": "fb93352a2bb23ed30553240b2bf67653490d69aa",
+      "sha256": "a89b7e54d79696a2ba5b83a21443793190ddbaa34d39b84a9bf24a16ccd0b9e7",
+      "bytes": 32103
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/supervisor.log",
+      "git_blob": "9a717cc338dbc6fc60318a326bd638f0d47c4120",
+      "sha256": "6b1b2fcc93e9a9417349e45f4e077753e37237dcb7c4ef81ea8fe953307f56c1",
+      "bytes": 312
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/attempt-1-build-original-bundle/supplementary-check-repository-with-git.txt",
+      "git_blob": "01e3fe1bf5e9180bfad6ea5bd193d5e2adde9d7f",
+      "sha256": "2310b0c013b83b1b21bc864e4f3855f9fa8eb58ed5b5dbd4f7a75f4c9dc45e35",
+      "bytes": 75
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/authorization.json",
+      "git_blob": "9755a0664f815d8c7e0aa2b764ad3b167f7ce787",
+      "sha256": "7f1a58f55ef61e7eaa3e591ed7521d4f7d734b6b6858c0c1c649b70f7a64123d",
+      "bytes": 485
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/artifacts.sha256",
+      "git_blob": "82dbaa259aee2933cf82d8623ad19a4f0707fd6e",
+      "sha256": "01abea9372c2a3af09de8c2c24a259ddf58d185e22dd84ec5e52a63e4c42798f",
+      "bytes": 299
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/build-console.txt",
+      "git_blob": "c9669d60f637fdc197531146af092efe7025c2ec",
+      "sha256": "ea273bed2ff5771d30ad6f33b351f7d9818b031d7db714c8271c5d336837babc",
+      "bytes": 492
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/build-result.json",
+      "git_blob": "fb9fdf95a04d70ddb0ca5051d19c4ddd36a1ed8e",
+      "sha256": "8b6fe1dd64e3e4fedc454cc5a3ddbc630d5218bf5de187d285f56e774f31c50a",
+      "bytes": 82348
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/guest.json",
+      "git_blob": "9d28a3cb85bb4adcf14d22313bdb18eff112dae1",
+      "sha256": "8fa0136b2532e253d908c0374b6bb501f09a1e6a6dc13949e0fc42203d92db19",
+      "bytes": 1935
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/host-after-build.json",
+      "git_blob": "f1d49fbd57f042c3e84cc9f135b986c1ca714388",
+      "sha256": "4b014cc58e3c321800b2f74345a57316921f4aad80e8fb90d146fe13a7e80f18",
+      "bytes": 14182
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/host-before-build.json",
+      "git_blob": "1b0b2c1a3f6cc07c9f47968d4ea9b4a10b7a51ee",
+      "sha256": "924e489d5c344d46ef943897108723b3da759b708697b25e6544e96925ad6dff",
+      "bytes": 13512
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/apt.txt",
+      "git_blob": "73b8dbede7852f2de5ff63c52b3939883fd53770",
+      "sha256": "ad601fcfc75b9440065a2113b205953cbaa09db4b957979670f278b9ff6ff725",
+      "bytes": 24529
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/clippy.txt",
+      "git_blob": "134713511c279e1176bb2153daae3eae018f940c",
+      "sha256": "ec3cc4f48b5edd68a45e94250568bf321ab70e4c09b474713be07a65fec7822d",
+      "bytes": 6397
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/contracts.txt",
+      "git_blob": "64c55a6eb6ca06c9090186809e6cd0b85b47d4c7",
+      "sha256": "71a9d4bb9904f5dfa578b3da6cbdbeaeccc93fc97c1f3ee36d178098255e2560",
+      "bytes": 1104
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/dependency-direction.txt",
+      "git_blob": "4d9b520428d51ff3e5910847c5300f6dd7ce0d5d",
+      "sha256": "47a022219c43bc44630071877c14a17d076fdba79bf4f8757f99ee3eb30b5e5d",
+      "bytes": 87
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/fetch.txt",
+      "git_blob": "f2ff79b8c1bcbe4efb30405d21b5973c476f21c2",
+      "sha256": "6c92e6910fc41467f77da95279a70bcb377556b83f25c895f16cdfd584044954",
+      "bytes": 6823
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/fmt.txt",
+      "git_blob": "8228710788ac9ac6fb87c66cb5ef382593a94039",
+      "sha256": "5fcb04dce61431e03194e48dc201c4f32c352e4a96d055e73ed0191c5364579a",
+      "bytes": 29
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/package-shadow.txt",
+      "git_blob": "524a7d0d9bfd24c29414cf516287404cf4db8064",
+      "sha256": "6af74a2d2473d485339ce396acfb15602e9f3c7cc5e9e644e390753f1f0e353a",
+      "bytes": 263
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/package-standard.txt",
+      "git_blob": "c7d3225e46127064ce00e81540af9e28fc6e1845",
+      "sha256": "743be6baef6ad8421d8751fb16f87e3ee8c5995075e9547d9f65d8b625f4d396",
+      "bytes": 251
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/release.txt",
+      "git_blob": "9fbb67ba8740e00811e7ec0b6a94828f2347e445",
+      "sha256": "944acbe271d763a3844c292d32f565fd9430b317ef689745c7f1c62f8e1717e3",
+      "bytes": 4758
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/repository.txt",
+      "git_blob": "95de1fd2af67cfb52ce30c272a1e82ab656a1f20",
+      "sha256": "fa2989fd1cb2d55a4efe1204a6e8ec892a0f6a0671825716b117a79f66ee96ea",
+      "bytes": 197
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/rustup.txt",
+      "git_blob": "8a6811fc6dbe7cbde7da53d98be44754719adb76",
+      "sha256": "d933a04bce4e925b11170d384808767ba8c5a672802e14ecc1625347b950f8de",
+      "bytes": 1696
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/signing-key.txt",
+      "git_blob": "00d148b66221fa709c0571398311d839217dac83",
+      "sha256": "8e4341e609f8404cc97817384b62ce3956b9e4ae8c8b36785209961e4b42006c",
+      "bytes": 450
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/logs/test.txt",
+      "git_blob": "7ddf5bbd7ba16f5e6b84f87de9b0d7db41955c33",
+      "sha256": "7154b29cd4accfbe9d7ef116eeecc71b961c1131dfb3da7c6affa2a8297bc67a",
+      "bytes": 32103
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/source-manifest.json",
+      "git_blob": "091fe0a29c81e31cea38703e68ef934614b2098d",
+      "sha256": "b0b983754544b3b6560cfbf8957bb3c327f7e5fcff8adce5b4c1efb4a7160ef4",
+      "bytes": 75370
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/build/supervisor.log",
+      "git_blob": "5d3d1bba53e4a47277a1a0fa56d9d7da9fe18b19",
+      "sha256": "8492705aeb2b2d161065805c95f3e1c797f60279624fbe744225ce6489616e4b",
+      "bytes": 306
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/container-console.txt",
+      "git_blob": "9c670201a3cb253a1abebc827a557724f26ce49a",
+      "sha256": "9a743ab6a56a83a6f8cbd3429504bcfecdf25f0601f18ab818af1e9814d15adc",
+      "bytes": 2768
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/container-result.json",
+      "git_blob": "48cda49b069215ab4776b89983decf0b0755b954",
+      "sha256": "9e36e31973bbb316c00f009121dbf0c60291dfe9e8b2f9999a2ee4f0f6f0ee00",
+      "bytes": 6269
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/guest.json",
+      "git_blob": "f71adfbde6b6584add649e7b44985a0e6ee704d3",
+      "sha256": "7021a622cf6e9273766ac428c2703207086e9389a574b9799293720c5b2b4a40",
+      "bytes": 1965
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/host-after.json",
+      "git_blob": "3b12d5c57681a4a0fa6a91fa6c02e22451d7846e",
+      "sha256": "30123950ab83499b284839ccda80e694ecd8e7191ebdf339bc79ef99c6757c43",
+      "bytes": 11396
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/host-before.json",
+      "git_blob": "45c49138c78ce3d0e898d1963742a4ead4ebb8f4",
+      "sha256": "4f438ba12cd1d387bfaaf2c13f93f8299c62c8afce4514261a07caf2b04a1dec",
+      "bytes": 10717
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/journal-limeos.txt",
+      "git_blob": "e6820e0a55be1410cc09ee5b6abc59546a37875e",
+      "sha256": "70c13dfc6855daaa63ac7c748e5da0ebe285b3a84b4b99fa6c86f235609e67eb",
+      "bytes": 34927
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/container/supervisor.log",
+      "git_blob": "08444aa6ed0d956d1777ab25a08a3f182e486749",
+      "sha256": "b69bf6890ed34a1cb675bfbce1b3867b9dd41d70e9bdbcccbe21eeec6c783881",
+      "bytes": 316
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/deadline-proof/console.log",
+      "git_blob": "2fa18eb31121717e91c8d3ace34bc0cb8b91e708",
+      "sha256": "63c1b29fbd01788f0e6483a4bb7237b8cd98104f45cb369e48a15a65a2f0a49f",
+      "bytes": 55416
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/deadline-proof/guest.json",
+      "git_blob": "d4a3792faad043417cf2b2dc20be890231add598",
+      "sha256": "de2979d6cd990b107451b7e882608654c71d8e09e965cee73b34df45522edd01",
+      "bytes": 1953
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/deadline-proof/host-after.json",
+      "git_blob": "2364cf787b3e1d0571e4befcba368eeaed225dc9",
+      "sha256": "33e94425fbef49dfde5f7c567a737c2ebd49a245fdc1037bdbf3f229d91d1332",
+      "bytes": 13596
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/deadline-proof/host-before.json",
+      "git_blob": "39b13e97c00e3975d9d49ba21815d17654725bc1",
+      "sha256": "44582ef32616a6723b5b12bb0ad72ddc27621c9b9d56f853e9723884b434f93a",
+      "bytes": 13546
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/deadline-proof/host-preflight-before.json",
+      "git_blob": "2b2556a1c0bb27847f558601e42f2f164a1e7571",
+      "sha256": "af6af3cfef6e3323957ed7109dbcef70e8bc339362a5cce8e8ceaf30235558aa",
+      "bytes": 13545
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/deadline-proof/supervisor.log",
+      "git_blob": "9e244a2daf88ac515a7fc4d361c461dd69d7589b",
+      "sha256": "128fdca9c1a18da9a3d23b80c52ebf109f00a3de16cf5f8cf1defc18cc6d7a66",
+      "bytes": 364
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-commands.jsonl",
+      "git_blob": "a9f87f576c589898466f6c0791e6e33ad37a53ba",
+      "sha256": "9b221632ad56bca2f11449903c281c7433a1224423e7bf354e6bfc968fac5eae",
+      "bytes": 109217
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-package-decision.json",
+      "git_blob": "7720bdc61329911defd19f1205dcfe1f9cdd1498",
+      "sha256": "a044956a34b9df86d868878872705410a9615ebdf42457354c4535d6f12f919f",
+      "bytes": 646
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-packages-added.txt",
+      "git_blob": "fb539334c042a7291de5e5d1b8611715db30fa4c",
+      "sha256": "2c9b26057bf924189af8bc1ddaaa7161691e5d38c472b136985865f397826b44",
+      "bytes": 567
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-packages-after-install.txt",
+      "git_blob": "2093a5486b7dc07768118cea30a11000802bdd75",
+      "sha256": "c128dae6d6d5bb6f84bce1573de9684a05253047beb2af6e73a6dd0d7f7f3af9",
+      "bytes": 19900
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-packages-after-teardown.txt",
+      "git_blob": "d0f4abc7c8317838be3b327d5c669d15fe7deb42",
+      "sha256": "253e889bd72a97711248604b3d3c569f01753711cbe0e680134c4c4a4f5c8b6e",
+      "bytes": 18792
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-packages-before.txt",
+      "git_blob": "d0f4abc7c8317838be3b327d5c669d15fe7deb42",
+      "sha256": "253e889bd72a97711248604b3d3c569f01753711cbe0e680134c4c4a4f5c8b6e",
+      "bytes": 18792
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-preflight.json",
+      "git_blob": "2e013b63e0c5a036389acfa7bee672a0926b77a6",
+      "sha256": "4632e21a5db5b5dd7dc0fa4d4ef87c8d2990f1a1ae32c7eb6369662e5f05b6e8",
+      "bytes": 13235
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-purge-simulation.txt",
+      "git_blob": "1f0e53d59e49436940a682e23fdedd1eec044087",
+      "sha256": "506d265d5e0929a752e3e6695e59bc9e25dd4a2d486720207271c6f8ebc15eaf",
+      "bytes": 3135
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/container-224054.json",
+      "git_blob": "da67455b323ce692eeb51db259db4bfa88392f79",
+      "sha256": "9154b6c2c62b8a8874707f76c61254a7989e3a56c7feca7cd48af468176fffec",
+      "bytes": 11396
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/container-224601.json",
+      "git_blob": "42193c433dd34ccb7ac6b1c8ecce1d1a982f84c4",
+      "sha256": "2fd17b81de52e7a8a9e76351e23131faec07a75aa0a349601d56104bb603f18d",
+      "bytes": 11396
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/install-221513.json",
+      "git_blob": "440945c30bbe7f263dd60b2850dccb925ed369ea",
+      "sha256": "7fd2e8911b6b82df0ff73ab3779e005616a7820bb457d876b791c30c415764b5",
+      "bytes": 14190
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/install-222021.json",
+      "git_blob": "ccad8483c4bd67dc5d72da0fbb7a56b7be2dfef9",
+      "sha256": "c4819e1174a3216d5e1fef76dc4fd9575f872005f74989f5e738b0af46f8d4f1",
+      "bytes": 11394
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/install-222527.json",
+      "git_blob": "8122d5bdb5d4d03045e7e6cd6f72f6327b305b5e",
+      "sha256": "5b3aea45776554848d7e6848f944fa9f1d4d01ef2d5ca4922f38daa3e8ebcd28",
+      "bytes": 11393
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/install-223034.json",
+      "git_blob": "1efe5e52e3793b1d4f703e9d797af254f91788f9",
+      "sha256": "8791aeb43a99eb1b750ae7214c363836ab43c77b6d4ec4f18e5b86ee0b21e7ea",
+      "bytes": 11394
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/host-samples/storage-223629.json",
+      "git_blob": "3683ae55e07e878fab3757300547cb850d2451b1",
+      "sha256": "69f43d2b1d47a9ba2b52d14884b873dbcbc98045f104ed74fb9ab032f993c6fb",
+      "bytes": 11874
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/inspector/guest.json",
+      "git_blob": "ab0e24920926c92f4f344893a60f0718b9ea6d4b",
+      "sha256": "3edb084801d2c557db4b5d911e2ba92a0a8490d463cb9deac441145929dc701b",
+      "bytes": 1941
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/inspector/host-after.json",
+      "git_blob": "6a91e96e149f2838ae76082816157e424b06d0b1",
+      "sha256": "191d8238f79664f0d3c77e2b64eb3c7c75b276bc0ad262569bc9ccbc32960932",
+      "bytes": 11388
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/inspector/host-before.json",
+      "git_blob": "e5de96d9360af8c21addee0d2405336095efd4e9",
+      "sha256": "3f90d0f9df569ee1a5786c29c32c8fbccfbc46e797d5ce8a4d7027bdc5b6ef4e",
+      "bytes": 10717
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/inspector/inspector-console.txt",
+      "git_blob": "fcd2e0c8da438f1f0ac1de586d3bdc1b0e1d9e38",
+      "sha256": "65d870f5ea963bfa4cef752e4250a10bb2d3d8e35a39099a6e42977669f97645",
+      "bytes": 470
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/inspector/inspector-result.json",
+      "git_blob": "bf4200bf6318d57431f3755ba407873d025a9a03",
+      "sha256": "e5c22c0d9345cb6b8eeb7719c8df6583dce169d7fb9444eeed572cf826f4df2d",
+      "bytes": 10951
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/inspector/supervisor.log",
+      "git_blob": "3211748f279eb80b5669fcd6f9a70b0d43532387",
+      "sha256": "ad26cad551b9eb31b4d8c744605aec764f10669b7e6179afc213cf75f9d65e74",
+      "bytes": 308
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/guest.json",
+      "git_blob": "57cf11c18eb4125272074d2299b4afd926e38cfd",
+      "sha256": "a17232709c13eb1393b2a5b81539d9f8ce0876cfff8e5bfad3894fc9f6735f69",
+      "bytes": 1959
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/host-after.json",
+      "git_blob": "c4707bb3eb5ff459a0f9e54e5a5b7b004196a5b6",
+      "sha256": "96fb82bcc7e700782b3641e444d5b1e76ebba723e7f7a9fb7066165a1ab7c1a4",
+      "bytes": 11394
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/host-before.json",
+      "git_blob": "2a0540181d1e1c0526cc17a4a456daa784ad6b6b",
+      "sha256": "f9a6c5eb7f26ec02422cc91dc8fed3d93b030e70b8aa27eb86ea864d829f9e06",
+      "bytes": 13513
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/host-preflight-before.json",
+      "git_blob": "a6972d821de1af8058562e485c37a254eab12c56",
+      "sha256": "1ce5f7fb0469e459e27fc86390f32c381ec5cf749c1b33763a8d484eb55ac771",
+      "bytes": 13513
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/install-console.txt",
+      "git_blob": "3bec14f4c977b97d93070ac229663c0766e3737d",
+      "sha256": "80b9a3955191c5fb6aec0d3d707f90a7c687d29f9c560b520d8ffd4c01796b56",
+      "bytes": 1327
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/install-result.json",
+      "git_blob": "6b4b661f856ba1ea37e16c4dc2cc8c2c2b6a51fb",
+      "sha256": "1212f525a463489bba0e6165d13ad2e242d0a2d58ab8e1c02bdb4f16c87c5f61",
+      "bytes": 249751
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/journal-limeos.txt",
+      "git_blob": "114aa87dbd8f0f969b268c667b245fa7dc304cfd",
+      "sha256": "ab65a5f0d55b89d944291ae49ab39a98ceb47854e4d64cd0bbba7a9e53069ddd",
+      "bytes": 32480
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/install/supervisor.log",
+      "git_blob": "4d6a512a1babd8ef46839fb6f40c4da76518b722",
+      "sha256": "1e715e99c9130c7d75b8c91c8484b36ab707a66e2fdd1718f7272779392ad824",
+      "bytes": 314
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/sign-previous.sh",
+      "git_blob": "3f491125de4565e4e2fdb6029a7f536eddc1b2ae",
+      "sha256": "ea321303438a1decc9bdf15536637ce747ae58bd6de859fcac3c81b78ba24c20",
+      "bytes": 671
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/extra-console.txt",
+      "git_blob": "ca916d098dabfe85979d791e4534bf1def02ef84",
+      "sha256": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320",
+      "bytes": 7
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/extra-result.json",
+      "git_blob": "248a864d735fbcf907da21f152f3caa8c228b42c",
+      "sha256": "c7a86c7702c7c01625cfbf4112b7040d962fd51945c99f4a34eb95d9a347b7d0",
+      "bytes": 3367
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/guest.json",
+      "git_blob": "710145a26560544b6ad15d50d4cf231a0dc233ba",
+      "sha256": "bb7896aed3ec76e42b67752ac315ca4ed1823d2e44776e86a0cd6c66b67e6988",
+      "bytes": 2438
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/host-after.json",
+      "git_blob": "37d574d399c897bf91d049eb3a3b58058763c9a0",
+      "sha256": "877825c317edd2fca3565157aea1a6a2f2fdf5b2b1818e8b13b709d415209a90",
+      "bytes": 11874
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/host-before.json",
+      "git_blob": "e6f88a1338ded97c29605496af64393dd6aa00fb",
+      "sha256": "5d6adb0c3e3b6fc352d630653ba25f8437840eb5ccacc27f81b924a82eb20f34",
+      "bytes": 10717
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/journal-limeos.txt",
+      "git_blob": "b97ba2f39e38a390abe52c003be12b859b443f8a",
+      "sha256": "8c166ead6bc044af0fcce705a619f4d70d7a96eed175dcc60b27ca46f5134ae1",
+      "bytes": 27026
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/storage-console.txt",
+      "git_blob": "d61fbcc6243258c6f901003ba74ca49375b97b56",
+      "sha256": "18ac7ebc1f5e4eb742bef68a34cb81c27e3dafe9dc7eb86ea420889f2acfc643",
+      "bytes": 6035
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/storage-result.json",
+      "git_blob": "696423d908d1a599733c20c5f3f34542f44b8a7c",
+      "sha256": "31ff39b6859ccc413e21ee7316aa2880b5910a0648fd94317e4012945e48a566",
+      "bytes": 11023
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/storage/supervisor.log",
+      "git_blob": "cd9f058fb1c57687edf528789f365e7cc325e54d",
+      "sha256": "215a2c6254d9bf546f980143af84d0945c253f618361a879caab8c4ff16817be",
+      "bytes": 314
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/guest.json",
+      "git_blob": "eed20d599df3f9172b332c72500cf8ecf98e6809",
+      "sha256": "cd4c0c39bc74697f9af6bd6cef36796fe9728ec1208f03888f77343d77bb22fe",
+      "bytes": 1959
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/host-after.json",
+      "git_blob": "c70550ae0240d2c2e02f9b36013f98cf540182ef",
+      "sha256": "c0203da73e42468cccf48e0e61d12a436e210d19d932db9c4b067df0d50429af",
+      "bytes": 11394
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/host-before.json",
+      "git_blob": "0ead1c75d3fea30d241f58109f7f8bdf997ff917",
+      "sha256": "9d14460b97a0369d3bb773f828dc28f6f627290b6ee9c698dc0190d8e5114dcd",
+      "bytes": 10717
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/journal-limeos.txt",
+      "git_blob": "2ed3137c0cf0aa2a0e5e7ff8f5da5dc7888da2c6",
+      "sha256": "57468d1e473db859d7b55d1fbc91c9ddd19eeb5975c245735921a489d2d31864",
+      "bytes": 3840
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/previous-artifact.json",
+      "git_blob": "4f866e8f05cb28d4289a233e7c0ba75943d69398",
+      "sha256": "ea6f5fcb78887273ae8c6f8fe511366df3a0628f46560efab20644bef282308c",
+      "bytes": 1016
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/previous-signing-fingerprint.txt",
+      "git_blob": "0817ad60ef5d8668e5b79201b8730923d90cc1d1",
+      "sha256": "2b2f2870c799c478c077444dccd5244a9dc13dae484fcb61ba550634315c976b",
+      "bytes": 41
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/sign-previous.txt",
+      "git_blob": "2d70e21dd1ab5692dae6bb4bf094d63a082b117b",
+      "sha256": "51248f0ef57e9900b87f19fbc67156025a88430a40373dbadd9e6e8ed13b6511",
+      "bytes": 738
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/supervisor.log",
+      "git_blob": "e7616ff78ba2d11f80906d2bdd429940e652022c",
+      "sha256": "ba20bc746b0bb2bb6229e4db43ffce714f9c701e1cadd75da6f54c6e04cc18a1",
+      "bytes": 314
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/upgrade-console.txt",
+      "git_blob": "ca916d098dabfe85979d791e4534bf1def02ef84",
+      "sha256": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320",
+      "bytes": 7
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema6/upgrade-result.json",
+      "git_blob": "aac4802bf79bd0b2e76f49520b9750736b75904e",
+      "sha256": "2e45a42ac40dcafdae6b773d49e123b33e380680bb88b8b1bd06f6c56740eb0a",
+      "bytes": 2676
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/guest.json",
+      "git_blob": "e24eeb36d8ef579d65d118df8279b0d882f00e92",
+      "sha256": "ac217a7d9ff32641e1daa7e7507270267dba14b3432953e54a5bf29e37c52652",
+      "bytes": 1959
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/host-after.json",
+      "git_blob": "11c0a11a2f142d769ed6106134b8aab390b3cdc7",
+      "sha256": "0efffddadb15afa1691ac6d59326ef1218fdaba4d72031dd08f12f8888ec5a24",
+      "bytes": 11394
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/host-before.json",
+      "git_blob": "988dba1058dfd735a8f8fe201e3268ffd0d2f81a",
+      "sha256": "c44ae48b9a771182d9adeee58a818f632f701c7d0b321d3e63d1cd849047a145",
+      "bytes": 10717
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/journal-limeos.txt",
+      "git_blob": "5692a0db32ff532d638d33100f07bf9da831b845",
+      "sha256": "59f782899493d76513dcbed035f3c92a4dfd303ddb847eff4fb84f88f3d4ba00",
+      "bytes": 3840
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/previous-artifact.json",
+      "git_blob": "6833be05e1da513baf5984e676d43b96ac9b34a4",
+      "sha256": "93c25d5fe0ce4b42ddaf354dd789f53b66adac633343f91188a0cb8c79b7c25e",
+      "bytes": 1299
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/previous-signing-fingerprint.txt",
+      "git_blob": "aafb7f1f1aedf8416678152b5d64bf36f7e57c4e",
+      "sha256": "ba53e0a8fff2d9282ebbec5d8aaa8494b8bbd14e378d33f3363ee1a95ec3e67e",
+      "bytes": 41
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/sign-previous.txt",
+      "git_blob": "7ee033e4bf91c665dff4a9405e6f4ef8dbb06fe9",
+      "sha256": "0c39ef4893ca21f53e0ca7d9c137638182c0699efe8d18e7d5ab23e1ef36adf2",
+      "bytes": 738
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/supervisor.log",
+      "git_blob": "ef92694f60fc268086a9bc35b402dfa3b368ef19",
+      "sha256": "67545be51c41941413b394600223a0a04918105b7cc9faedcadb0be6193b8073",
+      "bytes": 314
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/upgrade-console.txt",
+      "git_blob": "ca916d098dabfe85979d791e4534bf1def02ef84",
+      "sha256": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320",
+      "bytes": 7
+    },
+    {
+      "path": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight/upgrade-schema7/upgrade-result.json",
+      "git_blob": "44ac8dd497012a9b9596ced8d372b484a80a9924",
+      "sha256": "6e9f95c660b18807958f0bee5265164c9c14bd37e3a4cb915af72669c1052806",
+      "bytes": 2979
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/README.md",
+      "git_blob": "38f524ed29f2e4b1d6e28ea2af0aa10532e2abe6",
+      "sha256": "71253b54a9ead9b13b42594dba7c7f56660eba33efa6a04f2ff722b1dc648cab",
+      "bytes": 11440
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/check-initial.txt",
+      "git_blob": "992d46cdfd42ada7bcba3703acbc6ef6e004f426",
+      "sha256": "0ded92555b0b41ff4d6ff51b4ff8eabd101aef97fafa0b87a0727cf19e1d0dc3",
+      "bytes": 1390
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/audit.txt",
+      "git_blob": "7b5abb2468082cf8a44e9eb77bd9d0f5a00e1500",
+      "sha256": "8b70ff8e86aaa03a2b5b18bdfdfe89d3e2fa8548c47df53feaebecb3115170e1",
+      "bytes": 138
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/checks.json",
+      "git_blob": "c37bbfc4472f4393b7c7b940fd567bc778bb45a9",
+      "sha256": "7a6902da9282dcb4f98634a57ccf3ab297281b837d160cfcbcdad86f432994ce",
+      "bytes": 4331
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/clippy.txt",
+      "git_blob": "9e700cb8ce49056333dc705ea645975823fa4d75",
+      "sha256": "65b155928ee1284f01307495a1415a0e3630f16b8c03b09f1075351bfa9c7e74",
+      "bytes": 165
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/contracts.txt",
+      "git_blob": "788971c4bb8e89ace1a795a70d1e78341a16ff3f",
+      "sha256": "0a340eb8a966469aabd9a34d09bf5b09bb8ed664c70e285b6e77e1566ce748f1",
+      "bytes": 575
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/deny.txt",
+      "git_blob": "bbb626a7852b86744cc96c8cfe8de536611ebd33",
+      "sha256": "f8662c6ffb9c9627c3f74b6012ada8493a4184fc558148d5960c2c2867385f8b",
+      "bytes": 17607
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/dependency-metadata.txt",
+      "git_blob": "996e0e76887b201fb3351701a233fbee50c8482e",
+      "sha256": "2d026324bed64b860a3507d2cc436e8b4691fb098257d1f87d0b6106fdadbfac",
+      "bytes": 1118459
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/fmt.txt",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/release-example.txt",
+      "git_blob": "cd0ce26c3c13105ef6dc1ac317bd37dddbc1b8c8",
+      "sha256": "5a44f134ddbbb848a970632b8b9f3c7d129219c7bdbea358a70ef16613ab1f4f",
+      "bytes": 1974
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/repository.txt",
+      "git_blob": "7bd2341bb23aaf70ff995e9692d4128372cd6674",
+      "sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "bytes": 49
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/final/workspace-tests.txt",
+      "git_blob": "b6b12818038c199e1e998be378677cac105e3a26",
+      "sha256": "c88b98a00cf1bf9d30a7d88110a03c88d4528a04786e67ddf4561eb6fb88d09d",
+      "bytes": 34131
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/tests-admission-binding.txt",
+      "git_blob": "e2926824dd1c8e61b840974700d8204c5c126284",
+      "sha256": "95db60494ee4f18cb8a4a695a0a70254c29e21282609eab659be06d88ad84677",
+      "bytes": 3595
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/tests-first.txt",
+      "git_blob": "d44230f4a4dbae87b82ab8c6e130a141dee16443",
+      "sha256": "6663bf1ee54787407d76c089a8d95412b509ac66678440d7f67e9d9a1ff08806",
+      "bytes": 5294
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/logs/tests-private-roots.txt",
+      "git_blob": "d3a8d8b3f31af22d1409af291fec5daa22a8a2fe",
+      "sha256": "71180040ba8db69b48ab0dafba0a87910a12221375b591223b47c0b340e6142c",
+      "bytes": 4082
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/measure_staging.py",
+      "git_blob": "14b6ff20f6775f026203f1b979c07e9bb5f5fe66",
+      "sha256": "a379aae45be86fc6637ffceb640d97dee82aa78a7777e8f63dafad83b67f3151",
+      "bytes": 6328
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/peak-memory-raw.json.gz",
+      "git_blob": "652dcece8f1b9f3cc802812519015ffc5c872d6d",
+      "sha256": "d5da38a655a27e12931b1d3e913320c14aef54e0aa7e259a2a92979546d7f7c5",
+      "bytes": 21614
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/peak-memory.json",
+      "git_blob": "b7f86380ff874d08a41e033aeff3f3cf89cb7894",
+      "sha256": "3032b363a48884afb1201243c02d278e3149e017bbbf82c2a1f0ca7ea4827c8a",
+      "bytes": 3867
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/run_checks.py",
+      "git_blob": "92641f4b37bef7ac763339f6db262fe69c615949",
+      "sha256": "493ff21141fc201b36ead9a00aeaa7da655c25d586e65a81bf696458d3e9b6dc",
+      "bytes": 3715
+    },
+    {
+      "path": "docs/rewrite-evidence/p04/rw043-staging/source-delta.json",
+      "git_blob": "8a598e645456c03a233c875f4db0dc3ba5cbc594",
+      "sha256": "f3531b06372a627837a8fa09487c4ec7760cbb914d7e4156f81a2fe12eb2efd5",
+      "bytes": 2031
+    }
+  ]
+}

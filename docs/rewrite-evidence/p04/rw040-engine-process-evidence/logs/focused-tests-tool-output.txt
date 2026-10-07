@@ -1,0 +1,61 @@
+   Compiling limeos-executor-container v0.2.0 (/home/marc/Documents/github/lime-os/crates/executor-container)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.68s
+     Running unittests src/lib.rs (target/debug/deps/limeos_executor_container-c714fe2c359fd3c4)
+
+running 45 tests
+test docker::process_evidence::tests::cancellation_aborts_the_connection_task_and_peer_observes_eof ... ok
+test docker::process_evidence::tests::duplicate_running_pids_refuse_the_complete_result ... ok
+test docker::process_evidence::tests::declarations_preserve_issue_time_before_socket_acquisition ... ok
+test docker::process_evidence::tests::advisory_inventory_keeps_its_missing_pid_behavior ... ok
+test docker::process_evidence::tests::genuinely_empty_double_enumeration_is_the_only_empty_success ... ok
+test docker::process_evidence::tests::complete_gets_include_stopped_and_mountless_consumers_without_private_fields ... ok
+test docker::process_evidence::tests::mismatched_kernel_peer_uid_sends_no_http_bytes ... ok
+test docker::process_evidence::tests::partial_body_produces_no_owner_or_empty_success ... ok
+test docker::process_evidence::tests::final_reacquisition_response_cannot_cross_the_original_wall_expiry ... ok
+test docker::process_evidence::tests::production_root_peer_rule_rejects_actual_unprivileged_credentials_before_bytes ... ok
+test docker::process_evidence::tests::fresh_revalidation_timestamp_does_not_renew_original_lifetime ... ok
+test docker::process_evidence::tests::replaced_socket_object_invalidates_the_original_owner_before_more_http ... ok
+test docker::process_evidence::tests::root_policy_never_relaxes_to_an_unprivileged_fixture_owner ... ok
+test docker::process_evidence::tests::initial_collection_checks_wall_rollback_and_age_at_its_final_response ... ok
+test docker::process_evidence::tests::count_mount_and_report_limits_refuse_without_truncation ... ok
+test docker::process_evidence::tests::socket_symlink_and_world_writable_socket_refuse ... ok
+test docker::process_evidence::tests::second_inspection_pid_snapshot_mount_membership_or_engine_change_refuses ... ok
+test docker::storage::tests::a_stuck_engine_returns_no_inventory_at_the_read_deadline ... ok
+test docker::process_evidence::tests::unchanged_wall_clock_cannot_extend_monotonic_expiry ... ok
+test docker::storage::tests::changed_enumeration_mount_or_engine_identity_blocks_the_complete_result ... ok
+test docker::storage::tests::fresh_collection_includes_stopped_unmanaged_and_volume_consumers_without_secrets ... ok
+test docker::storage::tests::byte_container_and_mount_limits_refuse_instead_of_clipping ... ok
+test docker::tests::lost_post_response_is_an_error_with_exactly_one_post ... ok
+test docker::tests::negotiated_full_id_inspection_is_selected_and_post_has_fixed_grace_without_retries ... ok
+test docker::storage::tests::malformed_missing_duplicate_and_unsupported_mount_evidence_is_unavailable ... ok
+test logs::tests::decode_streams_strip_terminal_controls_and_redact_credentials ... ok
+test docker::tests::start_and_stop_use_only_the_fixed_selected_endpoints ... ok
+test tests::accepted_effect_is_not_claimed_verified_and_repeat_action_returns_original_receipt ... ok
+test tests::accepted_result_retains_lock_until_fresh_independent_verification ... ok
+test tests::crash_helper ... ok
+test docker::process_evidence::tests::running_pid_requires_a_non_system_linux_integer_and_stopped_requires_zero ... ok
+test tests::each_lifecycle_action_requires_its_own_ceiling_and_verified_result ... ok
+test tests::expiry_during_receipt_sync_prevents_dispatch ... ok
+test tests::peer_ceiling_plan_and_fresh_precondition_reject_before_any_effect ... ok
+
+running 1 test
+test tests::receipt_paths_are_private_single_owner_and_fail_closed_on_links_or_future_schema ... ok
+test tests::process_death_after_effect_before_result_persistence_never_replays_the_effect ... ok
+test tests::storage_failure_before_prepare_has_no_effect_and_failure_after_effect_stays_unknown ... ok
+test tests::v2_receipt_migration_retains_the_prepared_barrier_without_replay ... ok
+test tests::uncertain_or_timed_out_effect_keeps_a_resource_barrier_after_executor_restart ... ok
+test logs::tests::malformed_frames_fail_closed_and_clipping_remains_bounded ... ok
+test docker::process_evidence::tests::reacquisition_binds_pid_full_snapshots_mounts_membership_and_engine ... ok
+test docker::process_evidence::tests::all_sixty_four_running_consumers_are_admitted_without_mounts ... ok
+test docker::process_evidence::tests::aggregate_body_budget_spans_both_inspection_passes ... ok
+test docker::process_evidence::tests::request_timeout_also_aborts_the_connection_task ... ok
+test docker::process_evidence::tests::complete_collection_deadline_refuses_responses_each_below_request_timeout ... ok
+
+test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.00s
+
+   Doc-tests limeos_executor_container
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

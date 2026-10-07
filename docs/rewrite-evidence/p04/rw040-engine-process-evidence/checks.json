@@ -1,0 +1,116 @@
+{
+  "source_commit": "a216c101414056db203db5bae2752329808ebfa0",
+  "design_commit": "e18c47b",
+  "assignment_base": "b742f24fc31f940a6182c60f88bef0bbf93ff4ba",
+  "rust_toolchain": "1.88.0",
+  "local_uid": 1000,
+  "tests": {
+    "workspace_passed": 315,
+    "focused_passed": 45,
+    "new_cases": 24,
+    "failed": 0,
+    "ignored": 0
+  },
+  "commands": [
+    {
+      "command": "cargo test -p limeos-executor-container --locked --offline",
+      "log": "logs/focused-tests-tool-output.txt",
+      "exit_code": 0,
+      "captured_utf8_character_count": 5008,
+      "sha256": "5fc8cc9f1fea73a7d6bdf83a7df0895a546813501be7a9bff4e8ee4282c7b10d",
+      "bytes": 5008
+    },
+    {
+      "command": "cargo test --workspace --locked --offline",
+      "log": "logs/workspace-tests-tool-output.txt",
+      "exit_code": 0,
+      "captured_utf8_character_count": 34901,
+      "sha256": "608c50b61ab2b5145a8fd802b22c1cd00a25d47dc49d3ff6bffe890151803ca6",
+      "bytes": 34901
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+      "log": "logs/clippy.txt",
+      "exit_code": 0,
+      "captured_utf8_character_count": 270,
+      "sha256": "d6f521ef8908fd87a28387297dff940bd3bf25320d20906b5ff476e1314d6e2e",
+      "bytes": 270
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "log": "logs/fmt.txt",
+      "exit_code": 0,
+      "captured_utf8_character_count": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "command": "python3 scripts/check_repository.py",
+      "log": "logs/repository.txt",
+      "exit_code": 0,
+      "captured_utf8_character_count": 49,
+      "sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "bytes": 49
+    },
+    {
+      "command": "python3 scripts/check_contracts.py",
+      "log": "logs/contracts.txt",
+      "exit_code": 0,
+      "captured_utf8_character_count": 200,
+      "sha256": "e3d65942b1adfafa1070cbcccd5b7f88c26eb2f0cf98ceb97bc8e73c1880a3f5",
+      "bytes": 200
+    },
+    {
+      "command": "git diff --check",
+      "log": "logs/diff.txt",
+      "exit_code": 0,
+      "captured_utf8_character_count": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "command": "env PATH=/tmp/limeos-validation-bin:/usr/local/bin:/usr/bin:/bin cargo deny --offline check",
+      "log": "logs/deny.txt",
+      "exit_code": 0,
+      "captured_utf8_character_count": 14482,
+      "sha256": "b3a413364c9a1b1adbf2406d7b4d6001d90ae6c4d3181a7faf39da2d6416a5b1",
+      "bytes": 17634
+    },
+    {
+      "command": "env PATH=/tmp/limeos-validation-bin:/usr/local/bin:/usr/bin:/bin cargo audit --no-fetch",
+      "log": "logs/audit.txt",
+      "exit_code": 0,
+      "captured_utf8_character_count": 144,
+      "sha256": "5ab8a6f15ea0c9a169c08077d4e8ffa23218a435690b7d7c3df000b5ef4e11c9",
+      "bytes": 144
+    }
+  ],
+  "scope": "Local fixtures only; no installed Engine collection/namespace composition or performance qualification",
+  "dependencies": {
+    "lock_unchanged": true,
+    "packages": 227,
+    "external_source_entries": 211,
+    "local_entries": 16,
+    "cached_advisories": 1290,
+    "fetched": false
+  },
+  "independent_review": {
+    "path": "independent-review.md",
+    "sha256": "d220890e509cfa54c691587cc739d99ca3ab80c7c8a57786dbd474dc9450deaa",
+    "tests_rerun": false
+  },
+  "interface_document": {
+    "path": "docs/p04-container-engine-process-evidence.md",
+    "sha256": "cbd3300ceb04bb97c3b0996979f6d642e7bdec3a25cb56609d2ba462c1edd5a2"
+  },
+  "owned_source_diff": [
+    "crates/executor-container/src/docker.rs",
+    "crates/executor-container/src/docker/process_evidence.rs",
+    "crates/executor-container/src/docker/process_evidence/tests.rs",
+    "crates/executor-container/src/docker/storage.rs",
+    "docs/plans/2026-10-07-container-engine-process-evidence-design.md"
+  ],
+  "source_manifest_count": 288,
+  "preserved_proof_count": 160,
+  "lock_sha256": "db3ee3f292266c092c27f31a12f06276236be8099fb1e300bde7c3dd390af764"
+}

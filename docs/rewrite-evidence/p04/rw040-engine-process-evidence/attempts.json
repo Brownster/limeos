@@ -1,0 +1,48 @@
+{
+  "source_scope": "Intermediate uncommitted source; exact accepted source is in checks.json",
+  "records": [
+    {
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache cargo check -p limeos-executor-container --locked --offline",
+      "session": 31322,
+      "exit_code": 0,
+      "compiler_elapsed_seconds": 6.92,
+      "scope": "production crate check before final tests/source settled",
+      "raw_log_retained": false
+    },
+    {
+      "tool_attempt": "Batched primary-source read and first targeted test command",
+      "outcome": "aborted while awaiting approval",
+      "wait_seconds": 677.5,
+      "tests_started": "No command output returned; not presented as a test result",
+      "later_process_health": "No cargo/rustc process remained before real test attempt"
+    },
+    {
+      "command": "cargo test -p limeos-executor-container --locked --offline",
+      "session": 75660,
+      "exit_code": 101,
+      "log": "logs/test-compile-attempt-1.txt",
+      "diagnostic": "Test unwrap_err() unnecessarily requires Debug on opaque owner",
+      "fix": "Pattern match JoinError in test only",
+      "capture": "Combined visible stdout/diagnostic tool chunks"
+    },
+    {
+      "command": "cargo test -p limeos-executor-container --locked --offline",
+      "session": 30008,
+      "exit_code": 0,
+      "passed": 41,
+      "new_cases": 20,
+      "test_elapsed_seconds": 2.02,
+      "raw_log_retained": false,
+      "scope": "Intermediate pass before four review-requested boundary cases"
+    },
+    {
+      "command": "cargo test -p limeos-executor-container --locked --offline",
+      "session": 10599,
+      "exit_code": 0,
+      "passed": 45,
+      "new_cases": 24,
+      "log": "logs/focused-tests-tool-output.txt",
+      "scope": "Final accepted source"
+    }
+  ]
+}

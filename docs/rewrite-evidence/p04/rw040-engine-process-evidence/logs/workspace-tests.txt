@@ -1,0 +1,503 @@
+   Compiling limeos-executor-container v0.2.0 (/home/marc/Documents/github/lime-os/crates/executor-container)
+   Compiling limeos-executor v0.2.0 (/home/marc/Documents/github/lime-os/bins/executor)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.95s
+     Running unittests src/lib.rs (target/debug/deps/limeos_api-316ceb8c4e6ffd82)
+
+running 9 tests
+test read_tests::sse_reconnect_always_sends_snapshot_revocation_ends_stream_and_drop_releases_reader ... ok
+test operation_tests::compose_selections_cannot_carry_manifests_or_claimed_authority ... ok
+test tests::no_default_login_cross_site_or_get_mutation ... ok
+test operation_tests::every_mutation_rejects_get_origin_csrf_and_untyped_extra_fields ... ok
+test read_tests::container_storage_read_requires_authentication_has_no_filters_and_rejects_post ... ok
+test tests::malformed_and_oversized_body_and_rate_limit ... ok
+test read_tests::reads_require_session_reject_bad_queries_and_paginate_with_revision ... ok
+test operation_tests::guided_storage_accepts_no_fstab_options_commands_units_or_claimed_principal ... ok
+test read_tests::sse_has_byte_and_age_limits ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_backup_archive-65b2bb706ca68507)
+
+running 10 tests
+test staging::tests::cleanup_refuses_a_replaced_attempt_name_and_keeps_foreign_directory ... ok
+test staging::tests::allocation_and_total_file_byte_quotas_fail_before_creating_files ... ok
+test staging::tests::existing_attempt_and_file_symlink_attacks_never_overwrite_or_delete_foreign_files ... ok
+test staging::tests::input_io_failure_is_not_misclassified_as_archive_syntax ... ok
+test tests::reads_stop_one_byte_past_the_limit_of_an_endless_source ... ok
+test tests::stop_reasons_survive_wrapping_by_decoders_and_parsers ... ok
+test staging::tests::independent_size_and_hash_verification_refuse_a_lying_or_corrupt_writer ... ok
+test tests::exactly_the_limit_is_accepted_and_cancellation_interrupts ... ok
+test staging::tests::short_interrupted_zero_writes_and_cancellation_before_completion ... ok
+test staging::tests::partial_write_and_each_durability_failure_are_typed_and_cleaned ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/archives.rs (target/debug/deps/archives-364bbd5eb746a794)
+
+running 32 tests
+test format_policy_and_invalid_policy_are_enforced_before_decoding ... ok
+test duplicate_and_colliding_destinations_are_rejected ... ok
+test completed_regular_file_self_links_are_inert_legacy_repeats ... ok
+test ambiguous_or_unsupported_extension_records_are_rejected ... ok
+test gnu_tar_fixtures_match_their_recorded_hashes_and_expected_decisions ... ok
+test extension_records_set_the_effective_name_that_is_checked ... ok
+test manifest_is_bound_to_the_exact_archive_and_file_contents ... ok
+test legacy_repeat_cannot_create_links_or_bypass_destination_checks ... ok
+test oversized_declarations_are_refused_before_any_read ... ok
+test rejections_produce_no_manifest_and_change_no_managed_destination ... ok
+test staging_attempts_are_independent_and_cleanup_uses_held_root_descriptor ... ok
+test staging_changed_payload_order_header_format_and_matching_supplied_digest_refuse ... ok
+test links_devices_and_other_member_types_are_rejected ... ok
+test staging_crash_child ... ok
+test malformed_and_truncated_streams_are_rejected ... ok
+test staging_refuses_full_policy_edits_even_with_the_same_revision_before_reads ... ok
+test staging_repeated_interrupted_reads_preserve_bytes ... ok
+test staging_corrupt_truncated_trailing_and_hostile_streams_clean_private_attempts ... ok
+test cancellation_returns_no_report ... ok
+test staging_root_symlink_and_foreign_path_attacks_refuse_without_overwrite ... ok
+test short_and_interrupted_reads_preserve_format_digest_and_complete_admission ... ok
+test staging_revalidates_every_manifest_field_and_never_uses_forged_paths ... ok
+test staging_short_interrupted_reads_and_cancellation_mid_stream_and_near_eof ... ok
+test staging_replays_real_formats_and_gnu_fixtures_to_flat_private_files ... ok
+test valid_archives_yield_identical_deterministic_manifests_in_both_formats ... ok
+test quota_boundaries_admit_exactly_the_limit ... ok
+test zstd_windows_beyond_the_decoder_memory_limit_are_refused ... ok
+test traversal_and_absolute_names_are_rejected ... ok
+test staging_footer_failure_and_mid_file_cancellation_follow_tentative_writes ... ok
+test staging_sigkill_leaves_private_incomplete_artifacts_and_never_resumes_them ... ok
+test staging_enforces_declared_metadata_file_entry_and_decoder_limits ... ok
+test entry_floods_and_decompression_bombs_stop_at_policy_limits ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.22s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_contracts-9eefcc4206ebaa48)
+
+running 1 test
+test tests::oversized_frame_rejected_before_body_and_forged_actor_rejected ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/limeos_core-8b7bebcdd35280c2)
+
+running 16 tests
+test operation_tests::revoking_a_session_during_inspection_prevents_plan_persistence ... ok
+test compose_tests::framed_task_preview_uses_peer_credentials_and_never_contacts_engine ... ok
+test operation_tests::dispatch_verifies_once_and_replay_returns_the_job_without_engine_access ... ok
+test storage_targets::tests::an_unprivileged_target_socket_cannot_forge_evidence_and_receives_no_frame ... ok
+test operation_tests::logs_recheck_revocation_after_reading_and_viewer_scope_never_reaches_executor ... ok
+test storage_tests::failed_container_dependency_receipts_preserve_errors_after_version_validation ... ok
+test storage_tests::an_unprivileged_reader_socket_cannot_forge_storage_evidence ... ok
+test compose_tests::task_needs_both_scopes_and_kernel_identity_and_current_authority ... ok
+test operation_tests::start_and_stop_dispatch_use_the_same_approval_and_verified_job_path ... ok
+test operation_tests::recovery_without_an_accepted_receipt_never_dispatches_again ... ok
+test storage_tests::core_owned_container_sockets_cannot_forge_storage_declarations ... ok
+test tests::observations_and_history_use_current_resource_grants_and_reject_revocation ... ok
+test compose_tests::browser_and_task_have_identical_compose_policy_and_task_cannot_approve ... ok
+test storage_targets::tests::target_authority_and_csrf_are_checked_before_reader_access_and_tasks_cannot_approve ... ok
+test storage_tests::storage_authority_is_checked_before_contacting_a_reader_and_tasks_cannot_approve ... ok
+test tests::imported_hash_upgrades_only_after_successful_login_and_session_is_durable ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.37s
+
+     Running unittests src/password_worker.rs (target/debug/deps/limeos_password_worker-ea896882ebd4de68)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/worker.rs (target/debug/deps/worker-ee71ffccdbf7fe4b)
+
+running 1 test
+test password_worker_is_bounded_and_has_no_command_or_actor_protocol ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_domain-e1452201f13bd4be)
+
+running 56 tests
+test backups::tests::broad_overlapping_or_open_policies_are_invalid ... ok
+test backups::tests::every_destination_finding_is_reported_and_no_manifest_returned ... ok
+test backups::tests::archived_special_bits_and_ownership_never_reach_the_manifest ... ok
+test backups::tests::literal_case_sensitive_paths_are_preserved ... ok
+test backups::tests::name_limits_are_enforced_from_policy ... ok
+test backups::tests::representative_legacy_layout_maps_to_managed_resources_deterministically ... ok
+test backups::tests::reports_render_hostile_paths_safely ... ok
+test compose::tests::every_supported_elevation_is_derived_from_manifest_not_caller_claims ... ok
+test compose::tests::impact_describes_added_removed_changed_services_and_preserves_numeric_owners ... ok
+test operations::tests::changed_incarnation_image_and_state_cannot_reuse_the_plan ... ok
+test backups::tests::inconsistent_or_partial_reports_are_refused ... ok
+test compose::tests::wildcard_port_conflicts_and_overlapping_mount_targets_fail ... ok
+test operations::tests::lifecycle_preconditions_and_verification_bind_the_selected_incarnation ... ok
+test operations::tests::legacy_restart_canonical_bytes_survive_the_new_action_field ... ok
+test operations::tests::selected_identity_requires_full_ids_and_forbids_paths_or_control_characters ... ok
+test compose::tests::normalization_is_stable_across_catalog_and_service_order ... ok
+test compose::tests::unsupported_privilege_fields_arbitrary_yaml_and_secret_environment_are_rejected ... ok
+test backups::tests::unsafe_names_are_rejected_with_specific_findings ... ok
+test operations::tests::verification_normalizes_precision_and_rejects_invalid_or_earlier_timestamps ... ok
+test compose::tests::unpinned_images_interpolation_traversal_duplicate_services_and_ambiguous_files_fail ... ok
+test pools::tests::frozen_golden_layouts_round_trip_and_preserve_ownership_and_branch_order ... ok
+test pools::tests::minimum_space_uses_bounded_frozen_grammar_and_unknown_settings_are_closed ... ok
+test pools::tests::pool_identity_binding_rejects_unknown_branch_and_parity_role ... ok
+test pools::tests::reject_ambiguous_overlapping_or_recursive_pools_including_disabled_pools ... ok
+test pools::tests::reject_noncanonical_paths_and_render_delimiters_without_normalizing_case ... ok
+test protection::tests::configuration_rejects_parity_gaps_duplicates_missing_content_uuid_and_injection ... ok
+test protection::tests::snapraid_frozen_golden_layouts_round_trip_with_sorted_parity_and_ordered_data_content ... ok
+test backups::tests::duplicates_and_collisions_are_rejected_in_either_order ... ok
+test protection::tests::nested_and_ambiguous_mounts_block_sync_and_absent_files_still_require_verified_parent_mounts ... ok
+test pools::tests::all_frozen_policies_and_presets_render_with_typed_overrides ... ok
+test protection::tests::sra002_all_roles_and_generated_files_reject_pool_roots_and_descendants_even_disabled ... ok
+test storage::planning::tests::existing_filesystems_only_unique_uuid_boot_and_serial_are_required ... ok
+test storage::planning::tests::foreign_fstab_and_mount_dependencies_prevent_reassignment ... ok
+test protection::tests::sra001_bare_directories_wrong_uuid_unknown_identity_and_duplicate_uuid_block_sync ... ok
+test storage::planning::tests::profile_roles_and_nested_physical_mounts_cannot_bypass_setup_validation ... ok
+test storage::planning::tests::fstab_escapes_literal_case_sensitive_paths_and_limits_device_waits ... ok
+test storage::tests::canonical_paths_use_components_and_preserve_literal_case ... ok
+test storage::tests::closed_schema_rejects_version_changes_and_kernel_path_authority ... ok
+test protection::tests::unqualified_multidevice_filesystem_identity_remains_closed ... ok
+test storage::tests::duplicate_and_ambiguous_assignments_fail_closed ... ok
+test storage::tests::executor_wait_input_is_validated_without_trusting_its_generator ... ok
+test storage::tests::ownership_and_fixed_container_paths_cannot_change_implicitly ... ok
+test storage::tests::frozen_contracts_round_trip_without_path_or_ownership_changes ... ok
+test storage::tests::role_specific_locations_cannot_escape_their_assigned_filesystem ... ok
+test storage::tests::serial_uuid_and_filesystem_rules_preserve_the_frozen_supported_set ... ok
+test storage::tests::waits_require_device_roots_and_a_bounded_deadline ... ok
+test storage_dependencies::tests::collection_age_identity_and_unknown_fields_fail_closed ... ok
+test storage_dependencies::tests::declared_overlap_includes_stopped_ancestors_but_preserves_components_and_case ... ok
+test storage_dependencies::tests::source_paths_reject_traversal_noncanonical_and_control_components ... ok
+test storage_dependencies::tests::aggregate_mount_and_container_limits_do_not_admit_partial_evidence ... ok
+test storage_dependencies::tests::named_volumes_preserve_driver_and_require_complete_identity ... ok
+test protection::tests::stale_future_or_rebound_source_and_diff_evidence_block_sync ... ok
+test protection::tests::sra001_boot_swap_readonly_bind_mount_and_serial_mismatch_block_sync ... ok
+test protection::tests::failed_or_missing_diff_cannot_be_overridden_by_zero_counts_or_log_success ... ok
+test protection::tests::threshold_boundaries_pass_and_excesses_require_a_separate_operation ... ok
+test protection::tests::sra001_accept_only_complete_fresh_mounted_evidence_for_every_path ... ok
+
+test result: ok. 56 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running unittests src/main.rs (target/debug/deps/limeos_executor-314cccee0f47c83a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_executor_container-088490814357e10d)
+
+running 45 tests
+test docker::process_evidence::tests::cancellation_aborts_the_connection_task_and_peer_observes_eof ... ok
+test docker::process_evidence::tests::declarations_preserve_issue_time_before_socket_acquisition ... ok
+test docker::process_evidence::tests::duplicate_running_pids_refuse_the_complete_result ... ok
+test docker::process_evidence::tests::advisory_inventory_keeps_its_missing_pid_behavior ... ok
+test docker::process_evidence::tests::genuinely_empty_double_enumeration_is_the_only_empty_success ... ok
+test docker::process_evidence::tests::complete_gets_include_stopped_and_mountless_consumers_without_private_fields ... ok
+test docker::process_evidence::tests::mismatched_kernel_peer_uid_sends_no_http_bytes ... ok
+test docker::process_evidence::tests::partial_body_produces_no_owner_or_empty_success ... ok
+test docker::process_evidence::tests::production_root_peer_rule_rejects_actual_unprivileged_credentials_before_bytes ... ok
+test docker::process_evidence::tests::fresh_revalidation_timestamp_does_not_renew_original_lifetime ... ok
+test docker::process_evidence::tests::final_reacquisition_response_cannot_cross_the_original_wall_expiry ... ok
+test docker::process_evidence::tests::initial_collection_checks_wall_rollback_and_age_at_its_final_response ... ok
+test docker::process_evidence::tests::root_policy_never_relaxes_to_an_unprivileged_fixture_owner ... ok
+test docker::process_evidence::tests::replaced_socket_object_invalidates_the_original_owner_before_more_http ... ok
+test docker::process_evidence::tests::count_mount_and_report_limits_refuse_without_truncation ... ok
+test docker::process_evidence::tests::socket_symlink_and_world_writable_socket_refuse ... ok
+test docker::process_evidence::tests::second_inspection_pid_snapshot_mount_membership_or_engine_change_refuses ... ok
+test docker::storage::tests::a_stuck_engine_returns_no_inventory_at_the_read_deadline ... ok
+test docker::process_evidence::tests::unchanged_wall_clock_cannot_extend_monotonic_expiry ... ok
+test docker::storage::tests::byte_container_and_mount_limits_refuse_instead_of_clipping ... ok
+test docker::storage::tests::fresh_collection_includes_stopped_unmanaged_and_volume_consumers_without_secrets ... ok
+test docker::storage::tests::changed_enumeration_mount_or_engine_identity_blocks_the_complete_result ... ok
+test docker::tests::lost_post_response_is_an_error_with_exactly_one_post ... ok
+test docker::process_evidence::tests::running_pid_requires_a_non_system_linux_integer_and_stopped_requires_zero ... ok
+test docker::tests::start_and_stop_use_only_the_fixed_selected_endpoints ... ok
+test docker::storage::tests::malformed_missing_duplicate_and_unsupported_mount_evidence_is_unavailable ... ok
+test logs::tests::decode_streams_strip_terminal_controls_and_redact_credentials ... ok
+test docker::tests::negotiated_full_id_inspection_is_selected_and_post_has_fixed_grace_without_retries ... ok
+test tests::accepted_effect_is_not_claimed_verified_and_repeat_action_returns_original_receipt ... ok
+test tests::crash_helper ... ok
+test tests::accepted_result_retains_lock_until_fresh_independent_verification ... ok
+test tests::expiry_during_receipt_sync_prevents_dispatch ... ok
+test tests::each_lifecycle_action_requires_its_own_ceiling_and_verified_result ... ok
+
+running 1 test
+test tests::process_death_after_effect_before_result_persistence_never_replays_the_effect ... ok
+test tests::peer_ceiling_plan_and_fresh_precondition_reject_before_any_effect ... ok
+test tests::receipt_paths_are_private_single_owner_and_fail_closed_on_links_or_future_schema ... ok
+test logs::tests::malformed_frames_fail_closed_and_clipping_remains_bounded ... ok
+test tests::storage_failure_before_prepare_has_no_effect_and_failure_after_effect_stays_unknown ... ok
+test tests::v2_receipt_migration_retains_the_prepared_barrier_without_replay ... ok
+test tests::uncertain_or_timed_out_effect_keeps_a_resource_barrier_after_executor_restart ... ok
+test docker::process_evidence::tests::all_sixty_four_running_consumers_are_admitted_without_mounts ... ok
+test docker::process_evidence::tests::reacquisition_binds_pid_full_snapshots_mounts_membership_and_engine ... ok
+test docker::process_evidence::tests::aggregate_body_budget_spans_both_inspection_passes ... ok
+test docker::process_evidence::tests::request_timeout_also_aborts_the_connection_task ... ok
+test docker::process_evidence::tests::complete_collection_deadline_refuses_responses_each_below_request_timeout ... ok
+
+test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.00s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_executor_protocol-0e62f897b952403b)
+
+running 5 tests
+test tests::log_ceiling_is_independent_managed_and_capped ... ok
+test tests::container_storage_read_requires_the_container_ceiling_and_accepts_no_filters ... ok
+test tests::peer_and_ceiling_are_independent_and_no_content_or_command_is_accepted ... ok
+test tests::storage_reader_has_an_independent_read_only_ceiling_and_no_path_or_effect_input ... ok
+test tests::target_preparation_ceiling_requires_exact_uuid_and_literal_path_and_core_uid ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_executor_storage-9c30d79244d9c88f)
+
+running 53 tests
+test dependencies::tests::altered_alias_root_device_type_and_missing_mount_ids_are_refused ... ok
+test dependencies::tests::alias_and_symlink_sources_bind_uuid_without_lexical_overlap ... ok
+test dependencies::tests::duplicate_uuid_on_unmounted_device_refuses_the_whole_report ... ok
+test dependencies::tests::inconsistent_source_identity_and_repeated_candidates_are_refused ... ok
+test dependencies::tests::independent_disks_do_not_match_even_with_overlapping_declared_names ... ok
+test dependencies::tests::assignment_boot_swap_serial_and_filesystem_mismatch_are_refused ... ok
+test dependencies::tests::missing_uuid_and_unprobed_source_refuse_instead_of_returning_empty ... ok
+test dependencies::tests::invalid_or_expired_input_is_refused_before_privileged_collection ... ok
+test dependencies::tests::device_missing_from_topology_is_unknown_not_an_independent_disk ... ok
+test dependencies::tests::empty_sources_remain_explicit_with_all_contract_and_evidence_digests ... ok
+test dependencies::tests::ntfs_kernel_driver_matches_direct_probe_but_tmpfs_requires_nonblock_device ... ok
+test dependencies::tests::raw_mount_digest_namespace_and_selected_table_digest_must_all_match ... ok
+test dependencies::tests::root_ancestor_candidate_includes_nested_storage_without_matching_boot_disk ... ok
+test dependencies::tests::dependency_match_limit_refuses_instead_of_clipping ... ok
+test fstab::tests::parser_bounds_markers_and_keeps_remote_credentials_private ... ok
+test inventory::tests::retained_fstab_identity_refuses_equal_bytes_at_a_replaced_name ... ok
+test inventory::tests::retained_fstab_identity_refuses_unlinked_or_multiply_linked_files ... ok
+test inventory::tests::public_storage_collection_requires_root ... ok
+test fstab::tests::section_replacement_preserves_operator_bytes_and_refuses_stale_source ... ok
+test dependencies::tests::sibling_partitions_are_conservative_shared_backing_consumers ... ok
+test sources::tests::alias_roots_and_nested_mounts_preserve_device_identity_and_component_boundaries ... ok
+test sources::tests::invalid_names_do_not_reach_kernel_lookup ... ok
+test dependencies::tests::tmpfs_has_no_block_backing_but_its_nested_candidates_still_count ... ok
+test dependencies::tests::unsupported_or_misidentified_nested_filesystem_refuses_complete_read ... ok
+test sources::tests::linked_parent_and_normal_target_dotdot_follow_the_kernel_object ... ok
+test dependencies::tests::serialized_report_limit_refuses_below_the_match_count_limit ... ok
+test sources::tests::changed_mount_tables_namespace_and_both_age_clocks_invalidate_evidence ... ok
+test sources::tests::missing_cyclic_and_magic_links_never_yield_source_evidence ... ok
+test sources::tests::link_targets_preserve_kernel_directory_and_trailing_slash_semantics ... ok
+test sources::tests::raw_mount_digest_detects_parent_propagation_and_option_changes ... ok
+test sources::tests::literal_case_spaces_and_distinct_files_remain_distinct ... ok
+test sources::tests::ordinary_relative_and_absolute_links_resolve_the_same_kernel_identity ... ok
+test sources::tests::root_ancestor_and_per_source_mount_reference_limits_refuse_clipping ... ok
+test sources::tests::link_count_target_bytes_control_characters_and_non_file_types_are_bounded ... ok
+test sources::tests::malformed_proc_ids_expired_work_and_unprivileged_boundary_fail_closed ... ok
+test sources::tests::wrong_mount_device_missing_mount_and_remote_filesystems_refuse_metadata ... ok
+test swaps::tests::swap_identity_ignores_utilization_but_bounds_and_validates_kernel_rows ... ok
+test sources::tests::named_volume_facts_bind_the_inventory_and_empty_inventory_is_explicit ... ok
+test sources::tests::real_descriptors_bind_stopped_sources_without_reading_or_changing_contents ... ok
+test sources::tests::aggregate_mount_reference_limit_covers_multiple_containers_and_duplicate_sources ... ok
+test targets::tests::preparation_is_a_closed_distinct_operation_with_bounded_expiry ... ok
+test tests::boot_graph_excludes_siblings_aliases_and_all_mapper_backings ... ok
+test sources::tests::symlink_retargeting_invalidates_but_file_content_changes_preserve_dependencies ... ok
+test tests::filesystem_types_are_explicit_and_multidevice_btrfs_stays_closed ... ok
+test tests::descriptor_walk_rejects_writable_ancestors_links_and_escaping_paths ... ok
+test tests::mount_parser_preserves_literal_paths_and_rejects_ambiguous_evidence ... ok
+test tests::namespace_proof_requires_kernel_mount_identity_not_equal_paths_or_devices ... ok
+test targets::tests::durable_prepared_and_unknown_receipts_keep_all_resources_across_restarts ... ok
+test targets::tests::journal_refuses_symlinks_hardlinks_writable_files_and_future_schemas ... ok
+test targets::tests::only_verified_or_no_effect_outcomes_release_claims_atomically ... ok
+test targets::tests::missing_and_extra_dependent_claims_refuse_a_healthy_root_journal ... ok
+test sources::tests::oversized_reports_are_refused_after_bounded_collection ... ok
+test sources::tests::replacement_deletion_and_parent_rename_invalidate_retained_evidence ... ok
+
+test result: ok. 53 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running unittests src/main.rs (target/debug/deps/limeos_footprint-428fc75f3f2322e2)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_identity-550194517997a34b)
+
+running 2 tests
+test tests::argon_round_trip_wrong_password_and_bounded_hostile_parameters ... ok
+test tests::verifies_hashes_generated_by_werkzeug ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.79s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_observations-4d6ceeeb5b1e77a7)
+
+running 26 tests
+test docker::tests::missing_cgroups_and_counter_resets_are_unknown ... ok
+test docker::tests::frozen_reference_container_fixture_agrees_on_full_identity_and_status ... ok
+test docker::tests::inventory_only_exposes_selected_metadata_and_stack_health ... ok
+test pool_protection::tests::diff_parses_complete_human_and_tag_outputs_to_the_same_counts ... ok
+test collectors::tests::slow_optional_metrics_cannot_discard_a_successful_inventory ... ok
+test pool_protection::tests::diff_empty_partial_malformed_ambiguous_overflow_or_invalid_text_fails_closed ... ok
+test pool_protection::tests::logs_preserve_numeric_summary_scan_progress_and_unescape_without_path_or_argv_leaks ... ok
+test pool_protection::tests::mfs001_result_handling_preserves_failure_status_despite_simulated_success_text ... ok
+test pool_protection::tests::sanitization_removes_controls_and_credentials_from_process_errors_and_log_messages ... ok
+test pool_protection::tests::logs_reject_malformed_counts_nonfinite_progress_and_resource_limits ... ok
+test pool_protection::tests::status_unknown_and_nonzero_results_never_become_healthy ... ok
+test probes::tests::counters_reset_missing_fields_and_no_cpu_baseline_are_unknown ... ok
+test probes::tests::disk_identity_is_uuid_not_device_name_and_duplicates_fail_closed ... ok
+test pool_protection::tests::unsupported_unknown_duplicate_and_malformed_imports_are_explicit_and_never_echo_values ... ok
+test pool_protection::tests::documented_defaults_are_findings_and_explicit_empty_excludes_stay_empty ... ok
+test pool_protection::tests::failed_diff_evidence_remains_unavailable_with_real_error_status ... ok
+test probes::tests::frozen_reference_disk_fixture_agrees_on_identity_mount_and_status ... ok
+test telemetry::tests::aggregate_values_match_frozen_python_history_fixture ... ok
+test pool_protection::tests::pool_status_distinguishes_missing_disabled_wrong_filesystem_and_invalid_capacity ... ok
+test telemetry::tests::retention_gaps_and_independent_metric_averages_match_reference_ranges ... ok
+test telemetry::tests::history_reads_do_not_flush_and_oversized_or_linked_files_are_rejected ... ok
+test pool_protection::tests::snapraid_import_rejects_missing_uuid_unsupported_settings_malformed_pool_context_and_forces ... ok
+test tests::failures_keep_last_evidence_missing_resources_are_explicit_and_readers_share_cache ... ok
+test pool_protection::tests::frozen_legacy_import_matches_typed_fixtures_and_does_not_mutate_source_bytes ... ok
+test telemetry::tests::failed_sample_writes_are_visible_and_recover_without_unbounded_buffering ... ok
+test docker::tests::docker_output_interruption_overflow_and_deadlines_are_bounded ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.01s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_persistence-1e5ad90900c05cbb)
+
+running 56 tests
+test config::tests::optional_compose_catalog_rejects_unprotected_paths_without_replacing_files ... ok
+test config::tests::corrupt_config_is_preserved_reads_do_not_write_and_atomic_write_is_valid ... ok
+test config::tests::public_cleartext_and_symlink_config_are_rejected ... ok
+test plans::tests::approvals_and_events_are_owned_and_hidden_from_other_principals ... ok
+test plans::tests::canceled_proposals_and_queued_jobs_cannot_be_dispatched_or_resurrected ... ok
+test plans::tests::approval_is_plan_bound_hashed_single_use_and_idempotency_survives_expiry ... ok
+test compose::tests::preview_is_principal_scoped_and_refuses_writes_without_durable_space ... ok
+test compose::tests::approval_checks_digest_expiry_current_grants_catalog_source_and_cancellation ... ok
+test compose::tests::preview_approval_survives_restart_and_read_does_not_write_authority ... ok
+test plans::tests::changed_grants_forged_role_and_unscoped_callers_cannot_propose_or_dispatch ... ok
+test compose::tests::exact_elevated_grant_is_required_for_template_stack_and_content_even_for_admin ... ok
+test plans::tests::modified_plan_wrong_nonce_stale_resource_and_reused_key_do_not_consume_approval ... ok
+test plans::tests::lifecycle_approval_binds_action_and_all_actions_share_the_resource_lock ... ok
+test plans::tests::failed_audit_commit_rolls_back_intent_and_approval_claim ... ok
+test plans::tests::proof_is_bound_to_the_persisted_intent_and_accepted_effect_is_not_success ... ok
+test compose::tests::v4_migration_preserves_container_approvals_and_failure_leaves_v4_untouched ... ok
+test plans::tests::concurrent_queueing_shares_a_job_or_consumes_approval_once ... ok
+test plans::tests::v2_to_v3_failure_preserves_old_authority_and_schema ... ok
+test resources::tests::kill_helper ... ok
+test plans::tests::v1_migration_preserves_authority_and_failed_migration_rolls_back ... ok
+test plans::tests::uncertain_dispatch_keeps_resource_lock_across_restart_and_never_reports_canceled ... ok
+test resources::tests::active_sets_and_job_identity_cannot_be_mutated_or_stolen ... ok
+
+running 1 test
+test resources::tests::audit_failure_rolls_back_all_acquisitions_and_all_releases ... ok
+test resources::tests::failed_v7_migration_preserves_v6_jobs_authority_and_generation ... ok
+test resources::tests::complete_resource_sets_are_atomic_and_unrelated_jobs_can_dispatch ... ok
+test resources::tests::only_bound_terminal_proof_releases_dependencies_and_retains_required_set ... ok
+test resources::tests::real_process_kill_preserves_every_committed_claim ... ok
+test plans::tests::v3_migration_preserves_restart_approval_bytes_and_rolls_back_table_renames ... ok
+test resources::tests::uncertainty_expiry_revocation_and_restart_keep_the_entire_set ... ok
+test resources::tests::resource_bounds_and_canceled_queue_do_not_leave_locks ... ok
+test storage::tests::changed_inventory_replaced_files_fstab_edits_grants_expiry_and_digest_block_approval ... ok
+test resources::tests::missing_or_changed_dispatch_guards_refuse_startup_with_healthy_pages ... ok
+test storage_targets::tests::fresh_targets_uuid_fstab_namespace_and_owner_block_approval_queue_and_claim ... ok
+test resources::tests::v6_upgrade_preserves_approval_bytes_and_all_old_active_locks ... ok
+test storage::tests::restart_preserves_preview_approval_read_is_pure_and_no_host_job_exists ... ok
+test storage_targets::tests::preview_nonce_cannot_queue_targets_and_authority_and_audit_are_required ... ok
+test storage_targets::tests::lost_queued_dependency_refuses_startup_without_repair_or_recovery_writes ... ok
+test storage::tests::v5_migration_is_atomic_preserves_users_and_does_not_mutate_failed_v5 ... ok
+test storage_targets::tests::replay_is_pure_after_expiry_and_consumed_approval_cannot_authorize_another_key ... ok
+test storage_targets::tests::genuine_v7_schema_upgrade_preserves_preview_bytes_and_dependent_claims_or_rolls_back ... ok
+test tests::crash_helper ... ok
+test storage_targets::tests::a_full_waiting_queue_cannot_starve_the_receipt_that_holds_its_claims ... ok
+test tests::budget_reservation_unknown_usage_retains_maximum_and_settlement_is_unique ... ok
+test tests::bounded_worker_serializes_concurrent_budget_reservations ... ok
+
+running 1 test
+test storage_targets::tests::shared_claims_and_verified_bound_receipts_control_release_and_restart ... ok
+test storage::tests::storage_requires_current_admin_grant_owner_and_durable_audit_space ... ok
+test tests::committed_intent_idempotency_resource_lock_deadline_and_revocation ... ok
+test tests::enrollment_once_expiry_and_no_default_user ... ok
+test tests::symlinked_core_lock_is_refused_without_creating_authority_state ... ok
+test tests::failures_rollback_intent_events_and_never_report_a_queued_operation ... ok
+test resources::tests::missing_or_extra_locks_refuse_startup_without_repair_or_recovery_events ... ok
+test tests::process_crash_preserves_committed_intent_and_requires_reconciliation ... ok
+test tests::sessions_csrf_expiry_revoke_and_grant_change ... ok
+test tests::single_core_and_future_schema_refuse_startup ... ok
+test tests::startup_refuses_recovery_without_audit_capacity ... ok
+test tests::task_uid_task_scope_expiry_revocation_revision_and_restart ... ok
+
+test result: ok. 56 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.71s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_policy-7b0289b520a49955)
+
+running 3 tests
+test tests::even_admin_needs_an_explicit_grant_and_task_cannot_expand_it ... ok
+test tests::elevated_template_authority_cannot_be_wildcard_or_inherited_by_a_task ... ok
+test tests::household_cannot_turn_media_grant_into_storage_or_deployment_authority ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/limeos_schema-b795989ff8aa8a47)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/limeosctl-3a4f9c386687571a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_api
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_backup_archive
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_contracts
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_domain
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_executor_container
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_executor_protocol
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_executor_storage
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_identity
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_observations
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_persistence
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_policy
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
