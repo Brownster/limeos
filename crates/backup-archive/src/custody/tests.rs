@@ -745,9 +745,21 @@ const POINTS: [Point; 8] = [
     Point::Replaying,
 ];
 
-/// Subprocess helper: no work unless the parent supplies a crash point.
+/// Subprocess helper: no work unless the parent selects a private scenario.
 #[test]
 fn crash_child() {
+    if let Some(dir) = std::env::var_os("LIMEOS_CUSTODY_FIFO_DIR") {
+        let dir = PathBuf::from(dir);
+        let root = CustodyRoot::open(&dir.join("custody")).unwrap();
+        let binding: CustodyBinding =
+            serde_json::from_slice(&fs::read(dir.join("binding.json")).unwrap()).unwrap();
+        let name = std::env::var("LIMEOS_CUSTODY_FIFO_NAME").unwrap();
+        assert!(matches!(
+            recover(&root, &binding, policy(), &limits(), &never),
+            Err(CustodyError::UnsafeObject(what)) if what == name
+        ));
+        return;
+    }
     let (Some(point), Some(dir)) = (
         std::env::var_os("LIMEOS_CUSTODY_CRASH_POINT"),
         std::env::var_os("LIMEOS_CUSTODY_CRASH_DIR"),
@@ -779,6 +791,62 @@ fn crash_child() {
         }
     }
     panic!("child must be killed at {point:?}");
+}
+
+#[test]
+fn fifo_record_and_archive_replacements_refuse_without_waiting_for_a_writer() {
+    struct Child(std::process::Child);
+    impl Drop for Child {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    for (object, expected) in [(RECORD, "record"), (ARCHIVE, "archive")] {
+        let scene = Scene::new();
+        let retained = retain(scene.source(), policy(), &scene.root(), &limits(), &never).unwrap();
+        fs::write(
+            scene.path("binding.json"),
+            serde_json::to_vec(retained.binding()).unwrap(),
+        )
+        .unwrap();
+        let directory = scene.path("custody").join(scene.one(PUBLISHED));
+        drop(retained);
+        let replacement = directory.join(object);
+        fs::remove_file(&replacement).unwrap();
+        rustix::fs::mkfifoat(rustix::fs::CWD, &replacement, Mode::from_raw_mode(0o400)).unwrap();
+        let mut child = Child(
+            Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "custody::tests::crash_child", "--nocapture"])
+                .env("LIMEOS_CUSTODY_FIFO_DIR", scene.temp.path())
+                .env("LIMEOS_CUSTODY_FIFO_NAME", expected)
+                .stdout(Stdio::null())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .unwrap(),
+        );
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        let status = loop {
+            if let Some(status) = child.0.try_wait().unwrap() {
+                break status;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "recovery waited for a FIFO writer: {object}"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        assert!(status.success(), "{object}: {status}");
+        assert_eq!(
+            FileType::from_raw_mode(fs::symlink_metadata(&replacement).unwrap().mode()),
+            FileType::Fifo,
+        );
+        assert_eq!(fs::read(scene.path("source")).unwrap(), archive());
+        assert_eq!(
+            fs::read(scene.path("custody").join(SENTINEL)).unwrap(),
+            b"unrelated",
+        );
+    }
 }
 
 /// Run the child until it reports `point`, then SIGKILL it.

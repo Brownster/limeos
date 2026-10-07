@@ -532,7 +532,7 @@ fn open_private_file(directory: &File, name: &str) -> Result<File, CustodyError>
     rustix::fs::openat(
         directory,
         name,
-        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        OFlags::RDONLY | OFlags::NONBLOCK | OFlags::NOFOLLOW | OFlags::CLOEXEC,
         Mode::empty(),
     )
     .map(File::from)
