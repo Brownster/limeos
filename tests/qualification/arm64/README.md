@@ -41,6 +41,8 @@ reproducing the integration preparation; preserve the older bundle too.
 | `approved_guest.py` | Fresh storage/container guests | Reuse current approved-operation suites with original assertions; actual apt replacement/removal on storage guest |
 | `upgrade_guest.py` | Fresh upgrade guest | Genuine recorded schema 6/7 artifact upgrade, sessions, pending approval, receipts, active locks/claims and replay |
 | `extra_guest.py` | Storage guest after approved suite | Exact installed hashes, command timings and separate optional reader/target memory/capabilities |
+| `guest_supervisor.py` | KVM host, detached beside each guest | Bind one QEMU process by pidfd, start time, UID and `-name` marker; SIGTERM and SIGKILL it at the recorded deadlines; never signal anything else |
+| `inspector_guest.py` | Fresh native build guest | Build the frozen archive inspector example natively and record its own `VmHWM` over synthetic archives (standalone RSS, not service PSS) |
 | `record_run.py` | Workstation | Reject mixed identities/overwrites; collect raw artifacts, summaries, budget comparisons and evidence hashes |
 | `test_harness.py` | Workstation | Local regressions without SSH or installed-service mutations |
 
@@ -55,6 +57,32 @@ Commit small shared fixture adaptations separately. The bundle's
 `tests/privileged_vm/`; guest wrappers verify these bytes independently of
 `--commit`. Execute the bundled fixture scripts, not the historical scripts
 in `source/tests/` or an uncommitted workstation copy.
+
+## Production host authorization and guest deadlines
+
+`--host` still rejects production hosts by default: `wybie` by name, and any
+alias or address that resolves to it (`ssh -G` without connecting, then
+address comparison). A production host is usable only with
+`--authorization FILE`, a recorded JSON window with exactly `version` (1),
+`host` (the exact `user@host` string passed to `--host`), `not_before` and
+`not_after` (UTC, `YYYY-MM-DDTHH:MM:SSZ`, at most 12 hours apart),
+`authorized_by`, `reference` and `scope`. Absent, malformed, mismatched,
+not-yet-valid or expired authorization is refused before any SSH. Every later
+host or guest SSH re-checks the window, so nothing reaches the host after
+`not_after`. The authorization's SHA-256 is stored in each guest's state.
+
+Every guest has a host-side deadline. Immediately after QEMU daemonizes,
+`boot` copies `guest_supervisor.py` into the guest's work directory and starts
+it detached as the SSH user, so workstation or SSH loss cannot leave the guest
+running. The supervisor binds a pidfd to the exact QEMU process (PID, kernel
+start time, real UID and a unique `-name` marker), sends SIGTERM at the
+deadline and SIGKILL two minutes later, and exits without signalling if the
+guest already stopped or its identity differs. For an authorized host the
+deadline is `not_after` minus 5 minutes (SIGKILL at minus 3); `boot` refuses
+when less than 15 minutes remain. `--terminate-at` sets an earlier deadline,
+for example a short proof run. If the supervisor fails to bind, `boot` stops
+the guest. `stop` tolerates a guest the supervisor already stopped and copies
+`supervisor.log` into the local guest state.
 
 ## Host prerequisites
 

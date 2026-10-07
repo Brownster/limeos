@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "host": "holly@wybie",
+  "not_before": "2026-10-06T21:30:00Z",
+  "not_after": "2026-10-07T06:00:00Z",
+  "authorized_by": "operator (repository owner), overnight assignment of 2026-10-06",
+  "reference": "docs/plans/2026-10-06-engineer-arm64-overnight-qualification.md at a595c2f1bcca8a8a0bc21ea0162eea841d0d5d15",
+  "scope": "disposable Debian 12 ARM64 KVM guests only; no host package, service, Python, configuration, database, Docker, mount or account changes"
+}

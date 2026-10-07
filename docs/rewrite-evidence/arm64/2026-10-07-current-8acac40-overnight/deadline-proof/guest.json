@@ -1,0 +1,29 @@
+{
+  "name": "deadline-proof",
+  "host": "holly@wybie",
+  "port": 22800,
+  "cpus": 1,
+  "memory_mib": 512,
+  "disk": "4G",
+  "storage_disks": false,
+  "image_sha512": "835b929522716de9798d1c0fbe61caae8313ab78858b278f3389a2db922ae42e4619b4a776ecad39583c149fb85334a2f8cdae685bc56987160e5c86a2354375",
+  "qemu": "sudo nice -n 19 ionice -c 3 qemu-system-aarch64 -name limeos-arm64-deadline-proof-516ed404f9259db0 -machine virt,gic-version=host -accel kvm -cpu host -smp 1 -m 512 -display none -serial file:console.log -drive if=pflash,format=raw,readonly=on,file=/usr/share/AAVMF/AAVMF_CODE.fd -drive if=pflash,format=raw,file=vars.fd -drive file=disk.qcow2,format=qcow2,if=none,id=system -device virtio-blk-pci,drive=system,bootindex=1 -device virtio-scsi-pci,id=scsi0 -drive file=seed.iso,format=raw,if=none,id=seed,media=cdrom,readonly=on -device scsi-cd,drive=seed,bus=scsi0.0 -netdev user,id=n1,hostfwd=tcp:127.0.0.1:22800-:22 -device virtio-net-pci,netdev=n1,romfile= -runas $(id -un) -pidfile qemu.pid -daemonize",
+  "marker": "limeos-arm64-deadline-proof-516ed404f9259db0",
+  "supervisor": {
+    "sha256": "29ada8476d6515d88ff3670e6bbad5b02085a51f3901e0a9227cd32cead29f80",
+    "terminate_at": "2026-10-06T21:47:21Z",
+    "kill_at": "2026-10-06T21:49:21Z",
+    "bound": "qemu=51406 supervisor=51430"
+  },
+  "authorization": {
+    "authorized_by": "operator (repository owner), overnight assignment of 2026-10-06",
+    "host": "holly@wybie",
+    "not_after": "2026-10-07T06:00:00Z",
+    "not_before": "2026-10-06T21:30:00Z",
+    "reference": "docs/plans/2026-10-06-engineer-arm64-overnight-qualification.md at a595c2f1bcca8a8a0bc21ea0162eea841d0d5d15",
+    "scope": "disposable Debian 12 ARM64 KVM guests only; no host package, service, Python, configuration, database, Docker, mount or account changes",
+    "sha256": "7f1a58f55ef61e7eaa3e591ed7521d4f7d734b6b6858c0c1c649b70f7a64123d",
+    "version": 1
+  },
+  "started": "2026-10-06T22:44:28+0100"
+}

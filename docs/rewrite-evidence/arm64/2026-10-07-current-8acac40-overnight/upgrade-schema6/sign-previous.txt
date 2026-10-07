@@ -1,0 +1,11 @@
+gpg: directory '/root/.gnupg' created
+gpg: keybox '/root/.gnupg/pubring.kbx' created
+gpg: /root/.gnupg/trustdb.gpg: trustdb created
+gpg: directory '/root/.gnupg/openpgp-revocs.d' created
+gpg: revocation certificate stored as '/root/.gnupg/openpgp-revocs.d/54288922AA051CB34878146BC45B77536D9141D5.rev'
+gpg: checking the trustdb
+gpg: marginals needed: 3  completes needed: 1  trust model: pgp
+gpg: depth: 0  valid:   1  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 1u
+gpg: next trustdb check due at 2026-10-07
+0a8651aa73afc7a2e67fe665f4c43d3a9f832e09c3104c316f105bea651c6e51  /root/qual/previous/limeos_0.4.2_arm64.deb
+0a8651aa73afc7a2e67fe665f4c43d3a9f832e09c3104c316f105bea651c6e51  /opt/limeos-previous-repo/pool/main/limeos_0.4.2_arm64.deb

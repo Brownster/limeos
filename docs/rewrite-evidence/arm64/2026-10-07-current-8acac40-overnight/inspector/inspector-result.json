@@ -1,0 +1,292 @@
+{
+  "scope": "native standalone inspector example VmHWM; not service PSS, not restore",
+  "steps": [
+    {
+      "step": "apt",
+      "exit": 0,
+      "seconds": 54.2,
+      "tail": ""
+    },
+    {
+      "step": "rustup",
+      "exit": 0,
+      "seconds": 16.1,
+      "tail": "\n  1.88.0-aarch64-unknown-linux-gnu installed - rustc 1.88.0 (6b00bc388 2025-06-23)\n\n\nRust is installed now. Great!\n\nTo get started you need Cargo's bin directory ($HOME/.cargo/bin) in your PATH\nenvironment variable. This has not been done automatically.\n\nTo configure your current shell, you need to source\nthe corresponding env file under $HOME/.cargo.\n\nConsider running the right command for your shell (note the leading DOT):\n. \"$HOME/.cargo/env\" # For sh/ash/dash/pdksh/bash\ncargo:rerun-if-env-changed=CC_aarch64-unknown-linux-gnu\nCC_aarch64-unknown-linux-gnu = None\ncargo:rerun-if-env-changed=CC_aarch64_unknown_linux_gnu\nCC_aarch64_unknown_linux_gnu = None\ncargo:rerun-if-env-changed=HOST_CC\nHOST_CC = None\ncargo:rerun-if-env-changed=CC\nCC = None\ncargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT\ncargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS\nCRATE_CC_NO_DEFAULTS = None\ncargo:rerun-if-env-changed=CFLAGS\nCFLAGS = None\ncargo:rerun-if-env-changed=HOST_CFLAGS\nHOST_CFLAGS = None\ncargo:rerun-if-env-changed=CFLAGS_aarch64_unknown_linux_gnu\nCFLAGS_aarch64_unknown_linux_gnu = None\ncargo:rerun-if-env-changed=CFLAGS_aarch64-unknown-linux-gnu\nCFLAGS_aarch64-unknown-linux-gnu = None\ninfo: downloading installer\ninfo: profile set to minimal\ninfo: default host tuple is aarch64-unknown-linux-gnu\ninfo: syncing channel updates for 1.88.0-aarch64-unknown-linux-gnu\ninfo: latest update on 2025-06-26 for version 1.88.0 (6b00bc388 2025-06-23)\ninfo: downloading 3 components\ninfo: default toolchain set to 1.88.0-aarch64-unknown-linux-gnu\n"
+    },
+    {
+      "step": "build",
+      "exit": 0,
+      "seconds": 63.5,
+      "tail": "0+zstd.1.5.7\n  Downloaded libc v0.2.190\n  Downloaded linux-raw-sys v0.12.1\n   Compiling libc v0.2.190\n   Compiling proc-macro2 v1.0.107\n   Compiling quote v1.0.47\n   Compiling unicode-ident v1.0.26\n   Compiling cfg-if v1.0.5\n   Compiling find-msvc-tools v0.1.14\n   Compiling version_check v0.9.5\n   Compiling syn v2.0.119\n   Compiling syn v3.0.6\n   Compiling jobserver v0.1.35\n   Compiling shlex v2.0.1\n   Compiling cc v1.6.0\n   Compiling generic-array v0.14.7\n   Compiling serde_core v1.0.228\n   Compiling pkg-config v0.3.34\n   Compiling zstd-sys v2.1.0+zstd.1.5.7\n   Compiling typenum v1.20.1\n   Compiling serde v1.0.228\n   Compiling ref-cast v1.0.27\n   Compiling thiserror v2.0.21\n   Compiling serde_json v1.0.145\n   Compiling serde_derive v1.0.228\n   Compiling serde_derive_internals v0.29.1\n   Compiling ref-cast-impl v1.0.27\n   Compiling thiserror-impl v2.0.21\n   Compiling crc32fast v1.5.2\n   Compiling memchr v2.8.3\n   Compiling zstd-safe v8.0.0\n   Compiling itoa v1.0.18\n   Compiling termcolor v1.4.1\n   Compiling ryu v1.0.23\n   Compiling ts-rs-macros v11.0.1\n   Compiling schemars_derive v1.0.4\n   Compiling crypto-common v0.1.7\n   Compiling block-buffer v0.10.4\n   Compiling simd-adler32 v0.3.10\n   Compiling dyn-clone v1.0.20\n   Compiling getrandom v0.3.4\n   Compiling rustix v1.1.5\n   Compiling adler2 v2.0.1\n   Compiling miniz_oxide v0.9.1\n   Compiling schemars v1.0.4\n   Compiling digest v0.10.7\n   Compiling ts-rs v11.0.1\n   Compiling filetime v0.2.29\n   Compiling cpufeatures v0.2.17\n   Compiling linux-raw-sys v0.12.1\n   Compiling bitflags v2.13.2\n   Compiling sha2 v0.10.9\n   Compiling tar v0.4.46\n   Compiling flate2 v1.1.10\n   Compiling limeos-domain v0.2.0 (/root/qual/source/crates/domain)\n   Compiling hex v0.4.3\n   Compiling once_cell v1.21.4\n   Compiling fastrand v2.5.0\n   Compiling tempfile v3.23.0\n   Compiling zstd v0.14.0\n   Compiling limeos-backup-archive v0.2.0 (/root/qual/source/crates/backup-archive)\n    Finished `release` profile [optimized] target(s) in 1m 01s\n"
+    },
+    {
+      "step": "generate",
+      "exit": 0,
+      "seconds": 0.4,
+      "tail": ""
+    },
+    {
+      "step": "archive-zeros-64m-full.tar.zst",
+      "exit": 0,
+      "seconds": 0.1,
+      "tail": ""
+    },
+    {
+      "step": "archive-random-64m.tar.zst",
+      "exit": 0,
+      "seconds": 0.2,
+      "tail": ""
+    },
+    {
+      "step": "archive-random-64m.tar.gz",
+      "exit": 0,
+      "seconds": 2.9,
+      "tail": ""
+    }
+  ],
+  "binary": {
+    "sha256": "16e0509e0d1123aa4afa9014df2c607113894baeb11b966127fc876a608ff4bd",
+    "bytes": 660088,
+    "elf_machine": 183
+  },
+  "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+  "policy_sha256": "03069532ee6ad5900d4515a20ca9b10070c60ed38b1c7294246034fd1f22a769",
+  "samples": [
+    {
+      "archive": "legacy-valid.tar.zst",
+      "attempt": 0,
+      "compressed_bytes": 786,
+      "archive_sha256": "51603bef78f8c54528c6707ffa8bac001d4400d4176cfa71956cad7e15034d38",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 2084,
+      "seconds": 0.003
+    },
+    {
+      "archive": "legacy-valid.tar.zst",
+      "attempt": 1,
+      "compressed_bytes": 786,
+      "archive_sha256": "51603bef78f8c54528c6707ffa8bac001d4400d4176cfa71956cad7e15034d38",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 2072,
+      "seconds": 0.002
+    },
+    {
+      "archive": "legacy-valid.tar.zst",
+      "attempt": 2,
+      "compressed_bytes": 786,
+      "archive_sha256": "51603bef78f8c54528c6707ffa8bac001d4400d4176cfa71956cad7e15034d38",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 2084,
+      "seconds": 0.002
+    },
+    {
+      "archive": "legacy-valid.tar.gz",
+      "attempt": 0,
+      "compressed_bytes": 834,
+      "archive_sha256": "d060432647c2d18d6db4055d2e58bcab7dbdce0d17f2462bb6c315511dc26a54",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 912,
+      "seconds": 0.002
+    },
+    {
+      "archive": "legacy-valid.tar.gz",
+      "attempt": 1,
+      "compressed_bytes": 834,
+      "archive_sha256": "d060432647c2d18d6db4055d2e58bcab7dbdce0d17f2462bb6c315511dc26a54",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 908,
+      "seconds": 0.002
+    },
+    {
+      "archive": "legacy-valid.tar.gz",
+      "attempt": 2,
+      "compressed_bytes": 834,
+      "archive_sha256": "d060432647c2d18d6db4055d2e58bcab7dbdce0d17f2462bb6c315511dc26a54",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 912,
+      "seconds": 0.002
+    },
+    {
+      "archive": "zeros-64m.tar.zst",
+      "attempt": 0,
+      "compressed_bytes": 2214,
+      "archive_sha256": "69d6133a8e4f7ad9617ea91d5de8575caba2e89ce52ff4d7c2fbd57835a02d5c",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 4172,
+      "seconds": 0.355
+    },
+    {
+      "archive": "zeros-64m.tar.zst",
+      "attempt": 1,
+      "compressed_bytes": 2214,
+      "archive_sha256": "69d6133a8e4f7ad9617ea91d5de8575caba2e89ce52ff4d7c2fbd57835a02d5c",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 4160,
+      "seconds": 0.351
+    },
+    {
+      "archive": "zeros-64m.tar.zst",
+      "attempt": 2,
+      "compressed_bytes": 2214,
+      "archive_sha256": "69d6133a8e4f7ad9617ea91d5de8575caba2e89ce52ff4d7c2fbd57835a02d5c",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 4172,
+      "seconds": 0.352
+    },
+    {
+      "archive": "zeros-64m-full.tar.zst",
+      "attempt": 0,
+      "compressed_bytes": 2204,
+      "archive_sha256": "87b1f271ade5ed35119b2c3efed94da98d9c0a7c9178953dd77593997749c718",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 4160,
+      "seconds": 0.353
+    },
+    {
+      "archive": "zeros-64m-full.tar.zst",
+      "attempt": 1,
+      "compressed_bytes": 2204,
+      "archive_sha256": "87b1f271ade5ed35119b2c3efed94da98d9c0a7c9178953dd77593997749c718",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 4176,
+      "seconds": 0.352
+    },
+    {
+      "archive": "zeros-64m-full.tar.zst",
+      "attempt": 2,
+      "compressed_bytes": 2204,
+      "archive_sha256": "87b1f271ade5ed35119b2c3efed94da98d9c0a7c9178953dd77593997749c718",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 4172,
+      "seconds": 0.351
+    },
+    {
+      "archive": "random-64m.tar.zst",
+      "attempt": 0,
+      "compressed_bytes": 67110937,
+      "archive_sha256": "8fe51e005f8774a48c93dfd7a540f071d1ee67dae8f8b83e4892c793572c3417",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 4168,
+      "seconds": 0.747
+    },
+    {
+      "archive": "random-64m.tar.zst",
+      "attempt": 1,
+      "compressed_bytes": 67110937,
+      "archive_sha256": "8fe51e005f8774a48c93dfd7a540f071d1ee67dae8f8b83e4892c793572c3417",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 4372,
+      "seconds": 0.744
+    },
+    {
+      "archive": "random-64m.tar.zst",
+      "attempt": 2,
+      "compressed_bytes": 67110937,
+      "archive_sha256": "8fe51e005f8774a48c93dfd7a540f071d1ee67dae8f8b83e4892c793572c3417",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 4176,
+      "seconds": 0.745
+    },
+    {
+      "archive": "random-64m.tar.gz",
+      "attempt": 0,
+      "compressed_bytes": 67119582,
+      "archive_sha256": "83ebbac40e052da88fb4287ccb387d8cf9a092011c272de40d374d7809eddf0e",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 2060,
+      "seconds": 0.76
+    },
+    {
+      "archive": "random-64m.tar.gz",
+      "attempt": 1,
+      "compressed_bytes": 67119582,
+      "archive_sha256": "83ebbac40e052da88fb4287ccb387d8cf9a092011c272de40d374d7809eddf0e",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 2064,
+      "seconds": 0.765
+    },
+    {
+      "archive": "random-64m.tar.gz",
+      "attempt": 2,
+      "compressed_bytes": 67119582,
+      "archive_sha256": "83ebbac40e052da88fb4287ccb387d8cf9a092011c272de40d374d7809eddf0e",
+      "exit": 0,
+      "admitted": true,
+      "finding": null,
+      "vmhwm_kib": 2064,
+      "seconds": 0.762
+    }
+  ],
+  "summary": {
+    "legacy-valid.tar.zst": {
+      "max_vmhwm_kib": 2084,
+      "exits": [
+        0
+      ]
+    },
+    "legacy-valid.tar.gz": {
+      "max_vmhwm_kib": 912,
+      "exits": [
+        0
+      ]
+    },
+    "zeros-64m.tar.zst": {
+      "max_vmhwm_kib": 4172,
+      "exits": [
+        0
+      ]
+    },
+    "zeros-64m-full.tar.zst": {
+      "max_vmhwm_kib": 4176,
+      "exits": [
+        0
+      ]
+    },
+    "random-64m.tar.zst": {
+      "max_vmhwm_kib": 4372,
+      "exits": [
+        0
+      ]
+    },
+    "random-64m.tar.gz": {
+      "max_vmhwm_kib": 2064,
+      "exits": [
+        0
+      ]
+    }
+  }
+}

@@ -100,7 +100,8 @@ def main():
         "sh",
         "-c",
         "apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "
-        "build-essential pkg-config ca-certificates curl gnupg apt-utils dpkg-dev binutils file",
+        # git: scripts/check_repository.py runs `git ls-files` and fails without it.
+        "build-essential pkg-config ca-certificates curl gnupg apt-utils dpkg-dev binutils file git",
         cwd=WORK,
     )
     step(

@@ -1,0 +1,53 @@
+{
+  "suite": "upgrade",
+  "identity": {
+    "architecture": "arm64",
+    "authority_schema": 8,
+    "fixtures_commit": "d46d7eeb992be420adc7a3a45fa13cee0a85de27",
+    "package_version": "0.4.7+arm64.1",
+    "qualification_kind": "native-kvm",
+    "source_commit": "8acac403e32d3692b028a036a11f4fead2050580"
+  },
+  "build_result_sha256": "8b6fe1dd64e3e4fedc454cc5a3ddbc630d5218bf5de187d285f56e774f31c50a",
+  "previous": {
+    "source_commit": "5848bceef22961f22a00f7c599f69ba4cd6bb544",
+    "package_version": "0.4.2",
+    "architecture": "arm64",
+    "authority_schema": 6,
+    "package_sha256": "0a8651aa73afc7a2e67fe665f4c43d3a9f832e09c3104c316f105bea651c6e51",
+    "core_sha256": "1523124483e7d4be4cda781dab921832d2afd8e165c384bc98c2208e9987a271",
+    "source_manifest_evidence": "docs/rewrite-evidence/arm64/2026-10-06-corrected-5848bce/source-manifest.json",
+    "source_manifest_sha256": "07a8fc80dea4c353e146269c7d0e540ca6d81f4ee0fca559698e4f718ca940cf",
+    "build_result_evidence": "docs/rewrite-evidence/arm64/2026-10-06-corrected-5848bce/build/build-result.json",
+    "build_result_sha256": "b7601e766e0e930174be20c8d63c548bc8e95c95fb8e612ca1ca04dd69c31c7b",
+    "artifact_path_observed": "/home/marc/Documents/github/lime-os-arm64-qual/.cache/arm64-qual/run-3-build-corrected/out/packages/limeos_0.4.2_arm64.deb",
+    "artifact_bytes": 2213744,
+    "qualification_status": "candidate for a new genuine schema-6-to-8 upgrade; new upgrade untested"
+  },
+  "previous_provenance_sha256": "ea6f5fcb78887273ae8c6f8fe511366df3a0628f46560efab20644bef282308c",
+  "started": 1791327243.5209227,
+  "summary": "pass",
+  "upgrade": {
+    "from": "0.4.2",
+    "to": "0.4.7+arm64.1",
+    "previous_package_sha256": "0a8651aa73afc7a2e67fe665f4c43d3a9f832e09c3104c316f105bea651c6e51",
+    "previous_core_sha256": "1523124483e7d4be4cda781dab921832d2afd8e165c384bc98c2208e9987a271",
+    "current_core_sha256": "aab46a601a95924c8900a93749cd8cf5cc735cc2328783196732c363f258cde0",
+    "preserved": [
+      "human session",
+      "approved canonical bytes and token hash",
+      "verified receipt",
+      "four active primary locks",
+      "queued state"
+    ],
+    "post_upgrade_approved_restart": "verified",
+    "original_queue_response_replay": "same job"
+  },
+  "installed_sha256": {
+    "limeos-core": "aab46a601a95924c8900a93749cd8cf5cc735cc2328783196732c363f258cde0",
+    "limeos-password-worker": "17610bb6d2fb4964ecacbcac1adc3e1ee3733bcdb8b87899ad38fadcf337f243",
+    "limeos-executor": "171bfb1e34101c00738955ddaa5c99823e4e42b033f34c8e44045b7e507940b2",
+    "limeosctl": "a0ebf9524d8c329693a0eadd1211bba5884cf2baf3f86569c1f26578752f6cc1"
+  },
+  "finished": 1791327338.73689
+}

@@ -1,0 +1,115 @@
+{
+  "kind": "extra",
+  "identity": {
+    "architecture": "arm64",
+    "authority_schema": 8,
+    "fixtures_commit": "d46d7eeb992be420adc7a3a45fa13cee0a85de27",
+    "package_version": "0.4.7+arm64.1",
+    "qualification_kind": "native-kvm",
+    "source_commit": "8acac403e32d3692b028a036a11f4fead2050580"
+  },
+  "build_result_sha256": "8b6fe1dd64e3e4fedc454cc5a3ddbc630d5218bf5de187d285f56e774f31c50a",
+  "installed_sha256": {
+    "limeos-core": "aab46a601a95924c8900a93749cd8cf5cc735cc2328783196732c363f258cde0",
+    "limeos-password-worker": "17610bb6d2fb4964ecacbcac1adc3e1ee3733bcdb8b87899ad38fadcf337f243",
+    "limeos-executor": "171bfb1e34101c00738955ddaa5c99823e4e42b033f34c8e44045b7e507940b2",
+    "limeosctl": "a0ebf9524d8c329693a0eadd1211bba5884cf2baf3f86569c1f26578752f6cc1"
+  },
+  "limeosctl_status": {
+    "command": "/usr/lib/limeos/limeosctl status",
+    "exit_codes": [
+      0
+    ],
+    "n": 20,
+    "min": 1.351,
+    "p50": 1.466,
+    "p95": 1.71,
+    "max": 1.806,
+    "samples_ms": [
+      1.351,
+      1.353,
+      1.364,
+      1.366,
+      1.37,
+      1.383,
+      1.385,
+      1.434,
+      1.441,
+      1.445,
+      1.466,
+      1.47,
+      1.489,
+      1.493,
+      1.561,
+      1.574,
+      1.576,
+      1.598,
+      1.71,
+      1.806
+    ],
+    "successful": true
+  },
+  "executor_storage_inventory": {
+    "command": "/usr/lib/limeos/limeos-executor storage-inventory",
+    "exit_codes": [
+      0
+    ],
+    "n": 10,
+    "min": 56.737,
+    "p50": 57.33,
+    "p95": 61.401,
+    "max": 61.401,
+    "samples_ms": [
+      56.737,
+      56.845,
+      56.89,
+      56.955,
+      57.247,
+      57.33,
+      57.389,
+      57.7,
+      58.135,
+      61.401
+    ],
+    "successful": true
+  },
+  "optional_services": {
+    "limeos-storage-reader": {
+      "start_exit": 0,
+      "start_ms": 44.12,
+      "active": "active",
+      "properties": "ExecStart={ path=/usr/lib/limeos/limeos-executor ; argv[]=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/storage.json /run/limeos-storage-reader/executor.sock storage ; ignore_errors=no ; start_time=[Tue 2026-10-06 22:39:00 UTC] ; stop_time=[n/a] ; pid=6455 ; code=(null) ; status=0/0 }\nMemoryMax=67108864\nCapabilityBoundingSet=\nUser=root\n",
+      "memory": {
+        "pss_kib": 838,
+        "rss_kib": 3064,
+        "swap_kib": 0
+      },
+      "uid_and_caps": {
+        "Uid": "0\t0\t0\t0",
+        "CapEff": "0000000000000000",
+        "CapBnd": "0000000000000000",
+        "CapAmb": "0000000000000000",
+        "NoNewPrivs": "1"
+      }
+    },
+    "limeos-storage-targets": {
+      "start_exit": 0,
+      "start_ms": 37.73,
+      "active": "active",
+      "properties": "ExecStart={ path=/usr/lib/limeos/limeos-executor ; argv[]=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/storage-targets.json /run/limeos-storage-targets/executor.sock storage-targets ; ignore_errors=no ; start_time=[Tue 2026-10-06 22:39:02 UTC] ; stop_time=[n/a] ; pid=6471 ; code=(null) ; status=0/0 }\nMemoryMax=67108864\nCapabilityBoundingSet=cap_chown\nUser=root\n",
+      "memory": {
+        "pss_kib": 965,
+        "rss_kib": 3184,
+        "swap_kib": 0
+      },
+      "uid_and_caps": {
+        "Uid": "0\t0\t0\t0",
+        "CapEff": "0000000000000001",
+        "CapBnd": "0000000000000001",
+        "CapAmb": "0000000000000001",
+        "NoNewPrivs": "1"
+      }
+    }
+  },
+  "summary": "pass"
+}

@@ -1,0 +1,27 @@
+{
+  "identity": {
+    "architecture": "arm64",
+    "authority_schema": 8,
+    "fixtures_commit": "d46d7eeb992be420adc7a3a45fa13cee0a85de27",
+    "package_version": "0.4.7+arm64.1",
+    "qualification_kind": "native-kvm",
+    "source_commit": "8acac403e32d3692b028a036a11f4fead2050580"
+  },
+  "untested_gates": [],
+  "result_summaries": {
+    ".cache/arm64-qual/overnight/install/install-result.json": {
+      "passed": 20,
+      "failed": []
+    },
+    ".cache/arm64-qual/overnight/storage/extra-result.json": "pass",
+    ".cache/arm64-qual/overnight/storage/storage-result.json": "pass",
+    ".cache/arm64-qual/overnight/container/container-result.json": "pass",
+    ".cache/arm64-qual/overnight/upgrade-schema7-result.json": "pass",
+    ".cache/arm64-qual/overnight/upgrade-schema6-result.json": "pass"
+  },
+  "limitations": [
+    "Native KVM guest evidence; bare metal and comparable Python baseline are separate untested claims",
+    "Daily write values extrapolate only the recorded interval",
+    "Eight registered storage disks and assistant-inclusive workload were not measured by the footprint fixture"
+  ]
+}

@@ -1,0 +1,3 @@
+git version 2.39.5
+Repository dependency and hygiene checks passed.
+exit 0

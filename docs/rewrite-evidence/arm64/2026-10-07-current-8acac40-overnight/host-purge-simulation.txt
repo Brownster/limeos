@@ -1,0 +1,62 @@
+no-qemu
+78654 bash -c pgrep -a qemu-system || echo no-qemu; pgrep -af guest_supervisor || echo no-supervisor; ls ~/limeos-arm64-qual; sudo apt-get -s purge libaio1 libbrlapi0.8 libcacard0 libcapstone4 libdaxctl1 libdrm-amdgpu1 libdrm-radeon1 libepoxy0 libexecs0 libgbm1 libglapi-mesa libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libllvm15 libndctl6 libopus0 liborc-0.4-0 libpixman-1-0 libpmem1 libsensors5 libsensors-config libsndio7.0 libspice-server1 libusbredirparser1 libvdeplug2 libwayland-server0 libx11-xcb1 libxcb-dri2-0 libxcb-dri3-0 libxcb-present0 libxcb-randr0 libxcb-sync1 libxcb-xfixes0 libxshmfence1 libz3-4 mesa-libgallium qemu-efi-aarch64 qemu-system-arm qemu-system-common qemu-system-data qemu-utils 
+image
+runs
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  bluez dos2unix libcamera0.3 libossp-uuid16 python3-toml rfkill uuid
+Use 'sudo apt autoremove' to remove them.
+The following packages will be REMOVED:
+  libaio1* libbrlapi0.8* libcacard0* libcapstone4* libdaxctl1* libdrm-amdgpu1*
+  libdrm-radeon1* libepoxy0* libexecs0* libgbm1* libglapi-mesa*
+  libgstreamer-plugins-base1.0-0* libgstreamer1.0-0* libllvm15* libndctl6*
+  libopus0* liborc-0.4-0* libpixman-1-0* libpmem1* libsensors-config*
+  libsensors5* libsndio7.0* libspice-server1* libusbredirparser1* libvdeplug2*
+  libwayland-server0* libx11-xcb1* libxcb-dri2-0* libxcb-dri3-0*
+  libxcb-present0* libxcb-randr0* libxcb-sync1* libxcb-xfixes0* libxshmfence1*
+  libz3-4* mesa-libgallium* qemu-efi-aarch64* qemu-system-arm*
+  qemu-system-common* qemu-system-data* qemu-utils*
+0 upgraded, 0 newly installed, 41 to remove and 62 not upgraded.
+Purg qemu-utils [1:7.2+dfsg-7+deb12u18+b3]
+Purg qemu-system-arm [1:7.2+dfsg-7+deb12u18+b3]
+Purg qemu-system-common [1:7.2+dfsg-7+deb12u18+b3]
+Purg libaio1 [0.3.113-4]
+Purg libbrlapi0.8 [6.5-7+deb12u1]
+Purg libcacard0 [1:2.8.0-3]
+Purg libcapstone4 [4.0.2-5]
+Purg libpmem1 [1.12.1-2]
+Purg libndctl6 [76.1-1]
+Purg libdaxctl1 [76.1-1]
+Purg libgbm1 [24.2.8-1~bpo12+rpt5]
+Purg mesa-libgallium [24.2.8-1~bpo12+rpt5]
+Purg libdrm-amdgpu1 [2.4.123-1~bpo12+1+rpt1]
+Purg libdrm-radeon1 [2.4.123-1~bpo12+1+rpt1]
+Purg libepoxy0 [1.5.10-1]
+Purg libvdeplug2 [4.0.1-4]
+Purg libexecs0 [1.3-2]
+Purg libglapi-mesa [24.2.8-1~bpo12+rpt5]
+Purg libspice-server1 [0.15.1-1]
+Purg libgstreamer-plugins-base1.0-0 [1.22.0-3+rpt1+deb12u6]
+Purg libgstreamer1.0-0 [1.22.0-2+deb12u1]
+Purg libllvm15 [1:15.0.6-4+b1]
+Purg libopus0 [1.3.1-3]
+Purg liborc-0.4-0 [1:0.4.33-2]
+Purg libpixman-1-0 [0.44.0-3+rpt1]
+Purg libsensors5 [1:3.6.0-7.1]
+Purg libsensors-config [1:3.6.0-7.1]
+Purg libsndio7.0 [1.9.0-0.3+b2]
+Purg libusbredirparser1 [0.13.0-2]
+Purg libwayland-server0 [1.23.1-3+rpt1]
+Purg libx11-xcb1 [2:1.8.4-2+deb12u2]
+Purg libxcb-dri2-0 [1.15-1]
+Purg libxcb-dri3-0 [1.15-1]
+Purg libxcb-present0 [1.15-1]
+Purg libxcb-randr0 [1.15-1]
+Purg libxcb-sync1 [1.15-1]
+Purg libxcb-xfixes0 [1.15-1]
+Purg libxshmfence1 [1.3-1]
+Purg libz3-4 [4.8.12-3.1]
+Purg qemu-efi-aarch64 [2022.11-6+deb12u2]
+Purg qemu-system-data [1:7.2+dfsg-7+deb12u18]

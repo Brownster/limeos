@@ -1,0 +1,19 @@
+PASS apt 60.4s
+PASS rustup 26.1s
+PASS fetch 10.3s
+PASS fmt 0.9s
+PASS clippy 85.1s
+PASS test 141.0s
+PASS contracts 28.0s
+PASS dependency-direction 0.1s
+PASS release 267.5s
+PASS package-standard 5.7s
+PASS package-shadow 5.6s
+PASS signing-key 0.3s
+gpg: checking the trustdb
+gpg: marginals needed: 3  completes needed: 1  trust model: pgp
+gpg: depth: 0  valid:   1  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 1u
+gpg: next trustdb check due at 2026-10-08
+PASS repository 0.2s
+ALL GATES PASSED
+exit 0

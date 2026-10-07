@@ -1,0 +1,2 @@
+$ python3 scripts/check_repository.py
+Repository dependency and hygiene checks passed.

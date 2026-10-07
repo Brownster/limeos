@@ -1,0 +1,2 @@
+{"utc": "2026-10-06T22:14:13Z", "event": "bound", "supervisor_pid": 69377, "terminate_at": 1791352500.0, "kill_at": 1791352620.0, "pid": 69354, "start_ticks": 669318, "uid": 1000, "marker": "limeos-arm64-current-install-1a2c31b83d41166c"}
+{"utc": "2026-10-06T22:35:31Z", "event": "guest_gone", "signalled": false}

@@ -1,0 +1,15 @@
+{
+  "source_commit": "5848bceef22961f22a00f7c599f69ba4cd6bb544",
+  "package_version": "0.4.2",
+  "architecture": "arm64",
+  "authority_schema": 6,
+  "package_sha256": "0a8651aa73afc7a2e67fe665f4c43d3a9f832e09c3104c316f105bea651c6e51",
+  "core_sha256": "1523124483e7d4be4cda781dab921832d2afd8e165c384bc98c2208e9987a271",
+  "source_manifest_evidence": "docs/rewrite-evidence/arm64/2026-10-06-corrected-5848bce/source-manifest.json",
+  "source_manifest_sha256": "07a8fc80dea4c353e146269c7d0e540ca6d81f4ee0fca559698e4f718ca940cf",
+  "build_result_evidence": "docs/rewrite-evidence/arm64/2026-10-06-corrected-5848bce/build/build-result.json",
+  "build_result_sha256": "b7601e766e0e930174be20c8d63c548bc8e95c95fb8e612ca1ca04dd69c31c7b",
+  "artifact_path_observed": "/home/marc/Documents/github/lime-os-arm64-qual/.cache/arm64-qual/run-3-build-corrected/out/packages/limeos_0.4.2_arm64.deb",
+  "artifact_bytes": 2213744,
+  "qualification_status": "candidate for a new genuine schema-6-to-8 upgrade; new upgrade untested"
+}

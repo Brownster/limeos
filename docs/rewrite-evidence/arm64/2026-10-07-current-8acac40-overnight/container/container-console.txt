@@ -1,0 +1,39 @@
+PASS only the container executor can access Engine and protected receipts
+PASS GET and invalid origin or CSRF cannot initiate an operation
+PASS one real restart, independent verification, durable progress and duplicate request
+PASS changed plans, stale incarnation and independent managed-ID ceiling
+PASS browser and scoped task share policy; task cannot approve; grant revocation is immediate
+PASS expired human approval causes no Engine effect
+PASS queued cancellation prevents effects; in-flight cancellation cannot claim prevention
+PASS kill limeos-core before_prepare: no unjustified second effect
+PASS kill limeos-containerd before_prepare: no unjustified second effect
+PASS kill limeos-core during: no unjustified second effect
+PASS kill limeos-containerd during: no unjustified second effect
+PASS kill limeos-core after_effect: no unjustified second effect
+PASS kill limeos-containerd after_effect: no unjustified second effect
+PASS shadow has isolated state and refuses write-enabled policy
+PASS shadow removal preserves standard services and authenticated reads
+PASS real stop is approved, verified, action-bound and idempotent
+PASS real start is approved, verified, action-bound and idempotent
+PASS start: kill limeos-core before_prepare retains proof and prevents replay
+PASS start: kill limeos-containerd before_prepare retains proof and prevents replay
+PASS start: kill limeos-core during retains proof and prevents replay
+PASS start: kill limeos-containerd during retains proof and prevents replay
+PASS start: kill limeos-core after_effect retains proof and prevents replay
+PASS start: kill limeos-containerd after_effect retains proof and prevents replay
+PASS stop: kill limeos-core before_prepare retains proof and prevents replay
+PASS stop: kill limeos-containerd before_prepare retains proof and prevents replay
+PASS stop: kill limeos-core during retains proof and prevents replay
+PASS stop: kill limeos-containerd during retains proof and prevents replay
+PASS stop: kill limeos-core after_effect retains proof and prevents replay
+PASS stop: kill limeos-containerd after_effect retains proof and prevents replay
+PASS real multiplexed logs are bounded, filtered and have no effect
+PASS real TTY logs are bounded, filtered and have no effect
+PASS logs independently reject an unmanaged ID and a disabled log ceiling
+PASS task logs use the same resource grant and cannot acquire human approval
+PASS viewer inventory authority permits neither browser nor task logs
+PASS real oversized log framing clips within byte and time limits
+PASS start has an independent effect ceiling even with restart enabled
+PASS stop has an independent effect ceiling even with restart enabled
+PASS shadow independently refuses start-enabled and stop-enabled ceilings
+exit 0
