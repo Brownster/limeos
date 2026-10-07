@@ -1,5 +1,7 @@
 # Engineer assignments and handoffs
 
+These assignments are completed. [The current P04 assignments](2026-10-07-engineer-assignments.md) cover private archive custody/restart staging and retained running-process evidence; the historical window below grants no new host access.
+
 Both assignments started from integrated baseline `a595c2f1bcca8a8a0bc21ea0162eea841d0d5d15` in separate branches/worktrees. The integrator merged the shared runtime changes sequentially. The [original integration record](../rewrite-evidence/p04/2026-10-06-handoff-integration/README.md) distinguishes the tested runtime `8acac40` from subsequent documentation and qualification tooling.
 
 Both deliveries are reviewed and merged with their original histories. [The new integration record](../rewrite-evidence/p04/2026-10-07-handoff-integration/README.md) separates frozen native qualification from current-source validation and preserves the failed inventory latency row. Further harness safety corrections and validation are recorded there before reuse. The original branches and evidence remain intact.
