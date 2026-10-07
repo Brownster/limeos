@@ -6,6 +6,7 @@ use limeos_domain::{ContainerAction, ContainerSnapshot, Error, ErrorCode, Result
 use serde_json::Value;
 use std::{path::PathBuf, time::Duration};
 use tokio::net::UnixStream;
+pub mod process_evidence;
 mod storage;
 #[cfg(test)]
 mod tests;
@@ -54,13 +55,38 @@ impl Docker {
         limit: usize,
         clip: bool,
     ) -> Result<(StatusCode, Vec<u8>, bool)> {
+        self.request_clipped_inner(method, path, limit, clip, None)
+            .await
+    }
+    async fn request_clipped_inner(
+        &self,
+        method: &str,
+        path: String,
+        limit: usize,
+        clip: bool,
+        authenticated: Option<(
+            &process_evidence::AuthenticatedEngine,
+            &process_evidence::ResponseBudget,
+        )>,
+    ) -> Result<(StatusCode, Vec<u8>, bool)> {
+        if let Some((peer, _)) = authenticated {
+            peer.revalidate_socket()?;
+        }
         let stream = UnixStream::connect(&self.socket)
             .await
             .map_err(|_| Error(ErrorCode::Unavailable))?;
-        let (mut sender, connection) =
-            hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(stream))
-                .await
-                .map_err(|_| Error(ErrorCode::Unavailable))?;
+        if let Some((peer, _)) = authenticated {
+            peer.authenticate(&stream)?;
+            peer.revalidate_socket()?;
+        }
+        let mut builder = hyper::client::conn::http1::Builder::new();
+        if authenticated.is_some() {
+            builder.max_buf_size(32 * 1024).max_headers(64);
+        }
+        let (mut sender, connection) = builder
+            .handshake(hyper_util::rt::TokioIo::new(stream))
+            .await
+            .map_err(|_| Error(ErrorCode::Unavailable))?;
         // A dropped request must also end its connection task. In particular a
         // timeout cannot leave an unbounded set of stuck Engine connections.
         let connection = tokio::spawn(async move {
@@ -92,6 +118,9 @@ impl Docker {
                 .map_err(|_| Error(ErrorCode::Unavailable))?
                 .into_data()
             {
+                if let Some((_, budget)) = authenticated {
+                    budget.consume(data.len())?;
+                }
                 if bytes.len() + data.len() > limit {
                     if clip {
                         bytes.extend_from_slice(&data[..limit - bytes.len()]);
@@ -101,6 +130,9 @@ impl Docker {
                 }
                 bytes.extend_from_slice(&data);
             }
+        }
+        if let Some((peer, _)) = authenticated {
+            peer.revalidate_socket()?;
         }
         Ok((status, bytes, false))
     }
@@ -117,16 +149,7 @@ impl Docker {
     }
     async fn version(&self) -> Result<String> {
         let value = self.json("/version".into(), 8192).await?;
-        let parse = |s: &str| s.strip_prefix("1.")?.parse::<u32>().ok();
-        let max = parse(value["ApiVersion"].as_str().unwrap_or_default())
-            .ok_or(Error(ErrorCode::Unavailable))?
-            .min(56);
-        let min = parse(value["MinAPIVersion"].as_str().unwrap_or("1.24"))
-            .ok_or(Error(ErrorCode::Unavailable))?;
-        if max < 41 || min > max {
-            return Err(Error(ErrorCode::Unavailable));
-        }
-        Ok(format!("v1.{max}"))
+        parse_api_version(&value)
     }
     async fn effect(&self, id: &str, operation: ContainerAction) -> Result<()> {
         if !opaque_id(id) {
@@ -150,6 +173,18 @@ impl Docker {
         }
         Ok(())
     }
+}
+fn parse_api_version(value: &Value) -> Result<String> {
+    let parse = |s: &str| s.strip_prefix("1.")?.parse::<u32>().ok();
+    let max = parse(value["ApiVersion"].as_str().unwrap_or_default())
+        .ok_or(Error(ErrorCode::Unavailable))?
+        .min(56);
+    let min = parse(value["MinAPIVersion"].as_str().unwrap_or("1.24"))
+        .ok_or(Error(ErrorCode::Unavailable))?;
+    if max < 41 || min > max {
+        return Err(Error(ErrorCode::Unavailable));
+    }
+    Ok(format!("v1.{max}"))
 }
 impl Engine for Docker {
     async fn inspect(&self, id: &str) -> Result<ContainerSnapshot> {

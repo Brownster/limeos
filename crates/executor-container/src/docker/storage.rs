@@ -26,73 +26,13 @@ impl Docker {
         let value = self
             .json(format!("/{version}/containers/json?all=1"), 512 * 1024)
             .await?;
-        let list = value.as_array().ok_or_else(unavailable)?;
-        if list.len() > CONTAINER_STORAGE_MAX_CONTAINERS {
-            return Err(unavailable());
-        }
-        let mut ids = BTreeSet::new();
-        for item in list {
-            let id = item["Id"].as_str().ok_or_else(unavailable)?;
-            if !opaque_id(id) || !ids.insert(id.to_owned()) {
-                return Err(unavailable());
-            }
-        }
-        Ok(ids.into_iter().collect())
+        parse_storage_container_ids(&value)
     }
     async fn storage_container(&self, version: &str, id: &str) -> Result<ContainerStorageConsumer> {
         let value = self
             .json(format!("/{version}/containers/{id}/json"), 512 * 1024)
             .await?;
-        if value["Id"].as_str() != Some(id) {
-            return Err(unavailable());
-        }
-        let container = ContainerSnapshot {
-            resource: format!("container:{id}"),
-            image: value["Image"].as_str().ok_or_else(unavailable)?.into(),
-            started_at: value["State"]["StartedAt"]
-                .as_str()
-                .ok_or_else(unavailable)?
-                .into(),
-            running: value["State"]["Running"]
-                .as_bool()
-                .ok_or_else(unavailable)?,
-        };
-        let raw_mounts = value["Mounts"].as_array().ok_or_else(unavailable)?;
-        if raw_mounts.len() > CONTAINER_STORAGE_MAX_MOUNTS {
-            return Err(unavailable());
-        }
-        let mut mounts = vec![];
-        let mut destinations = BTreeSet::new();
-        for raw in raw_mounts {
-            let destination = raw["Destination"].as_str().ok_or_else(unavailable)?;
-            let writable = raw["RW"].as_bool().ok_or_else(unavailable)?;
-            if !container_storage_path(destination) || !destinations.insert(destination) {
-                return Err(unavailable());
-            }
-            let source = match raw["Type"].as_str() {
-                Some("bind") => ContainerStorageSource::Bind {
-                    path: raw["Source"].as_str().ok_or_else(unavailable)?.into(),
-                },
-                Some("volume") => ContainerStorageSource::Volume {
-                    path: raw["Source"].as_str().ok_or_else(unavailable)?.into(),
-                    name: raw["Name"].as_str().ok_or_else(unavailable)?.into(),
-                    driver: raw["Driver"].as_str().ok_or_else(unavailable)?.into(),
-                },
-                Some("tmpfs")
-                    if raw.get("Source").is_none() || raw["Source"].as_str() == Some("") =>
-                {
-                    continue;
-                }
-                _ => return Err(unavailable()),
-            };
-            mounts.push(ContainerStorageMount {
-                source,
-                destination: destination.into(),
-                writable,
-            });
-        }
-        mounts.sort_by(|a, b| a.destination.cmp(&b.destination));
-        Ok(ContainerStorageConsumer { container, mounts })
+        parse_storage_container(&value, id)
     }
     pub async fn storage_inventory(&self) -> Result<ContainerStorageInventory> {
         let observed_at = clock();
@@ -133,6 +73,72 @@ impl Docker {
         .await
         .map_err(|_| unavailable())?
     }
+}
+
+pub(super) fn parse_storage_container_ids(value: &Value) -> Result<Vec<String>> {
+    let list = value.as_array().ok_or_else(unavailable)?;
+    if list.len() > CONTAINER_STORAGE_MAX_CONTAINERS {
+        return Err(unavailable());
+    }
+    let mut ids = BTreeSet::new();
+    for item in list {
+        let id = item["Id"].as_str().ok_or_else(unavailable)?;
+        if !opaque_id(id) || !ids.insert(id.to_owned()) {
+            return Err(unavailable());
+        }
+    }
+    Ok(ids.into_iter().collect())
+}
+
+pub(super) fn parse_storage_container(value: &Value, id: &str) -> Result<ContainerStorageConsumer> {
+    if value["Id"].as_str() != Some(id) {
+        return Err(unavailable());
+    }
+    let container = ContainerSnapshot {
+        resource: format!("container:{id}"),
+        image: value["Image"].as_str().ok_or_else(unavailable)?.into(),
+        started_at: value["State"]["StartedAt"]
+            .as_str()
+            .ok_or_else(unavailable)?
+            .into(),
+        running: value["State"]["Running"]
+            .as_bool()
+            .ok_or_else(unavailable)?,
+    };
+    let raw_mounts = value["Mounts"].as_array().ok_or_else(unavailable)?;
+    if raw_mounts.len() > CONTAINER_STORAGE_MAX_MOUNTS {
+        return Err(unavailable());
+    }
+    let mut mounts = vec![];
+    let mut destinations = BTreeSet::new();
+    for raw in raw_mounts {
+        let destination = raw["Destination"].as_str().ok_or_else(unavailable)?;
+        let writable = raw["RW"].as_bool().ok_or_else(unavailable)?;
+        if !container_storage_path(destination) || !destinations.insert(destination) {
+            return Err(unavailable());
+        }
+        let source = match raw["Type"].as_str() {
+            Some("bind") => ContainerStorageSource::Bind {
+                path: raw["Source"].as_str().ok_or_else(unavailable)?.into(),
+            },
+            Some("volume") => ContainerStorageSource::Volume {
+                path: raw["Source"].as_str().ok_or_else(unavailable)?.into(),
+                name: raw["Name"].as_str().ok_or_else(unavailable)?.into(),
+                driver: raw["Driver"].as_str().ok_or_else(unavailable)?.into(),
+            },
+            Some("tmpfs") if raw.get("Source").is_none() || raw["Source"].as_str() == Some("") => {
+                continue;
+            }
+            _ => return Err(unavailable()),
+        };
+        mounts.push(ContainerStorageMount {
+            source,
+            destination: destination.into(),
+            writable,
+        });
+    }
+    mounts.sort_by(|a, b| a.destination.cmp(&b.destination));
+    Ok(ContainerStorageConsumer { container, mounts })
 }
 
 #[cfg(test)]
