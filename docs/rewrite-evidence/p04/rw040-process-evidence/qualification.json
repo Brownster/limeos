@@ -1,0 +1,96 @@
+{
+  "base": "d324c1b9f3ee8dcc46d7d5deb4cf00c25b1301f4",
+  "implementation_and_rust_test_commit": "ad5ff6e2ae75c98dc261c951b084a14f59c3b5e1",
+  "documentation_parent": "334bf629a581136a3d9d69b3ce1e03a20330e39b",
+  "worktree": "/tmp/limeos-container-process-evidence",
+  "branch": "engineer/container-process-evidence",
+  "source_sha256": {
+    "Cargo.lock": "db3ee3f292266c092c27f31a12f06276236be8099fb1e300bde7c3dd390af764",
+    "Cargo.toml": "904578398be9460bbc087d2e5988a3ba1082160a6af7ebfa70b12256fc90d2a3",
+    "crates/executor-storage/Cargo.toml": "645dac84c75992784d5242d7cd97eca793f3e86b25fd25b7c9f1b71c82a738e4",
+    "crates/executor-storage/src/lib.rs": "8ddc7ea2339f2d9c439e76dc5b3895360a3d7bf2a708eee31dfd619e486349f7",
+    "crates/executor-storage/src/processes.rs": "44e33fdf2ae5bf0c56c58af08ff4427424e51e80ccda073cb56bc191c0b10ab3",
+    "crates/executor-storage/src/processes/tests.rs": "723c50154f0cb92b384031e3ffaba00fc35e4a8ac16d2ece9ac1c479eab38f94",
+    "tests/fixtures/container-process-evidence/btrfs-mountinfo.txt": "af4060ff1f0d82454c66e866594a50ee8c274e0d9fbebcc2a29a857f2cb7d5bc",
+    "tests/fixtures/container-process-evidence/mountinfo.txt": "0dcd4d42f571fc14556baca50eab3d89ac54481ef3e76098368d0d31bbd4d6a2",
+    "tests/fixtures/container-process-evidence/status.txt": "7da9b27a379b57339507e7952c58e6aa0ff15e84c03819d195f4de9b66e1e308"
+  },
+  "test_artifacts_sha256": {
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/archives-ee65da84b2322987": "ccfd8c2a8e1f656f19c6ba4ea79cc66613bd61209497e3d47dbddcc9b199ad33",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_api-316ceb8c4e6ffd82": "f4c2141dd1b7fe736037136132dc05dfaae06ebb44b455daeca20a9cf86e9c17",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_backup_archive-049902e4464fbc70": "267bd711ed382ef08fb864f10a92aa80201fe56b4bb0a7633515339b4763b0d7",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_contracts-9eefcc4206ebaa48": "97b9af00c7d7c4176bbed26751945e192bf3bd8993498939eb942e04bfdee058",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_core-bab8c23d699238be": "0f8edadc5ff4d2b7b53ed2efd22b4de8116d8a58c2f40072940dfeea3e41c25f",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_domain-e1452201f13bd4be": "fc19714a86211ae027d9a554f9f2eebd3a85ca08b4f39f1735465bed81c635a9",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_executor-0902ad0608e6515a": "150333e87ef5944f88810c0c1b5736c6be589115981e33c1609cd74c0fab7c08",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_executor_container-0bd2949c2746190d": "ec87cb7d627346e6d0e286fa20c104870e669e8b68e3a668bc9a4802ff39cf9f",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_executor_protocol-14fbd9757b9aa9f9": "0295defe0d3fcfbce0c409988591a18f722e05860eff5226dcaa7fe0a1257673",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_executor_storage-4c70eb2aaf20a70d": "099063c996a2d795093892629a771d790fa18563cb7851eb436efc851f733155",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_footprint-428fc75f3f2322e2": "8c9b4b664d28640045d9028386e01c9947aace33606bcd7cf591f461a3fbd9dd",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_identity-817e747b7e43c87d": "5d6980fd78f2d32473091657410bfff8379c76f39054f5c04b403be36a1a793c",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_observations-738f848b24fec26f": "77cffd453debc34ae0e339f44bf279823cd51fbc3dfd89ee637f325d3620e393",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_password_worker-58688041b43e5afb": "60c7f4ee769d03214d947abe9608a3c8b7b6137174283784cd34b2b1c2859d7f",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_persistence-bc8642f6bc6c56e5": "915561a70d0655d4fc37d317567645d986dee99214a2af62fc571fcfedc92369",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_policy-7b0289b520a49955": "a76f1d4a42757f422e1811d6887238a43a685429394cbae39f24237f90b934d1",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_schema-b795989ff8aa8a47": "09f810c08c34e69c79a8bb4587edf6b8411692d9737c57a392ca4156ddfd8a20",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeosctl-ad61411678dc9b6b": "3225566f7a37c91cb1105b81e73118f282098d0a54bf1f1e1982942c93216fd2",
+    "/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/worker-35b5d5089aef8203": "bdb4849698726979ea6cc3896de00ab867d3b9905200885f7b1285102b1ba5ad"
+  },
+  "environment": {
+    "uid": "1000",
+    "kernel": "Linux 7.0.14-101.fc43.x86_64 #1 SMP PREEMPT_DYNAMIC Wed Jul  1 13:50:13 UTC 2026 x86_64 unknown",
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+    "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+    "deny": "cargo-deny 0.20.2",
+    "audit": "cargo-audit 0.22.2"
+  },
+  "advisory_scope": {
+    "revision": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
+    "committed_at": "2026-10-03T10:14:03+02:00",
+    "advisories": 1290,
+    "fetch": false,
+    "audit_live_yanked_check": false
+  },
+  "counts": {
+    "unit_integration": 320,
+    "compile_fail": 2,
+    "new_process_unit": 29,
+    "lockfile_total": 227,
+    "external_source": 211,
+    "local": 16
+  },
+  "resources": {
+    "case": "private frozen-clock maximum rows; not installed production footprint",
+    "processes": 64,
+    "rows": 262144,
+    "raw_table_bytes_per_pass": 8059904,
+    "retained_row_vector_capacity_bytes": 27262976,
+    "retained_row_string_capacity_bytes": 5242880,
+    "metadata_report_bytes": 38163,
+    "isolated_test_peak_rss_kib": 67356,
+    "real_child_retained_fds": 261,
+    "real_child_peak_additional_fds": 265,
+    "real_child_drop_returns_to_baseline": true,
+    "production_host_authentication_in_real_child_tests": "private substitution",
+    "proposed_worker_aggregate_row_ceiling": 32768,
+    "proposed_ceiling_implemented": false
+  },
+  "timing": {
+    "agent_started_utc": "2026-10-07T19:33:33+00:00",
+    "measurement_checkpoint_utc": "2026-10-07T20:21:50.929149+00:00",
+    "agent_elapsed_wall_seconds_to_checkpoint": 2897.929149,
+    "recorded_commands": 24,
+    "recorded_command_elapsed_sum_seconds": 205.907054,
+    "recorded_command_interval_union_seconds": 149.380804,
+    "measured_human_engineering_hours": null,
+    "separate_infrastructure_and_approval_wait_seconds": null,
+    "limits": "commands include compilation/tests/lock waits and overlap; initial tool runs and artifact capture were not independently timed; these are not human engineering hours"
+  },
+  "open_gates": [
+    "DSK-001",
+    "MNT-001",
+    "MNT-002",
+    "RT-001",
+    "applicable P04; no closure"
+  ]
+}

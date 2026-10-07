@@ -1,0 +1,13 @@
+    Checking limeos-executor-storage v0.2.0 (/tmp/limeos-container-process-evidence/crates/executor-storage)
+    Checking limeos-backup-archive v0.2.0 (/tmp/limeos-container-process-evidence/crates/backup-archive)
+    Checking limeosctl v0.2.0 (/tmp/limeos-container-process-evidence/bins/ctl)
+    Checking limeos-executor v0.2.0 (/tmp/limeos-container-process-evidence/bins/executor)
+    Checking limeos-persistence v0.2.0 (/tmp/limeos-container-process-evidence/crates/persistence)
+    Checking limeos-api v0.2.0 (/tmp/limeos-container-process-evidence/crates/api)
+    Checking limeos-schema v0.2.0 (/tmp/limeos-container-process-evidence/bins/schema)
+    Checking limeos-observations v0.2.0 (/tmp/limeos-container-process-evidence/crates/observations)
+    Checking limeos-executor-container v0.2.0 (/tmp/limeos-container-process-evidence/crates/executor-container)
+    Checking limeos-executor-protocol v0.2.0 (/tmp/limeos-container-process-evidence/crates/executor-protocol)
+    Checking limeos-policy v0.2.0 (/tmp/limeos-container-process-evidence/crates/policy)
+    Checking limeos-contracts v0.2.0 (/tmp/limeos-container-process-evidence/crates/contracts)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.91s

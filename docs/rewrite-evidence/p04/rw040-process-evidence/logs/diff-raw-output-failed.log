@@ -1,0 +1,20 @@
+docs/rewrite-evidence/p04/rw040-process-evidence/logs/deny-cached-corrected.log:3: trailing whitespace.
++  │  
+docs/rewrite-evidence/p04/rw040-process-evidence/logs/deny-cached-corrected.log:7: trailing whitespace.
++  │  
+docs/rewrite-evidence/p04/rw040-process-evidence/logs/deny-cached-corrected.log:30: trailing whitespace.
++   │  
+docs/rewrite-evidence/p04/rw040-process-evidence/logs/deny-cached-corrected.log:34: trailing whitespace.
++   │  
+docs/rewrite-evidence/p04/rw040-process-evidence/logs/deny-cached-corrected.log:86: trailing whitespace.
++    │  
+docs/rewrite-evidence/p04/rw040-process-evidence/logs/deny-cached-corrected.log:90: trailing whitespace.
++    │  
+docs/rewrite-evidence/p04/rw040-process-evidence/logs/real-fds-frozen-source.log:6: trailing whitespace.
++test processes::tests::real_owner_drop_resource_measurement ... 
+docs/rewrite-evidence/p04/rw040-process-evidence/logs/real-fds-frozen-source.log:17: new blank line at EOF.
+docs/rewrite-evidence/p04/rw040-process-evidence/logs/resource-frozen-source.log:10: new blank line at EOF.
+docs/rewrite-evidence/p04/rw040-process-evidence/logs/resource-isolated.log:10: new blank line at EOF.
+docs/rewrite-evidence/p04/rw040-process-evidence/logs/targeted-final.log:47: new blank line at EOF.
+docs/rewrite-evidence/p04/rw040-process-evidence/logs/targeted-initial-failed.log:52: new blank line at EOF.
+docs/rewrite-evidence/p04/rw040-process-evidence/logs/workspace-tests-final.log:526: new blank line at EOF.

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "limeos-executor-storage",
+    "processes::tests::btrfs_root_stat_device_and_mount_table_device_remain_distinct_observations",
+    "--locked",
+    "--offline",
+    "--",
+    "--exact",
+    "--nocapture"
+  ],
+  "cwd": "/tmp/limeos-container-process-evidence",
+  "started_utc": "2026-10-07T20:02:47.952145+00:00",
+  "elapsed_seconds": 2.588731,
+  "exit_code": 101,
+  "sha256": "6d53531c53746d76cf8d6ea9bb0f19359025652631a7eb34b08824fd62d665ad"
+}

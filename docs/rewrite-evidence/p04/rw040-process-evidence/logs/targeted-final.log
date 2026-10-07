@@ -1,0 +1,47 @@
+   Compiling limeos-executor-storage v0.2.0 (/tmp/limeos-container-process-evidence/crates/executor-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.80s
+     Running unittests src/lib.rs (/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_executor_storage-d3bb2670a868b1ef)
+
+running 29 tests
+test processes::tests::bounded_reader_checks_sentinel_interruption_io_and_mid_read_budget ... ok
+test processes::tests::cooperative_work_budget_refuses_and_original_lease_survives_no_failure ... ok
+test processes::tests::future_expired_and_mid_read_age_are_rejected ... ok
+test processes::tests::all_stopped_retains_host_observation_but_no_running_consumers ... ok
+test processes::tests::btrfs_root_stat_device_and_mount_table_device_remain_distinct_observations ... ok
+test processes::tests::namespace_and_root_changes_between_initial_and_final_observation_refuse ... ok
+test processes::tests::missing_primitives_denials_and_descriptor_exhaustion_fail_without_partial_owner ... ok
+test processes::tests::credentials_start_root_and_namespace_changes_invalidate_and_latch ... ok
+test processes::tests::mount_records_reject_ambiguous_malformed_oversized_and_whitespace_amplification ... ok
+test processes::tests::pidfd_fdinfo_requires_live_visible_unique_pid ... ok
+test processes::tests::real_directory_link_count_is_validity_not_identity_and_detachment_refuses ... ok
+test processes::tests::pid_reuse_between_pidfd_and_proc_open_and_exit_during_collection_refuse ... ok
+test processes::tests::complete_sorted_membership_includes_no_mount_and_excludes_stopped ... ok
+test processes::tests::real_ordinary_descriptors_cannot_substitute_for_namespace_or_root ... ok
+test processes::tests::original_declaration_digest_covers_engine_stopped_and_sources ... ok
+test processes::tests::raw_table_binds_parent_propagation_options_superoptions_and_source ... ok
+test processes::tests::rejects_all_membership_and_full_snapshot_disagreements_before_open ... ok
+test processes::tests::real_dead_pidfd_and_proc_handles_do_not_provide_live_evidence ... ok
+test processes::tests::stat_comm_is_opaque_even_with_spaces_parentheses_controls_and_invalid_utf8 ... ok
+test processes::tests::stat_refuses_malformed_truncated_oversized_and_dead_records ... ok
+test processes::tests::status_parses_numeric_ids_and_refuses_duplicates_truncation_and_overflow ... ok
+test processes::tests::unprivileged_public_collection_refuses_without_weak_metadata_fallback ... ok
+test processes::tests::wall_rollback_monotonic_expiry_and_repeated_revalidation_never_renew ... ok
+test processes::tests::real_owned_child_exit_between_pidfd_and_proc_open_refuses_collection ... ok
+local child phase live: Conflict
+test processes::tests::real_owned_child_retains_live_kernel_identity_and_exit_invalidates ... ok
+test processes::tests::maximum_numeric_credential_and_identity_facts_are_preserved ... ok
+test processes::tests::row_byte_aggregate_and_report_limits_refuse_without_clipping ... ok
+
+running 1 test
+test processes::tests::real_owner_drop_resource_measurement ... real_fd_measurement processes=64 baseline=4 retained=261 peak=265 host_namespace_authentication=private_substitution
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 81 filtered out; finished in 0.57s
+
+
+test processes::tests::real_owner_drop_resource_measurement ... ok
+resource_measurement processes=64 rows=262144 raw_table_bytes=8059904 mount_vector_bytes=27262976 mount_string_bytes=5242880 report_bytes=38163 retained_descriptors=261 peak_modeled_descriptors=264 VmHWM:	   69220 kB
+test processes::tests::maximum_admitted_retention_resource_measurement ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 53 filtered out; finished in 1.38s
+

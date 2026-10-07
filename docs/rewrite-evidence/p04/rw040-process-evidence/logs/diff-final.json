@@ -1,0 +1,25 @@
+{
+  "command": [
+    "git",
+    "diff",
+    "--check",
+    "d324c1b9f3ee8dcc46d7d5deb4cf00c25b1301f4"
+  ],
+  "cwd": "/tmp/limeos-container-process-evidence",
+  "started_utc": "2026-10-07T20:14:38.976147+00:00",
+  "elapsed_seconds": 0.029385,
+  "exit_code": 0,
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source_commit": "ad5ff6e2ae75c98dc261c951b084a14f59c3b5e1",
+  "source_sha256": {
+    "Cargo.lock": "db3ee3f292266c092c27f31a12f06276236be8099fb1e300bde7c3dd390af764",
+    "Cargo.toml": "904578398be9460bbc087d2e5988a3ba1082160a6af7ebfa70b12256fc90d2a3",
+    "crates/executor-storage/Cargo.toml": "645dac84c75992784d5242d7cd97eca793f3e86b25fd25b7c9f1b71c82a738e4",
+    "crates/executor-storage/src/lib.rs": "8ddc7ea2339f2d9c439e76dc5b3895360a3d7bf2a708eee31dfd619e486349f7",
+    "crates/executor-storage/src/processes.rs": "44e33fdf2ae5bf0c56c58af08ff4427424e51e80ccda073cb56bc191c0b10ab3",
+    "crates/executor-storage/src/processes/tests.rs": "723c50154f0cb92b384031e3ffaba00fc35e4a8ac16d2ece9ac1c479eab38f94",
+    "tests/fixtures/container-process-evidence/btrfs-mountinfo.txt": "af4060ff1f0d82454c66e866594a50ee8c274e0d9fbebcc2a29a857f2cb7d5bc",
+    "tests/fixtures/container-process-evidence/mountinfo.txt": "0dcd4d42f571fc14556baca50eab3d89ac54481ef3e76098368d0d31bbd4d6a2",
+    "tests/fixtures/container-process-evidence/status.txt": "7da9b27a379b57339507e7952c58e6aa0ff15e84c03819d195f4de9b66e1e308"
+  }
+}

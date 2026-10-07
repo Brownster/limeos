@@ -1,0 +1,7 @@
+error: unexpected argument '--disable-fetch' found
+
+  tip: to pass '--disable-fetch' as a value, use '-- --disable-fetch'
+
+Usage: cargo-deny check [OPTIONS] [WHICH]...
+
+For more information, try '--help'.

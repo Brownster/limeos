@@ -1,0 +1,20 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "limeos-executor-storage",
+    "processes::tests::maximum_admitted_retention_resource_measurement",
+    "--locked",
+    "--offline",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "cwd": "/tmp/limeos-container-process-evidence",
+  "started_utc": "2026-10-07T20:07:56.885328+00:00",
+  "elapsed_seconds": 4.287826,
+  "exit_code": 0,
+  "sha256": "e5c177d392764cc5b2f9b10817772988324ac0748b46d70701a8742879e82834"
+}
