@@ -6,7 +6,7 @@
 | Worktree | `/home/marc/Documents/github/lime-os-backup-catalog-recovery` |
 | Base | `d324c1b9f3ee8dcc46d7d5deb4cf00c25b1301f4` (runtime and fixtures `e330065`) |
 | Source of all checks below | `9a8232262d8de552e10bd88126395cfe197ee634` |
-| Brief | [Engineer 1: private archive custody and restart staging](../../../plans/2026-10-07-engineer-backup-catalog-recovery.md) |
+| Brief | [Engineer 1: private archive custody and restart staging](../../../plans/2026-10-07-engineer-backup-catalog-recovery.md), added on main in docs-only `b742f24` after this base; the link resolves once merged |
 | Contract | [Archive custody and restart staging](../../../p04-backup-archive-custody.md) |
 
 **BKP-001 and the P04 effect and cutover gates stay open.** This library retains an admitted
