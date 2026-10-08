@@ -569,6 +569,8 @@ fn verify_staged<I: FileIo>(
             return Err(StagingError::ManifestMismatch);
         }
         private.file = readonly;
+        // Retain the sealed metadata for later read-only consumer validation.
+        private.identity = observed;
     }
     io.sync(&quarantine.directory)
         .map_err(|e| io_error("fsync quarantine directory", e))?;
@@ -668,6 +670,103 @@ pub struct VerifiedCatalog {
 }
 
 impl VerifiedCatalog {
+    /// Freshly verify the retained objects and their no-follow names. This
+    /// does not grant restore authority or make same-UID writers impossible.
+    pub fn revalidate(&self, cancelled: &dyn Fn() -> bool) -> Result<(), StagingError> {
+        poll(cancelled)?;
+        let q = &self.quarantine;
+        for directory in [&q.root, &q.directory] {
+            let stat =
+                rustix::fs::fstat(directory).map_err(|e| io_error("stat catalog directory", e))?;
+            if !private_directory(&stat) {
+                return Err(StagingError::ManifestMismatch);
+            }
+        }
+        let named = rustix::fs::statat(&q.root, q.name.as_str(), AtFlags::SYMLINK_NOFOLLOW)
+            .map_err(|e| io_error("stat catalog name", e))?;
+        if !same_inode(&named, &q.identity) || !private_directory(&named) {
+            return Err(StagingError::ManifestMismatch);
+        }
+        let mut listing = rustix::fs::Dir::read_from(&q.directory)
+            .map_err(|e| io_error("list catalog directory", e))?;
+        let mut count = 0usize;
+        while let Some(item) = listing.read() {
+            poll(cancelled)?;
+            let item = item.map_err(|e| io_error("read catalog directory entry", e))?;
+            let name = item.file_name().to_bytes();
+            if matches!(name, b"." | b"..") {
+                continue;
+            }
+            count += 1;
+            if count > q.files.len() || !q.files.iter().any(|f| f.name.as_bytes() == name) {
+                return Err(StagingError::ManifestMismatch);
+            }
+        }
+        if count != q.files.len() || count as u64 != self.manifest.file_count {
+            return Err(StagingError::ManifestMismatch);
+        }
+        let mut chunk = buffer(CHUNK, None)?;
+        for file in &q.files {
+            poll(cancelled)?;
+            let entry = self
+                .manifest
+                .entries
+                .iter()
+                .find(|e| e.kind == EntryKind::File && e.archive_path == file.archive_path)
+                .ok_or(StagingError::ManifestMismatch)?;
+            let unchanged = |observed: &Stat| {
+                same_inode(observed, &file.identity)
+                    && FileType::from_raw_mode(observed.st_mode) == FileType::RegularFile
+                    && observed.st_uid == rustix::process::geteuid().as_raw()
+                    && observed.st_mode & 0o7777 == 0o400
+                    && observed.st_nlink == 1
+                    && observed.st_size >= 0
+                    && observed.st_size as u64 == entry.size
+                    && observed.st_gid == file.identity.st_gid
+                    && observed.st_mtime == file.identity.st_mtime
+                    && observed.st_mtime_nsec == file.identity.st_mtime_nsec
+                    && observed.st_ctime == file.identity.st_ctime
+                    && observed.st_ctime_nsec == file.identity.st_ctime_nsec
+            };
+            let check = || -> Result<(), StagingError> {
+                let held = rustix::fs::fstat(&file.file)
+                    .map_err(|e| io_error("stat held catalog payload", e))?;
+                let named =
+                    rustix::fs::statat(&q.directory, file.name.as_str(), AtFlags::SYMLINK_NOFOLLOW)
+                        .map_err(|e| io_error("stat catalog payload name", e))?;
+                if !unchanged(&held) || !unchanged(&named) {
+                    return Err(StagingError::ManifestMismatch);
+                }
+                Ok(())
+            };
+            check()?;
+            let mut hash = Sha256::new();
+            let mut offset = 0u64;
+            loop {
+                poll(cancelled)?;
+                let n = match file.file.read_at(&mut chunk, offset) {
+                    Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                    value => value.map_err(|e| io_error("rehash catalog payload", e))?,
+                };
+                if n == 0 {
+                    break;
+                }
+                offset = offset
+                    .checked_add(n as u64)
+                    .filter(|n| *n <= entry.size)
+                    .ok_or(StagingError::ManifestMismatch)?;
+                hash.update(&chunk[..n]);
+            }
+            if offset != entry.size
+                || entry.sha256.as_deref() != Some(hex::encode(hash.finalize()).as_str())
+            {
+                return Err(StagingError::ManifestMismatch);
+            }
+            check()?;
+        }
+        poll(cancelled)
+    }
+
     pub fn manifest(&self) -> &RestoreManifest {
         &self.manifest
     }
