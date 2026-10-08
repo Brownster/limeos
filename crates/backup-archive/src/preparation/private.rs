@@ -20,6 +20,12 @@ pub(super) enum Point {
 }
 
 pub(super) trait PreparationIo {
+    fn cleanup_count(&mut self, directory: &File) -> Result<usize, CleanupFailure> {
+        entries(directory).map_err(|failure| match failure {
+            Failure::Io { source, .. } => CleanupFailure::Io(source),
+            _ => CleanupFailure::ForeignObjects,
+        })
+    }
     fn write(&mut self, file: &mut File, input: &[u8]) -> io::Result<usize> {
         file.write(input)
     }
@@ -336,7 +342,7 @@ impl Attempt {
             match stat {
                 Ok(stat) if same_inode(&stat, &object.identity) => {
                     if object.metadata.kind == EntryKind::Directory
-                        && entries(&object.file).map_err(|_| CleanupFailure::ForeignObjects)? != 0
+                        && io.cleanup_count(&object.file)? != 0
                     {
                         return Err(CleanupFailure::ForeignObjects);
                     }
@@ -356,15 +362,17 @@ impl Attempt {
                 Err(e) => return Err(CleanupFailure::Io(e.into())),
             }
         }
-        if entries(&self.directory).map_err(|_| CleanupFailure::ForeignObjects)? != 0 {
+        if io.cleanup_count(&self.directory)? != 0 {
             return Err(if self.unverified {
                 CleanupFailure::UnverifiedObject
             } else {
                 CleanupFailure::ForeignObjects
             });
         }
-        bound(&self.root, &self.name, &self.identity)
-            .map_err(|_| CleanupFailure::ReplacedObject)?;
+        bound(&self.root, &self.name, &self.identity).map_err(|failure| match failure {
+            Failure::Io { source, .. } => CleanupFailure::Io(source),
+            _ => CleanupFailure::ReplacedObject,
+        })?;
         rustix::fs::unlinkat(&self.root, self.name.as_str(), AtFlags::REMOVEDIR)
             .map_err(|e| CleanupFailure::Io(e.into()))?;
         io.sync(&self.root, Barrier::Cleanup)

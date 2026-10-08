@@ -260,6 +260,28 @@ fn primary_and_cleanup_fsync_failures_survive_together() {
     );
     scene.empty();
 }
+struct ListingFault;
+impl PreparationIo for ListingFault {
+    fn write(&mut self, _: &mut File, _: &[u8]) -> io::Result<usize> {
+        Err(io::Error::from_raw_os_error(28))
+    }
+    fn cleanup_count(&mut self, _: &File) -> Result<usize, CleanupFailure> {
+        Err(CleanupFailure::Io(io::Error::from_raw_os_error(5)))
+    }
+}
+#[test]
+fn primary_and_cleanup_listing_io_errors_remain_distinct() {
+    let scene = Scene::new();
+    let error = scene.run(&mut ListingFault, &|| false).unwrap_err();
+    assert!(
+        matches!(error.failure, Failure::Io { ref source, .. } if source.raw_os_error() == Some(28))
+    );
+    assert!(
+        matches!(error.cleanup.unwrap().failure, CleanupFailure::Io(ref source) if source.raw_os_error() == Some(5))
+    );
+    assert_eq!(fs::read_dir(&scene.prep).unwrap().count(), 1);
+    scene.unchanged();
+}
 struct Allocate {
     calls: usize,
     fail_at: usize,
