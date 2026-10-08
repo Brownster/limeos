@@ -10,7 +10,11 @@ Plain `cargo deny`/`cargo audit` first returned 101 because this shell's PATH la
 
 [Actual default invocation](actual-default-invocation.json) runs the built debug test executable with the documented `--exact qualification_probe --nocapture --test-threads=1` flags and all four probe environment inputs unset. It passed with one complete marker line, UID 1000 and empty stderr; the emitter's leading newline separates libtest's test-name prefix. Separate stdout/stderr, source and executable hashes are retained. This validates framing of the default invocation, not release-build or guest-root collection.
 
-[Full exact-source CI](https://github.com/Brownster/limeos/actions/runs/37813669102) is **pending**. Its native/package/installed outputs must be attributed to `dbf1aac8`; the historical successful 372-test workflow does not qualify this new test seam. Current default CI tests execute only the contract/input/output paths and perform no selected host collection.
+[Full exact-source CI](https://github.com/Brownster/limeos/actions/runs/37813669102) **passed** at `dbf1aac8`: native AMD64 and ARM64 each ran 375 unit/integration plus two compile-fail tests (377 total), zero failed or ignored, and 33 ARM64 qualification-harness tests. The installed AMD64 job passed 15 reference tests and all five freshly overwritten acceptance suites: P01/P02/P03/P04-approved/P04-dependencies contain 14/6/61/50/49 checks, 180 total. It completed at 2026-10-08T17:36:16Z.
+
+[The CI summary](ci/ci-summary.json) and [complete metadata](ci/ci-complete.json) bind that exact source/run, six standard/shadow Debian packages with control fields and four embedded ELF64 binaries each, and three matching artifact ZIP/API digests. Every reported installed package/binary hash matches the current native artifact; all five fresh suites share the recorded image identity. The 33 historical artifact paths are explicitly excluded. [Lossless native](ci/ci-amd64.log.gz), [ARM64](ci/ci-arm64.log.gz) and [installed](ci/ci-vm.log.gz) logs, exact fresh result files and status snapshots are copied byte-identically from the finalized capture. [Its manifest](ci/SHA256SUMS) verifies all 24 entries; the historical successful 372-test workflow remains separate.
+
+Ordinary probe tests in this workflow execute only contract/input/output paths and perform no selected host collection. Existing installed suites passed; privileged guest probe cases, resource admission and the future combined worker are not qualified by this CI result.
 
 ## Delivered boundary
 
