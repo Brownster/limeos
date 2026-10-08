@@ -1,0 +1,49 @@
+{
+  "description": "Exact-source amd64 packages for the qualification base. Values copied from the integrator's reviewed CI capture (docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/ci-passed-37746766303/ci-summary.json on main, run 37746766303).",
+  "tested_source": "2fd74209e1238c1374837ab431ef670020726dc2",
+  "run_id": 37746766303,
+  "artifact": {
+    "name": "debian-ubuntu-24.04",
+    "id": 11535933748,
+    "zip_sha256": "1e90f746300d3e5de0576c32c696b0e5afda9056db04c2da6ed1d98777b1fb52",
+    "zip_bytes": 8786151
+  },
+  "packages": [
+    {
+      "file": "limeos-shadow_0.4.4_amd64.deb",
+      "sha256": "d3fdb0d0d596448147d4c0d9ad63b04259c6f7c7a6683d3eae8e0c22641570b2",
+      "bytes": 2927010,
+      "version": "0.4.4",
+      "binaries": {
+        "limeos-core": "f4098751f64f95f2b992359388fe340a21d7b4e27123148711bcfda3cd073c39",
+        "limeos-executor": "6d853d82065534e7358631b63701aa2a72e0342292b94b2049032a8a560c51ca",
+        "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+        "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+      }
+    },
+    {
+      "file": "limeos_0.4.4+ci.1_amd64.deb",
+      "sha256": "8274b8a5658b634c5bb38cb5b9a950ca4c1ab932ad46e3688f34313fe3e74e37",
+      "bytes": 2928072,
+      "version": "0.4.4+ci.1",
+      "binaries": {
+        "limeos-core": "f4098751f64f95f2b992359388fe340a21d7b4e27123148711bcfda3cd073c39",
+        "limeos-executor": "6d853d82065534e7358631b63701aa2a72e0342292b94b2049032a8a560c51ca",
+        "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+        "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+      }
+    },
+    {
+      "file": "limeos_0.4.4_amd64.deb",
+      "sha256": "8ebb6d89d607e7b3830d614a69527ae1621b89f25b19fdea57b2eae43ceb35cc",
+      "bytes": 2928096,
+      "version": "0.4.4",
+      "binaries": {
+        "limeos-core": "f4098751f64f95f2b992359388fe340a21d7b4e27123148711bcfda3cd073c39",
+        "limeos-executor": "6d853d82065534e7358631b63701aa2a72e0342292b94b2049032a8a560c51ca",
+        "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+        "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+      }
+    }
+  ]
+}

@@ -1,0 +1,274 @@
+{
+  "description": "Disposable AMD64 guest layout for RW-040 combined qualification. Every disk, path, user, task and container here is created and destroyed inside the owned guest. Destination and source paths are guest-local fixtures, never host or production paths.",
+  "version": 1,
+  "image_name": "rw040-busybox:fixture",
+  "disks": [
+    {
+      "serial": "rw040-data-0",
+      "size_mib": 128,
+      "filesystem": "ext4",
+      "uuid": "0b0d0a00-0000-4000-8000-000000000000",
+      "label": "rw040-main",
+      "mount": "/srv/rw040/main"
+    },
+    {
+      "serial": "rw040-data-1",
+      "size_mib": 320,
+      "filesystem": "xfs",
+      "uuid": "0b0d0a01-0000-4000-8000-000000000001",
+      "label": "rw040-nested",
+      "mount": "/srv/rw040/main/media/nested",
+      "note": "xfsprogs 5.19 and later refuse XFS filesystems smaller than 300 MB"
+    },
+    {
+      "serial": "rw040-data-2",
+      "size_mib": 128,
+      "filesystem": "ext4",
+      "uuid": "0b0d0a02-0000-4000-8000-000000000002",
+      "label": "rw040-swap-a",
+      "mount": "/srv/rw040/swap"
+    },
+    {
+      "serial": "rw040-data-3",
+      "size_mib": 128,
+      "filesystem": "ext4",
+      "uuid": "0b0d0a03-0000-4000-8000-000000000003",
+      "label": "rw040-swap-b",
+      "mount": null
+    },
+    {
+      "serial": "rw040-data-4",
+      "size_mib": 256,
+      "filesystem": "btrfs",
+      "uuid": "0b0d0a04-0000-4000-8000-000000000004",
+      "label": "rw040-btrfs",
+      "mount": "/srv/rw040/btrfs"
+    }
+  ],
+  "directories": [
+    "/srv/rw040/main/media",
+    "/srv/rw040/main/config",
+    "/srv/rw040/main/triggers",
+    "/srv/rw040/alias-media",
+    "/srv/rw040/tmpfs"
+  ],
+  "binds": [
+    {
+      "source": "/srv/rw040/main/media",
+      "target": "/srv/rw040/alias-media",
+      "purpose": "bind alias of the same filesystem at a non-overlapping path"
+    }
+  ],
+  "symlinks": [
+    {
+      "path": "/srv/rw040/link-media",
+      "target": "/srv/rw040/main/media",
+      "purpose": "ordinary symlink source"
+    }
+  ],
+  "tmpfs": [
+    {
+      "mount": "/srv/rw040/tmpfs",
+      "size": "8m",
+      "purpose": "explicit tmpfs source without block backing"
+    }
+  ],
+  "volumes": [
+    "rw040-named"
+  ],
+  "users": [
+    {
+      "name": "rw040-other",
+      "uid": 1990
+    }
+  ],
+  "host_tasks": [
+    {
+      "name": "nondumpable-root",
+      "uid": 0,
+      "dumpable": false,
+      "purpose": "UID 0 task that is not dumpable; ptrace-class proc access needs CAP_SYS_PTRACE"
+    },
+    {
+      "name": "other-uid",
+      "uid": 1990,
+      "dumpable": true,
+      "purpose": "dumpable task of another UID"
+    },
+    {
+      "name": "root-no-capabilities",
+      "uid": 0,
+      "dumpable": true,
+      "capabilities": "none",
+      "purpose": "UID/GID 0 dumpable task with empty capability sets; separates the GID mismatch from the capability-subset ptrace rule"
+    }
+  ],
+  "containers": [
+    {
+      "name": "rw040-run-bind",
+      "state": "running",
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/srv/rw040/main/media",
+          "target": "/media"
+        }
+      ]
+    },
+    {
+      "name": "rw040-run-alias",
+      "state": "running",
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/srv/rw040/alias-media",
+          "target": "/media"
+        }
+      ]
+    },
+    {
+      "name": "rw040-run-link",
+      "state": "running",
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/srv/rw040/link-media",
+          "target": "/media"
+        }
+      ]
+    },
+    {
+      "name": "rw040-run-config-file",
+      "state": "running",
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/srv/rw040/main/config/app.conf",
+          "target": "/etc/app.conf",
+          "read_only": true
+        }
+      ]
+    },
+    {
+      "name": "rw040-run-volume",
+      "state": "running",
+      "mounts": [
+        {
+          "type": "volume",
+          "source": "rw040-named",
+          "target": "/data"
+        }
+      ]
+    },
+    {
+      "name": "rw040-run-tmpfs",
+      "state": "running",
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/srv/rw040/tmpfs",
+          "target": "/scratch"
+        }
+      ]
+    },
+    {
+      "name": "rw040-run-swap",
+      "state": "running",
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/srv/rw040/swap",
+          "target": "/swap"
+        }
+      ]
+    },
+    {
+      "name": "rw040-run-mountless",
+      "state": "running",
+      "mounts": []
+    },
+    {
+      "name": "rw040-run-other-uid",
+      "state": "running",
+      "user": "1990:1990",
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/srv/rw040/main/config",
+          "target": "/config",
+          "read_only": true
+        }
+      ]
+    },
+    {
+      "name": "rw040-run-nondumpable",
+      "state": "running",
+      "command": "nondumpable",
+      "mounts": [],
+      "user": "1990:1990",
+      "purpose": "UID 1990 executes a setuid-root busybox copy; secure exec leaves the task nondumpable"
+    },
+    {
+      "name": "rw040-stopped-bind",
+      "state": "stopped",
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/srv/rw040/main/media",
+          "target": "/media"
+        }
+      ]
+    },
+    {
+      "name": "rw040-stopped-mountless",
+      "state": "stopped",
+      "mounts": []
+    }
+  ],
+  "transition_containers": [
+    {
+      "name": "rw040-trans-root",
+      "command": "root-switch",
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/srv/rw040/main/triggers",
+          "target": "/trigger"
+        }
+      ],
+      "purpose": "same PID changes its root on trigger"
+    },
+    {
+      "name": "rw040-trans-ns",
+      "command": "namespace-switch",
+      "cap_add": [
+        "SYS_ADMIN"
+      ],
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/srv/rw040/main/triggers",
+          "target": "/trigger"
+        }
+      ],
+      "purpose": "same PID changes its mount namespace on trigger; this observed fixture container alone runs without the docker-default AppArmor profile because busybox unshare must mount",
+      "security_opt": [
+        "apparmor=unconfined"
+      ]
+    }
+  ],
+  "unsupported_containers": [
+    {
+      "name": "rw040-unsupported-btrfs",
+      "state": "running",
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/srv/rw040/btrfs",
+          "target": "/btrfs"
+        }
+      ],
+      "purpose": "Btrfs backing must refuse, never become complete empty authority"
+    }
+  ]
+}
