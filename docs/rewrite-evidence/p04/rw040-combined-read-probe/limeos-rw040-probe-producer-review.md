@@ -1,0 +1,23 @@
+# RW-040 probe producer handoff review
+
+**GO for publishing the producer contract, supplied-prerequisite clarification, local evidence and verified default invocation framing.** No code, ownership, contract or attribution issue remains. Exact-source CI remains pending; successful guest or combined-worker qualification is not claimed.
+
+| Reviewed document | SHA-256 |
+|---|---|
+| `docs/p04-rw040-combined-read-probe.md` | `550192ee4bf40c474fa309a3754e8a16ca0d1fae9ce3190bd1c1045a4cd7fc36` |
+| `docs/plans/2026-10-08-engineer-rw040-confinement-qualification.md` | `1c0302f3831889a92f9a15613571bf0793c36e177d906b250d5054f90427ea49` |
+| `docs/rewrite-evidence/p04/rw040-combined-read-probe/README.md` | `9329b776c5ed5c8a1b348f371389a92587fca0e88654fa60b81b7f7ee57c16e3` |
+
+The producer pins source `dbf1aac8d1ffb3293dc85e890636a114ecbe5eca` and unchanged probe SHA-256 `3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c`. Git independently confirms that source commit adds only the test seam. All 305 manifest entries match the committed source's Git blob, SHA-256 and length. All 19 evidence manifest entries match, all 12 local-check gzip logs match their compressed/raw hashes and lengths, and decompressed bytes match the original raw captures. The copied independent source review remains exact.
+
+Build and invocation are actionable: exact-source locked release test build, selection of the `combined_read_probe` test executable from Cargo's compiler-artifact record, then exact `qualification_probe` with uncaptured output and one test thread. The harness records actual binary/source/profile/toolchain/image identity. Consuming the unchanged integrator-owned probe on the engineer's earlier pinned branch requires explicit source-composition/hash attribution, while shared source ownership stays with the integrator.
+
+The added `actual-default-invocation.json` has SHA-256 `40d3d1a3125e94595d8a894e1a0629e7b6f7152ac94571e43b0680c891cd5ed3`. Independent decompression verifies separate stdout/stderr raw and compressed hashes/lengths. The actual debug executable matches recorded SHA-256 `5e1e0c78856af01bf20f0338c9757e89e52a3034092628c6014b333529e75ca1`. It ran the exact documented invocation flags with all four probe inputs unset, exit 0, one passing test/four filtered, UID 1000 and empty stderr. Stdout visibly contains `test qualification_probe ...` followed by a newline, then exactly one marker starting its own complete JSON line; the parsed event equals the recorded final contract event. No quiet/boundary or source correction is needed. The evidence explicitly distinguishes this debug/default framing check from the recommended release build and any guest-root collection. The 19-entry manifest SHA-256 is `12e50f4866a4fc6c752ed10890c145a86c6169f74dac34a7027b6a13e52bfac0`.
+
+The contract correctly specifies bounded environment inputs, fixed root peer policy, protected contract reading, diagnostic pause, complete original Engine membership/issue time, retained Engine→selected-owner→Engine ordering, per-event bounded borrowed encoding, and successful exit plus exactly one expected final event. Provisional collected events, output/flush errors and blocked delivery cannot silently qualify success. Library reports remain serialized observations without imported owner or effect authority.
+
+Local 375 unit/integration plus two compile-fail tests total 377. The earlier five-test pre-format source remains separate; cached checker PATH failures, corrected no-fetch checks and advisory scope are preserved. CI run `37813669102` is explicitly pending and must be attributed to `dbf1aac8`; the historical successful 372-test source does not qualify this new test target. Local default cases performed no selected guest host collection.
+
+The engineer's original branch pin, exclusive ownership and owned guest/console scope remain intact. Public-library guest cases now have their supplied prerequisite; `combined` remains explicitly blocked. Guest root/capability/transition success, installed headroom, resource admission inside acquisitions, independent worker deadline/cancellation/parent-death/descendant cleanup, namespace destination mapping, claims/effects and restore remain open. No service cap, defect/P04/cutover gate or historical inventory budget changes. All local document links resolve.
+
+This review read documentation, source/Git identities and preserved data only. It ran no tests, CI, host/Pi/wybie/SSH/frozen-Python operations or repository/Git/source mutations. Only this report was written under `/tmp`. The later full-worker design still requires separate review before code.

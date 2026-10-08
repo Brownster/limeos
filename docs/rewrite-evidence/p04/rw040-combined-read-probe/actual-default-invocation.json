@@ -1,0 +1,60 @@
+{
+  "argv": [
+    "target/debug/deps/combined_read_probe-5ca85856e41a5082",
+    "--exact",
+    "qualification_probe",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "unset_environment": [
+    "LIMEOS_RW040_PROBE_CASE",
+    "LIMEOS_RW040_PROBE_SOCKET",
+    "LIMEOS_RW040_PROBE_CONTRACT",
+    "LIMEOS_RW040_PROBE_PAUSE_MS"
+  ],
+  "exit_code": 0,
+  "profile": "debug",
+  "executable_sha256": "5e1e0c78856af01bf20f0338c9757e89e52a3034092628c6014b333529e75ca1",
+  "probe_source_sha256": "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c",
+  "marker_lines": 1,
+  "marker_starts_complete_line": true,
+  "final_event": {
+    "version": 1,
+    "case": "contract",
+    "phase": "final",
+    "status": "ok",
+    "stage": "prerequisites",
+    "error": null,
+    "effective_uid": 1000,
+    "observations": {
+      "available_cases": [
+        "contract",
+        "engine",
+        "engine-processes",
+        "engine-sources",
+        "storage",
+        "engine-dependencies",
+        "combined"
+      ],
+      "combined_worker": "unavailable",
+      "standalone_supervision": "external_required"
+    }
+  },
+  "outputs": {
+    "stdout": {
+      "log": "logs/actual-default-stdout.log.gz",
+      "bytes": 502,
+      "sha256": "e5b55e22713ca4a4ced6566e9d9b0b28bb3658b0cda1396654170c20fa1ffb61",
+      "compressed_sha256": "2d4da2a4ca6190f603e2598349443b8a9d4457cc2d8867114603512674687275",
+      "compressed_bytes": 336
+    },
+    "stderr": {
+      "log": "logs/actual-default-stderr.log.gz",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "compressed_bytes": 20
+    }
+  },
+  "scope": "Actual documented default invocation; no selected host collection. Separate stdout/stderr capture. This is not release/guest-root qualification."
+}

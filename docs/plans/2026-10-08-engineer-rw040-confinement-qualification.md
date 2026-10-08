@@ -18,6 +18,10 @@ Guests, virtual disks, test daemon/containers/users, keys and supervisor belong 
 
 Use owned guest console/QMP transport under this no-SSH scope. Local-guest SSH would require a separately explicit authorization; no such exception is included here.
 
+### Supplied current-library prerequisite
+
+The integrator now supplies the [test-only public-library probe](../p04-rw040-combined-read-probe.md) at `dbf1aac8d1ffb3293dc85e890636a114ecbe5eca`, SHA-256 `3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c`. Consume that reserved test file/commit unchanged and record the exact probe/library source composition and binary hash; its source commit adds only the probe over unchanged qualified libraries. The contract gives the build/run/environment/JSON framing and success requirements. Existing-library guest cases can use this prerequisite; combined-worker/admission/supervision cases remain explicitly unavailable. [Exact-source probe CI](https://github.com/Brownster/limeos/actions/runs/37813669102) is pending and remains separate from guest qualification. This does not change the original pinned harness branch or grant shared source ownership.
+
 ## Confinement and coverage
 
 Qualify actual UID-0 host authentication and canonical `/run/docker.sock` using guest Docker credentials and real complete running/stopped/mountless consumers. Peer UID/socket binding is not independent daemon-PID identity; record activation/endpoint facts. Unrestricted guest-root library success and unchanged-service confinement success/refusal are distinct cases.
