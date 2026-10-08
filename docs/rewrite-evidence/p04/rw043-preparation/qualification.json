@@ -1,0 +1,332 @@
+{
+  "base": "2fd74209e1238c1374837ab431ef670020726dc2",
+  "qualified_source": "92a149dd24188912ce56581bc012e09f70c29f7d",
+  "worktree": "/tmp/limeos-backup-restore-preparation",
+  "record_observed_at_utc": "2026-10-08T22:08:29.882152+00:00",
+  "unit_integration_passed": 399,
+  "compile_fail_passed": 4,
+  "total_passed": 403,
+  "failed": 0,
+  "ignored": 0,
+  "new_unit_integration": 29,
+  "new_compile_fail": 2,
+  "subprocess_helper_cases": 1,
+  "packages": 227,
+  "external_packages": 211,
+  "lockfile_unchanged": true,
+  "cached_advisories": 1290,
+  "cached_advisory_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
+  "cached_advisory_date": "2026-10-03T07:49:26Z",
+  "advisories_fetched": false,
+  "changed_paths": [
+    "crates/backup-archive/src/lib.rs",
+    "crates/backup-archive/src/preparation.rs",
+    "crates/backup-archive/src/preparation/private.rs",
+    "crates/backup-archive/src/preparation/tests.rs",
+    "crates/backup-archive/src/staging.rs",
+    "crates/backup-archive/tests/preparation.rs",
+    "docs/p04-backup-restore-preparation.md",
+    "docs/rewrite-evidence/p04/rw043-preparation/README.md",
+    "docs/rewrite-evidence/p04/rw043-preparation/allowed-path-diff.patch.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/audit-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/audit.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/cache-path-diagnosis.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/cache-rebuild.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/catalog-api-probe.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/clippy-92a149d.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/clippy-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/clippy-first.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/clippy-second.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/contracts.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/deny-unrestricted.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/deny.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/first-preparation-tests.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/fmt-92a149d.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/fmt-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/fmt.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/focused-first-compile.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/focused-tests.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/helper-fix.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/helper-format-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/helper-format.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/helper-lint-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/helper-lint.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/implementation-first-check.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/initial-compile.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/initial-fmt.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/preparation-92a149d.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/preparation-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/qualification.json",
+    "docs/rewrite-evidence/p04/rw043-preparation/record_evidence.py",
+    "docs/rewrite-evidence/p04/rw043-preparation/repository-92a149d.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/repository-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/repository.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/source-manifest.json",
+    "docs/rewrite-evidence/p04/rw043-preparation/workspace-92a149d.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/workspace-corrected.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/workspace-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/workspace-tests.txt.gz"
+  ],
+  "logs": [
+    {
+      "path": "audit-final.txt.gz",
+      "uncompressed_bytes": 144,
+      "uncompressed_sha256": "5ab8a6f15ea0c9a169c08077d4e8ffa23218a435690b7d7c3df000b5ef4e11c9",
+      "compressed_sha256": "7c7c21997df1426228b326860914dc898fb7c3ec64bfc836b49c1a863eb83143",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "audit.txt.gz",
+      "uncompressed_bytes": 268,
+      "uncompressed_sha256": "bd526bee8a9ad1fafab5173794e815bbbafb37268162f13799b8167c2accaef4",
+      "compressed_sha256": "1854803109c1992ebaa25902a79a80e51b06dce7915a1593723546f9c2d037d8",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "cache-path-diagnosis.txt.gz",
+      "uncompressed_bytes": 60,
+      "uncompressed_sha256": "2a2b59ca44c7426a70ae751aeb87194032c961045bad7405cacadbf6fcd8b8f0",
+      "compressed_sha256": "91534533b330a81910445e82c7200f9a475517cb60cf1bf04797949213c92e6d",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "cache-rebuild.txt.gz",
+      "uncompressed_bytes": 39,
+      "uncompressed_sha256": "e60aa2f569c9c623439f890c133bd6b1db2ff31c0b1e96e2d9055c12e0cd580c",
+      "compressed_sha256": "727da120a9b8f6ed41d7be0764c461e45dd13871fae009769f72055864602fa4",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "catalog-api-probe.txt.gz",
+      "uncompressed_bytes": 855,
+      "uncompressed_sha256": "da5aeeaab8f0b0fb5798c93aa55d8d574dca3e28d2c725d04fa39fd404e06bfd",
+      "compressed_sha256": "907d3e9823f14af1bf4454487f36f66d31718d1398c9dc32a46b7b21f8534d0f",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "clippy-92a149d.txt.gz",
+      "uncompressed_bytes": 177,
+      "uncompressed_sha256": "2b3472234fae9240fcbc486a2a1fd6e428bf5ce32017debacf9e111269a7618d",
+      "compressed_sha256": "cadb8230a90ba3262946ae31f148896c5335397488655158d8eff272f524e4c1",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "clippy-final.txt.gz",
+      "uncompressed_bytes": 314,
+      "uncompressed_sha256": "4bfb1f5fc07ea0b34131ac115281a0e8850633d799eea82f432c9d6f8e46f8c5",
+      "compressed_sha256": "e4d014ccde7fb4077f27442feb3824e76a51884e67347e041362357c6ca81923",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "clippy-first.txt.gz",
+      "uncompressed_bytes": 4650,
+      "uncompressed_sha256": "daa2d372a96f6a7fcd229b838ca04fca23fbdbc8afba98d3d7810ce02f89abe5",
+      "compressed_sha256": "fe193ad8e5ce0fa00d243c93a6f5ed6eff96cbee524459ffd3a3cfaf0aa9dc47",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "clippy-second.txt.gz",
+      "uncompressed_bytes": 1862,
+      "uncompressed_sha256": "10caa352c9f2bb512780d520cd0cb44c6f70011415226cc2a3f39bb6e89a3ab2",
+      "compressed_sha256": "5a1708ea647f5707a9bf36fe64da5c88201902be96ef28ec1df9e8e2955d5b74",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "contracts.txt.gz",
+      "uncompressed_bytes": 616,
+      "uncompressed_sha256": "e938d86c09cc36f578e9595560d8e409b16216c145dece45b0f4ce8d528ce2d1",
+      "compressed_sha256": "68d360f8236ad12ece42419758c856b056f0b3d24055c314cfec2337884338f9",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "deny-unrestricted.txt.gz",
+      "uncompressed_bytes": 17702,
+      "uncompressed_sha256": "6889d2d20d032b456c4c23b798033914b4eeb07b5c57765d4e411c894ea580b0",
+      "compressed_sha256": "123175a9c7707d70bc752659a981dac09e45a6047bd48ffb30077cb2f7a77e3b",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "deny.txt.gz",
+      "uncompressed_bytes": 195,
+      "uncompressed_sha256": "8e52b95d8af46b244ddf6b8821f43253c9b4494084db021605817d2d0fdc10db",
+      "compressed_sha256": "146f1ea577f14b992ee52619a0169c859b61065f6e3bd80f5a4954e2edc06f15",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "diff-check.txt.gz",
+      "uncompressed_bytes": 0,
+      "uncompressed_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "first-preparation-tests.txt.gz",
+      "uncompressed_bytes": 2321,
+      "uncompressed_sha256": "2396acabefc9bf26d7e3455f182a2a6ea74520de72d1d10fa4120d26e611f552",
+      "compressed_sha256": "ece30b50ad2e58ca02f66605a523256e544031df0a30fa759a26221b00034da0",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "fmt-92a149d.txt.gz",
+      "uncompressed_bytes": 0,
+      "uncompressed_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "fmt-final.txt.gz",
+      "uncompressed_bytes": 0,
+      "uncompressed_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "fmt.txt.gz",
+      "uncompressed_bytes": 0,
+      "uncompressed_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "focused-first-compile.txt.gz",
+      "uncompressed_bytes": 860,
+      "uncompressed_sha256": "4bc9de4a4d9912be3b484e31eb1a9244e032667f10a28547114fd9cba0afcfa7",
+      "compressed_sha256": "e455ea3bcaf55b175cdee25d747b326a295d69e2a86ef7623a1ecddce4050af1",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "focused-tests.txt.gz",
+      "uncompressed_bytes": 11022,
+      "uncompressed_sha256": "b894c8f85d0d6c8f91975b6f3c246fc501c039dc4e9645f3c2dc61b0ea3f67c7",
+      "compressed_sha256": "366f7dd92dc34d95cbd67d76926972f7afc682a1c1400755fe4c975a8b98ce28",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "helper-fix.txt.gz",
+      "uncompressed_bytes": 38,
+      "uncompressed_sha256": "aac3a0503d8b95052cc85fb9f1717dc82b74aa55853a5aa9749b41e30275d472",
+      "compressed_sha256": "9a293a43cbbdffc92644cba254fc3dc7ea239470c11f304101b36540d7abdbe9",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "helper-format-final.txt.gz",
+      "uncompressed_bytes": 25,
+      "uncompressed_sha256": "fd2299c9f1c6dc869070883e281051bfe93aacf66c1a3b0069f45b4aa410ca50",
+      "compressed_sha256": "afdae4b86058000c02acc699088589b28fbfe2ead39a424c4435b13464b2f494",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "helper-format.txt.gz",
+      "uncompressed_bytes": 19,
+      "uncompressed_sha256": "413a709001976657cb743636fd34e48fc41d8d302d665460d3f874b3313da127",
+      "compressed_sha256": "2283aea2b330488a006d79106f5f562181af4f1fab820fd23ed7f19cf203d3f9",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "helper-lint-final.txt.gz",
+      "uncompressed_bytes": 19,
+      "uncompressed_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "compressed_sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "helper-lint.txt.gz",
+      "uncompressed_bytes": 908,
+      "uncompressed_sha256": "54b96d993d4d272de9d009f926f72d626b49c26c5678afdbea4ae1682e95c4af",
+      "compressed_sha256": "f43ecd2ca92abdb4beec1fb14d15f19c2a9e9a92940f8cd3b6c62eaac0bd15e1",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "implementation-first-check.txt.gz",
+      "uncompressed_bytes": 1860,
+      "uncompressed_sha256": "c6c253370124a610830195082f13f76a84d8f7217208f15c2e2f2a755045fc75",
+      "compressed_sha256": "ed49aa83976f713ebd56c56da198e104a03638d799118d99d1527ef63595564d",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "initial-compile.txt.gz",
+      "uncompressed_bytes": 874,
+      "uncompressed_sha256": "995c565bca7790239804dc22832ef2b53c142e0aff0184969c264d41257d7c1f",
+      "compressed_sha256": "01ca9e5d580abced1c66b6980e249d6771e876a5cab7499cc2a5cf9bae90f19c",
+      "scope": "tool-chunk excerpt"
+    },
+    {
+      "path": "initial-fmt.txt.gz",
+      "uncompressed_bytes": 1819,
+      "uncompressed_sha256": "5d5ea5892923d209a58eeb8b3cbee7d03a2056e3a98fd082e35606300c4ee9f3",
+      "compressed_sha256": "e2bcfd71d3995dbc8334746b68aa17601f6e8bc494852f63bf78f2412f723e15",
+      "scope": "tool-chunk excerpt"
+    },
+    {
+      "path": "preparation-92a149d.txt.gz",
+      "uncompressed_bytes": 2381,
+      "uncompressed_sha256": "e13481e3185c1a21bfa101c0bbeb7309acc59b41e0cfc537a4df23dcca007818",
+      "compressed_sha256": "c24b9638f388598ceb5a90b1b73c93e648026c36251b2e3ace0c744187e09d64",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "preparation-final.txt.gz",
+      "uncompressed_bytes": 2295,
+      "uncompressed_sha256": "4edb79decf33bbe0a67315af89ad9c3762945e1a229a66489af3aaaa79619ac4",
+      "compressed_sha256": "63cc1b4402b6a24626da456aa4246c009316be0e05e8741ddf2c4fdab19be78e",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "repository-92a149d.txt.gz",
+      "uncompressed_bytes": 49,
+      "uncompressed_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "compressed_sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "repository-final.txt.gz",
+      "uncompressed_bytes": 49,
+      "uncompressed_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "compressed_sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "repository.txt.gz",
+      "uncompressed_bytes": 49,
+      "uncompressed_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "compressed_sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "workspace-92a149d.txt.gz",
+      "uncompressed_bytes": 44200,
+      "uncompressed_sha256": "c384042101f176876f715ad0cce7fbc834867f419503bdd3a70273f1650f5385",
+      "compressed_sha256": "c53c69d9bfeb788cdd631e082407876363b4ec3702ddc518e7d08c57712d5902",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "workspace-corrected.txt.gz",
+      "uncompressed_bytes": 44093,
+      "uncompressed_sha256": "570b5559c6bb3964f649fa2f176234fc35ab2676f0ed73dc380ac0437571a656",
+      "compressed_sha256": "82e00a59e828039785bd46f33b7e3b6baed8ff410fb872c5d3e55ab86c50b933",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "workspace-final.txt.gz",
+      "uncompressed_bytes": 13169,
+      "uncompressed_sha256": "f993ec0ffafa837b1d45a511d11d084f24c75e32e4d35114f4840435c27d0c3b",
+      "compressed_sha256": "bc95d323fdab2441027cdbcbe332fb20e87fb4079c83383ba6495bde6723e7a7",
+      "scope": "complete redirected command output"
+    },
+    {
+      "path": "workspace-tests.txt.gz",
+      "uncompressed_bytes": 19468,
+      "uncompressed_sha256": "3d93d502f548a5b281ba34c550bcd58c5280370f41d6748ef37b058baf65bf7d",
+      "compressed_sha256": "9c65575becdefa715372e977a66e15c3aea5f5b9e2c36a07d12db7455673b45a",
+      "scope": "complete redirected command output"
+    }
+  ],
+  "human_hours": null,
+  "active_agent_time": "not independently instrumented",
+  "waits": "approvals, compile/cache work, interface wait and daemon interruption; not human effort",
+  "assignment_estimate_hours": 24,
+  "assignment_review_hours": 36,
+  "p04_estimate_hours": 320,
+  "p04_review_hours": 480,
+  "shared_exception": "Operator said continue after the concrete read-only catalog revalidation proposal; isolated seam awaits integrator review"
+}
