@@ -73,6 +73,158 @@ fn never() -> bool {
     false
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EarlyFailure {
+    Open,
+    Chmod,
+    DirectoryStat,
+    FileStat(&'static str),
+}
+
+struct EarlyFault<'a> {
+    scene: &'a Scene,
+    point: EarlyFailure,
+    retained: Option<(PathBuf, u64, u64)>,
+}
+
+impl EarlyFault<'_> {
+    fn replace_directory(&mut self) {
+        let path = self.scene.path("custody").join(self.scene.one(PENDING));
+        fs::rename(&path, self.scene.path("scratch").join("detached-directory")).unwrap();
+        fs::create_dir(&path).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+        let stat = fs::metadata(&path).unwrap();
+        self.retained = Some((path, stat.dev(), stat.ino()));
+    }
+    fn replace_file(&mut self, name: &'static str) {
+        let path = self
+            .scene
+            .path("custody")
+            .join(self.scene.one(PENDING))
+            .join(name);
+        fs::rename(&path, self.scene.path("scratch").join("detached-file")).unwrap();
+        fs::write(&path, b"unverified replacement").unwrap();
+        let stat = fs::metadata(&path).unwrap();
+        self.retained = Some((path, stat.dev(), stat.ino()));
+    }
+}
+
+impl CustodyIo for EarlyFault<'_> {
+    fn open_pending(&mut self, root: &File, name: &str) -> io::Result<File> {
+        if self.point == EarlyFailure::Open {
+            self.replace_directory();
+            return Err(io::Error::from_raw_os_error(5));
+        }
+        RealIo.open_pending(root, name)
+    }
+    fn chmod_pending(&mut self, directory: &File) -> io::Result<()> {
+        if self.point == EarlyFailure::Chmod {
+            self.replace_directory();
+            return Err(io::Error::from_raw_os_error(5));
+        }
+        RealIo.chmod_pending(directory)
+    }
+    fn stat_created(&mut self, file: &File, name: &'static str) -> io::Result<Stat> {
+        if self.point == EarlyFailure::DirectoryStat && name == "pending directory" {
+            self.replace_directory();
+            return Err(io::Error::from_raw_os_error(5));
+        }
+        if self.point == EarlyFailure::FileStat(name) {
+            self.replace_file(name);
+            return Err(io::Error::from_raw_os_error(5));
+        }
+        RealIo.stat_created(file, name)
+    }
+}
+
+#[test]
+fn early_cleanup_refuses_to_unlink_names_without_verified_identity() {
+    fn unverified(error: &CustodyError, expected: &'static str) -> bool {
+        match error {
+            CustodyError::Cleanup { failure, cleanup } => {
+                matches!(cleanup, CleanupFailure::Unverified(what) if *what == expected)
+                    || failure
+                        .as_deref()
+                        .is_some_and(|error| unverified(error, expected))
+            }
+            _ => false,
+        }
+    }
+    fn original_error(error: &CustodyError) -> bool {
+        match error {
+            CustodyError::Io { source, .. } => source.raw_os_error() == Some(5),
+            CustodyError::Cleanup {
+                failure: Some(failure),
+                ..
+            } => original_error(failure),
+            _ => false,
+        }
+    }
+    for point in [
+        EarlyFailure::Open,
+        EarlyFailure::Chmod,
+        EarlyFailure::DirectoryStat,
+        EarlyFailure::FileStat(ARCHIVE),
+        EarlyFailure::FileStat(RECORD),
+    ] {
+        let scene = Scene::new();
+        let mut fault = EarlyFault {
+            scene: &scene,
+            point,
+            retained: None,
+        };
+        let result = scene.retain_with(&mut fault);
+        let error = match result {
+            Err(error) => error,
+            Ok(_) => panic!("{point:?}: fault not reached"),
+        };
+        let (path, dev, ino) = fault
+            .retained
+            .as_ref()
+            .expect("fault must replace a real object");
+        let stat = fs::metadata(path)
+            .unwrap_or_else(|error| panic!("{point:?}: unverified object removed: {error}"));
+        assert_eq!((stat.dev(), stat.ino()), (*dev, *ino), "{point:?}");
+        assert!(
+            matches!(error, CustodyError::Cleanup { .. }),
+            "{point:?}: {error}"
+        );
+        let expected = match point {
+            EarlyFailure::FileStat(name) => name,
+            _ => "pending directory",
+        };
+        assert!(unverified(&error, expected), "{point:?}: {error}");
+        assert!(
+            original_error(&error),
+            "{point:?}: primary failure lost: {error}"
+        );
+        if matches!(point, EarlyFailure::FileStat(_)) {
+            assert_eq!(fs::read(path).unwrap(), b"unverified replacement");
+        }
+        assert_eq!(fs::read(scene.path("source")).unwrap(), archive());
+        assert_eq!(
+            fs::read(scene.path("custody").join(SENTINEL)).unwrap(),
+            b"unrelated"
+        );
+    }
+}
+
+#[test]
+fn known_pending_directory_is_guarded_before_owned_file_allocation() {
+    struct Allocation;
+    impl CustodyIo for Allocation {
+        fn reserve_owned(&mut self, _: &mut Vec<Owned>) -> Result<(), CustodyError> {
+            Err(CustodyError::Allocation)
+        }
+    }
+    let scene = Scene::new();
+    assert!(matches!(
+        scene.retain_with(&mut Allocation),
+        Err(CustodyError::Allocation)
+    ));
+    scene.assert_clean();
+}
+
 /// A stored-gzip archive larger than several copy chunks, so a child can be
 /// stopped part-way through each pass.
 fn archive() -> Vec<u8> {

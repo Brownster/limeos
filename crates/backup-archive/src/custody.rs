@@ -229,6 +229,8 @@ pub enum CustodyLimit {
 /// left in place and reported; nothing is followed or recursed into.
 #[derive(Debug)]
 pub enum CleanupFailure {
+    /// Ownership could not be verified; the name was retained for inspection.
+    Unverified(&'static str),
     /// An owned name now refers to a different object, which was retained.
     Replaced(&'static str),
     /// Entries this library did not create remain in an owned directory.
@@ -243,6 +245,7 @@ pub enum CleanupFailure {
 impl fmt::Display for CleanupFailure {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Unverified(what) => write!(f, "{what} identity unverified; object retained"),
             Self::Replaced(what) => write!(f, "{what} was replaced; foreign object retained"),
             Self::Foreign(count) => write!(f, "{count} foreign entries retained"),
             Self::Io { operation, source } => write!(f, "{operation}: {source}"),
@@ -452,6 +455,27 @@ enum Point {
 
 // Private fault-injection boundary. Production callers cannot supply it.
 trait CustodyIo {
+    fn open_pending(&mut self, root: &File, name: &str) -> io::Result<File> {
+        rustix::fs::openat(
+            root,
+            name,
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map(File::from)
+        .map_err(Into::into)
+    }
+    fn chmod_pending(&mut self, directory: &File) -> io::Result<()> {
+        rustix::fs::fchmod(directory, Mode::from_raw_mode(0o700)).map_err(Into::into)
+    }
+    fn stat_created(&mut self, file: &File, _name: &'static str) -> io::Result<Stat> {
+        rustix::fs::fstat(file).map_err(Into::into)
+    }
+    fn reserve_owned(&mut self, files: &mut Vec<Owned>) -> Result<(), CustodyError> {
+        files
+            .try_reserve_exact(2)
+            .map_err(|_| CustodyError::Allocation)
+    }
     fn record_buffer(&mut self, size: usize) -> Result<Vec<u8>, CustodyError> {
         let mut bytes = Vec::new();
         bytes
@@ -656,7 +680,11 @@ struct Pending {
 }
 
 impl Pending {
-    fn create(root: &CustodyRoot, record_id: &str) -> Result<Self, CustodyError> {
+    fn create<I: CustodyIo>(
+        root: &CustodyRoot,
+        record_id: &str,
+        io: &mut I,
+    ) -> Result<Self, CustodyError> {
         let root = root
             .directory
             .try_clone()
@@ -676,55 +704,45 @@ impl Pending {
             Err(Errno::EXIST) => return Err(CustodyError::Collision),
             Err(e) => return Err(io_error("create pending directory", e)),
         }
-        let opened = rustix::fs::openat(
-            &root,
-            name.as_str(),
-            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-            Mode::empty(),
-        )
-        .map(File::from)
-        .and_then(|directory| {
-            rustix::fs::fchmod(&directory, Mode::from_raw_mode(0o700))?;
-            Ok((rustix::fs::fstat(&directory)?, directory))
+        let opened = io.open_pending(&root, &name).and_then(|directory| {
+            io.chmod_pending(&directory)?;
+            Ok((io.stat_created(&directory, "pending directory")?, directory))
         });
         let (identity, directory) = match opened {
             Ok(opened) => opened,
-            // Just created and still empty; the caller's root excludes writers.
+            // Creation alone cannot bind a name to an inode. Never unlink a
+            // name if open/chmod/stat failed before ownership was recorded.
             Err(e) => {
                 let failure = io_error("open pending directory", e);
-                return Err(
-                    match rustix::fs::unlinkat(&root, name.as_str(), AtFlags::REMOVEDIR) {
-                        Ok(()) | Err(Errno::NOENT) => failure,
-                        Err(e) => CustodyError::Cleanup {
-                            failure: Some(Box::new(failure)),
-                            cleanup: CleanupFailure::Io {
-                                operation: "remove pending directory",
-                                source: e.into(),
-                            },
-                        },
-                    },
-                );
+                return Err(CustodyError::Cleanup {
+                    failure: Some(Box::new(failure)),
+                    cleanup: CleanupFailure::Unverified("pending directory"),
+                });
             }
         };
         if !private_directory(&identity) {
             // Not provably ours: leave it for the caller to inspect.
             return Err(CustodyError::UnsafeObject("pending directory"));
         }
-        let mut files = Vec::new();
-        files
-            .try_reserve_exact(2)
-            .map_err(|_| CustodyError::Allocation)?;
-        Ok(Self {
+        let mut pending = Self {
             root,
             directory,
             name,
             identity,
-            files,
+            files: Vec::new(),
             armed: true,
-        })
+        };
+        if let Err(failure) = io.reserve_owned(&mut pending.files) {
+            return Err(pending.fail(failure));
+        }
+        Ok(pending)
     }
 
-    fn create_file(&mut self, name: &'static str) -> Result<File, CustodyError> {
+    fn create_file<I: CustodyIo>(
+        &mut self,
+        name: &'static str,
+        io: &mut I,
+    ) -> Result<File, CustodyError> {
         let file = rustix::fs::openat(
             &self.directory,
             name,
@@ -736,23 +754,17 @@ impl Pending {
             Errno::EXIST => CustodyError::Collision,
             e => io_error("create custody object", e),
         })?;
-        let identity = rustix::fs::fstat(&file).map_err(|e| io_error("stat custody object", e));
+        let identity = io
+            .stat_created(&file, name)
+            .map_err(|e| io_error("stat custody object", e));
         // Record ownership first so any later failure removes this name.
         let identity = match identity {
             Ok(identity) => identity,
             Err(failure) => {
-                return Err(
-                    match rustix::fs::unlinkat(&self.directory, name, AtFlags::empty()) {
-                        Ok(()) | Err(Errno::NOENT) => failure,
-                        Err(e) => CustodyError::Cleanup {
-                            failure: Some(Box::new(failure)),
-                            cleanup: CleanupFailure::Io {
-                                operation: "remove custody object",
-                                source: e.into(),
-                            },
-                        },
-                    },
-                );
+                return Err(CustodyError::Cleanup {
+                    failure: Some(Box::new(failure)),
+                    cleanup: CleanupFailure::Unverified(name),
+                });
             }
         };
         self.files.push(Owned { name, identity });
@@ -918,7 +930,7 @@ fn retain_with_io<I: CustodyIo>(
     io.random(&mut id)
         .map_err(|e| io_error("generate record identifier", e))?;
     let record_id = hex::encode(id);
-    let mut pending = Pending::create(root, &record_id)?;
+    let mut pending = Pending::create(root, &record_id, io)?;
     match seal_and_admit(source, policy, &mut pending, limits, cancelled, io) {
         Ok((archive, admitted, digest, size)) => publish(
             pending, archive, admitted, record_id, digest, size, limits, cancelled, io,
@@ -935,7 +947,7 @@ fn seal_and_admit<I: CustodyIo>(
     cancelled: &dyn Fn() -> bool,
     io: &mut I,
 ) -> Result<(File, AdmittedArchive, String, u64), CustodyError> {
-    let mut writable = pending.create_file(ARCHIVE)?;
+    let mut writable = pending.create_file(ARCHIVE, io)?;
     let (size, digest) = copy(
         &source,
         &mut writable,
@@ -1015,7 +1027,7 @@ fn publish<I: CustodyIo>(
             limits.max_record_bytes,
             io,
         )?;
-        let mut record = pending.create_file(RECORD)?;
+        let mut record = pending.create_file(RECORD, io)?;
         write_all(io, &mut record, &bytes, cancelled, "write custody record")?;
         let created = *pending.identity(RECORD).ok_or(CustodyError::Allocation)?;
         rustix::fs::fchmod(&record, Mode::from_raw_mode(0o400))
