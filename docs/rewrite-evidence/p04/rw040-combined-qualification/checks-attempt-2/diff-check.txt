@@ -1,0 +1,2 @@
+docs/rewrite-evidence/p04/rw040-combined-qualification/checks-attempt-1/diff-check.txt:2: trailing whitespace.
+++  

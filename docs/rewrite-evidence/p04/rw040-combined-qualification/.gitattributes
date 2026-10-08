@@ -1,0 +1,2 @@
+# Preserved check logs quote offending whitespace verbatim; keep their raw bytes.
+checks-attempt-*/diff-check.txt -whitespace
