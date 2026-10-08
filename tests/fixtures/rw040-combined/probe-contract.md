@@ -38,7 +38,7 @@ agreed interface is implemented on both sides.
   - `LIMEOS_RW040_CASE`: the case ID from `cases.json`
   - `LIMEOS_RW040_PHASES`: `collect` or `collect,revalidate`
   - `LIMEOS_RW040_REVALIDATE_DELAY_MS`: for the expiry case
-  
+
   The probe chooses the Engine socket itself, and the harness expects the
   canonical `/run/docker.sock`. The probe must not accept a socket, policy or
   host-authentication override from the harness.

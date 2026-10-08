@@ -17,7 +17,7 @@ def main() -> None:
     run = Path(sys.argv[1])
     record = json.loads((run / "run.json").read_text())
     guest = run / "guest"
-    load = lambda name: json.loads((guest / name).read_text())  # noqa: E731
+    load = lambda name: json.loads((guest / name).read_text())
     environment = load("environment/baseline.json")
     access = {}
     for mode, result in environment.items():

@@ -1,0 +1,2 @@
+tests/fixtures/rw040-combined/probe-contract.md:41: trailing whitespace.
++  
