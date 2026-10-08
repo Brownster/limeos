@@ -261,10 +261,15 @@ def main(package_version="0.1.0", upgrade_version="0.1.1"):
     probe = r"""import socket, struct, json, sys
 s=socket.socket(socket.AF_UNIX); s.settimeout(6); s.connect(sys.argv[1])
 request=json.loads(sys.argv[2]); body=json.dumps(request).encode()
-s.sendall(struct.pack('!I',len(body))+body)
+try:
+    s.sendall(struct.pack('!I',len(body))+body)
+except (BrokenPipeError, ConnectionResetError):
+    # Kernel UID rejection may close before our first write. Read any buffered
+    # refusal instead of discarding it; callers still validate the exact reply.
+    pass
 try:
     header=s.recv(4)
-except ConnectionResetError:
+except (BrokenPipeError, ConnectionResetError):
     header=b''
 if not header:
     print('denied'); sys.exit(0)
@@ -311,6 +316,17 @@ print(body.decode())
             json.dumps({"operation": "health", "version": 1, "actor": "root"}),
         )
         assert refused_executor_reply(forged.stdout, "invalid_input")
+        # A dead daemon must not qualify as successful refusal.
+        healthy = run(
+            "runuser",
+            "-u",
+            "limeos-core",
+            "-g",
+            group,
+            *args,
+            json.dumps({"operation": "health", "version": 1}),
+        )
+        assert json.loads(healthy.stdout)["ready"] is True
     assert (
         run(
             "runuser",
