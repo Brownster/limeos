@@ -1,0 +1,60 @@
+{
+  "budget": {
+    "result": "passed",
+    "seconds": 34.71
+  },
+  "cases": {
+    "result": "passed",
+    "seconds": 0.0
+  },
+  "confinement": {
+    "result": "passed",
+    "seconds": 0.06
+  },
+  "containers": {
+    "result": "passed",
+    "seconds": 10.49
+  },
+  "empty": {
+    "result": "passed",
+    "seconds": 0.03
+  },
+  "environment": {
+    "result": "passed",
+    "seconds": 0.11
+  },
+  "ground-truth": {
+    "result": "passed",
+    "seconds": 0.05
+  },
+  "image": {
+    "result": "passed",
+    "seconds": 0.22
+  },
+  "install": {
+    "result": "passed",
+    "seconds": 52.76
+  },
+  "layout": {
+    "result": "passed",
+    "seconds": 1.68
+  },
+  "platform": {
+    "result": "passed",
+    "seconds": 0.58
+  },
+  "selfcheck": {
+    "result": "passed",
+    "seconds": 3.15
+  },
+  "service": {
+    "result": "passed",
+    "seconds": 0.04
+  },
+  "transitions": {
+    "error": "RuntimeError: transition fixtures not verified: ['namespace_switch']",
+    "result": "failed",
+    "seconds": 4.08,
+    "traceback": "Traceback (most recent call last):\n  File \"/qual/inputs/guest/combined_guest.py\", line 750, in main\n    function(ctx)\n  File \"/qual/inputs/guest/combined_guest.py\", line 638, in stage_transitions\n    raise RuntimeError(f\"transition fixtures not verified: {failed}\")\nRuntimeError: transition fixtures not verified: ['namespace_switch']\n"
+  }
+}

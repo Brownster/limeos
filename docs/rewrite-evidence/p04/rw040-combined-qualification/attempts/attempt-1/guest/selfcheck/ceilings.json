@@ -1,0 +1,231 @@
+{
+  "descriptors/confined": {
+    "argv": [
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--fds",
+      "300"
+    ],
+    "confined": true,
+    "exit": 1,
+    "sampler": {
+      "final": {
+        "cgroup_memory_peak": "5738496",
+        "io": {
+          "cancelled_write_bytes": "0",
+          "rchar": "896396",
+          "read_bytes": "0",
+          "syscr": "96",
+          "syscw": "3",
+          "wchar": "58",
+          "write_bytes": "0"
+        }
+      },
+      "peak": {
+        "cgroup_memory_current": 5582848,
+        "fds": 4,
+        "pss_kib": 6292,
+        "vm_hwm_kib": 10988,
+        "vm_rss_kib": 10988
+      },
+      "pid": 5770,
+      "samples": 5
+    },
+    "seconds": 0.076,
+    "stderr_tail": "Traceback (most recent call last):\n  File \"/qual/inputs/guest/selfcheck_probe.py\", line 81, in <module>\n  File \"/qual/inputs/guest/selfcheck_probe.py\", line 70, in main\n  File \"/qual/inputs/guest/selfcheck_probe.py\", line 28, in descriptors\nOSError: [Errno 24] Too many open files: '/proc/self/fd'\n",
+    "stdout_last": null,
+    "stdout_lines": 0,
+    "unit_after": "inactive"
+  },
+  "descriptors/unrestricted": {
+    "argv": [
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--fds",
+      "300"
+    ],
+    "confined": false,
+    "exit": 0,
+    "sampler": {
+      "final": {
+        "cgroup_memory_peak": "6123520",
+        "io": {
+          "cancelled_write_bytes": "0",
+          "rchar": "897537",
+          "read_bytes": "0",
+          "syscr": "94",
+          "syscw": "3",
+          "wchar": "134",
+          "write_bytes": "0"
+        }
+      },
+      "peak": {
+        "cgroup_memory_current": 6123520,
+        "fds": 303,
+        "pss_kib": 6415,
+        "vm_hwm_kib": 11096,
+        "vm_rss_kib": 11096
+      },
+      "pid": 5764,
+      "samples": 74
+    },
+    "seconds": 0.564,
+    "stderr_tail": "",
+    "stdout_last": "{\"summary\": {\"fds\": {\"error\": null, \"fd_table_at_peak\": 304, \"opened\": 300, \"requested\": 300}, \"pid\": 5764, \"vm_hwm\": \"11096\"}}",
+    "stdout_lines": 1,
+    "unit_after": "inactive"
+  },
+  "label": "harness self-check of ceilings and measurement; not a qualification probe",
+  "memory/confined": {
+    "argv": [
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--memory-mib",
+      "96"
+    ],
+    "confined": true,
+    "exit": 1,
+    "sampler": {
+      "final": {
+        "cgroup_memory_peak": "67108864",
+        "io": {
+          "cancelled_write_bytes": "0",
+          "rchar": "896396",
+          "read_bytes": "0",
+          "syscr": "96",
+          "syscw": "17",
+          "wchar": "429",
+          "write_bytes": "0"
+        }
+      },
+      "peak": {
+        "cgroup_memory_current": 67108864,
+        "fds": 3,
+        "pss_kib": 66340,
+        "vm_hwm_kib": 71148,
+        "vm_rss_kib": 71148
+      },
+      "pid": 5834,
+      "samples": 17
+    },
+    "seconds": 0.147,
+    "stderr_tail": "",
+    "stdout_last": "{\"memory_mib_touched\": 56}",
+    "stdout_lines": 14,
+    "unit_after": "inactive"
+  },
+  "memory/unrestricted": {
+    "argv": [
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--memory-mib",
+      "96"
+    ],
+    "confined": false,
+    "exit": 0,
+    "sampler": {
+      "final": {
+        "cgroup_memory_peak": "106704896",
+        "io": {
+          "cancelled_write_bytes": "0",
+          "rchar": "897538",
+          "read_bytes": "0",
+          "syscr": "94",
+          "syscw": "27",
+          "wchar": "751",
+          "write_bytes": "0"
+        }
+      },
+      "peak": {
+        "cgroup_memory_current": 106692608,
+        "fds": 4,
+        "pss_kib": 104763,
+        "vm_hwm_kib": 109668,
+        "vm_rss_kib": 109668
+      },
+      "pid": 5828,
+      "samples": 76
+    },
+    "seconds": 0.612,
+    "stderr_tail": "",
+    "stdout_last": "{\"summary\": {\"memory\": {\"requested_mib\": 96, \"touched_mib\": 96}, \"pid\": 5828, \"vm_hwm\": \"109668\"}}",
+    "stdout_lines": 25,
+    "unit_after": "inactive"
+  },
+  "tasks/confined": {
+    "argv": [
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--tasks",
+      "24"
+    ],
+    "confined": true,
+    "exit": 0,
+    "sampler": {
+      "final": {
+        "cgroup_memory_peak": "12910592",
+        "io": {
+          "cancelled_write_bytes": "0",
+          "rchar": "897787",
+          "read_bytes": "0",
+          "syscr": "98",
+          "syscw": "4",
+          "wchar": "176",
+          "write_bytes": "0"
+        }
+      },
+      "peak": {
+        "cgroup_memory_current": 12652544,
+        "fds": 3,
+        "pss_kib": 12732,
+        "vm_hwm_kib": 17096,
+        "vm_rss_kib": 17092
+      },
+      "pid": 5806,
+      "samples": 84
+    },
+    "seconds": 0.592,
+    "stderr_tail": "",
+    "stdout_last": "{\"summary\": {\"pid\": 5806, \"tasks\": {\"error\": \"can't start new thread\", \"requested\": 24, \"started\": 15}, \"vm_hwm\": \"17096\"}}",
+    "stdout_lines": 1,
+    "unit_after": "inactive"
+  },
+  "tasks/unrestricted": {
+    "argv": [
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--tasks",
+      "24"
+    ],
+    "confined": false,
+    "exit": 0,
+    "sampler": {
+      "final": {
+        "cgroup_memory_peak": "13201408",
+        "io": {
+          "cancelled_write_bytes": "0",
+          "rchar": "897543",
+          "read_bytes": "0",
+          "syscr": "95",
+          "syscw": "3",
+          "wchar": "110",
+          "write_bytes": "0"
+        }
+      },
+      "peak": {
+        "cgroup_memory_current": 12939264,
+        "fds": 4,
+        "pss_kib": 12894,
+        "vm_hwm_kib": 17432,
+        "vm_rss_kib": 17204
+      },
+      "pid": 5776,
+      "samples": 77
+    },
+    "seconds": 0.579,
+    "stderr_tail": "",
+    "stdout_last": "{\"summary\": {\"pid\": 5776, \"tasks\": {\"error\": null, \"requested\": 24, \"started\": 24}, \"vm_hwm\": \"17432\"}}",
+    "stdout_lines": 1,
+    "unit_after": "inactive"
+  }
+}

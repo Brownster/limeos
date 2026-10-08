@@ -1,0 +1,1083 @@
+{
+  "access": {
+    "diagnostic_without_Group": {
+      "af_inet": "EAFNOSUPPORT",
+      "cap_eff": "0000000000000000",
+      "cgroup": {
+        "cpu.max": "50000 100000",
+        "memory.max": "67108864",
+        "memory.swap.max": "0",
+        "pids.max": "16"
+      },
+      "docker_canonical": {
+        "peer_gid": 0,
+        "peer_pid": 1,
+        "peer_uid": 0,
+        "status_line": "HTTP/1.0 200 OK"
+      },
+      "no_new_privs": "1",
+      "openat2": "ENOSYS",
+      "openat2_var_run_without_symlinks": "ENOSYS",
+      "removed_settings": [
+        "Group"
+      ],
+      "rlimit_nofile": [
+        256,
+        256
+      ],
+      "seccomp": "2",
+      "statx_mnt_id": "ok",
+      "targets": {
+        "container:rw040-run-alias": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-bind": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-config-file": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-link": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-mountless": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-nondumpable": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-other-uid": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-swap": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-tmpfs": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-volume": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-trans-ns": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-trans-root": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "pid1": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "task:nondumpable-root": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "task:other-uid": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "task:root-no-capabilities": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        }
+      },
+      "uid_gid": [
+        "0",
+        "0"
+      ]
+    },
+    "diagnostic_without_RestrictSUIDSGID": {
+      "af_inet": "EAFNOSUPPORT",
+      "cap_eff": "0000000000000000",
+      "cgroup": {
+        "cpu.max": "50000 100000",
+        "memory.max": "67108864",
+        "memory.swap.max": "0",
+        "pids.max": "16"
+      },
+      "docker_canonical": {
+        "peer_gid": 0,
+        "peer_pid": 1,
+        "peer_uid": 0,
+        "status_line": "HTTP/1.0 200 OK"
+      },
+      "no_new_privs": "1",
+      "openat2": "ok",
+      "openat2_var_run_without_symlinks": "ELOOP",
+      "removed_settings": [
+        "RestrictSUIDSGID"
+      ],
+      "rlimit_nofile": [
+        256,
+        256
+      ],
+      "seccomp": "2",
+      "statx_mnt_id": "ok",
+      "targets": {
+        "container:rw040-run-alias": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-bind": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-config-file": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-link": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-mountless": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-nondumpable": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-other-uid": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-swap": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-tmpfs": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-volume": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-trans-ns": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-trans-root": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "pid1": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "task:nondumpable-root": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "task:other-uid": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "task:root-no-capabilities": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        }
+      },
+      "uid_gid": [
+        "0",
+        "114"
+      ]
+    },
+    "reproduced_confinement": {
+      "af_inet": "EAFNOSUPPORT",
+      "cap_eff": "0000000000000000",
+      "cgroup": {
+        "cpu.max": "50000 100000",
+        "memory.max": "67108864",
+        "memory.swap.max": "0",
+        "pids.max": "16"
+      },
+      "docker_canonical": {
+        "peer_gid": 0,
+        "peer_pid": 1,
+        "peer_uid": 0,
+        "status_line": "HTTP/1.0 200 OK"
+      },
+      "no_new_privs": "1",
+      "openat2": "ENOSYS",
+      "openat2_var_run_without_symlinks": "ENOSYS",
+      "removed_settings": [],
+      "rlimit_nofile": [
+        256,
+        256
+      ],
+      "seccomp": "2",
+      "statx_mnt_id": "ok",
+      "targets": {
+        "container:rw040-run-alias": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-bind": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-config-file": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-link": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-mountless": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-nondumpable": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-other-uid": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-swap": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-tmpfs": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-run-volume": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-trans-ns": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "container:rw040-trans-root": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "pid1": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "task:nondumpable-root": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "task:other-uid": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        },
+        "task:root-no-capabilities": {
+          "open_ns_mnt": "EACCES",
+          "open_root": "EACCES",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "EACCES",
+          "readlink_root": "EACCES",
+          "stat_root": "EACCES",
+          "statx_root": "EACCES"
+        }
+      },
+      "uid_gid": [
+        "0",
+        "114"
+      ]
+    },
+    "unrestricted_root": {
+      "af_inet": "ok",
+      "cap_eff": "000001ffffffffff",
+      "cgroup": {
+        "cpu.max": "max 100000",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.max": "max"
+      },
+      "docker_canonical": {
+        "peer_gid": 0,
+        "peer_pid": 1,
+        "peer_uid": 0,
+        "status_line": "HTTP/1.0 200 OK"
+      },
+      "no_new_privs": "0",
+      "openat2": "ok",
+      "openat2_var_run_without_symlinks": "ELOOP",
+      "removed_settings": [],
+      "rlimit_nofile": [
+        1024,
+        524288
+      ],
+      "seccomp": "0",
+      "statx_mnt_id": "ok",
+      "targets": {
+        "container:rw040-run-alias": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "container:rw040-run-bind": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "container:rw040-run-config-file": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "container:rw040-run-link": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "container:rw040-run-mountless": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "container:rw040-run-nondumpable": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "container:rw040-run-other-uid": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "container:rw040-run-swap": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "container:rw040-run-tmpfs": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "container:rw040-run-volume": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "container:rw040-trans-ns": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "container:rw040-trans-root": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "pid1": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "task:nondumpable-root": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "task:other-uid": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        },
+        "task:root-no-capabilities": {
+          "open_ns_mnt": "ok",
+          "open_root": "ok",
+          "pidfd_open": "ok",
+          "read_mountinfo": "ok",
+          "read_status": "ok",
+          "readlink_ns_mnt": "ok",
+          "readlink_root": "ok",
+          "stat_root": "ok",
+          "statx_root": "ok"
+        }
+      },
+      "uid_gid": [
+        "0",
+        "0"
+      ]
+    }
+  },
+  "budget": {
+    "label": "membership-scale fixture feasibility; probe cases still blocked",
+    "memory_at_total": {
+      "MemAvailable": 650444,
+      "MemTotal": 1510832,
+      "SwapFree": 0,
+      "SwapTotal": 0
+    },
+    "memory_before": {
+      "MemAvailable": 1042552,
+      "MemTotal": 1510832,
+      "SwapFree": 0,
+      "SwapTotal": 0
+    },
+    "reached_total": 65,
+    "removed": 51,
+    "requested_total": 65,
+    "running": 62
+  },
+  "cases": {
+    "budget-concurrent": "blocked",
+    "budget-empty-near-over": "blocked",
+    "engine-complete": "blocked",
+    "engine-empty": "blocked",
+    "engine-endpoint-facts": "blocked",
+    "kernel-support-missing": "blocked",
+    "process-cross-uid": "blocked",
+    "process-nondumpable": "blocked",
+    "process-same-uid": "blocked",
+    "source-aliases-nested-volumes": "blocked",
+    "source-swapped-device": "blocked",
+    "source-unsupported-backing": "blocked",
+    "transition-expiry": "blocked",
+    "transition-restart-exit": "blocked",
+    "transition-root-namespace": "blocked",
+    "worker-blocked-synchronous": "blocked",
+    "worker-cancel-death-deadline": "blocked"
+  },
+  "compared_properties": 62,
+  "confinement_equivalent": true,
+  "deadline_reached": false,
+  "engine": {
+    "activation": {
+      "Accept": "no",
+      "ActiveState": "active",
+      "Listen": "/run/docker.sock (Stream)",
+      "SocketGroup": "docker",
+      "SocketMode": "0660",
+      "SocketUser": "root"
+    },
+    "daemon_main_pid": "964",
+    "peer": {
+      "comm": "systemd",
+      "gid": 0,
+      "pid": 1,
+      "uid": 0
+    },
+    "server_version": "20.10.24+dfsg1",
+    "socket": {
+      "dev": 23,
+      "gid": 109,
+      "ino": 1127,
+      "mode": "0o140660",
+      "nlink": 1,
+      "path": "/run/docker.sock",
+      "uid": 0
+    },
+    "var_run": {
+      "is_symlink": true,
+      "target": "/run"
+    }
+  },
+  "guest_seconds": 174.2,
+  "image_sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c",
+  "inputs_tar_sha256": "bce820b10f266f5e86950ee4acffc44a3d573910d88da1d9d58f71714f397a3d",
+  "membership_complete": {
+    "count": 14,
+    "running": 12
+  },
+  "nondumpable_checks": {
+    "nondumpable-root": false,
+    "other-uid": false,
+    "root-no-capabilities": false,
+    "rw040-run-alias": false,
+    "rw040-run-bind": false,
+    "rw040-run-config-file": false,
+    "rw040-run-link": false,
+    "rw040-run-mountless": false,
+    "rw040-run-nondumpable": true,
+    "rw040-run-other-uid": false,
+    "rw040-run-swap": false,
+    "rw040-run-tmpfs": false,
+    "rw040-run-volume": false,
+    "rw040-trans-ns": false,
+    "rw040-trans-root": false
+  },
+  "outcome": "completed",
+  "platform": {
+    "kernel": [
+      "Linux",
+      "rw040-guest",
+      "6.1.0-53-cloud-amd64",
+      "#1 SMP PREEMPT_DYNAMIC Debian 6.1.187-1 (2026-09-07)",
+      "x86_64"
+    ],
+    "page_size": 4096,
+    "ptrace_scope": "0",
+    "suid_dumpable": "0",
+    "systemd": "systemd 252 (252.39-1~deb12u2)",
+    "virtualization": "kvm"
+  },
+  "qemu_exit": 0,
+  "run_id": "20261008T165447Z-7f86e022",
+  "selfcheck": {
+    "descriptors/confined": {
+      "exit": 0,
+      "last": "{\"summary\": {\"fds\": {\"error\": \"Too many open files\", \"fd_table_at_peak\": 256, \"opened\": 253, \"requested\": 300}, \"pid\": 6842, \"vm_hwm\": \"10948\"}}",
+      "peak": {
+        "cgroup_memory_current": 5894144,
+        "fds": 256,
+        "pss_kib": 6163,
+        "vm_hwm_kib": 10948,
+        "vm_rss_kib": 10948
+      },
+      "sampler_samples": 93,
+      "unit_after": "inactive"
+    },
+    "descriptors/unrestricted": {
+      "exit": 0,
+      "last": "{\"summary\": {\"fds\": {\"error\": null, \"fd_table_at_peak\": 303, \"opened\": 300, \"requested\": 300}, \"pid\": 6834, \"vm_hwm\": \"11196\"}}",
+      "peak": {
+        "cgroup_memory_current": 5840896,
+        "fds": 303,
+        "pss_kib": 6173,
+        "vm_hwm_kib": 11196,
+        "vm_rss_kib": 11196
+      },
+      "sampler_samples": 89,
+      "unit_after": "inactive"
+    },
+    "memory/confined": {
+      "exit": 1,
+      "last": "{\"memory_mib_touched\": 56}",
+      "peak": {
+        "cgroup_memory_current": 67108864,
+        "fds": 4,
+        "pss_kib": 66124,
+        "vm_hwm_kib": 70896,
+        "vm_rss_kib": 70896
+      },
+      "sampler_samples": 19,
+      "unit_after": "inactive"
+    },
+    "memory/unrestricted": {
+      "exit": 0,
+      "last": "{\"summary\": {\"memory\": {\"requested_mib\": 96, \"touched_mib\": 96}, \"pid\": 6903, \"vm_hwm\": \"109660\"}}",
+      "peak": {
+        "cgroup_memory_current": 106614784,
+        "fds": 3,
+        "pss_kib": 104579,
+        "vm_hwm_kib": 109660,
+        "vm_rss_kib": 109660
+      },
+      "sampler_samples": 96,
+      "unit_after": "inactive"
+    },
+    "tasks/confined": {
+      "exit": 0,
+      "last": "{\"summary\": {\"pid\": 6880, \"tasks\": {\"error\": \"can't start new thread\", \"requested\": 24, \"started\": 15}, \"vm_hwm\": \"15264\"}}",
+      "peak": {
+        "cgroup_memory_current": 10731520,
+        "fds": 3,
+        "pss_kib": 10506,
+        "vm_hwm_kib": 15264,
+        "vm_rss_kib": 15100
+      },
+      "sampler_samples": 92,
+      "unit_after": "inactive"
+    },
+    "tasks/unrestricted": {
+      "exit": 0,
+      "last": "{\"summary\": {\"pid\": 6849, \"tasks\": {\"error\": null, \"requested\": 24, \"started\": 24}, \"vm_hwm\": \"17388\"}}",
+      "peak": {
+        "cgroup_memory_current": 13103104,
+        "fds": 4,
+        "pss_kib": 12692,
+        "vm_hwm_kib": 17388,
+        "vm_rss_kib": 17248
+      },
+      "sampler_samples": 90,
+      "unit_after": "inactive"
+    }
+  },
+  "source_commit": "0358017390d2bf527433c4d02c1417717dcdb4ab",
+  "source_dirty": false,
+  "stages": {
+    "budget": "passed",
+    "cases": "passed",
+    "confinement": "passed",
+    "containers": "passed",
+    "empty": "passed",
+    "environment": "passed",
+    "ground-truth": "passed",
+    "image": "passed",
+    "install": "passed",
+    "layout": "passed",
+    "platform": "passed",
+    "selfcheck": "passed",
+    "service": "passed",
+    "transitions": "passed"
+  },
+  "teardown": {
+    "finished_utc": "2026-10-08T16:57:42.614872+00:00",
+    "marker_processes_after": [],
+    "run_dir_removed": true
+  },
+  "teardown_actions": [],
+  "transitions": {
+    "exit": {
+      "error": null,
+      "verified": true
+    },
+    "namespace_switch": {
+      "error": null,
+      "verified": true
+    },
+    "restart": {
+      "error": null,
+      "verified": true
+    },
+    "root_switch": {
+      "error": null,
+      "verified": true
+    },
+    "swapped_device": {
+      "error": null,
+      "verified": true
+    },
+    "unsupported_btrfs": {
+      "error": null,
+      "verified": true
+    }
+  }
+}

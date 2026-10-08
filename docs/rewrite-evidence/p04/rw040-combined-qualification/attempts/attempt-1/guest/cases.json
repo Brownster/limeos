@@ -1,0 +1,252 @@
+{
+  "cases": [
+    {
+      "id": "engine-empty",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "empty"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Canonical authenticated Engine, empty membership",
+      "status": "blocked"
+    },
+    {
+      "id": "engine-complete",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "containers",
+        "ground-truth"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Canonical authenticated Engine, complete running/stopped/mountless membership",
+      "status": "blocked"
+    },
+    {
+      "id": "engine-endpoint-facts",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "empty"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Peer UID/socket binding is not daemon identity",
+      "status": "blocked"
+    },
+    {
+      "id": "process-same-uid",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "containers",
+        "environment"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Same-UID tasks",
+      "status": "blocked"
+    },
+    {
+      "id": "process-cross-uid",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "containers",
+        "environment"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Cross-UID tasks",
+      "status": "blocked"
+    },
+    {
+      "id": "process-nondumpable",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "containers",
+        "environment"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Nondumpable tasks",
+      "status": "blocked"
+    },
+    {
+      "id": "kernel-support-missing",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "environment"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Missing capabilities/ptrace/proc/statx support",
+      "status": "blocked"
+    },
+    {
+      "id": "source-aliases-nested-volumes",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "layout",
+        "containers",
+        "ground-truth"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Real aliases, nested filesystems and named volumes",
+      "status": "blocked"
+    },
+    {
+      "id": "source-swapped-device",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "transitions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Swapped UUID/device facts",
+      "status": "blocked"
+    },
+    {
+      "id": "source-unsupported-backing",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "transitions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Unsupported layouts cannot become complete empty authority",
+      "status": "blocked"
+    },
+    {
+      "id": "transition-restart-exit",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "transitions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Owned restart/exit",
+      "status": "blocked"
+    },
+    {
+      "id": "transition-root-namespace",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "transitions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Owned root/namespace change",
+      "status": "blocked"
+    },
+    {
+      "id": "transition-expiry",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "containers"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Declaration/lifetime expiry",
+      "status": "blocked"
+    },
+    {
+      "id": "budget-empty-near-over",
+      "missing": [
+        "integrator-probe"
+      ],
+      "prepared": [
+        "budget"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Empty/near/over-budget membership",
+      "status": "blocked"
+    },
+    {
+      "id": "budget-concurrent",
+      "missing": [
+        "integrator-probe",
+        "integrator-worker"
+      ],
+      "prepared": [
+        "selfcheck"
+      ],
+      "requires": [
+        "integrator-probe",
+        "integrator-worker"
+      ],
+      "row": "Concurrent requests",
+      "status": "blocked"
+    },
+    {
+      "id": "worker-cancel-death-deadline",
+      "missing": [
+        "integrator-worker"
+      ],
+      "prepared": [
+        "selfcheck"
+      ],
+      "requires": [
+        "integrator-worker"
+      ],
+      "row": "Cancellation, parent death, independent deadline",
+      "status": "blocked"
+    },
+    {
+      "id": "worker-blocked-synchronous",
+      "missing": [
+        "integrator-worker",
+        "blocking-fixture"
+      ],
+      "prepared": [],
+      "requires": [
+        "integrator-worker",
+        "blocking-fixture"
+      ],
+      "row": "Blocked synchronous work",
+      "status": "blocked"
+    }
+  ],
+  "probe_supplied": false,
+  "supplied": []
+}

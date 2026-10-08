@@ -1,0 +1,104 @@
+{
+  "activation": {
+    "Accept": "no",
+    "ActiveState": "active",
+    "Listen": "/run/docker.sock (Stream)",
+    "SocketGroup": "docker",
+    "SocketMode": "0660",
+    "SocketUser": "root"
+  },
+  "daemon": {
+    "ActiveState": "active",
+    "ExecMainStartTimestampMonotonic": "67385727",
+    "MainPID": "964",
+    "TriggeredBy": "docker.socket"
+  },
+  "info": {
+    "CgroupDriver": "systemd",
+    "CgroupVersion": "2",
+    "Containers": 0,
+    "ContainersRunning": 0,
+    "ContainersStopped": 0,
+    "DockerRootDir": "/var/lib/docker",
+    "Driver": "overlay2",
+    "ID": "N3JG:7JJ3:Q5NH:V4KN:A33X:YTWZ:Z5QW:6XY5:AA4Z:PX5K:T4Z4:RJHQ",
+    "Name": "rw040-guest",
+    "SecurityOptions": [
+      "name=apparmor",
+      "name=seccomp,profile=default",
+      "name=cgroupns"
+    ],
+    "ServerVersion": "20.10.24+dfsg1"
+  },
+  "peer_canonical": {
+    "comm": "systemd",
+    "gid": 0,
+    "pid": 1,
+    "uid": 0
+  },
+  "socket": {
+    "dev": 23,
+    "gid": 109,
+    "ino": 1127,
+    "mode": "0o140660",
+    "nlink": 1,
+    "path": "/run/docker.sock",
+    "uid": 0
+  },
+  "var_run": {
+    "is_symlink": true,
+    "target": "/run"
+  },
+  "version": {
+    "ApiVersion": "1.41",
+    "Arch": "amd64",
+    "BuildTime": "2026-05-07T21:09:36.000000000+00:00",
+    "Components": [
+      {
+        "Details": {
+          "ApiVersion": "1.41",
+          "Arch": "amd64",
+          "BuildTime": "2026-05-07T21:09:36.000000000+00:00",
+          "Experimental": "false",
+          "GitCommit": "5d6db84",
+          "GoVersion": "go1.19.8",
+          "KernelVersion": "6.1.0-53-cloud-amd64",
+          "MinAPIVersion": "1.12",
+          "Os": "linux"
+        },
+        "Name": "Engine",
+        "Version": "20.10.24+dfsg1"
+      },
+      {
+        "Details": {
+          "GitCommit": "1.6.20~ds1-1+deb12u3"
+        },
+        "Name": "containerd",
+        "Version": "1.6.20~ds1"
+      },
+      {
+        "Details": {
+          "GitCommit": "1.1.5+ds1-1+deb12u1"
+        },
+        "Name": "runc",
+        "Version": "1.1.5+ds1"
+      },
+      {
+        "Details": {
+          "GitCommit": ""
+        },
+        "Name": "docker-init",
+        "Version": "0.19.0"
+      }
+    ],
+    "GitCommit": "5d6db84",
+    "GoVersion": "go1.19.8",
+    "KernelVersion": "6.1.0-53-cloud-amd64",
+    "MinAPIVersion": "1.12",
+    "Os": "linux",
+    "Platform": {
+      "Name": ""
+    },
+    "Version": "20.10.24+dfsg1"
+  }
+}

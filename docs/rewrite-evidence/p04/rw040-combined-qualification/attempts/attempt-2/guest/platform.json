@@ -1,0 +1,58 @@
+{
+  "cloud_init_schema": "Cloud config schema deprecations: \nError:\nCloud config schema errors: ssh_genkeytypes: [] is too short\n",
+  "cpu_model": "Intel(R) Core(TM) i5-10310U CPU @ 1.70GHz",
+  "cpus": 2,
+  "inputs_manifest": {
+    "budget_total_containers": 65,
+    "expected_binaries": {
+      "limeos-core": "f4098751f64f95f2b992359388fe340a21d7b4e27123148711bcfda3cd073c39",
+      "limeos-executor": "6d853d82065534e7358631b63701aa2a72e0342292b94b2049032a8a560c51ca",
+      "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+      "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+    },
+    "guest_budget_seconds": 1380,
+    "install_package": "limeos_0.4.4_amd64.deb",
+    "packages": [
+      {
+        "bytes": 2927010,
+        "file": "limeos-shadow_0.4.4_amd64.deb",
+        "sha256": "d3fdb0d0d596448147d4c0d9ad63b04259c6f7c7a6683d3eae8e0c22641570b2"
+      },
+      {
+        "bytes": 2928072,
+        "file": "limeos_0.4.4+ci.1_amd64.deb",
+        "sha256": "8274b8a5658b634c5bb38cb5b9a950ca4c1ab932ad46e3688f34313fe3e74e37"
+      },
+      {
+        "bytes": 2928096,
+        "file": "limeos_0.4.4_amd64.deb",
+        "sha256": "8ebb6d89d607e7b3830d614a69527ae1621b89f25b19fdea57b2eae43ceb35cc"
+      }
+    ],
+    "run_id": "20261008T164629Z-19c2e8af",
+    "source_commit": "2fd74209e1238c1374837ab431ef670020726dc2",
+    "supplied": [],
+    "tested_source": "2fd74209e1238c1374837ab431ef670020726dc2"
+  },
+  "kernel_cmdline": "BOOT_IMAGE=/boot/vmlinuz-6.1.0-53-cloud-amd64 root=PARTUUID=ea85e2ef-0718-4ecd-bcec-e958c3ad5a7a ro console=tty0 console=ttyS0,115200 earlyprintk=ttyS0,115200 consoleblank=0",
+  "meminfo": {
+    "MemAvailable": 1259556,
+    "MemTotal": 1510832,
+    "SwapFree": 0,
+    "SwapTotal": 0
+  },
+  "os_release": "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"12\"\nVERSION=\"12 (bookworm)\"\nVERSION_CODENAME=bookworm\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n",
+  "page_size": 4096,
+  "ptrace_scope": "0",
+  "python": "3.11.2 (main, May 12 2026, 05:17:27) [GCC 12.2.0]",
+  "suid_dumpable": "0",
+  "systemd": "systemd 252 (252.39-1~deb12u2)",
+  "uname": [
+    "Linux",
+    "rw040-guest",
+    "6.1.0-53-cloud-amd64",
+    "#1 SMP PREEMPT_DYNAMIC Debian 6.1.187-1 (2026-09-07)",
+    "x86_64"
+  ],
+  "virtualization": "kvm"
+}

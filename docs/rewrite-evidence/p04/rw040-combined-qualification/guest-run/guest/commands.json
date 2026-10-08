@@ -1,0 +1,2456 @@
+[
+  {
+    "argv": [
+      "systemd-detect-virt"
+    ],
+    "exit": 0,
+    "seconds": 0.007,
+    "stderr_tail": "",
+    "stdout_tail": "kvm\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "--version"
+    ],
+    "exit": 0,
+    "seconds": 0.003,
+    "stderr_tail": "",
+    "stdout_tail": "systemd 252 (252.39-1~deb12u2)\n+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified\n"
+  },
+  {
+    "argv": [
+      "cloud-init",
+      "schema",
+      "--system"
+    ],
+    "exit": 0,
+    "seconds": 0.298,
+    "stderr_tail": "",
+    "stdout_tail": "Valid cloud-config: system userdata\n"
+  },
+  {
+    "argv": [
+      "env",
+      "DEBIAN_FRONTEND=noninteractive",
+      "apt-get",
+      "-o",
+      "DPkg::Lock::Timeout=300",
+      "-q",
+      "update"
+    ],
+    "exit": 0,
+    "seconds": 32.393,
+    "stderr_tail": "",
+    "stdout_tail": "nslation-en [5448 B]\nGet:13 https://deb.debian.org/debian bookworm-backports/main Sources [322 kB]\nGet:14 https://deb.debian.org/debian bookworm-backports/main amd64 Packages [300 kB]\nGet:15 https://deb.debian.org/debian bookworm-backports/main Translation-en [252 kB]\nGet:16 https://deb.debian.org/debian-security bookworm-security/main Sources [271 kB]\nGet:17 https://deb.debian.org/debian-security bookworm-security/main amd64 Packages [349 kB]\nGet:18 https://deb.debian.org/debian-security bookworm-security/main Translation-en [217 kB]\nFetched 26.4 MB in 32s (832 kB/s)\nReading package lists...\n"
+  },
+  {
+    "argv": [
+      "env",
+      "DEBIAN_FRONTEND=noninteractive",
+      "apt-get",
+      "-o",
+      "DPkg::Lock::Timeout=300",
+      "-q",
+      "install",
+      "-y",
+      "--no-install-recommends",
+      "docker.io",
+      "busybox-static",
+      "xfsprogs",
+      "btrfs-progs"
+    ],
+    "exit": 0,
+    "seconds": 37.088,
+    "stderr_tail": "",
+    "stdout_tail": "1+deb12u1+b6) ...\nAdding group `docker' (GID 109) ...\nDone.\nCreated symlink /etc/systemd/system/multi-user.target.wants/docker.service \u2192 /lib/systemd/system/docker.service.\n\nCreated symlink /etc/systemd/system/sockets.target.wants/docker.socket \u2192 /lib/systemd/system/docker.socket.\n\nSetting up xfsprogs (6.1.0-1) ...\nupdate-initramfs: deferring update (trigger activated)\nProcessing triggers for libc-bin (2.36-9+deb12u14) ...\nProcessing triggers for man-db (2.11.2-2) ...\nProcessing triggers for initramfs-tools (0.142+deb12u3) ...\nupdate-initramfs: Generating /boot/initrd.img-6.1.0-53-cloud-amd64\n"
+  },
+  {
+    "argv": [
+      "env",
+      "DEBIAN_FRONTEND=noninteractive",
+      "apt-get",
+      "-o",
+      "DPkg::Lock::Timeout=300",
+      "-q",
+      "install",
+      "-y",
+      "--no-install-recommends",
+      "/qual/inputs/packages/limeos_0.4.4_amd64.deb"
+    ],
+    "exit": 0,
+    "seconds": 8.346,
+    "stderr_tail": "",
+    "stdout_tail": "meos-assistant' ...\nNot creating `/nonexistent'.\nAdding group `limeos-rpc' (GID 113) ...\nDone.\nAdding group `limeos-host-access' (GID 114) ...\nDone.\nAdding group `limeos-container-access' (GID 115) ...\nDone.\nCreated symlink /etc/systemd/system/multi-user.target.wants/limeos-core.service \u2192 /lib/systemd/system/limeos-core.service.\n\nCreated symlink /etc/systemd/system/multi-user.target.wants/limeos-containerd.service \u2192 /lib/systemd/system/limeos-containerd.service.\n\nCreated symlink /etc/systemd/system/multi-user.target.wants/limeos-storaged.service \u2192 /lib/systemd/system/limeos-storaged.service.\n\n"
+  },
+  {
+    "argv": [
+      "dpkg-query",
+      "-W",
+      "-f",
+      "${Package} ${Version} ${Architecture}\n",
+      "docker.io",
+      "containerd",
+      "runc",
+      "busybox-static",
+      "limeos",
+      "systemd",
+      "linux-image-*"
+    ],
+    "exit": 0,
+    "seconds": 0.007,
+    "stderr_tail": "",
+    "stdout_tail": "busybox-static 1:1.35.0-4+deb12u1+b1 amd64\ncontainerd 1.6.20~ds1-1+deb12u3 amd64\ndocker.io 20.10.24+dfsg1-1+deb12u1+b6 amd64\nlimeos 0.4.4 amd64\nlinux-image-6.1.0-53-cloud-amd64 6.1.187-1 amd64\nlinux-image-6.1.0-53-cloud-amd64-unsigned  \nlinux-image-cloud-amd64 6.1.187-1 amd64\nrunc 1.1.5+ds1-1+deb12u1 amd64\nsystemd 252.39-1~deb12u2 amd64\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "limeos-storage-reader.service",
+      "-p",
+      "ActiveState,UnitFileState,LoadState"
+    ],
+    "exit": 0,
+    "seconds": 0.01,
+    "stderr_tail": "",
+    "stdout_tail": "LoadState=loaded\nActiveState=inactive\nUnitFileState=static\n"
+  },
+  {
+    "argv": [
+      "getent",
+      "group",
+      "limeos-host-access"
+    ],
+    "exit": 0,
+    "seconds": 0.001,
+    "stderr_tail": "",
+    "stdout_tail": "limeos-host-access:x:114:\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--unit=rw040-confinement-check",
+      "--service-type=exec",
+      "--collect",
+      "--property=User=root",
+      "--property=Group=limeos-host-access",
+      "--property=UMask=0077",
+      "--property=LimitCORE=0",
+      "--property=MemorySwapMax=0",
+      "--property=NoNewPrivileges=yes",
+      "--property=PrivateMounts=no",
+      "--property=PrivateDevices=no",
+      "--property=RestrictSUIDSGID=yes",
+      "--property=RestrictRealtime=yes",
+      "--property=LockPersonality=yes",
+      "--property=MemoryDenyWriteExecute=yes",
+      "--property=RestrictAddressFamilies=AF_UNIX",
+      "--property=CapabilityBoundingSet=",
+      "--property=AmbientCapabilities=",
+      "--property=SystemCallArchitectures=native",
+      "--property=SystemCallFilter=@system-service",
+      "--property=LimitNOFILE=256",
+      "--property=TasksMax=16",
+      "--property=MemoryMax=64M",
+      "--property=CPUQuota=50%",
+      "/bin/sleep",
+      "60"
+    ],
+    "exit": 0,
+    "seconds": 0.053,
+    "stderr_tail": "Running as unit: rw040-confinement-check.service\n",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-confinement-check.service",
+      "-p",
+      "AmbientCapabilities,CPUQuotaPerSecUSec,CapabilityBoundingSet,Delegate,DeviceAllow,DevicePolicy,DynamicUser,Group,IOSchedulingClass,IPAddressAllow,IPAddressDeny,InaccessiblePaths,KeyringMode,LimitAS,LimitCORE,LimitCORESoft,LimitMEMLOCK,LimitNOFILE,LimitNOFILESoft,LimitNPROC,LockPersonality,MemoryDenyWriteExecute,MemoryHigh,MemoryLow,MemoryMax,MemoryMin,MemorySwapMax,NetworkNamespacePath,Nice,NoNewPrivileges,PrivateDevices,PrivateIPC,PrivateMounts,PrivateNetwork,PrivateTmp,PrivateUsers,ProcSubset,ProtectClock,ProtectControlGroups,ProtectHome,ProtectHostname,ProtectKernelLogs,ProtectKernelModules,ProtectKernelTunables,ProtectProc,ProtectSystem,ReadOnlyPaths,ReadWritePaths,RestrictAddressFamilies,RestrictNamespaces,RestrictRealtime,RestrictSUIDSGID,RootDirectory,RootImage,SecureBits,SupplementaryGroups,SystemCallArchitectures,SystemCallErrorNumber,SystemCallFilter,TasksMax,UMask,User"
+    ],
+    "exit": 0,
+    "seconds": 0.008,
+    "stderr_tail": "",
+    "stdout_tail": "e64 timer_settime timer_settime64 timerfd_create timerfd_gettime timerfd_gettime64 timerfd_settime timerfd_settime64 times tkill truncate truncate64 ugetrlimit umask uname unlink unlinkat unshare userfaultfd utime utimensat utimensat_time64 utimes vfork vmsplice wait4 waitid waitpid write writev\nSystemCallArchitectures=native\nSystemCallErrorNumber=2147483646\nLockPersonality=yes\nRestrictAddressFamilies=AF_UNIX\nMemoryDenyWriteExecute=yes\nRestrictRealtime=yes\nRestrictSUIDSGID=yes\nRestrictNamespaces=no\nKeyringMode=private\nProtectProc=default\nProcSubset=all\nProtectHostname=no\nNetworkNamespacePath=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "limeos-storage-reader.service",
+      "-p",
+      "AmbientCapabilities,CPUQuotaPerSecUSec,CapabilityBoundingSet,Delegate,DeviceAllow,DevicePolicy,DynamicUser,Group,IOSchedulingClass,IPAddressAllow,IPAddressDeny,InaccessiblePaths,KeyringMode,LimitAS,LimitCORE,LimitCORESoft,LimitMEMLOCK,LimitNOFILE,LimitNOFILESoft,LimitNPROC,LockPersonality,MemoryDenyWriteExecute,MemoryHigh,MemoryLow,MemoryMax,MemoryMin,MemorySwapMax,NetworkNamespacePath,Nice,NoNewPrivileges,PrivateDevices,PrivateIPC,PrivateMounts,PrivateNetwork,PrivateTmp,PrivateUsers,ProcSubset,ProtectClock,ProtectControlGroups,ProtectHome,ProtectHostname,ProtectKernelLogs,ProtectKernelModules,ProtectKernelTunables,ProtectProc,ProtectSystem,ReadOnlyPaths,ReadWritePaths,RestrictAddressFamilies,RestrictNamespaces,RestrictRealtime,RestrictSUIDSGID,RootDirectory,RootImage,SecureBits,SupplementaryGroups,SystemCallArchitectures,SystemCallErrorNumber,SystemCallFilter,TasksMax,UMask,User"
+    ],
+    "exit": 0,
+    "seconds": 0.01,
+    "stderr_tail": "",
+    "stdout_tail": "e64 timer_settime timer_settime64 timerfd_create timerfd_gettime timerfd_gettime64 timerfd_settime timerfd_settime64 times tkill truncate truncate64 ugetrlimit umask uname unlink unlinkat unshare userfaultfd utime utimensat utimensat_time64 utimes vfork vmsplice wait4 waitid waitpid write writev\nSystemCallArchitectures=native\nSystemCallErrorNumber=2147483646\nLockPersonality=yes\nRestrictAddressFamilies=AF_UNIX\nMemoryDenyWriteExecute=yes\nRestrictRealtime=yes\nRestrictSUIDSGID=yes\nRestrictNamespaces=no\nKeyringMode=private\nProtectProc=default\nProcSubset=all\nProtectHostname=no\nNetworkNamespacePath=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "stop",
+      "rw040-confinement-check.service"
+    ],
+    "exit": 0,
+    "seconds": 0.01,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "/bin/busybox",
+      "--list"
+    ],
+    "exit": 0,
+    "seconds": 0.001,
+    "stderr_tail": "",
+    "stdout_tail": "ute\nrpm\nrpm2cpio\nrun-init\nrun-parts\nsed\nseq\nsetkeycodes\nsetpriv\nsetsid\nsh\nsha1sum\nsha256sum\nsha3sum\nsha512sum\nshred\nshuf\nsleep\nsort\nssl_client\nstart-stop-daemon\nstat\nstrings\nstty\nsu\nsulogin\nsvc\nsvok\nswapoff\nswapon\nswitch_root\nsync\nsysctl\nsyslogd\ntac\ntail\ntar\ntaskset\ntc\ntee\ntelnet\ntelnetd\ntest\ntftp\ntime\ntimeout\ntop\ntouch\ntr\ntraceroute\ntraceroute6\ntrue\ntruncate\nts\ntty\ntunctl\nubirename\nudhcpc\nudhcpd\nuevent\numount\nuname\nuncompress\nunexpand\nuniq\nunix2dos\nunlink\nunlzma\nunshare\nunxz\nunzip\nuptime\nusleep\nuudecode\nuuencode\nvconfig\nvi\nw\nwatch\nwatchdog\nwc\nwget\nwhich\nwho\nwhoami\nxargs\nxxd\nxz\nxzcat\nyes\nzcat\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "import",
+      "/qual/image.tar",
+      "rw040-busybox:fixture"
+    ],
+    "exit": 0,
+    "seconds": 0.743,
+    "stderr_tail": "",
+    "stdout_tail": "sha256:aa9d9e9db604c045775d252bbaf01d77454492db6b8e6668e1bebb796c76ce27\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "docker.socket",
+      "-p",
+      "ActiveState,Listen,Accept,SocketUser,SocketGroup,SocketMode"
+    ],
+    "exit": 0,
+    "seconds": 0.008,
+    "stderr_tail": "",
+    "stdout_tail": "SocketUser=root\nSocketGroup=docker\nSocketMode=0660\nAccept=no\nListen=/run/docker.sock (Stream)\nActiveState=active\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "docker.service",
+      "-p",
+      "ActiveState,MainPID,TriggeredBy,ExecMainStartTimestampMonotonic"
+    ],
+    "exit": 0,
+    "seconds": 0.008,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=964\nExecMainStartTimestampMonotonic=67385727\nTriggeredBy=docker.socket\nActiveState=active\n"
+  },
+  {
+    "argv": [
+      "mkfs.ext4",
+      "-q",
+      "-F",
+      "-U",
+      "0b0d0a00-0000-4000-8000-000000000000",
+      "-L",
+      "rw040-main",
+      "/dev/vde"
+    ],
+    "exit": 0,
+    "seconds": 0.163,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "mkfs.xfs",
+      "-q",
+      "-f",
+      "-m",
+      "uuid=0b0d0a01-0000-4000-8000-000000000001",
+      "-L",
+      "rw040-nested",
+      "/dev/vdf"
+    ],
+    "exit": 0,
+    "seconds": 0.072,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "mkfs.ext4",
+      "-q",
+      "-F",
+      "-U",
+      "0b0d0a02-0000-4000-8000-000000000002",
+      "-L",
+      "rw040-swap-a",
+      "/dev/vdg"
+    ],
+    "exit": 0,
+    "seconds": 0.124,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "mkfs.ext4",
+      "-q",
+      "-F",
+      "-U",
+      "0b0d0a03-0000-4000-8000-000000000003",
+      "-L",
+      "rw040-swap-b",
+      "/dev/vdh"
+    ],
+    "exit": 0,
+    "seconds": 0.126,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "mkfs.btrfs",
+      "-q",
+      "-f",
+      "-U",
+      "0b0d0a04-0000-4000-8000-000000000004",
+      "-L",
+      "rw040-btrfs",
+      "/dev/vdi"
+    ],
+    "exit": 0,
+    "seconds": 1.073,
+    "stderr_tail": "",
+    "stdout_tail": "NOTE: several default settings have changed in version 5.15, please make sure\n      this does not affect your deployments:\n      - DUP for metadata (-m dup)\n      - enabled no-holes (-O no-holes)\n      - enabled free-space-tree (-R free-space-tree)\n\n"
+  },
+  {
+    "argv": [
+      "mount",
+      "/dev/vde",
+      "/srv/rw040/main"
+    ],
+    "exit": 0,
+    "seconds": 0.037,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "mount",
+      "/dev/vdg",
+      "/srv/rw040/swap"
+    ],
+    "exit": 0,
+    "seconds": 0.047,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "mount",
+      "/dev/vdi",
+      "/srv/rw040/btrfs"
+    ],
+    "exit": 0,
+    "seconds": 0.013,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "mount",
+      "/dev/vdf",
+      "/srv/rw040/main/media/nested"
+    ],
+    "exit": 0,
+    "seconds": 0.191,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "mount",
+      "-t",
+      "tmpfs",
+      "-o",
+      "size=8m,mode=0755",
+      "tmpfs",
+      "/srv/rw040/tmpfs"
+    ],
+    "exit": 0,
+    "seconds": 0.003,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "mount",
+      "--bind",
+      "/srv/rw040/main/media",
+      "/srv/rw040/alias-media"
+    ],
+    "exit": 0,
+    "seconds": 0.002,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "useradd",
+      "-u",
+      "1990",
+      "-M",
+      "-s",
+      "/usr/sbin/nologin",
+      "rw040-other"
+    ],
+    "exit": 0,
+    "seconds": 0.965,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "docker",
+      "volume",
+      "create",
+      "rw040-named"
+    ],
+    "exit": 0,
+    "seconds": 0.028,
+    "stderr_tail": "",
+    "stdout_tail": "rw040-named\n"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "ID,PARENT,TARGET,SOURCE,FSTYPE,MAJ:MIN,FSROOT,OPTIONS,PROPAGATION,UUID"
+    ],
+    "exit": 0,
+    "seconds": 0.005,
+    "stderr_tail": "",
+    "stdout_tail": "t\": \"/\",\n               \"options\": \"rw,relatime,size=8192k,mode=755,inode64\",\n               \"propagation\": \"shared\",\n               \"uuid\": null\n            },{\n               \"id\": 625,\n               \"parent\": 27,\n               \"target\": \"/srv/rw040/alias-media\",\n               \"source\": \"/dev/vde[/media]\",\n               \"fstype\": \"ext4\",\n               \"maj:min\": \"254:64\",\n               \"fsroot\": \"/media\",\n               \"options\": \"rw,relatime\",\n               \"propagation\": \"shared\",\n               \"uuid\": \"0b0d0a00-0000-4000-8000-000000000000\"\n            }\n         ]\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-run-bind",
+      "--network",
+      "none",
+      "--mount",
+      "type=bind,source=/srv/rw040/main/media,target=/media",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.631,
+    "stderr_tail": "",
+    "stdout_tail": "a8a179fe89a1c1f17223c03b11a30a292dc7eaf45bafa797f398d042a8180042\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-run-alias",
+      "--network",
+      "none",
+      "--mount",
+      "type=bind,source=/srv/rw040/alias-media,target=/media",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.448,
+    "stderr_tail": "",
+    "stdout_tail": "72886b6799d1406d5355e442c66cc8c335a60c2243e0cedcac1f061db8ce9a2d\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-run-link",
+      "--network",
+      "none",
+      "--mount",
+      "type=bind,source=/srv/rw040/link-media,target=/media",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.429,
+    "stderr_tail": "",
+    "stdout_tail": "3dddd98405504f72dab980da70a16d3d4b609c90709b790bb3c968604e08767c\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-run-config-file",
+      "--network",
+      "none",
+      "--mount",
+      "type=bind,source=/srv/rw040/main/config/app.conf,target=/etc/app.conf,readonly",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.463,
+    "stderr_tail": "",
+    "stdout_tail": "3a8db635d5b8a70dbe700cc708c749d0c7fd37c1867b00ef2e401ffa7228e759\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-run-volume",
+      "--network",
+      "none",
+      "--mount",
+      "type=volume,source=rw040-named,target=/data",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.425,
+    "stderr_tail": "",
+    "stdout_tail": "11a8f235741b8f8cb45adf5d0bace452fc97253d28955cb97f10183a1fe64225\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-run-tmpfs",
+      "--network",
+      "none",
+      "--mount",
+      "type=bind,source=/srv/rw040/tmpfs,target=/scratch",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.483,
+    "stderr_tail": "",
+    "stdout_tail": "d268165222ea9b5e7639ae7ad35c5ee7b54c721abc02bf7e469fb2c92dd5a7cb\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-run-swap",
+      "--network",
+      "none",
+      "--mount",
+      "type=bind,source=/srv/rw040/swap,target=/swap",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.457,
+    "stderr_tail": "",
+    "stdout_tail": "a7c9404e97c892f4414eead7a68464b79ca4ae5325ca06cc48be0dc584a0b117\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-run-mountless",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.404,
+    "stderr_tail": "",
+    "stdout_tail": "144dc20236414b23be1214006e3e428ff14972b1a152b3e0094b4b85be393591\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-run-other-uid",
+      "--network",
+      "none",
+      "--user",
+      "1990:1990",
+      "--mount",
+      "type=bind,source=/srv/rw040/main/config,target=/config,readonly",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.445,
+    "stderr_tail": "",
+    "stdout_tail": "9a8b0769c7b92739624ea05c346895ee1697ac3d823acec18ccad8432c9f865c\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-run-nondumpable",
+      "--network",
+      "none",
+      "--user",
+      "1990:1990",
+      "rw040-busybox:fixture",
+      "/bin/busybox-suid",
+      "sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.471,
+    "stderr_tail": "",
+    "stdout_tail": "ddcd4d36fef41726e3ce81c1923dfbc13b2dc9e0ad53cb0e017e9039fa680e86\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-stopped-bind",
+      "--network",
+      "none",
+      "--mount",
+      "type=bind,source=/srv/rw040/main/media,target=/media",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.408,
+    "stderr_tail": "",
+    "stdout_tail": "4b2c5989c8b19fe670ced8edd328dc2c9a8494b371727b07d63ca7003a8580e8\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "stop",
+      "-t",
+      "1",
+      "rw040-stopped-bind"
+    ],
+    "exit": 0,
+    "seconds": 1.224,
+    "stderr_tail": "",
+    "stdout_tail": "rw040-stopped-bind\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-stopped-mountless",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.443,
+    "stderr_tail": "",
+    "stdout_tail": "c1b188457b5a7477291dd793aeb4f6c42d46f4cc63121f27fe9eec1ee3e6e69f\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "stop",
+      "-t",
+      "1",
+      "rw040-stopped-mountless"
+    ],
+    "exit": 0,
+    "seconds": 1.24,
+    "stderr_tail": "",
+    "stdout_tail": "rw040-stopped-mountless\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-trans-root",
+      "--network",
+      "none",
+      "--mount",
+      "type=bind,source=/srv/rw040/main/triggers,target=/trigger",
+      "rw040-busybox:fixture",
+      "/bin/sh",
+      "-c",
+      "while [ ! -e /trigger/root-switch ]; do sleep 1; done; exec chroot /newroot /bin/sleep 36000"
+    ],
+    "exit": 0,
+    "seconds": 0.441,
+    "stderr_tail": "",
+    "stdout_tail": "43bac2fc01a86d62026952617564d725dbb588bae83bfd8cf99320f622dad773\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-trans-ns",
+      "--network",
+      "none",
+      "--cap-add",
+      "SYS_ADMIN",
+      "--security-opt",
+      "apparmor=unconfined",
+      "--mount",
+      "type=bind,source=/srv/rw040/main/triggers,target=/trigger",
+      "rw040-busybox:fixture",
+      "/bin/sh",
+      "-c",
+      "while [ ! -e /trigger/namespace-switch ]; do sleep 1; done; exec unshare -m /bin/sleep 36000"
+    ],
+    "exit": 0,
+    "seconds": 0.458,
+    "stderr_tail": "",
+    "stdout_tail": "cc1e6f3d1ce38f0c23820c6b176fcb41ab7842206e23f074d2fba520d93cfd24\n"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/var/lib/docker/volumes/rw040-named/_data",
+      "-o",
+      "ID,TARGET,SOURCE,FSTYPE,MAJ:MIN,FSROOT,UUID"
+    ],
+    "exit": 0,
+    "seconds": 0.003,
+    "stderr_tail": "",
+    "stdout_tail": "{\n   \"filesystems\": [\n      {\n         \"id\": 27,\n         \"target\": \"/\",\n         \"source\": \"/dev/vda1\",\n         \"fstype\": \"ext4\",\n         \"maj:min\": \"254:1\",\n         \"fsroot\": \"/\",\n         \"uuid\": \"a4311a47-a23d-4db7-aead-f123bf10e55a\"\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/srv/rw040/main/config/app.conf",
+      "-o",
+      "ID,TARGET,SOURCE,FSTYPE,MAJ:MIN,FSROOT,UUID"
+    ],
+    "exit": 0,
+    "seconds": 0.003,
+    "stderr_tail": "",
+    "stdout_tail": "{\n   \"filesystems\": [\n      {\n         \"id\": 540,\n         \"target\": \"/srv/rw040/main\",\n         \"source\": \"/dev/vde\",\n         \"fstype\": \"ext4\",\n         \"maj:min\": \"254:64\",\n         \"fsroot\": \"/\",\n         \"uuid\": \"0b0d0a00-0000-4000-8000-000000000000\"\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/srv/rw040/main/media",
+      "-o",
+      "ID,TARGET,SOURCE,FSTYPE,MAJ:MIN,FSROOT,UUID"
+    ],
+    "exit": 0,
+    "seconds": 0.003,
+    "stderr_tail": "",
+    "stdout_tail": "{\n   \"filesystems\": [\n      {\n         \"id\": 540,\n         \"target\": \"/srv/rw040/main\",\n         \"source\": \"/dev/vde\",\n         \"fstype\": \"ext4\",\n         \"maj:min\": \"254:64\",\n         \"fsroot\": \"/\",\n         \"uuid\": \"0b0d0a00-0000-4000-8000-000000000000\"\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/srv/rw040/main/triggers",
+      "-o",
+      "ID,TARGET,SOURCE,FSTYPE,MAJ:MIN,FSROOT,UUID"
+    ],
+    "exit": 0,
+    "seconds": 0.003,
+    "stderr_tail": "",
+    "stdout_tail": "{\n   \"filesystems\": [\n      {\n         \"id\": 540,\n         \"target\": \"/srv/rw040/main\",\n         \"source\": \"/dev/vde\",\n         \"fstype\": \"ext4\",\n         \"maj:min\": \"254:64\",\n         \"fsroot\": \"/\",\n         \"uuid\": \"0b0d0a00-0000-4000-8000-000000000000\"\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/srv/rw040/main/media",
+      "-o",
+      "ID,TARGET,SOURCE,FSTYPE,MAJ:MIN,FSROOT,UUID"
+    ],
+    "exit": 0,
+    "seconds": 0.003,
+    "stderr_tail": "",
+    "stdout_tail": "{\n   \"filesystems\": [\n      {\n         \"id\": 540,\n         \"target\": \"/srv/rw040/main\",\n         \"source\": \"/dev/vde\",\n         \"fstype\": \"ext4\",\n         \"maj:min\": \"254:64\",\n         \"fsroot\": \"/\",\n         \"uuid\": \"0b0d0a00-0000-4000-8000-000000000000\"\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/srv/rw040/alias-media",
+      "-o",
+      "ID,TARGET,SOURCE,FSTYPE,MAJ:MIN,FSROOT,UUID"
+    ],
+    "exit": 0,
+    "seconds": 0.003,
+    "stderr_tail": "",
+    "stdout_tail": "{\n   \"filesystems\": [\n      {\n         \"id\": 625,\n         \"target\": \"/srv/rw040/alias-media\",\n         \"source\": \"/dev/vde[/media]\",\n         \"fstype\": \"ext4\",\n         \"maj:min\": \"254:64\",\n         \"fsroot\": \"/media\",\n         \"uuid\": \"0b0d0a00-0000-4000-8000-000000000000\"\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/srv/rw040/main/config",
+      "-o",
+      "ID,TARGET,SOURCE,FSTYPE,MAJ:MIN,FSROOT,UUID"
+    ],
+    "exit": 0,
+    "seconds": 0.003,
+    "stderr_tail": "",
+    "stdout_tail": "{\n   \"filesystems\": [\n      {\n         \"id\": 540,\n         \"target\": \"/srv/rw040/main\",\n         \"source\": \"/dev/vde\",\n         \"fstype\": \"ext4\",\n         \"maj:min\": \"254:64\",\n         \"fsroot\": \"/\",\n         \"uuid\": \"0b0d0a00-0000-4000-8000-000000000000\"\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/srv/rw040/swap",
+      "-o",
+      "ID,TARGET,SOURCE,FSTYPE,MAJ:MIN,FSROOT,UUID"
+    ],
+    "exit": 0,
+    "seconds": 0.003,
+    "stderr_tail": "",
+    "stdout_tail": "{\n   \"filesystems\": [\n      {\n         \"id\": 557,\n         \"target\": \"/srv/rw040/swap\",\n         \"source\": \"/dev/vdg\",\n         \"fstype\": \"ext4\",\n         \"maj:min\": \"254:96\",\n         \"fsroot\": \"/\",\n         \"uuid\": \"0b0d0a02-0000-4000-8000-000000000002\"\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/srv/rw040/tmpfs",
+      "-o",
+      "ID,TARGET,SOURCE,FSTYPE,MAJ:MIN,FSROOT,UUID"
+    ],
+    "exit": 0,
+    "seconds": 0.003,
+    "stderr_tail": "",
+    "stdout_tail": "{\n   \"filesystems\": [\n      {\n         \"id\": 608,\n         \"target\": \"/srv/rw040/tmpfs\",\n         \"source\": \"tmpfs\",\n         \"fstype\": \"tmpfs\",\n         \"maj:min\": \"0:52\",\n         \"fsroot\": \"/\",\n         \"uuid\": null\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "lsblk",
+      "-J",
+      "-o",
+      "NAME,KNAME,MAJ:MIN,TYPE,SIZE,SERIAL,FSTYPE,UUID,LABEL,MOUNTPOINTS"
+    ],
+    "exit": 0,
+    "seconds": 0.007,
+    "stderr_tail": "",
+    "stdout_tail": "size\": \"128M\",\n         \"serial\": \"rw040-data-3\",\n         \"fstype\": \"ext4\",\n         \"uuid\": \"0b0d0a03-0000-4000-8000-000000000003\",\n         \"label\": \"rw040-swap-b\",\n         \"mountpoints\": [\n             null\n         ]\n      },{\n         \"name\": \"vdi\",\n         \"kname\": \"vdi\",\n         \"maj:min\": \"254:128\",\n         \"type\": \"disk\",\n         \"size\": \"256M\",\n         \"serial\": \"rw040-data-4\",\n         \"fstype\": \"btrfs\",\n         \"uuid\": \"0b0d0a04-0000-4000-8000-000000000004\",\n         \"label\": \"rw040-btrfs\",\n         \"mountpoints\": [\n             \"/srv/rw040/btrfs\"\n         ]\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "/usr/bin/python3",
+      "/qual/inputs/guest/env_probe.py",
+      "--targets",
+      "{\"container:rw040-run-volume\": 6125, \"container:rw040-run-mountless\": 6314, \"container:rw040-run-config-file\": 6065, \"container:rw040-run-link\": 6001, \"container:rw040-trans-root\": 6712, \"container:rw040-run-alias\": 5940, \"container:rw040-run-other-uid\": 6376, \"container:rw040-run-swap\": 6253, \"container:rw040-run-bind\": 5878, \"container:rw040-trans-ns\": 6774, \"container:rw040-run-tmpfs\": 6189, \"container:rw040-run-nondumpable\": 6437, \"task:nondumpable-root\": 5839, \"task:other-uid\": 5840, \"task:root-no-capabilities\": 5841}"
+    ],
+    "exit": 0,
+    "seconds": 0.053,
+    "stderr_tail": "",
+    "stdout_tail": " \"task:root-no-capabilities\": {\"open_ns_mnt\": {\"ok\": true, \"value\": \"opened\"}, \"open_root\": {\"ok\": true, \"value\": \"opened\"}, \"pid\": 5841, \"pidfd_open\": {\"ok\": true, \"value\": \"opened\"}, \"read_mountinfo\": {\"ok\": true, \"value\": 10008}, \"read_status\": {\"ok\": true, \"value\": 1373}, \"readlink_ns_mnt\": {\"ok\": true, \"value\": \"mnt:[4026531841]\"}, \"readlink_root\": {\"ok\": true, \"value\": \"/\"}, \"stat_root\": {\"ok\": true, \"value\": [2, 65025]}, \"status_owner_uid\": {\"ok\": true, \"value\": 0}, \"statx_root\": {\"ok\": true, \"value\": {\"mask\": 6143, \"mnt_id\": 27, \"mnt_id_reported\": true}}}}, \"time\": 1791478590.9067605}\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-env-reproduced-confinement",
+      "--service-type=exec",
+      "--property=User=root",
+      "--property=Group=limeos-host-access",
+      "--property=UMask=0077",
+      "--property=LimitCORE=0",
+      "--property=MemorySwapMax=0",
+      "--property=NoNewPrivileges=yes",
+      "--property=PrivateMounts=no",
+      "--property=PrivateDevices=no",
+      "--property=RestrictSUIDSGID=yes",
+      "--property=RestrictRealtime=yes",
+      "--property=LockPersonality=yes",
+      "--property=MemoryDenyWriteExecute=yes",
+      "--property=RestrictAddressFamilies=AF_UNIX",
+      "--property=CapabilityBoundingSet=",
+      "--property=AmbientCapabilities=",
+      "--property=SystemCallArchitectures=native",
+      "--property=SystemCallFilter=@system-service",
+      "--property=LimitNOFILE=256",
+      "--property=TasksMax=16",
+      "--property=MemoryMax=64M",
+      "--property=CPUQuota=50%",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/env_probe.py",
+      "--targets",
+      "{\"container:rw040-run-volume\": 6125, \"container:rw040-run-mountless\": 6314, \"container:rw040-run-config-file\": 6065, \"container:rw040-run-link\": 6001, \"container:rw040-trans-root\": 6712, \"container:rw040-run-alias\": 5940, \"container:rw040-run-other-uid\": 6376, \"container:rw040-run-swap\": 6253, \"container:rw040-run-bind\": 5878, \"container:rw040-trans-ns\": 6774, \"container:rw040-run-tmpfs\": 6189, \"container:rw040-run-nondumpable\": 6437, \"task:nondumpable-root\": 5839, \"task:other-uid\": 5840, \"task:root-no-capabilities\": 5841}"
+    ],
+    "exit": 0,
+    "seconds": 0.101,
+    "stderr_tail": "",
+    "stdout_tail": "s\": {\"open_ns_mnt\": {\"errno\": 13, \"name\": \"EACCES\", \"ok\": false}, \"open_root\": {\"errno\": 13, \"name\": \"EACCES\", \"ok\": false}, \"pid\": 5841, \"pidfd_open\": {\"ok\": true, \"value\": \"opened\"}, \"read_mountinfo\": {\"ok\": true, \"value\": 10008}, \"read_status\": {\"ok\": true, \"value\": 1373}, \"readlink_ns_mnt\": {\"errno\": 13, \"name\": \"EACCES\", \"ok\": false}, \"readlink_root\": {\"errno\": 13, \"name\": \"EACCES\", \"ok\": false}, \"stat_root\": {\"errno\": 13, \"name\": \"EACCES\", \"ok\": false}, \"status_owner_uid\": {\"ok\": true, \"value\": 0}, \"statx_root\": {\"errno\": 13, \"name\": \"EACCES\", \"ok\": false}}}, \"time\": 1791478591.0034082}\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-env-diagnostic-without-RestrictSUIDSGID",
+      "--service-type=exec",
+      "--property=User=root",
+      "--property=Group=limeos-host-access",
+      "--property=UMask=0077",
+      "--property=LimitCORE=0",
+      "--property=MemorySwapMax=0",
+      "--property=NoNewPrivileges=yes",
+      "--property=PrivateMounts=no",
+      "--property=PrivateDevices=no",
+      "--property=RestrictRealtime=yes",
+      "--property=LockPersonality=yes",
+      "--property=MemoryDenyWriteExecute=yes",
+      "--property=RestrictAddressFamilies=AF_UNIX",
+      "--property=CapabilityBoundingSet=",
+      "--property=AmbientCapabilities=",
+      "--property=SystemCallArchitectures=native",
+      "--property=SystemCallFilter=@system-service",
+      "--property=LimitNOFILE=256",
+      "--property=TasksMax=16",
+      "--property=MemoryMax=64M",
+      "--property=CPUQuota=50%",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/env_probe.py",
+      "--targets",
+      "{\"container:rw040-run-volume\": 6125, \"container:rw040-run-mountless\": 6314, \"container:rw040-run-config-file\": 6065, \"container:rw040-run-link\": 6001, \"container:rw040-trans-root\": 6712, \"container:rw040-run-alias\": 5940, \"container:rw040-run-other-uid\": 6376, \"container:rw040-run-swap\": 6253, \"container:rw040-run-bind\": 5878, \"container:rw040-trans-ns\": 6774, \"container:rw040-run-tmpfs\": 6189, \"container:rw040-run-nondumpable\": 6437, \"task:nondumpable-root\": 5839, \"task:other-uid\": 5840, \"task:root-no-capabilities\": 5841}"
+    ],
+    "exit": 0,
+    "seconds": 0.1,
+    "stderr_tail": "",
+    "stdout_tail": "es\": {\"open_ns_mnt\": {\"errno\": 13, \"name\": \"EACCES\", \"ok\": false}, \"open_root\": {\"errno\": 13, \"name\": \"EACCES\", \"ok\": false}, \"pid\": 5841, \"pidfd_open\": {\"ok\": true, \"value\": \"opened\"}, \"read_mountinfo\": {\"ok\": true, \"value\": 10008}, \"read_status\": {\"ok\": true, \"value\": 1373}, \"readlink_ns_mnt\": {\"errno\": 13, \"name\": \"EACCES\", \"ok\": false}, \"readlink_root\": {\"errno\": 13, \"name\": \"EACCES\", \"ok\": false}, \"stat_root\": {\"errno\": 13, \"name\": \"EACCES\", \"ok\": false}, \"status_owner_uid\": {\"ok\": true, \"value\": 0}, \"statx_root\": {\"errno\": 13, \"name\": \"EACCES\", \"ok\": false}}}, \"time\": 1791478591.084075}\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-env-diagnostic-without-Group",
+      "--service-type=exec",
+      "--property=User=root",
+      "--property=UMask=0077",
+      "--property=LimitCORE=0",
+      "--property=MemorySwapMax=0",
+      "--property=NoNewPrivileges=yes",
+      "--property=PrivateMounts=no",
+      "--property=PrivateDevices=no",
+      "--property=RestrictSUIDSGID=yes",
+      "--property=RestrictRealtime=yes",
+      "--property=LockPersonality=yes",
+      "--property=MemoryDenyWriteExecute=yes",
+      "--property=RestrictAddressFamilies=AF_UNIX",
+      "--property=CapabilityBoundingSet=",
+      "--property=AmbientCapabilities=",
+      "--property=SystemCallArchitectures=native",
+      "--property=SystemCallFilter=@system-service",
+      "--property=LimitNOFILE=256",
+      "--property=TasksMax=16",
+      "--property=MemoryMax=64M",
+      "--property=CPUQuota=50%",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/env_probe.py",
+      "--targets",
+      "{\"container:rw040-run-volume\": 6125, \"container:rw040-run-mountless\": 6314, \"container:rw040-run-config-file\": 6065, \"container:rw040-run-link\": 6001, \"container:rw040-trans-root\": 6712, \"container:rw040-run-alias\": 5940, \"container:rw040-run-other-uid\": 6376, \"container:rw040-run-swap\": 6253, \"container:rw040-run-bind\": 5878, \"container:rw040-trans-ns\": 6774, \"container:rw040-run-tmpfs\": 6189, \"container:rw040-run-nondumpable\": 6437, \"task:nondumpable-root\": 5839, \"task:other-uid\": 5840, \"task:root-no-capabilities\": 5841}"
+    ],
+    "exit": 0,
+    "seconds": 0.105,
+    "stderr_tail": "",
+    "stdout_tail": " \"task:root-no-capabilities\": {\"open_ns_mnt\": {\"ok\": true, \"value\": \"opened\"}, \"open_root\": {\"ok\": true, \"value\": \"opened\"}, \"pid\": 5841, \"pidfd_open\": {\"ok\": true, \"value\": \"opened\"}, \"read_mountinfo\": {\"ok\": true, \"value\": 10008}, \"read_status\": {\"ok\": true, \"value\": 1373}, \"readlink_ns_mnt\": {\"ok\": true, \"value\": \"mnt:[4026531841]\"}, \"readlink_root\": {\"ok\": true, \"value\": \"/\"}, \"stat_root\": {\"ok\": true, \"value\": [2, 65025]}, \"status_owner_uid\": {\"ok\": true, \"value\": 0}, \"statx_root\": {\"ok\": true, \"value\": {\"mask\": 6143, \"mnt_id\": 27, \"mnt_id_reported\": true}}}}, \"time\": 1791478591.1873457}\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-descriptors-root.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.009,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=0\nControlGroup=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-descriptors-root.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.029,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=6834\nControlGroup=/system.slice/rw040-selfcheck-descriptors-root.service\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-selfcheck-descriptors-root",
+      "--service-type=exec",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--fds",
+      "300"
+    ],
+    "exit": 0,
+    "seconds": 0.581,
+    "stderr_tail": "",
+    "stdout_tail": "{\"summary\": {\"fds\": {\"error\": null, \"fd_table_at_peak\": 303, \"opened\": 300, \"requested\": 300}, \"pid\": 6834, \"vm_hwm\": \"11196\"}}\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "is-active",
+      "rw040-selfcheck-descriptors-root.service"
+    ],
+    "exit": 3,
+    "seconds": 0.009,
+    "stderr_tail": "",
+    "stdout_tail": "inactive\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-descriptors-confined.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.014,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=0\nControlGroup=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-descriptors-confined.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.028,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=6842\nControlGroup=/system.slice/rw040-selfcheck-descriptors-confined.service\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-selfcheck-descriptors-confined",
+      "--service-type=exec",
+      "--property=User=root",
+      "--property=Group=limeos-host-access",
+      "--property=UMask=0077",
+      "--property=LimitCORE=0",
+      "--property=MemorySwapMax=0",
+      "--property=NoNewPrivileges=yes",
+      "--property=PrivateMounts=no",
+      "--property=PrivateDevices=no",
+      "--property=RestrictSUIDSGID=yes",
+      "--property=RestrictRealtime=yes",
+      "--property=LockPersonality=yes",
+      "--property=MemoryDenyWriteExecute=yes",
+      "--property=RestrictAddressFamilies=AF_UNIX",
+      "--property=CapabilityBoundingSet=",
+      "--property=AmbientCapabilities=",
+      "--property=SystemCallArchitectures=native",
+      "--property=SystemCallFilter=@system-service",
+      "--property=LimitNOFILE=256",
+      "--property=TasksMax=16",
+      "--property=MemoryMax=64M",
+      "--property=CPUQuota=50%",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--fds",
+      "300"
+    ],
+    "exit": 0,
+    "seconds": 0.598,
+    "stderr_tail": "",
+    "stdout_tail": "{\"summary\": {\"fds\": {\"error\": \"Too many open files\", \"fd_table_at_peak\": 256, \"opened\": 253, \"requested\": 300}, \"pid\": 6842, \"vm_hwm\": \"10948\"}}\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "is-active",
+      "rw040-selfcheck-descriptors-confined.service"
+    ],
+    "exit": 3,
+    "seconds": 0.007,
+    "stderr_tail": "",
+    "stdout_tail": "inactive\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-tasks-root.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.009,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=0\nControlGroup=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-tasks-root.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.028,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=6849\nControlGroup=/system.slice/rw040-selfcheck-tasks-root.service\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-selfcheck-tasks-root",
+      "--service-type=exec",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--tasks",
+      "24"
+    ],
+    "exit": 0,
+    "seconds": 0.577,
+    "stderr_tail": "",
+    "stdout_tail": "{\"summary\": {\"pid\": 6849, \"tasks\": {\"error\": null, \"requested\": 24, \"started\": 24}, \"vm_hwm\": \"17388\"}}\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "is-active",
+      "rw040-selfcheck-tasks-root.service"
+    ],
+    "exit": 3,
+    "seconds": 0.008,
+    "stderr_tail": "",
+    "stdout_tail": "inactive\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-tasks-confined.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.016,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=0\nControlGroup=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-tasks-confined.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.041,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=6880\nControlGroup=/system.slice/rw040-selfcheck-tasks-confined.service\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-selfcheck-tasks-confined",
+      "--service-type=exec",
+      "--property=User=root",
+      "--property=Group=limeos-host-access",
+      "--property=UMask=0077",
+      "--property=LimitCORE=0",
+      "--property=MemorySwapMax=0",
+      "--property=NoNewPrivileges=yes",
+      "--property=PrivateMounts=no",
+      "--property=PrivateDevices=no",
+      "--property=RestrictSUIDSGID=yes",
+      "--property=RestrictRealtime=yes",
+      "--property=LockPersonality=yes",
+      "--property=MemoryDenyWriteExecute=yes",
+      "--property=RestrictAddressFamilies=AF_UNIX",
+      "--property=CapabilityBoundingSet=",
+      "--property=AmbientCapabilities=",
+      "--property=SystemCallArchitectures=native",
+      "--property=SystemCallFilter=@system-service",
+      "--property=LimitNOFILE=256",
+      "--property=TasksMax=16",
+      "--property=MemoryMax=64M",
+      "--property=CPUQuota=50%",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--tasks",
+      "24"
+    ],
+    "exit": 0,
+    "seconds": 0.602,
+    "stderr_tail": "",
+    "stdout_tail": "{\"summary\": {\"pid\": 6880, \"tasks\": {\"error\": \"can't start new thread\", \"requested\": 24, \"started\": 15}, \"vm_hwm\": \"15264\"}}\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "is-active",
+      "rw040-selfcheck-tasks-confined.service"
+    ],
+    "exit": 3,
+    "seconds": 0.007,
+    "stderr_tail": "",
+    "stdout_tail": "inactive\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-memory-root.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.01,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=0\nControlGroup=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-memory-root.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.012,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=6903\nControlGroup=/system.slice/rw040-selfcheck-memory-root.service\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-selfcheck-memory-root",
+      "--service-type=exec",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--memory-mib",
+      "96"
+    ],
+    "exit": 0,
+    "seconds": 0.596,
+    "stderr_tail": "",
+    "stdout_tail": "_touched\": 24}\n{\"memory_mib_touched\": 28}\n{\"memory_mib_touched\": 32}\n{\"memory_mib_touched\": 36}\n{\"memory_mib_touched\": 40}\n{\"memory_mib_touched\": 44}\n{\"memory_mib_touched\": 48}\n{\"memory_mib_touched\": 52}\n{\"memory_mib_touched\": 56}\n{\"memory_mib_touched\": 60}\n{\"memory_mib_touched\": 64}\n{\"memory_mib_touched\": 68}\n{\"memory_mib_touched\": 72}\n{\"memory_mib_touched\": 76}\n{\"memory_mib_touched\": 80}\n{\"memory_mib_touched\": 84}\n{\"memory_mib_touched\": 88}\n{\"memory_mib_touched\": 92}\n{\"memory_mib_touched\": 96}\n{\"summary\": {\"memory\": {\"requested_mib\": 96, \"touched_mib\": 96}, \"pid\": 6903, \"vm_hwm\": \"109660\"}}\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "is-active",
+      "rw040-selfcheck-memory-root.service"
+    ],
+    "exit": 3,
+    "seconds": 0.007,
+    "stderr_tail": "",
+    "stdout_tail": "inactive\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-memory-confined.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.009,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=0\nControlGroup=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-memory-confined.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.034,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=6910\nControlGroup=/system.slice/rw040-selfcheck-memory-confined.service\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-selfcheck-memory-confined",
+      "--service-type=exec",
+      "--property=User=root",
+      "--property=Group=limeos-host-access",
+      "--property=UMask=0077",
+      "--property=LimitCORE=0",
+      "--property=MemorySwapMax=0",
+      "--property=NoNewPrivileges=yes",
+      "--property=PrivateMounts=no",
+      "--property=PrivateDevices=no",
+      "--property=RestrictSUIDSGID=yes",
+      "--property=RestrictRealtime=yes",
+      "--property=LockPersonality=yes",
+      "--property=MemoryDenyWriteExecute=yes",
+      "--property=RestrictAddressFamilies=AF_UNIX",
+      "--property=CapabilityBoundingSet=",
+      "--property=AmbientCapabilities=",
+      "--property=SystemCallArchitectures=native",
+      "--property=SystemCallFilter=@system-service",
+      "--property=LimitNOFILE=256",
+      "--property=TasksMax=16",
+      "--property=MemoryMax=64M",
+      "--property=CPUQuota=50%",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--memory-mib",
+      "96"
+    ],
+    "exit": 1,
+    "seconds": 0.196,
+    "stderr_tail": "",
+    "stdout_tail": "{\"memory_mib_touched\": 4}\n{\"memory_mib_touched\": 8}\n{\"memory_mib_touched\": 12}\n{\"memory_mib_touched\": 16}\n{\"memory_mib_touched\": 20}\n{\"memory_mib_touched\": 24}\n{\"memory_mib_touched\": 28}\n{\"memory_mib_touched\": 32}\n{\"memory_mib_touched\": 36}\n{\"memory_mib_touched\": 40}\n{\"memory_mib_touched\": 44}\n{\"memory_mib_touched\": 48}\n{\"memory_mib_touched\": 52}\n{\"memory_mib_touched\": 56}\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "is-active",
+      "rw040-selfcheck-memory-confined.service"
+    ],
+    "exit": 3,
+    "seconds": 0.007,
+    "stderr_tail": "",
+    "stdout_tail": "inactive\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "restart",
+      "-t",
+      "1",
+      "rw040-run-mountless"
+    ],
+    "exit": 0,
+    "seconds": 1.519,
+    "stderr_tail": "",
+    "stdout_tail": "rw040-run-mountless\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "stop",
+      "-t",
+      "1",
+      "rw040-run-volume"
+    ],
+    "exit": 0,
+    "seconds": 1.214,
+    "stderr_tail": "",
+    "stdout_tail": "rw040-run-volume\n"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/srv/rw040/swap",
+      "-o",
+      "ID,TARGET,SOURCE,FSTYPE,MAJ:MIN,FSROOT,UUID"
+    ],
+    "exit": 0,
+    "seconds": 0.002,
+    "stderr_tail": "",
+    "stdout_tail": "{\n   \"filesystems\": [\n      {\n         \"id\": 557,\n         \"target\": \"/srv/rw040/swap\",\n         \"source\": \"/dev/vdg\",\n         \"fstype\": \"ext4\",\n         \"maj:min\": \"254:96\",\n         \"fsroot\": \"/\",\n         \"uuid\": \"0b0d0a02-0000-4000-8000-000000000002\"\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "umount",
+      "/srv/rw040/swap"
+    ],
+    "exit": 0,
+    "seconds": 0.003,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "mount",
+      "/dev/vdh",
+      "/srv/rw040/swap"
+    ],
+    "exit": 0,
+    "seconds": 0.012,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/srv/rw040/swap",
+      "-o",
+      "ID,TARGET,SOURCE,FSTYPE,MAJ:MIN,FSROOT,UUID"
+    ],
+    "exit": 0,
+    "seconds": 0.004,
+    "stderr_tail": "",
+    "stdout_tail": "{\n   \"filesystems\": [\n      {\n         \"id\": 557,\n         \"target\": \"/srv/rw040/swap\",\n         \"source\": \"/dev/vdh\",\n         \"fstype\": \"ext4\",\n         \"maj:min\": \"254:112\",\n         \"fsroot\": \"/\",\n         \"uuid\": \"0b0d0a03-0000-4000-8000-000000000003\"\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-unsupported-btrfs",
+      "--network",
+      "none",
+      "--mount",
+      "type=bind,source=/srv/rw040/btrfs,target=/btrfs",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.431,
+    "stderr_tail": "",
+    "stdout_tail": "171bf5144a4f6f2da2c71cbcc85fa90f6b6f18bf23c99bd55e9f7c037295b362\n"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/srv/rw040/btrfs",
+      "-o",
+      "ID,TARGET,SOURCE,FSTYPE,MAJ:MIN,FSROOT,UUID"
+    ],
+    "exit": 0,
+    "seconds": 0.002,
+    "stderr_tail": "",
+    "stdout_tail": "{\n   \"filesystems\": [\n      {\n         \"id\": 575,\n         \"target\": \"/srv/rw040/btrfs\",\n         \"source\": \"/dev/vdi\",\n         \"fstype\": \"btrfs\",\n         \"maj:min\": \"0:50\",\n         \"fsroot\": \"/\",\n         \"uuid\": \"0b0d0a04-0000-4000-8000-000000000004\"\n      }\n   ]\n}\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "rm",
+      "-f",
+      "rw040-unsupported-btrfs"
+    ],
+    "exit": 0,
+    "seconds": 0.189,
+    "stderr_tail": "",
+    "stdout_tail": "rw040-unsupported-btrfs\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-00",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.41,
+    "stderr_tail": "",
+    "stdout_tail": "0159361cdec42a146629c52caa4c47b572e5b947431cd76658c41938ddb269f4\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-01",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.464,
+    "stderr_tail": "",
+    "stdout_tail": "5a70e9b0bc1591598aa4aeaf2c5ce6fb1c554bf01c7b633c50a67bf8b6e52bde\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-02",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.402,
+    "stderr_tail": "",
+    "stdout_tail": "4e694da4bad0ffa7dd80ae01a7578eb79d713529c5d8161e312d9c1680548712\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-03",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.392,
+    "stderr_tail": "",
+    "stdout_tail": "d2e5765e4f0b4a8b1b98595b266908b34a55cae436e2c05828f779c790c8245a\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-04",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.413,
+    "stderr_tail": "",
+    "stdout_tail": "a8bf32c63343cd52f998f43078ae5dda6b1a13a8c3adda332074d7d6df414574\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-05",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.439,
+    "stderr_tail": "",
+    "stdout_tail": "6c1547f52569165dc06f1c832c41734d488781c78cf581b0d383315a6d3a42ce\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-06",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.398,
+    "stderr_tail": "",
+    "stdout_tail": "3e95e915cd81d94d8eab03fb199bfa5bf6788d6fd5bc8ac3e4d806e49f95f2f6\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-07",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.427,
+    "stderr_tail": "",
+    "stdout_tail": "fea9c970dbf1037678da9da57818742213e454f9db2e3edc3072dd5bae7adcc4\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-08",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.41,
+    "stderr_tail": "",
+    "stdout_tail": "694eccf6f52a3a8421e1eb97181401052c9f87c92aa717ebcdeb02bdfbcd4444\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-09",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.424,
+    "stderr_tail": "",
+    "stdout_tail": "b5b3fc4b112d5a77ff6529e82e007f220e29306be5d9df40d4c6f20bb376ea30\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-10",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.409,
+    "stderr_tail": "",
+    "stdout_tail": "2740367789a9a168fc82171ad648a4fa770df9471bb6f0c7b6913ef60bed0fe2\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-11",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.397,
+    "stderr_tail": "",
+    "stdout_tail": "4099a82045e306eed1eba5d7baf5c7a46def20ecbe6bd28c16b397945c64cb50\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-12",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.415,
+    "stderr_tail": "",
+    "stdout_tail": "cc6dc11dd17c0f437f77c3c49c04314559457f8d748749cbddc61f6708908632\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-13",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.485,
+    "stderr_tail": "",
+    "stdout_tail": "c6b088739e725c1b89d95341f290ac7c8027a11bb66306b22e49e79705670cda\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-14",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.455,
+    "stderr_tail": "",
+    "stdout_tail": "3957265cbb6bfc8be442caa5416bdbfd6d3413119179cc698b9c433341215d71\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-15",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.426,
+    "stderr_tail": "",
+    "stdout_tail": "fe9f141c2324abeb78f4054e4b83306471f285710ed66e960ab7779e504e4d65\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-16",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.409,
+    "stderr_tail": "",
+    "stdout_tail": "0960f50a05486605c9c15ef8dc13b3cd8b539f57d33b34c0f269d375fea4ad3a\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-17",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.444,
+    "stderr_tail": "",
+    "stdout_tail": "5f958dd3f9dd3500a2262647d5430039e19ae93ad09982db5fcc60bb62fe730b\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-18",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.482,
+    "stderr_tail": "",
+    "stdout_tail": "bffef67368e7490311f0d55c81a55d548b9fcc0c668c470fde94a25165fa0139\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-19",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.488,
+    "stderr_tail": "",
+    "stdout_tail": "768b1ace712bcbeb1be5481ba14d3f1b01fb7dac553bf18b7d69c7c6a2771105\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-20",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.484,
+    "stderr_tail": "",
+    "stdout_tail": "9fa209b61ac3afefa7fe75d6dfb0720f50d38240693c20364610dcd4e2a5e7de\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-21",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.442,
+    "stderr_tail": "",
+    "stdout_tail": "088928f0b707fcefa374f0dcdcb26d397bd4f004fba537ff1a743cf268b3e5ec\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-22",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.464,
+    "stderr_tail": "",
+    "stdout_tail": "7ff862cc9936094c056d5e477805dd21ff447e2c4d634bed28a173614cf16594\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-23",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.495,
+    "stderr_tail": "",
+    "stdout_tail": "afa8291230f613294f4df1352ef02c87de7b22c63b07cb1ba127b69854e283e5\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-24",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.439,
+    "stderr_tail": "",
+    "stdout_tail": "7a212416db3816493f6c3030b7130929c91b288817aa1208c0290ee43bbfd0f4\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-25",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.457,
+    "stderr_tail": "",
+    "stdout_tail": "27760cf816c15f261922470cb851082819f67d51eb432886fe720fd7954b8a10\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-26",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.654,
+    "stderr_tail": "",
+    "stdout_tail": "02e5ee5e9350772424a6669a48d079b937098441db686b9bfde5254067d3471d\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-27",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.667,
+    "stderr_tail": "",
+    "stdout_tail": "6d32a751e802b38897554aa11a9cae25008ccf42ac3a28c806aa944b389858af\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-28",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.55,
+    "stderr_tail": "",
+    "stdout_tail": "e58c349ea4179d6c0aace222d779acee698370368254d0005a4123f7f60f42a5\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-29",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.733,
+    "stderr_tail": "",
+    "stdout_tail": "e53bf7e10f3a1bba990d386e4e6fd28f245ce39d47ec4439c4ab632e806a1aca\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-30",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 2.361,
+    "stderr_tail": "",
+    "stdout_tail": "eceffe3ca4ee84b30de2c65341af15024c2961e369cb4c9f8539d4bf780365ad\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-31",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.677,
+    "stderr_tail": "",
+    "stdout_tail": "5777a22efac4acd8b02ef697c929c717226fb79953516ca5b508034d240e8e91\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-32",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.517,
+    "stderr_tail": "",
+    "stdout_tail": "74f43a340d5371e9b94279a473dc3ca1e5e5641efa517622c5ed73158896875c\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-33",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.592,
+    "stderr_tail": "",
+    "stdout_tail": "6ea13f80996391b9781321b8b61ce2c8c8b23bbb26b3d90c9c0af18c4d686c5e\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-34",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.598,
+    "stderr_tail": "",
+    "stdout_tail": "4414f3541a9cc9b8c0ea91a4ea7bdc3b94eb0337ca04be5679514732ecce5c9f\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-35",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.81,
+    "stderr_tail": "",
+    "stdout_tail": "68dfe8208545ab5ff6c497f3424a142e15dc03f1b14c0ffb4e6202e17c73e0c6\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-36",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.555,
+    "stderr_tail": "",
+    "stdout_tail": "d0f007a29204df590bde41a3cd91d1036ec34a82f59e38d5c3f105d16b33fe73\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-37",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.53,
+    "stderr_tail": "",
+    "stdout_tail": "8f170658b5ced18447e934a1de91719f1e8a43ac075ec399445e23473396d12c\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-38",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.394,
+    "stderr_tail": "",
+    "stdout_tail": "1d2f06ccf123db8e2f8bc2546ae3e25d6da6c75e9feefbd8c18988f6bb870dcc\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-39",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.408,
+    "stderr_tail": "",
+    "stdout_tail": "4c2ef93c0adcf7c5bae40436802bc295745422649ca924c5d4d204c4b6e1b192\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-40",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.414,
+    "stderr_tail": "",
+    "stdout_tail": "a294e9af8a1409f432b13930b20c82e07837f839a57a996317316d657be724b0\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-41",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.397,
+    "stderr_tail": "",
+    "stdout_tail": "3ca721938d7291be0bbde62df4dadf77a51bd6bbd96aa198edb6738b6ef9af0f\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-42",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 0.49,
+    "stderr_tail": "",
+    "stdout_tail": "3771b0eac5cfef4972dc8ddfb8306af83d79912487daaa5ff036263edf9b3b52\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-43",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 1.385,
+    "stderr_tail": "",
+    "stdout_tail": "695ed8415fc4b01e5cd5e31ef2f766d6aa0bfbbb383d8988494c688ade845a18\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-44",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 1.525,
+    "stderr_tail": "",
+    "stdout_tail": "ff5416ff95e007e601e3ee172adb9762c3e89612edbe651d3a014ba82961a6aa\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-45",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 1.258,
+    "stderr_tail": "",
+    "stdout_tail": "6fc85447a15bac7b71c771b59b64d2f5475e488e2baeeb5ae5f3050da1ba7f16\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-46",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 1.225,
+    "stderr_tail": "",
+    "stdout_tail": "d2f0db84d9a06cd49bdb6b0e6934007bc66c88fcab0420ef11596beb2b3525f2\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-47",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 1.329,
+    "stderr_tail": "",
+    "stdout_tail": "f4c83130406626d274b2b2a08b661b0c07ccb5625d37b01a451e426e10ffb152\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-48",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 1.242,
+    "stderr_tail": "",
+    "stdout_tail": "e70ddd7914df47efce183139a996ba21f1eedca014e345edb69fa69426ee2778\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-49",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 1.635,
+    "stderr_tail": "",
+    "stdout_tail": "a77bf7b11d7976ceb88c108a19c98d32279a4872ce5467703e2b18c804765986\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "rw040-budget-50",
+      "--network",
+      "none",
+      "rw040-busybox:fixture",
+      "/bin/sleep",
+      "36000"
+    ],
+    "exit": 0,
+    "seconds": 1.566,
+    "stderr_tail": "",
+    "stdout_tail": "8e2f6f9da6a9739243fc6b403a28e1fd97e1fff3e698074c4d69d325064f1bcd\n"
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "run_id": "20261008T164629Z-19c2e8af",
+  "seconds": 108.0,
+  "stages": {
+    "budget": "passed",
+    "cases": "passed",
+    "confinement": "passed",
+    "containers": "passed",
+    "empty": "passed",
+    "environment": "passed",
+    "ground-truth": "passed",
+    "image": "passed",
+    "install": "passed",
+    "layout": "passed",
+    "platform": "passed",
+    "selfcheck": "passed",
+    "service": "passed",
+    "transitions": "failed"
+  }
+}

@@ -1,0 +1,679 @@
+[
+  {
+    "argv": [
+      "systemd-detect-virt"
+    ],
+    "exit": 0,
+    "seconds": 0.004,
+    "stderr_tail": "",
+    "stdout_tail": "kvm\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "--version"
+    ],
+    "exit": 0,
+    "seconds": 0.003,
+    "stderr_tail": "",
+    "stdout_tail": "systemd 252 (252.39-1~deb12u2)\n+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified\n"
+  },
+  {
+    "argv": [
+      "env",
+      "DEBIAN_FRONTEND=noninteractive",
+      "apt-get",
+      "-o",
+      "DPkg::Lock::Timeout=300",
+      "-q",
+      "update"
+    ],
+    "exit": 0,
+    "seconds": 32.702,
+    "stderr_tail": "",
+    "stdout_tail": "nslation-en [5448 B]\nGet:13 https://deb.debian.org/debian bookworm-backports/main Sources [322 kB]\nGet:14 https://deb.debian.org/debian bookworm-backports/main amd64 Packages [300 kB]\nGet:15 https://deb.debian.org/debian bookworm-backports/main Translation-en [252 kB]\nGet:16 https://deb.debian.org/debian-security bookworm-security/main Sources [271 kB]\nGet:17 https://deb.debian.org/debian-security bookworm-security/main amd64 Packages [349 kB]\nGet:18 https://deb.debian.org/debian-security bookworm-security/main Translation-en [217 kB]\nFetched 26.4 MB in 32s (823 kB/s)\nReading package lists...\n"
+  },
+  {
+    "argv": [
+      "env",
+      "DEBIAN_FRONTEND=noninteractive",
+      "apt-get",
+      "-o",
+      "DPkg::Lock::Timeout=300",
+      "-q",
+      "install",
+      "-y",
+      "--no-install-recommends",
+      "docker.io",
+      "busybox-static",
+      "xfsprogs",
+      "btrfs-progs"
+    ],
+    "exit": 0,
+    "seconds": 22.63,
+    "stderr_tail": "",
+    "stdout_tail": "1+deb12u1+b6) ...\nAdding group `docker' (GID 109) ...\nDone.\nCreated symlink /etc/systemd/system/multi-user.target.wants/docker.service \u2192 /lib/systemd/system/docker.service.\n\nCreated symlink /etc/systemd/system/sockets.target.wants/docker.socket \u2192 /lib/systemd/system/docker.socket.\n\nSetting up xfsprogs (6.1.0-1) ...\nupdate-initramfs: deferring update (trigger activated)\nProcessing triggers for libc-bin (2.36-9+deb12u14) ...\nProcessing triggers for man-db (2.11.2-2) ...\nProcessing triggers for initramfs-tools (0.142+deb12u3) ...\nupdate-initramfs: Generating /boot/initrd.img-6.1.0-53-cloud-amd64\n"
+  },
+  {
+    "argv": [
+      "env",
+      "DEBIAN_FRONTEND=noninteractive",
+      "apt-get",
+      "-o",
+      "DPkg::Lock::Timeout=300",
+      "-q",
+      "install",
+      "-y",
+      "--no-install-recommends",
+      "/qual/inputs/packages/limeos_0.4.4_amd64.deb"
+    ],
+    "exit": 0,
+    "seconds": 3.455,
+    "stderr_tail": "",
+    "stdout_tail": "meos-assistant' ...\nNot creating `/nonexistent'.\nAdding group `limeos-rpc' (GID 113) ...\nDone.\nAdding group `limeos-host-access' (GID 114) ...\nDone.\nAdding group `limeos-container-access' (GID 115) ...\nDone.\nCreated symlink /etc/systemd/system/multi-user.target.wants/limeos-core.service \u2192 /lib/systemd/system/limeos-core.service.\n\nCreated symlink /etc/systemd/system/multi-user.target.wants/limeos-containerd.service \u2192 /lib/systemd/system/limeos-containerd.service.\n\nCreated symlink /etc/systemd/system/multi-user.target.wants/limeos-storaged.service \u2192 /lib/systemd/system/limeos-storaged.service.\n\n"
+  },
+  {
+    "argv": [
+      "dpkg-query",
+      "-W",
+      "-f",
+      "${Package} ${Version} ${Architecture}\n",
+      "docker.io",
+      "containerd",
+      "runc",
+      "busybox-static",
+      "limeos",
+      "systemd",
+      "linux-image-*"
+    ],
+    "exit": 0,
+    "seconds": 0.006,
+    "stderr_tail": "",
+    "stdout_tail": "busybox-static 1:1.35.0-4+deb12u1+b1 amd64\ncontainerd 1.6.20~ds1-1+deb12u3 amd64\ndocker.io 20.10.24+dfsg1-1+deb12u1+b6 amd64\nlimeos 0.4.4 amd64\nlinux-image-6.1.0-53-cloud-amd64 6.1.187-1 amd64\nlinux-image-6.1.0-53-cloud-amd64-unsigned  \nlinux-image-cloud-amd64 6.1.187-1 amd64\nrunc 1.1.5+ds1-1+deb12u1 amd64\nsystemd 252.39-1~deb12u2 amd64\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "limeos-storage-reader.service",
+      "-p",
+      "ActiveState,UnitFileState,LoadState"
+    ],
+    "exit": 0,
+    "seconds": 0.01,
+    "stderr_tail": "",
+    "stdout_tail": "LoadState=loaded\nActiveState=inactive\nUnitFileState=static\n"
+  },
+  {
+    "argv": [
+      "getent",
+      "group",
+      "limeos-host-access"
+    ],
+    "exit": 0,
+    "seconds": 0.001,
+    "stderr_tail": "",
+    "stdout_tail": "limeos-host-access:x:114:\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--unit=rw040-confinement-check",
+      "--service-type=exec",
+      "--property=User=root",
+      "--property=Group=limeos-host-access",
+      "--property=UMask=0077",
+      "--property=LimitCORE=0",
+      "--property=MemorySwapMax=0",
+      "--property=NoNewPrivileges=yes",
+      "--property=PrivateMounts=no",
+      "--property=PrivateDevices=no",
+      "--property=RestrictSUIDSGID=yes",
+      "--property=RestrictRealtime=yes",
+      "--property=LockPersonality=yes",
+      "--property=MemoryDenyWriteExecute=yes",
+      "--property=RestrictAddressFamilies=AF_UNIX",
+      "--property=CapabilityBoundingSet=",
+      "--property=AmbientCapabilities=",
+      "--property=SystemCallArchitectures=native",
+      "--property=SystemCallFilter=@system-service",
+      "--property=LimitNOFILE=256",
+      "--property=TasksMax=16",
+      "--property=MemoryMax=64M",
+      "--property=CPUQuota=50%",
+      "/bin/sleep",
+      "60"
+    ],
+    "exit": 0,
+    "seconds": 0.047,
+    "stderr_tail": "Running as unit: rw040-confinement-check.service\n",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-confinement-check.service",
+      "-p",
+      "AmbientCapabilities,CPUQuotaPerSecUSec,CapabilityBoundingSet,Delegate,DeviceAllow,DevicePolicy,DynamicUser,Group,IOSchedulingClass,IPAddressAllow,IPAddressDeny,InaccessiblePaths,KeyringMode,LimitAS,LimitCORE,LimitCORESoft,LimitMEMLOCK,LimitNOFILE,LimitNOFILESoft,LimitNPROC,LockPersonality,MemoryDenyWriteExecute,MemoryHigh,MemoryLow,MemoryMax,MemoryMin,MemorySwapMax,NetworkNamespacePath,Nice,NoNewPrivileges,PrivateDevices,PrivateIPC,PrivateMounts,PrivateNetwork,PrivateTmp,PrivateUsers,ProcSubset,ProtectClock,ProtectControlGroups,ProtectHome,ProtectHostname,ProtectKernelLogs,ProtectKernelModules,ProtectKernelTunables,ProtectProc,ProtectSystem,ReadOnlyPaths,ReadWritePaths,RestrictAddressFamilies,RestrictNamespaces,RestrictRealtime,RestrictSUIDSGID,RootDirectory,RootImage,SecureBits,SupplementaryGroups,SystemCallArchitectures,SystemCallErrorNumber,SystemCallFilter,TasksMax,UMask,User"
+    ],
+    "exit": 0,
+    "seconds": 0.008,
+    "stderr_tail": "",
+    "stdout_tail": "e64 timer_settime timer_settime64 timerfd_create timerfd_gettime timerfd_gettime64 timerfd_settime timerfd_settime64 times tkill truncate truncate64 ugetrlimit umask uname unlink unlinkat unshare userfaultfd utime utimensat utimensat_time64 utimes vfork vmsplice wait4 waitid waitpid write writev\nSystemCallArchitectures=native\nSystemCallErrorNumber=2147483646\nLockPersonality=yes\nRestrictAddressFamilies=AF_UNIX\nMemoryDenyWriteExecute=yes\nRestrictRealtime=yes\nRestrictSUIDSGID=yes\nRestrictNamespaces=no\nKeyringMode=private\nProtectProc=default\nProcSubset=all\nProtectHostname=no\nNetworkNamespacePath=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "limeos-storage-reader.service",
+      "-p",
+      "AmbientCapabilities,CPUQuotaPerSecUSec,CapabilityBoundingSet,Delegate,DeviceAllow,DevicePolicy,DynamicUser,Group,IOSchedulingClass,IPAddressAllow,IPAddressDeny,InaccessiblePaths,KeyringMode,LimitAS,LimitCORE,LimitCORESoft,LimitMEMLOCK,LimitNOFILE,LimitNOFILESoft,LimitNPROC,LockPersonality,MemoryDenyWriteExecute,MemoryHigh,MemoryLow,MemoryMax,MemoryMin,MemorySwapMax,NetworkNamespacePath,Nice,NoNewPrivileges,PrivateDevices,PrivateIPC,PrivateMounts,PrivateNetwork,PrivateTmp,PrivateUsers,ProcSubset,ProtectClock,ProtectControlGroups,ProtectHome,ProtectHostname,ProtectKernelLogs,ProtectKernelModules,ProtectKernelTunables,ProtectProc,ProtectSystem,ReadOnlyPaths,ReadWritePaths,RestrictAddressFamilies,RestrictNamespaces,RestrictRealtime,RestrictSUIDSGID,RootDirectory,RootImage,SecureBits,SupplementaryGroups,SystemCallArchitectures,SystemCallErrorNumber,SystemCallFilter,TasksMax,UMask,User"
+    ],
+    "exit": 0,
+    "seconds": 0.011,
+    "stderr_tail": "",
+    "stdout_tail": "e64 timer_settime timer_settime64 timerfd_create timerfd_gettime timerfd_gettime64 timerfd_settime timerfd_settime64 times tkill truncate truncate64 ugetrlimit umask uname unlink unlinkat unshare userfaultfd utime utimensat utimensat_time64 utimes vfork vmsplice wait4 waitid waitpid write writev\nSystemCallArchitectures=native\nSystemCallErrorNumber=2147483646\nLockPersonality=yes\nRestrictAddressFamilies=AF_UNIX\nMemoryDenyWriteExecute=yes\nRestrictRealtime=yes\nRestrictSUIDSGID=yes\nRestrictNamespaces=no\nKeyringMode=private\nProtectProc=default\nProcSubset=all\nProtectHostname=no\nNetworkNamespacePath=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "stop",
+      "rw040-confinement-check.service"
+    ],
+    "exit": 0,
+    "seconds": 0.011,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "systemctl",
+      "reset-failed",
+      "rw040-confinement-check.service"
+    ],
+    "exit": 1,
+    "seconds": 0.005,
+    "stderr_tail": "Failed to reset failed state of unit rw040-confinement-check.service: Unit rw040-confinement-check.service not loaded.\n",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "/bin/busybox",
+      "--list"
+    ],
+    "exit": 0,
+    "seconds": 0.001,
+    "stderr_tail": "",
+    "stdout_tail": "ute\nrpm\nrpm2cpio\nrun-init\nrun-parts\nsed\nseq\nsetkeycodes\nsetpriv\nsetsid\nsh\nsha1sum\nsha256sum\nsha3sum\nsha512sum\nshred\nshuf\nsleep\nsort\nssl_client\nstart-stop-daemon\nstat\nstrings\nstty\nsu\nsulogin\nsvc\nsvok\nswapoff\nswapon\nswitch_root\nsync\nsysctl\nsyslogd\ntac\ntail\ntar\ntaskset\ntc\ntee\ntelnet\ntelnetd\ntest\ntftp\ntime\ntimeout\ntop\ntouch\ntr\ntraceroute\ntraceroute6\ntrue\ntruncate\nts\ntty\ntunctl\nubirename\nudhcpc\nudhcpd\nuevent\numount\nuname\nuncompress\nunexpand\nuniq\nunix2dos\nunlink\nunlzma\nunshare\nunxz\nunzip\nuptime\nusleep\nuudecode\nuuencode\nvconfig\nvi\nw\nwatch\nwatchdog\nwc\nwget\nwhich\nwho\nwhoami\nxargs\nxxd\nxz\nxzcat\nyes\nzcat\n"
+  },
+  {
+    "argv": [
+      "docker",
+      "import",
+      "/qual/image.tar",
+      "rw040-busybox:fixture"
+    ],
+    "exit": 0,
+    "seconds": 0.18,
+    "stderr_tail": "",
+    "stdout_tail": "sha256:5db30b41a813e21cf220bbaa662f2b23b102ac9c76154d3e7e85ffaa82ea241f\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "docker.socket",
+      "-p",
+      "ActiveState,Listen,Accept,SocketUser,SocketGroup,SocketMode"
+    ],
+    "exit": 0,
+    "seconds": 0.007,
+    "stderr_tail": "",
+    "stdout_tail": "SocketUser=root\nSocketGroup=docker\nSocketMode=0660\nAccept=no\nListen=/run/docker.sock (Stream)\nActiveState=active\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "docker.service",
+      "-p",
+      "ActiveState,MainPID,TriggeredBy,ExecMainStartTimestampMonotonic"
+    ],
+    "exit": 0,
+    "seconds": 0.008,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=957\nExecMainStartTimestampMonotonic=56675218\nTriggeredBy=docker.socket\nActiveState=active\n"
+  },
+  {
+    "argv": [
+      "mkfs.ext4",
+      "-q",
+      "-F",
+      "-U",
+      "0b0d0a00-0000-4000-8000-000000000000",
+      "-L",
+      "rw040-main",
+      "/dev/vde"
+    ],
+    "exit": 0,
+    "seconds": 0.038,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "mkfs.xfs",
+      "-q",
+      "-f",
+      "-m",
+      "uuid=0b0d0a01-0000-4000-8000-000000000001",
+      "-L",
+      "rw040-nested",
+      "/dev/vdf"
+    ],
+    "exit": 1,
+    "seconds": 0.004,
+    "stderr_tail": "xxx,version=n\n\t\t\t    sunit=value|su=num,sectsize=num,lazy-count=0|1]\n/* label */\t\t[-L label (maximum 12 characters)]\n/* naming */\t\t[-n size=num,version=2|ci,ftype=0|1]\n/* no-op info only */\t[-N]\n/* prototype file */\t[-p fname]\n/* quiet */\t\t[-q]\n/* realtime subvol */\t[-r extsize=num,size=num,rtdev=xxx]\n/* sectorsize */\t[-s size=num]\n/* version */\t\t[-V]\n\t\t\tdevicename\n<devicename> is required unless -d name=xxx is given.\n<num> is xxx (bytes), xxxs (sectors), xxxb (fs blocks), xxxk (xxx KiB),\n      xxxm (xxx MiB), xxxg (xxx GiB), xxxt (xxx TiB) or xxxp (xxx PiB).\n<value> is xxx (512 byte blocks).\n",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-descriptors-root.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.01,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=0\nControlGroup=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-descriptors-root.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.019,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=5764\nControlGroup=/system.slice/rw040-selfcheck-descriptors-root.service\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-selfcheck-descriptors-root",
+      "--service-type=exec",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--fds",
+      "300"
+    ],
+    "exit": 0,
+    "seconds": 0.564,
+    "stderr_tail": "",
+    "stdout_tail": "{\"summary\": {\"fds\": {\"error\": null, \"fd_table_at_peak\": 304, \"opened\": 300, \"requested\": 300}, \"pid\": 5764, \"vm_hwm\": \"11096\"}}\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "is-active",
+      "rw040-selfcheck-descriptors-root.service"
+    ],
+    "exit": 3,
+    "seconds": 0.01,
+    "stderr_tail": "",
+    "stdout_tail": "inactive\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-descriptors-confined.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.01,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=0\nControlGroup=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-descriptors-confined.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.019,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=5770\nControlGroup=/system.slice/rw040-selfcheck-descriptors-confined.service\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-selfcheck-descriptors-confined",
+      "--service-type=exec",
+      "--property=User=root",
+      "--property=Group=limeos-host-access",
+      "--property=UMask=0077",
+      "--property=LimitCORE=0",
+      "--property=MemorySwapMax=0",
+      "--property=NoNewPrivileges=yes",
+      "--property=PrivateMounts=no",
+      "--property=PrivateDevices=no",
+      "--property=RestrictSUIDSGID=yes",
+      "--property=RestrictRealtime=yes",
+      "--property=LockPersonality=yes",
+      "--property=MemoryDenyWriteExecute=yes",
+      "--property=RestrictAddressFamilies=AF_UNIX",
+      "--property=CapabilityBoundingSet=",
+      "--property=AmbientCapabilities=",
+      "--property=SystemCallArchitectures=native",
+      "--property=SystemCallFilter=@system-service",
+      "--property=LimitNOFILE=256",
+      "--property=TasksMax=16",
+      "--property=MemoryMax=64M",
+      "--property=CPUQuota=50%",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--fds",
+      "300"
+    ],
+    "exit": 1,
+    "seconds": 0.076,
+    "stderr_tail": "Traceback (most recent call last):\n  File \"/qual/inputs/guest/selfcheck_probe.py\", line 81, in <module>\n  File \"/qual/inputs/guest/selfcheck_probe.py\", line 70, in main\n  File \"/qual/inputs/guest/selfcheck_probe.py\", line 28, in descriptors\nOSError: [Errno 24] Too many open files: '/proc/self/fd'\n",
+    "stdout_tail": ""
+  },
+  {
+    "argv": [
+      "systemctl",
+      "is-active",
+      "rw040-selfcheck-descriptors-confined.service"
+    ],
+    "exit": 3,
+    "seconds": 0.006,
+    "stderr_tail": "",
+    "stdout_tail": "inactive\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-tasks-root.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.008,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=0\nControlGroup=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-tasks-root.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.011,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=5776\nControlGroup=/system.slice/rw040-selfcheck-tasks-root.service\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-selfcheck-tasks-root",
+      "--service-type=exec",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--tasks",
+      "24"
+    ],
+    "exit": 0,
+    "seconds": 0.579,
+    "stderr_tail": "",
+    "stdout_tail": "{\"summary\": {\"pid\": 5776, \"tasks\": {\"error\": null, \"requested\": 24, \"started\": 24}, \"vm_hwm\": \"17432\"}}\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "is-active",
+      "rw040-selfcheck-tasks-root.service"
+    ],
+    "exit": 3,
+    "seconds": 0.009,
+    "stderr_tail": "",
+    "stdout_tail": "inactive\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-tasks-confined.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.011,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=0\nControlGroup=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-tasks-confined.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.024,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=5806\nControlGroup=/system.slice/rw040-selfcheck-tasks-confined.service\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-selfcheck-tasks-confined",
+      "--service-type=exec",
+      "--property=User=root",
+      "--property=Group=limeos-host-access",
+      "--property=UMask=0077",
+      "--property=LimitCORE=0",
+      "--property=MemorySwapMax=0",
+      "--property=NoNewPrivileges=yes",
+      "--property=PrivateMounts=no",
+      "--property=PrivateDevices=no",
+      "--property=RestrictSUIDSGID=yes",
+      "--property=RestrictRealtime=yes",
+      "--property=LockPersonality=yes",
+      "--property=MemoryDenyWriteExecute=yes",
+      "--property=RestrictAddressFamilies=AF_UNIX",
+      "--property=CapabilityBoundingSet=",
+      "--property=AmbientCapabilities=",
+      "--property=SystemCallArchitectures=native",
+      "--property=SystemCallFilter=@system-service",
+      "--property=LimitNOFILE=256",
+      "--property=TasksMax=16",
+      "--property=MemoryMax=64M",
+      "--property=CPUQuota=50%",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--tasks",
+      "24"
+    ],
+    "exit": 0,
+    "seconds": 0.592,
+    "stderr_tail": "",
+    "stdout_tail": "{\"summary\": {\"pid\": 5806, \"tasks\": {\"error\": \"can't start new thread\", \"requested\": 24, \"started\": 15}, \"vm_hwm\": \"17096\"}}\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "is-active",
+      "rw040-selfcheck-tasks-confined.service"
+    ],
+    "exit": 3,
+    "seconds": 0.01,
+    "stderr_tail": "",
+    "stdout_tail": "inactive\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-memory-root.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.015,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=0\nControlGroup=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-memory-root.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.025,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=5828\nControlGroup=/system.slice/rw040-selfcheck-memory-root.service\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-selfcheck-memory-root",
+      "--service-type=exec",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--memory-mib",
+      "96"
+    ],
+    "exit": 0,
+    "seconds": 0.612,
+    "stderr_tail": "",
+    "stdout_tail": "_touched\": 24}\n{\"memory_mib_touched\": 28}\n{\"memory_mib_touched\": 32}\n{\"memory_mib_touched\": 36}\n{\"memory_mib_touched\": 40}\n{\"memory_mib_touched\": 44}\n{\"memory_mib_touched\": 48}\n{\"memory_mib_touched\": 52}\n{\"memory_mib_touched\": 56}\n{\"memory_mib_touched\": 60}\n{\"memory_mib_touched\": 64}\n{\"memory_mib_touched\": 68}\n{\"memory_mib_touched\": 72}\n{\"memory_mib_touched\": 76}\n{\"memory_mib_touched\": 80}\n{\"memory_mib_touched\": 84}\n{\"memory_mib_touched\": 88}\n{\"memory_mib_touched\": 92}\n{\"memory_mib_touched\": 96}\n{\"summary\": {\"memory\": {\"requested_mib\": 96, \"touched_mib\": 96}, \"pid\": 5828, \"vm_hwm\": \"109668\"}}\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "is-active",
+      "rw040-selfcheck-memory-root.service"
+    ],
+    "exit": 3,
+    "seconds": 0.012,
+    "stderr_tail": "",
+    "stdout_tail": "inactive\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-memory-confined.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.01,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=0\nControlGroup=\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "show",
+      "rw040-selfcheck-memory-confined.service",
+      "-p",
+      "MainPID,ControlGroup"
+    ],
+    "exit": 0,
+    "seconds": 0.022,
+    "stderr_tail": "",
+    "stdout_tail": "MainPID=5834\nControlGroup=/system.slice/rw040-selfcheck-memory-confined.service\n"
+  },
+  {
+    "argv": [
+      "systemd-run",
+      "--wait",
+      "--pipe",
+      "--quiet",
+      "--collect",
+      "--unit=rw040-selfcheck-memory-confined",
+      "--service-type=exec",
+      "--property=User=root",
+      "--property=Group=limeos-host-access",
+      "--property=UMask=0077",
+      "--property=LimitCORE=0",
+      "--property=MemorySwapMax=0",
+      "--property=NoNewPrivileges=yes",
+      "--property=PrivateMounts=no",
+      "--property=PrivateDevices=no",
+      "--property=RestrictSUIDSGID=yes",
+      "--property=RestrictRealtime=yes",
+      "--property=LockPersonality=yes",
+      "--property=MemoryDenyWriteExecute=yes",
+      "--property=RestrictAddressFamilies=AF_UNIX",
+      "--property=CapabilityBoundingSet=",
+      "--property=AmbientCapabilities=",
+      "--property=SystemCallArchitectures=native",
+      "--property=SystemCallFilter=@system-service",
+      "--property=LimitNOFILE=256",
+      "--property=TasksMax=16",
+      "--property=MemoryMax=64M",
+      "--property=CPUQuota=50%",
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--memory-mib",
+      "96"
+    ],
+    "exit": 1,
+    "seconds": 0.147,
+    "stderr_tail": "",
+    "stdout_tail": "{\"memory_mib_touched\": 4}\n{\"memory_mib_touched\": 8}\n{\"memory_mib_touched\": 12}\n{\"memory_mib_touched\": 16}\n{\"memory_mib_touched\": 20}\n{\"memory_mib_touched\": 24}\n{\"memory_mib_touched\": 28}\n{\"memory_mib_touched\": 32}\n{\"memory_mib_touched\": 36}\n{\"memory_mib_touched\": 40}\n{\"memory_mib_touched\": 44}\n{\"memory_mib_touched\": 48}\n{\"memory_mib_touched\": 52}\n{\"memory_mib_touched\": 56}\n"
+  },
+  {
+    "argv": [
+      "systemctl",
+      "is-active",
+      "rw040-selfcheck-memory-confined.service"
+    ],
+    "exit": 3,
+    "seconds": 0.006,
+    "stderr_tail": "",
+    "stdout_tail": "inactive\n"
+  }
+]

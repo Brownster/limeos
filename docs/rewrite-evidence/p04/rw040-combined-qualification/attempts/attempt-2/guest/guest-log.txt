@@ -1,0 +1,29 @@
+[rw040 +    0.0s] RW040-GUEST-START run=20261008T164629Z-19c2e8af
+[rw040 +    0.0s] stage platform: start
+[rw040 +    0.6s] stage platform: passed in 0.58s
+[rw040 +    0.6s] stage install: start
+[rw040 +   53.3s] stage install: passed in 52.76s
+[rw040 +   53.3s] stage service: start
+[rw040 +   53.4s] stage service: passed in 0.04s
+[rw040 +   53.4s] stage confinement: start
+[rw040 +   53.4s] stage confinement: passed in 0.06s
+[rw040 +   53.4s] stage image: start
+[rw040 +   53.7s] stage image: passed in 0.22s
+[rw040 +   53.7s] stage empty: start
+[rw040 +   53.7s] stage empty: passed in 0.03s
+[rw040 +   53.7s] stage layout: start
+[rw040 +   55.4s] stage layout: passed in 1.68s
+[rw040 +   55.4s] stage containers: start
+[rw040 +   65.9s] stage containers: passed in 10.49s
+[rw040 +   65.9s] stage ground-truth: start
+[rw040 +   65.9s] stage ground-truth: passed in 0.05s
+[rw040 +   65.9s] stage environment: start
+[rw040 +   66.0s] stage environment: passed in 0.11s
+[rw040 +   66.0s] stage selfcheck: start
+[rw040 +   69.2s] stage selfcheck: passed in 3.15s
+[rw040 +   69.2s] stage transitions: start
+[rw040 +   73.3s] stage transitions: failed in 4.08s
+[rw040 +   73.3s] stage budget: start
+[rw040 +  108.0s] stage budget: passed in 34.71s
+[rw040 +  108.0s] stage cases: start
+[rw040 +  108.0s] stage cases: passed in 0.0s

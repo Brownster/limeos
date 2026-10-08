@@ -1,0 +1,19 @@
+{
+  "installed": [
+    "busybox-static 1:1.35.0-4+deb12u1+b1 amd64",
+    "containerd 1.6.20~ds1-1+deb12u3 amd64",
+    "docker.io 20.10.24+dfsg1-1+deb12u1+b6 amd64",
+    "limeos 0.4.4 amd64",
+    "linux-image-6.1.0-53-cloud-amd64 6.1.187-1 amd64",
+    "linux-image-6.1.0-53-cloud-amd64-unsigned  ",
+    "linux-image-cloud-amd64 6.1.187-1 amd64",
+    "runc 1.1.5+ds1-1+deb12u1 amd64",
+    "systemd 252.39-1~deb12u2 amd64"
+  ],
+  "installed_package": "limeos_0.4.4_amd64.deb",
+  "verified_inputs": {
+    "limeos-shadow_0.4.4_amd64.deb": "d3fdb0d0d596448147d4c0d9ad63b04259c6f7c7a6683d3eae8e0c22641570b2",
+    "limeos_0.4.4+ci.1_amd64.deb": "8274b8a5658b634c5bb38cb5b9a950ca4c1ab932ad46e3688f34313fe3e74e37",
+    "limeos_0.4.4_amd64.deb": "8ebb6d89d607e7b3830d614a69527ae1621b89f25b19fdea57b2eae43ceb35cc"
+  }
+}
