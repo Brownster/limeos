@@ -1,0 +1,2 @@
+# Preserve diagnostic padding and terminal newlines in original tool output.
+logs/*.log -whitespace

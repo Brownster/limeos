@@ -1,0 +1,19 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "limeos-executor-storage",
+    "processes::tests::real_owned_child_retains_live_kernel_identity_and_exit_invalidates",
+    "--locked",
+    "--offline",
+    "--",
+    "--exact",
+    "--nocapture"
+  ],
+  "cwd": "/tmp/limeos-container-process-evidence",
+  "started_utc": "2026-10-07T20:02:16.969020+00:00",
+  "elapsed_seconds": 2.492731,
+  "exit_code": 101,
+  "sha256": "bc2816dfc6b9ecf6c0bc26e1c7fe246470eec18361ac7c45b3eaaa3a78e3fbc6"
+}

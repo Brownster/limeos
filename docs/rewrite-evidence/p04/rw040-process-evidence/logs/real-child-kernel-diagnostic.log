@@ -1,0 +1,19 @@
+   Compiling limeos-executor-storage v0.2.0 (/tmp/limeos-container-process-evidence/crates/executor-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.40s
+     Running unittests src/lib.rs (/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_executor_storage-d3bb2670a868b1ef)
+
+running 1 test
+
+thread 'processes::tests::real_owned_child_retains_live_kernel_identity_and_exit_invalidates' panicked at crates/executor-storage/src/processes/tests.rs:933:5:
+root descriptor lacks matching mount row
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test processes::tests::real_owned_child_retains_live_kernel_identity_and_exit_invalidates ... FAILED
+
+failures:
+
+failures:
+    processes::tests::real_owned_child_retains_live_kernel_identity_and_exit_invalidates
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 78 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p limeos-executor-storage --lib`

@@ -1,0 +1,19 @@
+   Compiling limeos-executor-storage v0.2.0 (/tmp/limeos-container-process-evidence/crates/executor-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.53s
+     Running unittests src/lib.rs (/home/marc/Documents/github/lime-os/.cache/backup-staging-target/debug/deps/limeos_executor_storage-d3bb2670a868b1ef)
+
+running 1 test
+
+thread 'processes::tests::btrfs_root_stat_device_and_mount_table_device_remain_distinct_observations' panicked at crates/executor-storage/src/processes/tests.rs:449:42:
+btrfs device aliases are observations, not physical proof: Unavailable
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test processes::tests::btrfs_root_stat_device_and_mount_table_device_remain_distinct_observations ... FAILED
+
+failures:
+
+failures:
+    processes::tests::btrfs_root_stat_device_and_mount_table_device_remain_distinct_observations
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 79 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p limeos-executor-storage --lib`

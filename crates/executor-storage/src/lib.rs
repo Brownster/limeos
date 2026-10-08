@@ -4,6 +4,7 @@ mod fstab;
 mod inventory;
 mod mounts;
 mod path;
+pub mod processes;
 mod sources;
 mod swaps;
 mod targets;
