@@ -1,0 +1,28 @@
+{
+  "result": "pass",
+  "checks": [
+    "signed apt coexistence, independent login/port/state, unchanged existing services and mounts",
+    "separate accounts and read-only independent ceilings",
+    "real host/disk observations and independent absent Docker source/history",
+    "GET-only bounded Engine reconciliation shared by repeated dashboard reads",
+    "SSE reconnect/interrupted readers and absent mutation routes",
+    "shadow removal leaves existing login, services, mounts and reference state unchanged"
+  ],
+  "shadow_pss_kib": {
+    "limeos-shadow-core": 6453,
+    "limeos-shadow-containerd": 1499,
+    "limeos-shadow-storaged": 1570
+  },
+  "combined_pss_kib": 9522,
+  "cached_http_p95_ms": 0.516925999999529,
+  "engine_calls": {
+    "/version": 2,
+    "/v1.41/events": 1,
+    "/v1.41/containers/json": 1
+  },
+  "scope": "Disposable x86-64 Debian VM with synthetic Engine; not reference Pi hardware.",
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+  }
+}

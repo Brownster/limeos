@@ -1,0 +1,11 @@
+{
+  "custodyClippy.txt": "b18f6fdbb54814d310494d22de6069ffb1538d10e62d06df52ffe77964c8e55a",
+  "custodyCrateTests.txt": "2d7e1d1a9b8137380fd2fe0b482e61fc07ccc3d84f82fe96fc06fff093583f46",
+  "custodyAllocationAfter.txt": "914b308f231d9ec96d15ed36d193877ba714db8f7f19cfcb77e4517eae06166a",
+  "custodyCleanupAfter.txt": "0f57ae6d58c38f75924a7c1907e9fb4723507a2bea71d221d9725d1c43c5d160",
+  "custodyAllocationBefore.txt": "99367b41c3a5a1910bdc7694a8395174a5caaaddee43b11faaee9f4852f1e3ad",
+  "custodyCleanupBefore.txt": "6d22e79851f73fb005398e3e71c88821823bfa0a81392b5714f76f2df6763dbe",
+  "custodyRecordTests.txt": "0dc59da11cafaf59b7f76a64a61232d2cf91e2f532983c5158ff3de94f78742b",
+  "custodyFifoAfter.txt": "3e564441b3e16933d1227d6ee96eedba50cf5bb90cde3a0d77c5bd0a390b8d64",
+  "custodyFifoBefore.txt": "cf3b7e947e6689bb5e0a055602f572cfd7cab3c5bb3a1ef738d2beb7aea2eb95"
+}

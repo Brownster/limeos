@@ -1,0 +1,6 @@
+{
+  "external_entries_unchanged": 211,
+  "locked_package_entries": 227,
+  "change": "one existing serde dependency edge in limeos-backup-archive; no third-party version/source/checksum change",
+  "lock_sha256": "c27bd8d5e97514ebeffb2309f4dafbe0af3d27a887293a3e95d0ffa033101395"
+}

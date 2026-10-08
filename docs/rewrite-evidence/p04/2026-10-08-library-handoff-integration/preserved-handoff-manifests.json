@@ -1,0 +1,874 @@
+{
+  "scope": "Original manifests verified against their handoff tips; all historical evidence files remain byte-identical. Process Cargo.lock intentionally reflects the separately approved existing serde edge in merged source.",
+  "count": 124,
+  "files": [
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/README.md",
+      "historical_sha256": "f859468e8e1cb7cc1ef634828e6615db8c7fc203693a2ea68a751b4d72ff6f03",
+      "current_sha256": "f859468e8e1cb7cc1ef634828e6615db8c7fc203693a2ea68a751b4d72ff6f03",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/identity_reference.py",
+      "historical_sha256": "8c51681cef845f203bd2ae39da611d25e5a411f6c57f674dcdb295d7da4549c8",
+      "current_sha256": "8c51681cef845f203bd2ae39da611d25e5a411f6c57f674dcdb295d7da4549c8",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/attempts.md",
+      "historical_sha256": "cd19804a776825bd03d81324e1259b9e5a1b919f25ea19ca0d4852d714be8c35",
+      "current_sha256": "cd19804a776825bd03d81324e1259b9e5a1b919f25ea19ca0d4852d714be8c35",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/final/audit.txt",
+      "historical_sha256": "8b70ff8e86aaa03a2b5b18bdfdfe89d3e2fa8548c47df53feaebecb3115170e1",
+      "current_sha256": "8b70ff8e86aaa03a2b5b18bdfdfe89d3e2fa8548c47df53feaebecb3115170e1",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/final/checks.json",
+      "historical_sha256": "6b3eda0cb2c36f81ef7b42840d5d9ab3d357b8330221c1bc0ff095b9507409fb",
+      "current_sha256": "6b3eda0cb2c36f81ef7b42840d5d9ab3d357b8330221c1bc0ff095b9507409fb",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/final/clippy.txt",
+      "historical_sha256": "2fdc4e0ede5d04fd917d645a6b31d0ab1e01f434f84e83388c86ad08ff69ced0",
+      "current_sha256": "2fdc4e0ede5d04fd917d645a6b31d0ab1e01f434f84e83388c86ad08ff69ced0",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/final/contracts.txt",
+      "historical_sha256": "bc56d0b5922bcab635667c7844fd61d677f164b6be7cb0cb017418f21235ff24",
+      "current_sha256": "bc56d0b5922bcab635667c7844fd61d677f164b6be7cb0cb017418f21235ff24",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/final/crate-tests.txt",
+      "historical_sha256": "dcdbf07fc539dbb091e3cfc87210ea9307685d0f163f41339c8bcd27d118efac",
+      "current_sha256": "dcdbf07fc539dbb091e3cfc87210ea9307685d0f163f41339c8bcd27d118efac",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/final/deny.txt",
+      "historical_sha256": "b82ed924090bb0ebed3663ac2c31bdd144db1f6e715c33813168d5fde37449f1",
+      "current_sha256": "b82ed924090bb0ebed3663ac2c31bdd144db1f6e715c33813168d5fde37449f1",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/final/diff-check.txt",
+      "historical_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/final/fmt.txt",
+      "historical_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/final/release-example.txt",
+      "historical_sha256": "1ff8bbcb4151dc887e69b78a29bc241d5062cba4757aa5f4639926ae712a8181",
+      "current_sha256": "1ff8bbcb4151dc887e69b78a29bc241d5062cba4757aa5f4639926ae712a8181",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/final/repository.txt",
+      "historical_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "current_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/final/toolchain.txt",
+      "historical_sha256": "9853a21d285d429519b6df14ea51fd930b74966838533d670b103a1bcd6c7d89",
+      "current_sha256": "9853a21d285d429519b6df14ea51fd930b74966838533d670b103a1bcd6c7d89",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/final/workspace-tests.txt",
+      "historical_sha256": "2272f0b66e7a4a3cf9acd171c56983abaf7f06b797acafac170ed57761278ba7",
+      "current_sha256": "2272f0b66e7a4a3cf9acd171c56983abaf7f06b797acafac170ed57761278ba7",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/identity-reference.txt",
+      "historical_sha256": "92f45471eeabf2fa2ddee3e0a8896f9307caaed4dd711f307e3fa03d7b6c92db",
+      "current_sha256": "92f45471eeabf2fa2ddee3e0a8896f9307caaed4dd711f307e3fa03d7b6c92db",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/ambiguous-durability-hidden.txt",
+      "historical_sha256": "467eacb76673c6e85f447ec7fedd866397478f0702b9a1e9d90254d41babd973",
+      "current_sha256": "467eacb76673c6e85f447ec7fedd866397478f0702b9a1e9d90254d41babd973",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/copy-unbounded.txt",
+      "historical_sha256": "e184f69fb96be4345a07e6e7f20a17572f545a28092ab27b5434148f323b9775",
+      "current_sha256": "e184f69fb96be4345a07e6e7f20a17572f545a28092ab27b5434148f323b9775",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/discard-unlinks-any-inode.txt",
+      "historical_sha256": "a6335598f312d38c2dfedbdf7bb124d3a9615af0110c2f03ef10766baf409033",
+      "current_sha256": "a6335598f312d38c2dfedbdf7bb124d3a9615af0110c2f03ef10766baf409033",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/foreign-entries-allowed.txt",
+      "historical_sha256": "8c4174b3f74edf3bb62f9c7c3cf32560f04720417b67244ec181a341230ec8b7",
+      "current_sha256": "8c4174b3f74edf3bb62f9c7c3cf32560f04720417b67244ec181a341230ec8b7",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/hard-links-allowed.txt",
+      "historical_sha256": "478244db09cae248343087140558dbff9d08b79c42611c92e8a0d1c4334b6a5f",
+      "current_sha256": "478244db09cae248343087140558dbff9d08b79c42611c92e8a0d1c4334b6a5f",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/held-identity-unchecked.txt",
+      "historical_sha256": "0f4f0feac5d5a3e99e374f94d73c69bf9105be94850ad564a8b3eec9ae045d1d",
+      "current_sha256": "0f4f0feac5d5a3e99e374f94d73c69bf9105be94850ad564a8b3eec9ae045d1d",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/identity-without-length-prefix.txt",
+      "historical_sha256": "c45be6c19d44b4ed7953a75c3b4710be20a07e79d4e88e892c0b9f42c65f114e",
+      "current_sha256": "c45be6c19d44b4ed7953a75c3b4710be20a07e79d4e88e892c0b9f42c65f114e",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/mutations.json",
+      "historical_sha256": "990e5052cf6df24f8636a76dcaba4a5948392c461350b5b1e779e5a399c5b03e",
+      "current_sha256": "990e5052cf6df24f8636a76dcaba4a5948392c461350b5b1e779e5a399c5b03e",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/pending-never-cleaned.txt",
+      "historical_sha256": "c2f2f81912ae2377f730452a14f3cfb17bf327c068e4da333e0afa06e6a2eb1a",
+      "current_sha256": "c2f2f81912ae2377f730452a14f3cfb17bf327c068e4da333e0afa06e6a2eb1a",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/readmission-compares-sorted-entries-only.txt",
+      "historical_sha256": "5313e8887fb477de688f9346b6bdc986144782955a8e872fcec710694e031e47",
+      "current_sha256": "5313e8887fb477de688f9346b6bdc986144782955a8e872fcec710694e031e47",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/record-binding-unchecked.txt",
+      "historical_sha256": "edaa82471a013bccaa5256c6cc132334fef38198ac7ae1ad25fdc9693bc2d698",
+      "current_sha256": "edaa82471a013bccaa5256c6cc132334fef38198ac7ae1ad25fdc9693bc2d698",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/record-not-canonical.txt",
+      "historical_sha256": "d3ca9dc9f389599b3e7662d268180a6e263cb8b92bd601b566a32073ea28487d",
+      "current_sha256": "d3ca9dc9f389599b3e7662d268180a6e263cb8b92bd601b566a32073ea28487d",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/recover-ignores-policy.txt",
+      "historical_sha256": "0c6f942cd5c17ce1b4477117f65d3f3eb961f69f3422bc81ab10ce266cdf3b86",
+      "current_sha256": "0c6f942cd5c17ce1b4477117f65d3f3eb961f69f3422bc81ab10ce266cdf3b86",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/recover-policy-equality-only.txt",
+      "historical_sha256": "afcd76f391655b9dd72794e3e42092593bc3233d7d05f7cfe804ddb76ae6227d",
+      "current_sha256": "afcd76f391655b9dd72794e3e42092593bc3233d7d05f7cfe804ddb76ae6227d",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/recover-policy-identity-only.txt",
+      "historical_sha256": "f9398a52c482a1161511bd18c1f5d78c46836b2498a49e1ea498c5cb60cbf8ec",
+      "current_sha256": "f9398a52c482a1161511bd18c1f5d78c46836b2498a49e1ea498c5cb60cbf8ec",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/rename-replaces.txt",
+      "historical_sha256": "58ee74a40bb9a75b984467483d15e31cadb2094791f7acbec293e45d983b4086",
+      "current_sha256": "58ee74a40bb9a75b984467483d15e31cadb2094791f7acbec293e45d983b4086",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations-9340277/stage-ignores-policy.txt",
+      "historical_sha256": "a0b6d0062258793843177f4abf84490742d859ab1669a7b5fa7c1316c69065b9",
+      "current_sha256": "a0b6d0062258793843177f4abf84490742d859ab1669a7b5fa7c1316c69065b9",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/ambiguous-durability-hidden.txt",
+      "historical_sha256": "9f2f24c1269bc6b142f5e02cfc65387f6ab2cc5b1764fecbe8e727b037191a72",
+      "current_sha256": "9f2f24c1269bc6b142f5e02cfc65387f6ab2cc5b1764fecbe8e727b037191a72",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/copy-unbounded.txt",
+      "historical_sha256": "96d701b1ae4f5e457c1523ba631af3eca65e1c2b67a28b56657a8b2ad6561382",
+      "current_sha256": "96d701b1ae4f5e457c1523ba631af3eca65e1c2b67a28b56657a8b2ad6561382",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/discard-unlinks-any-inode.txt",
+      "historical_sha256": "1302bab572b936f2dc40fdbc13b73b4f2f41766cb9ab2941807853cd55e6b88f",
+      "current_sha256": "1302bab572b936f2dc40fdbc13b73b4f2f41766cb9ab2941807853cd55e6b88f",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/foreign-entries-allowed.txt",
+      "historical_sha256": "d6cc7c25d84d734be4b54f537d1ffb2dc2c66b491d173f2cb7d1dd3f5a84f2ab",
+      "current_sha256": "d6cc7c25d84d734be4b54f537d1ffb2dc2c66b491d173f2cb7d1dd3f5a84f2ab",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/hard-links-allowed.txt",
+      "historical_sha256": "41567ebe8114968d7093a769fbcd596717cb5b2fa50724ced909ab18734d16a1",
+      "current_sha256": "41567ebe8114968d7093a769fbcd596717cb5b2fa50724ced909ab18734d16a1",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/held-identity-unchecked.txt",
+      "historical_sha256": "494c92b0b1f79c1ef493a31856b268bbe224c4fb64a4e71dab2be707a1cac847",
+      "current_sha256": "494c92b0b1f79c1ef493a31856b268bbe224c4fb64a4e71dab2be707a1cac847",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/identity-without-length-prefix.txt",
+      "historical_sha256": "724d4ddab14e2765f24f6bfac018281b586cbec07565f7a734cde50dc58ed8fe",
+      "current_sha256": "724d4ddab14e2765f24f6bfac018281b586cbec07565f7a734cde50dc58ed8fe",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/mutations.json",
+      "historical_sha256": "38beff6498118861e08b7aa101d346d0696e1d02fee30752ca83c1f61f60636b",
+      "current_sha256": "38beff6498118861e08b7aa101d346d0696e1d02fee30752ca83c1f61f60636b",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/pending-never-cleaned.txt",
+      "historical_sha256": "0157fa6f4813f56de62bd9afe335658912093f0a4a92bd4aac01f0254378950f",
+      "current_sha256": "0157fa6f4813f56de62bd9afe335658912093f0a4a92bd4aac01f0254378950f",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/readmission-compares-sorted-entries-only.txt",
+      "historical_sha256": "3d984817f576df2e43d2aeb4384f5417ef826c935f42b3b760804cb4baa1a362",
+      "current_sha256": "3d984817f576df2e43d2aeb4384f5417ef826c935f42b3b760804cb4baa1a362",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/record-binding-unchecked.txt",
+      "historical_sha256": "5e19673064bfc3279c983d0781bb391438dd0beb974f66b57449f4b5feabc24c",
+      "current_sha256": "5e19673064bfc3279c983d0781bb391438dd0beb974f66b57449f4b5feabc24c",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/record-not-canonical.txt",
+      "historical_sha256": "b21c4a851accd0a69fe0a7da3a99e4dbfbb2d35a67114472b9698e9687716616",
+      "current_sha256": "b21c4a851accd0a69fe0a7da3a99e4dbfbb2d35a67114472b9698e9687716616",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/recover-ignores-policy.txt",
+      "historical_sha256": "e4721b413b362316c281086bce7a4cc2cc4f9a0394beea617df8d005ae3b8dda",
+      "current_sha256": "e4721b413b362316c281086bce7a4cc2cc4f9a0394beea617df8d005ae3b8dda",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/recover-policy-equality-only.txt",
+      "historical_sha256": "1622c6b3631fe3385ca2c477957fedae3e0576941f842cbb481238526f9215d6",
+      "current_sha256": "1622c6b3631fe3385ca2c477957fedae3e0576941f842cbb481238526f9215d6",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/recover-policy-identity-only.txt",
+      "historical_sha256": "989ae777094b00ade748ca730066d317ba760b4f2f32be017f7d8df7c0e9b4b8",
+      "current_sha256": "989ae777094b00ade748ca730066d317ba760b4f2f32be017f7d8df7c0e9b4b8",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/rename-replaces.txt",
+      "historical_sha256": "46c0da4474702b70116b6c0031cef5dda18b2b381ba7cf6f0489bf5f5ab3a3d3",
+      "current_sha256": "46c0da4474702b70116b6c0031cef5dda18b2b381ba7cf6f0489bf5f5ab3a3d3",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/mutations/stage-ignores-policy.txt",
+      "historical_sha256": "94c31a7ef1a739d7b43cca7b2aea09139ab759941cefd2005376279c089555ed",
+      "current_sha256": "94c31a7ef1a739d7b43cca7b2aea09139ab759941cefd2005376279c089555ed",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/scope-scan.txt",
+      "historical_sha256": "b8f0e280f6b4e57a9c5075510722e47c85c3b969ce3a3e567a82e6c76d198d7d",
+      "current_sha256": "b8f0e280f6b4e57a9c5075510722e47c85c3b969ce3a3e567a82e6c76d198d7d",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/logs/unit-test-policy.json",
+      "historical_sha256": "86e63a8556e3d13349775b5238b770980aba74cb889b3dcde7af236fa106e11d",
+      "current_sha256": "86e63a8556e3d13349775b5238b770980aba74cb889b3dcde7af236fa106e11d",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/measure_custody.py",
+      "historical_sha256": "498dc644244a7e0da9ae6f5b1b8bbb813ded392bc81ce537bdc87379ad3cd651",
+      "current_sha256": "498dc644244a7e0da9ae6f5b1b8bbb813ded392bc81ce537bdc87379ad3cd651",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/mutation_checks.py",
+      "historical_sha256": "77db0d70962d22ca70e7fac881ef06c5162bd7cca69b7426f5eae2f0eaff45f7",
+      "current_sha256": "77db0d70962d22ca70e7fac881ef06c5162bd7cca69b7426f5eae2f0eaff45f7",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/peak-memory-raw.json.gz",
+      "historical_sha256": "114f91b8686bd7272c70fb9383d3cbd50994eef571560dd6c633d177ffbd7641",
+      "current_sha256": "114f91b8686bd7272c70fb9383d3cbd50994eef571560dd6c633d177ffbd7641",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/peak-memory.json",
+      "historical_sha256": "1c5921556d194f964816b64f8984f7a67fd7f6341767c5874966d1359c7244a3",
+      "current_sha256": "1c5921556d194f964816b64f8984f7a67fd7f6341767c5874966d1359c7244a3",
+      "current_matches": true
+    },
+    {
+      "handoff": "483c963",
+      "path": "docs/rewrite-evidence/p04/rw043-custody/run_checks.py",
+      "historical_sha256": "b5859162cfa8935a2ab27376a1f1354cac52bcce4a1d47ff7c3e9b71ddf7c970",
+      "current_sha256": "b5859162cfa8935a2ab27376a1f1354cac52bcce4a1d47ff7c3e9b71ddf7c970",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "Cargo.lock",
+      "historical_sha256": "db3ee3f292266c092c27f31a12f06276236be8099fb1e300bde7c3dd390af764",
+      "current_sha256": "c27bd8d5e97514ebeffb2309f4dafbe0af3d27a887293a3e95d0ffa033101395",
+      "current_matches": false
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "Cargo.toml",
+      "historical_sha256": "904578398be9460bbc087d2e5988a3ba1082160a6af7ebfa70b12256fc90d2a3",
+      "current_sha256": "904578398be9460bbc087d2e5988a3ba1082160a6af7ebfa70b12256fc90d2a3",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "crates/executor-storage/Cargo.toml",
+      "historical_sha256": "645dac84c75992784d5242d7cd97eca793f3e86b25fd25b7c9f1b71c82a738e4",
+      "current_sha256": "645dac84c75992784d5242d7cd97eca793f3e86b25fd25b7c9f1b71c82a738e4",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "crates/executor-storage/src/lib.rs",
+      "historical_sha256": "8ddc7ea2339f2d9c439e76dc5b3895360a3d7bf2a708eee31dfd619e486349f7",
+      "current_sha256": "8ddc7ea2339f2d9c439e76dc5b3895360a3d7bf2a708eee31dfd619e486349f7",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "crates/executor-storage/src/processes/tests.rs",
+      "historical_sha256": "723c50154f0cb92b384031e3ffaba00fc35e4a8ac16d2ece9ac1c479eab38f94",
+      "current_sha256": "723c50154f0cb92b384031e3ffaba00fc35e4a8ac16d2ece9ac1c479eab38f94",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "crates/executor-storage/src/processes.rs",
+      "historical_sha256": "44e33fdf2ae5bf0c56c58af08ff4427424e51e80ccda073cb56bc191c0b10ab3",
+      "current_sha256": "44e33fdf2ae5bf0c56c58af08ff4427424e51e80ccda073cb56bc191c0b10ab3",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/p04-container-process-evidence.md",
+      "historical_sha256": "7115aaa96911493492b7a2bf1e3f97d6bcb2a5226450f80db004045eed847a05",
+      "current_sha256": "7115aaa96911493492b7a2bf1e3f97d6bcb2a5226450f80db004045eed847a05",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/.gitattributes",
+      "historical_sha256": "4a63e77f9ac6db3930f94ced77c037891f25debb8079cf7100b116072d7b9998",
+      "current_sha256": "4a63e77f9ac6db3930f94ced77c037891f25debb8079cf7100b116072d7b9998",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/README.md",
+      "historical_sha256": "161735851cffedebdd01eae57cf2e5b1f10a47a7ec56d3281752f36f3defcd68",
+      "current_sha256": "161735851cffedebdd01eae57cf2e5b1f10a47a7ec56d3281752f36f3defcd68",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/artifact-capture-failed.log",
+      "historical_sha256": "63fcb66b044664ebb9beabff9c63700a196d81f0c1c6f2b851726e042775a4f5",
+      "current_sha256": "63fcb66b044664ebb9beabff9c63700a196d81f0c1c6f2b851726e042775a4f5",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/audit-cached.json",
+      "historical_sha256": "9fa3e4a28235ef34768c558ec9c7d52f935eb967b79548e335b35f556cbd3a2d",
+      "current_sha256": "9fa3e4a28235ef34768c558ec9c7d52f935eb967b79548e335b35f556cbd3a2d",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/audit-cached.log",
+      "historical_sha256": "8b70ff8e86aaa03a2b5b18bdfdfe89d3e2fa8548c47df53feaebecb3115170e1",
+      "current_sha256": "8b70ff8e86aaa03a2b5b18bdfdfe89d3e2fa8548c47df53feaebecb3115170e1",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/btrfs-regression-before-fix.json",
+      "historical_sha256": "093219fc7befa6c467924e89fa539047d4f45ce1d77cdaa4364023eb4979a0ce",
+      "current_sha256": "093219fc7befa6c467924e89fa539047d4f45ce1d77cdaa4364023eb4979a0ce",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/btrfs-regression-before-fix.log",
+      "historical_sha256": "6d53531c53746d76cf8d6ea9bb0f19359025652631a7eb34b08824fd62d665ad",
+      "current_sha256": "6d53531c53746d76cf8d6ea9bb0f19359025652631a7eb34b08824fd62d665ad",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/clippy-final.json",
+      "historical_sha256": "0bde86f1897865d4b7424e5bcd14f3dd50f32af627eb566a9962054be3d5fcbc",
+      "current_sha256": "0bde86f1897865d4b7424e5bcd14f3dd50f32af627eb566a9962054be3d5fcbc",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/clippy-final.log",
+      "historical_sha256": "93218be35c413dbadc4f735672ce2d92ed243c077bf31791679ecc40a98738aa",
+      "current_sha256": "93218be35c413dbadc4f735672ce2d92ed243c077bf31791679ecc40a98738aa",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/clippy-initial.json",
+      "historical_sha256": "e553131b6518ec45e491b0bc97ede9ae33c250c5dc7f782b46b0a33473be9f68",
+      "current_sha256": "e553131b6518ec45e491b0bc97ede9ae33c250c5dc7f782b46b0a33473be9f68",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/clippy-initial.log",
+      "historical_sha256": "ecf20833f5789cfa409aeb4b8c11da2273ad5aa86006760fcdfa56bcbc5cc4f0",
+      "current_sha256": "ecf20833f5789cfa409aeb4b8c11da2273ad5aa86006760fcdfa56bcbc5cc4f0",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/contracts-final.json",
+      "historical_sha256": "5efe5f605d14a6fddad3a3e281052d4a32a706f6bbe9b02562b0e49b5b805849",
+      "current_sha256": "5efe5f605d14a6fddad3a3e281052d4a32a706f6bbe9b02562b0e49b5b805849",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/contracts-final.log",
+      "historical_sha256": "82975fe5ea742b5f0cdf19328a8e2639770e67ceb0b01f6cd0ba486677d980d6",
+      "current_sha256": "82975fe5ea742b5f0cdf19328a8e2639770e67ceb0b01f6cd0ba486677d980d6",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/deny-cached-corrected.json",
+      "historical_sha256": "a31aee1fd0118427d9ba1e42e958cd3db7c6b3fe321ab320edf788e08befe46e",
+      "current_sha256": "a31aee1fd0118427d9ba1e42e958cd3db7c6b3fe321ab320edf788e08befe46e",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/deny-cached-corrected.log",
+      "historical_sha256": "392bdd86ede5767b4a45095972ea18af18cd5cd1e13c168bef56e9cf00fd93da",
+      "current_sha256": "392bdd86ede5767b4a45095972ea18af18cd5cd1e13c168bef56e9cf00fd93da",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/deny-cached.json",
+      "historical_sha256": "3f8c702bc5a010a6d7deb1835e68832bbfdc840279ac48127d29e71f735f3cab",
+      "current_sha256": "3f8c702bc5a010a6d7deb1835e68832bbfdc840279ac48127d29e71f735f3cab",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/deny-cached.log",
+      "historical_sha256": "401688ecb89898e6bf221e256fb86f638aa0ccabe2a7a6a83733d7b1009e4e56",
+      "current_sha256": "401688ecb89898e6bf221e256fb86f638aa0ccabe2a7a6a83733d7b1009e4e56",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/diff-final.json",
+      "historical_sha256": "4df4fc767198908cad1ae0ba0bcee6935f54537af0316ce367027cd6777188f6",
+      "current_sha256": "4df4fc767198908cad1ae0ba0bcee6935f54537af0316ce367027cd6777188f6",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/diff-final.log",
+      "historical_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/diff-handoff-final.json",
+      "historical_sha256": "c6f11414d89d52f183fa5d5b811c376db7bd27a4d18648a7c1f0213f277837b2",
+      "current_sha256": "c6f11414d89d52f183fa5d5b811c376db7bd27a4d18648a7c1f0213f277837b2",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/diff-handoff-final.log",
+      "historical_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/diff-raw-output-failed.log",
+      "historical_sha256": "fc7268be3b5f75047f8f4c398b2b9d3a0518aee576a656c411e4471002904e7d",
+      "current_sha256": "fc7268be3b5f75047f8f4c398b2b9d3a0518aee576a656c411e4471002904e7d",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/fmt-final.json",
+      "historical_sha256": "1fbc1eaba08e81cd35ea33f799097bbc6160446aa356020dc0e7a5167b07f185",
+      "current_sha256": "1fbc1eaba08e81cd35ea33f799097bbc6160446aa356020dc0e7a5167b07f185",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/fmt-final.log",
+      "historical_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/host-volatile-link-diagnostic.json",
+      "historical_sha256": "abb18b4bb9ab01d47e73dd4e25f9146bdaf42ffdf7845649a10eec920485bb2e",
+      "current_sha256": "abb18b4bb9ab01d47e73dd4e25f9146bdaf42ffdf7845649a10eec920485bb2e",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/host-volatile-link-diagnostic.log",
+      "historical_sha256": "492b06daba096bd72e9f1c6349bbb2cf11059141c7db53732cbb584fc25f1467",
+      "current_sha256": "492b06daba096bd72e9f1c6349bbb2cf11059141c7db53732cbb584fc25f1467",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/real-child-diagnostic.json",
+      "historical_sha256": "4d829801e01acf2a6eb05964a8ac0fafca2e6dc9487d19506a756d461c08a22d",
+      "current_sha256": "4d829801e01acf2a6eb05964a8ac0fafca2e6dc9487d19506a756d461c08a22d",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/real-child-diagnostic.log",
+      "historical_sha256": "3cf8714a0319006eab777f7c5a3745df42e265f000562f706d1d94122dcf8704",
+      "current_sha256": "3cf8714a0319006eab777f7c5a3745df42e265f000562f706d1d94122dcf8704",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/real-child-kernel-diagnostic.json",
+      "historical_sha256": "ac388a40baae59b5e536dc8b18559702e61046239b97653b9523d642b8b1ac11",
+      "current_sha256": "ac388a40baae59b5e536dc8b18559702e61046239b97653b9523d642b8b1ac11",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/real-child-kernel-diagnostic.log",
+      "historical_sha256": "7507411d01dcbb99fe394b6f410574cc870f91a985a51b1e31c8a9f2dbeead0a",
+      "current_sha256": "7507411d01dcbb99fe394b6f410574cc870f91a985a51b1e31c8a9f2dbeead0a",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/real-fds-frozen-source.json",
+      "historical_sha256": "7bc033cdf432f1a23b21964baa71f3c99d852890cb34c6fe8cd2129117367eab",
+      "current_sha256": "7bc033cdf432f1a23b21964baa71f3c99d852890cb34c6fe8cd2129117367eab",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/real-fds-frozen-source.log",
+      "historical_sha256": "44f35158f37f74e6bc7c442ef79d3a0eaf60e58337995a601723232fe157081a",
+      "current_sha256": "44f35158f37f74e6bc7c442ef79d3a0eaf60e58337995a601723232fe157081a",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/real-host-diagnostic.json",
+      "historical_sha256": "8efcfbfb78797f7f9aa86002274a1e317ece53cf8879dded35ea83fe278d6891",
+      "current_sha256": "8efcfbfb78797f7f9aa86002274a1e317ece53cf8879dded35ea83fe278d6891",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/real-host-diagnostic.log",
+      "historical_sha256": "ef7d5c520ab67ad3eddd1a5cec613d1584551e58fcdf57a9565b4f29e462819c",
+      "current_sha256": "ef7d5c520ab67ad3eddd1a5cec613d1584551e58fcdf57a9565b4f29e462819c",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/real-root-device-diagnostic.json",
+      "historical_sha256": "1e73a2ee29c2510d0d1952d6f6411e0a3057ef2039919d34b31a2bb973820786",
+      "current_sha256": "1e73a2ee29c2510d0d1952d6f6411e0a3057ef2039919d34b31a2bb973820786",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/real-root-device-diagnostic.log",
+      "historical_sha256": "bc2816dfc6b9ecf6c0bc26e1c7fe246470eec18361ac7c45b3eaaa3a78e3fbc6",
+      "current_sha256": "bc2816dfc6b9ecf6c0bc26e1c7fe246470eec18361ac7c45b3eaaa3a78e3fbc6",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/repository-final.json",
+      "historical_sha256": "c0a9f2cc4ba9a8543e618462a26c331e342d2077ae3e9ba7590d8d28d2128361",
+      "current_sha256": "c0a9f2cc4ba9a8543e618462a26c331e342d2077ae3e9ba7590d8d28d2128361",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/repository-final.log",
+      "historical_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "current_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/resource-frozen-source.json",
+      "historical_sha256": "768cbba668c28a9a6bfbefe0c90b87414d695534a45f4ab8d2b0af4f24a83a8e",
+      "current_sha256": "768cbba668c28a9a6bfbefe0c90b87414d695534a45f4ab8d2b0af4f24a83a8e",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/resource-frozen-source.log",
+      "historical_sha256": "408bbc877183cfb0f2222b5e5d8a94ba8f4e6d3806407d891c86698bdd138c82",
+      "current_sha256": "408bbc877183cfb0f2222b5e5d8a94ba8f4e6d3806407d891c86698bdd138c82",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/resource-isolated.json",
+      "historical_sha256": "6719c7a834dbf407b359ef23ec07b1d3fde3c24a00874f3e4b66bb619d0ed8d8",
+      "current_sha256": "6719c7a834dbf407b359ef23ec07b1d3fde3c24a00874f3e4b66bb619d0ed8d8",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/resource-isolated.log",
+      "historical_sha256": "e5c177d392764cc5b2f9b10817772988324ac0748b46d70701a8742879e82834",
+      "current_sha256": "e5c177d392764cc5b2f9b10817772988324ac0748b46d70701a8742879e82834",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/targeted-after-host-diagnosis.json",
+      "historical_sha256": "8bb5d01a25f58c7adedcc4bc35b4799c8e94a4de56224e2dcd01f63d8e16ce03",
+      "current_sha256": "8bb5d01a25f58c7adedcc4bc35b4799c8e94a4de56224e2dcd01f63d8e16ce03",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/targeted-after-host-diagnosis.log",
+      "historical_sha256": "e9b503483c39b1777e406394d52046a5a3ad38ecb75ccd4fc16bd727dc860d76",
+      "current_sha256": "e9b503483c39b1777e406394d52046a5a3ad38ecb75ccd4fc16bd727dc860d76",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/targeted-btrfs-corrected.json",
+      "historical_sha256": "bfb86a14ff0edc7b80915030989ee382220f184da138eb34cbec1bb323325f9a",
+      "current_sha256": "bfb86a14ff0edc7b80915030989ee382220f184da138eb34cbec1bb323325f9a",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/targeted-btrfs-corrected.log",
+      "historical_sha256": "165cfa2b6c7ed9feeb0d64e29657326d41f17d13854653d449ba6701619775ec",
+      "current_sha256": "165cfa2b6c7ed9feeb0d64e29657326d41f17d13854653d449ba6701619775ec",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/targeted-final.json",
+      "historical_sha256": "2d3acda6087ea0dd1a0a5d9f3b2f13093e88a0f4d45e061b0b68919eed7b7b9e",
+      "current_sha256": "2d3acda6087ea0dd1a0a5d9f3b2f13093e88a0f4d45e061b0b68919eed7b7b9e",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/targeted-final.log",
+      "historical_sha256": "a575c96c9d93d6ff8c9aeb5426fc815093dab87619e02f35ea300b9bb95b02b7",
+      "current_sha256": "a575c96c9d93d6ff8c9aeb5426fc815093dab87619e02f35ea300b9bb95b02b7",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/targeted-initial-failed.log",
+      "historical_sha256": "1f0312aaa1e6fef86864eeec6c025f56046da2fdcf7a8ce585dcce96f8c7fd3e",
+      "current_sha256": "1f0312aaa1e6fef86864eeec6c025f56046da2fdcf7a8ce585dcce96f8c7fd3e",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/targeted-stable-identities.json",
+      "historical_sha256": "90f25ab9aa657e65914119a24a060b3013c2683c0e5b30f87c5dc63f2653612e",
+      "current_sha256": "90f25ab9aa657e65914119a24a060b3013c2683c0e5b30f87c5dc63f2653612e",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/targeted-stable-identities.log",
+      "historical_sha256": "591b81d2cd46a8eb0d287148ae4ab339a52fae1442a92c15c825265b9225219d",
+      "current_sha256": "591b81d2cd46a8eb0d287148ae4ab339a52fae1442a92c15c825265b9225219d",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/workspace-tests-final.json",
+      "historical_sha256": "22785639a04eeccfbe624a9837222e0f2fc5d387b502de6b36fe58ea1c254996",
+      "current_sha256": "22785639a04eeccfbe624a9837222e0f2fc5d387b502de6b36fe58ea1c254996",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/logs/workspace-tests-final.log",
+      "historical_sha256": "dc5a2e7b1f63ea0ac3b7f40594aca270c308ee0daa9717b5c9ec38fbc175d418",
+      "current_sha256": "dc5a2e7b1f63ea0ac3b7f40594aca270c308ee0daa9717b5c9ec38fbc175d418",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/qualification.json",
+      "historical_sha256": "ee91e9e56f67b4756472bfa0fd253a156db331d0cd4bbf10164e8b95ba4b4d4a",
+      "current_sha256": "ee91e9e56f67b4756472bfa0fd253a156db331d0cd4bbf10164e8b95ba4b4d4a",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/record.py",
+      "historical_sha256": "2075158e9f7cbb8349df8503127d3ae6efcf135601ce1813995e8e18933d90b5",
+      "current_sha256": "2075158e9f7cbb8349df8503127d3ae6efcf135601ce1813995e8e18933d90b5",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "docs/rewrite-evidence/p04/rw040-process-evidence/verify.py",
+      "historical_sha256": "6eca396f12f3e7e6ddfcd198377749f893e682945765770a1fb70eb4a7a3296b",
+      "current_sha256": "6eca396f12f3e7e6ddfcd198377749f893e682945765770a1fb70eb4a7a3296b",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "tests/fixtures/container-process-evidence/README.md",
+      "historical_sha256": "087511b184f86e438d98e2189c405aded094169fb0de1f91fcd4c733108c1cfb",
+      "current_sha256": "087511b184f86e438d98e2189c405aded094169fb0de1f91fcd4c733108c1cfb",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "tests/fixtures/container-process-evidence/btrfs-mountinfo.txt",
+      "historical_sha256": "af4060ff1f0d82454c66e866594a50ee8c274e0d9fbebcc2a29a857f2cb7d5bc",
+      "current_sha256": "af4060ff1f0d82454c66e866594a50ee8c274e0d9fbebcc2a29a857f2cb7d5bc",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "tests/fixtures/container-process-evidence/mountinfo.txt",
+      "historical_sha256": "0dcd4d42f571fc14556baca50eab3d89ac54481ef3e76098368d0d31bbd4d6a2",
+      "current_sha256": "0dcd4d42f571fc14556baca50eab3d89ac54481ef3e76098368d0d31bbd4d6a2",
+      "current_matches": true
+    },
+    {
+      "handoff": "cb5aa668",
+      "path": "tests/fixtures/container-process-evidence/status.txt",
+      "historical_sha256": "7da9b27a379b57339507e7952c58e6aa0ff15e84c03819d195f4de9b66e1e308",
+      "current_sha256": "7da9b27a379b57339507e7952c58e6aa0ff15e84c03819d195f4de9b66e1e308",
+      "current_matches": true
+    }
+  ]
+}

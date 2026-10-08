@@ -1,0 +1,22 @@
+   Compiling limeos-backup-archive v0.2.0 (/tmp/limeos-custody-boundaries/crates/backup-archive)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.21s
+     Running unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_backup_archive-54e87fbd0b9f5d02)
+
+running 2 tests
+test custody::tests::canonical_record_escaping_is_counted_before_allocation_at_the_exact_cap ... ok
+test custody::tests::recovery_counts_canonical_amplification_before_allocation_and_preserves_exact_bytes ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 21 filtered out; finished in 0.10s
+
+     Running tests/archives.rs (/home/marc/Documents/github/lime-os/target/debug/deps/archives-6df165551bd6db45)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out; finished in 0.00s
+
+     Running tests/custody.rs (/home/marc/Documents/github/lime-os/target/debug/deps/custody-3e02933b0c31c6ee)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s
+

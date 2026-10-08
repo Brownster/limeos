@@ -1,0 +1,13 @@
+   Compiling rustix v1.1.5
+    Checking tempfile v3.23.0
+    Checking limeos-backup-archive v0.2.0 (/home/marc/Documents/github/lime-os/crates/backup-archive)
+    Checking limeos-executor-container v0.2.0 (/home/marc/Documents/github/lime-os/crates/executor-container)
+    Checking limeos-executor-storage v0.2.0 (/home/marc/Documents/github/lime-os/crates/executor-storage)
+    Checking limeos-persistence v0.2.0 (/home/marc/Documents/github/lime-os/crates/persistence)
+    Checking limeos-executor-protocol v0.2.0 (/home/marc/Documents/github/lime-os/crates/executor-protocol)
+    Checking limeos-observations v0.2.0 (/home/marc/Documents/github/lime-os/crates/observations)
+    Checking limeos-core v0.2.0 (/home/marc/Documents/github/lime-os/bins/core)
+    Checking limeosctl v0.2.0 (/home/marc/Documents/github/lime-os/bins/ctl)
+    Checking limeos-executor v0.2.0 (/home/marc/Documents/github/lime-os/bins/executor)
+    Checking limeos-identity v0.2.0 (/home/marc/Documents/github/lime-os/crates/identity)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.64s

@@ -1,0 +1,99 @@
+{
+  "correction_tip": "a869842a0273677f088d4fa563216ba091f1af29",
+  "final_source_hashes": {
+    "crates/backup-archive/src/custody.rs": "a89218676b0fd9f88e1ebaa1b3b2dd74c96f632e86aff0f321cf52a149c7e77d",
+    "crates/backup-archive/src/custody/tests.rs": "d4fc2e3af33b96b8796d026e74744fef1ae9be137d91585a6242d7b165f3979a"
+  },
+  "working_directory": "/tmp/limeos-custody-boundaries",
+  "command_prefix": "env CCACHE_DIR=/tmp/limeos-ccache CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target ",
+  "commands": [
+    {
+      "log": "custodyFifoBefore.txt",
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo test -p limeos-backup-archive fifo_record_and_archive --locked --offline",
+      "exit_code": 101,
+      "source": "original483c963 production open flags with the new FIFO regression; instrumented uncommitted source, no complete frozen hash",
+      "sha256": "cf3b7e947e6689bb5e0a055602f572cfd7cab3c5bb3a1ef738d2beb7aea2eb95",
+      "exact_argv_retained": false,
+      "command_provenance": "Logical command reconstructed from retained test/filter output and session context; full original argv was not independently retained."
+    },
+    {
+      "log": "custodyFifoAfter.txt",
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo test -p limeos-backup-archive fifo_record_and_archive --locked --offline",
+      "exit_code": 0,
+      "source": "O_NONBLOCK correction plus regression before commit3862f0a",
+      "sha256": "3e564441b3e16933d1227d6ee96eedba50cf5bb90cde3a0d77c5bd0a390b8d64",
+      "exact_argv_retained": false,
+      "command_provenance": "Logical command reconstructed from retained test/filter output and session context; full original argv was not independently retained."
+    },
+    {
+      "log": "custodyRecordTests.txt",
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo test -p limeos-backup-archive canonical --locked --offline",
+      "exit_code": 0,
+      "source": "bounded serializer source before formatting/commit2d4ee82",
+      "sha256": "0dc59da11cafaf59b7f76a64a61232d2cf91e2f532983c5158ff3de94f78742b",
+      "exact_argv_retained": true
+    },
+    {
+      "log": "custodyCleanupBefore.txt",
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo test -p limeos-backup-archive early_cleanup --locked --offline",
+      "exit_code": 101,
+      "source": "2d4ee82 cleanup semantics plus private operation fault seams and new tests; instrumented uncommitted source, no complete frozen hash",
+      "sha256": "6d22e79851f73fb005398e3e71c88821823bfa0a81392b5714f76f2df6763dbe",
+      "exact_argv_retained": true
+    },
+    {
+      "log": "custodyAllocationBefore.txt",
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo test -p limeos-backup-archive known_pending_directory --locked --offline",
+      "exit_code": 101,
+      "source": "same pre-fix instrumented state as cleanup regression",
+      "sha256": "99367b41c3a5a1910bdc7694a8395174a5caaaddee43b11faaee9f4852f1e3ad",
+      "exact_argv_retained": true
+    },
+    {
+      "log": "custodyCleanupAfter.txt",
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo test -p limeos-backup-archive cleanup --locked --offline",
+      "exit_code": 0,
+      "source": "conservative cleanup correction before formatting; four selected cases passed",
+      "sha256": "0f57ae6d58c38f75924a7c1907e9fb4723507a2bea71d221d9725d1c43c5d160",
+      "exact_argv_retained": true
+    },
+    {
+      "log": "custodyAllocationAfter.txt",
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo test -p limeos-backup-archive known_pending_directory --locked --offline",
+      "exit_code": 0,
+      "source": "conservative cleanup correction before formatting; one selected case passed",
+      "sha256": "914b308f231d9ec96d15ed36d193877ba714db8f7f19cfcb77e4517eae06166a",
+      "exact_argv_retained": true
+    },
+    {
+      "log": "custodyCrateTests.txt",
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo test -p limeos-backup-archive --locked --offline",
+      "exit_code": 0,
+      "source": "settled formatted source identical to final correction tipa869842a;25unit+32archive+11custody=68",
+      "sha256": "2d7e1d1a9b8137380fd2fe0b482e61fc07ccc3d84f82fe96fc06fff093583f46",
+      "exact_argv_retained": true
+    },
+    {
+      "log": "custodyClippy.txt",
+      "command": "env CCACHE_DIR=/tmp/limeos-ccache CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo clippy -p limeos-backup-archive --all-targets --locked --offline -- -D warnings",
+      "exit_code": 0,
+      "source": "settled formatted source identical to final correction tipa869842a",
+      "sha256": "b18f6fdbb54814d310494d22de6069ffb1538d10e62d06df52ffe77964c8e55a",
+      "exact_argv_retained": true
+    }
+  ],
+  "timing": "Raw logs retain measured test-suite durations and compiler timings. Full command wall times and active/human engineering hours were not independently measured. FIFO regression uses a two-second child deadline and always kills/reaps a stalled child.",
+  "aborted_preflight": {
+    "elapsed_tool_seconds": 450.9,
+    "outcome": "Tool call aborted; no preflight output or completion result returned. Main stayed clean at91909a4 with no merges. Read commands may have run; no source/test failure is claimed.",
+    "reason": "git merge-tree object writes used an escalated prefix without an existing approval rule; subsequent authorized direct git merge used the approved prefix.",
+    "commands": [
+      "git worktree list --porcelain",
+      "cat /tmp/limeos-container-process-evidence-handoff.json",
+      "git show --stat --oneline cb5aa668",
+      "git status --short --branch (process worktree)",
+      "git merge-tree --write-tree --name-only main integrator/backup-custody-boundaries",
+      "git merge-tree --write-tree --name-only main engineer/container-process-evidence"
+    ]
+  }
+}

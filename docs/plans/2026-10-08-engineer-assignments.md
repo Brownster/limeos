@@ -1,0 +1,23 @@
+# Next P04 engineer assignments
+
+The previous custody and process assignments are reviewed and integrated in runtime `2fd74209e1238c1374837ab431ef670020726dc2`. [Integration evidence](../rewrite-evidence/p04/2026-10-08-library-handoff-integration/README.md) preserves the original source identities, corrections and 370 unit/integration plus two compile-fail tests. [Exact-source full CI](https://github.com/Brownster/limeos/actions/runs/37746766303) supplies the separate native/package/installed evidence. Begin from this exact source in a new worktree after its full CI is successful; later documentation-only commits do not change the runtime base.
+
+Read these published briefs before creating the pinned worktree. The runtime base predates these documentation-only assignments; their absence from that checkout does not change the pinned source or ownership contract.
+
+| Owner | Brief | Suggested branch | Exclusive scope |
+|---|---|---|---|
+| Engineer 1 | [Verified private restore preparation](2026-10-08-engineer-backup-restore-preparation.md) | `engineer/backup-restore-preparation` | New preparation library, genuine-catalog tests, fixtures and its own evidence |
+| Engineer 2 | [Disposable-guest root and confinement qualification](2026-10-08-engineer-rw040-confinement-qualification.md) | `engineer/rw040-confinement-qualification` | Private local/CI guest harness, fixtures and its own evidence |
+| Integrator | Bounded confined RW-040 collector | `main` / integration branch | Combined worker, test probe, resource admission, original lifetime binding and all shared runtime interfaces |
+
+The briefs define exact ownership. Engineer 1 has one shared allowance: `pub mod preparation;` in the archive crate export file, in its own additive commit. Engineer 2 does not edit the integrator-reserved `bins/executor/tests/combined_read_probe.rs`; the qualification probe and later worker are explicit supplied prerequisites. Further shared changes need an integrator-owned seam. Existing libraries, packaging/systemd, workflows, public API/IPC/CLI, domain/generated contracts, core/schema/jobs/claims/approvals/receipts and UI stay with the integrator.
+
+The integrator's next bounded slice composes authenticated Engine/PIDs, retained process facts and existing **host-source** physical observations in a confined read-only worker. It must share the original freshness lifetime and prove whole-request admission, single-flight overload handling, independently enforced deadlines/reaping and actual resource headroom under current caps. This does not complete running-namespace destination-to-filesystem mapping: namespace-local mount IDs are not host mount identity. Overlay/FUSE/Btrfs backing, namespace destinations, pool/protection/share propagation and unmount safety remain separate gates.
+
+The storage reader retains `LimitNOFILE=256`, `MemoryMax=64M`, `TasksMax=16`, no swap and empty capability sets. Process-only maximum evidence holds 261 descriptors and peaks at 265 before other owners; one maximum-row fixture records 31 MiB retained payload and 65.78 MiB peak RSS, not universal heap bounds. Combining owners must fit existing ceilings or refuse the entire request. Neither engineer changes caps, weakens host authentication or adds a fixture fallback to production.
+
+No wybie/Pi/SSH, production-host guest, workload/package operation or frozen Python development is authorized. Engineer 1 uses private local scratch trees/processes. Engineer 2 may build/run **owned disposable local/CI AMD64 guests**, their test daemon/containers/users and virtual data disks; it must leave workstation and production Docker untouched. Native ARM64/Pi testing needs a separate future brief. All temporary guest resources require owned teardown.
+
+Estimates are 24 human engineering hours/review at 36 for preparation, 16/review at 24 for qualification and 16/review at 24 for the integrator's next collector. Review at 150% narrows the assignment or records its dependency. P04 remains 320 hours with a distinct 480-hour cutover-scope review. Record active agent work, infrastructure/approval waits and measured human work separately; agent elapsed time is not human effort.
+
+Return clean committed feature branches, exact source/test identities, owned-path diffs, raw outcomes and failures, hashes, case matrices and remaining gates. Engineers may push only their assigned branches to `Brownster/limeos`; the integrator reviews, merges and publishes main sequentially, then runs exact-source gates and CI. Preserve old proofs. **BKP-001, DSK-001, MNT-001/MNT-002 and RT-001 remain open**. The historical full-inventory 61.401 ms / 20 ms row remains failed; no new library/guest result changes it.

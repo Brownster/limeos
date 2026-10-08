@@ -1,0 +1,113 @@
+{
+  "source_commit": "2fd74209e1238c1374837ab431ef670020726dc2",
+  "runtime_predecessor": "0e2cf08a882035b69cb65efead5323b01d03152c",
+  "source_hashes": {
+    "tests/privileged_vm/guest.py": "70c4fc420bdc6e083b8ee4a10dbb99ccb15c00604276bf1b984b2101f66fa201",
+    "tests/reference/test_executor_refusal_probe.py": "23e468c6ca816adcfbc51ace6e860ad7078557639135f6612fa141872ed6bd35"
+  },
+  "attempts": {
+    "foundationProbeBefore": {
+      "chunk_id": "d43f4a",
+      "wall_time_seconds": 0.143845875,
+      "exit_code": 1,
+      "original_token_count": 1255,
+      "log": "foundationProbeBefore.txt",
+      "sha256": "795c82b7aeb4e8d30462534b648e1d7609e62afdc2186fb988fe78327de05535",
+      "command": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project python -m unittest discover -s tests/reference -p test_executor_refusal_probe.py",
+      "source_stage": "unfrozen instrumented pre/post fixture test state; full exact source hash not independently retained"
+    },
+    "foundationProbeAfter": {
+      "chunk_id": "3c0ab9",
+      "wall_time_seconds": 0.086086831,
+      "exit_code": 0,
+      "original_token_count": 26,
+      "log": "foundationProbeAfter.txt",
+      "sha256": "661d65c4b52265e095c881df72ed4481af57f89aa5e52ff0705fc6d532fd4c8f",
+      "command": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project python -m unittest discover -s tests/reference -p test_executor_refusal_probe.py",
+      "source_stage": "unfrozen instrumented pre/post fixture test state; full exact source hash not independently retained"
+    },
+    "foundationFocusedFinal": {
+      "chunk_id": "2e3ae3",
+      "wall_time_seconds": 0.114383806,
+      "exit_code": 0,
+      "original_token_count": 26,
+      "log": "foundationFocusedFinal.txt",
+      "sha256": "71b40fd0510f1c258c1462079631cfc5a9b69efa837f163dd56d27fc782d99b1",
+      "command": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project python -m unittest discover -s tests/reference -p test_executor_refusal_probe.py",
+      "source_stage": "settled source identical to committed2fd74209"
+    },
+    "foundationReferenceFinal": {
+      "chunk_id": "a2548b",
+      "wall_time_seconds": 0.298513221,
+      "exit_code": 0,
+      "original_token_count": 29,
+      "log": "foundationReferenceFinal.txt",
+      "sha256": "2225bc57159112d19a135128ddf2eab62c05bf072f98b6d796c19cd05d2ecbb5",
+      "command": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project python -m unittest discover -s tests/reference -p 'test_*.py'",
+      "source_stage": "settled source identical to committed2fd74209"
+    },
+    "foundationRuff": {
+      "chunk_id": "ae7260",
+      "wall_time_seconds": 1.6164e-05,
+      "exit_code": 1,
+      "original_token_count": 80,
+      "log": "foundationRuff.txt",
+      "sha256": "f5ed084de1b7a2d81da82ccced045d74c7958ead7fbb29c18b4cf78cc4cc3f15",
+      "command": "env UV_CACHE_DIR=/home/marc/.cache/uv uv tool run --offline ruff check tests/reference/test_executor_refusal_probe.py tests/privileged_vm/guest.py",
+      "source_stage": "unfrozen instrumented pre/post fixture test state; full exact source hash not independently retained"
+    },
+    "foundationRuffFinal": {
+      "chunk_id": "3629e0",
+      "wall_time_seconds": 1.1315e-05,
+      "exit_code": 0,
+      "original_token_count": 5,
+      "log": "foundationRuffFinal.txt",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "command": "env UV_CACHE_DIR=/home/marc/.cache/uv uv tool run --offline ruff check tests/reference/test_executor_refusal_probe.py tests/privileged_vm/guest.py",
+      "source_stage": "settled source identical to committed2fd74209"
+    },
+    "foundationFormat": {
+      "command": "env UV_CACHE_DIR=/home/marc/.cache/uv uv tool run --offline ruff format --check tests/reference/test_executor_refusal_probe.py tests/privileged_vm/guest.py",
+      "chunk_id": "ad7f43",
+      "wall_time_seconds": 4.681e-05,
+      "exit_code": 0,
+      "original_token_count": 7,
+      "log": "foundationFormat.txt",
+      "sha256": "3bc53bf3e981a98a34a852e175bf9b77af841edea74fca595d9aedcbaf9a4938",
+      "source_stage": "settled fixture/test source identical to2fd74209"
+    },
+    "foundationRepository": {
+      "command": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project python scripts/check_repository.py",
+      "chunk_id": "4ec5db",
+      "wall_time_seconds": 0.030505983,
+      "exit_code": 0,
+      "original_token_count": 13,
+      "log": "foundationRepository.txt",
+      "sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "source_stage": "settled fixture/test source identical to2fd74209"
+    },
+    "foundationContracts": {
+      "command": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project python scripts/check_contracts.py",
+      "chunk_id": "b9f62a",
+      "wall_time_seconds": 0.603950112,
+      "exit_code": 0,
+      "original_token_count": 50,
+      "log": "foundationContracts.txt",
+      "sha256": "d9a3a3d2ba3f729c7a1f78684b839269c4141580e1230216cfa4e305b0f89d29",
+      "source_stage": "settled fixture/test source identical to2fd74209"
+    }
+  },
+  "environment_attempts": [
+    {
+      "command": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project ruff format tests/reference/test_executor_refusal_probe.py tests/privileged_vm/guest.py",
+      "exit_code": 2,
+      "diagnostic": "Ruff not in PATH; reused existing cached uv tool, no source failure or network fetch"
+    },
+    {
+      "command": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project ruff check tests/reference/test_executor_refusal_probe.py tests/privileged_vm/guest.py",
+      "exit_code": 2,
+      "diagnostic": "same absent PATH tool"
+    }
+  ],
+  "scope": "actual Unix socketpair refusal with substituted connect; private reset/error injections; no kernel UID authorization claim; local six focused/15reference; Rust372 remains independently attributed to unchanged predecessor0e2"
+}

@@ -1,0 +1,28 @@
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+
+Result=success
+NRestarts=0
+ExecMainStatus=0
+StartLimitIntervalUSec=10s
+StartLimitBurst=5
+Oct 08 07:47:44 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Oct 08 07:47:44 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Oct 08 07:47:44 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Oct 08 07:47:44 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Oct 08 07:47:44 limeos-p01-test limeos-core[957]: {"timestamp":"2026-10-08T07:47:44.352419Z","level":"INFO","fields":{"message":"core ready","generation":1}}

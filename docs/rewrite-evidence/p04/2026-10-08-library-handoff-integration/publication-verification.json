@@ -1,0 +1,48 @@
+{
+  "runtime_source_commit": "2fd74209e1238c1374837ab431ef670020726dc2",
+  "documentation_only": true,
+  "unscoped_staged_whitespace_check": {
+    "command": "git diff --cached --check",
+    "exit_code": 2,
+    "output": "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyAllocationAfter.txt:20: new blank line at EOF.\ndocs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyCleanupAfter.txt:24: new blank line at EOF.\ndocs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyCrateTests.txt:94: new blank line at EOF.\ndocs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyFifoAfter.txt:21: new blank line at EOF.\ndocs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyRecordTests.txt:22: new blank line at EOF.\ndocs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/logs/deny.txt:3: trailing whitespace.\n+  \u2502  \ndocs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/logs/deny.txt:7: trailing whitespace.\n+  \u2502  \ndocs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/logs/deny.txt:30: trailing whitespace.\n+   \u2502  \ndocs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/logs/deny.txt:34: trailing whitespace.\n+   \u2502  \ndocs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/logs/deny.txt:86: trailing whitespace.\n+    \u2502  \ndocs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/logs/deny.txt:90: trailing whitespace.\n+    \u2502  \ndocs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/logs/tests.txt:578: new blank line at EOF.\n"
+  },
+  "raw_evidence_exception": {
+    "reason": "Preserve captured Cargo diagnostic spaces and final blank lines byte for byte. Exclude only the seven named immutable raw-output files below from the authored-file whitespace check. No repository-wide whitespace policy changes.",
+    "paths": [
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyAllocationAfter.txt",
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyCleanupAfter.txt",
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyCrateTests.txt",
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyFifoAfter.txt",
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyRecordTests.txt",
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/logs/deny.txt",
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/logs/tests.txt"
+    ],
+    "sha256": {
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyAllocationAfter.txt": "914b308f231d9ec96d15ed36d193877ba714db8f7f19cfcb77e4517eae06166a",
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyCleanupAfter.txt": "0f57ae6d58c38f75924a7c1907e9fb4723507a2bea71d221d9725d1c43c5d160",
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyCrateTests.txt": "2d7e1d1a9b8137380fd2fe0b482e61fc07ccc3d84f82fe96fc06fff093583f46",
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyFifoAfter.txt": "3e564441b3e16933d1227d6ee96eedba50cf5bb90cde3a0d77c5bd0a390b8d64",
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyRecordTests.txt": "0dc59da11cafaf59b7f76a64a61232d2cf91e2f532983c5158ff3de94f78742b",
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/logs/deny.txt": "ef86a2003ca7434364ea628317edc122923723f18e63703ad7680fcd647a4821",
+      "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/logs/tests.txt": "ac5fb03685825171d95dabfa8e717e168fb9005d8205167334e7f0a0a74897a2"
+    }
+  },
+  "authored_staged_whitespace_check": {
+    "command": "git diff --cached --check -- . ':(exclude)docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyAllocationAfter.txt' ':(exclude)docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyCleanupAfter.txt' ':(exclude)docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyCrateTests.txt' ':(exclude)docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyFifoAfter.txt' ':(exclude)docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/corrections/custodyRecordTests.txt' ':(exclude)docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/logs/deny.txt' ':(exclude)docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration/logs/tests.txt'",
+    "exit_code": 0,
+    "output": ""
+  },
+  "repository_hygiene": {
+    "command": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project python scripts/check_repository.py",
+    "exit_code": 0,
+    "output": "Repository dependency and hygiene checks passed.\n"
+  },
+  "data_checks": {
+    "local_markdown_targets": 148,
+    "original_git_blob_bindings": 303,
+    "corrected_git_blob_bindings": 304,
+    "current_runtime_matches_corrected_source": true,
+    "readme_documentation_overlay_explicitly_declared": true
+  },
+  "timing": "No additional wall-time measurement is claimed for publication checks."
+}

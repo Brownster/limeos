@@ -1,0 +1,12 @@
+S102 Use of `exec` detected
+  --> tests/reference/test_executor_refusal_probe.py:91:17
+   |
+89 |         ):
+90 |             try:
+91 |                 exec(probe_code(), {})
+   |                 ^^^^
+92 |             except SystemExit as error:
+93 |                 self.assertEqual(error.code, 0)
+   |
+
+Found 1 error.

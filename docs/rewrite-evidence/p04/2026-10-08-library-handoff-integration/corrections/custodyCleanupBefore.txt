@@ -1,0 +1,22 @@
+   Compiling limeos-backup-archive v0.2.0 (/tmp/limeos-custody-boundaries/crates/backup-archive)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.49s
+     Running unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_backup_archive-54e87fbd0b9f5d02)
+
+running 1 test
+test custody::tests::early_cleanup_refuses_to_unlink_names_without_verified_identity ... FAILED
+
+failures:
+
+---- custody::tests::early_cleanup_refuses_to_unlink_names_without_verified_identity stdout ----
+
+thread 'custody::tests::early_cleanup_refuses_to_unlink_names_without_verified_identity' panicked at crates/backup-archive/src/custody/tests.rs:145:62:
+Open: unverified object removed: No such file or directory (os error 2)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    custody::tests::early_cleanup_refuses_to_unlink_names_without_verified_identity
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `-p limeos-backup-archive --lib`

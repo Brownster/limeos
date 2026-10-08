@@ -1,0 +1,23 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+     Running unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_backup_archive-54e87fbd0b9f5d02)
+
+running 1 test
+test custody::tests::known_pending_directory_is_guarded_before_owned_file_allocation ... FAILED
+
+failures:
+
+---- custody::tests::known_pending_directory_is_guarded_before_owned_file_allocation stdout ----
+
+thread 'custody::tests::known_pending_directory_is_guarded_before_owned_file_allocation' panicked at crates/backup-archive/src/custody/tests.rs:237:9:
+assertion `left == right` failed
+  left: ["pending-aa40a775474117f377ecfce904849be2", "unrelated-sentinel"]
+ right: ["unrelated-sentinel"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    custody::tests::known_pending_directory_is_guarded_before_owned_file_allocation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `-p limeos-backup-archive --lib`

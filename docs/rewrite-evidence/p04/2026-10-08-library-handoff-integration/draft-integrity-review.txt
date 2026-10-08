@@ -1,0 +1,10 @@
+Verified 28 checksum entries under docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration
+Verified 32 checksum entries under docs/rewrite-evidence/p04/rw040-engine-process-evidence
+Verified 14 checksum entries under docs/rewrite-evidence/p04/rw040-engine-process-evidence/ci
+Verified 21 local links across the two reviewed READMEs
+All eight local logs verify; captured counts are 370 unit/integration +2 compile-fail, zero failed/ignored
+All nine retained corrective-attempt log hashes verify
+All 303 source manifest entries match exact-source Git blobs, sizes and SHA-256
+Working-byte differences since frozen source capture: ['README.md']
+All 124 historical records verify; declared differences: ['Cargo.lock']
+Copied a216 CI capture is byte-identical to all14 finalized files; its actual180 installed checks remain separately attributed

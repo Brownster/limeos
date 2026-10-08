@@ -1,0 +1,83 @@
+.EE.EEE
+======================================================================
+ERROR: test_buffered_explicit_forbidden_is_read_after_pre_send_close (test_executor_refusal_probe.ExecutorRefusalProbeTests.test_buffered_explicit_forbidden_is_read_after_pre_send_close)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 84, in test_buffered_explicit_forbidden_is_read_after_pre_send_close
+    result = self.execute(frame(reply))
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 74, in execute
+    exec(probe_code(), {})
+    ~~~~^^^^^^^^^^^^^^^^^^
+  File "<string>", line 4, in <module>
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 62, in sendall
+    client.sendall(data)
+    ~~~~~~~~~~~~~~^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+======================================================================
+ERROR: test_buffered_health_success_never_qualifies_as_denial (test_executor_refusal_probe.ExecutorRefusalProbeTests.test_buffered_health_success_never_qualifies_as_denial)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 89, in test_buffered_health_success_never_qualifies_as_denial
+    result = self.execute(frame({"version": 1, "ready": True}))
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 74, in execute
+    exec(probe_code(), {})
+    ~~~~^^^^^^^^^^^^^^^^^^
+  File "<string>", line 4, in <module>
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 62, in sendall
+    client.sendall(data)
+    ~~~~~~~~~~~~~~^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+======================================================================
+ERROR: test_partial_header_and_truncated_body_still_fail (test_executor_refusal_probe.ExecutorRefusalProbeTests.test_partial_header_and_truncated_body_still_fail) (reply=b'bad')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 103, in test_partial_header_and_truncated_body_still_fail
+    self.execute(reply)
+    ~~~~~~~~~~~~^^^^^^^
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 74, in execute
+    exec(probe_code(), {})
+    ~~~~^^^^^^^^^^^^^^^^^^
+  File "<string>", line 4, in <module>
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 62, in sendall
+    client.sendall(data)
+    ~~~~~~~~~~~~~~^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+======================================================================
+ERROR: test_partial_header_and_truncated_body_still_fail (test_executor_refusal_probe.ExecutorRefusalProbeTests.test_partial_header_and_truncated_body_still_fail) (reply=b'\x00\x00\x00\nshort')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 103, in test_partial_header_and_truncated_body_still_fail
+    self.execute(reply)
+    ~~~~~~~~~~~~^^^^^^^
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 74, in execute
+    exec(probe_code(), {})
+    ~~~~^^^^^^^^^^^^^^^^^^
+  File "<string>", line 4, in <module>
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 62, in sendall
+    client.sendall(data)
+    ~~~~~~~~~~~~~~^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+======================================================================
+ERROR: test_real_peer_close_before_send_is_a_refusal (test_executor_refusal_probe.ExecutorRefusalProbeTests.test_real_peer_close_before_send_is_a_refusal)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 80, in test_real_peer_close_before_send_is_a_refusal
+    self.assertEqual(self.execute(), "denied\n")
+                     ~~~~~~~~~~~~^^
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 74, in execute
+    exec(probe_code(), {})
+    ~~~~^^^^^^^^^^^^^^^^^^
+  File "<string>", line 4, in <module>
+  File "/home/marc/Documents/github/lime-os/tests/reference/test_executor_refusal_probe.py", line 62, in sendall
+    client.sendall(data)
+    ~~~~~~~~~~~~~~^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.075s
+
+FAILED (errors=5)
