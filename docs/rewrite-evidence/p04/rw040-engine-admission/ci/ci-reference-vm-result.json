@@ -1,0 +1,154 @@
+{
+  "checks": [
+    "only the container executor can access Engine and protected receipts",
+    "GET and invalid origin or CSRF cannot initiate an operation",
+    "one real restart, independent verification, durable progress and duplicate request",
+    "changed plans, stale incarnation and independent managed-ID ceiling",
+    "browser and scoped task share policy; task cannot approve; grant revocation is immediate",
+    "expired human approval causes no Engine effect",
+    "queued cancellation prevents effects; in-flight cancellation cannot claim prevention",
+    "kill limeos-core before_prepare: no unjustified second effect",
+    "kill limeos-containerd before_prepare: no unjustified second effect",
+    "kill limeos-core during: no unjustified second effect",
+    "kill limeos-containerd during: no unjustified second effect",
+    "kill limeos-core after_effect: no unjustified second effect",
+    "kill limeos-containerd after_effect: no unjustified second effect",
+    "shadow has isolated state and refuses write-enabled policy",
+    "shadow removal preserves standard services and authenticated reads",
+    "real stop is approved, verified, action-bound and idempotent",
+    "real start is approved, verified, action-bound and idempotent",
+    "start: kill limeos-core before_prepare retains proof and prevents replay",
+    "start: kill limeos-containerd before_prepare retains proof and prevents replay",
+    "start: kill limeos-core during retains proof and prevents replay",
+    "start: kill limeos-containerd during retains proof and prevents replay",
+    "start: kill limeos-core after_effect retains proof and prevents replay",
+    "start: kill limeos-containerd after_effect retains proof and prevents replay",
+    "stop: kill limeos-core before_prepare retains proof and prevents replay",
+    "stop: kill limeos-containerd before_prepare retains proof and prevents replay",
+    "stop: kill limeos-core during retains proof and prevents replay",
+    "stop: kill limeos-containerd during retains proof and prevents replay",
+    "stop: kill limeos-core after_effect retains proof and prevents replay",
+    "stop: kill limeos-containerd after_effect retains proof and prevents replay",
+    "real multiplexed logs are bounded, filtered and have no effect",
+    "real TTY logs are bounded, filtered and have no effect",
+    "logs independently reject an unmanaged ID and a disabled log ceiling",
+    "task logs use the same resource grant and cannot acquire human approval",
+    "viewer inventory authority permits neither browser nor task logs",
+    "real oversized log framing clips within byte and time limits",
+    "start has an independent effect ceiling even with restart enabled",
+    "stop has an independent effect ceiling even with restart enabled",
+    "shadow independently refuses start-enabled and stop-enabled ceilings",
+    "a missing optional catalog disables previews without affecting the core or Python services",
+    "normal scoped preview exposes added/removed/changed services, numeric ownership and unchanged operator fingerprints",
+    "GET never creates or approves a preview and repeated reads do not write authority; CSRF and exact digest are enforced",
+    "hashed preview approval survives restart and cannot become a Docker/container job",
+    "framed task proposals share browser policy and content; kernel UID and human-only approval prevent authority substitution",
+    "all five elevations require the exact stack/template/content grant; wildcard admins and narrowed tasks cannot broaden it",
+    "changed catalog fingerprints block old approvals and cancellation removes access to the preview",
+    "media-requester roles cannot deploy even when supplied deployment scopes",
+    "corrupt catalog fails closed and is preserved",
+    "oversized catalog fails before unlimited input allocation",
+    "ambiguous Compose filenames are rejected without editing operator YAML",
+    "unsupported privilege fields cannot escape the typed schema",
+    "world-writable catalog is refused",
+    "service-owned catalog cannot become planning authority",
+    "root-owned catalog under a writable parent is refused",
+    "symlink catalogs are refused and their targets preserved",
+    "all preview scenarios leave operator files and stack directories byte-for-byte untouched",
+    "all seven reference layouts retain numeric application ownership and exact mount targets/read modes throughout lifecycle interruption tests",
+    "UID/GID 1000 can write each intended bind or volume; the reference music mount remains read-only",
+    "all synthetic reference data sentinels and numeric ownership survive the complete mutation matrix",
+    "reference media preview retains resolved mount paths, source fingerprints and image IDs; exact host-mount grant and task policy agree",
+    "reference VPN capabilities cannot silently enter the limited P03 template schema",
+    "reference quoted mount target is reported by strict planning validation, not normalized away"
+  ],
+  "engine_version": "20.10.24+dfsg1",
+  "container_fixture": "static BusyBox surrogates with redacted reference mounts and private bridge/shared namespace; no production images/data",
+  "restart_posts": 8,
+  "restart_effect_ms": {
+    "33df07f1f3f55885968d166449c96e40bcfc42c882b548181146dc4ee5bd3b72": 10400.373,
+    "d62e81c340128fa0d58522e81acf2328dc9ce0c33a6b86c5dd229cd936e24abc": 10408.036,
+    "c54308c4661e4ec191189e6fbb2b906ecfd402ff7dbca4f94a26f51f357d6c0a": 10140.64,
+    "a35b668307c51242fad3b3178ebb84b38a7e2f9a4f503a0386715ae444c41826": 10164.041,
+    "aacd91c4fc018e7ea2fc39aad08044e74c86dc353207f6e3b57c51580f15ea7e": 10481.965,
+    "54aeb67621a0264d0f7c27c140f0019a6ec2fd15f7a497fe094d196d1508f5c3": 10426.69,
+    "0ed8394ef311973dcfca44ae7b37e9c90f6db870b796c18a827b05aaa3cd12d2": 10435.979
+  },
+  "footprint": {
+    "architecture": "amd64",
+    "app_pss_kib": {
+      "limeos-core": 7192,
+      "limeos-containerd": 3346,
+      "limeos-storaged": 1525
+    },
+    "combined_pss_kib": 12063,
+    "overview_p95_ms": 1.037,
+    "overview_median_ms": 0.63,
+    "workload": "after restart/start/stop, log and interruption qualification, 20 cached overview requests",
+    "exclusions": [
+      "Docker daemon",
+      "test proxy",
+      "browser",
+      "Rust build tools"
+    ],
+    "swap_kib": 0
+  },
+  "package_sha256": {
+    "limeos-shadow_0.4.4_amd64.deb": "b8db5898be0e1b6ceca45ae6b157015c4a81861a55522dc44f1f86a8eccb98ee",
+    "limeos_0.4.4+ci.1_amd64.deb": "e374162682a91d061691c3ac3f475f5a3b26666b26c0eb8fcb1b3089146d6d28",
+    "limeos_0.4.4_amd64.deb": "d9cbad694e704f842455d01aa01e29dbbf1f897299cd443fe0d00f8cc54cbc2b"
+  },
+  "lifecycle_posts": 20,
+  "operations": [
+    "restart",
+    "start",
+    "stop",
+    "logs",
+    "compose.preview"
+  ],
+  "schemas": {
+    "authority": 8,
+    "container_receipts": 3
+  },
+  "upgrade": null,
+  "compose": {
+    "catalog_fixture_sha256": "4b5c74eaa3b4d0f7fdc2c4b19c50792eb74a238ca808bbef88a2c39c3ee641eb",
+    "operator_file_sha256": "112533a38c38f95195f85432652cea6b1d6ed2c7a36082beaaf378e960d3be4f",
+    "host_effects": 0,
+    "catalog_source": "synthetic protected planning snapshot; no reference host data",
+    "deployment_executable": false,
+    "additional_reference_preview": "partial non-executable media snapshot and explicit rejection of unsupported VPN/quoted-target contracts"
+  },
+  "reference": {
+    "profile_sha256": "aa9780e3d8f4b7b5cca9bb3caeb883a19f356a88c6b836875f184c3a26f9c82c",
+    "services": [
+      "jellyfin",
+      "audiobookshelf",
+      "navidrome",
+      "sonarr",
+      "radarr",
+      "transmission",
+      "vpn"
+    ],
+    "profiled_containers": 29,
+    "sentinels_preserved": 16,
+    "application_uid_gid": [
+      1000,
+      1000
+    ],
+    "production_environment_values_copied": 0,
+    "host": "wybie (read-only capture)",
+    "limitations": [
+      "Resolved configuration projection, not raw Compose/.env import or application qualification",
+      "BusyBox runs as the application UID; production images may initialize as root then drop privileges",
+      "Privileged flags, VPN capabilities/devices and published listeners are not enabled in these surrogates",
+      "VPN clients share a stable surrogate namespace; dependent-stack mount/network supervision belongs to P04",
+      "Anonymous volume is recreated with a test name; no production data or image is fetched",
+      "Native ARM64 and reference-hardware measurements remain pending"
+    ]
+  },
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "cmd": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project python /home/marc/Documents/github/lime-os/target/engine-admission-ci-37827510060/collect_ci.py --collect",
+  "chunk_id": "1cbc3b",
+  "wall_time_seconds": 1.001788162,
+  "original_token_count": 0,
+  "exit_code": 0,
+  "source": "31fdb5f47fb680597f8806b41e6fb4bb7d504026",
+  "scope": "Engine-only admission exact-source CI; default probe/existing installed suites, no privileged named-case or combined-capacity claim",
+  "helper_sha256": "dd34e00865dfcdd823b0884e308104a06f0bf7e150fba83b5f75f43d24bd09aa",
+  "raw_log_sha256": "d63a41ee2a8a6e4c3306a021728edc79fa856c1cf724a17a88a8a3267b955a0f",
+  "raw_log_bytes": 2122,
+  "gzip_sha256": "5bf315a88d1a06b0ffcd7f28eb4bb838a50c9a800943ff449c426cafb0a961ba"
+}

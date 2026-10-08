@@ -1,0 +1,37 @@
+{
+  "base": "1a2947eb1dc9fa91c1bef4ebf311d78898bb01d6",
+  "branch": "integrator/rw040-engine-admission",
+  "files": [
+    {
+      "path": "crates/executor-container/src/docker.rs",
+      "sha256": "bb501302fc95cf2a09e108c1370bda94449fdee9c84f1613a2e402fbe44742bc",
+      "bytes": 9127
+    },
+    {
+      "path": "crates/executor-container/src/docker/process_evidence.rs",
+      "sha256": "8079c39b3021cfa7d540bef78be57b6d501cd9fabcbc0e8d5d6057ab4c1d30cf",
+      "bytes": 19496
+    },
+    {
+      "path": "crates/executor-container/src/docker/storage.rs",
+      "sha256": "9d5c2d544e34c4f9af83bb81992a025e9aab6ef922ef81d56b27d9824f636eb5",
+      "bytes": 7692
+    },
+    {
+      "path": "crates/executor-container/src/docker/read_admission.rs",
+      "sha256": "6dfa1b16148109cc5c861e4822accebd3590fe24b02e48d9c7370f2fecab6e24",
+      "bytes": 11553
+    },
+    {
+      "path": "crates/executor-container/src/docker/process_evidence/tests.rs",
+      "sha256": "98ee7706d5ec378a1753b49867b7c717e9bace5e896afe16f55ef54b7c7f98de",
+      "bytes": 29832
+    },
+    {
+      "path": "crates/executor-container/src/docker/read_admission/tests.rs",
+      "sha256": "e48a318f1d7e2f8dc3b63d8fdc68460df6825732a3aa08c7a090a446c96f10ea",
+      "bytes": 7885
+    }
+  ],
+  "source_commit": "31fdb5f47fb680597f8806b41e6fb4bb7d504026"
+}

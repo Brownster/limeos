@@ -1,0 +1,25 @@
+{
+  "sandbox_failure": {
+    "diagnostic": "failed to register synthetic bubblewrap mount target /tmp/.git: Quota exceeded (os error 122)",
+    "scope": "read-only command setup before execution",
+    "source_failure": false
+  },
+  "interrupted_batch": {
+    "tool": "functions.exec",
+    "reported_wait_seconds": 819.8,
+    "outcome": "aborted by user",
+    "execution_scope": "Earlier polling in the batch had saved partial workspace output; subsequent requested reads did not return results. No complete gate outcome was claimed from the aborted batch.",
+    "cause": "tool/approval stall; exact internal cause was not independently observed"
+  },
+  "filesystems": {
+    "compile_temp": "/home/marc/Documents/github/lime-os/target/engine-admission-tmp on btrfs",
+    "test_temp": "/tmp on tmpfs"
+  },
+  "cleanup_scope": {
+    "path": "/tmp/limeos-rw041/target",
+    "command": "env cargo clean --manifest-path /tmp/limeos-rw041/Cargo.toml --target-dir /tmp/limeos-rw041/target",
+    "reported_files": 7028,
+    "reported_size": "2.9GiB",
+    "source_docs_git_proof_external_worktrees": "preserved"
+  }
+}
