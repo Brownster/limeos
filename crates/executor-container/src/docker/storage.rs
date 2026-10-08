@@ -76,31 +76,74 @@ impl Docker {
 }
 
 pub(super) fn parse_storage_container_ids(value: &Value) -> Result<Vec<String>> {
+    parse_storage_container_ids_with_admission(value, None)
+}
+pub(super) fn parse_storage_container_ids_with_admission(
+    value: &Value,
+    mut admission: Option<&mut super::read_admission::Scope>,
+) -> Result<Vec<String>> {
     let list = value.as_array().ok_or_else(unavailable)?;
-    if list.len() > CONTAINER_STORAGE_MAX_CONTAINERS {
+    let limit = if admission.is_some() {
+        super::read_admission::CONSUMERS
+    } else {
+        CONTAINER_STORAGE_MAX_CONTAINERS
+    };
+    if list.len() > limit {
         return Err(unavailable());
     }
     let mut ids = BTreeSet::new();
     for item in list {
         let id = item["Id"].as_str().ok_or_else(unavailable)?;
-        if !opaque_id(id) || !ids.insert(id.to_owned()) {
+        if let Some(scope) = &mut admission {
+            scope.charge(48)?;
+        }
+        if !opaque_id(id) || !ids.insert(id) {
             return Err(unavailable());
         }
     }
-    Ok(ids.into_iter().collect())
+    let mut result = Vec::new();
+    if let Some(scope) = &mut admission {
+        scope.reserve(&mut result, ids.len())?;
+    }
+    for id in ids {
+        result.push(owned(&mut admission, id)?);
+    }
+    Ok(result)
 }
 
 pub(super) fn parse_storage_container(value: &Value, id: &str) -> Result<ContainerStorageConsumer> {
+    parse_storage_container_with_admission(value, id, usize::MAX, None)
+}
+fn owned(admission: &mut Option<&mut super::read_admission::Scope>, text: &str) -> Result<String> {
+    match admission {
+        Some(scope) => scope.string(text),
+        None => Ok(text.to_owned()),
+    }
+}
+pub(super) fn parse_storage_container_with_admission(
+    value: &Value,
+    id: &str,
+    selected_limit: usize,
+    mut admission: Option<&mut super::read_admission::Scope>,
+) -> Result<ContainerStorageConsumer> {
     if value["Id"].as_str() != Some(id) {
         return Err(unavailable());
     }
+    if let Some(scope) = &mut admission {
+        scope.charge(id.len() + 10)?;
+    }
     let container = ContainerSnapshot {
         resource: format!("container:{id}"),
-        image: value["Image"].as_str().ok_or_else(unavailable)?.into(),
-        started_at: value["State"]["StartedAt"]
-            .as_str()
-            .ok_or_else(unavailable)?
-            .into(),
+        image: owned(
+            &mut admission,
+            value["Image"].as_str().ok_or_else(unavailable)?,
+        )?,
+        started_at: owned(
+            &mut admission,
+            value["State"]["StartedAt"]
+                .as_str()
+                .ok_or_else(unavailable)?,
+        )?,
         running: value["State"]["Running"]
             .as_bool()
             .ok_or_else(unavailable)?,
@@ -114,26 +157,50 @@ pub(super) fn parse_storage_container(value: &Value, id: &str) -> Result<Contain
     for raw in raw_mounts {
         let destination = raw["Destination"].as_str().ok_or_else(unavailable)?;
         let writable = raw["RW"].as_bool().ok_or_else(unavailable)?;
+        if let Some(scope) = &mut admission {
+            scope.charge(48)?;
+        }
         if !container_storage_path(destination) || !destinations.insert(destination) {
+            return Err(unavailable());
+        }
+        if admission.is_some()
+            && raw["Type"].as_str() != Some("tmpfs")
+            && mounts.len() >= selected_limit
+        {
             return Err(unavailable());
         }
         let source = match raw["Type"].as_str() {
             Some("bind") => ContainerStorageSource::Bind {
-                path: raw["Source"].as_str().ok_or_else(unavailable)?.into(),
+                path: owned(
+                    &mut admission,
+                    raw["Source"].as_str().ok_or_else(unavailable)?,
+                )?,
             },
             Some("volume") => ContainerStorageSource::Volume {
-                path: raw["Source"].as_str().ok_or_else(unavailable)?.into(),
-                name: raw["Name"].as_str().ok_or_else(unavailable)?.into(),
-                driver: raw["Driver"].as_str().ok_or_else(unavailable)?.into(),
+                path: owned(
+                    &mut admission,
+                    raw["Source"].as_str().ok_or_else(unavailable)?,
+                )?,
+                name: owned(
+                    &mut admission,
+                    raw["Name"].as_str().ok_or_else(unavailable)?,
+                )?,
+                driver: owned(
+                    &mut admission,
+                    raw["Driver"].as_str().ok_or_else(unavailable)?,
+                )?,
             },
             Some("tmpfs") if raw.get("Source").is_none() || raw["Source"].as_str() == Some("") => {
                 continue;
             }
             _ => return Err(unavailable()),
         };
+        if let Some(scope) = &mut admission {
+            scope.reserve(&mut mounts, 1)?;
+        }
         mounts.push(ContainerStorageMount {
             source,
-            destination: destination.into(),
+            destination: owned(&mut admission, destination)?,
             writable,
         });
     }

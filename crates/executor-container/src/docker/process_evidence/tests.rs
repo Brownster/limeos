@@ -23,6 +23,7 @@ struct Config {
     count: usize,
     first_running: bool,
     all_running: bool,
+    running_count: Option<usize>,
     duplicate_pids: bool,
     pid: Option<Value>,
     changed: Option<Change>,
@@ -43,6 +44,7 @@ impl Default for Config {
             count: 2,
             first_running: true,
             all_running: false,
+            running_count: None,
             duplicate_pids: false,
             pid: Some(json!(1000)),
             changed: None,
@@ -89,6 +91,11 @@ impl Fixture {
     }
     async fn inspect(&self) -> Result<EngineStorageProcessEvidence> {
         self.docker.inspect_storage_processes(self.policy).await
+    }
+    async fn inspect_combined(&self) -> Result<EngineStorageProcessEvidence> {
+        self.docker
+            .inspect_storage_processes_with_profile(self.policy, EngineReadProfile::CombinedV1)
+            .await
     }
 }
 async fn fixture(config: Config) -> Fixture {
@@ -181,7 +188,10 @@ async fn fixture(config: Config) -> Fixture {
                     .next()
                     .unwrap();
                 let index = usize::from_str_radix(id, 16).unwrap();
-                let running = config.all_running || (index == 0 && config.first_running);
+                let running = config.running_count.map_or(
+                    config.all_running || (index == 0 && config.first_running),
+                    |count| index < count,
+                );
                 let source = if matches!(config.changed, Some(Change::Mount)) && nth > 1 {
                     "/mnt/replaced".into()
                 } else {
@@ -260,6 +270,175 @@ async fn fixture(config: Config) -> Fixture {
         eof,
         task,
     }
+}
+
+#[tokio::test]
+async fn combined_admits_complete_sixteen_eight_thirty_two_and_revalidates() {
+    let fixture = fixture(Config {
+        count: 16,
+        running_count: Some(8),
+        mounts: 2,
+        ..Config::default()
+    })
+    .await;
+    let owner = fixture.inspect_combined().await.unwrap();
+    assert_eq!(owner.declarations().containers.len(), 16);
+    assert_eq!(owner.running().len(), 8);
+    assert_eq!(
+        owner
+            .declarations()
+            .containers
+            .iter()
+            .map(|c| c.mounts.len())
+            .sum::<usize>(),
+        32
+    );
+    assert_eq!(fixture.requests().len(), 37);
+    owner.revalidate().await.unwrap();
+    assert_eq!(fixture.requests().len(), 74);
+}
+
+#[tokio::test]
+async fn combined_refuses_seventeenth_stopped_mountless_member_before_inspects() {
+    let fixture = fixture(Config {
+        count: 17,
+        first_running: false,
+        mounts: 0,
+        ..Config::default()
+    })
+    .await;
+    assert!(matches!(
+        fixture.inspect_combined().await,
+        Err(Error(ErrorCode::Unavailable))
+    ));
+    assert_eq!(fixture.requests().len(), 3);
+}
+
+#[tokio::test]
+async fn combined_refuses_ninth_running_member_before_retaining_snapshot() {
+    let fixture = fixture(Config {
+        count: 9,
+        all_running: true,
+        mounts: 0,
+        ..Config::default()
+    })
+    .await;
+    assert!(matches!(
+        fixture.inspect_combined().await,
+        Err(Error(ErrorCode::Unavailable))
+    ));
+    assert_eq!(fixture.requests().len(), 12);
+}
+
+#[tokio::test]
+async fn combined_refuses_thirty_third_selected_mount_in_first_pass() {
+    let fixture = fixture(Config {
+        count: 11,
+        mounts: 3,
+        ..Config::default()
+    })
+    .await;
+    assert!(matches!(
+        fixture.inspect_combined().await,
+        Err(Error(ErrorCode::Unavailable))
+    ));
+    assert_eq!(fixture.requests().len(), 14);
+    assert!(
+        fixture
+            .state
+            .lock()
+            .unwrap()
+            .counts
+            .values()
+            .all(|n| *n == 1)
+    );
+}
+
+#[tokio::test]
+async fn combined_body_allowance_is_spent_across_owner_revalidations() {
+    let fixture = fixture(Config {
+        count: 16,
+        mounts: 0,
+        padding: 15 * 1024,
+        ..Config::default()
+    })
+    .await;
+    let owner = fixture.inspect_combined().await.unwrap();
+    owner.revalidate().await.unwrap();
+    owner.revalidate().await.unwrap();
+    owner.revalidate().await.unwrap();
+    assert!(matches!(
+        owner.revalidate().await,
+        Err(Error(ErrorCode::Unavailable))
+    ));
+    let before = fixture.requests().len();
+    assert!(matches!(
+        owner.revalidate().await,
+        Err(Error(ErrorCode::Unavailable))
+    ));
+    assert_eq!(fixture.requests().len(), before);
+}
+
+#[tokio::test]
+async fn combined_retains_production_peer_uid_check_before_http() {
+    if rustix::process::geteuid().is_root() {
+        return;
+    }
+    let fixture = fixture(Config::default()).await;
+    // Private socket-owner seam only; production trusted peer remains UID 0.
+    let policy = EnginePeerPolicy {
+        socket_uid: fixture.policy.socket_uid,
+        peer_uid: 0,
+    };
+    assert!(matches!(
+        fixture
+            .docker
+            .inspect_storage_processes_with_profile(policy, EngineReadProfile::CombinedV1)
+            .await,
+        Err(Error(ErrorCode::Forbidden))
+    ));
+    assert!(fixture.requests().is_empty());
+}
+
+#[tokio::test]
+async fn combined_concurrent_revalidation_refuses_without_new_http_and_cancel_releases() {
+    let fixture = fixture(Config::default()).await;
+    let owner = fixture.inspect_combined().await.unwrap();
+    fixture.set(|c| c.hold = true);
+    let mut first = Box::pin(owner.revalidate());
+    tokio::select! {
+        _ = fixture.held.notified() => {},
+        result = &mut first => panic!("expected held response, got {result:?}"),
+    }
+    let before = fixture.requests().len();
+    assert!(matches!(
+        owner.revalidate().await,
+        Err(Error(ErrorCode::Unavailable))
+    ));
+    assert_eq!(fixture.requests().len(), before);
+    drop(first);
+    tokio::time::timeout(Duration::from_secs(1), fixture.eof.notified())
+        .await
+        .unwrap();
+    fixture.set(|c| c.hold = false);
+    owner.revalidate().await.unwrap();
+}
+
+#[tokio::test]
+async fn combined_rejects_oversized_borrowed_endpoint_before_any_reservation_or_open() {
+    let docker = Docker::new(format!("/{}", "x".repeat(1024 * 1024)).into());
+    let admission = Admission::new(EngineReadProfile::CombinedV1);
+    assert!(matches!(
+        inspect_profile(
+            &docker,
+            EnginePeerPolicy::root(),
+            TimeSource::default(),
+            Some(admission.clone())
+        )
+        .await,
+        Err(Error(ErrorCode::InvalidInput))
+    ));
+    assert_eq!(admission.remaining_live(), 2 * 1024 * 1024);
 }
 fn error(result: Result<EngineStorageProcessEvidence>) -> ErrorCode {
     result.err().expect("unexpected usable evidence").0

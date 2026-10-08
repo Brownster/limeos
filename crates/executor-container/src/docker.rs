@@ -7,6 +7,7 @@ use serde_json::Value;
 use std::{path::PathBuf, time::Duration};
 use tokio::net::UnixStream;
 pub mod process_evidence;
+mod read_admission;
 mod storage;
 #[cfg(test)]
 mod tests;
@@ -127,6 +128,13 @@ impl Docker {
                         return Ok((status, bytes, true));
                     }
                     return Err(Error(ErrorCode::Unavailable));
+                }
+                if let Some((_, budget)) = authenticated {
+                    if budget.constrained() {
+                        bytes
+                            .try_reserve_exact(data.len())
+                            .map_err(|_| Error(ErrorCode::Unavailable))?;
+                    }
                 }
                 bytes.extend_from_slice(&data);
             }

@@ -1,7 +1,8 @@
 //! Authenticated GET-only Engine observations; no retained daemon/process authority.
+pub use super::read_admission::EngineReadProfile;
 use super::{
     Docker, StatusCode, Value, parse_api_version,
-    storage::{parse_storage_container, parse_storage_container_ids as container_ids},
+    read_admission::{self, Admission, Json, Scope},
 };
 use limeos_domain::{
     CONTAINER_STORAGE_MAX_AGE_SECONDS, CONTAINER_STORAGE_MAX_TOTAL_MOUNTS, ContainerSnapshot,
@@ -85,6 +86,9 @@ pub struct EngineStorageProcessEvidence {
     snapshot: EngineStorageProcessSnapshot,
     authenticated: AuthenticatedEngine,
     lifetime: EvidenceLifetime,
+    admission: Option<Admission>,
+    _scope: Option<Scope>,
+    _launch: Option<Scope>,
 }
 impl EngineStorageProcessEvidence {
     pub fn snapshot(&self) -> &EngineStorageProcessSnapshot {
@@ -100,7 +104,7 @@ impl EngineStorageProcessEvidence {
     /// authenticate a daemon PID, retain container processes or authorize effects.
     pub async fn revalidate(&self) -> Result<()> {
         self.lifetime.check()?;
-        let fresh = collect(&self.authenticated, &self.lifetime).await?;
+        let fresh = collect(&self.authenticated, &self.lifetime, self.admission.as_ref()).await?;
         self.lifetime.check()?;
         if fresh.declarations.engine_id != self.snapshot.declarations.engine_id
             || fresh.declarations.containers != self.snapshot.declarations.containers
@@ -122,15 +126,46 @@ impl Docker {
     ) -> Result<EngineStorageProcessEvidence> {
         inspect(self, policy, TimeSource::default()).await
     }
+    /// Closed admission for later bounded composition. No runtime/wire selection.
+    pub async fn inspect_storage_processes_with_profile(
+        &self,
+        policy: EnginePeerPolicy,
+        profile: EngineReadProfile,
+    ) -> Result<EngineStorageProcessEvidence> {
+        inspect_profile(
+            self,
+            policy,
+            TimeSource::default(),
+            Some(Admission::new(profile)),
+        )
+        .await
+    }
 }
 async fn inspect(
     docker: &Docker,
     policy: EnginePeerPolicy,
     clock: TimeSource,
 ) -> Result<EngineStorageProcessEvidence> {
+    inspect_profile(docker, policy, clock, None).await
+}
+async fn inspect_profile(
+    docker: &Docker,
+    policy: EnginePeerPolicy,
+    clock: TimeSource,
+    admission: Option<Admission>,
+) -> Result<EngineStorageProcessEvidence> {
     let lifetime = EvidenceLifetime::new(clock)?;
+    if admission.is_some()
+        && (!docker.socket.is_absolute() || docker.socket.as_os_str().len() > 512)
+    {
+        return Err(Error(ErrorCode::InvalidInput));
+    }
+    let mut launch = admission.as_ref().map(Admission::scope);
+    if let Some(scope) = &mut launch {
+        scope.charge(8192)?;
+    }
     let authenticated = AuthenticatedEngine::open(docker.clone(), policy)?;
-    let collected = collect(&authenticated, &lifetime).await?;
+    let collected = collect(&authenticated, &lifetime, admission.as_ref()).await?;
     let snapshot = EngineStorageProcessSnapshot {
         version: 1,
         endpoint: docker.socket.clone(),
@@ -145,6 +180,9 @@ async fn inspect(
         snapshot,
         authenticated,
         lifetime,
+        admission,
+        _scope: collected._scope,
+        _launch: launch,
     })
 }
 
@@ -236,8 +274,20 @@ impl AuthenticatedEngine {
         limit: usize,
         budget: &ResponseBudget,
         lifetime: &EvidenceLifetime,
-    ) -> Result<Value> {
+        admission: Option<&Admission>,
+    ) -> Result<Json> {
         lifetime.check()?;
+        if let Some(admission) = admission {
+            admission.ensure_body()?;
+        }
+        let limit = if admission.is_some() {
+            limit.min(read_admission::RESPONSE)
+        } else {
+            limit
+        };
+        // Reserve body/decoder/HTTP scratch before the transport or serde can grow.
+        let scope = admission.map(|a| a.response_scope(limit)).transpose()?;
+        let list = path.ends_with("/containers/json?all=1");
         let value = tokio::time::timeout(Duration::from_secs(REQUEST_SECONDS), async {
             let (status, bytes, _) = self
                 .docker
@@ -246,7 +296,12 @@ impl AuthenticatedEngine {
             if status != StatusCode::OK {
                 return Err(unavailable());
             }
-            serde_json::from_slice(&bytes).map_err(|_| unavailable())
+            match scope {
+                Some(scope) => Json::decode(&bytes, scope, list),
+                None => serde_json::from_slice(&bytes)
+                    .map(Json::standard)
+                    .map_err(|_| unavailable()),
+            }
         })
         .await
         .map_err(|_| unavailable())??;
@@ -255,12 +310,23 @@ impl AuthenticatedEngine {
     }
 }
 
-pub(super) struct ResponseBudget(AtomicUsize);
+pub(super) struct ResponseBudget(AtomicUsize, Option<Admission>);
 impl ResponseBudget {
     fn new() -> Self {
-        Self(AtomicUsize::new(MAX_RESPONSE_BYTES))
+        Self(AtomicUsize::new(MAX_RESPONSE_BYTES), None)
+    }
+    fn for_admission(admission: Option<&Admission>) -> Self {
+        let mut budget = Self::new();
+        budget.1 = admission.cloned();
+        budget
+    }
+    pub(super) fn constrained(&self) -> bool {
+        self.1.is_some()
     }
     pub(super) fn consume(&self, bytes: usize) -> Result<()> {
+        if let Some(admission) = &self.1 {
+            return admission.consume(bytes);
+        }
         self.0
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |remaining| {
                 remaining.checked_sub(bytes)
@@ -321,30 +387,74 @@ impl EvidenceLifetime {
 struct Collected {
     declarations: ContainerStorageInventory,
     running: Vec<EngineRunningProcess>,
+    _scope: Option<Scope>,
 }
 async fn collect(
     authenticated: &AuthenticatedEngine,
     lifetime: &EvidenceLifetime,
+    admission: Option<&Admission>,
 ) -> Result<Collected> {
     lifetime.check()?;
+    let _collecting = admission.map(Admission::collect).transpose()?;
     let deadline = lifetime
         .expires
         .min(Instant::now() + Duration::from_secs(COLLECTION_SECONDS));
     tokio::time::timeout_at(deadline, async {
-        let budget = ResponseBudget::new();
-        let get = |path, limit| authenticated.json(path, limit, &budget, lifetime);
-        let version = parse_api_version(&get("/version".into(), 8192).await?)?;
-        let engine_identity = engine_id(&get(format!("/{version}/info"), 128 * 1024).await?)?;
+        let budget = ResponseBudget::for_admission(admission);
+        let mut scope = admission.map(Admission::scope);
+        // Closed16/32 validator sets, fixed version/URI formatting and small
+        // request/error bookkeeping. This is a conservative counted allowance,
+        // not individually fallible std allocations or total allocator heap.
+        if let Some(scope) = &mut scope {
+            scope.charge(8192)?;
+        }
+        let get = |path, limit| authenticated.json(path, limit, &budget, lifetime, admission);
+        let version_json = get("/version".into(), 8192).await?;
+        let version = parse_api_version(&version_json)?;
+        drop(version_json);
+        if let Some(scope) = &mut scope {
+            scope.charge(version.len())?;
+        }
+        let info = get(format!("/{version}/info"), 128 * 1024).await?;
+        let engine_identity = engine_id_with_scope(&info, scope.as_mut())?;
+        drop(info);
         let list_path = format!("/{version}/containers/json?all=1");
-        let ids = container_ids(&get(list_path.clone(), 512 * 1024).await?)?;
-        let mut containers = Vec::with_capacity(ids.len());
-        let mut pids = Vec::with_capacity(ids.len());
+        let list = get(list_path.clone(), 512 * 1024).await?;
+        let ids =
+            super::storage::parse_storage_container_ids_with_admission(&list, scope.as_mut())?;
+        drop(list);
+        let mut containers = Vec::new();
+        let mut pids = Vec::new();
+        if let Some(scope) = &mut scope {
+            scope.reserve(&mut containers, ids.len())?;
+            scope.reserve(&mut pids, ids.len())?;
+        } else {
+            containers.reserve(ids.len());
+            pids.reserve(ids.len());
+        }
         let mut total_mounts = 0;
         let mut running_pids = BTreeSet::new();
+        let mut running_count = 0;
         for id in &ids {
             let value = get(format!("/{version}/containers/{id}/json"), 512 * 1024).await?;
-            let consumer = parse_storage_container(&value, id)?;
+            if admission.is_some() && value["State"]["Running"].as_bool() == Some(true) {
+                running_count += 1;
+                if running_count > read_admission::RUNNING {
+                    return Err(unavailable());
+                }
+            }
+            let consumer = super::storage::parse_storage_container_with_admission(
+                &value,
+                id,
+                read_admission::MOUNTS.saturating_sub(total_mounts),
+                scope.as_mut(),
+            )?;
             let pid = container_pid(&value, &consumer)?;
+            if pid != 0 {
+                if let Some(scope) = &mut scope {
+                    scope.charge(32)?;
+                }
+            }
             if pid != 0 && !running_pids.insert(pid) {
                 return Err(unavailable());
             }
@@ -366,34 +476,58 @@ async fn collect(
             .map_err(|_| unavailable())?;
         for ((id, before), &pid) in ids.iter().zip(&declarations.containers).zip(&pids) {
             let value = get(format!("/{version}/containers/{id}/json"), 512 * 1024).await?;
-            let after = parse_storage_container(&value, id)?;
+            let mut comparison = admission.map(Admission::scope);
+            let after = super::storage::parse_storage_container_with_admission(
+                &value,
+                id,
+                read_admission::MOUNTS,
+                comparison.as_mut(),
+            )?;
             if after != *before || container_pid(&value, &after)? != pid {
                 return Err(conflict());
             }
         }
-        if container_ids(&get(list_path, 512 * 1024).await?)? != ids
-            || engine_id(&get(format!("/{version}/info"), 128 * 1024).await?)?
-                != declarations.engine_id
+        let mut comparison = admission.map(Admission::scope);
+        let list_json = get(list_path, 512 * 1024).await?;
+        if super::storage::parse_storage_container_ids_with_admission(
+            &list_json,
+            comparison.as_mut(),
+        )? != ids
         {
             return Err(conflict());
         }
+        drop(list_json);
+        let info_json = get(format!("/{version}/info"), 128 * 1024).await?;
+        if engine_id_with_scope(&info_json, comparison.as_mut())? != declarations.engine_id {
+            return Err(conflict());
+        }
+        drop(info_json);
         declarations
             .validate(lifetime.clock.now()?)
             .map_err(|_| unavailable())?;
         lifetime.check()?;
-        let running = declarations
-            .containers
-            .iter()
-            .zip(pids)
-            .filter(|(consumer, _)| consumer.container.running)
-            .map(|(consumer, pid)| EngineRunningProcess {
-                container: consumer.container.clone(),
-                pid,
-            })
-            .collect();
+        let mut running = Vec::new();
+        for (consumer, pid) in declarations.containers.iter().zip(pids) {
+            if !consumer.container.running {
+                continue;
+            }
+            let container = if let Some(scope) = &mut scope {
+                scope.reserve(&mut running, 1)?;
+                ContainerSnapshot {
+                    resource: scope.string(&consumer.container.resource)?,
+                    image: scope.string(&consumer.container.image)?,
+                    started_at: scope.string(&consumer.container.started_at)?,
+                    running: consumer.container.running,
+                }
+            } else {
+                consumer.container.clone()
+            };
+            running.push(EngineRunningProcess { container, pid });
+        }
         Ok(Collected {
             declarations,
             running,
+            _scope: scope,
         })
     })
     .await
@@ -407,6 +541,12 @@ async fn collect(
 }
 fn engine_id(value: &Value) -> Result<String> {
     Ok(value["ID"].as_str().ok_or_else(unavailable)?.into())
+}
+fn engine_id_with_scope(value: &Value, scope: Option<&mut Scope>) -> Result<String> {
+    match scope {
+        Some(scope) => scope.string(value["ID"].as_str().ok_or_else(unavailable)?),
+        None => engine_id(value),
+    }
 }
 fn container_pid(value: &Value, consumer: &ContainerStorageConsumer) -> Result<u32> {
     let pid = value["State"]["Pid"].as_u64().ok_or_else(unavailable)?;
