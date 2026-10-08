@@ -1,0 +1,78 @@
+   Compiling limeos-backup-archive v0.2.0 (/home/marc/Documents/github/lime-os-backup-catalog-recovery/crates/backup-archive)
+warning: method `check_held` is never used
+    --> crates/backup-archive/src/custody.rs:1181:8
+     |
+1170 | impl RetainedArchive {
+     | -------------------- method in this implementation
+...
+1181 |     fn check_held(&self) -> Result<(), CustodyError> {
+     |        ^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` on by default
+
+warning: `limeos-backup-archive` (lib) generated 1 warning
+warning: `limeos-backup-archive` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.44s
+     Running unittests src/lib.rs (target/debug/deps/limeos_backup_archive-54e87fbd0b9f5d02)
+
+running 20 tests
+test custody::tests::crash_child ... ok
+test custody::tests::identity_encoding_is_versioned_order_sensitive_and_bounded ... ok
+test custody::tests::pending_cleanup_reports_replaced_and_foreign_objects_and_keeps_them ... ok
+test staging::tests::allocation_and_total_file_byte_quotas_fail_before_creating_files ... ok
+test staging::tests::cleanup_refuses_a_replaced_attempt_name_and_keeps_foreign_directory ... ok
+test staging::tests::existing_attempt_and_file_symlink_attacks_never_overwrite_or_delete_foreign_files ... ok
+test staging::tests::independent_size_and_hash_verification_refuse_a_lying_or_corrupt_writer ... ok
+test staging::tests::input_io_failure_is_not_misclassified_as_archive_syntax ... ok
+test staging::tests::partial_write_and_each_durability_failure_are_typed_and_cleaned ... ok
+test staging::tests::short_interrupted_zero_writes_and_cancellation_before_completion ... ok
+test tests::exactly_the_limit_is_accepted_and_cancellation_interrupts ... ok
+test tests::reads_stop_one_byte_past_the_limit_of_an_endless_source ... ok
+test tests::stop_reasons_survive_wrapping_by_decoders_and_parsers ... ok
+test custody::tests::short_and_interrupted_reads_and_writes_preserve_the_exact_copy ... ok
+test custody::tests::changing_source_is_refused_after_reading_only_the_sentinel ... ok
+test custody::tests::every_durability_barrier_failure_is_typed_and_publication_is_never_rolled_back ... ok
+test custody::tests::rename_failures_and_generated_name_collisions_never_replace_foreign_entries ... ok
+test custody::tests::zero_failed_and_full_writes_are_typed_and_cleaned ... ok
+test custody::tests::cancellation_rolls_back_only_before_publication ... ok
+test custody::tests::sigkill_at_every_custody_point_leaves_untrusted_or_freshly_validated_state ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.17s
+
+     Running tests/custody.rs (target/debug/deps/custody-3e02933b0c31c6ee)
+
+running 10 tests
+test custody_limits_and_policy_are_validated_before_any_custody_state ... ok
+test custody_root_and_object_substitution_never_follows_clobbers_or_deletes ... ok
+test custody_source_replacement_cannot_redirect_the_selected_descriptor ... ok
+test custody_binding_substitution_is_refused_by_exact_binding_validation ... ok
+test custody_sealed_byte_size_order_and_inode_changes_refuse ... FAILED
+test custody_forged_malformed_oversized_and_foreign_records_are_refused ... ok
+test custody_owners_are_independent_and_drop_never_removes_published_state ... FAILED
+test custody_full_policy_changes_refuse_recovery_and_staging_even_with_the_same_revision ... ok
+test custody_small_archives_retain_recover_stage_and_discard_in_both_formats ... ok
+test custody_preserves_current_fixture_decisions_and_the_inert_self_repeat ... ok
+
+failures:
+
+---- custody_sealed_byte_size_order_and_inode_changes_refuse stdout ----
+
+thread 'custody_sealed_byte_size_order_and_inode_changes_refuse' panicked at crates/backup-archive/tests/custody.rs:875:5:
+assertion failed: matches!(held.stage(&policy(), &scene.staging_root(), &never),
+    Err(CustodyError::UnsafeObject("archive")))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- custody_owners_are_independent_and_drop_never_removes_published_state stdout ----
+
+thread 'custody_owners_are_independent_and_drop_never_removes_published_state' panicked at crates/backup-archive/tests/custody.rs:1050:5:
+assertion failed: matches!(second.stage(&policy(), &scene.staging_root(), &never),
+    Err(CustodyError::UnsafeObject("archive")))
+
+
+failures:
+    custody_owners_are_independent_and_drop_never_removes_published_state
+    custody_sealed_byte_size_order_and_inode_changes_refuse
+
+test result: FAILED. 8 passed; 2 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.07s
+
+error: test failed, to rerun pass `-p limeos-backup-archive --test custody`

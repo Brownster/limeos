@@ -1,0 +1,195 @@
+{
+  "binary_bytes": 1045944,
+  "binary_sha256": "0a2ac3990f97a80d96ac70128022f4ab8c7155ea6e97040e5345339cc47b65a4",
+  "cases": {
+    "large.tar.gz": {
+      "archive_sha256": "b2d287fce287f72b2da408eb52e2822e4f651ecf808b770645ba5d09bebac365",
+      "compressed_bytes": 67129467,
+      "file_bytes": 67108864,
+      "payload_sha256": "d586f85abf200a5e25cb95cb384e6b4c81c605ba7b47c4d7799aed7fa0adc897",
+      "peak_disk_bytes_beyond_source": 134240201,
+      "record_bytes": [
+        1870
+      ],
+      "recover_seconds": [
+        0.6087,
+        0.6156,
+        0.5915
+      ],
+      "recover_stage_peak_rss_kib": [
+        2996,
+        2744,
+        3032
+      ],
+      "retain_peak_rss_kib": [
+        3000,
+        2956,
+        2992
+      ],
+      "retain_seconds": [
+        1.3602,
+        1.2339,
+        1.2366
+      ],
+      "stage_seconds": [
+        1.0247,
+        0.9299,
+        0.9886
+      ]
+    },
+    "large.tar.zst": {
+      "archive_sha256": "b48d0b6f1985522ba4afd3b167f75ce5486e983891a0125c0c60830461f7015a",
+      "compressed_bytes": 67110941,
+      "file_bytes": 67108864,
+      "payload_sha256": "d586f85abf200a5e25cb95cb384e6b4c81c605ba7b47c4d7799aed7fa0adc897",
+      "peak_disk_bytes_beyond_source": 134221675,
+      "record_bytes": [
+        1870
+      ],
+      "recover_seconds": [
+        0.6089,
+        0.6186,
+        0.5916
+      ],
+      "recover_stage_peak_rss_kib": [
+        5440,
+        5188,
+        5372
+      ],
+      "retain_peak_rss_kib": [
+        5164,
+        5424,
+        5104
+      ],
+      "retain_seconds": [
+        1.2686,
+        1.2066,
+        1.269
+      ],
+      "stage_seconds": [
+        1.0243,
+        0.9195,
+        0.9519
+      ]
+    },
+    "small.tar.gz": {
+      "archive_sha256": "e26ca2b4ee0bd84752bcd22b57c949f22e558c89405239101a82102e4cebfeac",
+      "compressed_bytes": 131303,
+      "file_bytes": 131072,
+      "payload_sha256": "1af6da656624174e4940374fc9779b5a551c25b813c94c7dea2a3d83fc8168a5",
+      "peak_disk_bytes_beyond_source": 264235,
+      "record_bytes": [
+        1860
+      ],
+      "recover_seconds": [
+        0.0017,
+        0.0019,
+        0.0016
+      ],
+      "recover_stage_peak_rss_kib": [
+        3096,
+        2948,
+        3016
+      ],
+      "retain_peak_rss_kib": [
+        3088,
+        2988,
+        2992
+      ],
+      "retain_seconds": [
+        0.0031,
+        0.003,
+        0.0031
+      ],
+      "stage_seconds": [
+        0.0023,
+        0.0023,
+        0.0023
+      ]
+    },
+    "small.tar.zst": {
+      "archive_sha256": "697a34102295f233365ee049755eec277b22f74751d52ad7b22a6546a4ee3c04",
+      "compressed_bytes": 131613,
+      "file_bytes": 131072,
+      "payload_sha256": "1af6da656624174e4940374fc9779b5a551c25b813c94c7dea2a3d83fc8168a5",
+      "peak_disk_bytes_beyond_source": 264545,
+      "record_bytes": [
+        1860
+      ],
+      "recover_seconds": [
+        0.0016,
+        0.0018,
+        0.0021
+      ],
+      "recover_stage_peak_rss_kib": [
+        2928,
+        3184,
+        3048
+      ],
+      "retain_peak_rss_kib": [
+        3124,
+        3184,
+        3048
+      ],
+      "retain_seconds": [
+        0.0032,
+        0.003,
+        0.0033
+      ],
+      "stage_seconds": [
+        0.0022,
+        0.0024,
+        0.003
+      ]
+    },
+    "zeros-64m.tar.zst": {
+      "archive_sha256": "69d6133a8e4f7ad9617ea91d5de8575caba2e89ce52ff4d7c2fbd57835a02d5c",
+      "compressed_bytes": 2214,
+      "file_bytes": 67108864,
+      "payload_sha256": null,
+      "peak_disk_bytes_beyond_source": 67113070,
+      "record_bytes": [
+        1992
+      ],
+      "recover_seconds": [
+        0.2937,
+        0.305,
+        0.3489
+      ],
+      "recover_stage_peak_rss_kib": [
+        5320,
+        5428,
+        5424
+      ],
+      "retain_peak_rss_kib": [
+        5212,
+        5096,
+        5404
+      ],
+      "retain_seconds": [
+        0.322,
+        0.2901,
+        0.3216
+      ],
+      "stage_seconds": [
+        0.6422,
+        0.6743,
+        0.6478
+      ]
+    }
+  },
+  "generator_sha256": "498dc644244a7e0da9ae6f5b1b8bbb813ded392bc81ce537bdc87379ad3cd651",
+  "limits_sha256": "ea1ab1401d695fe7b3d9fa521c32fda9414d581108026720da14564cf0b29a2f",
+  "platform": {
+    "machine": "x86_64",
+    "release": "7.0.14-101.fc43.x86_64",
+    "system": "Linux"
+  },
+  "policy_sha256": "e9ad4d47f127c553c4615a418b48fd5d9497bbf8dca27e18813c7e6a5811a153",
+  "raw_sha256": "114f91b8686bd7272c70fb9383d3cbd50994eef571560dd6c633d177ffbd7641",
+  "samples_per_case": 3,
+  "scope": "local release example in fresh processes; workstation page cache; no installed restore, Pi or service claim",
+  "source_commit": "9a8232262d8de552e10bd88126395cfe197ee634",
+  "uid": 1000,
+  "zstd_version": "*** Zstandard CLI (64-bit) v1.5.7, by Yann Collet ***"
+}

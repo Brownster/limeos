@@ -1,0 +1,41 @@
+   Compiling limeos-backup-archive v0.2.0 (/home/marc/Documents/github/lime-os-backup-catalog-recovery/crates/backup-archive)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.53s
+     Running unittests src/lib.rs (target/debug/deps/limeos_backup_archive-54e87fbd0b9f5d02)
+
+running 20 tests
+test custody::tests::crash_child ... ok
+test custody::tests::identity_encoding_is_versioned_order_sensitive_and_bounded ... ok
+test custody::tests::pending_cleanup_reports_replaced_and_foreign_objects_and_keeps_them ... ok
+test staging::tests::allocation_and_total_file_byte_quotas_fail_before_creating_files ... ok
+test staging::tests::cleanup_refuses_a_replaced_attempt_name_and_keeps_foreign_directory ... ok
+test staging::tests::existing_attempt_and_file_symlink_attacks_never_overwrite_or_delete_foreign_files ... ok
+test staging::tests::independent_size_and_hash_verification_refuse_a_lying_or_corrupt_writer ... ok
+test staging::tests::input_io_failure_is_not_misclassified_as_archive_syntax ... ok
+test staging::tests::partial_write_and_each_durability_failure_are_typed_and_cleaned ... ok
+test staging::tests::short_interrupted_zero_writes_and_cancellation_before_completion ... ok
+test tests::exactly_the_limit_is_accepted_and_cancellation_interrupts ... ok
+test tests::reads_stop_one_byte_past_the_limit_of_an_endless_source ... ok
+test tests::stop_reasons_survive_wrapping_by_decoders_and_parsers ... ok
+test custody::tests::short_and_interrupted_reads_and_writes_preserve_the_exact_copy ... ok
+test custody::tests::every_durability_barrier_failure_is_typed_and_publication_is_never_rolled_back ... FAILED
+test custody::tests::changing_source_is_refused_after_reading_only_the_sentinel ... ok
+test custody::tests::zero_failed_and_full_writes_are_typed_and_cleaned ... ok
+test custody::tests::rename_failures_and_generated_name_collisions_never_replace_foreign_entries ... ok
+test custody::tests::cancellation_rolls_back_only_before_publication ... ok
+test custody::tests::sigkill_at_every_custody_point_leaves_untrusted_or_freshly_validated_state ... ok
+
+failures:
+
+---- custody::tests::every_durability_barrier_failure_is_typed_and_publication_is_never_rolled_back stdout ----
+
+thread 'custody::tests::every_durability_barrier_failure_is_typed_and_publication_is_never_rolled_back' panicked at crates/backup-archive/src/custody/tests.rs:493:18:
+expected ambiguous durability, got Ok(RetainedArchive { root: File { fd: 11, path: "/tmp/.tmpGkhgVx/custody", read: true, write: false }, directory: File { fd: 13, path: "/tmp/.tmpGkhgVx/custody/retained-bcc49be1976cd37492a071ad2137e454", read: true, write: false }, name: "retained-bcc49be1976cd37492a071ad2137e454", directory_identity: Stat { st_dev: 46, st_ino: 1066568, st_nlink: 2, st_mode: 16832, st_uid: 1000, st_gid: 1000, __pad0: 0, st_rdev: 0, st_size: 40, st_blksize: 4096, st_blocks: 0, st_atime: 1791403136, st_atime_nsec: 813960496, st_mtime: 1791403136, st_mtime_nsec: 813960496, st_ctime: 1791403136, st_ctime_nsec: 813960496, __unused: [0, 0, 0] }, archive: File { fd: 3, path: "/tmp/.tmpGkhgVx/custody/retained-bcc49be1976cd37492a071ad2137e454/archive", read: true, write: false }, archive_identity: Stat { st_dev: 46, st_ino: 1066569, st_nlink: 1, st_mode: 33152, st_uid: 1000, st_gid: 1000, __pad0: 0, st_rdev: 0, st_size: 0, st_blksize: 4096, st_blocks: 0, st_atime: 1791403136, st_atime_nsec: 813960496, st_mtime: 1791403136, st_mtime_nsec: 813960496, st_ctime: 1791403136, st_ctime_nsec: 813960496, __unused: [0, 0, 0] }, record_identity: Stat { st_dev: 46, st_ino: 1066575, st_nlink: 1, st_mode: 33024, st_uid: 1000, st_gid: 1000, __pad0: 0, st_rdev: 0, st_size: 1731, st_blksize: 4096, st_blocks: 8, st_atime: 1791403136, st_atime_nsec: 826960517, st_mtime: 1791403136, st_mtime_nsec: 827713113, st_ctime: 1791403136, st_ctime_nsec: 827713113, __unused: [0, 0, 0] }, admitted: AdmittedArchive { manifest: RestoreManifest { manifest_version: 2, archive_sha256: "a6b88722e60b300d9fbcbfa3aa0ddbf3b3ca7c420e3ffcf3bc01e839a66ae014", format: TarGzip, policy_revision: 7, compressed_bytes: 264767, decompressed_bytes: 264704, header_count: 2, coalesced_self_hardlinks: 0, file_count: 2, directory_count: 0, file_bytes: 262157, entries: [ManifestEntry { resource: "config", relative_path: "core.json", kind: File, size: 13, sha256: Some("2430f1a2ad2982d0067885488a4c89e21ad1d7c83b115ba8f1b20acc88dfaea8"), archived_permissions: 420, archive_path: "etc/limeos/core.json" }, ManifestEntry { resource: "stacks", relative_path: "data.bin", kind: File, size: 262144, sha256: Some("10ab2705cc85e622c4b75bf924e866c1316c14c6310be51dc0535dcd55b3da61"), archived_permissions: 420, archive_path: "opt/stacks/data.bin" }] }, policy: PolicySnapshot { policy: AdmissionPolicy { revision: 7, formats: [TarGzip, TarZstd], limits: ArchiveLimits { max_compressed_bytes: 4194304, max_decompressed_bytes: 4194304, max_file_bytes: 1048576, max_entries: 64, max_path_bytes: 256, max_path_depth: 16, max_component_bytes: 128, max_metadata_bytes: 4096, max_total_metadata_bytes: 16384, max_zstd_window_log: 21 }, resources: [ManagedResource { id: "config", destination_root: "/synthetic/config" }, ManagedResource { id: "stacks", destination_root: "/synthetic/stacks" }], legacy_mappings: [LegacyMapping { archive_prefix: "etc/limeos", resource: "config", resource_prefix: "" }, LegacyMapping { archive_prefix: "opt/stacks", resource: "stacks", resource_prefix: "" }] }, archive_sha256: "a6b88722e60b300d9fbcbfa3aa0ddbf3b3ca7c420e3ffcf3bc01e839a66ae014" } }, binding: CustodyBinding { format_version: 1, record_id: "bcc49be1976cd37492a071ad2137e454", archive_sha256: "a6b88722e60b300d9fbcbfa3aa0ddbf3b3ca7c420e3ffcf3bc01e839a66ae014", archive_bytes: 264767, policy_identity: "5ab96685ef8c9aed9e59792e69dc754f920586c3e08769b5d0be21448b60b556", manifest_identity: "85beea489368a61f28ad3b56a9d7effdaca62d4525c8727632773b6f37e388eb" }, limits: CustodyLimits { max_archive_bytes: 8388608, max_record_bytes: 1048576 } })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    custody::tests::every_durability_barrier_failure_is_typed_and_publication_is_never_rolled_back
+
+test result: FAILED. 19 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.15s
+
+error: test failed, to rerun pass `-p limeos-backup-archive --lib`

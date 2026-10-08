@@ -1,0 +1,11 @@
+# source 9a8232262d8de552e10bd88126395cfe197ee634; binary sha256 0a2ac3990f97a80d96ac70128022f4ab8c7155ea6e97040e5345339cc47b65a4
+retained legacy-valid.tar.gz
+retained legacy-valid.tar.zst
+retained legacy-posix.tar.gz
+retained legacy-primary-overlap.tar.zst
+{"policy": "docs/rewrite-evidence/p04/rw043-custody/logs/unit-test-policy.json", "policy_identity": "5ab96685ef8c9aed9e59792e69dc754f920586c3e08769b5d0be21448b60b556", "encoded_bytes": 304}
+{"record": "SCRATCH/custody/retained-72203c8a207b0f4ad80dc8933954add0/record.json", "policy_identity": "7ba1d8d87bb8ac0f2cda142b0afc833569e32d3f8f10ef4d8f08d04cbd535dbe", "manifest_identity": "0a74dfc781f6d33885d6b3e8bc1b946afe51836a715f22619f3116a15903d89f", "policy_encoded_bytes": 528, "manifest_encoded_bytes": 3330, "matches_binding": true}
+{"record": "SCRATCH/custody/retained-8aa85330941a0808c41e7d25499be25c/record.json", "policy_identity": "7ba1d8d87bb8ac0f2cda142b0afc833569e32d3f8f10ef4d8f08d04cbd535dbe", "manifest_identity": "7ca0881bb4a16db94b81c668e87b889349ca1a95bba279021647cf107f507f57", "policy_encoded_bytes": 528, "manifest_encoded_bytes": 2670, "matches_binding": true}
+{"record": "SCRATCH/custody/retained-d273977138b7b01ab7663e3f1b254c59/record.json", "policy_identity": "7ba1d8d87bb8ac0f2cda142b0afc833569e32d3f8f10ef4d8f08d04cbd535dbe", "manifest_identity": "7fb68a5de4d4526364d6497a4730202d57dd0f6f8242e66c0cde210a355d8e81", "policy_encoded_bytes": 528, "manifest_encoded_bytes": 3330, "matches_binding": true}
+{"record": "SCRATCH/custody/retained-fc00c6cca1f0d2a5648dbc2d314fa7c1/record.json", "policy_identity": "7ba1d8d87bb8ac0f2cda142b0afc833569e32d3f8f10ef4d8f08d04cbd535dbe", "manifest_identity": "d937c812a29dbd8c04b78f268eff282813370adb2861285c0247ba68d24c0a05", "policy_encoded_bytes": 528, "manifest_encoded_bytes": 2670, "matches_binding": true}
+reference exit 0

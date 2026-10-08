@@ -1,0 +1,5 @@
+rustc 1.88.0 (6b00bc388 2025-06-23)
+cargo 1.88.0 (873a06493 2025-05-10)
+cargo-deny 0.20.2
+cargo-audit-audit 0.22.2
+advisory-db ef6173cbc5c50ec8166f9a5b28f07834144373ee 2026-10-03T10:14:03+02:00

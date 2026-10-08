@@ -1,0 +1,230 @@
+{
+  "base_commit": "d324c1b9f3ee8dcc46d7d5deb4cf00c25b1301f4",
+  "checks": [
+    {
+      "command": [
+        "sh",
+        "-c",
+        "rustc -V; cargo -V; cargo deny --version; cargo audit --version; git -C /tmp/limeos-advisory-db log -1 --format='advisory-db %H %cI'"
+      ],
+      "elapsed_seconds": 0.2,
+      "exit_code": 0,
+      "log": "toolchain.txt",
+      "log_sha256": "9853a21d285d429519b6df14ea51fd930b74966838533d670b103a1bcd6c7d89",
+      "name": "toolchain"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "limeos-backup-archive",
+        "--locked",
+        "--offline"
+      ],
+      "elapsed_seconds": 23.8,
+      "exit_code": 0,
+      "log": "crate-tests.txt",
+      "log_sha256": "dcdbf07fc539dbb091e3cfc87210ea9307685d0f163f41339c8bcd27d118efac",
+      "name": "crate-tests"
+    },
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "elapsed_seconds": 0.6,
+      "exit_code": 0,
+      "log": "fmt.txt",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "fmt"
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "elapsed_seconds": 37.0,
+      "exit_code": 0,
+      "log": "clippy.txt",
+      "log_sha256": "2fdc4e0ede5d04fd917d645a6b31d0ab1e01f434f84e83388c86ad08ff69ced0",
+      "name": "clippy"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked",
+        "--offline"
+      ],
+      "elapsed_seconds": 102.4,
+      "exit_code": 0,
+      "log": "workspace-tests.txt",
+      "log_sha256": "2272f0b66e7a4a3cf9acd171c56983abaf7f06b797acafac170ed57761278ba7",
+      "name": "workspace-tests"
+    },
+    {
+      "command": [
+        "cargo",
+        "deny",
+        "--offline",
+        "check"
+      ],
+      "elapsed_seconds": 0.8,
+      "exit_code": 0,
+      "log": "deny.txt",
+      "log_sha256": "b82ed924090bb0ebed3663ac2c31bdd144db1f6e715c33813168d5fde37449f1",
+      "name": "deny"
+    },
+    {
+      "command": [
+        "cargo",
+        "audit",
+        "--no-fetch",
+        "--db",
+        "/tmp/limeos-advisory-db"
+      ],
+      "elapsed_seconds": 0.3,
+      "exit_code": 0,
+      "log": "audit.txt",
+      "log_sha256": "8b70ff8e86aaa03a2b5b18bdfdfe89d3e2fa8548c47df53feaebecb3115170e1",
+      "name": "audit"
+    },
+    {
+      "command": [
+        "/home/marc/.cache/uv/environments-v2/run-checks-e78631d8832e0a74/bin/python",
+        "scripts/check_repository.py"
+      ],
+      "elapsed_seconds": 0.0,
+      "exit_code": 0,
+      "log": "repository.txt",
+      "log_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "name": "repository"
+    },
+    {
+      "command": [
+        "/home/marc/.cache/uv/environments-v2/run-checks-e78631d8832e0a74/bin/python",
+        "scripts/check_contracts.py"
+      ],
+      "elapsed_seconds": 8.7,
+      "exit_code": 0,
+      "log": "contracts.txt",
+      "log_sha256": "bc56d0b5922bcab635667c7844fd61d677f164b6be7cb0cb017418f21235ff24",
+      "name": "contracts"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "d324c1b9f3ee8dcc46d7d5deb4cf00c25b1301f4..HEAD"
+      ],
+      "elapsed_seconds": 0.0,
+      "exit_code": 0,
+      "log": "diff-check.txt",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "diff-check"
+    },
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--offline",
+        "-p",
+        "limeos-backup-archive",
+        "--example",
+        "custody"
+      ],
+      "elapsed_seconds": 0.2,
+      "exit_code": 0,
+      "log": "release-example.txt",
+      "log_sha256": "1ff8bbcb4151dc887e69b78a29bc241d5062cba4757aa5f4639926ae712a8181",
+      "name": "release-example"
+    }
+  ],
+  "finished_utc": "2026-10-07T20:07:22.772609+00:00",
+  "ownership_review": {
+    "base": "d324c1b9f3ee8dcc46d7d5deb4cf00c25b1301f4",
+    "changed": [
+      "M\tCargo.lock",
+      "M\tcrates/backup-archive/Cargo.toml",
+      "A\tcrates/backup-archive/examples/custody.rs",
+      "A\tcrates/backup-archive/src/custody.rs",
+      "A\tcrates/backup-archive/src/custody/identity.rs",
+      "A\tcrates/backup-archive/src/custody/tests.rs",
+      "M\tcrates/backup-archive/src/lib.rs",
+      "A\tcrates/backup-archive/tests/custody.rs",
+      "A\tdocs/p04-backup-archive-custody.md",
+      "A\tdocs/rewrite-evidence/p04/rw043-custody/identity_reference.py",
+      "A\tdocs/rewrite-evidence/p04/rw043-custody/measure_custody.py",
+      "A\tdocs/rewrite-evidence/p04/rw043-custody/mutation_checks.py",
+      "A\tdocs/rewrite-evidence/p04/rw043-custody/run_checks.py",
+      "A\ttests/fixtures/backup-custody/README.md",
+      "A\ttests/fixtures/backup-custody/limits.json",
+      "A\ttests/fixtures/backup-custody/policy.json"
+    ],
+    "external_package_count": 211,
+    "external_packages_identical": true,
+    "lib_rs_added_lines": [
+      "+pub mod custody;"
+    ],
+    "lib_rs_removed_lines": [],
+    "lock_dependency_list_changes": {
+      "limeos-backup-archive 0.2.0": {
+        "added": [
+          "serde"
+        ],
+        "removed": []
+      }
+    },
+    "lock_packages_after": 227,
+    "lock_packages_before": 227,
+    "outside_owned_or_allowed": [],
+    "passed": true,
+    "protected_paths_changed": []
+  },
+  "passed": true,
+  "platform": {
+    "machine": "x86_64",
+    "node": "fedora",
+    "processor": "",
+    "release": "7.0.14-101.fc43.x86_64",
+    "system": "Linux",
+    "version": "#1 SMP PREEMPT_DYNAMIC Wed Jul  1 13:50:13 UTC 2026"
+  },
+  "scope": "local workstation x86-64; cached dependencies and cached advisory DB; no native ARM, VM or installed restore",
+  "source_commit": "9a8232262d8de552e10bd88126395cfe197ee634",
+  "source_sha256": {
+    "Cargo.lock": "c27bd8d5e97514ebeffb2309f4dafbe0af3d27a887293a3e95d0ffa033101395",
+    "crates/backup-archive/Cargo.toml": "93029b998be428cff5318c498a34e3e888aeed2b98c7e530fd6b2039d5c93b7d",
+    "crates/backup-archive/examples/custody.rs": "80b0766e9d9f52a497ba18c6db4e7fe31c6d11af5748e0da6ef7c1abd0b3deb6",
+    "crates/backup-archive/src/custody.rs": "45ab6e3dafe81ea58ef120d5ba53baf9dec1d1af67f1e3f4bbd4d79ee5a86589",
+    "crates/backup-archive/src/custody/identity.rs": "63d522f905965b2e18d3bbcf3776c038708d0526264f74b77697fb147fcdbfd8",
+    "crates/backup-archive/src/custody/tests.rs": "35c51c5f5b512ab2f50e59ff2c706834b406c32c8e715c0a6b37899fafe5f3bf",
+    "crates/backup-archive/src/lib.rs": "c8e7fd88f1571e0b3015c3c890fb7028d1f771e04980ae11d4299ed5e71176a0",
+    "crates/backup-archive/tests/custody.rs": "ce8bbd96e2aceecc3806a60dd7f07a2d7bf6aacfca677be3ff19c8feda029cb3",
+    "docs/p04-backup-archive-custody.md": "a8684debb5b22a910aaa3d847ebdad367c928ce60e562130ccb7233a711e9018",
+    "docs/rewrite-evidence/p04/rw043-custody/identity_reference.py": "8c51681cef845f203bd2ae39da611d25e5a411f6c57f674dcdb295d7da4549c8",
+    "docs/rewrite-evidence/p04/rw043-custody/measure_custody.py": "498dc644244a7e0da9ae6f5b1b8bbb813ded392bc81ce537bdc87379ad3cd651",
+    "docs/rewrite-evidence/p04/rw043-custody/mutation_checks.py": "77db0d70962d22ca70e7fac881ef06c5162bd7cca69b7426f5eae2f0eaff45f7",
+    "docs/rewrite-evidence/p04/rw043-custody/run_checks.py": "b5859162cfa8935a2ab27376a1f1354cac52bcce4a1d47ff7c3e9b71ddf7c970",
+    "tests/fixtures/backup-custody/README.md": "4db2e706d78a036da2aeb01f2f6ef5ce28cb266e35618dbd349d9c07947d46cb",
+    "tests/fixtures/backup-custody/limits.json": "ea1ab1401d695fe7b3d9fa521c32fda9414d581108026720da14564cf0b29a2f",
+    "tests/fixtures/backup-custody/policy.json": "e9ad4d47f127c553c4615a418b48fd5d9497bbf8dca27e18813c7e6a5811a153"
+  },
+  "started_utc": "2026-10-07T20:04:28.744755+00:00",
+  "uid": 1000
+}

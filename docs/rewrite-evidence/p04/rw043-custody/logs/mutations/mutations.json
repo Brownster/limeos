@@ -1,0 +1,233 @@
+{
+  "all_as_expected": true,
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "limeos-backup-archive",
+    "--locked",
+    "--offline",
+    "--lib",
+    "--test",
+    "custody",
+    "--",
+    "--skip",
+    "64_mib"
+  ],
+  "finished_utc": "2026-10-07T20:08:24.412891+00:00",
+  "mutants": [
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody_full_policy_changes_refuse_recovery_and_staging_even_with_the_same_revision"
+      ],
+      "guarantee": "recovery compares full current policy",
+      "log": "recover-ignores-policy.txt",
+      "log_sha256": "e4721b413b362316c281086bce7a4cc2cc4f9a0394beea617df8d005ae3b8dda",
+      "name": "recover-ignores-policy",
+      "outcome": "killed"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 0,
+      "expected": "survives",
+      "failed_tests": [],
+      "guarantee": "full equality and identity are independent guards",
+      "log": "recover-policy-identity-only.txt",
+      "log_sha256": "989ae777094b00ade748ca730066d317ba760b4f2f32be017f7d8df7c0e9b4b8",
+      "name": "recover-policy-identity-only",
+      "outcome": "survives"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 0,
+      "expected": "survives",
+      "failed_tests": [],
+      "guarantee": "full equality and identity are independent guards",
+      "log": "recover-policy-equality-only.txt",
+      "log_sha256": "1622c6b3631fe3385ca2c477957fedae3e0576941f842cbb481238526f9215d6",
+      "name": "recover-policy-equality-only",
+      "outcome": "survives"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody_full_policy_changes_refuse_recovery_and_staging_even_with_the_same_revision"
+      ],
+      "guarantee": "staging rechecks full policy before replay",
+      "log": "stage-ignores-policy.txt",
+      "log_sha256": "94c31a7ef1a739d7b43cca7b2aea09139ab759941cefd2005376279c089555ed",
+      "name": "stage-ignores-policy",
+      "outcome": "killed"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody_forged_malformed_oversized_and_foreign_records_are_refused"
+      ],
+      "guarantee": "records must be the exact canonical encoding",
+      "log": "record-not-canonical.txt",
+      "log_sha256": "b21c4a851accd0a69fe0a7da3a99e4dbfbb2d35a67114472b9698e9687716616",
+      "name": "record-not-canonical",
+      "outcome": "killed"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody_forged_malformed_oversized_and_foreign_records_are_refused"
+      ],
+      "guarantee": "the saved binding must equal the trusted binding",
+      "log": "record-binding-unchecked.txt",
+      "log_sha256": "5e19673064bfc3279c983d0781bb391438dd0beb974f66b57449f4b5feabc24c",
+      "name": "record-binding-unchecked",
+      "outcome": "killed"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody_forged_malformed_oversized_and_foreign_records_are_refused",
+        "custody_root_and_object_substitution_never_follows_clobbers_or_deletes"
+      ],
+      "guarantee": "record directories hold only owned names",
+      "log": "foreign-entries-allowed.txt",
+      "log_sha256": "d6cc7c25d84d734be4b54f537d1ffb2dc2c66b491d173f2cb7d1dd3f5a84f2ab",
+      "name": "foreign-entries-allowed",
+      "outcome": "killed"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody_root_and_object_substitution_never_follows_clobbers_or_deletes"
+      ],
+      "guarantee": "sealed objects have exactly one link",
+      "log": "hard-links-allowed.txt",
+      "log_sha256": "41567ebe8114968d7093a769fbcd596717cb5b2fa50724ced909ab18734d16a1",
+      "name": "hard-links-allowed",
+      "outcome": "killed"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody::tests::changing_source_is_refused_after_reading_only_the_sentinel"
+      ],
+      "guarantee": "the copy stops one sentinel byte past its limit",
+      "log": "copy-unbounded.txt",
+      "log_sha256": "96d701b1ae4f5e457c1523ba631af3eca65e1c2b67a28b56657a8b2ad6561382",
+      "name": "copy-unbounded",
+      "outcome": "killed"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody::tests::every_durability_barrier_failure_is_typed_and_publication_is_never_rolled_back"
+      ],
+      "guarantee": "a failed post-rename root fsync is reported",
+      "log": "ambiguous-durability-hidden.txt",
+      "log_sha256": "9f2f24c1269bc6b142f5e02cfc65387f6ab2cc5b1764fecbe8e727b037191a72",
+      "name": "ambiguous-durability-hidden",
+      "outcome": "killed"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody_sealed_byte_size_order_and_inode_changes_refuse"
+      ],
+      "guarantee": "recovery requires exact compressed identity",
+      "log": "readmission-compares-sorted-entries-only.txt",
+      "log_sha256": "3d984817f576df2e43d2aeb4384f5417ef826c935f42b3b760804cb4baa1a362",
+      "name": "readmission-compares-sorted-entries-only",
+      "outcome": "killed"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody_owners_are_independent_and_drop_never_removes_published_state",
+        "custody_sealed_byte_size_order_and_inode_changes_refuse"
+      ],
+      "guarantee": "staging is bound to the held, still-published inode",
+      "log": "held-identity-unchecked.txt",
+      "log_sha256": "494c92b0b1f79c1ef493a31856b268bbe224c4fb64a4e71dab2be707a1cac847",
+      "name": "held-identity-unchecked",
+      "outcome": "killed"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody::tests::pending_cleanup_reports_replaced_and_foreign_objects_and_keeps_them"
+      ],
+      "guarantee": "cleanup removes only owned inodes",
+      "log": "discard-unlinks-any-inode.txt",
+      "log_sha256": "1302bab572b936f2dc40fdbc13b73b4f2f41766cb9ab2941807853cd55e6b88f",
+      "name": "discard-unlinks-any-inode",
+      "outcome": "killed"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody::tests::cancellation_rolls_back_only_before_publication",
+        "custody::tests::changing_source_is_refused_after_reading_only_the_sentinel",
+        "custody::tests::every_durability_barrier_failure_is_typed_and_publication_is_never_rolled_back",
+        "custody::tests::pending_cleanup_reports_replaced_and_foreign_objects_and_keeps_them",
+        "custody::tests::rename_failures_and_generated_name_collisions_never_replace_foreign_entries",
+        "custody::tests::zero_failed_and_full_writes_are_typed_and_cleaned"
+      ],
+      "guarantee": "pre-publication failures remove owned state",
+      "log": "pending-never-cleaned.txt",
+      "log_sha256": "0157fa6f4813f56de62bd9afe335658912093f0a4a92bd4aac01f0254378950f",
+      "name": "pending-never-cleaned",
+      "outcome": "killed"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody::tests::rename_failures_and_generated_name_collisions_never_replace_foreign_entries"
+      ],
+      "guarantee": "publication never replaces an existing name",
+      "log": "rename-replaces.txt",
+      "log_sha256": "46c0da4474702b70116b6c0031cef5dda18b2b381ba7cf6f0489bf5f5ab3a3d3",
+      "name": "rename-replaces",
+      "outcome": "killed"
+    },
+    {
+      "as_expected": true,
+      "exit_code": 101,
+      "expected": "killed",
+      "failed_tests": [
+        "custody::tests::identity_encoding_is_versioned_order_sensitive_and_bounded"
+      ],
+      "guarantee": "identity strings are length-prefixed",
+      "log": "identity-without-length-prefix.txt",
+      "log_sha256": "724d4ddab14e2765f24f6bfac018281b586cbec07565f7a734cde50dc58ed8fe",
+      "name": "identity-without-length-prefix",
+      "outcome": "killed"
+    }
+  ],
+  "source_commit": "9a8232262d8de552e10bd88126395cfe197ee634",
+  "started_utc": "2026-10-07T20:07:38.382145+00:00"
+}

@@ -1,0 +1,43 @@
+   Compiling limeos-backup-archive v0.2.0 (/home/marc/Documents/github/lime-os-backup-catalog-recovery/crates/backup-archive)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.40s
+     Running unittests src/lib.rs (target/debug/deps/limeos_backup_archive-54e87fbd0b9f5d02)
+
+running 20 tests
+test custody::tests::crash_child ... ok
+test custody::tests::identity_encoding_is_versioned_order_sensitive_and_bounded ... FAILED
+test custody::tests::pending_cleanup_reports_replaced_and_foreign_objects_and_keeps_them ... ok
+test staging::tests::allocation_and_total_file_byte_quotas_fail_before_creating_files ... ok
+test staging::tests::cleanup_refuses_a_replaced_attempt_name_and_keeps_foreign_directory ... ok
+test staging::tests::existing_attempt_and_file_symlink_attacks_never_overwrite_or_delete_foreign_files ... ok
+test staging::tests::independent_size_and_hash_verification_refuse_a_lying_or_corrupt_writer ... ok
+test staging::tests::input_io_failure_is_not_misclassified_as_archive_syntax ... ok
+test staging::tests::partial_write_and_each_durability_failure_are_typed_and_cleaned ... ok
+test staging::tests::short_interrupted_zero_writes_and_cancellation_before_completion ... ok
+test tests::exactly_the_limit_is_accepted_and_cancellation_interrupts ... ok
+test tests::reads_stop_one_byte_past_the_limit_of_an_endless_source ... ok
+test tests::stop_reasons_survive_wrapping_by_decoders_and_parsers ... ok
+test custody::tests::short_and_interrupted_reads_and_writes_preserve_the_exact_copy ... ok
+test custody::tests::changing_source_is_refused_after_reading_only_the_sentinel ... ok
+test custody::tests::zero_failed_and_full_writes_are_typed_and_cleaned ... ok
+test custody::tests::every_durability_barrier_failure_is_typed_and_publication_is_never_rolled_back ... ok
+test custody::tests::cancellation_rolls_back_only_before_publication ... ok
+test custody::tests::rename_failures_and_generated_name_collisions_never_replace_foreign_entries ... ok
+test custody::tests::sigkill_at_every_custody_point_leaves_untrusted_or_freshly_validated_state ... ok
+
+failures:
+
+---- custody::tests::identity_encoding_is_versioned_order_sensitive_and_bounded stdout ----
+
+thread 'custody::tests::identity_encoding_is_versioned_order_sensitive_and_bounded' panicked at crates/backup-archive/src/custody/tests.rs:311:5:
+assertion `left == right` failed: policy identity encoding v1 changed; bump FORMAT_VERSION and the domain
+  left: "709e092394f311267e5110e399e264ca5f12f426c157153bb290b2257c8cd750"
+ right: "5ab96685ef8c9aed9e59792e69dc754f920586c3e08769b5d0be21448b60b556"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    custody::tests::identity_encoding_is_versioned_order_sensitive_and_bounded
+
+test result: FAILED. 19 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.18s
+
+error: test failed, to rerun pass `-p limeos-backup-archive --lib`
