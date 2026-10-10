@@ -1,0 +1,49 @@
+{
+  "actual_artifact_verification": "pending_single_collector",
+  "budget_total": 65,
+  "cpus": 2,
+  "deadline_seconds": 1800,
+  "guest_budget_seconds": 1680,
+  "guest_launched": false,
+  "image": {
+    "bytes": 349896704,
+    "checksum_file": "/tmp/limeos-rw040-inputs/image/SHA512SUMS",
+    "checksum_file_sha256": "ae259f900fcfde80f581790a26befe14977c94246442e8a9c3e290b921d7b550",
+    "checksum_primary_url": "https://cloud.debian.org/images/cloud/bookworm/latest/SHA512SUMS",
+    "path": "/tmp/limeos-rw040-inputs/image/debian-12-genericcloud-amd64.qcow2",
+    "revalidated": true,
+    "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+  },
+  "local_preparation_attempts": [
+    {
+      "attempt": 1,
+      "exit_code": 1,
+      "failure": "Mistyped selfcheck.py in a read-only hash list; actual file is selfcheck_probe.py. No source or guest change."
+    },
+    {
+      "attempt": 2,
+      "exit_code": 0,
+      "result": "All eight source files compared byte-for-byte; image checksum revalidated."
+    }
+  ],
+  "memory_mib": 1536,
+  "prepared_utc": "2026-10-10T18:37:34.380709+00:00",
+  "previous_failed_input_record": "/home/marc/Documents/github/lime-os/target/rw040-u0-b0-6964/input-attempt-01.json",
+  "previous_failed_source": "6964fca674f2c0431a673203ecba5329c64a42e4",
+  "schema": 1,
+  "scope": "U0/B0 only; no launch before actual matching artifact verification",
+  "source_clean": true,
+  "source_commit": "46f7daadcc5d930ca97925d96f05baddb20e1b2f",
+  "source_worktree": "/tmp/limeos-rw040-u0-b0-46f7",
+  "unchanged_reviewed_harness_producer_probe_hashes": {
+    "bins/executor/tests/combined_read_probe.rs": "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c",
+    "scripts/build_rw040_probe_artifact.py": "81c31ff05a361235702031af9c43b3d2dca9798a8e474a8b64c029ebe2f0cfd0",
+    "tests/qualification/rw040-combined/guest/combined_guest.py": "b9f666dd4cc1deb63c07cda1c1d26e59e305a4862f7af5bb7c3a382d7d295c3a",
+    "tests/qualification/rw040-combined/guest/env_probe.py": "094a019aeea7548329769f132c994e6f62adab271b320fb8d325e1606bcce6d4",
+    "tests/qualification/rw040-combined/guest/probe_adapter.py": "ac7469711e25cc82b43cc0e313800c1a38c3f19ca68734810b43bbb91c3aaf90",
+    "tests/qualification/rw040-combined/guest/selfcheck_probe.py": "714f1e9104e54876b5695143506530a2c9b01c0093eb1cca4d471d3e90147dce",
+    "tests/qualification/rw040-combined/run_guest.py": "e7916633559e094382029dbc42e2e72cee69893f54d9863b8b133c1433188ecc",
+    "tests/qualification/rw040-combined/test_harness.py": "839ca8c8d533620821e642d8b1e0b7d1a5c0149f91fb41a94330d1a24a1beab9"
+  },
+  "work_root": "/home/marc/Documents/github/lime-os/target/rw040-guests"
+}

@@ -1,0 +1,261 @@
+{
+  "cases": [
+    {
+      "id": "engine-empty",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Canonical authenticated Engine, empty membership",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "engine-complete",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Canonical authenticated Engine, complete running/stopped/mountless membership",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "engine-endpoint-facts",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Peer UID/socket binding is not daemon identity",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "process-same-uid",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Same-UID tasks",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "process-cross-uid",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Cross-UID tasks",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "process-nondumpable",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Nondumpable tasks",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "kernel-support-missing",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Missing capabilities/ptrace/proc/statx support",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "source-aliases-nested-volumes",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Real aliases, nested filesystems and named volumes",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "source-swapped-device",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Swapped UUID/device facts",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "source-unsupported-backing",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Unsupported layouts cannot become complete empty authority",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "transition-restart-exit",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Owned restart/exit",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "transition-root-namespace",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Owned root/namespace change",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "transition-expiry",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Declaration/lifetime expiry",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "budget-empty-near-over",
+      "missing": [
+        "case-specific combined/transition acceptance assertions"
+      ],
+      "requires": [
+        "integrator-probe"
+      ],
+      "row": "Empty/near/over-budget membership",
+      "standalone_evidence": [
+        "library-baseline/empty.json",
+        "library-baseline/complete.json"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": "budget-concurrent",
+      "missing": [
+        "integrator-worker"
+      ],
+      "prepared": [
+        "selfcheck"
+      ],
+      "requires": [
+        "integrator-probe",
+        "integrator-worker"
+      ],
+      "row": "Concurrent requests",
+      "status": "blocked"
+    },
+    {
+      "id": "worker-cancel-death-deadline",
+      "missing": [
+        "integrator-worker"
+      ],
+      "prepared": [
+        "selfcheck"
+      ],
+      "requires": [
+        "integrator-worker"
+      ],
+      "row": "Cancellation, parent death, independent deadline",
+      "status": "blocked"
+    },
+    {
+      "id": "worker-blocked-synchronous",
+      "missing": [
+        "integrator-worker",
+        "blocking-fixture"
+      ],
+      "prepared": [],
+      "requires": [
+        "integrator-worker",
+        "blocking-fixture"
+      ],
+      "row": "Blocked synchronous work",
+      "status": "blocked"
+    }
+  ],
+  "probe_supplied": true,
+  "supplied": [
+    "integrator-probe"
+  ]
+}

@@ -1,0 +1,635 @@
+{
+  "accepted_standalone_records": 7,
+  "assembled_at_utc": "2026-10-10T23:43:46.059236+00:00",
+  "ci_run_id": 38076433426,
+  "claim_boundary": "Standalone selected-owner execution/result records only. Typed refusals are not successful availability. Harness stages passing does not close combined/worker/headroom, P04 effect, BKP-001 or cutover gates.",
+  "combined_acceptance_cases_blocked": 17,
+  "deadline_reached": false,
+  "finished_utc": "2026-10-10T19:06:55.329930+00:00",
+  "guest_seconds": 657.6,
+  "harness_stages": {
+    "budget": "passed",
+    "cases": "passed",
+    "confinement": "passed",
+    "containers": "passed",
+    "empty": "passed",
+    "environment": "passed",
+    "ground-truth": "passed",
+    "image": "passed",
+    "install": "passed",
+    "layout": "passed",
+    "platform": "passed",
+    "selfcheck": "passed",
+    "service": "passed",
+    "transitions": "passed"
+  },
+  "host_runner_exit": 0,
+  "library_runs": [
+    {
+      "case": "engine",
+      "closure": {
+        "cgroup": "/sys/fs/cgroup/system.slice/rw040-probe-empty-engine-u0.service",
+        "cgroup_removed": true,
+        "unit": {
+          "ActiveState": "inactive",
+          "MainPID": "0"
+        },
+        "verified": true
+      },
+      "events_received": [
+        {
+          "monotonic": 546.460127649,
+          "phase": "collected",
+          "unix": 1791659104.3174543
+        },
+        {
+          "monotonic": 547.490019377,
+          "phase": "final",
+          "unix": 1791659105.347346
+        }
+      ],
+      "executable_libtest_exit": 0,
+      "final_delivery_age_seconds": 1.3473460674285889,
+      "final_stage": "owners.revalidated",
+      "final_status": "ok",
+      "membership_comparison": {
+        "complete_instances": true,
+        "running_pid_bindings": true
+      },
+      "membership_count": 0,
+      "membership_matches": true,
+      "membership_scope": "empty",
+      "metric_scope": "FD/RSS/HWM/PSS/io are main-process samples; memory.current/peak/events cover whole cgroup",
+      "mode": "U0",
+      "original_observed_at": 1791659104,
+      "raw_output": {
+        "captured_bytes": 1082,
+        "file": "library-baseline/empty-engine-u0.stdout",
+        "sha256": "9a5bdbac5966b2e8d46e5137c666b9d69ee504a6fea03f12bcdb15dd32dc0ff3"
+      },
+      "sampled_main_process_peak": {
+        "cgroup_memory_current": 487424,
+        "fds": 11,
+        "pss_kib": 2094,
+        "vm_hwm_kib": 2076,
+        "vm_rss_kib": 2076
+      },
+      "sampler_identity_error": null,
+      "samples": 152,
+      "seconds": 1.094,
+      "standalone_record_accepted": true,
+      "typed_error": null,
+      "whole_cgroup_final": {
+        "cgroup_memory_events": {
+          "high": "0",
+          "low": "0",
+          "max": "0",
+          "oom": "0",
+          "oom_group_kill": "0",
+          "oom_kill": "0"
+        },
+        "cgroup_memory_peak": "770048"
+      },
+      "zero_sample_values_are_unmeasured": false
+    },
+    {
+      "case": "engine",
+      "closure": {
+        "ambiguity": "cgroup identity was not observed",
+        "cgroup": null,
+        "unit": {
+          "ActiveState": "inactive",
+          "MainPID": "0"
+        },
+        "verified": false
+      },
+      "events_received": [
+        {
+          "monotonic": 547.555612809,
+          "phase": "final",
+          "unix": 1791659105.4129395
+        }
+      ],
+      "executable_libtest_exit": 0,
+      "final_delivery_age_seconds": null,
+      "final_stage": "engine.collect",
+      "final_status": "refused",
+      "membership_comparison": null,
+      "membership_count": 0,
+      "membership_matches": null,
+      "membership_scope": "empty",
+      "metric_scope": "FD/RSS/HWM/PSS/io are main-process samples; memory.current/peak/events cover whole cgroup",
+      "mode": "B0",
+      "original_observed_at": null,
+      "raw_output": {
+        "captured_bytes": 345,
+        "file": "library-baseline/empty-engine-b0.stdout",
+        "sha256": "b94504be79027feeb9cf509697db69d887e5c67c4890b24efac9150c25854636"
+      },
+      "sampled_main_process_peak": {
+        "cgroup_memory_current": 0,
+        "fds": 0,
+        "pss_kib": 0,
+        "vm_hwm_kib": 0,
+        "vm_rss_kib": 0
+      },
+      "sampler_identity_error": "ProcessLookupError: [Errno 3] No such process",
+      "samples": 0,
+      "seconds": 0.052,
+      "standalone_record_accepted": false,
+      "typed_error": {
+        "code": "unavailable",
+        "library": "engine"
+      },
+      "whole_cgroup_final": {},
+      "zero_sample_values_are_unmeasured": true
+    },
+    {
+      "case": "engine",
+      "closure": {
+        "cgroup": "/sys/fs/cgroup/system.slice/rw040-probe-complete-engine-u0.service",
+        "cgroup_removed": true,
+        "unit": {
+          "ActiveState": "inactive",
+          "MainPID": "0"
+        },
+        "verified": true
+      },
+      "events_received": [
+        {
+          "monotonic": 570.915933779,
+          "phase": "collected",
+          "unix": 1791659128.7732606
+        },
+        {
+          "monotonic": 571.941401034,
+          "phase": "final",
+          "unix": 1791659129.7987278
+        }
+      ],
+      "executable_libtest_exit": 0,
+      "final_delivery_age_seconds": 1.7987277507781982,
+      "final_stage": "owners.revalidated",
+      "final_status": "ok",
+      "membership_comparison": {
+        "complete_instances": true,
+        "running_pid_bindings": true
+      },
+      "membership_count": 14,
+      "membership_matches": true,
+      "membership_scope": "complete",
+      "metric_scope": "FD/RSS/HWM/PSS/io are main-process samples; memory.current/peak/events cover whole cgroup",
+      "mode": "U0",
+      "original_observed_at": 1791659128,
+      "raw_output": {
+        "captured_bytes": 16788,
+        "file": "library-baseline/complete-engine-u0.stdout",
+        "sha256": "e9f5764b5d84e287e85ab281ec5f66de8cab33bb3a3ea817614a1d2ab4a8b349"
+      },
+      "sampled_main_process_peak": {
+        "cgroup_memory_current": 864256,
+        "fds": 11,
+        "pss_kib": 2181,
+        "vm_hwm_kib": 2156,
+        "vm_rss_kib": 2156
+      },
+      "sampler_identity_error": null,
+      "samples": 163,
+      "seconds": 1.091,
+      "standalone_record_accepted": true,
+      "typed_error": null,
+      "whole_cgroup_final": {
+        "cgroup_memory_events": {
+          "high": "0",
+          "low": "0",
+          "max": "0",
+          "oom": "0",
+          "oom_group_kill": "0",
+          "oom_kill": "0"
+        },
+        "cgroup_memory_peak": "1179648"
+      },
+      "zero_sample_values_are_unmeasured": false
+    },
+    {
+      "case": "engine",
+      "closure": {
+        "cgroup": "/sys/fs/cgroup/system.slice/rw040-probe-complete-engine-b0.service",
+        "cgroup_removed": true,
+        "unit": {
+          "ActiveState": "inactive",
+          "MainPID": "0"
+        },
+        "verified": true
+      },
+      "events_received": [
+        {
+          "monotonic": 572.001527595,
+          "phase": "final",
+          "unix": 1791659129.858854
+        }
+      ],
+      "executable_libtest_exit": 0,
+      "final_delivery_age_seconds": null,
+      "final_stage": "engine.collect",
+      "final_status": "refused",
+      "membership_comparison": null,
+      "membership_count": 14,
+      "membership_matches": null,
+      "membership_scope": "complete",
+      "metric_scope": "FD/RSS/HWM/PSS/io are main-process samples; memory.current/peak/events cover whole cgroup",
+      "mode": "B0",
+      "original_observed_at": null,
+      "raw_output": {
+        "captured_bytes": 345,
+        "file": "library-baseline/complete-engine-b0.stdout",
+        "sha256": "b94504be79027feeb9cf509697db69d887e5c67c4890b24efac9150c25854636"
+      },
+      "sampled_main_process_peak": {
+        "cgroup_memory_current": 557056,
+        "fds": 5,
+        "pss_kib": 1830,
+        "vm_hwm_kib": 1992,
+        "vm_rss_kib": 1992
+      },
+      "sampler_identity_error": null,
+      "samples": 1,
+      "seconds": 0.055,
+      "standalone_record_accepted": true,
+      "typed_error": {
+        "code": "unavailable",
+        "library": "engine"
+      },
+      "whole_cgroup_final": {
+        "cgroup_memory_events": {
+          "high": "0",
+          "low": "0",
+          "max": "0",
+          "oom": "0",
+          "oom_group_kill": "0",
+          "oom_kill": "0"
+        },
+        "cgroup_memory_peak": "806912"
+      },
+      "zero_sample_values_are_unmeasured": false
+    },
+    {
+      "case": "engine-processes",
+      "closure": {
+        "cgroup": "/sys/fs/cgroup/system.slice/rw040-probe-complete-engine-processes-u0.service",
+        "cgroup_removed": true,
+        "unit": {
+          "ActiveState": "inactive",
+          "MainPID": "0"
+        },
+        "verified": true
+      },
+      "events_received": [
+        {
+          "monotonic": 572.080596718,
+          "phase": "final",
+          "unix": 1791659129.9379234
+        }
+      ],
+      "executable_libtest_exit": 0,
+      "final_delivery_age_seconds": null,
+      "final_stage": "processes.collect",
+      "final_status": "refused",
+      "membership_comparison": null,
+      "membership_count": 14,
+      "membership_matches": null,
+      "membership_scope": "complete",
+      "metric_scope": "FD/RSS/HWM/PSS/io are main-process samples; memory.current/peak/events cover whole cgroup",
+      "mode": "U0",
+      "original_observed_at": null,
+      "raw_output": {
+        "captured_bytes": 359,
+        "file": "library-baseline/complete-engine-processes-u0.stdout",
+        "sha256": "a9b50116df59ff08106bdeafdf682dc0f7d4aeb7dd515d6e4a6bc69d1f2ed8ab"
+      },
+      "sampled_main_process_peak": {
+        "cgroup_memory_current": 688128,
+        "fds": 11,
+        "pss_kib": 2070,
+        "vm_hwm_kib": 2068,
+        "vm_rss_kib": 2068
+      },
+      "sampler_identity_error": null,
+      "samples": 4,
+      "seconds": 0.067,
+      "standalone_record_accepted": true,
+      "typed_error": {
+        "code": "unavailable",
+        "library": "storage"
+      },
+      "whole_cgroup_final": {
+        "cgroup_memory_events": {
+          "high": "0",
+          "low": "0",
+          "max": "0",
+          "oom": "0",
+          "oom_group_kill": "0",
+          "oom_kill": "0"
+        },
+        "cgroup_memory_peak": "954368"
+      },
+      "zero_sample_values_are_unmeasured": false
+    },
+    {
+      "case": "engine-processes",
+      "closure": {
+        "ambiguity": "cgroup identity was not observed",
+        "cgroup": null,
+        "unit": {
+          "ActiveState": "inactive",
+          "MainPID": "0"
+        },
+        "verified": false
+      },
+      "events_received": [
+        {
+          "monotonic": 572.129381485,
+          "phase": "final",
+          "unix": 1791659129.986708
+        }
+      ],
+      "executable_libtest_exit": 0,
+      "final_delivery_age_seconds": null,
+      "final_stage": "engine.collect",
+      "final_status": "refused",
+      "membership_comparison": null,
+      "membership_count": 14,
+      "membership_matches": null,
+      "membership_scope": "complete",
+      "metric_scope": "FD/RSS/HWM/PSS/io are main-process samples; memory.current/peak/events cover whole cgroup",
+      "mode": "B0",
+      "original_observed_at": null,
+      "raw_output": {
+        "captured_bytes": 355,
+        "file": "library-baseline/complete-engine-processes-b0.stdout",
+        "sha256": "9e11f96dde368dd4e4646220c0bb491bcfdaabbe887f24a45eca5921d4e4ce4e"
+      },
+      "sampled_main_process_peak": {
+        "cgroup_memory_current": 0,
+        "fds": 0,
+        "pss_kib": 0,
+        "vm_hwm_kib": 0,
+        "vm_rss_kib": 0
+      },
+      "sampler_identity_error": null,
+      "samples": 0,
+      "seconds": 0.043,
+      "standalone_record_accepted": false,
+      "typed_error": {
+        "code": "unavailable",
+        "library": "engine"
+      },
+      "whole_cgroup_final": {},
+      "zero_sample_values_are_unmeasured": true
+    },
+    {
+      "case": "engine-sources",
+      "closure": {
+        "cgroup": "/sys/fs/cgroup/system.slice/rw040-probe-complete-engine-sources-u0.service",
+        "cgroup_removed": true,
+        "unit": {
+          "ActiveState": "inactive",
+          "MainPID": "0"
+        },
+        "verified": true
+      },
+      "events_received": [
+        {
+          "monotonic": 572.191977841,
+          "phase": "final",
+          "unix": 1791659130.0493042
+        }
+      ],
+      "executable_libtest_exit": 0,
+      "final_delivery_age_seconds": null,
+      "final_stage": "sources.collect",
+      "final_status": "refused",
+      "membership_comparison": null,
+      "membership_count": 14,
+      "membership_matches": null,
+      "membership_scope": "complete",
+      "metric_scope": "FD/RSS/HWM/PSS/io are main-process samples; memory.current/peak/events cover whole cgroup",
+      "mode": "U0",
+      "original_observed_at": null,
+      "raw_output": {
+        "captured_bytes": 355,
+        "file": "library-baseline/complete-engine-sources-u0.stdout",
+        "sha256": "a37b9f88d5a029095a8e55da0ef7ffb48c1137c941f317c52f79c409474fd934"
+      },
+      "sampled_main_process_peak": {
+        "cgroup_memory_current": 0,
+        "fds": 0,
+        "pss_kib": 0,
+        "vm_hwm_kib": 0,
+        "vm_rss_kib": 0
+      },
+      "sampler_identity_error": null,
+      "samples": 0,
+      "seconds": 0.051,
+      "standalone_record_accepted": true,
+      "typed_error": {
+        "code": "unavailable",
+        "library": "storage"
+      },
+      "whole_cgroup_final": {},
+      "zero_sample_values_are_unmeasured": true
+    },
+    {
+      "case": "engine-sources",
+      "closure": {
+        "ambiguity": "cgroup identity was not observed",
+        "cgroup": null,
+        "unit": {
+          "ActiveState": "inactive",
+          "MainPID": "0"
+        },
+        "verified": false
+      },
+      "events_received": [
+        {
+          "monotonic": 572.243648082,
+          "phase": "final",
+          "unix": 1791659130.1009746
+        }
+      ],
+      "executable_libtest_exit": 0,
+      "final_delivery_age_seconds": null,
+      "final_stage": "engine.collect",
+      "final_status": "refused",
+      "membership_comparison": null,
+      "membership_count": 14,
+      "membership_matches": null,
+      "membership_scope": "complete",
+      "metric_scope": "FD/RSS/HWM/PSS/io are main-process samples; memory.current/peak/events cover whole cgroup",
+      "mode": "B0",
+      "original_observed_at": null,
+      "raw_output": {
+        "captured_bytes": 353,
+        "file": "library-baseline/complete-engine-sources-b0.stdout",
+        "sha256": "3ddc642b3dd65d5bc4045402adf2bdf1dbcf9911eb6c55b3e66b66fe6869487f"
+      },
+      "sampled_main_process_peak": {
+        "cgroup_memory_current": 0,
+        "fds": 0,
+        "pss_kib": 0,
+        "vm_hwm_kib": 0,
+        "vm_rss_kib": 0
+      },
+      "sampler_identity_error": null,
+      "samples": 0,
+      "seconds": 0.058,
+      "standalone_record_accepted": false,
+      "typed_error": {
+        "code": "unavailable",
+        "library": "engine"
+      },
+      "whole_cgroup_final": {},
+      "zero_sample_values_are_unmeasured": true
+    },
+    {
+      "case": "storage",
+      "closure": {
+        "cgroup": "/sys/fs/cgroup/system.slice/rw040-probe-complete-storage-u0.service",
+        "cgroup_removed": true,
+        "unit": {
+          "ActiveState": "inactive",
+          "MainPID": "0"
+        },
+        "verified": true
+      },
+      "events_received": [
+        {
+          "monotonic": 572.357149689,
+          "phase": "collected",
+          "unix": 1791659130.2144763
+        },
+        {
+          "monotonic": 573.412333569,
+          "phase": "final",
+          "unix": 1791659131.2696607
+        }
+      ],
+      "executable_libtest_exit": 0,
+      "final_delivery_age_seconds": null,
+      "final_stage": "storage.revalidated",
+      "final_status": "ok",
+      "membership_comparison": null,
+      "membership_count": 14,
+      "membership_matches": null,
+      "membership_scope": "complete",
+      "metric_scope": "FD/RSS/HWM/PSS/io are main-process samples; memory.current/peak/events cover whole cgroup",
+      "mode": "U0",
+      "original_observed_at": null,
+      "raw_output": {
+        "captured_bytes": 5258,
+        "file": "library-baseline/complete-storage-u0.stdout",
+        "sha256": "207bb12dbdc80d00f3264de7066806c007dbff2d3f52631e8a4e37cd208ef6ff"
+      },
+      "sampled_main_process_peak": {
+        "cgroup_memory_current": 9510912,
+        "fds": 26,
+        "pss_kib": 2274,
+        "vm_hwm_kib": 2400,
+        "vm_rss_kib": 2400
+      },
+      "sampler_identity_error": null,
+      "samples": 165,
+      "seconds": 1.15,
+      "standalone_record_accepted": true,
+      "typed_error": null,
+      "whole_cgroup_final": {
+        "cgroup_memory_events": {
+          "high": "0",
+          "low": "0",
+          "max": "0",
+          "oom": "0",
+          "oom_group_kill": "0",
+          "oom_kill": "0"
+        },
+        "cgroup_memory_peak": "10604544"
+      },
+      "zero_sample_values_are_unmeasured": false
+    },
+    {
+      "case": "storage",
+      "closure": {
+        "cgroup": "/sys/fs/cgroup/system.slice/rw040-probe-complete-storage-b0.service",
+        "cgroup_removed": true,
+        "unit": {
+          "ActiveState": "inactive",
+          "MainPID": "0"
+        },
+        "verified": true
+      },
+      "events_received": [
+        {
+          "monotonic": 573.527415584,
+          "phase": "collected",
+          "unix": 1791659131.3847423
+        },
+        {
+          "monotonic": 574.607456359,
+          "phase": "final",
+          "unix": 1791659132.4647834
+        }
+      ],
+      "executable_libtest_exit": 0,
+      "final_delivery_age_seconds": null,
+      "final_stage": "storage.revalidated",
+      "final_status": "ok",
+      "membership_comparison": null,
+      "membership_count": 14,
+      "membership_matches": null,
+      "membership_scope": "complete",
+      "metric_scope": "FD/RSS/HWM/PSS/io are main-process samples; memory.current/peak/events cover whole cgroup",
+      "mode": "B0",
+      "original_observed_at": null,
+      "raw_output": {
+        "captured_bytes": 5258,
+        "file": "library-baseline/complete-storage-b0.stdout",
+        "sha256": "504a398d5db7412fb04494ec2e61fe6957e7116ef189cdc369557e7ee30815e7"
+      },
+      "sampled_main_process_peak": {
+        "cgroup_memory_current": 4919296,
+        "fds": 26,
+        "pss_kib": 2359,
+        "vm_hwm_kib": 2316,
+        "vm_rss_kib": 2312
+      },
+      "sampler_identity_error": null,
+      "samples": 170,
+      "seconds": 1.187,
+      "standalone_record_accepted": true,
+      "typed_error": null,
+      "whole_cgroup_final": {
+        "cgroup_memory_events": {
+          "high": "0",
+          "low": "0",
+          "max": "0",
+          "oom": "0",
+          "oom_group_kill": "0",
+          "oom_kill": "0"
+        },
+        "cgroup_memory_peak": "5586944"
+      },
+      "zero_sample_values_are_unmeasured": false
+    }
+  ],
+  "metric_boundary": "FD/RSS/PSS/io are main-process samples; whole-cgroup memory/events are separately recorded. Zero samples mean unmeasured. Memory ceiling self-check records oom=1 and oom_kill=0, not a proven OOM kill.",
+  "qemu_exit": 0,
+  "refusal_attribution": "Actual library outputs expose unavailable at engine.collect, processes.collect or sources.collect. Standard-tool B0 openat2/proc observations are separate evidence and do not establish the precise internal cause of each library refusal.",
+  "run_id": "20261010T185555Z-42f25d03",
+  "schema": 1,
+  "source_worktree_clean_at_assembly": true,
+  "started_utc": "2026-10-10T18:55:55.596702+00:00",
+  "successful_owner_results": 4,
+  "tested_source": "46f7daadcc5d930ca97925d96f05baddb20e1b2f",
+  "timing_note": "Install took534.53s and serial records jbd2 blocked-task, RCU stall and long clocksource readout/watchdog warnings. No cause is established and no performance/headroom qualification follows.",
+  "typed_refusals": 6,
+  "unaccepted_cgroup_closure_records": 3
+}

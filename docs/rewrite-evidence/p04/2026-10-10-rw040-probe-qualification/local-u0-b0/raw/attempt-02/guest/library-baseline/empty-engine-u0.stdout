@@ -1,0 +1,10 @@
+
+running 1 test
+test qualification_probe ... 
+LIMEOS_RW040_PROBE_JSON={"version":1,"case":"engine","phase":"collected","status":"ok","stage":"owners.collected","error":null,"effective_uid":0,"observations":{"engine":{"version":1,"endpoint":"/run/docker.sock","policy":{"socket_uid":0,"peer_uid":0},"socket":{"device":23,"inode":1172,"uid":0,"mode":49584},"declarations":{"version":1,"engine_id":"PLGG:U74L:Z4TJ:TK44:DWVR:SA3E:OS65:KFYE:BSA5:CKIO:27UM:6B6V","observed_at":1791659104,"containers":[]},"running":[]}}}
+
+LIMEOS_RW040_PROBE_JSON={"version":1,"case":"engine","phase":"final","status":"ok","stage":"owners.revalidated","error":null,"effective_uid":0,"observations":{"engine":{"version":1,"endpoint":"/run/docker.sock","policy":{"socket_uid":0,"peer_uid":0},"socket":{"device":23,"inode":1172,"uid":0,"mode":49584},"declarations":{"version":1,"engine_id":"PLGG:U74L:Z4TJ:TK44:DWVR:SA3E:OS65:KFYE:BSA5:CKIO:27UM:6B6V","observed_at":1791659104,"containers":[]},"running":[]}}}
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 1.05s
+

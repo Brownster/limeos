@@ -1,0 +1,31 @@
+[   10.191048] cloud-init[537]: [rw040 +    0.0s] RW040-GUEST-START run=20261010T185555Z-42f25d03
+[   10.251952] cloud-init[537]: [rw040 +    0.0s] stage platform: start
+[   11.092328] cloud-init[537]: [rw040 +    0.9s] stage platform: passed in 0.9s
+[   11.094229] cloud-init[537]: [rw040 +    0.9s] stage install: start
+[  545.621137] cloud-init[537]: [rw040 +  535.4s] stage install: passed in 534.53s
+[  545.622990] cloud-init[537]: [rw040 +  535.4s] stage service: start
+[  545.666211] cloud-init[537]: [rw040 +  535.5s] stage service: passed in 0.05s
+[  545.666914] cloud-init[537]: [rw040 +  535.5s] stage confinement: start
+[  545.736566] cloud-init[537]: [rw040 +  535.5s] stage confinement: passed in 0.07s
+[  545.737185] cloud-init[537]: [rw040 +  535.5s] stage image: start
+[  546.380291] cloud-init[537]: [rw040 +  536.2s] stage image: passed in 0.64s
+[  546.381133] cloud-init[537]: [rw040 +  536.2s] stage empty: start
+[  547.572809] cloud-init[537]: [rw040 +  537.4s] stage empty: passed in 1.19s
+[  547.573586] cloud-init[537]: [rw040 +  537.4s] stage layout: start
+[  551.738002] cloud-init[537]: [rw040 +  541.5s] stage layout: passed in 4.16s
+[  551.742230] cloud-init[537]: [rw040 +  541.5s] stage containers: start
+[  570.811626] cloud-init[537]: [rw040 +  560.6s] stage containers: passed in 19.07s
+[  570.815768] cloud-init[537]: [rw040 +  560.6s] stage ground-truth: start
+[  574.647635] cloud-init[537]: [rw040 +  564.5s] stage ground-truth: passed in 3.84s
+[  574.649571] cloud-init[537]: [rw040 +  564.5s] stage environment: start
+[  574.796396] cloud-init[537]: [rw040 +  564.6s] stage environment: passed in 0.15s
+[  574.798244] cloud-init[537]: [rw040 +  564.6s] stage selfcheck: start
+[  578.119540] cloud-init[537]: [rw040 +  567.9s] stage selfcheck: passed in 3.32s
+[  578.121079] cloud-init[537]: [rw040 +  567.9s] stage transitions: start
+[  582.415529] cloud-init[537]: [rw040 +  572.2s] stage transitions: passed in 4.3s
+[  582.417484] cloud-init[537]: [rw040 +  572.2s] stage budget: start
+[  640.191238] cloud-init[537]: [rw040 +  630.0s] stage budget: passed in 57.77s
+[  640.194261] cloud-init[537]: [rw040 +  630.0s] stage cases: start
+[  640.206250] cloud-init[537]: [rw040 +  630.0s] stage cases: passed in 0.02s
+[  640.234477] cloud-init[537]: [rw040 +  630.0s] RW040-GUEST-RESULTS-WRITTEN
+{"outcome": "completed", "run_id": "20261010T185555Z-42f25d03", "teardown": {"run_dir_removed": true, "marker_processes_after": [], "finished_utc": "2026-10-10T19:06:55.329930+00:00"}}

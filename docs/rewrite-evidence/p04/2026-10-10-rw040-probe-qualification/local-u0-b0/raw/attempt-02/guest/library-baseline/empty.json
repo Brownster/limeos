@@ -1,0 +1,375 @@
+{
+  "probe_supply": {
+    "binary": "combined_read_probe",
+    "binary_sha256": "523f6e94573e975c6f2410bc641573d4e836f0bf62a1a5a90559e66271de9268",
+    "contract": 1,
+    "library_source": "46f7daadcc5d930ca97925d96f05baddb20e1b2f",
+    "profile": "release",
+    "source_commit": "46f7daadcc5d930ca97925d96f05baddb20e1b2f",
+    "source_sha256": "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c",
+    "toolchain": "1.88.0"
+  },
+  "runs": [
+    {
+      "accepted_standalone_record": true,
+      "argv": [
+        "/usr/bin/env",
+        "-i",
+        "PATH=/usr/bin:/bin",
+        "LIMEOS_RW040_PROBE_CASE=engine",
+        "LIMEOS_RW040_PROBE_SOCKET=/run/docker.sock",
+        "LIMEOS_RW040_PROBE_PAUSE_MS=1000",
+        "/qual/inputs/probe/combined_read_probe",
+        "--exact",
+        "qualification_probe",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "case": "engine",
+      "closure": {
+        "cgroup": "/sys/fs/cgroup/system.slice/rw040-probe-empty-engine-u0.service",
+        "cgroup_removed": true,
+        "unit": {
+          "ActiveState": "inactive",
+          "MainPID": "0"
+        },
+        "verified": true
+      },
+      "complete_membership_matches": true,
+      "environment": {
+        "LIMEOS_RW040_PROBE_CASE": "engine",
+        "LIMEOS_RW040_PROBE_PAUSE_MS": "1000",
+        "LIMEOS_RW040_PROBE_SOCKET": "/run/docker.sock"
+      },
+      "events": [
+        {
+          "case": "engine",
+          "effective_uid": 0,
+          "error": null,
+          "observations": {
+            "engine": {
+              "declarations": {
+                "containers": [],
+                "engine_id": "PLGG:U74L:Z4TJ:TK44:DWVR:SA3E:OS65:KFYE:BSA5:CKIO:27UM:6B6V",
+                "observed_at": 1791659104,
+                "version": 1
+              },
+              "endpoint": "/run/docker.sock",
+              "policy": {
+                "peer_uid": 0,
+                "socket_uid": 0
+              },
+              "running": [],
+              "socket": {
+                "device": 23,
+                "inode": 1172,
+                "mode": 49584,
+                "uid": 0
+              },
+              "version": 1
+            }
+          },
+          "phase": "collected",
+          "stage": "owners.collected",
+          "status": "ok",
+          "version": 1
+        },
+        {
+          "case": "engine",
+          "effective_uid": 0,
+          "error": null,
+          "observations": {
+            "engine": {
+              "declarations": {
+                "containers": [],
+                "engine_id": "PLGG:U74L:Z4TJ:TK44:DWVR:SA3E:OS65:KFYE:BSA5:CKIO:27UM:6B6V",
+                "observed_at": 1791659104,
+                "version": 1
+              },
+              "endpoint": "/run/docker.sock",
+              "policy": {
+                "peer_uid": 0,
+                "socket_uid": 0
+              },
+              "running": [],
+              "socket": {
+                "device": 23,
+                "inode": 1172,
+                "mode": 49584,
+                "uid": 0
+              },
+              "version": 1
+            }
+          },
+          "phase": "final",
+          "stage": "owners.revalidated",
+          "status": "ok",
+          "version": 1
+        }
+      ],
+      "exit": 0,
+      "final_status": "ok",
+      "ground_truth_membership": {
+        "count": 0,
+        "issued_monotonic": 546.407673411,
+        "issued_wall": 1791659104.2649992,
+        "members": [],
+        "running": 0
+      },
+      "membership_comparison": {
+        "complete_instances": true,
+        "running_pid_bindings": true
+      },
+      "mode": "U0",
+      "output": {
+        "bytes": 1082,
+        "events": [
+          {
+            "case": "engine",
+            "effective_uid": 0,
+            "error": null,
+            "observations": {
+              "engine": {
+                "declarations": {
+                  "containers": [],
+                  "engine_id": "PLGG:U74L:Z4TJ:TK44:DWVR:SA3E:OS65:KFYE:BSA5:CKIO:27UM:6B6V",
+                  "observed_at": 1791659104,
+                  "version": 1
+                },
+                "endpoint": "/run/docker.sock",
+                "policy": {
+                  "peer_uid": 0,
+                  "socket_uid": 0
+                },
+                "running": [],
+                "socket": {
+                  "device": 23,
+                  "inode": 1172,
+                  "mode": 49584,
+                  "uid": 0
+                },
+                "version": 1
+              }
+            },
+            "phase": "collected",
+            "stage": "owners.collected",
+            "status": "ok",
+            "version": 1
+          },
+          {
+            "case": "engine",
+            "effective_uid": 0,
+            "error": null,
+            "observations": {
+              "engine": {
+                "declarations": {
+                  "containers": [],
+                  "engine_id": "PLGG:U74L:Z4TJ:TK44:DWVR:SA3E:OS65:KFYE:BSA5:CKIO:27UM:6B6V",
+                  "observed_at": 1791659104,
+                  "version": 1
+                },
+                "endpoint": "/run/docker.sock",
+                "policy": {
+                  "peer_uid": 0,
+                  "socket_uid": 0
+                },
+                "running": [],
+                "socket": {
+                  "device": 23,
+                  "inode": 1172,
+                  "mode": 49584,
+                  "uid": 0
+                },
+                "version": 1
+              }
+            },
+            "phase": "final",
+            "stage": "owners.revalidated",
+            "status": "ok",
+            "version": 1
+          }
+        ],
+        "noise": "\nrunning 1 test\ntest qualification_probe ... \n\nok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 1.05s\n\n",
+        "received": [
+          {
+            "monotonic": 546.460127649,
+            "phase": "collected",
+            "unix": 1791659104.3174543
+          },
+          {
+            "monotonic": 547.490019377,
+            "phase": "final",
+            "unix": 1791659105.347346
+          }
+        ]
+      },
+      "qualification": "standalone selected-owner baseline; no combined/admission/worker gate",
+      "raw_output": {
+        "captured_bytes": 1082,
+        "file": "library-baseline/empty-engine-u0.stdout",
+        "sha256": "9a5bdbac5966b2e8d46e5137c666b9d69ee504a6fea03f12bcdb15dd32dc0ff3"
+      },
+      "received": [
+        {
+          "monotonic": 546.460127649,
+          "phase": "collected",
+          "unix": 1791659104.3174543
+        },
+        {
+          "monotonic": 547.490019377,
+          "phase": "final",
+          "unix": 1791659105.347346
+        }
+      ],
+      "sampler": {
+        "final": {
+          "cgroup_memory_events": {
+            "high": "0",
+            "low": "0",
+            "max": "0",
+            "oom": "0",
+            "oom_group_kill": "0",
+            "oom_kill": "0"
+          },
+          "cgroup_memory_peak": "770048",
+          "io": {
+            "cancelled_write_bytes": "0",
+            "rchar": "15959",
+            "read_bytes": "0",
+            "syscr": "24",
+            "syscw": "56",
+            "wchar": "2100",
+            "write_bytes": "0"
+          }
+        },
+        "identity_error": null,
+        "peak": {
+          "cgroup_memory_current": 487424,
+          "fds": 11,
+          "pss_kib": 2094,
+          "vm_hwm_kib": 2076,
+          "vm_rss_kib": 2076
+        },
+        "pid": 5773,
+        "samples": 152,
+        "scope": "FD/RSS/HWM/PSS/io are main-process samples; memory.current/peak/events cover whole cgroup",
+        "start_ticks": 54641
+      },
+      "seconds": 1.094,
+      "transition": null
+    },
+    {
+      "accepted_standalone_record": false,
+      "argv": [
+        "/usr/bin/env",
+        "-i",
+        "PATH=/usr/bin:/bin",
+        "LIMEOS_RW040_PROBE_CASE=engine",
+        "LIMEOS_RW040_PROBE_SOCKET=/run/docker.sock",
+        "LIMEOS_RW040_PROBE_PAUSE_MS=1000",
+        "/qual/inputs/probe/combined_read_probe",
+        "--exact",
+        "qualification_probe",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "case": "engine",
+      "closure": {
+        "ambiguity": "cgroup identity was not observed",
+        "cgroup": null,
+        "unit": {
+          "ActiveState": "inactive",
+          "MainPID": "0"
+        },
+        "verified": false
+      },
+      "environment": {
+        "LIMEOS_RW040_PROBE_CASE": "engine",
+        "LIMEOS_RW040_PROBE_PAUSE_MS": "1000",
+        "LIMEOS_RW040_PROBE_SOCKET": "/run/docker.sock"
+      },
+      "events": [
+        {
+          "case": "engine",
+          "effective_uid": 0,
+          "error": {
+            "code": "unavailable",
+            "library": "engine"
+          },
+          "observations": {},
+          "phase": "final",
+          "stage": "engine.collect",
+          "status": "refused",
+          "version": 1
+        }
+      ],
+      "exit": 0,
+      "final_status": "refused",
+      "ground_truth_membership": {
+        "count": 0,
+        "issued_monotonic": 546.407673411,
+        "issued_wall": 1791659104.2649992,
+        "members": [],
+        "running": 0
+      },
+      "mode": "B0",
+      "output": {
+        "bytes": 345,
+        "events": [
+          {
+            "case": "engine",
+            "effective_uid": 0,
+            "error": {
+              "code": "unavailable",
+              "library": "engine"
+            },
+            "observations": {},
+            "phase": "final",
+            "stage": "engine.collect",
+            "status": "refused",
+            "version": 1
+          }
+        ],
+        "noise": "\nrunning 1 test\ntest qualification_probe ... \nok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s\n\n",
+        "received": [
+          {
+            "monotonic": 547.555612809,
+            "phase": "final",
+            "unix": 1791659105.4129395
+          }
+        ]
+      },
+      "qualification": "standalone selected-owner baseline; no combined/admission/worker gate",
+      "raw_output": {
+        "captured_bytes": 345,
+        "file": "library-baseline/empty-engine-b0.stdout",
+        "sha256": "b94504be79027feeb9cf509697db69d887e5c67c4890b24efac9150c25854636"
+      },
+      "received": [
+        {
+          "monotonic": 547.555612809,
+          "phase": "final",
+          "unix": 1791659105.4129395
+        }
+      ],
+      "sampler": {
+        "final": {},
+        "identity_error": "ProcessLookupError: [Errno 3] No such process",
+        "peak": {
+          "cgroup_memory_current": 0,
+          "fds": 0,
+          "pss_kib": 0,
+          "vm_hwm_kib": 0,
+          "vm_rss_kib": 0
+        },
+        "pid": null,
+        "samples": 0,
+        "scope": "FD/RSS/HWM/PSS/io are main-process samples; memory.current/peak/events cover whole cgroup",
+        "start_ticks": null
+      },
+      "seconds": 0.052,
+      "transition": null
+    }
+  ],
+  "scope": "U0 unrestricted control and B0 unchanged installed confinement only; all combined acceptance gates remain open"
+}

@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "/tmp/limeos-rw040-u0-b0-46f7/tests/qualification/rw040-combined/run_guest.py", line 994, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/tmp/limeos-rw040-u0-b0-46f7/tests/qualification/rw040-combined/run_guest.py", line 940, in main
+    record["qmp_initial"] = qmp(run_dir / "qmp.sock", "query-status", timeout=10)[
+                            ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/limeos-rw040-u0-b0-46f7/tests/qualification/rw040-combined/run_guest.py", line 429, in qmp
+    sock.connect(str(sock_path))
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+PermissionError: [Errno 1] Operation not permitted

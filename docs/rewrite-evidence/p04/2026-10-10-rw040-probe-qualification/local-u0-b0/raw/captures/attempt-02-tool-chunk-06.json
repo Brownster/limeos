@@ -1,0 +1,7 @@
+{
+  "chunk_id": "21f05b",
+  "wall_time_seconds": 20.000795369,
+  "session_id": 84960,
+  "original_token_count": 77,
+  "output": "[  640.191238] cloud-init[537]: [rw040 +  630.0s] stage budget: passed in 57.77s\n[  640.194261] cloud-init[537]: [rw040 +  630.0s] stage cases: start\n[  640.206250] cloud-init[537]: [rw040 +  630.0s] stage cases: passed in 0.02s\n[  640.234477] cloud-init[537]: [rw040 +  630.0s] RW040-GUEST-RESULTS-WRITTEN\n"
+}

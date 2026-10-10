@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "source_commit": "6964fca674f2c0431a673203ecba5329c64a42e4",
+  "ci_run_id": 38075054820,
+  "ci_run_url": "https://github.com/Brownster/limeos/actions/runs/38075054820",
+  "status": "blocked_actual_artifacts_absent",
+  "reported_at_utc": "2026-10-10T18:30:53Z",
+  "status_basis": "The single CI collector reported that the AMD64 Debian12 release-build step failed before package or probe publication. The independent reviewer withheld execution input approval. Raw CI diagnostics are retained by the collector and have not yet been independently inspected by this worker.",
+  "qualifying_packages_verified": false,
+  "qualifying_probe_verified": false,
+  "guest_launched": false,
+  "guest_attempts": 0,
+  "prepared_source_worktree": "/tmp/limeos-rw040-u0-b0-6964",
+  "prepared_source_clean": true,
+  "image_verification_record": "image-verification.json",
+  "next_condition": "A reviewed build correction and successful actual matching source/package/probe supply require a fresh exact-source input record before any guest launch. Historical packages or an unbuilt fixture manifest cannot substitute."
+}

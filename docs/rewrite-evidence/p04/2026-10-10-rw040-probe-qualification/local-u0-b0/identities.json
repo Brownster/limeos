@@ -1,0 +1,70 @@
+{
+  "command_record_sha256": "d1a3c1694b25619ffa2dd791bda03c997a8436c5ab6a6b2fbe516e7976bb2a5e",
+  "fixtures_sha256": {
+    "cases.json": "d24607f64e6c1650cc04682f01b6a95e7dabb43aa0653eb6e3df070fecd46775",
+    "layout.json": "9dff6d9c50592b11267e5bbedd4102430113fa684ff1a034e263d735407f4823"
+  },
+  "harness_sha256": {
+    "combined_guest.py": "b9f666dd4cc1deb63c07cda1c1d26e59e305a4862f7af5bb7c3a382d7d295c3a",
+    "env_probe.py": "094a019aeea7548329769f132c994e6f62adab271b320fb8d325e1606bcce6d4",
+    "probe_adapter.py": "ac7469711e25cc82b43cc0e313800c1a38c3f19ca68734810b43bbb91c3aaf90",
+    "run_guest.py": "e7916633559e094382029dbc42e2e72cee69893f54d9863b8b133c1433188ecc",
+    "selfcheck_probe.py": "714f1e9104e54876b5695143506530a2c9b01c0093eb1cca4d471d3e90147dce"
+  },
+  "image": {
+    "path": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+  },
+  "input_acquisition_sha256": "630acc10de74a0a5fbc896d9e34a37f2a9136302fba1a3b409f89126e391cf6a",
+  "installed_binaries_sha256": {
+    "limeos-core": "f4098751f64f95f2b992359388fe340a21d7b4e27123148711bcfda3cd073c39",
+    "limeos-executor": "c996adfbbbed99999a6553d855e2bad9480385b3d65a2918856fcb5bc017e974",
+    "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+    "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+  },
+  "installed_reader_unit_sha256": "b5feec6461873dfb05aab089a429293287a5bdb82ac0eb2759a79c0217d5f352",
+  "packages": {
+    "description": "derived from packages built in the same workflow",
+    "packages": [
+      {
+        "binaries": {
+          "limeos-core": "f4098751f64f95f2b992359388fe340a21d7b4e27123148711bcfda3cd073c39",
+          "limeos-executor": "c996adfbbbed99999a6553d855e2bad9480385b3d65a2918856fcb5bc017e974",
+          "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+          "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+        },
+        "bytes": 2927206,
+        "file": "limeos-shadow_0.4.4_amd64.deb",
+        "sha256": "05741f99f712ab5606aead7558693caf3f9c84bac6a03ea30651c3a0bb92048a"
+      },
+      {
+        "binaries": {
+          "limeos-core": "f4098751f64f95f2b992359388fe340a21d7b4e27123148711bcfda3cd073c39",
+          "limeos-executor": "c996adfbbbed99999a6553d855e2bad9480385b3d65a2918856fcb5bc017e974",
+          "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+          "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+        },
+        "bytes": 2928236,
+        "file": "limeos_0.4.4+ci.1_amd64.deb",
+        "sha256": "73930103911f5dfbf75bf4009c69a831c2230359dc944c7a064d6fdcdcd6237c"
+      },
+      {
+        "binaries": {
+          "limeos-core": "f4098751f64f95f2b992359388fe340a21d7b4e27123148711bcfda3cd073c39",
+          "limeos-executor": "c996adfbbbed99999a6553d855e2bad9480385b3d65a2918856fcb5bc017e974",
+          "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+          "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+        },
+        "bytes": 2928238,
+        "file": "limeos_0.4.4_amd64.deb",
+        "sha256": "69718ea46d58ef255c71ee290e91fd9a5eba9a1dd1e86f05fd6ac946f3c6ffb9"
+      }
+    ],
+    "tested_source": "46f7daadcc5d930ca97925d96f05baddb20e1b2f"
+  },
+  "probe_executable_sha256": "523f6e94573e975c6f2410bc641573d4e836f0bf62a1a5a90559e66271de9268",
+  "run_record_sha256": "40eb1967a79cff6a481f6cac6c32afc50694101fc19a7f4f54efa3eff86175e3",
+  "source_probe_sha256": "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c",
+  "tested_source": "46f7daadcc5d930ca97925d96f05baddb20e1b2f",
+  "verified_input_record_sha256": "d3b417ebf01f82ff993a3629e197567c5ecaea288c0e76bfee573892c2d92f02"
+}

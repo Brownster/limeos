@@ -1,0 +1,7 @@
+{
+  "chunk_id": "5116bc",
+  "wall_time_seconds": 5.093756108,
+  "session_id": 84960,
+  "original_token_count": 81,
+  "output": "[   10.191048] cloud-init[537]: [rw040 +    0.0s] RW040-GUEST-START run=20261010T185555Z-42f25d03\n[   10.251952] cloud-init[537]: [rw040 +    0.0s] stage platform: start\n[   11.092328] cloud-init[537]: [rw040 +    0.9s] stage platform: passed in 0.9s\n[   11.094229] cloud-init[537]: [rw040 +    0.9s] stage install: start\n"
+}

@@ -1,0 +1,58 @@
+{
+  "budget": {
+    "result": "passed",
+    "seconds": 57.77
+  },
+  "cases": {
+    "result": "passed",
+    "seconds": 0.02
+  },
+  "confinement": {
+    "result": "passed",
+    "seconds": 0.07
+  },
+  "containers": {
+    "result": "passed",
+    "seconds": 19.07
+  },
+  "empty": {
+    "result": "passed",
+    "seconds": 1.19
+  },
+  "environment": {
+    "result": "passed",
+    "seconds": 0.15
+  },
+  "ground-truth": {
+    "result": "passed",
+    "seconds": 3.84
+  },
+  "image": {
+    "result": "passed",
+    "seconds": 0.64
+  },
+  "install": {
+    "result": "passed",
+    "seconds": 534.53
+  },
+  "layout": {
+    "result": "passed",
+    "seconds": 4.16
+  },
+  "platform": {
+    "result": "passed",
+    "seconds": 0.9
+  },
+  "selfcheck": {
+    "result": "passed",
+    "seconds": 3.32
+  },
+  "service": {
+    "result": "passed",
+    "seconds": 0.05
+  },
+  "transitions": {
+    "result": "passed",
+    "seconds": 4.3
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "description": "derived from packages built in the same workflow",
+  "packages": [
+    {
+      "binaries": {
+        "limeos-core": "f4098751f64f95f2b992359388fe340a21d7b4e27123148711bcfda3cd073c39",
+        "limeos-executor": "c996adfbbbed99999a6553d855e2bad9480385b3d65a2918856fcb5bc017e974",
+        "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+        "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+      },
+      "bytes": 2927206,
+      "file": "limeos-shadow_0.4.4_amd64.deb",
+      "sha256": "05741f99f712ab5606aead7558693caf3f9c84bac6a03ea30651c3a0bb92048a"
+    },
+    {
+      "binaries": {
+        "limeos-core": "f4098751f64f95f2b992359388fe340a21d7b4e27123148711bcfda3cd073c39",
+        "limeos-executor": "c996adfbbbed99999a6553d855e2bad9480385b3d65a2918856fcb5bc017e974",
+        "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+        "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+      },
+      "bytes": 2928236,
+      "file": "limeos_0.4.4+ci.1_amd64.deb",
+      "sha256": "73930103911f5dfbf75bf4009c69a831c2230359dc944c7a064d6fdcdcd6237c"
+    },
+    {
+      "binaries": {
+        "limeos-core": "f4098751f64f95f2b992359388fe340a21d7b4e27123148711bcfda3cd073c39",
+        "limeos-executor": "c996adfbbbed99999a6553d855e2bad9480385b3d65a2918856fcb5bc017e974",
+        "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+        "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+      },
+      "bytes": 2928238,
+      "file": "limeos_0.4.4_amd64.deb",
+      "sha256": "69718ea46d58ef255c71ee290e91fd9a5eba9a1dd1e86f05fd6ac946f3c6ffb9"
+    }
+  ],
+  "tested_source": "46f7daadcc5d930ca97925d96f05baddb20e1b2f"
+}

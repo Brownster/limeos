@@ -1,0 +1,258 @@
+{
+  "assembled_utc": "2026-10-10T23:47:37.510070+00:00",
+  "assembly_kind": "Retained evidence only; no tests or guest rerun",
+  "ci": {
+    "boundary": "Existing installed suites do not qualify an installed combined worker or private preparation/live restore",
+    "ci_only_manifest_sha256": "888642bd2ffd75dee7f8bd7612c2efa10dbfaae03b111bbcbcdf3530a94825f3",
+    "conclusion": "success",
+    "each_native_architecture": {
+      "architectures": [
+        "AMD64",
+        "ARM64"
+      ],
+      "arm64_guards": 33,
+      "console_harness_tests": 41,
+      "producer_workflow_regressions": 8,
+      "rust_compile_fail": 4,
+      "rust_total": 425,
+      "rust_unit_integration": 421
+    },
+    "elf_identities": 24,
+    "fresh_installed_suite_counts": [
+      14,
+      6,
+      61,
+      50,
+      49
+    ],
+    "fresh_installed_total": 180,
+    "installed_reference_tests": 23,
+    "packages": 6,
+    "raw_summary": "ci-38076433426/ci-summary.json",
+    "run_id": 38076433426,
+    "run_url": "https://github.com/Brownster/limeos/actions/runs/38076433426"
+  },
+  "earlier_attempts": {
+    "attempt01": "Executed initialization failed with sandbox QMP EPERM; no library results; serial/QEMU logs unavailable on that path",
+    "interrupted_approval": "201.2-second approval wait; no execution result or owned retry state; separate from executed attempts",
+    "raw_records": "local-u0-b0/raw-identities.json",
+    "source6964_ci": {
+      "qualifying_amd64_inputs": false,
+      "record": "../2026-10-10-probe-producer-recovery/README.md",
+      "run_id": 38075054820
+    }
+  },
+  "follow_on_backup": {
+    "record": "proposed-next-backup-integration.md",
+    "status": "Proposed design only; not implemented; phase/slice estimate required before implementation"
+  },
+  "historical_failed_budget": {
+    "ceiling_ms": 20,
+    "operation": "storage-inventory",
+    "p95_ms": 61.401,
+    "status": "failed; unchanged"
+  },
+  "inputs": {
+    "acquisition": "input-acquisition.json",
+    "independent_review": "independent-input-review.md",
+    "package_library_source_matches_probe": true,
+    "probe_sha256": "523f6e94573e975c6f2410bc641573d4e836f0bf62a1a5a90559e66271de9268",
+    "probe_source_sha256": "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c",
+    "verification": "verified-inputs.json"
+  },
+  "local_standalone": {
+    "accepted_refusal_records": 3,
+    "accepted_standalone_records": 7,
+    "cases": [
+      {
+        "case": "engine",
+        "closure_ambiguity": null,
+        "closure_verified": true,
+        "final_stage": "owners.revalidated",
+        "final_status": "ok",
+        "membership_scope": "empty",
+        "mode": "U0",
+        "sample_count": 152,
+        "standalone_record_accepted": true,
+        "typed_error": null
+      },
+      {
+        "case": "engine",
+        "closure_ambiguity": "cgroup identity was not observed",
+        "closure_verified": false,
+        "final_stage": "engine.collect",
+        "final_status": "refused",
+        "membership_scope": "empty",
+        "mode": "B0",
+        "sample_count": 0,
+        "standalone_record_accepted": false,
+        "typed_error": {
+          "code": "unavailable",
+          "library": "engine"
+        }
+      },
+      {
+        "case": "engine",
+        "closure_ambiguity": null,
+        "closure_verified": true,
+        "final_stage": "owners.revalidated",
+        "final_status": "ok",
+        "membership_scope": "complete",
+        "mode": "U0",
+        "sample_count": 163,
+        "standalone_record_accepted": true,
+        "typed_error": null
+      },
+      {
+        "case": "engine",
+        "closure_ambiguity": null,
+        "closure_verified": true,
+        "final_stage": "engine.collect",
+        "final_status": "refused",
+        "membership_scope": "complete",
+        "mode": "B0",
+        "sample_count": 1,
+        "standalone_record_accepted": true,
+        "typed_error": {
+          "code": "unavailable",
+          "library": "engine"
+        }
+      },
+      {
+        "case": "engine-processes",
+        "closure_ambiguity": null,
+        "closure_verified": true,
+        "final_stage": "processes.collect",
+        "final_status": "refused",
+        "membership_scope": "complete",
+        "mode": "U0",
+        "sample_count": 4,
+        "standalone_record_accepted": true,
+        "typed_error": {
+          "code": "unavailable",
+          "library": "storage"
+        }
+      },
+      {
+        "case": "engine-processes",
+        "closure_ambiguity": "cgroup identity was not observed",
+        "closure_verified": false,
+        "final_stage": "engine.collect",
+        "final_status": "refused",
+        "membership_scope": "complete",
+        "mode": "B0",
+        "sample_count": 0,
+        "standalone_record_accepted": false,
+        "typed_error": {
+          "code": "unavailable",
+          "library": "engine"
+        }
+      },
+      {
+        "case": "engine-sources",
+        "closure_ambiguity": null,
+        "closure_verified": true,
+        "final_stage": "sources.collect",
+        "final_status": "refused",
+        "membership_scope": "complete",
+        "mode": "U0",
+        "sample_count": 0,
+        "standalone_record_accepted": true,
+        "typed_error": {
+          "code": "unavailable",
+          "library": "storage"
+        }
+      },
+      {
+        "case": "engine-sources",
+        "closure_ambiguity": "cgroup identity was not observed",
+        "closure_verified": false,
+        "final_stage": "engine.collect",
+        "final_status": "refused",
+        "membership_scope": "complete",
+        "mode": "B0",
+        "sample_count": 0,
+        "standalone_record_accepted": false,
+        "typed_error": {
+          "code": "unavailable",
+          "library": "engine"
+        }
+      },
+      {
+        "case": "storage",
+        "closure_ambiguity": null,
+        "closure_verified": true,
+        "final_stage": "storage.revalidated",
+        "final_status": "ok",
+        "membership_scope": "complete",
+        "mode": "U0",
+        "sample_count": 165,
+        "standalone_record_accepted": true,
+        "typed_error": null
+      },
+      {
+        "case": "storage",
+        "closure_ambiguity": null,
+        "closure_verified": true,
+        "final_stage": "storage.revalidated",
+        "final_status": "ok",
+        "membership_scope": "complete",
+        "mode": "B0",
+        "sample_count": 170,
+        "standalone_record_accepted": true,
+        "typed_error": null
+      }
+    ],
+    "combined_acceptance_cases_blocked": 17,
+    "complete_engine_instances_matched": 14,
+    "confinement_properties_compared": 62,
+    "deadline_reached": false,
+    "finished_utc": "2026-10-10T19:06:55.329930+00:00",
+    "guest_seconds": 657.6,
+    "harness_stages_passed": 14,
+    "host_runner_exit": 0,
+    "identity_record": "local-u0-b0/identities.json",
+    "installation_seconds": 534.53,
+    "metrics_boundary": "FD/RSS/PSS/io are main-process samples; whole-cgroup memory/events are separately recorded. Zero samples mean unmeasured. Memory ceiling self-check records oom=1 and oom_kill=0, not a proven OOM kill.",
+    "packet_manifest_sha256": "526e75b683fe8e3e07881e6a74b30fde317305c33b057f37beb6dc6ebf95a4a7",
+    "proves_performance_or_combined_headroom": false,
+    "qemu_exit": 0,
+    "raw_summary": "local-u0-b0/standalone-summary.json",
+    "refusal_attribution": "Actual library outputs expose unavailable at engine.collect, processes.collect or sources.collect. Standard-tool B0 openat2/proc observations are separate evidence and do not establish the precise internal cause of each library refusal.",
+    "review": "independent-guest-result-review.md",
+    "run_id": "20261010T185555Z-42f25d03",
+    "running_pid_bindings_matched": 12,
+    "selfcheck_memory": {
+      "bytes": 67108864,
+      "exit": 1,
+      "oom": 1,
+      "oom_kill": 0,
+      "proves_oom_kill": false
+    },
+    "serial_warnings": [
+      "jbd2 blocked task",
+      "RCU stall",
+      "long clocksource readout/watchdog intervals"
+    ],
+    "started_utc": "2026-10-10T18:55:55.596702+00:00",
+    "successful_owner_results": 4,
+    "teardown": "local-u0-b0/teardown-proof.json",
+    "teardown_scope": "Owned guest powered off, QEMU exited, owned run directory removed and marker/staging observations empty; no triggered deadline or combined-worker closure proof",
+    "typed_refusals": 6,
+    "unaccepted_cgroup_closure_records": 3,
+    "warning_cause": "Not established"
+  },
+  "open_gates": [
+    "17 combined/transition acceptance cases",
+    "worker concurrency/cancellation/deadlines",
+    "physical dependency composition",
+    "combined headroom",
+    "BKP-001",
+    "P04 effects",
+    "installed preparation/recovery and live restore",
+    "cutover"
+  ],
+  "production_policy_changed": false,
+  "schema": 1,
+  "tested_source": "46f7daadcc5d930ca97925d96f05baddb20e1b2f"
+}

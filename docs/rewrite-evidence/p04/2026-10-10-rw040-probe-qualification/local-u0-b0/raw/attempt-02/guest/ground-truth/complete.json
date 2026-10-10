@@ -1,0 +1,1047 @@
+{
+  "blocks": {
+    "blockdevices": [
+      {
+        "children": [
+          {
+            "fstype": "ext4",
+            "kname": "vda1",
+            "label": null,
+            "maj:min": "254:1",
+            "mountpoints": [
+              "/"
+            ],
+            "name": "vda1",
+            "serial": null,
+            "size": "9.9G",
+            "type": "part",
+            "uuid": "a4311a47-a23d-4db7-aead-f123bf10e55a"
+          },
+          {
+            "fstype": null,
+            "kname": "vda14",
+            "label": null,
+            "maj:min": "254:14",
+            "mountpoints": [
+              null
+            ],
+            "name": "vda14",
+            "serial": null,
+            "size": "3M",
+            "type": "part",
+            "uuid": null
+          },
+          {
+            "fstype": "vfat",
+            "kname": "vda15",
+            "label": null,
+            "maj:min": "254:15",
+            "mountpoints": [
+              "/boot/efi"
+            ],
+            "name": "vda15",
+            "serial": null,
+            "size": "124M",
+            "type": "part",
+            "uuid": "A334-5483"
+          }
+        ],
+        "fstype": null,
+        "kname": "vda",
+        "label": null,
+        "maj:min": "254:0",
+        "mountpoints": [
+          null
+        ],
+        "name": "vda",
+        "serial": null,
+        "size": "10G",
+        "type": "disk",
+        "uuid": null
+      },
+      {
+        "fstype": "iso9660",
+        "kname": "vdb",
+        "label": "cidata",
+        "maj:min": "254:16",
+        "mountpoints": [
+          null
+        ],
+        "name": "vdb",
+        "serial": null,
+        "size": "366K",
+        "type": "disk",
+        "uuid": "2026-10-10-19-55-56-00"
+      },
+      {
+        "fstype": null,
+        "kname": "vdc",
+        "label": null,
+        "maj:min": "254:32",
+        "mountpoints": [
+          null
+        ],
+        "name": "vdc",
+        "serial": "rw040-inputs",
+        "size": "10.5M",
+        "type": "disk",
+        "uuid": null
+      },
+      {
+        "fstype": null,
+        "kname": "vdd",
+        "label": null,
+        "maj:min": "254:48",
+        "mountpoints": [
+          null
+        ],
+        "name": "vdd",
+        "serial": "rw040-results",
+        "size": "64M",
+        "type": "disk",
+        "uuid": null
+      },
+      {
+        "fstype": "ext4",
+        "kname": "vde",
+        "label": "rw040-main",
+        "maj:min": "254:64",
+        "mountpoints": [
+          "/srv/rw040/alias-media",
+          "/srv/rw040/main"
+        ],
+        "name": "vde",
+        "serial": "rw040-data-0",
+        "size": "128M",
+        "type": "disk",
+        "uuid": "0b0d0a00-0000-4000-8000-000000000000"
+      },
+      {
+        "fstype": "xfs",
+        "kname": "vdf",
+        "label": "rw040-nested",
+        "maj:min": "254:80",
+        "mountpoints": [
+          "/srv/rw040/main/media/nested"
+        ],
+        "name": "vdf",
+        "serial": "rw040-data-1",
+        "size": "320M",
+        "type": "disk",
+        "uuid": "0b0d0a01-0000-4000-8000-000000000001"
+      },
+      {
+        "fstype": "ext4",
+        "kname": "vdg",
+        "label": "rw040-swap-a",
+        "maj:min": "254:96",
+        "mountpoints": [
+          "/srv/rw040/swap"
+        ],
+        "name": "vdg",
+        "serial": "rw040-data-2",
+        "size": "128M",
+        "type": "disk",
+        "uuid": "0b0d0a02-0000-4000-8000-000000000002"
+      },
+      {
+        "fstype": "ext4",
+        "kname": "vdh",
+        "label": "rw040-swap-b",
+        "maj:min": "254:112",
+        "mountpoints": [
+          null
+        ],
+        "name": "vdh",
+        "serial": "rw040-data-3",
+        "size": "128M",
+        "type": "disk",
+        "uuid": "0b0d0a03-0000-4000-8000-000000000003"
+      },
+      {
+        "fstype": "btrfs",
+        "kname": "vdi",
+        "label": "rw040-btrfs",
+        "maj:min": "254:128",
+        "mountpoints": [
+          "/srv/rw040/btrfs"
+        ],
+        "name": "vdi",
+        "serial": "rw040-data-4",
+        "size": "256M",
+        "type": "disk",
+        "uuid": "0b0d0a04-0000-4000-8000-000000000004"
+      }
+    ]
+  },
+  "boot_id": "7793f64b-4ba7-47f8-827b-b58dec5269da",
+  "host_mountinfo_sha256": "22b7dd48cba908840e6b5a38e6e0492709e9e5f68f3f0f15be8a6ea6c639f577",
+  "host_tasks": {
+    "nondumpable-root": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 55,
+      "mountinfo_sha256": "22b7dd48cba908840e6b5a38e6e0492709e9e5f68f3f0f15be8a6ea6c639f577",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026531841]",
+      "ns_pid": "pid:[4026531836]",
+      "nspid": [
+        "5894"
+      ],
+      "pid": 5894,
+      "proc_owner_uid": 0,
+      "root_dev": 65025,
+      "root_ino": 2,
+      "root_link": "/",
+      "start_ticks": 55120,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    "other-uid": {
+      "gid": [
+        "1990",
+        "1990",
+        "1990",
+        "1990"
+      ],
+      "mountinfo_rows": 55,
+      "mountinfo_sha256": "22b7dd48cba908840e6b5a38e6e0492709e9e5f68f3f0f15be8a6ea6c639f577",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026531841]",
+      "ns_pid": "pid:[4026531836]",
+      "nspid": [
+        "5895"
+      ],
+      "pid": 5895,
+      "proc_owner_uid": 1990,
+      "root_dev": 65025,
+      "root_ino": 2,
+      "root_link": "/",
+      "start_ticks": 55120,
+      "uid": [
+        "1990",
+        "1990",
+        "1990",
+        "1990"
+      ]
+    },
+    "root-no-capabilities": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 55,
+      "mountinfo_sha256": "22b7dd48cba908840e6b5a38e6e0492709e9e5f68f3f0f15be8a6ea6c639f577",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026531841]",
+      "ns_pid": "pid:[4026531836]",
+      "nspid": [
+        "5896"
+      ],
+      "pid": 5896,
+      "proc_owner_uid": 0,
+      "root_dev": 65025,
+      "root_ino": 2,
+      "root_link": "/",
+      "start_ticks": 55120,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    }
+  },
+  "membership": {
+    "count": 14,
+    "issued_monotonic": 570.82589471,
+    "issued_wall": 1791659128.6832201,
+    "members": [
+      {
+        "id": "0b5c8bcae0e7ca91e07e51ba9b24bb7dc91122ad40ae3d163419b01b20728efb",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "ad6957b9b4276a0241ba9157ea098942d0b74bb6759169b7b514b3f117d83e35",
+        "mounts": [
+          {
+            "Destination": "/trigger",
+            "Mode": "",
+            "Propagation": "rprivate",
+            "RW": true,
+            "Source": "/srv/rw040/main/triggers",
+            "Type": "bind"
+          }
+        ],
+        "name": "rw040-trans-ns",
+        "pid": 6834,
+        "running": true,
+        "started_at": "2026-10-10T19:05:27.588750504Z",
+        "status": "running",
+        "user": ""
+      },
+      {
+        "id": "5062e955fbf1d2b542350916e85951e67067febcd5eb88da5404e7d604ff4679",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "38dfd4d55ab8e2b7f3feae7d5d2bde4a8004afd529c3cef743dee1836541fd9e",
+        "mounts": [
+          {
+            "Destination": "/media",
+            "Mode": "",
+            "Propagation": "rprivate",
+            "RW": true,
+            "Source": "/srv/rw040/main/media",
+            "Type": "bind"
+          }
+        ],
+        "name": "rw040-run-bind",
+        "pid": 5933,
+        "running": true,
+        "started_at": "2026-10-10T19:05:11.46901583Z",
+        "status": "running",
+        "user": ""
+      },
+      {
+        "id": "5c1ac3aece1506435993bde4a89ff2d2e80702b3e9290b1785c8bf8d91597edf",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "635b8508d849d2d9b4b5a97bc419577fb6e2cb257325ce58328980ccd6e33df6",
+        "mounts": [],
+        "name": "rw040-stopped-mountless",
+        "pid": 0,
+        "running": false,
+        "started_at": "2026-10-10T19:05:25.434326518Z",
+        "status": "exited",
+        "user": ""
+      },
+      {
+        "id": "af2e235dc991b4d296de501eccfbb28bc2b02f00f531586cdffe2517a57af04d",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "f759fcfeaf57fcee1b9ec2e40de7f347813388a7402a679df64e98a618270e44",
+        "mounts": [
+          {
+            "Destination": "/data",
+            "Driver": "local",
+            "Mode": "z",
+            "Name": "rw040-named",
+            "Propagation": "",
+            "RW": true,
+            "Source": "/var/lib/docker/volumes/rw040-named/_data",
+            "Type": "volume"
+          }
+        ],
+        "name": "rw040-run-volume",
+        "pid": 6189,
+        "running": true,
+        "started_at": "2026-10-10T19:05:18.693462069Z",
+        "status": "running",
+        "user": ""
+      },
+      {
+        "id": "b8858e8674422431cca118c12f45a06057d178ccf71a25812728f8e6c5dd1652",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "a2f107024e42acdd0fe3a0e6727164db64bcdad9550e327b85115cddf5a1a57e",
+        "mounts": [
+          {
+            "Destination": "/swap",
+            "Mode": "",
+            "Propagation": "rprivate",
+            "RW": true,
+            "Source": "/srv/rw040/swap",
+            "Type": "bind"
+          }
+        ],
+        "name": "rw040-run-swap",
+        "pid": 6316,
+        "running": true,
+        "started_at": "2026-10-10T19:05:22.071651282Z",
+        "status": "running",
+        "user": ""
+      },
+      {
+        "id": "c3c4a859c47f2ffc28051ba431468b52b46f854b3bc749bb945b8fb7c4396b61",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "78d4591d6db723493ada483303b3de512fbc5724ae45f49ab090191891c34c7a",
+        "mounts": [],
+        "name": "rw040-run-mountless",
+        "pid": 6376,
+        "running": true,
+        "started_at": "2026-10-10T19:05:22.45499344Z",
+        "status": "running",
+        "user": ""
+      },
+      {
+        "id": "c484c84f87b8f6bec5c7b84b0986f7758375c70f3b207aed5c3cda2bdb6cd222",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "9b1ac5c15c3684ab89583819cbb73bf5c66a12090958e95c99f2c145cba88f5e",
+        "mounts": [
+          {
+            "Destination": "/media",
+            "Mode": "",
+            "Propagation": "rprivate",
+            "RW": true,
+            "Source": "/srv/rw040/main/media",
+            "Type": "bind"
+          }
+        ],
+        "name": "rw040-stopped-bind",
+        "pid": 0,
+        "running": false,
+        "started_at": "2026-10-10T19:05:23.780224144Z",
+        "status": "exited",
+        "user": ""
+      },
+      {
+        "id": "c4c49d9b4573bfabe781a75798b6aedd23f9548f00d62599f2e54a4fdcb01bc1",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "0dc3f51425e77703a2610576522c6f75fb37287883447fc31d5f1bd04e548171",
+        "mounts": [
+          {
+            "Destination": "/media",
+            "Mode": "",
+            "Propagation": "rprivate",
+            "RW": true,
+            "Source": "/srv/rw040/link-media",
+            "Type": "bind"
+          }
+        ],
+        "name": "rw040-run-link",
+        "pid": 6065,
+        "running": true,
+        "started_at": "2026-10-10T19:05:14.225292776Z",
+        "status": "running",
+        "user": ""
+      },
+      {
+        "id": "e6dfd2c6903095b7891f20afdb660af5feccc7f3e351646676f7ae2ca434e988",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "4d8fa179b2f78255d0177dd9437f0a9699c3236a992df3bc301c56f530350f26",
+        "mounts": [
+          {
+            "Destination": "/etc/app.conf",
+            "Mode": "",
+            "Propagation": "rprivate",
+            "RW": false,
+            "Source": "/srv/rw040/main/config/app.conf",
+            "Type": "bind"
+          }
+        ],
+        "name": "rw040-run-config-file",
+        "pid": 6124,
+        "running": true,
+        "started_at": "2026-10-10T19:05:16.194461306Z",
+        "status": "running",
+        "user": ""
+      },
+      {
+        "id": "edd14b6ede00eb5a490d064a9ec2478b283e1b76457d3c41c60303b9053c464f",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "623d25f18fa2674e14c349a376bd35d176f313eadacd8a9aa195e053a4eaaac3",
+        "mounts": [],
+        "name": "rw040-run-nondumpable",
+        "pid": 6500,
+        "running": true,
+        "started_at": "2026-10-10T19:05:23.358773694Z",
+        "status": "running",
+        "user": "1990:1990"
+      },
+      {
+        "id": "f1009fb8b1efa87a5f36d06560a36b3ef93e7aa71af03b4fe0aa125e08c9c9df",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "c8f236ded6d5dd2a591ca0c7cac5228950d2e9c3d38ace335f862f991c965c32",
+        "mounts": [
+          {
+            "Destination": "/trigger",
+            "Mode": "",
+            "Propagation": "rprivate",
+            "RW": true,
+            "Source": "/srv/rw040/main/triggers",
+            "Type": "bind"
+          }
+        ],
+        "name": "rw040-trans-root",
+        "pid": 6770,
+        "running": true,
+        "started_at": "2026-10-10T19:05:27.155855319Z",
+        "status": "running",
+        "user": ""
+      },
+      {
+        "id": "f40ca9059286cb4f9b316e243546448f6a5b5b48102c6a931ec9c382fbe5f040",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "9adf98213773ba22f9b7e7dcfd76da5826f2d415597a4d143068c5d1d408e01c",
+        "mounts": [
+          {
+            "Destination": "/scratch",
+            "Mode": "",
+            "Propagation": "rprivate",
+            "RW": true,
+            "Source": "/srv/rw040/tmpfs",
+            "Type": "bind"
+          }
+        ],
+        "name": "rw040-run-tmpfs",
+        "pid": 6249,
+        "running": true,
+        "started_at": "2026-10-10T19:05:20.472692559Z",
+        "status": "running",
+        "user": ""
+      },
+      {
+        "id": "fa50fbeabf55a16fac1baf1f3baa7c0e49e9fd438110a24e601f3a38ba41ebb3",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "21133c12da556e7075a07e9fcedc3fc2cad31d2a759d5e5fd5c53644a8fc68cc",
+        "mounts": [
+          {
+            "Destination": "/config",
+            "Mode": "",
+            "Propagation": "rprivate",
+            "RW": false,
+            "Source": "/srv/rw040/main/config",
+            "Type": "bind"
+          }
+        ],
+        "name": "rw040-run-other-uid",
+        "pid": 6440,
+        "running": true,
+        "started_at": "2026-10-10T19:05:22.936481076Z",
+        "status": "running",
+        "user": "1990:1990"
+      },
+      {
+        "id": "fea511514f61f0d34e58d5b4593280773ccade590374542b478ded96e0969818",
+        "image": "sha256:47e315c04dc8070ee5e1c0cf30fe038d3db97756a5b880da1e0cb677071e438e",
+        "inspect_sha256": "d9aa4ccfa5cbc03439194a11d20125357c4a98b70378660a105fd91976542c67",
+        "mounts": [
+          {
+            "Destination": "/media",
+            "Mode": "",
+            "Propagation": "rprivate",
+            "RW": true,
+            "Source": "/srv/rw040/alias-media",
+            "Type": "bind"
+          }
+        ],
+        "name": "rw040-run-alias",
+        "pid": 5992,
+        "running": true,
+        "started_at": "2026-10-10T19:05:12.89391283Z",
+        "status": "running",
+        "user": ""
+      }
+    ],
+    "running": 12
+  },
+  "processes": {
+    "rw040-run-alias": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 22,
+      "mountinfo_sha256": "867c17748659fc988a18ae44c0c0aae0facdb0bb9c23a049e63e2b7c36bd2b04",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026532524]",
+      "ns_pid": "pid:[4026532527]",
+      "nspid": [
+        "5992",
+        "1"
+      ],
+      "pid": 5992,
+      "proc_owner_uid": 0,
+      "root_dev": 63,
+      "root_ino": 131630,
+      "root_link": "/",
+      "start_ticks": 55489,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    "rw040-run-bind": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 23,
+      "mountinfo_sha256": "d05bb3c6285e98510e025eaef4097da99a503eae4658103ce857791e0eecea74",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026532461]",
+      "ns_pid": "pid:[4026532464]",
+      "nspid": [
+        "5933",
+        "1"
+      ],
+      "pid": 5933,
+      "proc_owner_uid": 0,
+      "root_dev": 53,
+      "root_ino": 131584,
+      "root_link": "/",
+      "start_ticks": 55346,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    "rw040-run-config-file": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 22,
+      "mountinfo_sha256": "1bd31e312443aa2b66c3713532e52e80e107e7b0e86d1f329749d9d1345ee3fa",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026532648]",
+      "ns_pid": "pid:[4026532651]",
+      "nspid": [
+        "6124",
+        "1"
+      ],
+      "pid": 6124,
+      "proc_owner_uid": 0,
+      "root_dev": 83,
+      "root_ino": 131718,
+      "root_link": "/",
+      "start_ticks": 55822,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    "rw040-run-link": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 23,
+      "mountinfo_sha256": "c3d61d8e63da2dbf583f70ce27ea72b2ec95f2ef8f1c59323df0d70ceee1040c",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026532586]",
+      "ns_pid": "pid:[4026532589]",
+      "nspid": [
+        "6065",
+        "1"
+      ],
+      "pid": 6065,
+      "proc_owner_uid": 0,
+      "root_dev": 73,
+      "root_ino": 131674,
+      "root_link": "/",
+      "start_ticks": 55624,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    "rw040-run-mountless": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 21,
+      "mountinfo_sha256": "30a6775ddd146cb24c63299378e49505a5fe1e0614d13af4a4bb2c4543801b6f",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026532896]",
+      "ns_pid": "pid:[4026532899]",
+      "nspid": [
+        "6376",
+        "1"
+      ],
+      "pid": 6376,
+      "proc_owner_uid": 0,
+      "root_dev": 123,
+      "root_ino": 131895,
+      "root_link": "/",
+      "start_ticks": 56448,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    "rw040-run-nondumpable": {
+      "gid": [
+        "1990",
+        "1990",
+        "1990",
+        "1990"
+      ],
+      "mountinfo_rows": 21,
+      "mountinfo_sha256": "cdaf9ecd1d2941e696a344c7c4c23c6a739f07f366b8fdfe4cbe57cc935b0deb",
+      "nondumpable_indicator": true,
+      "ns_mnt": "mnt:[4026533020]",
+      "ns_pid": "pid:[4026533023]",
+      "nspid": [
+        "6500",
+        "1"
+      ],
+      "pid": 6500,
+      "proc_owner_uid": 0,
+      "root_dev": 143,
+      "root_ino": 131982,
+      "root_link": "/",
+      "start_ticks": 56538,
+      "uid": [
+        "1990",
+        "1990",
+        "1990",
+        "1990"
+      ]
+    },
+    "rw040-run-other-uid": {
+      "gid": [
+        "1990",
+        "1990",
+        "1990",
+        "1990"
+      ],
+      "mountinfo_rows": 22,
+      "mountinfo_sha256": "b6cb8673c0f070d23099257dc9a3140694ce5dd98ec3fd4415b4f4f7b9c53057",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026532958]",
+      "ns_pid": "pid:[4026532961]",
+      "nspid": [
+        "6440",
+        "1"
+      ],
+      "pid": 6440,
+      "proc_owner_uid": 1990,
+      "root_dev": 133,
+      "root_ino": 131938,
+      "root_link": "/",
+      "start_ticks": 56496,
+      "uid": [
+        "1990",
+        "1990",
+        "1990",
+        "1990"
+      ]
+    },
+    "rw040-run-swap": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 22,
+      "mountinfo_sha256": "fc6c43fea109a3cbaafc175c2e2265a72e13ed32640b0145e5e27187da465a48",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026532834]",
+      "ns_pid": "pid:[4026532837]",
+      "nspid": [
+        "6316",
+        "1"
+      ],
+      "pid": 6316,
+      "proc_owner_uid": 0,
+      "root_dev": 113,
+      "root_ino": 131851,
+      "root_link": "/",
+      "start_ticks": 56407,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    "rw040-run-tmpfs": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 22,
+      "mountinfo_sha256": "6b57d94da705d78ba57b64d356e9ee47cabcdbf8eedcb000f3c36031a544ae6a",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026532772]",
+      "ns_pid": "pid:[4026532775]",
+      "nspid": [
+        "6249",
+        "1"
+      ],
+      "pid": 6249,
+      "proc_owner_uid": 0,
+      "root_dev": 103,
+      "root_ino": 131807,
+      "root_link": "/",
+      "start_ticks": 56241,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    "rw040-run-volume": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 22,
+      "mountinfo_sha256": "961448f78b5d43f3fe70e987a96af3fa406af96b92827e7d95aa44de1b971325",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026532710]",
+      "ns_pid": "pid:[4026532713]",
+      "nspid": [
+        "6189",
+        "1"
+      ],
+      "pid": 6189,
+      "proc_owner_uid": 0,
+      "root_dev": 93,
+      "root_ino": 131763,
+      "root_link": "/",
+      "start_ticks": 56069,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    "rw040-trans-ns": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 22,
+      "mountinfo_sha256": "0d00dfc5b601a695735a456df47ddec9d2bf1c26c06e0cf9aa9c38a0457d5a8a",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026533144]",
+      "ns_pid": "pid:[4026533147]",
+      "nspid": [
+        "6834",
+        "1"
+      ],
+      "pid": 6834,
+      "proc_owner_uid": 0,
+      "root_dev": 163,
+      "root_ino": 132152,
+      "root_link": "/",
+      "start_ticks": 56958,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    "rw040-trans-root": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 22,
+      "mountinfo_sha256": "110e9f90662582587bc886e4b236077d9a094ea29e91604640b50edbfbc3960b",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026533082]",
+      "ns_pid": "pid:[4026533085]",
+      "nspid": [
+        "6770",
+        "1"
+      ],
+      "pid": 6770,
+      "proc_owner_uid": 0,
+      "root_dev": 153,
+      "root_ino": 132108,
+      "root_link": "/",
+      "start_ticks": 56919,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    }
+  },
+  "sources": {
+    "/srv/rw040/alias-media": {
+      "declared": "/srv/rw040/alias-media",
+      "dev": 65088,
+      "ino": 12,
+      "is_symlink": false,
+      "kind": "directory",
+      "mount": {
+        "fsroot": "/media",
+        "fstype": "ext4",
+        "id": 625,
+        "maj:min": "254:64",
+        "source": "/dev/vde[/media]",
+        "target": "/srv/rw040/alias-media",
+        "uuid": "0b0d0a00-0000-4000-8000-000000000000"
+      },
+      "resolved": "/srv/rw040/alias-media"
+    },
+    "/srv/rw040/link-media": {
+      "declared": "/srv/rw040/link-media",
+      "dev": 65088,
+      "ino": 12,
+      "is_symlink": true,
+      "kind": "directory",
+      "mount": {
+        "fsroot": "/",
+        "fstype": "ext4",
+        "id": 540,
+        "maj:min": "254:64",
+        "source": "/dev/vde",
+        "target": "/srv/rw040/main",
+        "uuid": "0b0d0a00-0000-4000-8000-000000000000"
+      },
+      "resolved": "/srv/rw040/main/media"
+    },
+    "/srv/rw040/main/config": {
+      "declared": "/srv/rw040/main/config",
+      "dev": 65088,
+      "ino": 2049,
+      "is_symlink": false,
+      "kind": "directory",
+      "mount": {
+        "fsroot": "/",
+        "fstype": "ext4",
+        "id": 540,
+        "maj:min": "254:64",
+        "source": "/dev/vde",
+        "target": "/srv/rw040/main",
+        "uuid": "0b0d0a00-0000-4000-8000-000000000000"
+      },
+      "resolved": "/srv/rw040/main/config"
+    },
+    "/srv/rw040/main/config/app.conf": {
+      "declared": "/srv/rw040/main/config/app.conf",
+      "dev": 65088,
+      "ino": 14,
+      "is_symlink": false,
+      "kind": "file",
+      "mount": {
+        "fsroot": "/",
+        "fstype": "ext4",
+        "id": 540,
+        "maj:min": "254:64",
+        "source": "/dev/vde",
+        "target": "/srv/rw040/main",
+        "uuid": "0b0d0a00-0000-4000-8000-000000000000"
+      },
+      "resolved": "/srv/rw040/main/config/app.conf"
+    },
+    "/srv/rw040/main/media": {
+      "declared": "/srv/rw040/main/media",
+      "dev": 65088,
+      "ino": 12,
+      "is_symlink": false,
+      "kind": "directory",
+      "mount": {
+        "fsroot": "/",
+        "fstype": "ext4",
+        "id": 540,
+        "maj:min": "254:64",
+        "source": "/dev/vde",
+        "target": "/srv/rw040/main",
+        "uuid": "0b0d0a00-0000-4000-8000-000000000000"
+      },
+      "resolved": "/srv/rw040/main/media"
+    },
+    "/srv/rw040/main/triggers": {
+      "declared": "/srv/rw040/main/triggers",
+      "dev": 65088,
+      "ino": 2050,
+      "is_symlink": false,
+      "kind": "directory",
+      "mount": {
+        "fsroot": "/",
+        "fstype": "ext4",
+        "id": 540,
+        "maj:min": "254:64",
+        "source": "/dev/vde",
+        "target": "/srv/rw040/main",
+        "uuid": "0b0d0a00-0000-4000-8000-000000000000"
+      },
+      "resolved": "/srv/rw040/main/triggers"
+    },
+    "/srv/rw040/swap": {
+      "declared": "/srv/rw040/swap",
+      "dev": 65120,
+      "ino": 2,
+      "is_symlink": false,
+      "kind": "directory",
+      "mount": {
+        "fsroot": "/",
+        "fstype": "ext4",
+        "id": 557,
+        "maj:min": "254:96",
+        "source": "/dev/vdg",
+        "target": "/srv/rw040/swap",
+        "uuid": "0b0d0a02-0000-4000-8000-000000000002"
+      },
+      "resolved": "/srv/rw040/swap"
+    },
+    "/srv/rw040/tmpfs": {
+      "declared": "/srv/rw040/tmpfs",
+      "dev": 52,
+      "ino": 1,
+      "is_symlink": false,
+      "kind": "directory",
+      "mount": {
+        "fsroot": "/",
+        "fstype": "tmpfs",
+        "id": 608,
+        "maj:min": "0:52",
+        "source": "tmpfs",
+        "target": "/srv/rw040/tmpfs",
+        "uuid": null
+      },
+      "resolved": "/srv/rw040/tmpfs"
+    },
+    "/var/lib/docker/volumes/rw040-named/_data": {
+      "declared": "/var/lib/docker/volumes/rw040-named/_data",
+      "dev": 65025,
+      "ino": 131562,
+      "is_symlink": false,
+      "kind": "directory",
+      "mount": {
+        "fsroot": "/",
+        "fstype": "ext4",
+        "id": 27,
+        "maj:min": "254:1",
+        "source": "/dev/vda1",
+        "target": "/",
+        "uuid": "a4311a47-a23d-4db7-aead-f123bf10e55a"
+      },
+      "resolved": "/var/lib/docker/volumes/rw040-named/_data"
+    }
+  }
+}

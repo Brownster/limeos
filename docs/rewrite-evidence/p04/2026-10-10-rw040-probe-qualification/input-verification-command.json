@@ -1,0 +1,18 @@
+{
+  "actual_api_run_head_job_artifact_fields_match_acquisition": true,
+  "captured_at_utc": "2026-10-10T18:49:00.539451+00:00",
+  "guest_launched": false,
+  "raw_api_snapshot": "/home/marc/Documents/github/lime-os/target/rw040-ci-38076433426/status-20261010T184810Z.json",
+  "raw_api_snapshot_sha256": "215f3866ed2d20381095b70a5f3b795b006ed7c34370ab2274aafc638911b9f3",
+  "schema": 1,
+  "verification_command": [
+    "env",
+    "-u",
+    "PYTHONOPTIMIZE",
+    "python3",
+    "/home/marc/Documents/github/lime-os/target/rw040-u0-b0-46f7/verify_actual_inputs.py"
+  ],
+  "verification_exit_code": 0,
+  "verified_record_sha256": "d3b417ebf01f82ff993a3629e197567c5ecaea288c0e76bfee573892c2d92f02",
+  "verifier_sha256": "5914ecd3b78570d685361a7294f1ae18390cb6eed209380b7dcfd8c76ef02fe4"
+}

@@ -1,0 +1,70 @@
+[
+    {
+        "Id": "sha256:44a5a83e14ce3c4764a0299384fcf675ddedb004415e9ae87e9384e871823550",
+        "RepoTags": [
+            "limeos-builder:latest"
+        ],
+        "RepoDigests": [],
+        "Parent": "",
+        "Comment": "buildkit.dockerfile.v0",
+        "Created": "2026-10-10T18:43:22.547043137Z",
+        "DockerVersion": "",
+        "Author": "",
+        "Config": {
+            "Hostname": "",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "RUSTUP_HOME=/usr/local/rustup",
+                "CARGO_HOME=/usr/local/cargo",
+                "RUST_VERSION=1.88.0"
+            ],
+            "Cmd": [
+                "bash"
+            ],
+            "Image": "",
+            "Volumes": null,
+            "WorkingDir": "/build",
+            "Entrypoint": null,
+            "OnBuild": null,
+            "Labels": {
+                "org.opencontainers.image.source": "https://github.com/rust-lang/docker-rust"
+            }
+        },
+        "Architecture": "amd64",
+        "Os": "linux",
+        "Size": 1941798512,
+        "GraphDriver": {
+            "Data": {
+                "LowerDir": "/var/lib/docker/overlay2/pj2cs9k809uks5dsv2ok1w7nk/diff:/var/lib/docker/overlay2/y9e1dvsr1acw60lsxjx7ovfw3/diff:/var/lib/docker/overlay2/965bc44fa47f26074b0b8c729e0d7558a3e36af03d72cf54392097b68012bae8/diff:/var/lib/docker/overlay2/7a18dc8f918d70f040d4026bec70051480df918cf9f114362c7d7a1350553bd5/diff:/var/lib/docker/overlay2/6bd4d70bac0f1dc8656917a77242cae847a4aee5323ffcb534f2d5055fe992ee/diff:/var/lib/docker/overlay2/6feabf3a13bb05d1c70865ff1c1ac0d42b8cc799a78594eff6596168be61b52d/diff:/var/lib/docker/overlay2/143667c84997769215af113e1e12969f642c8a57ba66693d8c9bbb1dccb89eb6/diff",
+                "MergedDir": "/var/lib/docker/overlay2/qnekf50tg8za48i7l0cd4o3wg/merged",
+                "UpperDir": "/var/lib/docker/overlay2/qnekf50tg8za48i7l0cd4o3wg/diff",
+                "WorkDir": "/var/lib/docker/overlay2/qnekf50tg8za48i7l0cd4o3wg/work"
+            },
+            "Name": "overlay2"
+        },
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:175a198361755136c75d537bc9057c9c8e1b7a20eb771374a8339eaadfef29e9",
+                "sha256:20c8aca2133815a3376afc0bd1ba1a4e93b82f22d80e21f7da955a15daad62c8",
+                "sha256:a9b908787288c1175777d74ddae2fc23855c6ca88a4df3936e47eb26285b0372",
+                "sha256:1b90aaaeb596009f84acae5557eecdfc5936b2942d428ba71e3fcd084e9afbdd",
+                "sha256:3dcb44ec4db8f129516e1011db30573d398c11c819591ffb6cedbaff2d4c4fd3",
+                "sha256:00111ccc7f2256dc6c72031d172d8d75456e98c921cd650ba24d0eff4d3457ab",
+                "sha256:d289b2241afb4b1b5b1c6e2644a67de041cf758f7c2249f88a8ef7fe7a69cb17",
+                "sha256:e724b933b6acdad416c9a7a49a37a7a5e7aa9f1bcc5013df65099719b7f5a91b"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "2026-10-10T18:43:23.752112084Z"
+        }
+    }
+]

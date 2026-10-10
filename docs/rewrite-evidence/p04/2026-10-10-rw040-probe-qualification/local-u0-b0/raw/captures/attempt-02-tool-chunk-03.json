@@ -1,0 +1,7 @@
+{
+  "chunk_id": "5d0937",
+  "wall_time_seconds": 5.000525406,
+  "session_id": 84960,
+  "original_token_count": 229,
+  "output": "[  545.621137] cloud-init[537]: [rw040 +  535.4s] stage install: passed in 534.53s\n[  545.622990] cloud-init[537]: [rw040 +  535.4s] stage service: start\n[  545.666211] cloud-init[537]: [rw040 +  535.5s] stage service: passed in 0.05s\n[  545.666914] cloud-init[537]: [rw040 +  535.5s] stage confinement: start\n[  545.736566] cloud-init[537]: [rw040 +  535.5s] stage confinement: passed in 0.07s\n[  545.737185] cloud-init[537]: [rw040 +  535.5s] stage image: start\n[  546.380291] cloud-init[537]: [rw040 +  536.2s] stage image: passed in 0.64s\n[  546.381133] cloud-init[537]: [rw040 +  536.2s] stage empty: start\n[  547.572809] cloud-init[537]: [rw040 +  537.4s] stage empty: passed in 1.19s\n[  547.573586] cloud-init[537]: [rw040 +  537.4s] stage layout: start\n[  551.738002] cloud-init[537]: [rw040 +  541.5s] stage layout: passed in 4.16s\n[  551.742230] cloud-init[537]: [rw040 +  541.5s] stage containers: start\n"
+}

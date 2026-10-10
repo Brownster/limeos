@@ -1,0 +1,17 @@
+{
+  "captured_at_utc": "2026-10-10T23:43:46.058990+00:00",
+  "current_owned_marker_processes": [],
+  "current_owned_staging_entries": [],
+  "deadline_reached": false,
+  "marker": "rw040-qual-20261010T185555Z-42f25d03",
+  "qemu_exit": 0,
+  "recorded_runner_teardown": {
+    "finished_utc": "2026-10-10T19:06:55.329930+00:00",
+    "marker_processes_after": [],
+    "run_dir_removed": true
+  },
+  "run_id": "20261010T185555Z-42f25d03",
+  "schema": 1,
+  "scope": "Read-only observation of the one owned run marker and owned staging root; no cleanup command or guest/test rerun",
+  "teardown_actions": []
+}

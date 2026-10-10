@@ -1,0 +1,16 @@
+{
+  "attempt_02_output_exists": false,
+  "attempt_02_redirect_logs_exist": false,
+  "captured_at_utc": "2026-10-10T18:55:34.400055+00:00",
+  "elapsed_wait_seconds": 201.2,
+  "exec_session_received": false,
+  "execution_claim": "No execution is established by the tool result or recovered owned state; this approval wait is not a guest attempt or runtime evidence.",
+  "execution_result_received": false,
+  "next_action": "Direct scoped env invocation without shell redirection under require_escalated; same fresh attempt-02 output path.",
+  "owned_work_root_entries": [],
+  "schema": 1,
+  "scope": "Same reviewed finite U0/B0 guest, exact46f7 source and inputs",
+  "status": "approval_request_aborted",
+  "tool_request": "require_escalated env UV_CACHE_DIR=/tmp/limeos-rw040-uv-cache uv run --script tests/qualification/rw040-combined/run_guest.py with verified args and --output attempt-02, plus shell stdout/stderr redirection",
+  "tool_result": "aborted by user after201.2s"
+}

@@ -1,0 +1,403 @@
+{
+  "findmnt": {
+    "filesystems": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "fsroot": "/",
+                "fstype": "securityfs",
+                "id": 28,
+                "maj:min": "0:6",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "parent": 22,
+                "propagation": "shared",
+                "source": "securityfs",
+                "target": "/sys/kernel/security",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "cgroup2",
+                "id": 31,
+                "maj:min": "0:26",
+                "options": "rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot",
+                "parent": 22,
+                "propagation": "shared",
+                "source": "cgroup2",
+                "target": "/sys/fs/cgroup",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "pstore",
+                "id": 32,
+                "maj:min": "0:27",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "parent": 22,
+                "propagation": "shared",
+                "source": "pstore",
+                "target": "/sys/fs/pstore",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "bpf",
+                "id": 33,
+                "maj:min": "0:28",
+                "options": "rw,nosuid,nodev,noexec,relatime,mode=700",
+                "parent": 22,
+                "propagation": "shared",
+                "source": "bpf",
+                "target": "/sys/fs/bpf",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "debugfs",
+                "id": 38,
+                "maj:min": "0:7",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "parent": 22,
+                "propagation": "shared",
+                "source": "debugfs",
+                "target": "/sys/kernel/debug",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "tracefs",
+                "id": 39,
+                "maj:min": "0:12",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "parent": 22,
+                "propagation": "shared",
+                "source": "tracefs",
+                "target": "/sys/kernel/tracing",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "fusectl",
+                "id": 40,
+                "maj:min": "0:31",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "parent": 22,
+                "propagation": "shared",
+                "source": "fusectl",
+                "target": "/sys/fs/fuse/connections",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "configfs",
+                "id": 41,
+                "maj:min": "0:32",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "parent": 22,
+                "propagation": "shared",
+                "source": "configfs",
+                "target": "/sys/kernel/config",
+                "uuid": null
+              }
+            ],
+            "fsroot": "/",
+            "fstype": "sysfs",
+            "id": 22,
+            "maj:min": "0:20",
+            "options": "rw,nosuid,nodev,noexec,relatime",
+            "parent": 27,
+            "propagation": "shared",
+            "source": "sysfs",
+            "target": "/sys",
+            "uuid": null
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "fsroot": "/",
+                    "fstype": "binfmt_misc",
+                    "id": 96,
+                    "maj:min": "0:37",
+                    "options": "rw,nosuid,nodev,noexec,relatime",
+                    "parent": 35,
+                    "propagation": "shared",
+                    "source": "binfmt_misc",
+                    "target": "/proc/sys/fs/binfmt_misc",
+                    "uuid": null
+                  }
+                ],
+                "fsroot": "/",
+                "fstype": "autofs",
+                "id": 35,
+                "maj:min": "0:29",
+                "options": "rw,relatime,fd=30,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=12499",
+                "parent": 23,
+                "propagation": "shared",
+                "source": "systemd-1",
+                "target": "/proc/sys/fs/binfmt_misc",
+                "uuid": null
+              }
+            ],
+            "fsroot": "/",
+            "fstype": "proc",
+            "id": 23,
+            "maj:min": "0:21",
+            "options": "rw,nosuid,nodev,noexec,relatime",
+            "parent": 27,
+            "propagation": "shared",
+            "source": "proc",
+            "target": "/proc",
+            "uuid": null
+          },
+          {
+            "children": [
+              {
+                "fsroot": "/",
+                "fstype": "devpts",
+                "id": 25,
+                "maj:min": "0:22",
+                "options": "rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=000",
+                "parent": 24,
+                "propagation": "shared",
+                "source": "devpts",
+                "target": "/dev/pts",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "tmpfs",
+                "id": 29,
+                "maj:min": "0:24",
+                "options": "rw,nosuid,nodev,inode64",
+                "parent": 24,
+                "propagation": "shared",
+                "source": "tmpfs",
+                "target": "/dev/shm",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "hugetlbfs",
+                "id": 36,
+                "maj:min": "0:30",
+                "options": "rw,relatime,pagesize=2M",
+                "parent": 24,
+                "propagation": "shared",
+                "source": "hugetlbfs",
+                "target": "/dev/hugepages",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "mqueue",
+                "id": 37,
+                "maj:min": "0:19",
+                "options": "rw,nosuid,nodev,noexec,relatime",
+                "parent": 24,
+                "propagation": "shared",
+                "source": "mqueue",
+                "target": "/dev/mqueue",
+                "uuid": null
+              }
+            ],
+            "fsroot": "/",
+            "fstype": "devtmpfs",
+            "id": 24,
+            "maj:min": "0:5",
+            "options": "rw,nosuid,relatime,size=744012k,nr_inodes=186003,mode=755,inode64",
+            "parent": 27,
+            "propagation": "shared",
+            "source": "udev",
+            "target": "/dev",
+            "uuid": null
+          },
+          {
+            "children": [
+              {
+                "fsroot": "/",
+                "fstype": "tmpfs",
+                "id": 30,
+                "maj:min": "0:25",
+                "options": "rw,nosuid,nodev,noexec,relatime,size=5120k,inode64",
+                "parent": 26,
+                "propagation": "shared",
+                "source": "tmpfs",
+                "target": "/run/lock",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "ramfs",
+                "id": 64,
+                "maj:min": "0:33",
+                "options": "ro,nosuid,nodev,noexec,relatime,mode=700",
+                "parent": 26,
+                "propagation": "shared",
+                "source": "ramfs",
+                "target": "/run/credentials/systemd-sysctl.service",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "ramfs",
+                "id": 66,
+                "maj:min": "0:34",
+                "options": "ro,nosuid,nodev,noexec,relatime,mode=700",
+                "parent": 26,
+                "propagation": "shared",
+                "source": "ramfs",
+                "target": "/run/credentials/systemd-sysusers.service",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "ramfs",
+                "id": 68,
+                "maj:min": "0:35",
+                "options": "ro,nosuid,nodev,noexec,relatime,mode=700",
+                "parent": 26,
+                "propagation": "shared",
+                "source": "ramfs",
+                "target": "/run/credentials/systemd-tmpfiles-setup-dev.service",
+                "uuid": null
+              },
+              {
+                "fsroot": "/",
+                "fstype": "ramfs",
+                "id": 122,
+                "maj:min": "0:36",
+                "options": "ro,nosuid,nodev,noexec,relatime,mode=700",
+                "parent": 26,
+                "propagation": "shared",
+                "source": "ramfs",
+                "target": "/run/credentials/systemd-tmpfiles-setup.service",
+                "uuid": null
+              }
+            ],
+            "fsroot": "/",
+            "fstype": "tmpfs",
+            "id": 26,
+            "maj:min": "0:23",
+            "options": "rw,nosuid,nodev,noexec,relatime,size=151084k,mode=755,inode64",
+            "parent": 27,
+            "propagation": "shared",
+            "source": "tmpfs",
+            "target": "/run",
+            "uuid": null
+          },
+          {
+            "fsroot": "/",
+            "fstype": "vfat",
+            "id": 79,
+            "maj:min": "254:15",
+            "options": "rw,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=ascii,shortname=mixed,utf8,errors=remount-ro",
+            "parent": 27,
+            "propagation": "shared",
+            "source": "/dev/vda15",
+            "target": "/boot/efi",
+            "uuid": "A334-5483"
+          },
+          {
+            "children": [
+              {
+                "fsroot": "/",
+                "fstype": "xfs",
+                "id": 574,
+                "maj:min": "254:80",
+                "options": "rw,relatime,attr2,inode64,logbufs=8,logbsize=32k,noquota",
+                "parent": 540,
+                "propagation": "shared",
+                "source": "/dev/vdf",
+                "target": "/srv/rw040/main/media/nested",
+                "uuid": "0b0d0a01-0000-4000-8000-000000000001"
+              }
+            ],
+            "fsroot": "/",
+            "fstype": "ext4",
+            "id": 540,
+            "maj:min": "254:64",
+            "options": "rw,relatime",
+            "parent": 27,
+            "propagation": "shared",
+            "source": "/dev/vde",
+            "target": "/srv/rw040/main",
+            "uuid": "0b0d0a00-0000-4000-8000-000000000000"
+          },
+          {
+            "fsroot": "/",
+            "fstype": "ext4",
+            "id": 557,
+            "maj:min": "254:96",
+            "options": "rw,relatime",
+            "parent": 27,
+            "propagation": "shared",
+            "source": "/dev/vdg",
+            "target": "/srv/rw040/swap",
+            "uuid": "0b0d0a02-0000-4000-8000-000000000002"
+          },
+          {
+            "fsroot": "/",
+            "fstype": "btrfs",
+            "id": 575,
+            "maj:min": "0:50",
+            "options": "rw,relatime,space_cache=v2,subvolid=5,subvol=/",
+            "parent": 27,
+            "propagation": "shared",
+            "source": "/dev/vdi",
+            "target": "/srv/rw040/btrfs",
+            "uuid": "0b0d0a04-0000-4000-8000-000000000004"
+          },
+          {
+            "fsroot": "/",
+            "fstype": "tmpfs",
+            "id": 608,
+            "maj:min": "0:52",
+            "options": "rw,relatime,size=8192k,mode=755,inode64",
+            "parent": 27,
+            "propagation": "shared",
+            "source": "tmpfs",
+            "target": "/srv/rw040/tmpfs",
+            "uuid": null
+          },
+          {
+            "fsroot": "/media",
+            "fstype": "ext4",
+            "id": 625,
+            "maj:min": "254:64",
+            "options": "rw,relatime",
+            "parent": 27,
+            "propagation": "shared",
+            "source": "/dev/vde[/media]",
+            "target": "/srv/rw040/alias-media",
+            "uuid": "0b0d0a00-0000-4000-8000-000000000000"
+          }
+        ],
+        "fsroot": "/",
+        "fstype": "ext4",
+        "id": 27,
+        "maj:min": "254:1",
+        "options": "rw,relatime,discard,errors=remount-ro",
+        "parent": 1,
+        "propagation": "shared",
+        "source": "/dev/vda1",
+        "target": "/",
+        "uuid": "a4311a47-a23d-4db7-aead-f123bf10e55a"
+      }
+    ]
+  },
+  "mounted": {
+    "/srv/rw040/btrfs": "rw040-data-4",
+    "/srv/rw040/main": "rw040-data-0",
+    "/srv/rw040/main/media/nested": "rw040-data-1",
+    "/srv/rw040/swap": "rw040-data-2"
+  },
+  "tasks": {
+    "nondumpable-root": 5894,
+    "other-uid": 5895,
+    "root-no-capabilities": 5896
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "binaries_sha256": {
+    "limeos-core": "f4098751f64f95f2b992359388fe340a21d7b4e27123148711bcfda3cd073c39",
+    "limeos-executor": "c996adfbbbed99999a6553d855e2bad9480385b3d65a2918856fcb5bc017e974",
+    "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+    "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+  },
+  "confinement_properties": [
+    [
+      "User",
+      "root"
+    ],
+    [
+      "Group",
+      "limeos-host-access"
+    ],
+    [
+      "UMask",
+      "0077"
+    ],
+    [
+      "LimitCORE",
+      "0"
+    ],
+    [
+      "MemorySwapMax",
+      "0"
+    ],
+    [
+      "NoNewPrivileges",
+      "yes"
+    ],
+    [
+      "PrivateMounts",
+      "no"
+    ],
+    [
+      "PrivateDevices",
+      "no"
+    ],
+    [
+      "RestrictSUIDSGID",
+      "yes"
+    ],
+    [
+      "RestrictRealtime",
+      "yes"
+    ],
+    [
+      "LockPersonality",
+      "yes"
+    ],
+    [
+      "MemoryDenyWriteExecute",
+      "yes"
+    ],
+    [
+      "RestrictAddressFamilies",
+      "AF_UNIX"
+    ],
+    [
+      "CapabilityBoundingSet",
+      ""
+    ],
+    [
+      "AmbientCapabilities",
+      ""
+    ],
+    [
+      "SystemCallArchitectures",
+      "native"
+    ],
+    [
+      "SystemCallFilter",
+      "@system-service"
+    ],
+    [
+      "LimitNOFILE",
+      "256"
+    ],
+    [
+      "TasksMax",
+      "16"
+    ],
+    [
+      "MemoryMax",
+      "64M"
+    ],
+    [
+      "CPUQuota",
+      "50%"
+    ]
+  ],
+  "group": "limeos-host-access:x:114:",
+  "reader_state": [
+    "LoadState=loaded",
+    "ActiveState=inactive",
+    "UnitFileState=static"
+  ],
+  "unit": {
+    "path": "/lib/systemd/system/limeos-storage-reader.service",
+    "sha256": "b5feec6461873dfb05aab089a429293287a5bdb82ac0eb2759a79c0217d5f352",
+    "text": "[Unit]\nDescription=LimeOS fresh storage inventory (read only)\nAfter=local-fs.target\n\n[Service]\nType=exec\nUser=root\nGroup=limeos-host-access\nExecStart=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/storage.json /run/limeos-storage-reader/executor.sock storage\nRuntimeDirectory=limeos-storage-reader\nRuntimeDirectoryMode=0750\nUMask=0077\nLimitCORE=0\nMemorySwapMax=0\nRestart=on-failure\nRestartSec=2s\nTimeoutStartSec=15s\nTimeoutStopSec=5s\nNoNewPrivileges=yes\n# A mount namespace sandbox would hide or clone the host mount identity.\n# This dormant reader has no effectful request, shell, write flag or capability.\nPrivateMounts=no\nPrivateDevices=no\nRestrictSUIDSGID=yes\nRestrictRealtime=yes\nLockPersonality=yes\nMemoryDenyWriteExecute=yes\nRestrictAddressFamilies=AF_UNIX\nCapabilityBoundingSet=\nAmbientCapabilities=\nSystemCallArchitectures=native\nSystemCallFilter=@system-service\nLimitNOFILE=256\nTasksMax=16\nMemoryMax=64M\nCPUQuota=50%\n# Deliberately no Install section or package enable/start action.\n"
+  }
+}

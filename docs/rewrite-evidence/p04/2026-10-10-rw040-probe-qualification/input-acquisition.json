@@ -1,0 +1,369 @@
+{
+  "amd64_job": {
+    "check_run_url": "https://api.github.com/repos/Brownster/limeos/check-runs/114284257837",
+    "completed_at": "2026-10-10T18:46:46Z",
+    "conclusion": "success",
+    "created_at": "2026-10-10T18:36:05Z",
+    "head_branch": "main",
+    "head_sha": "46f7daadcc5d930ca97925d96f05baddb20e1b2f",
+    "html_url": "https://github.com/Brownster/limeos/actions/runs/38076433426/job/114284257837",
+    "id": 114284257837,
+    "labels": [
+      "ubuntu-24.04"
+    ],
+    "name": "check (ubuntu-24.04)",
+    "node_id": "CR_kwDOU9D-vc8AAAAam99iLQ",
+    "run_attempt": 1,
+    "run_id": 38076433426,
+    "run_url": "https://api.github.com/repos/Brownster/limeos/actions/runs/38076433426",
+    "runner_group_id": 0,
+    "runner_group_name": "GitHub Actions",
+    "runner_id": 1000021653,
+    "runner_name": "GitHub Actions 1000021653",
+    "started_at": "2026-10-10T18:36:08Z",
+    "status": "completed",
+    "steps": [
+      {
+        "completed_at": "2026-10-10T18:36:09Z",
+        "conclusion": "success",
+        "name": "Set up job",
+        "number": 1,
+        "started_at": "2026-10-10T18:36:08Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:36:10Z",
+        "conclusion": "success",
+        "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+        "number": 2,
+        "started_at": "2026-10-10T18:36:09Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:36:11Z",
+        "conclusion": "success",
+        "name": "Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+        "number": 3,
+        "started_at": "2026-10-10T18:36:10Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:40:05Z",
+        "conclusion": "success",
+        "name": "Toolchain and native validation tools",
+        "number": 4,
+        "started_at": "2026-10-10T18:36:11Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:40:05Z",
+        "conclusion": "success",
+        "name": "Run cargo fmt --all -- --check",
+        "number": 5,
+        "started_at": "2026-10-10T18:40:05Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:40:37Z",
+        "conclusion": "success",
+        "name": "Run cargo clippy --workspace --all-targets --locked -- -D warnings",
+        "number": 6,
+        "started_at": "2026-10-10T18:40:05Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:41:50Z",
+        "conclusion": "success",
+        "name": "Run cargo test --workspace --locked",
+        "number": 7,
+        "started_at": "2026-10-10T18:40:37Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:41:51Z",
+        "conclusion": "success",
+        "name": "Run cargo deny check",
+        "number": 8,
+        "started_at": "2026-10-10T18:41:50Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:41:55Z",
+        "conclusion": "success",
+        "name": "Run cargo audit",
+        "number": 9,
+        "started_at": "2026-10-10T18:41:51Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:41:55Z",
+        "conclusion": "success",
+        "name": "Run shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh tests/fixtures/backup-archives/generate.sh",
+        "number": 10,
+        "started_at": "2026-10-10T18:41:55Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:42:16Z",
+        "conclusion": "success",
+        "name": "Unit validation",
+        "number": 11,
+        "started_at": "2026-10-10T18:41:55Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:42:16Z",
+        "conclusion": "success",
+        "name": "Run python3 scripts/check_repository.py",
+        "number": 12,
+        "started_at": "2026-10-10T18:42:16Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:42:27Z",
+        "conclusion": "success",
+        "name": "Run python3 scripts/check_contracts.py",
+        "number": 13,
+        "started_at": "2026-10-10T18:42:16Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:42:37Z",
+        "conclusion": "success",
+        "name": "ARM64 qualification evidence and host guards",
+        "number": 14,
+        "started_at": "2026-10-10T18:42:27Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:42:37Z",
+        "conclusion": "success",
+        "name": "Public-library probe artifact identity checks",
+        "number": 15,
+        "started_at": "2026-10-10T18:42:37Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:42:41Z",
+        "conclusion": "success",
+        "name": "RW-040 console harness and probe delivery guards",
+        "number": 16,
+        "started_at": "2026-10-10T18:42:37Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:42:45Z",
+        "conclusion": "success",
+        "name": "Run npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high",
+        "number": 17,
+        "started_at": "2026-10-10T18:42:41Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:45:55Z",
+        "conclusion": "success",
+        "name": "Debian 12 release builds on native architecture",
+        "number": 18,
+        "started_at": "2026-10-10T18:42:45Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:46:07Z",
+        "conclusion": "success",
+        "name": "Lifecycle, logs and keyboard-focus browser regression",
+        "number": 19,
+        "started_at": "2026-10-10T18:45:55Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:46:41Z",
+        "conclusion": "success",
+        "name": "Deliberate release-gate rejection probes",
+        "number": 20,
+        "started_at": "2026-10-10T18:46:07Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:46:42Z",
+        "conclusion": "success",
+        "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "number": 21,
+        "started_at": "2026-10-10T18:46:41Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:46:43Z",
+        "conclusion": "success",
+        "name": "Supply the Debian-compatible public-library probe",
+        "number": 22,
+        "started_at": "2026-10-10T18:46:42Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:46:44Z",
+        "conclusion": "success",
+        "name": "Preserve probe build diagnostics",
+        "number": 23,
+        "started_at": "2026-10-10T18:46:43Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:46:44Z",
+        "conclusion": "success",
+        "name": "Post Run actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+        "number": 45,
+        "started_at": "2026-10-10T18:46:44Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:46:45Z",
+        "conclusion": "success",
+        "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+        "number": 46,
+        "started_at": "2026-10-10T18:46:44Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-10T18:46:45Z",
+        "conclusion": "success",
+        "name": "Complete job",
+        "number": 47,
+        "started_at": "2026-10-10T18:46:45Z",
+        "status": "completed"
+      }
+    ],
+    "url": "https://api.github.com/repos/Brownster/limeos/actions/jobs/114284257837",
+    "workflow_name": "Foundation, observation and operation gates"
+  },
+  "amd64_log": {
+    "path": "/home/marc/Documents/github/lime-os/target/rw040-ci-38076433426/downloads/114284257837.log",
+    "sha256": "15bc8970b58945700066681d7dff13b6344d18e6da959ac572c371f7e435e097"
+  },
+  "artifacts": [
+    {
+      "api_digest": "sha256:254828429951ddda30f87cf9289beae96d9dd24479f1c961466337336cafeb19",
+      "extracted_path": "/home/marc/Documents/github/lime-os/target/rw040-ci-38076433426/extracted/debian-ubuntu-24.04",
+      "files": [
+        {
+          "bytes": 2927206,
+          "file": "limeos-shadow_0.4.4_amd64.deb",
+          "sha256": "05741f99f712ab5606aead7558693caf3f9c84bac6a03ea30651c3a0bb92048a"
+        },
+        {
+          "bytes": 2928238,
+          "file": "limeos_0.4.4_amd64.deb",
+          "sha256": "69718ea46d58ef255c71ee290e91fd9a5eba9a1dd1e86f05fd6ac946f3c6ffb9"
+        },
+        {
+          "bytes": 2928236,
+          "file": "limeos_0.4.4+ci.1_amd64.deb",
+          "sha256": "73930103911f5dfbf75bf4009c69a831c2230359dc944c7a064d6fdcdcd6237c"
+        }
+      ],
+      "id": 11679172140,
+      "name": "debian-ubuntu-24.04",
+      "workflow_run": {
+        "head_branch": "main",
+        "head_repository_id": 1406205629,
+        "head_sha": "46f7daadcc5d930ca97925d96f05baddb20e1b2f",
+        "id": 38076433426,
+        "repository_id": 1406205629
+      },
+      "zip_bytes": 8786656,
+      "zip_path": "/home/marc/Documents/github/lime-os/target/rw040-ci-38076433426/downloads/11679172140.zip",
+      "zip_sha256": "254828429951ddda30f87cf9289beae96d9dd24479f1c961466337336cafeb19"
+    },
+    {
+      "api_digest": "sha256:cdbc30aab723652cc1a4aa536479ee4df3590d33a54ca9e6c5639b65cd1fe557",
+      "extracted_path": "/home/marc/Documents/github/lime-os/target/rw040-ci-38076433426/extracted/rw040-public-library-probe",
+      "files": [
+        {
+          "bytes": 2151264,
+          "file": "combined_read_probe",
+          "sha256": "523f6e94573e975c6f2410bc641573d4e836f0bf62a1a5a90559e66271de9268"
+        },
+        {
+          "bytes": 17105,
+          "file": "combined_read_probe.rs",
+          "sha256": "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c"
+        },
+        {
+          "bytes": 405,
+          "file": "manifest.json",
+          "sha256": "9b65da45c87f2667bbfbc3edf6a561b79fb8327dfe5c371227224216f3d95a48"
+        }
+      ],
+      "id": 11679461809,
+      "name": "rw040-public-library-probe",
+      "workflow_run": {
+        "head_branch": "main",
+        "head_repository_id": 1406205629,
+        "head_sha": "46f7daadcc5d930ca97925d96f05baddb20e1b2f",
+        "id": 38076433426,
+        "repository_id": 1406205629
+      },
+      "zip_bytes": 999680,
+      "zip_path": "/home/marc/Documents/github/lime-os/target/rw040-ci-38076433426/downloads/11679461809.zip",
+      "zip_sha256": "cdbc30aab723652cc1a4aa536479ee4df3590d33a54ca9e6c5639b65cd1fe557"
+    },
+    {
+      "api_digest": "sha256:767cd1de83346d1f87f98d82238b8bd8d4f1ad93a8853b146c0da6c966a0ef80",
+      "extracted_path": "/home/marc/Documents/github/lime-os/target/rw040-ci-38076433426/extracted/rw040-probe-build-evidence",
+      "files": [
+        {
+          "bytes": 29119,
+          "file": "build-provenance.json",
+          "sha256": "98359e0925ae4cd321c6fc8d69b56019852a17da2476ea30a9917abaf7b79c5e"
+        },
+        {
+          "bytes": 154387,
+          "file": "compiler-messages.jsonl",
+          "sha256": "0fc986cc2f0387209cfd96ed7ff2ef42c395c68bddcaa4f6394a1d5dc3a77356"
+        },
+        {
+          "bytes": 6027,
+          "file": "compiler-stderr.txt",
+          "sha256": "bac62862fccd79029f9b2f99600fb066d2c670de8712889aaa3ea6a8389fad76"
+        },
+        {
+          "bytes": 3283,
+          "file": "image-inspect.json",
+          "sha256": "2b89414edd6c3ad70d7eab8981749646b53262f9b376d36216a71393714c1d54"
+        },
+        {
+          "bytes": 1605,
+          "file": "readelf-dynamic.txt",
+          "sha256": "5340bf13fe1c538ca86e023ac887f63b8ab78210a2dc78390df2f8c3ad10884b"
+        },
+        {
+          "bytes": 3003,
+          "file": "readelf-program-headers.txt",
+          "sha256": "0bf0db8717dff868291a8a7afefffd9592feb90325a58f76a67a5702c1fd256c"
+        },
+        {
+          "bytes": 4185,
+          "file": "readelf-version-info.txt",
+          "sha256": "57739fd7714ee29b67baf9fbd5e6015cf6af5b740cf10c10bacf7f31f4f0c72b"
+        }
+      ],
+      "id": 11679391900,
+      "name": "rw040-probe-build-evidence",
+      "workflow_run": {
+        "head_branch": "main",
+        "head_repository_id": 1406205629,
+        "head_sha": "46f7daadcc5d930ca97925d96f05baddb20e1b2f",
+        "id": 38076433426,
+        "repository_id": 1406205629
+      },
+      "zip_bytes": 24465,
+      "zip_path": "/home/marc/Documents/github/lime-os/target/rw040-ci-38076433426/downloads/11679391900.zip",
+      "zip_sha256": "767cd1de83346d1f87f98d82238b8bd8d4f1ad93a8853b146c0da6c966a0ef80"
+    }
+  ],
+  "guest_executed": false,
+  "observed_at": "20261010T184810Z",
+  "qualification_claimed": false,
+  "ready_for_independent_input_review": true,
+  "run_id": 38076433426,
+  "tested_source": "46f7daadcc5d930ca97925d96f05baddb20e1b2f"
+}

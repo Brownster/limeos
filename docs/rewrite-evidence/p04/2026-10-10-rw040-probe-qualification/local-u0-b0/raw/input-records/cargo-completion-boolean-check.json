@@ -1,0 +1,46 @@
+{
+  "all_pass": true,
+  "captured_at_utc": "2026-10-10T18:45:50.412213+00:00",
+  "checks": [
+    {
+      "accepted": true,
+      "expected": true,
+      "fixture": "true",
+      "json": "[{\"reason\":\"build-finished\",\"success\":true}]",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "expected": false,
+      "fixture": "numeric_one",
+      "json": "[{\"reason\":\"build-finished\",\"success\":1}]",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "expected": false,
+      "fixture": "false",
+      "json": "[{\"reason\":\"build-finished\",\"success\":false}]",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "expected": false,
+      "fixture": "duplicate",
+      "json": "[{\"reason\":\"build-finished\",\"success\":true},{\"reason\":\"build-finished\",\"success\":true}]",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "expected": false,
+      "fixture": "missing",
+      "json": "[]",
+      "pass": true
+    }
+  ],
+  "correction": "The initial scratch comparison accepted numeric1 by Python equality; it was corrected before actual artifact verification to require one completion and success is True.",
+  "schema": 1,
+  "scope": "The actual verifier Cargo-completion statements were compiled from its AST and evaluated on parsed JSON; no Cargo build, artifact download, guest or source harness gate ran.",
+  "verifier_path": "/home/marc/Documents/github/lime-os/target/rw040-u0-b0-46f7/verify_actual_inputs.py",
+  "verifier_sha256": "5914ecd3b78570d685361a7294f1ae18390cb6eed209380b7dcfd8c76ef02fe4"
+}
