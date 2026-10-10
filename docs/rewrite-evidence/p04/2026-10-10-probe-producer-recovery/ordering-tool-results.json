@@ -1,0 +1,46 @@
+{
+  "before": {
+    "chunk_id": "c29543",
+    "wall_time_seconds": 0.528741856,
+    "exit_code": 1,
+    "original_token_count": 317,
+    "output": "......F.\n======================================================================\nFAIL: test_tracked_evidence_is_written_after_production_before_upload (test_rw040_probe_artifact.ProbeArtifactTests.test_tracked_evidence_is_written_after_production_before_upload)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/limeos-rw040-probe-artifact/tests/reference/test_rw040_probe_artifact.py\", line 92, in test_tracked_evidence_is_written_after_production_before_upload\n    self.assertEqual(\n    ~~~~~~~~~~~~~~~~^\n        producer.command(\n        ^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n        \"a required CI gate rewrote tracked evidence before the strict source check\",\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\nAssertionError: ' M docs/rewrite-evidence/p01/gate-probes.[115 chars]ng\\n' != ''\n-  M docs/rewrite-evidence/p01/gate-probes.json\n-  M docs/rewrite-evidence/p03/lifecycle-browser-result.json\n-  M docs/rewrite-evidence/p03/lifecycle-progress.png\n : a required CI gate rewrote tracked evidence before the strict source check\n\n----------------------------------------------------------------------\nRan 8 tests in 0.019s\n\nFAILED (failures=1)\n"
+  },
+  "after": {
+    "chunk_id": "feef20",
+    "wall_time_seconds": 0.453760212,
+    "exit_code": 0,
+    "original_token_count": 27,
+    "output": "........\n----------------------------------------------------------------------\nRan 8 tests in 0.022s\n\nOK\n"
+  },
+  "reference": {
+    "chunk_id": "e7fc8b",
+    "wall_time_seconds": 0.78793722,
+    "exit_code": 0,
+    "original_token_count": 31,
+    "output": ".......................\n----------------------------------------------------------------------\nRan 23 tests in 0.222s\n\nOK\n"
+  },
+  "static": [
+    {
+      "chunk_id": "69c06f",
+      "wall_time_seconds": 1.248447789,
+      "exit_code": 0,
+      "original_token_count": 13,
+      "output": "Repository dependency and hygiene checks passed.\n"
+    },
+    {
+      "chunk_id": "de32cd",
+      "wall_time_seconds": 1.147149463,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "chunk_id": "5d147f",
+      "wall_time_seconds": 1.132850763,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    }
+  ]
+}

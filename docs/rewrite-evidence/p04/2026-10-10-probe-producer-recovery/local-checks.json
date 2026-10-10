@@ -1,0 +1,58 @@
+{
+  "after": {
+    "exit_code": 0,
+    "failed": 0,
+    "passed": 8
+  },
+  "before": {
+    "exit_code": 1,
+    "failed": 1,
+    "passed": 7,
+    "scope": "unfrozen regression draft against the previous workflow order"
+  },
+  "correction_source": "46f7daadcc5d930ca97925d96f05baddb20e1b2f",
+  "failed_ci_source": "6964fca674f2c0431a673203ecba5329c64a42e4",
+  "failed_run": 38075054820,
+  "guest_executed": false,
+  "inputs": [
+    {
+      "bytes": 8505,
+      "path": ".github/workflows/ci.yml",
+      "sha256": "c771b4c9c5ed8ad533ebb5d015a20d06bbbc84cdb5e6f1776b377b51ba92ae73"
+    },
+    {
+      "bytes": 11011,
+      "path": "tests/reference/test_rw040_probe_artifact.py",
+      "sha256": "9b9c4f55b0826e0e8ba2e2ea8302c46fa0b4e1e24a13e94f6c7e60e22507d525"
+    },
+    {
+      "bytes": 11996,
+      "path": "scripts/build_rw040_probe_artifact.py",
+      "sha256": "81c31ff05a361235702031af9c43b3d2dca9798a8e474a8b64c029ebe2f0cfd0"
+    },
+    {
+      "bytes": 17105,
+      "path": "bins/executor/tests/combined_read_probe.rs",
+      "sha256": "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c"
+    },
+    {
+      "bytes": 54255,
+      "path": "Cargo.lock",
+      "sha256": "c27bd8d5e97514ebeffb2309f4dafbe0af3d27a887293a3e95d0ffa033101395"
+    }
+  ],
+  "reference": {
+    "exit_code": 0,
+    "failed": 0,
+    "passed": 23
+  },
+  "replacement_ci_result": "pending at record assembly",
+  "replacement_run": 38076433426,
+  "static": {
+    "diff": 0,
+    "format": 0,
+    "repository": 0,
+    "ruff": 0,
+    "unchanged_library_package_helper_inputs": 0
+  }
+}
