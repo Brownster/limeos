@@ -85,6 +85,43 @@ The step needs `qemu-system-x86`, `qemu-utils`, `genisoimage` and Python with
 equivalence, baselines and self-check verified; probe cases blocked", not
 RW-040 success.
 
+## Integrator receiver and lifecycle corrections
+
+The historical 841f065 tool-only run and its raw evidence remain unchanged. A
+supplied probe now follows the [published producer
+interface](../../../docs/p04-rw040-combined-read-probe.md), with the exact
+hash-bound supply described in the [probe
+record](../../fixtures/rw040-combined/probe-contract.md). No Rust source,
+installed unit, capability or resource ceiling changes. The harness invokes the
+libtest compiler artifact, captures bounded prefixed events, and requires one
+final event plus successful executable/libtest exit. JSON alone is insufficient.
+
+Only U0 and B0 run. Fresh tool variants removing Group or RestrictSUIDSGID are
+reported as deferred. The guest records standalone empty/complete library runs,
+typed refusals and raw stdout separately from the 17 combined acceptance rows.
+Those rows remain blocked. Complete membership comparisons cover instance
+resource/image/start/running fields and running PID bindings; they do not prove
+mount destinations or filesystem UUID mapping.
+
+The sampler retains a pidfd and start ticks, discards samples crossing exit, and
+labels FD/RSS/PSS/io as main-process observations. Cgroup memory observations
+cover the whole service. Missing measurement/closure identity is explicit
+ambiguity. None is a combined-worker headroom result.
+
+Result disks use a closed USTAR grammar: fixed headers are admitted before any
+payload, at most 1,024 members, 16 MiB per member and 48 MiB total. Extensions,
+links, duplicate names, traversal, incomplete payload/end framing and nonzero
+trailing disk data refuse the entire result. The runner validates run ID and
+the exact 14-stage completion map before publishing a fresh result directory.
+
+The parent-death bootstrap compares the actual creating parent after arming and
+refuses privileged exec images that could clear the signal. The launcher remains
+single-threaded. Stale cleanup opens a pidfd before rechecking exact QEMU identity,
+signals that held identity, and waits for observed exit before deleting staging.
+Unknown QEMU identity, inaccessible pidfds, identity mismatches and pending exit
+preserve staging for investigation. It observes an orphan's exit; it does not
+claim to reap a process it did not create.
+
 ## Limits
 
 The guest needs about 1.1 GiB of RAM at 65 running consumers. Measurements are

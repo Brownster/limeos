@@ -1,0 +1,86 @@
+{
+  "base": "841f0655852b1818c0978bb0b8b8c59ee661f6cc",
+  "gates": {
+    "contracts": {
+      "argv": [
+        "/usr/bin/python",
+        "scripts/check_contracts.py"
+      ],
+      "exit": 0,
+      "finished_unix": 1791639938.666369,
+      "log_sha256": "8cd421e2583971cc4a6b5b622014a919043a8dbc680cd704bb7a7db1d3f86d05",
+      "started_unix": 1791639938.41691
+    },
+    "diff": {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "finished_unix": 1791639938.4164329,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "started_unix": 1791639938.4094768
+    },
+    "format": {
+      "argv": [
+        "/home/marc/.cache/uv/archive-v0/c1zmhfqlO_amdfBn/bin/ruff",
+        "format",
+        "--check",
+        "tests/qualification/rw040-combined"
+      ],
+      "exit": 0,
+      "finished_unix": 1791639938.4167345,
+      "log_sha256": "0321fffcb91606a42c0a19d8c1121d5c544379d663821fce616c71a7bb62f6b5",
+      "started_unix": 1791639938.4091341
+    },
+    "repository": {
+      "argv": [
+        "/usr/bin/python",
+        "scripts/check_repository.py"
+      ],
+      "exit": 0,
+      "finished_unix": 1791639938.4730008,
+      "log_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "started_unix": 1791639938.416533
+    },
+    "ruff": {
+      "argv": [
+        "/home/marc/.cache/uv/archive-v0/c1zmhfqlO_amdfBn/bin/ruff",
+        "check",
+        "tests/qualification/rw040-combined"
+      ],
+      "exit": 0,
+      "finished_unix": 1791639938.4228678,
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "started_unix": 1791639938.4088013
+    },
+    "unittest": {
+      "argv": [
+        "/usr/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/qualification/rw040-combined",
+        "-p",
+        "test_*.py"
+      ],
+      "exit": 0,
+      "finished_unix": 1791639939.3075511,
+      "log_sha256": "49f611e7249599d627dc1b84ecca652773b73cd3b02df1c29fb8835f2958c9f5",
+      "started_unix": 1791639938.4085956
+    }
+  },
+  "python": "3.14.6 (main, Jun 11 2026, 00:00:00) [GCC 15.2.1 20260123 (Red Hat 15.2.1-7)]",
+  "scope": "local child/kernel/unit/static checks only; no guest, Docker, SSH, wybie or Pi",
+  "source_sha256": {
+    "tests/qualification/rw040-combined/guest/combined_guest.py": "b9f666dd4cc1deb63c07cda1c1d26e59e305a4862f7af5bb7c3a382d7d295c3a",
+    "tests/qualification/rw040-combined/guest/env_probe.py": "094a019aeea7548329769f132c994e6f62adab271b320fb8d325e1606bcce6d4",
+    "tests/qualification/rw040-combined/guest/probe_adapter.py": "ac7469711e25cc82b43cc0e313800c1a38c3f19ca68734810b43bbb91c3aaf90",
+    "tests/qualification/rw040-combined/guest/selfcheck_probe.py": "714f1e9104e54876b5695143506530a2c9b01c0093eb1cca4d471d3e90147dce",
+    "tests/qualification/rw040-combined/run_guest.py": "e7916633559e094382029dbc42e2e72cee69893f54d9863b8b133c1433188ecc",
+    "tests/qualification/rw040-combined/test_harness.py": "839ca8c8d533620821e642d8b1e0b7d1a5c0149f91fb41a94330d1a24a1beab9"
+  },
+  "source_unchanged": true
+}

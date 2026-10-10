@@ -1,4 +1,45 @@
-# Proposed integrator probe contract (draft for review)
+# Historical draft — replaced by the published producer contract
+
+The draft below records the engineer's original proposal and is retained for
+the frozen historical run. It is **not** the implemented interface. The current
+owned harness consumes the unchanged producer documented in
+[`docs/p04-rw040-combined-read-probe.md`](../../../docs/p04-rw040-combined-read-probe.md).
+Its argv is `--exact qualification_probe --nocapture --test-threads=1`; inputs
+are the closed `LIMEOS_RW040_PROBE_*` environment, and output uses prefixed
+`LIMEOS_RW040_PROBE_JSON=` events. It has no stdin transition acknowledgement.
+
+Supply `--probe DIR` with these three regular files: `manifest.json`, the unchanged
+`combined_read_probe.rs` and its exact compiler-artifact executable named
+`combined_read_probe`. The manifest's closed fields are:
+
+```json
+{
+  "contract": 1,
+  "source_commit": "<40 lowercase hex>",
+  "source_sha256": "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c",
+  "binary": "combined_read_probe",
+  "binary_sha256": "<64 lowercase hex>",
+  "toolchain": "1.88.0",
+  "profile": "release",
+  "library_source": "<exact source of the installed package artifacts>"
+}
+```
+
+The runner requires `library_source` to match the package supply record. It
+records the source composition and verifies both files again in the guest.
+These fields attribute a trusted supplied build; they are not independent proof
+of how the compiler produced that executable. Keep compiler-artifact JSON and
+the actual build logs with the supply evidence.
+
+Fresh runs are limited to U0 unrestricted root and B0 unchanged installed reader
+confinement. Empty and complete fixtures run standalone `engine`; complete
+fixtures also run `engine-processes`, `engine-sources` and `storage`. The exact
+case-specific combined/transition assertions, a protected dependency contract,
+the combined worker and its acceptance remain explicitly blocked. The receiver
+supports a collected callback during the existing fixed pause for later owned
+transition wiring; none of those transitions is claimed qualified here.
+
+## Original draft
 
 The harness can't claim any RW-040 library success until the integrator supplies
 the exact qualification probe. That probe is reserved as
