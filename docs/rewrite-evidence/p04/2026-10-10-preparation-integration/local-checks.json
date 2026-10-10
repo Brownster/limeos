@@ -1,0 +1,205 @@
+{
+  "aborted_tool_attempts": [
+    "Redirected cargo-deny escalation returned no execution result/log before interruption; later retry passed",
+    "Redirected workspace escalation returned no execution result/log before interruption; direct approved env invocation subsequently ran"
+  ],
+  "active_agent_time": "not independently instrumented; tool approval and interruption waits separate",
+  "advisories_fetched": false,
+  "cached_advisories": 1290,
+  "cached_advisory_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
+  "cached_advisory_date": "2026-10-03T07:49:26Z",
+  "changed_paths": [
+    "crates/backup-archive/src/lib.rs",
+    "crates/backup-archive/src/preparation.rs",
+    "crates/backup-archive/src/preparation/private.rs",
+    "crates/backup-archive/src/preparation/tests.rs",
+    "crates/backup-archive/src/staging.rs",
+    "crates/backup-archive/tests/preparation.rs",
+    "docs/p04-backup-restore-preparation.md",
+    "docs/rewrite-evidence/p04/rw043-preparation/README.md",
+    "docs/rewrite-evidence/p04/rw043-preparation/SHA256SUMS",
+    "docs/rewrite-evidence/p04/rw043-preparation/allowed-path-diff.patch.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/audit-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/audit.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/cache-path-diagnosis.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/cache-rebuild.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/catalog-api-probe.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/clippy-92a149d.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/clippy-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/clippy-first.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/clippy-second.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/contracts.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/deny-unrestricted.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/deny.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/diff-check.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/first-preparation-tests.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/fmt-92a149d.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/fmt-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/fmt.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/focused-first-compile.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/focused-tests.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/helper-fix.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/helper-format-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/helper-format.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/helper-lint-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/helper-lint.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/implementation-first-check.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/initial-compile.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/initial-fmt.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/preparation-92a149d.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/preparation-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/qualification.json",
+    "docs/rewrite-evidence/p04/rw043-preparation/record_evidence.py",
+    "docs/rewrite-evidence/p04/rw043-preparation/repository-92a149d.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/repository-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/repository.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/source-manifest.json",
+    "docs/rewrite-evidence/p04/rw043-preparation/workspace-92a149d.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/workspace-corrected.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/workspace-final.txt.gz",
+    "docs/rewrite-evidence/p04/rw043-preparation/workspace-tests.txt.gz"
+  ],
+  "commands": {
+    "audit": {
+      "command": "env PATH=/tmp/limeos-validation-bin:/usr/local/bin:/usr/bin:/bin cargo audit --no-fetch",
+      "exit_code": 0,
+      "warning": "sandbox crates.io index lock read-only; cached advisory scan completed"
+    },
+    "clippy": {
+      "command": "env TMPDIR=/home/marc/Documents/github/lime-os/target/integration-compiler-tmp CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0 cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+      "exit_code": 0
+    },
+    "contracts": {
+      "command": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project python scripts/check_contracts.py",
+      "exit_code": 0
+    },
+    "deny_first": {
+      "command": "env PATH=/tmp/limeos-validation-bin:/usr/local/bin:/usr/bin:/bin cargo deny --offline check",
+      "environment": "sandbox",
+      "exit_code": 1,
+      "failure": "read-only advisory exclusive lock"
+    },
+    "deny_retry": {
+      "command": "env PATH=/tmp/limeos-validation-bin:/usr/local/bin:/usr/bin:/bin cargo deny --offline check",
+      "environment": "approved escalation",
+      "exit_code": 0
+    },
+    "diff": {
+      "command": "git diff --check 5e38e04..HEAD",
+      "exit_code": 0
+    },
+    "fmt": {
+      "command": "env CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo fmt --all -- --check",
+      "exit_code": 0
+    },
+    "repository": {
+      "command": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project python scripts/check_repository.py",
+      "exit_code": 0
+    },
+    "workspace_first": {
+      "command": "env TMPDIR=/tmp CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0 cargo test --workspace --locked --offline",
+      "environment": "sandbox",
+      "exit_code": 101,
+      "failure": "9 pre-existing core Unix-socket fixtures refused EPERM before later suites"
+    },
+    "workspace_retry": {
+      "command": "env TMPDIR=/tmp CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0 cargo test --workspace --locked --offline -- --test-threads=1",
+      "environment": "approved direct env invocation",
+      "exit_code": 0
+    }
+  },
+  "compile_fail": 4,
+  "engineer_tip": "c5da028744678802e5a709e656a405195a28ac87",
+  "external_packages": 211,
+  "failed": 0,
+  "gates_closed": [],
+  "human_hours": null,
+  "ignored": 0,
+  "inventory_budget": {
+    "ceiling_ms": 20,
+    "p95_ms": 61.401,
+    "status": "failed"
+  },
+  "lockfile_sha256": "c27bd8d5e97514ebeffb2309f4dafbe0af3d27a887293a3e95d0ffa033101395",
+  "lockfile_unchanged": true,
+  "logs": [
+    {
+      "capture": "complete redirected output",
+      "compressed_sha256": "1854803109c1992ebaa25902a79a80e51b06dce7915a1593723546f9c2d037d8",
+      "path": "logs/audit.log.gz",
+      "raw_bytes": 268,
+      "raw_sha256": "bd526bee8a9ad1fafab5173794e815bbbafb37268162f13799b8167c2accaef4"
+    },
+    {
+      "capture": "complete redirected output",
+      "compressed_sha256": "8ebc200e0c97cafe06397f049249cbd371c6d7827c4a099b85d5544dd6d6e22d",
+      "path": "logs/clippy.log.gz",
+      "raw_bytes": 1452,
+      "raw_sha256": "d5ce22b2dfe765b0b090140e7809b09d4973fcf7d935cc9c0f4292a8df2750d2"
+    },
+    {
+      "capture": "complete redirected output",
+      "compressed_sha256": "c0f62b5214eaa6ae45d25c7dd20ed5ea65537482884009c3d3fec31cdb3e9ffa",
+      "path": "logs/contracts.log.gz",
+      "raw_bytes": 1535,
+      "raw_sha256": "89e5f6d518f6addc652f1aab1b62c3f96fc4cd40b5b2be6d837d46b4244ebac1"
+    },
+    {
+      "capture": "complete redirected output",
+      "compressed_sha256": "7a5fefe191bb0aa38d3f2b94d8bcbb512cf4f70e103c67016f7c6455a309a889",
+      "path": "logs/deny-unrestricted.log.gz",
+      "raw_bytes": 17675,
+      "raw_sha256": "a4f8ee77652c8f54e7142f6395b5046d6766814f323eeef1ac5344428e823eff"
+    },
+    {
+      "capture": "complete redirected output",
+      "compressed_sha256": "73103b147f7593ec44b9f99b675e0854f6911f4f0be2c0febde8c3681ed8fb4a",
+      "path": "logs/deny.log.gz",
+      "raw_bytes": 195,
+      "raw_sha256": "7363d9cc1217a5a3237353a27282ce38fd777daddacbd6c13bb0ed453cd6dc7d"
+    },
+    {
+      "capture": "complete redirected output",
+      "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "path": "logs/diff.log.gz",
+      "raw_bytes": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "capture": "complete redirected output",
+      "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "path": "logs/fmt.log.gz",
+      "raw_bytes": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "capture": "complete redirected output",
+      "compressed_sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+      "path": "logs/repository.log.gz",
+      "raw_bytes": 49,
+      "raw_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df"
+    },
+    {
+      "capture": "complete untruncated unified-exec output chunks",
+      "compressed_sha256": "c76b17634f144e8adc07c6ab417e0d5523b81c20562c26cd735631ab88fdecdf",
+      "path": "logs/workspace-unrestricted.log.gz",
+      "raw_bytes": 46196,
+      "raw_sha256": "f68fbfb7211dc39d8b3d1addb0b6896982444f23d326f976693d8fd437f23f31"
+    },
+    {
+      "capture": "complete redirected output",
+      "compressed_sha256": "c9f9f05f72c7c414570f3bcb1750015f4783287809f5393734443111cbb78d9c",
+      "path": "logs/workspace.log.gz",
+      "raw_bytes": 17452,
+      "raw_sha256": "868ff4233d3c87ca90ec97b0c651cc16892975c5658c5a7c0f14be4bc512bec3"
+    }
+  ],
+  "packages": 227,
+  "parent": "5e38e040d27c8c967fce259472387375bb9616a3",
+  "recorded_at_utc": "2026-10-10T13:36:56.871360+00:00",
+  "scope": "Local merged library checks only; no live restore, installed recovery, protected effect, combined worker, Pi, SSH, workstation Docker or production policy change",
+  "source_commit": "6b49b228d4d08da67ef603c1772e85c85bebc66d",
+  "source_review": "Independent preparation GO covers unchanged engineer source; root explicitly accepted shared read-only staging seam 9f63a68",
+  "total_passed": 425,
+  "unit_integration": 421
+}

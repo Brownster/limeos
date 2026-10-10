@@ -1,0 +1,23 @@
+{
+  "source_inputs": 248,
+  "source_errors": [],
+  "log_count": 36,
+  "log_errors": [],
+  "sum_count": 41,
+  "sum_errors": [],
+  "sum_missing": [],
+  "sum_extra": [],
+  "actual_workspace_counts": {
+    "unit": 399,
+    "doc": 4,
+    "failed": 0,
+    "ignored": 0
+  },
+  "runtime_patch_exact": true,
+  "lockfile_unchanged": true,
+  "packages": 227,
+  "external": 211,
+  "local": 16,
+  "protected_custody_staging_inspector_unchanged_except_explicit_seam": true,
+  "sum_paths_normalized": true
+}
