@@ -1,0 +1,139 @@
+{
+  "exit": {
+    "pid": 0,
+    "running": false,
+    "verified": true
+  },
+  "label": "fixture transition verification with independent facts; probe cases still blocked",
+  "namespace_switch": {
+    "error": "FileNotFoundError: [Errno 2] No such file or directory: '/proc/6761/status'",
+    "verified": false
+  },
+  "restart": {
+    "after": 6978,
+    "before": 6300,
+    "verified": true
+  },
+  "root_switch": {
+    "after": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 0,
+      "mountinfo_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026533082]",
+      "ns_pid": "pid:[4026533085]",
+      "nspid": [
+        "6699",
+        "1"
+      ],
+      "pid": 6699,
+      "proc_owner_uid": 0,
+      "root_dev": 153,
+      "root_ino": 131543,
+      "root_link": "/newroot",
+      "start_ticks": 7193,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    "before": {
+      "gid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "mountinfo_rows": 22,
+      "mountinfo_sha256": "fdd6929d8337a50a10f30d53c5d3c209a96a33313efa407ab3d58b03feccbe7c",
+      "nondumpable_indicator": false,
+      "ns_mnt": "mnt:[4026533082]",
+      "ns_pid": "pid:[4026533085]",
+      "nspid": [
+        "6699",
+        "1"
+      ],
+      "pid": 6699,
+      "proc_owner_uid": 0,
+      "root_dev": 153,
+      "root_ino": 132108,
+      "root_link": "/",
+      "start_ticks": 7193,
+      "uid": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ]
+    },
+    "pid": 6699,
+    "same_pid": true,
+    "verified": true
+  },
+  "swapped_device": {
+    "after": {
+      "declared": "/srv/rw040/swap",
+      "dev": 65136,
+      "ino": 2,
+      "is_symlink": false,
+      "kind": "directory",
+      "mount": {
+        "fsroot": "/",
+        "fstype": "ext4",
+        "id": 557,
+        "maj:min": "254:112",
+        "source": "/dev/vdh",
+        "target": "/srv/rw040/swap",
+        "uuid": "0b0d0a03-0000-4000-8000-000000000003"
+      },
+      "resolved": "/srv/rw040/swap"
+    },
+    "before": {
+      "declared": "/srv/rw040/swap",
+      "dev": 65120,
+      "ino": 2,
+      "is_symlink": false,
+      "kind": "directory",
+      "mount": {
+        "fsroot": "/",
+        "fstype": "ext4",
+        "id": 557,
+        "maj:min": "254:96",
+        "source": "/dev/vdg",
+        "target": "/srv/rw040/swap",
+        "uuid": "0b0d0a02-0000-4000-8000-000000000002"
+      },
+      "resolved": "/srv/rw040/swap"
+    },
+    "container_mountinfo_unchanged": true,
+    "verified": true
+  },
+  "unsupported_btrfs": {
+    "running": true,
+    "source": {
+      "declared": "/srv/rw040/btrfs",
+      "dev": 51,
+      "ino": 256,
+      "is_symlink": false,
+      "kind": "directory",
+      "mount": {
+        "fsroot": "/",
+        "fstype": "btrfs",
+        "id": 575,
+        "maj:min": "0:50",
+        "source": "/dev/vdi",
+        "target": "/srv/rw040/btrfs",
+        "uuid": "0b0d0a04-0000-4000-8000-000000000004"
+      },
+      "resolved": "/srv/rw040/btrfs"
+    },
+    "verified": true
+  }
+}

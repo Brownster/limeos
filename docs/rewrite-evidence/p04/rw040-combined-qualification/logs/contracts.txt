@@ -1,0 +1,3 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running `target/debug/limeos-schema /tmp/limeos-contracts-fyy5l5fx`
+Generated schemas and TypeScript match Rust contracts.

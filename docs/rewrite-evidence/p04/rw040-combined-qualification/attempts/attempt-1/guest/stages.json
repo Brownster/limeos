@@ -1,0 +1,70 @@
+{
+  "budget": {
+    "because": [
+      "containers"
+    ],
+    "result": "skipped"
+  },
+  "cases": {
+    "result": "passed",
+    "seconds": 0.0
+  },
+  "confinement": {
+    "result": "passed",
+    "seconds": 0.08
+  },
+  "containers": {
+    "because": [
+      "layout"
+    ],
+    "result": "skipped"
+  },
+  "empty": {
+    "result": "passed",
+    "seconds": 0.03
+  },
+  "environment": {
+    "because": [
+      "ground-truth"
+    ],
+    "result": "skipped"
+  },
+  "ground-truth": {
+    "because": [
+      "containers"
+    ],
+    "result": "skipped"
+  },
+  "image": {
+    "result": "passed",
+    "seconds": 0.22
+  },
+  "install": {
+    "result": "passed",
+    "seconds": 58.82
+  },
+  "layout": {
+    "error": "RuntimeError: mkfs.xfs exited 1: ototype file */\t[-p fname]\n/* quiet */\t\t[-q]\n/* realtime subvol */\t[-r extsize=num,size=num,rtdev=xxx]\n/* sectorsize */\t[-s size=num]\n/* version */\t\t[-V]\n\t\t\tdevicename\n<devicename> is required unless -d name=xxx is given.\n<num> is xxx (bytes), xxxs (sectors), xxxb (fs blocks), xxxk (xxx KiB),\n      xxxm (xxx MiB), xxxg (xxx GiB), xxxt (xxx TiB) or xxxp (xxx PiB).\n<value> is xxx (512 byte blocks).\n",
+    "result": "failed",
+    "seconds": 0.05,
+    "traceback": "Traceback (most recent call last):\n  File \"/qual/inputs/guest/combined_guest.py\", line 743, in main\n    function(ctx)\n  File \"/qual/inputs/guest/combined_guest.py\", line 334, in stage_layout\n    run(\"mkfs.xfs\", \"-q\", \"-f\", \"-m\", f\"uuid={disk['uuid']}\", \"-L\", disk[\"label\"], dev)\n  File \"/qual/inputs/guest/combined_guest.py\", line 80, in run\n    raise RuntimeError(f\"{argv[0]} exited {done.returncode}: {done.stderr[-400:]}\")\nRuntimeError: mkfs.xfs exited 1: ototype file */\t[-p fname]\n/* quiet */\t\t[-q]\n/* realtime subvol */\t[-r extsize=num,size=num,rtdev=xxx]\n/* sectorsize */\t[-s size=num]\n/* version */\t\t[-V]\n\t\t\tdevicename\n<devicename> is required unless -d name=xxx is given.\n<num> is xxx (bytes), xxxs (sectors), xxxb (fs blocks), xxxk (xxx KiB),\n      xxxm (xxx MiB), xxxg (xxx GiB), xxxt (xxx TiB) or xxxp (xxx PiB).\n<value> is xxx (512 byte blocks).\n\n"
+  },
+  "platform": {
+    "result": "passed",
+    "seconds": 0.01
+  },
+  "selfcheck": {
+    "result": "passed",
+    "seconds": 2.63
+  },
+  "service": {
+    "result": "passed",
+    "seconds": 0.04
+  },
+  "transitions": {
+    "because": [
+      "ground-truth"
+    ],
+    "result": "skipped"
+  }
+}

@@ -1,0 +1,3508 @@
+{
+  "diagnostic_without_Group": {
+    "exit": 0,
+    "removed": [
+      "Group"
+    ],
+    "report": {
+      "cgroup": {
+        "cgroup": "/system.slice/rw040-env-diagnostic-without-Group.service",
+        "cpu.max": {
+          "ok": true,
+          "value": "50000 100000"
+        },
+        "memory.max": {
+          "ok": true,
+          "value": "67108864"
+        },
+        "memory.swap.max": {
+          "ok": true,
+          "value": "0"
+        },
+        "pids.max": {
+          "ok": true,
+          "value": "16"
+        }
+      },
+      "docker_canonical": {
+        "ok": true,
+        "value": {
+          "peer_gid": 0,
+          "peer_pid": 1,
+          "peer_uid": 0,
+          "status_line": "HTTP/1.0 200 OK"
+        }
+      },
+      "docker_var_run": {
+        "ok": true,
+        "value": {
+          "peer_gid": 0,
+          "peer_pid": 1,
+          "peer_uid": 0,
+          "status_line": "HTTP/1.0 200 OK"
+        }
+      },
+      "euid": 0,
+      "inet_socket": {
+        "errno": 97,
+        "name": "EAFNOSUPPORT",
+        "ok": false
+      },
+      "openat2_proc": {
+        "errno": 38,
+        "name": "ENOSYS",
+        "ok": false
+      },
+      "openat2_var_run_docker": {
+        "errno": 38,
+        "name": "ENOSYS",
+        "ok": false
+      },
+      "pid1": {
+        "open_ns_mnt": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "open_root": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "pid": 1,
+        "pidfd_open": {
+          "ok": true,
+          "value": "opened"
+        },
+        "read_mountinfo": {
+          "ok": true,
+          "value": 10009
+        },
+        "read_status": {
+          "ok": true,
+          "value": 1362
+        },
+        "readlink_ns_mnt": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "readlink_root": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "stat_root": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "status_owner_uid": {
+          "ok": true,
+          "value": 0
+        },
+        "statx_root": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        }
+      },
+      "proc_mount_options": "rw,nosuid,nodev,noexec,relatime rw",
+      "rlimit_nofile": [
+        256,
+        256
+      ],
+      "status": {
+        "CapAmb": "0000000000000000",
+        "CapBnd": "0000000000000000",
+        "CapEff": "0000000000000000",
+        "CapInh": "0000000000000000",
+        "CapPrm": "0000000000000000",
+        "Gid": "0\t0\t0\t0",
+        "Groups": "",
+        "NoNewPrivs": "1",
+        "Seccomp": "2",
+        "Uid": "0\t0\t0\t0"
+      },
+      "statx_root": {
+        "ok": true,
+        "value": {
+          "mask": 6143,
+          "mnt_id": 27,
+          "mnt_id_reported": true
+        }
+      },
+      "targets": {
+        "container:rw040-run-alias": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5925,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2476
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-bind": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5860,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2582
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-config-file": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6050,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2493
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-link": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5985,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2582
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-mountless": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6304,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2475
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-nondumpable": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6430,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2475
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1419
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-other-uid": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6369,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2539
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1412
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 1990
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-swap": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6242,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2531
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-tmpfs": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6177,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2547
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1384
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-volume": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6113,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2548
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-trans-ns": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6773,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2542
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1382
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-trans-root": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6699,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2542
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1381
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "task:nondumpable-root": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5824,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 10009
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1375
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "task:other-uid": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5825,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 10009
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1397
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 1990
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "task:root-no-capabilities": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 5826,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 10009
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1373
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026531841]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              2,
+              65025
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 27,
+              "mnt_id_reported": true
+            }
+          }
+        }
+      },
+      "time": 1791478322.553352
+    },
+    "stderr": ""
+  },
+  "diagnostic_without_RestrictSUIDSGID": {
+    "exit": 0,
+    "removed": [
+      "RestrictSUIDSGID"
+    ],
+    "report": {
+      "cgroup": {
+        "cgroup": "/system.slice/rw040-env-diagnostic-without-RestrictSUIDSGID.service",
+        "cpu.max": {
+          "ok": true,
+          "value": "50000 100000"
+        },
+        "memory.max": {
+          "ok": true,
+          "value": "67108864"
+        },
+        "memory.swap.max": {
+          "ok": true,
+          "value": "0"
+        },
+        "pids.max": {
+          "ok": true,
+          "value": "16"
+        }
+      },
+      "docker_canonical": {
+        "ok": true,
+        "value": {
+          "peer_gid": 0,
+          "peer_pid": 1,
+          "peer_uid": 0,
+          "status_line": "HTTP/1.0 200 OK"
+        }
+      },
+      "docker_var_run": {
+        "ok": true,
+        "value": {
+          "peer_gid": 0,
+          "peer_pid": 1,
+          "peer_uid": 0,
+          "status_line": "HTTP/1.0 200 OK"
+        }
+      },
+      "euid": 0,
+      "inet_socket": {
+        "errno": 97,
+        "name": "EAFNOSUPPORT",
+        "ok": false
+      },
+      "openat2_proc": {
+        "ok": true,
+        "value": "opened"
+      },
+      "openat2_var_run_docker": {
+        "errno": 40,
+        "name": "ELOOP",
+        "ok": false
+      },
+      "pid1": {
+        "open_ns_mnt": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "open_root": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "pid": 1,
+        "pidfd_open": {
+          "ok": true,
+          "value": "opened"
+        },
+        "read_mountinfo": {
+          "ok": true,
+          "value": 10009
+        },
+        "read_status": {
+          "ok": true,
+          "value": 1362
+        },
+        "readlink_ns_mnt": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "readlink_root": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "stat_root": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "status_owner_uid": {
+          "ok": true,
+          "value": 0
+        },
+        "statx_root": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        }
+      },
+      "proc_mount_options": "rw,nosuid,nodev,noexec,relatime rw",
+      "rlimit_nofile": [
+        256,
+        256
+      ],
+      "status": {
+        "CapAmb": "0000000000000000",
+        "CapBnd": "0000000000000000",
+        "CapEff": "0000000000000000",
+        "CapInh": "0000000000000000",
+        "CapPrm": "0000000000000000",
+        "Gid": "114\t114\t114\t114",
+        "Groups": "114",
+        "NoNewPrivs": "1",
+        "Seccomp": "2",
+        "Uid": "0\t0\t0\t0"
+      },
+      "statx_root": {
+        "ok": true,
+        "value": {
+          "mask": 6143,
+          "mnt_id": 27,
+          "mnt_id_reported": true
+        }
+      },
+      "targets": {
+        "container:rw040-run-alias": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5925,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2476
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-bind": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5860,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2582
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-config-file": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6050,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2493
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-link": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5985,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2582
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-mountless": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6304,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2475
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-nondumpable": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6430,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2475
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1419
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-other-uid": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6369,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2539
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1412
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 1990
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-swap": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6242,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2531
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-tmpfs": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6177,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2547
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1384
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-volume": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6113,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2548
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-trans-ns": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6773,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2542
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1382
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-trans-root": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6699,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2542
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1381
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "task:nondumpable-root": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5824,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 10009
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1375
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "task:other-uid": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5825,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 10009
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1397
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 1990
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "task:root-no-capabilities": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5826,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 10009
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1373
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        }
+      },
+      "time": 1791478322.47974
+    },
+    "stderr": ""
+  },
+  "label": "environment baseline with standard interfaces; not RW-040 library results. diagnostic_* variants remove one existing setting only to attribute a refusal",
+  "reproduced_confinement": {
+    "exit": 0,
+    "removed": [],
+    "report": {
+      "cgroup": {
+        "cgroup": "/system.slice/rw040-env-reproduced-confinement.service",
+        "cpu.max": {
+          "ok": true,
+          "value": "50000 100000"
+        },
+        "memory.max": {
+          "ok": true,
+          "value": "67108864"
+        },
+        "memory.swap.max": {
+          "ok": true,
+          "value": "0"
+        },
+        "pids.max": {
+          "ok": true,
+          "value": "16"
+        }
+      },
+      "docker_canonical": {
+        "ok": true,
+        "value": {
+          "peer_gid": 0,
+          "peer_pid": 1,
+          "peer_uid": 0,
+          "status_line": "HTTP/1.0 200 OK"
+        }
+      },
+      "docker_var_run": {
+        "ok": true,
+        "value": {
+          "peer_gid": 0,
+          "peer_pid": 1,
+          "peer_uid": 0,
+          "status_line": "HTTP/1.0 200 OK"
+        }
+      },
+      "euid": 0,
+      "inet_socket": {
+        "errno": 97,
+        "name": "EAFNOSUPPORT",
+        "ok": false
+      },
+      "openat2_proc": {
+        "errno": 38,
+        "name": "ENOSYS",
+        "ok": false
+      },
+      "openat2_var_run_docker": {
+        "errno": 38,
+        "name": "ENOSYS",
+        "ok": false
+      },
+      "pid1": {
+        "open_ns_mnt": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "open_root": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "pid": 1,
+        "pidfd_open": {
+          "ok": true,
+          "value": "opened"
+        },
+        "read_mountinfo": {
+          "ok": true,
+          "value": 10009
+        },
+        "read_status": {
+          "ok": true,
+          "value": 1362
+        },
+        "readlink_ns_mnt": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "readlink_root": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "stat_root": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        },
+        "status_owner_uid": {
+          "ok": true,
+          "value": 0
+        },
+        "statx_root": {
+          "errno": 13,
+          "name": "EACCES",
+          "ok": false
+        }
+      },
+      "proc_mount_options": "rw,nosuid,nodev,noexec,relatime rw",
+      "rlimit_nofile": [
+        256,
+        256
+      ],
+      "status": {
+        "CapAmb": "0000000000000000",
+        "CapBnd": "0000000000000000",
+        "CapEff": "0000000000000000",
+        "CapInh": "0000000000000000",
+        "CapPrm": "0000000000000000",
+        "Gid": "114\t114\t114\t114",
+        "Groups": "114",
+        "NoNewPrivs": "1",
+        "Seccomp": "2",
+        "Uid": "0\t0\t0\t0"
+      },
+      "statx_root": {
+        "ok": true,
+        "value": {
+          "mask": 6143,
+          "mnt_id": 27,
+          "mnt_id_reported": true
+        }
+      },
+      "targets": {
+        "container:rw040-run-alias": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5925,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2476
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-bind": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5860,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2582
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-config-file": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6050,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2493
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-link": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5985,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2582
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-mountless": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6304,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2475
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-nondumpable": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6430,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2475
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1419
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-other-uid": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6369,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2539
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1412
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 1990
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-swap": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6242,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2531
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-tmpfs": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6177,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2547
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1384
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-run-volume": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6113,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2548
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-trans-ns": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6773,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2542
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1382
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "container:rw040-trans-root": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 6699,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2542
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1381
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "task:nondumpable-root": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5824,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 10009
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1375
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "task:other-uid": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5825,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 10009
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1397
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 1990
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        },
+        "task:root-no-capabilities": {
+          "open_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "open_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "pid": 5826,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 10009
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1373
+          },
+          "readlink_ns_mnt": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "readlink_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "stat_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "errno": 13,
+            "name": "EACCES",
+            "ok": false
+          }
+        }
+      },
+      "time": 1791478322.3834786
+    },
+    "stderr": ""
+  },
+  "unrestricted_root": {
+    "exit": 0,
+    "report": {
+      "cgroup": {
+        "cgroup": "/system.slice/cloud-final.service",
+        "cpu.max": {
+          "ok": true,
+          "value": "max 100000"
+        },
+        "memory.max": {
+          "ok": true,
+          "value": "max"
+        },
+        "memory.swap.max": {
+          "ok": true,
+          "value": "max"
+        },
+        "pids.max": {
+          "ok": true,
+          "value": "max"
+        }
+      },
+      "docker_canonical": {
+        "ok": true,
+        "value": {
+          "peer_gid": 0,
+          "peer_pid": 1,
+          "peer_uid": 0,
+          "status_line": "HTTP/1.0 200 OK"
+        }
+      },
+      "docker_var_run": {
+        "ok": true,
+        "value": {
+          "peer_gid": 0,
+          "peer_pid": 1,
+          "peer_uid": 0,
+          "status_line": "HTTP/1.0 200 OK"
+        }
+      },
+      "euid": 0,
+      "inet_socket": {
+        "ok": true,
+        "value": "created"
+      },
+      "openat2_proc": {
+        "ok": true,
+        "value": "opened"
+      },
+      "openat2_var_run_docker": {
+        "errno": 40,
+        "name": "ELOOP",
+        "ok": false
+      },
+      "pid1": {
+        "open_ns_mnt": {
+          "ok": true,
+          "value": "opened"
+        },
+        "open_root": {
+          "ok": true,
+          "value": "opened"
+        },
+        "pid": 1,
+        "pidfd_open": {
+          "ok": true,
+          "value": "opened"
+        },
+        "read_mountinfo": {
+          "ok": true,
+          "value": 10009
+        },
+        "read_status": {
+          "ok": true,
+          "value": 1362
+        },
+        "readlink_ns_mnt": {
+          "ok": true,
+          "value": "mnt:[4026531841]"
+        },
+        "readlink_root": {
+          "ok": true,
+          "value": "/"
+        },
+        "stat_root": {
+          "ok": true,
+          "value": [
+            2,
+            65025
+          ]
+        },
+        "status_owner_uid": {
+          "ok": true,
+          "value": 0
+        },
+        "statx_root": {
+          "ok": true,
+          "value": {
+            "mask": 6143,
+            "mnt_id": 27,
+            "mnt_id_reported": true
+          }
+        }
+      },
+      "proc_mount_options": "rw,nosuid,nodev,noexec,relatime rw",
+      "rlimit_nofile": [
+        1024,
+        524288
+      ],
+      "status": {
+        "CapAmb": "0000000000000000",
+        "CapBnd": "000001ffffffffff",
+        "CapEff": "000001ffffffffff",
+        "CapInh": "0000000000000000",
+        "CapPrm": "000001ffffffffff",
+        "Gid": "0\t0\t0\t0",
+        "Groups": "",
+        "NoNewPrivs": "0",
+        "Seccomp": "0",
+        "Uid": "0\t0\t0\t0"
+      },
+      "statx_root": {
+        "ok": true,
+        "value": {
+          "mask": 6143,
+          "mnt_id": 27,
+          "mnt_id_reported": true
+        }
+      },
+      "targets": {
+        "container:rw040-run-alias": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 5925,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2476
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026532524]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              131630,
+              63
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 761,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "container:rw040-run-bind": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 5860,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2582
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026532461]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              131584,
+              53
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 697,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "container:rw040-run-config-file": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 6050,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2493
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026532648]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              131718,
+              83
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 888,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "container:rw040-run-link": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 5985,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2582
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026532586]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              131674,
+              73
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 824,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "container:rw040-run-mountless": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 6304,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2475
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026532896]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              131895,
+              123
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 1140,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "container:rw040-run-nondumpable": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 6430,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2475
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1419
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026533020]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              131982,
+              143
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 1265,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "container:rw040-run-other-uid": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 6369,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2539
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1412
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026532958]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              131938,
+              133
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 1990
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 1202,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "container:rw040-run-swap": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 6242,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2531
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026532834]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              131851,
+              113
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 1077,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "container:rw040-run-tmpfs": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 6177,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2547
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1384
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026532772]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              131807,
+              103
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 1014,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "container:rw040-run-volume": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 6113,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2548
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1385
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026532710]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              131763,
+              93
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 951,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "container:rw040-trans-ns": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 6773,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2542
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1382
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026533144]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              132152,
+              163
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 1390,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "container:rw040-trans-root": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 6699,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 2542
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1381
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026533082]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              132108,
+              153
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 1327,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "task:nondumpable-root": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 5824,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 10009
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1375
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026531841]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              2,
+              65025
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 27,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "task:other-uid": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 5825,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 10009
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1397
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026531841]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              2,
+              65025
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 1990
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 27,
+              "mnt_id_reported": true
+            }
+          }
+        },
+        "task:root-no-capabilities": {
+          "open_ns_mnt": {
+            "ok": true,
+            "value": "opened"
+          },
+          "open_root": {
+            "ok": true,
+            "value": "opened"
+          },
+          "pid": 5826,
+          "pidfd_open": {
+            "ok": true,
+            "value": "opened"
+          },
+          "read_mountinfo": {
+            "ok": true,
+            "value": 10009
+          },
+          "read_status": {
+            "ok": true,
+            "value": 1373
+          },
+          "readlink_ns_mnt": {
+            "ok": true,
+            "value": "mnt:[4026531841]"
+          },
+          "readlink_root": {
+            "ok": true,
+            "value": "/"
+          },
+          "stat_root": {
+            "ok": true,
+            "value": [
+              2,
+              65025
+            ]
+          },
+          "status_owner_uid": {
+            "ok": true,
+            "value": 0
+          },
+          "statx_root": {
+            "ok": true,
+            "value": {
+              "mask": 6143,
+              "mnt_id": 27,
+              "mnt_id_reported": true
+            }
+          }
+        }
+      },
+      "time": 1791478322.3054712
+    },
+    "stderr": ""
+  }
+}

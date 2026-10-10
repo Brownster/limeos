@@ -1,0 +1,231 @@
+{
+  "descriptors/confined": {
+    "argv": [
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--fds",
+      "300"
+    ],
+    "confined": true,
+    "exit": 0,
+    "sampler": {
+      "final": {
+        "cgroup_memory_peak": "5894144",
+        "io": {
+          "cancelled_write_bytes": "0",
+          "rchar": "898380",
+          "read_bytes": "0",
+          "syscr": "97",
+          "syscw": "4",
+          "wchar": "203",
+          "write_bytes": "0"
+        }
+      },
+      "peak": {
+        "cgroup_memory_current": 5894144,
+        "fds": 256,
+        "pss_kib": 6163,
+        "vm_hwm_kib": 10948,
+        "vm_rss_kib": 10948
+      },
+      "pid": 6842,
+      "samples": 93
+    },
+    "seconds": 0.598,
+    "stderr_tail": "",
+    "stdout_last": "{\"summary\": {\"fds\": {\"error\": \"Too many open files\", \"fd_table_at_peak\": 256, \"opened\": 253, \"requested\": 300}, \"pid\": 6842, \"vm_hwm\": \"10948\"}}",
+    "stdout_lines": 1,
+    "unit_after": "inactive"
+  },
+  "descriptors/unrestricted": {
+    "argv": [
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--fds",
+      "300"
+    ],
+    "confined": false,
+    "exit": 0,
+    "sampler": {
+      "final": {
+        "cgroup_memory_peak": "5840896",
+        "io": {
+          "cancelled_write_bytes": "0",
+          "rchar": "898157",
+          "read_bytes": "0",
+          "syscr": "94",
+          "syscw": "3",
+          "wchar": "134",
+          "write_bytes": "0"
+        }
+      },
+      "peak": {
+        "cgroup_memory_current": 5840896,
+        "fds": 303,
+        "pss_kib": 6173,
+        "vm_hwm_kib": 11196,
+        "vm_rss_kib": 11196
+      },
+      "pid": 6834,
+      "samples": 89
+    },
+    "seconds": 0.581,
+    "stderr_tail": "",
+    "stdout_last": "{\"summary\": {\"fds\": {\"error\": null, \"fd_table_at_peak\": 303, \"opened\": 300, \"requested\": 300}, \"pid\": 6834, \"vm_hwm\": \"11196\"}}",
+    "stdout_lines": 1,
+    "unit_after": "inactive"
+  },
+  "label": "harness self-check of ceilings and measurement; not a qualification probe",
+  "memory/confined": {
+    "argv": [
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--memory-mib",
+      "96"
+    ],
+    "confined": true,
+    "exit": 1,
+    "sampler": {
+      "final": {
+        "cgroup_memory_peak": "67108864",
+        "io": {
+          "cancelled_write_bytes": "0",
+          "rchar": "896994",
+          "read_bytes": "0",
+          "syscr": "96",
+          "syscw": "17",
+          "wchar": "429",
+          "write_bytes": "0"
+        }
+      },
+      "peak": {
+        "cgroup_memory_current": 67108864,
+        "fds": 4,
+        "pss_kib": 66124,
+        "vm_hwm_kib": 70896,
+        "vm_rss_kib": 70896
+      },
+      "pid": 6910,
+      "samples": 19
+    },
+    "seconds": 0.196,
+    "stderr_tail": "",
+    "stdout_last": "{\"memory_mib_touched\": 56}",
+    "stdout_lines": 14,
+    "unit_after": "inactive"
+  },
+  "memory/unrestricted": {
+    "argv": [
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--memory-mib",
+      "96"
+    ],
+    "confined": false,
+    "exit": 0,
+    "sampler": {
+      "final": {
+        "cgroup_memory_peak": "106717184",
+        "io": {
+          "cancelled_write_bytes": "0",
+          "rchar": "898157",
+          "read_bytes": "0",
+          "syscr": "94",
+          "syscw": "27",
+          "wchar": "751",
+          "write_bytes": "0"
+        }
+      },
+      "peak": {
+        "cgroup_memory_current": 106614784,
+        "fds": 3,
+        "pss_kib": 104579,
+        "vm_hwm_kib": 109660,
+        "vm_rss_kib": 109660
+      },
+      "pid": 6903,
+      "samples": 96
+    },
+    "seconds": 0.596,
+    "stderr_tail": "",
+    "stdout_last": "{\"summary\": {\"memory\": {\"requested_mib\": 96, \"touched_mib\": 96}, \"pid\": 6903, \"vm_hwm\": \"109660\"}}",
+    "stdout_lines": 25,
+    "unit_after": "inactive"
+  },
+  "tasks/confined": {
+    "argv": [
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--tasks",
+      "24"
+    ],
+    "confined": true,
+    "exit": 0,
+    "sampler": {
+      "final": {
+        "cgroup_memory_peak": "11046912",
+        "io": {
+          "cancelled_write_bytes": "0",
+          "rchar": "898385",
+          "read_bytes": "0",
+          "syscr": "98",
+          "syscw": "4",
+          "wchar": "176",
+          "write_bytes": "0"
+        }
+      },
+      "peak": {
+        "cgroup_memory_current": 10731520,
+        "fds": 3,
+        "pss_kib": 10506,
+        "vm_hwm_kib": 15264,
+        "vm_rss_kib": 15100
+      },
+      "pid": 6880,
+      "samples": 92
+    },
+    "seconds": 0.602,
+    "stderr_tail": "",
+    "stdout_last": "{\"summary\": {\"pid\": 6880, \"tasks\": {\"error\": \"can't start new thread\", \"requested\": 24, \"started\": 15}, \"vm_hwm\": \"15264\"}}",
+    "stdout_lines": 1,
+    "unit_after": "inactive"
+  },
+  "tasks/unrestricted": {
+    "argv": [
+      "/usr/bin/python3",
+      "/qual/inputs/guest/selfcheck_probe.py",
+      "--tasks",
+      "24"
+    ],
+    "confined": false,
+    "exit": 0,
+    "sampler": {
+      "final": {
+        "cgroup_memory_peak": "13430784",
+        "io": {
+          "cancelled_write_bytes": "0",
+          "rchar": "898162",
+          "read_bytes": "0",
+          "syscr": "95",
+          "syscw": "3",
+          "wchar": "110",
+          "write_bytes": "0"
+        }
+      },
+      "peak": {
+        "cgroup_memory_current": 13103104,
+        "fds": 4,
+        "pss_kib": 12692,
+        "vm_hwm_kib": 17388,
+        "vm_rss_kib": 17248
+      },
+      "pid": 6849,
+      "samples": 90
+    },
+    "seconds": 0.577,
+    "stderr_tail": "",
+    "stdout_last": "{\"summary\": {\"pid\": 6849, \"tasks\": {\"error\": null, \"requested\": 24, \"started\": 24}, \"vm_hwm\": \"17388\"}}",
+    "stdout_lines": 1,
+    "unit_after": "inactive"
+  }
+}

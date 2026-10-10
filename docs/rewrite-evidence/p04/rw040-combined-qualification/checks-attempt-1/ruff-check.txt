@@ -1,0 +1,20 @@
+RUF100 [*] Unused `noqa` directive (non-enabled: `E731`)
+  --> docs/rewrite-evidence/p04/rw040-combined-qualification/summarize.py:20:65
+   |
+18 |     record = json.loads((run / "run.json").read_text())
+19 |     guest = run / "guest"
+20 |     load = lambda name: json.loads((guest / name).read_text())  # noqa: E731
+   |                                                                 ^^^^^^^^^^^^
+21 |     environment = load("environment/baseline.json")
+22 |     access = {}
+   |
+help: Remove unused `noqa` directive
+   |
+19 |     guest = run / "guest"
+   -     load = lambda name: json.loads((guest / name).read_text())  # noqa: E731
+20 +     load = lambda name: json.loads((guest / name).read_text())
+21 |     environment = load("environment/baseline.json")
+   |
+
+Found 1 error.
+[*] 1 fixable with the `--fix` option.

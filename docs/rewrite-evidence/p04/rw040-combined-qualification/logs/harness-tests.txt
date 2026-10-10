@@ -1,0 +1,22 @@
+test_confined_command_adds_nothing_beyond_the_unit (test_harness.ConfinementReproductionTests.test_confined_command_adds_nothing_beyond_the_unit) ... ok
+test_every_reader_confinement_setting_is_carried_over_unchanged (test_harness.ConfinementReproductionTests.test_every_reader_confinement_setting_is_carried_over_unchanged) ... ok
+test_cases_reference_real_stages_and_known_prerequisites (test_harness.FixtureConsistencyTests.test_cases_reference_real_stages_and_known_prerequisites) ... ok
+test_layout_is_internally_consistent (test_harness.FixtureConsistencyTests.test_layout_is_internally_consistent) ... ok
+test_package_record_is_bound_to_the_qualified_base (test_harness.FixtureConsistencyTests.test_package_record_is_bound_to_the_qualified_base) ... ok
+test_forwarding_and_shares_are_refused (test_harness.GuestTransportTests.test_forwarding_and_shares_are_refused) ... ok
+test_qemu_has_no_forwarding_shares_or_network_consoles (test_harness.GuestTransportTests.test_qemu_has_no_forwarding_shares_or_network_consoles) ... ok
+test_seed_has_no_credentials_and_runs_one_program_then_powers_off (test_harness.GuestTransportTests.test_seed_has_no_credentials_and_runs_one_program_then_powers_off) ... ok
+test_inputs_disk_is_a_deterministic_root_owned_tar (test_harness.InputVerificationTests.test_inputs_disk_is_a_deterministic_root_owned_tar) ... ok
+test_packages_and_image_must_match_their_records (test_harness.InputVerificationTests.test_packages_and_image_must_match_their_records) ... ok
+test_owned_child_dies_with_the_harness (test_harness.OwnershipTests.test_owned_child_dies_with_the_harness) ... ok
+test_stop_falls_back_to_kill_and_reaps (test_harness.OwnershipTests.test_stop_falls_back_to_kill_and_reaps) ... ok
+test_sweep_kills_only_an_exactly_identified_stale_guest (test_harness.OwnershipTests.test_sweep_kills_only_an_exactly_identified_stale_guest) ... ok
+test_binary_hashes_come_from_the_package_payload (test_harness.PackageDerivationTests.test_binary_hashes_come_from_the_package_payload) ... ok
+test_non_debian_input_is_refused (test_harness.PackageDerivationTests.test_non_debian_input_is_refused) ... ok
+test_unsafe_or_incomplete_results_are_refused (test_harness.ResultExtractionTests.test_unsafe_or_incomplete_results_are_refused) ... ok
+test_valid_results_are_copied (test_harness.ResultExtractionTests.test_valid_results_are_copied) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 3.657s
+
+OK

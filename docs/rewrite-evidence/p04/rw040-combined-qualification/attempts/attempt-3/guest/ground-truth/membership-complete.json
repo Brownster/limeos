@@ -1,0 +1,277 @@
+{
+  "count": 14,
+  "issued_monotonic": 78.547185435,
+  "issued_wall": 1791478322.229307,
+  "members": [
+    {
+      "id": "11a0adba228f94132f44f6ae56773d006c439beeef769aaff8e0ffaf5a2d809e",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "26c58396285996085e45014cd7fbcf82beb74093172c8f53c141825ecb4d3d01",
+      "mounts": [
+        {
+          "Destination": "/etc/app.conf",
+          "Mode": "",
+          "Propagation": "rprivate",
+          "RW": false,
+          "Source": "/srv/rw040/main/config/app.conf",
+          "Type": "bind"
+        }
+      ],
+      "name": "rw040-run-config-file",
+      "pid": 6050,
+      "running": true,
+      "started_at": "2026-10-08T16:51:53.243055997Z",
+      "status": "running",
+      "user": ""
+    },
+    {
+      "id": "1ab010fa2fe15941bf4ada8c9b47498bf5c9859a9e9486e10c7a74bf49367ef0",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "bc13d0b7c4c0bfe340d64e90d46d8779366ab795d07660214f6d32dc3d66f1ba",
+      "mounts": [
+        {
+          "Destination": "/media",
+          "Mode": "",
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/srv/rw040/alias-media",
+          "Type": "bind"
+        }
+      ],
+      "name": "rw040-run-alias",
+      "pid": 5925,
+      "running": true,
+      "started_at": "2026-10-08T16:51:51.667940131Z",
+      "status": "running",
+      "user": ""
+    },
+    {
+      "id": "1fcf921dfdef3a2334fec5dd0000b0103ff6f504b6059773648bc7c453321530",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "e5c24d11dcf83793036a16d0ce81ea8d7d2a1a843231b84944749d97aacd2534",
+      "mounts": [
+        {
+          "Destination": "/data",
+          "Driver": "local",
+          "Mode": "z",
+          "Name": "rw040-named",
+          "Propagation": "",
+          "RW": true,
+          "Source": "/var/lib/docker/volumes/rw040-named/_data",
+          "Type": "volume"
+        }
+      ],
+      "name": "rw040-run-volume",
+      "pid": 6113,
+      "running": true,
+      "started_at": "2026-10-08T16:51:53.905591146Z",
+      "status": "running",
+      "user": ""
+    },
+    {
+      "id": "208892b8d9dae81bd42960debd515702a5c4d5f3c3b719ad6660c9637a8b34ce",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "07fced21bb9fea40dc0148e0bab3ec0e1e6c1ab2ba7f5b85d75dc8e89d1a60a0",
+      "mounts": [
+        {
+          "Destination": "/media",
+          "Mode": "",
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/srv/rw040/link-media",
+          "Type": "bind"
+        }
+      ],
+      "name": "rw040-run-link",
+      "pid": 5985,
+      "running": true,
+      "started_at": "2026-10-08T16:51:52.383297073Z",
+      "status": "running",
+      "user": ""
+    },
+    {
+      "id": "3b1613ee6e8684f02b4c609783dd628beb60196a58ea0f7003bc59728e87da04",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "1451b61dc4922ee6a529aa67a005f1515919e369bb0961dd216e76f87ade338c",
+      "mounts": [
+        {
+          "Destination": "/media",
+          "Mode": "",
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/srv/rw040/main/media",
+          "Type": "bind"
+        }
+      ],
+      "name": "rw040-stopped-bind",
+      "pid": 0,
+      "running": false,
+      "started_at": "2026-10-08T16:51:57.178868022Z",
+      "status": "exited",
+      "user": ""
+    },
+    {
+      "id": "40c47cf0dff85df45feb9d4950f77abaa56b8d07df6c8707dff55a6a10b82828",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "b3caea9c34b32b2a45210eb76bdcefe82de831b65cb6b926dddb145ec4978139",
+      "mounts": [
+        {
+          "Destination": "/config",
+          "Mode": "",
+          "Propagation": "rprivate",
+          "RW": false,
+          "Source": "/srv/rw040/main/config",
+          "Type": "bind"
+        }
+      ],
+      "name": "rw040-run-other-uid",
+      "pid": 6369,
+      "running": true,
+      "started_at": "2026-10-08T16:51:56.249127895Z",
+      "status": "running",
+      "user": "1990:1990"
+    },
+    {
+      "id": "441accf9b644452ce00c9da7d89145c9b9ef3a94293ff100ab5d511846b87b3d",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "846356f5627e399bf33b529b85fd3bbbf573b1cae1b8c2e88cd4eea02f24bb72",
+      "mounts": [
+        {
+          "Destination": "/trigger",
+          "Mode": "",
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/srv/rw040/main/triggers",
+          "Type": "bind"
+        }
+      ],
+      "name": "rw040-trans-root",
+      "pid": 6699,
+      "running": true,
+      "started_at": "2026-10-08T16:52:00.736928898Z",
+      "status": "running",
+      "user": ""
+    },
+    {
+      "id": "456639af5e8c24ca50c02cd73aca8ab699279affb70363360f9683254c51b0d9",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "7dd78a9714901976c0aae8c341a9d5f5e6e776445e37c15a0e9dd2e9acf73267",
+      "mounts": [],
+      "name": "rw040-run-nondumpable",
+      "pid": 6430,
+      "running": true,
+      "started_at": "2026-10-08T16:51:56.766824929Z",
+      "status": "running",
+      "user": "1990:1990"
+    },
+    {
+      "id": "6e70e8361bd7d4f4f1061f9b9782a0d160108f7e2e6a4b8ee988f572153e7b16",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "296d014dc7bff19cdc5d9cfa3c74f592ec99f683677e17f6973adc7160551769",
+      "mounts": [],
+      "name": "rw040-run-mountless",
+      "pid": 6304,
+      "running": true,
+      "started_at": "2026-10-08T16:51:55.64565886Z",
+      "status": "running",
+      "user": ""
+    },
+    {
+      "id": "ab66248a9293ff17098658a16a5719ed857fbcf809ffea27bcdb21e08de4876f",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "67590ae5bd2d4a4df1e974e92ca99cbb0ee66012b64aa600ea2759083f33c35c",
+      "mounts": [
+        {
+          "Destination": "/trigger",
+          "Mode": "",
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/srv/rw040/main/triggers",
+          "Type": "bind"
+        }
+      ],
+      "name": "rw040-trans-ns",
+      "pid": 6773,
+      "running": true,
+      "started_at": "2026-10-08T16:52:01.15513577Z",
+      "status": "running",
+      "user": ""
+    },
+    {
+      "id": "acfc4fd80b8a09a29cb9b7ab6be68471ab6a22bbbade1538b1bdda2305cf3c9a",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "b1e37898f4902ede65610b2801f8df927980c2f2627e0915d510d4494ff147a7",
+      "mounts": [
+        {
+          "Destination": "/swap",
+          "Mode": "",
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/srv/rw040/swap",
+          "Type": "bind"
+        }
+      ],
+      "name": "rw040-run-swap",
+      "pid": 6242,
+      "running": true,
+      "started_at": "2026-10-08T16:51:55.13491657Z",
+      "status": "running",
+      "user": ""
+    },
+    {
+      "id": "b5ac5f7bbf6b841958ae0402ce3db0a26d49eca7c012181a83db71f095f8cd4a",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "6edf2a8efb508bf88307bdc27223cd2c10f41399480b46d69dff74d0daf5be71",
+      "mounts": [
+        {
+          "Destination": "/media",
+          "Mode": "",
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/srv/rw040/main/media",
+          "Type": "bind"
+        }
+      ],
+      "name": "rw040-run-bind",
+      "pid": 5860,
+      "running": true,
+      "started_at": "2026-10-08T16:51:51.204846367Z",
+      "status": "running",
+      "user": ""
+    },
+    {
+      "id": "d1f6c582f5ffcea696c2c2d9b920cfee83bc28a6008c3aed693969c93b396cb3",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "e9410e215f25ac086a2d8b9fcbff8254d88ee97bdb2e38d40937c02bd71f016d",
+      "mounts": [],
+      "name": "rw040-stopped-mountless",
+      "pid": 0,
+      "running": false,
+      "started_at": "2026-10-08T16:51:58.995899041Z",
+      "status": "exited",
+      "user": ""
+    },
+    {
+      "id": "e6b30a0edf44c50b7ac8be536f32112756254df741900e1eb6b4824453f2c83c",
+      "image": "sha256:a1815457dc1db38a74e0107fba70c46e9cb388448eb00266fa06e6b97aee68b4",
+      "inspect_sha256": "52bbfa9d4c4863ac88ec14f82bba1f048889e3d508ce35f7d2176fc3b4596c46",
+      "mounts": [
+        {
+          "Destination": "/scratch",
+          "Mode": "",
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/srv/rw040/tmpfs",
+          "Type": "bind"
+        }
+      ],
+      "name": "rw040-run-tmpfs",
+      "pid": 6177,
+      "running": true,
+      "started_at": "2026-10-08T16:51:54.492535477Z",
+      "status": "running",
+      "user": ""
+    }
+  ],
+  "running": 12
+}

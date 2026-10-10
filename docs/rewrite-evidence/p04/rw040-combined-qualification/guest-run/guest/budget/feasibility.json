@@ -1,0 +1,20 @@
+{
+  "label": "membership-scale fixture feasibility; probe cases still blocked",
+  "membership_sha256": "7c5ea1e027fcff84dfac248442f67c0c269aadb137ac3466fcf00876edb23439",
+  "memory_at_total": {
+    "MemAvailable": 650444,
+    "MemTotal": 1510832,
+    "SwapFree": 0,
+    "SwapTotal": 0
+  },
+  "memory_before": {
+    "MemAvailable": 1042552,
+    "MemTotal": 1510832,
+    "SwapFree": 0,
+    "SwapTotal": 0
+  },
+  "reached_total": 65,
+  "removed": 51,
+  "requested_total": 65,
+  "running": 62
+}
