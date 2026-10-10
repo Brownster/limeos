@@ -1,0 +1,105 @@
+{
+  "scope": "Unfrozen producer draft and final standalone producer local checks before full-harness integration; not compiled artifact or privileged runtime qualification",
+  "source_final": "47c6878",
+  "logs": [
+    {
+      "path": "producer-attempts/boolean-after.log.gz",
+      "raw_bytes": 1254,
+      "raw_sha256": "f952f68379b9d3410b816532a0d5a25a24a064d31a15e7bbf30ca791568e09fb",
+      "compressed_sha256": "f0a7a63388219c0097c8ac95d3ba24d5ba8b3bc791ceea78a3d088c7810bd8fa"
+    },
+    {
+      "path": "producer-attempts/boolean-before.log.gz",
+      "raw_bytes": 2920,
+      "raw_sha256": "589f8b34c37c8c1491f3474cdb82405f1cf106fc297156034960d5be47522ebb",
+      "compressed_sha256": "b27c5dbd92695df4d2c2ca73a9b38c522f0282eabc959107c10c1f41ed798082"
+    },
+    {
+      "path": "producer-attempts/diff-final.log.gz",
+      "raw_bytes": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    {
+      "path": "producer-attempts/format-direct.log.gz",
+      "raw_bytes": 93,
+      "raw_sha256": "6bf865b2ee8a373146b03d7af11fc61ecf1f424386c9e9d15aeeb29433025712",
+      "compressed_sha256": "dc3914f0d48b83a7648e04e31ba373fb162a529b21b257ede5ad3d1d14f6b1b3"
+    },
+    {
+      "path": "producer-attempts/format-final.log.gz",
+      "raw_bytes": 26,
+      "raw_sha256": "3bc53bf3e981a98a34a852e175bf9b77af841edea74fca595d9aedcbaf9a4938",
+      "compressed_sha256": "9a1a2d79acccdb0f46930a600a1382606067033cfb52a4673dc15b0c1030d871"
+    },
+    {
+      "path": "producer-attempts/format-private-tools.log.gz",
+      "raw_bytes": 26,
+      "raw_sha256": "3bc53bf3e981a98a34a852e175bf9b77af841edea74fca595d9aedcbaf9a4938",
+      "compressed_sha256": "9a1a2d79acccdb0f46930a600a1382606067033cfb52a4673dc15b0c1030d871"
+    },
+    {
+      "path": "producer-attempts/format.log.gz",
+      "raw_bytes": 142,
+      "raw_sha256": "0af114d527191f37571cbbf7793cfed419d74c67eb8e8666204cf937dc11c201",
+      "compressed_sha256": "ba7b79006081f6b3e7e33466ba5782bf1ce7f38c273e251b0bf8b3aa2b4cf397"
+    },
+    {
+      "path": "producer-attempts/reference-unrestricted.log.gz",
+      "raw_bytes": 3812,
+      "raw_sha256": "c77ebfb4ccbbad9b3aefaf0a07c28cc297f0adf1d1c9e5869bc264dc75bae868",
+      "compressed_sha256": "90d5e3d6d249775ec7a371ac3b151693490a6a940387fcb78f74e2151755740a"
+    },
+    {
+      "path": "producer-attempts/reference.log.gz",
+      "raw_bytes": 10593,
+      "raw_sha256": "afe2325d8cd4828479e66f0ebfb7f18d5d758610e1bd146e9ad63a9e4b933e67",
+      "compressed_sha256": "f2207cdba058ac7a89f1df0b921f36e216e85d63443fc9baf87970e6dc2d8b7f"
+    },
+    {
+      "path": "producer-attempts/repository.log.gz",
+      "raw_bytes": 49,
+      "raw_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "compressed_sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"
+    },
+    {
+      "path": "producer-attempts/ruff-direct.log.gz",
+      "raw_bytes": 93,
+      "raw_sha256": "6bf865b2ee8a373146b03d7af11fc61ecf1f424386c9e9d15aeeb29433025712",
+      "compressed_sha256": "dc3914f0d48b83a7648e04e31ba373fb162a529b21b257ede5ad3d1d14f6b1b3"
+    },
+    {
+      "path": "producer-attempts/ruff-final.log.gz",
+      "raw_bytes": 19,
+      "raw_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "compressed_sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"
+    },
+    {
+      "path": "producer-attempts/ruff-private-tools.log.gz",
+      "raw_bytes": 1198,
+      "raw_sha256": "75cbade0eb14d46ee518ab8ee001f67dc579a3b6a84388097a1753f2a4ffec27",
+      "compressed_sha256": "91044268c6a1300243b99eda23984b03ce54083bd53384f85b708016a6c29dfe"
+    },
+    {
+      "path": "producer-attempts/ruff.log.gz",
+      "raw_bytes": 142,
+      "raw_sha256": "c542c6beeaa6b463d7a22a338921c6444919d007fd19f8f345930b8a24d7eb53",
+      "compressed_sha256": "3bc1baf674d97c2176b65a1df2cae2e8d88c694ecf8610534d1626d97903048a"
+    },
+    {
+      "path": "producer-attempts/shellcheck.log.gz",
+      "raw_bytes": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    }
+  ],
+  "failures": {
+    "boolean-before.log": "numeric success=1 admitted by draft equality; exactly one meaningful regression fails before identity correction",
+    "reference.log": "seven existing Unix-socket fixtures denied EPERM by sandbox; approved retry passes22",
+    "ruff.log": "uv tool install temporary path outside writable roots",
+    "format.log": "uv tool install temporary path outside writable roots",
+    "ruff-direct.log": "assumed installed Ruff path absent; no source lint ran",
+    "format-direct.log": "assumed installed Ruff path absent; no source formatting check ran",
+    "ruff-private-tools.log": "closed validation TypeError style and script execute-mode lint; corrected in final source"
+  }
+}

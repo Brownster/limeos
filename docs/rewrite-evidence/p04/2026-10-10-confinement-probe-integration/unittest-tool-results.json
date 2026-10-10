@@ -1,0 +1,29 @@
+{
+  "reference": {
+    "name": "reference",
+    "cmd": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project python -m unittest discover -s tests/reference -p 'test_*.py' -v",
+    "chunk_id": "ea293f",
+    "wall_time_seconds": 0.917064299,
+    "exit_code": 0,
+    "original_token_count": 953,
+    "captured_characters": 3812
+  },
+  "harness": [
+    {
+      "name": "harness",
+      "cmd": "env UV_CACHE_DIR=/tmp/limeos-uv-cache uv run --offline --no-project python -m unittest discover -s tests/qualification/rw040-combined -p 'test_*.py' -v",
+      "chunk_id": "d4cc32",
+      "wall_time_seconds": 1.001154541,
+      "session_id": 74006,
+      "original_token_count": 579,
+      "captured_characters": 2316
+    },
+    {
+      "chunk_id": "22483c",
+      "wall_time_seconds": 0.000014305,
+      "exit_code": 0,
+      "original_token_count": 959,
+      "captured_characters": 3836
+    }
+  ]
+}
