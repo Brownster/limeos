@@ -18,6 +18,7 @@ import http.client
 import io
 import json
 import os
+import selectors
 import shutil
 import socket
 import struct
@@ -28,6 +29,8 @@ import threading
 import time
 import traceback
 from pathlib import Path
+
+import probe_adapter
 
 RESULTS = Path("/qual/results")
 STARTED = time.monotonic()
@@ -300,6 +303,21 @@ def stage_install(ctx):
         "installed_package": manifest["install_package"],
     }
     save("packages.json", ctx.packages)
+    if manifest.get("probe") is not None:
+        probe = manifest["probe"]
+        for name, expected in (
+            ("combined_read_probe.rs", probe["source_sha256"]),
+            ("combined_read_probe", probe["binary_sha256"]),
+        ):
+            path = ctx.inputs / "probe" / name
+            if path.is_symlink() or not path.is_file() or sha256(path) != expected:
+                raise RuntimeError(f"{name}: probe identity mismatch in guest")
+        supplied = json.loads((ctx.inputs / "probe/manifest.json").read_text())
+        if (
+            supplied != probe
+            or supplied["source_sha256"] != probe_adapter.SOURCE_SHA256
+        ):
+            raise RuntimeError("probe supply record differs in guest")
 
 
 def stage_service(ctx):
@@ -552,6 +570,7 @@ def stage_empty(ctx):
         raise RuntimeError("Engine is not empty before fixtures")
     save("ground-truth/engine.json", facts)
     save("ground-truth/membership-empty.json", members)
+    library_baseline(ctx, "empty", ["engine"], members)
 
 
 def device(serial: str) -> str:
@@ -811,6 +830,12 @@ def stage_ground_truth(ctx):
             "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
         },
     )
+    library_baseline(
+        ctx,
+        "complete",
+        ["engine", "engine-processes", "engine-sources", "storage"],
+        members,
+    )
 
 
 def stage_environment(ctx):
@@ -827,12 +852,10 @@ def stage_environment(ctx):
     }
     variants = {
         "reproduced_confinement": ctx.confinement,
-        # Diagnostics vary one existing setting to attribute a refusal. They grant
-        # nothing and are never qualification modes.
-        "diagnostic_without_RestrictSUIDSGID": [
-            p for p in ctx.confinement if p[0] != "RestrictSUIDSGID"
-        ],
-        "diagnostic_without_Group": [p for p in ctx.confinement if p[0] != "Group"],
+    }
+    results["deferred_diagnostics"] = {
+        "diagnostic_without_RestrictSUIDSGID": "deferred: fresh scope is U0/B0 only",
+        "diagnostic_without_Group": "deferred: fresh scope is U0/B0 only",
     }
     for label, properties in variants.items():
         command = [
@@ -877,11 +900,24 @@ class Sampler(threading.Thread):
         }
         self.samples = 0
         self.pid = None
+        self.pidfd = None
+        self.start_ticks = None
+        self.identity_error = None
         self.cgroup = None
         self.final = {}
         self.stop = threading.Event()
 
     def run(self):
+        try:
+            self.sample()
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            self.identity_error = f"{type(error).__name__}: {error}"
+        finally:
+            if self.pidfd is not None:
+                os.close(self.pidfd)
+                self.pidfd = None
+
+    def sample(self):
         deadline = time.monotonic() + 120
         while not self.stop.is_set() and time.monotonic() < deadline:
             values = (
@@ -889,13 +925,41 @@ class Sampler(threading.Thread):
             )
             if self.pid is None:
                 if values.get("MainPID", "0") != "0":
-                    self.pid = int(values["MainPID"])
+                    pid = int(values["MainPID"])
+                    try:
+                        fd = os.pidfd_open(pid)
+                        ticks = int(
+                            Path(f"/proc/{pid}/stat")
+                            .read_text()
+                            .rsplit(")", 1)[1]
+                            .split()[19]
+                        )
+                        if probe_adapter.pidfd_exited(fd):
+                            os.close(fd)
+                            break
+                    except (OSError, ValueError) as error:
+                        self.identity_error = f"{type(error).__name__}: {error}"
+                        if "fd" in locals():
+                            os.close(fd)
+                        break
+                    self.pid, self.pidfd, self.start_ticks = pid, fd, ticks
                     self.cgroup = Path("/sys/fs/cgroup") / values[
                         "ControlGroup"
                     ].lstrip("/")
                 time.sleep(0.005)
                 continue
             try:
+                if probe_adapter.pidfd_exited(self.pidfd):
+                    break
+                ticks = int(
+                    Path(f"/proc/{self.pid}/stat")
+                    .read_text()
+                    .rsplit(")", 1)[1]
+                    .split()[19]
+                )
+                if ticks != self.start_ticks:
+                    self.identity_error = "sampled PID identity changed"
+                    break
                 fds = len(os.listdir(f"/proc/{self.pid}/fd"))
                 status = dict(
                     l.split(":", 1)
@@ -910,6 +974,10 @@ class Sampler(threading.Thread):
                 io_text = Path(f"/proc/{self.pid}/io").read_text()
                 current = int((self.cgroup / "memory.current").read_text())
                 peak_cg = (self.cgroup / "memory.peak").read_text().strip()
+                cg_events = (self.cgroup / "memory.events").read_text()
+                # Exit during a multi-file sample invalidates the entire sample.
+                if probe_adapter.pidfd_exited(self.pidfd):
+                    break
             except (OSError, StopIteration, ValueError):
                 break
             self.samples += 1
@@ -924,8 +992,241 @@ class Sampler(threading.Thread):
             self.final = {
                 "io": dict(l.split(": ") for l in io_text.splitlines()),
                 "cgroup_memory_peak": peak_cg,
+                "cgroup_memory_events": dict(l.split() for l in cg_events.splitlines()),
             }
             time.sleep(0.005)
+
+
+def unit_closure(unit: str, cgroup: Path | None) -> dict:
+    """Report actual unit/cgroup exit; a missing sample is explicit ambiguity."""
+    state = show(f"{unit}.service", ["ActiveState", "MainPID"])
+    report = {
+        "unit": state,
+        "cgroup": str(cgroup) if cgroup else None,
+        "verified": False,
+    }
+    if cgroup is None:
+        report["ambiguity"] = "cgroup identity was not observed"
+        return report
+    try:
+        procs = (cgroup / "cgroup.procs").read_text().split()
+        events = dict(
+            line.split() for line in (cgroup / "cgroup.events").read_text().splitlines()
+        )
+        report.update({"remaining_pids": procs, "cgroup_events": events})
+        report["verified"] = (
+            not procs
+            and events.get("populated") == "0"
+            and state.get("MainPID", "0") == "0"
+            and state.get("ActiveState") in ("inactive", "failed")
+        )
+    except FileNotFoundError:
+        report["cgroup_removed"] = True
+        report["verified"] = state.get("MainPID", "0") == "0" and state.get(
+            "ActiveState"
+        ) in ("inactive", "failed")
+    except OSError as error:
+        report["ambiguity"] = f"{type(error).__name__}: {error}"
+    return report
+
+
+def run_library_probe(
+    ctx, label: str, case: str, confine: bool, transition=None, pause_ms: int = 1000
+) -> dict:
+    """Run only U0/B0 with bounded pipe capture and independently owned cleanup."""
+    unit = f"rw040-probe-{label}-{case}-{'b0' if confine else 'u0'}"
+    env = probe_adapter.probe_environment(case, pause_ms)
+    argv = [
+        "/usr/bin/env",
+        "-i",
+        "PATH=/usr/bin:/bin",
+        *[f"{key}={value}" for key, value in env.items()],
+        str(ctx.inputs / "probe/combined_read_probe"),
+        *probe_adapter.ARGV,
+    ]
+    command = (
+        confined(unit, argv, ctx)
+        if confine
+        else [
+            "systemd-run",
+            "--wait",
+            "--pipe",
+            "--quiet",
+            "--collect",
+            f"--unit={unit}",
+            "--service-type=exec",
+            *argv,
+        ]
+    )
+    transition_report = {}
+
+    def collected(event):
+        if transition is not None:
+            started = time.monotonic()
+            transition_report.update(
+                {
+                    "started_monotonic": started,
+                    "facts": transition(ctx),
+                    "finished_monotonic": time.monotonic(),
+                }
+            )
+            if transition_report["finished_monotonic"] - started >= pause_ms / 1000:
+                raise ValueError(
+                    "transition did not complete within the original fixed pause"
+                )
+
+    receiver = probe_adapter.Events(case, collected)
+    sampler = Sampler(f"{unit}.service")
+    process = None
+    started = time.monotonic()
+    report = {
+        "mode": "B0" if confine else "U0",
+        "case": case,
+        "argv": argv,
+        "environment": env,
+        "qualification": "standalone selected-owner baseline; no combined/admission/worker gate",
+    }
+    try:
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            close_fds=True,
+        )
+        sampler.start()
+        with selectors.DefaultSelector() as selector:
+            selector.register(process.stdout, selectors.EVENT_READ)
+            while selector.get_map():
+                if time.monotonic() - started > 20:
+                    raise TimeoutError("probe delivery deadline expired")
+                for key, _ in selector.select(timeout=0.1):
+                    chunk = os.read(key.fileobj.fileno(), 4096)
+                    if not chunk:
+                        selector.unregister(key.fileobj)
+                    else:
+                        receiver.feed(chunk)
+        result = receiver.finish(process.wait(timeout=2))
+        report.update(result)
+    except (
+        OSError,
+        ValueError,
+        KeyError,
+        TypeError,
+        subprocess.TimeoutExpired,
+    ) as error:
+        report["harness_error"] = f"{type(error).__name__}: {error}"
+    finally:
+        # The systemd service is separate from the client; stop it explicitly.
+        try:
+            run("systemctl", "stop", f"{unit}.service", check=False, timeout=15)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            report["cleanup_error"] = f"{type(error).__name__}: {error}"
+        if process is not None:
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=5)
+            process.stdout.close()
+        sampler.stop.set()
+        if sampler.ident is not None:
+            sampler.join(5)
+        report["seconds"] = round(time.monotonic() - started, 3)
+        report["transition"] = transition_report or None
+        report["output"] = {
+            "events": receiver.events,
+            "received": receiver.timestamps,
+            "noise": receiver.noise.decode(errors="replace"),
+            "bytes": receiver.total,
+        }
+        raw_path = (
+            RESULTS
+            / f"library-baseline/{label}-{case}-{'b0' if confine else 'u0'}.stdout"
+        )
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_path.write_bytes(receiver.raw)
+        report["raw_output"] = {
+            "file": str(raw_path.relative_to(RESULTS)),
+            "sha256": sha256(raw_path),
+            "captured_bytes": len(receiver.raw),
+        }
+        report["sampler"] = {
+            "scope": "FD/RSS/HWM/PSS/io are main-process samples; memory.current/peak/events cover whole cgroup",
+            "samples": sampler.samples,
+            "pid": sampler.pid,
+            "start_ticks": sampler.start_ticks,
+            "identity_error": sampler.identity_error,
+            "peak": sampler.peak,
+            "final": sampler.final,
+        }
+        try:
+            report["closure"] = unit_closure(unit, sampler.cgroup)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            report["closure"] = {
+                "verified": False,
+                "ambiguity": f"{type(error).__name__}: {error}",
+            }
+    return report
+
+
+def library_baseline(ctx, label: str, cases: list[str], members: dict):
+    if ctx.manifest.get("probe") is None:
+        return
+    results = []
+    for case in cases:
+        for confine in (False, True):
+            report = run_library_probe(ctx, label, case, confine)
+            report["ground_truth_membership"] = members
+            if report.get("final_status") == "ok" and case != "storage":
+                report["membership_comparison"] = compare_membership(
+                    report["events"][-1]["observations"]["engine"], members
+                )
+                report["complete_membership_matches"] = all(
+                    report["membership_comparison"].values()
+                )
+            report["accepted_standalone_record"] = (
+                "harness_error" not in report
+                and report["closure"]["verified"]
+                and report.get("complete_membership_matches", True)
+            )
+            results.append(report)
+    save(
+        f"library-baseline/{label}.json",
+        {
+            "probe_supply": ctx.manifest["probe"],
+            "scope": "U0 unrestricted control and B0 unchanged installed confinement only; all combined acceptance gates remain open",
+            "runs": results,
+        },
+    )
+
+
+def compare_membership(snapshot: dict, members: dict) -> dict:
+    """Complete instance fields and running PID bindings, not physical UUID mapping."""
+    expected = {
+        "container:" + member["id"]: {
+            "resource": "container:" + member["id"],
+            "image": member["image"],
+            "started_at": member["started_at"],
+            "running": member["running"],
+        }
+        for member in members["members"]
+    }
+    declared = snapshot["declarations"]["containers"]
+    actual = {item["container"]["resource"]: item["container"] for item in declared}
+    expected_running = {
+        "container:" + member["id"]: {
+            "container": expected["container:" + member["id"]],
+            "pid": member["pid"],
+        }
+        for member in members["members"]
+        if member["running"]
+    }
+    running = snapshot["running"]
+    actual_running = {item["container"]["resource"]: item for item in running}
+    return {
+        "complete_instances": actual == expected and len(declared) == len(expected),
+        "running_pid_bindings": actual_running == expected_running
+        and len(running) == len(expected_running),
+    }
 
 
 def measured(unit: str, argv: list[str], ctx, confine: bool) -> dict:
@@ -1197,8 +1498,17 @@ def stage_cases(ctx):
                 }
             )
         else:
-            entry["status"] = (
-                "not-run: supplied probe contract not yet implemented in this harness revision"
+            entry.update(
+                {
+                    "status": "blocked",
+                    "missing": [
+                        "case-specific combined/transition acceptance assertions"
+                    ],
+                    "standalone_evidence": [
+                        "library-baseline/empty.json",
+                        "library-baseline/complete.json",
+                    ],
+                }
             )
         outcome.append(entry)
     save(
@@ -1235,10 +1545,16 @@ class Context:
 
 def write_results(device: str) -> None:
     buffer = io.BytesIO()
-    with tarfile.open(fileobj=buffer, mode="w") as tar:
+    with tarfile.open(fileobj=buffer, mode="w", format=tarfile.USTAR_FORMAT) as tar:
         for path in sorted(RESULTS.rglob("*")):
             if path.is_file():
-                tar.add(path, arcname=str(path.relative_to(RESULTS)))
+                info = tar.gettarinfo(str(path), arcname=str(path.relative_to(RESULTS)))
+                info.uid = info.gid = 0
+                info.uname = info.gname = "root"
+                info.mtime = 0
+                info.mode = 0o644
+                with path.open("rb") as stream:
+                    tar.addfile(info, stream)
     data = buffer.getvalue()
     with open(device, "r+b") as stream:
         if len(data) > stream.seek(0, os.SEEK_END):

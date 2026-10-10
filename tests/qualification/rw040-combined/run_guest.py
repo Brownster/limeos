@@ -19,18 +19,22 @@ removed afterwards, including after failure.
 import argparse
 import ctypes
 import datetime
+import errno
 import hashlib
 import io
 import json
 import os
 import re
 import secrets
+import select
 import shutil
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 import time
 from pathlib import Path
 
@@ -38,11 +42,33 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 FIXTURES = ROOT / "tests/fixtures/rw040-combined"
 WORK_ROOT = ROOT / ".cache/rw040/runs"
-GUEST_FILES = ["combined_guest.py", "env_probe.py", "selfcheck_probe.py"]
+GUEST_FILES = [
+    "combined_guest.py",
+    "env_probe.py",
+    "selfcheck_probe.py",
+    "probe_adapter.py",
+]
 FIXTURE_FILES = ["layout.json", "cases.json"]
 RESULTS_BYTES = 64 << 20
 MAX_RESULT_MEMBER = 16 << 20
 MAX_RESULT_TOTAL = 48 << 20
+MAX_RESULT_MEMBERS = 1024
+EXPECTED_STAGES = {
+    "platform",
+    "install",
+    "service",
+    "confinement",
+    "image",
+    "empty",
+    "layout",
+    "containers",
+    "ground-truth",
+    "environment",
+    "selfcheck",
+    "transitions",
+    "budget",
+    "cases",
+}
 PR_SET_PDEATHSIG = 1
 FORBIDDEN_OPTIONS = {
     "-virtfs",
@@ -79,6 +105,15 @@ def sha512(path: Path) -> str:
     return digest.hexdigest()
 
 
+def unique_object(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("duplicate JSON field")
+        value[key] = item
+    return value
+
+
 def verify_image(image: Path, checksums: Path) -> str:
     expected = [
         line.split()[0]
@@ -108,6 +143,49 @@ def verify_packages(directory: Path, manifest: dict) -> list[dict]:
             {"file": entry["file"], "sha256": actual, "bytes": path.stat().st_size}
         )
     return verified
+
+
+def verify_probe(directory: Path, library_source: str) -> dict:
+    """Accept a closed trusted supply record, never arbitrary argv/auth inputs."""
+    manifest = directory / "manifest.json"
+    if manifest.stat().st_size > 4096:
+        raise ValueError("probe manifest too large")
+    if manifest.is_symlink() or not manifest.is_file():
+        raise ValueError("probe supply manifest must be a regular file")
+    record = json.loads(manifest.read_text(), object_pairs_hook=unique_object)
+    fields = {
+        "contract",
+        "source_commit",
+        "source_sha256",
+        "binary",
+        "binary_sha256",
+        "toolchain",
+        "profile",
+        "library_source",
+    }
+    if not isinstance(record, dict) or set(record) != fields:
+        raise ValueError("invalid probe supply fields")
+    if (
+        type(record["contract"]) is not int
+        or record["contract"] != 1
+        or record["binary"] != "combined_read_probe"
+        or record["profile"] != "release"
+        or record["toolchain"] != "1.88.0"
+        or record["library_source"] != library_source
+        or not re.fullmatch(r"[0-9a-f]{40}", record["source_commit"])
+        or not re.fullmatch(r"[0-9a-f]{64}", record["binary_sha256"])
+        or record["source_sha256"]
+        != "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c"
+    ):
+        raise ValueError("probe provenance or fixed build contract differs")
+    for name, expected in (
+        ("combined_read_probe.rs", record["source_sha256"]),
+        ("combined_read_probe", record["binary_sha256"]),
+    ):
+        path = directory / name
+        if path.is_symlink() or not path.is_file() or sha256(path) != expected:
+            raise ValueError(f"probe input identity differs: {name}")
+    return record
 
 
 def deb_members(data: bytes) -> dict[str, bytes]:
@@ -192,7 +270,9 @@ def meta_data(run_id: str) -> str:
     return f"instance-id: rw040-{run_id}\nlocal-hostname: rw040-guest\n"
 
 
-def inputs_tar(path: Path, manifest: dict, packages_dir: Path) -> None:
+def inputs_tar(
+    path: Path, manifest: dict, packages_dir: Path, probe_dir: Path | None = None
+) -> None:
     def add(tar: tarfile.TarFile, source: Path, name: str, mode: int) -> None:
         info = tar.gettarinfo(str(source), arcname=name)
         info.uid = info.gid = 0
@@ -213,6 +293,18 @@ def inputs_tar(path: Path, manifest: dict, packages_dir: Path) -> None:
             add(tar, FIXTURES / name, f"fixtures/{name}", 0o644)
         for entry in manifest["packages"]:
             add(tar, packages_dir / entry["file"], f"packages/{entry['file']}", 0o644)
+        if probe_dir is not None:
+            for name in (
+                "manifest.json",
+                "combined_read_probe.rs",
+                "combined_read_probe",
+            ):
+                add(
+                    tar,
+                    probe_dir / name,
+                    f"probe/{name}",
+                    0o755 if name == "combined_read_probe" else 0o644,
+                )
 
 
 def qemu_argv(
@@ -283,16 +375,33 @@ def check_argv(argv: list[str]) -> None:
         )
 
 
-def _pdeathsig() -> None:
+def _pdeathsig(parent_pid: int) -> None:
     libc = ctypes.CDLL(None, use_errno=True)
     if libc.prctl(PR_SET_PDEATHSIG, signal.SIGKILL, 0, 0, 0) != 0:
         os._exit(127)
-    if os.getppid() == 1:  # parent already gone
+    if os.getppid() != parent_pid:  # includes adoption by a living subreaper
         os._exit(127)
 
 
 def launch(argv: list[str], log: Path) -> subprocess.Popen:
     """Start an owned child that is killed if this harness dies."""
+    executable = shutil.which(argv[0])
+    if executable is None:
+        raise ValueError("owned executable unavailable")
+    metadata = Path(executable).stat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_mode & (
+        stat.S_ISUID | stat.S_ISGID
+    ):
+        raise ValueError("privileged executable could clear parent-death signal")
+    try:
+        capabilities = os.getxattr(executable, "security.capability")
+    except OSError as error:
+        if error.errno not in (errno.ENODATA, errno.ENOTSUP):
+            raise
+    else:
+        if capabilities:
+            raise ValueError("file capabilities could clear parent-death signal")
+    parent_pid = os.getpid()
     with log.open("ab") as stream:
         return subprocess.Popen(
             argv,
@@ -300,7 +409,7 @@ def launch(argv: list[str], log: Path) -> subprocess.Popen:
             stdout=stream,
             stderr=subprocess.STDOUT,
             # The launcher is single-threaded; PR_SET_PDEATHSIG needs the child.
-            preexec_fn=_pdeathsig,  # noqa: PLW1509
+            preexec_fn=lambda: _pdeathsig(parent_pid),  # noqa: PLW1509
             close_fds=True,
         )
 
@@ -368,69 +477,251 @@ def marker_processes(marker: str) -> list[int]:
     return found
 
 
-def extract_results(image: Path, destination: Path) -> list[str]:
-    """Copy only bounded regular files with safe relative names."""
-    names, total = [], 0
-    with tarfile.open(image, "r:") as tar:
-        for member in tar:
-            name = member.name
-            parts = Path(name).parts
-            if not member.isfile():
-                if member.isdir():
+def _tar_number(field: bytes) -> int:
+    """USTAR octal only; no signed/base-256 metadata or extension parser."""
+    value = field.strip(b"\0 ")
+    if not value or any(c not in b"01234567" for c in value):
+        raise ValueError("invalid USTAR integer")
+    return int(value, 8)
+
+
+def _tar_name(field: bytes) -> str:
+    name, _, tail = field.partition(b"\0")
+    if any(tail):
+        raise ValueError("nonzero USTAR string padding")
+    return name.decode("ascii")
+
+
+def _result_header(header: bytes) -> tuple[str, int, bool]:
+    if len(header) != 512 or header[257:265] != b"ustar\x0000":
+        raise ValueError("results require closed USTAR headers")
+    checksum = sum(header[:148]) + 8 * 32 + sum(header[156:])
+    if _tar_number(header[148:156]) != checksum:
+        raise ValueError("invalid result header checksum")
+    if header[156:157] not in (b"0", b"5"):
+        raise ValueError("result extensions, links and special files are refused")
+    if any(header[157:257]) or any(header[500:]):
+        raise ValueError("unexpected result link or extension metadata")
+    for field in (header[100:108], header[108:116], header[116:124], header[136:148]):
+        _tar_number(field)
+    size = _tar_number(header[124:136])
+    name, prefix = _tar_name(header[:100]), _tar_name(header[345:500])
+    name = f"{prefix}/{name}" if prefix else name
+    directory = header[156:157] == b"5"
+    name = name.removesuffix("/") if directory else name
+    if (
+        not name
+        or len(name) > 256
+        or not re.fullmatch(r"[A-Za-z0-9._/-]+", name)
+        or any(part in ("", ".", "..") for part in name.split("/"))
+    ):
+        raise ValueError(f"unsafe result member name: {name!r}")
+    if size > MAX_RESULT_MEMBER or (directory and size != 0):
+        raise ValueError("invalid result member size")
+    return name, size, directory
+
+
+def _read_exact(stream, size: int) -> bytes:
+    data = stream.read(size)
+    if len(data) != size:
+        raise ValueError("truncated result archive")
+    return data
+
+
+def validate_done(done: dict, run_id: str) -> dict:
+    if (
+        not isinstance(done, dict)
+        or set(done) != {"run_id", "stages", "seconds"}
+        or done["run_id"] != run_id
+        or not isinstance(done["stages"], dict)
+        or set(done["stages"]) != EXPECTED_STAGES
+        or any(
+            value not in ("passed", "failed", "skipped")
+            for value in done["stages"].values()
+        )
+        or type(done["seconds"]) not in (int, float)
+        or not 0 <= done["seconds"] <= 3600
+    ):
+        raise ValueError(
+            "results completion record differs from this run/stage contract"
+        )
+    return done["stages"]
+
+
+def extract_results(image: Path, destination: Path, run_id: str) -> list[str]:
+    """Admit fixed headers before payload; publish only complete results."""
+    if destination.exists() or destination.is_symlink():
+        raise ValueError("results destination must be fresh")
+    if image.stat().st_size > RESULTS_BYTES:
+        raise ValueError("results disk exceeds its bound")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".rw040-results-", dir=destination.parent))
+    names, seen, total, count = [], set(), 0, 0
+    try:
+        with image.open("rb") as stream:
+            while True:
+                header = _read_exact(stream, 512)
+                if header == bytes(512):
+                    if _read_exact(stream, 512) != bytes(512):
+                        raise ValueError("results lack two zero end blocks")
+                    # Preallocated disk may contain bounded zero fill only.
+                    for chunk in iter(lambda: stream.read(64 << 10), b""):
+                        if any(chunk):
+                            raise ValueError("nonzero data after result archive")
+                    break
+                count += 1
+                if count > MAX_RESULT_MEMBERS:
+                    raise ValueError("too many result members")
+                name, size, directory = _result_header(header)
+                if name in seen:
+                    raise ValueError("duplicate result member")
+                seen.add(name)
+                total += size
+                if total > MAX_RESULT_TOTAL:
+                    raise ValueError("results exceed the total bound")
+                target = staging / name
+                if directory:
+                    target.mkdir(parents=True, exist_ok=True)
                     continue
-                raise ValueError(f"unexpected result member type: {name!r}")
-            if (
-                name.startswith("/")
-                or ".." in parts
-                or not parts
-                or not re.fullmatch(r"[A-Za-z0-9._/-]+", name)
-            ):
-                raise ValueError(f"unsafe result member name: {name!r}")
-            if member.size > MAX_RESULT_MEMBER:
-                raise ValueError(f"result member too large: {name!r}")
-            total += member.size
-            if total > MAX_RESULT_TOTAL:
-                raise ValueError("results exceed the total bound")
-            target = destination / name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            source = tar.extractfile(member)
-            target.write_bytes(source.read(MAX_RESULT_MEMBER + 1)[: member.size])
-            names.append(name)
-    if "done.json" not in names:
-        raise ValueError("results lack done.json")
-    return names
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with target.open("xb") as output:
+                    left = size
+                    while left:
+                        chunk = _read_exact(stream, min(left, 64 << 10))
+                        output.write(chunk)
+                        left -= len(chunk)
+                if any(_read_exact(stream, (-size) % 512)):
+                    raise ValueError("nonzero result member padding")
+                names.append(name)
+        if "done.json" not in names:
+            raise ValueError("results lack done.json")
+        done_path = staging / "done.json"
+        if done_path.stat().st_size > 8192:
+            raise ValueError("completion record too large")
+        validate_done(
+            json.loads(done_path.read_text(), object_pairs_hook=unique_object), run_id
+        )
+        staging.rename(destination)
+        return names
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
+
+
+def _pidfd_exited(fd: int, timeout: float = 0) -> bool:
+    poller = select.poll()
+    poller.register(fd, select.POLLIN)
+    events = poller.poll(int(timeout * 1000))
+    if any(flags & (select.POLLERR | select.POLLNVAL) for _, flags in events):
+        raise OSError("invalid process identity descriptor")
+    return any(flags & select.POLLIN for _, flags in events)
+
+
+def _qemu_matches(pid: int, ticks: int, marker: str) -> bool:
+    argv = Path(f"/proc/{pid}/cmdline").read_bytes().rstrip(b"\0").split(b"\0")
+    return (
+        start_ticks(pid) == ticks
+        and bool(argv)
+        and Path(os.fsdecode(argv[0])).name == "qemu-system-x86_64"
+        and any(
+            argv[index : index + 2] == [b"-name", f"{marker},process={marker}".encode()]
+            for index in range(len(argv) - 1)
+        )
+    )
+
+
+def _owner_live(pid: int, ticks: int) -> bool:
+    """Inaccessible identity is ambiguous, not permission to remove staging."""
+    try:
+        fd = os.pidfd_open(pid)
+    except ProcessLookupError:
+        return False
+    try:
+        if _pidfd_exited(fd):
+            return False
+        try:
+            return start_ticks(pid) == ticks
+        except FileNotFoundError:
+            return not _pidfd_exited(fd)
+    finally:
+        os.close(fd)
 
 
 def sweep(work_root: Path) -> list[dict]:
-    """Remove stale owned runs; kill only a QEMU whose PID, start ticks and marker all match."""
+    """Signal retained exact identities; preserve staging until observed exit."""
     actions = []
     for run_dir in sorted(work_root.glob("*")) if work_root.exists() else []:
-        owner_file = run_dir / "owner.json"
-        if not owner_file.is_file():
-            continue
-        owner = json.loads(owner_file.read_text())
-        if Path(f"/proc/{owner['harness_pid']}").exists() and owner.get(
-            "harness_start_ticks"
-        ) == start_ticks(owner["harness_pid"]):
-            actions.append({"run": run_dir.name, "action": "kept: harness alive"})
-            continue
-        pid = owner.get("qemu_pid")
-        if pid and Path(f"/proc/{pid}").exists():
-            try:
-                matches = (
-                    start_ticks(pid) == owner["qemu_start_ticks"]
-                    and owner["marker"].encode()
-                    in Path(f"/proc/{pid}/cmdline").read_bytes()
-                )
-            except OSError:
-                matches = False
-            if matches:
-                os.kill(pid, signal.SIGKILL)
+        fd = None
+        try:
+            if run_dir.is_symlink() or not run_dir.is_dir():
+                continue
+            owner_file = run_dir / "owner.json"
+            if owner_file.is_symlink() or not owner_file.is_file():
+                continue
+            if owner_file.stat().st_size > 4096:
+                raise ValueError("owner record too large")
+            owner = json.loads(owner_file.read_text())
+            pid, ticks = owner["harness_pid"], owner["harness_start_ticks"]
+            if type(pid) is not int or pid <= 0 or type(ticks) is not int or ticks < 0:
+                raise ValueError("invalid harness identity")
+            if _owner_live(pid, ticks):
+                actions.append({"run": run_dir.name, "action": "kept: harness alive"})
+                continue
+            pid = owner.get("qemu_pid")
+            if pid is None:
                 actions.append(
-                    {"run": run_dir.name, "action": f"killed stale qemu {pid}"}
+                    {"run": run_dir.name, "action": "kept: QEMU identity unavailable"}
                 )
-        shutil.rmtree(run_dir)
-        actions.append({"run": run_dir.name, "action": "removed"})
+                continue
+            if pid is not None:
+                ticks, marker = owner["qemu_start_ticks"], owner["marker"]
+                if (
+                    type(pid) is not int
+                    or pid <= 0
+                    or type(ticks) is not int
+                    or ticks < 0
+                    or not isinstance(marker, str)
+                    or not re.fullmatch(r"rw040-qual-[A-Za-z0-9-]{1,80}", marker)
+                ):
+                    raise ValueError("invalid QEMU identity")
+                try:
+                    fd = os.pidfd_open(pid)
+                except ProcessLookupError:
+                    fd = None
+                if fd is not None and not _pidfd_exited(fd):
+                    if not _qemu_matches(pid, ticks, marker):
+                        actions.append(
+                            {"run": run_dir.name, "action": "kept: identity mismatch"}
+                        )
+                        continue
+                    try:
+                        signal.pidfd_send_signal(fd, signal.SIGKILL)
+                    except ProcessLookupError:
+                        if not _pidfd_exited(fd):
+                            raise
+                    if not _pidfd_exited(fd, timeout=2):
+                        actions.append(
+                            {"run": run_dir.name, "action": "kept: exit pending"}
+                        )
+                        continue
+                    actions.append(
+                        {
+                            "run": run_dir.name,
+                            "action": f"observed stale qemu exit {pid}",
+                        }
+                    )
+            shutil.rmtree(run_dir)
+            actions.append({"run": run_dir.name, "action": "removed"})
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            actions.append(
+                {
+                    "run": run_dir.name,
+                    "action": f"kept: {type(error).__name__}: {error}",
+                }
+            )
+        finally:
+            if fd is not None:
+                os.close(fd)
     return actions
 
 
@@ -467,7 +758,7 @@ def main() -> int:
     parser.add_argument(
         "--probe",
         type=Path,
-        help="Integrator-supplied probe directory (interface pending)",
+        help="Hash-bound unchanged integrator probe supply directory",
     )
     parser.add_argument("--memory-mib", type=int, default=1536)
     parser.add_argument("--cpus", type=int, default=2)
@@ -482,16 +773,12 @@ def main() -> int:
         return 0
     if not args.packages_dir or not args.output:
         parser.error("--packages-dir and --output are required")
-    if args.probe:
-        parser.error(
-            "the integrator probe interface has not been supplied; see tests/fixtures/rw040-combined/probe-contract.md"
-        )
     if args.output.exists():
         parser.error("output exists; choose a fresh evidence directory")
     if not (
         1 <= args.budget_total <= 80
         and 512 <= args.memory_mib <= 4096
-        and 60 <= args.deadline_seconds <= 3600
+        and 180 <= args.deadline_seconds <= 3600
     ):
         parser.error("budget, memory or deadline outside the harness bounds")
     started_wall = datetime.datetime.now(datetime.timezone.utc)
@@ -502,6 +789,11 @@ def main() -> int:
     )
     image_sha512 = verify_image(args.image, args.checksums)
     packages = verify_packages(args.packages_dir, package_manifest)
+    probe_record = (
+        verify_probe(args.probe, package_manifest["tested_source"])
+        if args.probe
+        else None
+    )
     install = next(
         (p for p in package_manifest["packages"] if p["file"] == args.install_package),
         None,
@@ -522,7 +814,8 @@ def main() -> int:
         "expected_binaries": install["binaries"],
         "guest_budget_seconds": guest_budget,
         "budget_total_containers": args.budget_total,
-        "supplied": [],
+        "supplied": ["integrator-probe"] if probe_record else [],
+        "probe": probe_record,
         "tested_source": package_manifest["tested_source"],
     }
     run_dir = args.work_root / run_id
@@ -552,6 +845,7 @@ def main() -> int:
         ),
         "image": {"path": args.image.name, "sha512": image_sha512},
         "packages": packages,
+        "probe": probe_record,
         "harness_sha256": {
             p.name: sha256(p) for p in [Path(__file__), *(HERE / "guest").glob("*.py")]
         },
@@ -584,7 +878,7 @@ def main() -> int:
     process = None
     outcome = "failed"
     try:
-        inputs_tar(run_dir / "inputs.tar", manifest, args.packages_dir)
+        inputs_tar(run_dir / "inputs.tar", manifest, args.packages_dir, args.probe)
         record["inputs_tar_sha256"] = sha256(run_dir / "inputs.tar")
         (run_dir / "user-data").write_text(user_data())
         (run_dir / "meta-data").write_text(meta_data(run_id))
@@ -662,7 +956,7 @@ def main() -> int:
         shutil.copy2(run_dir / "qemu.log", args.output / "qemu.log")
         try:
             record["result_files"] = extract_results(
-                run_dir / "results.img", args.output / "guest"
+                run_dir / "results.img", args.output / "guest", run_id
             )
             done = json.loads((args.output / "guest/done.json").read_text())
             record["guest_stages"] = done["stages"]
