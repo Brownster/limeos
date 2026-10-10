@@ -3,9 +3,11 @@
 import copy
 import importlib.util
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location(
     "rw040_probe_artifact",
@@ -41,6 +43,80 @@ def elf(machine=62):
 
 
 class ProbeArtifactTests(unittest.TestCase):
+    def test_tracked_evidence_is_written_after_production_before_upload(self):
+        workflow = (producer.ROOT / ".github/workflows/ci.yml").read_text()
+        steps = {
+            "browser": workflow.index(
+                "      - name: Lifecycle, logs and keyboard-focus browser regression\n"
+            ),
+            "gates": workflow.index(
+                "      - name: Deliberate release-gate rejection probes\n"
+            ),
+            "producer": workflow.index(
+                "      - name: Debian 12 release builds on native architecture\n"
+            ),
+            "upload": workflow.index("          name: debian-${{ matrix.runner }}\n"),
+        }
+        writers = {
+            "browser": (
+                "docs/rewrite-evidence/p03/lifecycle-browser-result.json",
+                "docs/rewrite-evidence/p03/lifecycle-progress.png",
+            ),
+            "gates": ("docs/rewrite-evidence/p01/gate-probes.json",),
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in ["bins/executor/Cargo.toml", *sum(writers.values(), ())]:
+                file = root / relative
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_bytes(b"fixture source\n")
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+            with patch.object(producer, "ROOT", root):
+                producer.command("git", "add", ".")
+                producer.command(
+                    "git",
+                    "-c",
+                    "user.name=Fixture",
+                    "-c",
+                    "user.email=fixture@invalid",
+                    "commit",
+                    "--quiet",
+                    "-m",
+                    "fixture",
+                )
+                for name in sorted(steps, key=steps.get):
+                    if name in writers:
+                        for relative in writers[name]:
+                            (root / relative).write_bytes(b"fresh evidence\n")
+                    elif name == "producer":
+                        self.assertEqual(
+                            producer.command(
+                                "git", "status", "--porcelain", "--untracked-files=no"
+                            ),
+                            "",
+                            "a required CI gate rewrote tracked evidence before the strict source check",
+                        )
+                    else:
+                        for relatives in writers.values():
+                            for relative in relatives:
+                                self.assertEqual(
+                                    (root / relative).read_bytes(), b"fresh evidence\n"
+                                )
+                self.assertTrue(
+                    producer.command(
+                        "git", "status", "--porcelain", "--untracked-files=no"
+                    )
+                )
+                producer.command("git", "restore", ".")
+                (root / "bins/executor/Cargo.toml").write_bytes(
+                    b"changed library source\n"
+                )
+                self.assertTrue(
+                    producer.command(
+                        "git", "status", "--porcelain", "--untracked-files=no"
+                    )
+                )
+
     def test_selects_only_the_exact_completed_release_test(self):
         root = Path("/build")
         record = artifact(root)

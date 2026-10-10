@@ -49,14 +49,6 @@ jobs:
         run: python3 -m unittest discover -s tests/qualification/rw040-combined -p 'test_*.py'
       - run: npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high
         working-directory: frontend
-      - name: Lifecycle, logs and keyboard-focus browser regression
-        if: matrix.runner == 'ubuntu-24.04'
-        run: |
-          python3 -m venv /tmp/limeos-browser-check
-          /tmp/limeos-browser-check/bin/pip install playwright==1.62.0
-          /tmp/limeos-browser-check/bin/python tests/frontend/restart.py
-      - name: Deliberate release-gate rejection probes
-        run: python3 scripts/test_gates.py
       - name: Debian 12 release builds on native architecture
         run: |
           set -Eeuo pipefail
@@ -84,6 +76,16 @@ jobs:
               --output /build/dist/rw040-public-library-probe \
               --evidence /build/dist/rw040-probe-build-evidence
           fi
+      # These gates write tracked evidence. Keep source clean for production,
+      # then require both gates before publishing any package or probe.
+      - name: Lifecycle, logs and keyboard-focus browser regression
+        if: matrix.runner == 'ubuntu-24.04'
+        run: |
+          python3 -m venv /tmp/limeos-browser-check
+          /tmp/limeos-browser-check/bin/pip install playwright==1.62.0
+          /tmp/limeos-browser-check/bin/python tests/frontend/restart.py
+      - name: Deliberate release-gate rejection probes
+        run: python3 scripts/test_gates.py
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: debian-${{ matrix.runner }}
