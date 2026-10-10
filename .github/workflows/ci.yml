@@ -43,6 +43,10 @@ jobs:
       - run: python3 scripts/check_contracts.py
       - name: ARM64 qualification evidence and host guards
         run: python3 -m unittest discover -s tests/qualification/arm64 -p 'test_*.py'
+      - name: Public-library probe artifact identity checks
+        run: python3 -m unittest discover -s tests/reference -p 'test_rw040_probe_artifact.py'
+      - name: RW-040 console harness and probe delivery guards
+        run: python3 -m unittest discover -s tests/qualification/rw040-combined -p 'test_*.py'
       - run: npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high
         working-directory: frontend
       - name: Lifecycle, logs and keyboard-focus browser regression
@@ -55,18 +59,48 @@ jobs:
         run: python3 scripts/test_gates.py
       - name: Debian 12 release builds on native architecture
         run: |
+          set -Eeuo pipefail
           docker build -t limeos-builder -f packaging/Containerfile .
-          docker run --rm -v "$PWD:/build" limeos-builder cargo build --locked --release -p limeos-core -p limeos-executor -p limeosctl
+          build_image_id=$(docker image inspect limeos-builder --format '{{.Id}}')
+          docker run --rm -v "$PWD:/build" "$build_image_id" cargo build --locked --release -p limeos-core -p limeos-executor -p limeosctl
           arch=$(dpkg --print-architecture)
           # Both revision labels use this source; they are not historical builds.
           for package_version in 0.4.4 0.4.4+ci.1; do
             python3 packaging/build.py --arch "$arch" --binaries target/release --version "$package_version"
           done
           python3 packaging/build.py --arch "$arch" --binaries target/release --version 0.4.4 --profile shadow
+          if [[ "$arch" == "amd64" ]]; then
+            mkdir -p dist/rw040-probe-build-evidence
+            docker image inspect "$build_image_id" > dist/rw040-probe-build-evidence/image-inspect.json
+            docker run --rm -v "$PWD:/build" "$build_image_id" \
+              cargo test -p limeos-executor --test combined_read_probe --locked --release --no-run --message-format=json \
+              > dist/rw040-probe-build-evidence/compiler-messages.jsonl \
+              2> dist/rw040-probe-build-evidence/compiler-stderr.txt
+            docker run --rm -v "$PWD:/build" "$build_image_id" \
+              python3 scripts/build_rw040_probe_artifact.py \
+              --compiler-messages /build/dist/rw040-probe-build-evidence/compiler-messages.jsonl \
+              --image-info /build/dist/rw040-probe-build-evidence/image-inspect.json \
+              --source "$GITHUB_SHA" --packages-dir /build/dist \
+              --output /build/dist/rw040-public-library-probe \
+              --evidence /build/dist/rw040-probe-build-evidence
+          fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: debian-${{ matrix.runner }}
           path: dist/*.deb
+      - name: Supply the Debian-compatible public-library probe
+        if: matrix.runner == 'ubuntu-24.04'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: rw040-public-library-probe
+          path: dist/rw040-public-library-probe/
+          if-no-files-found: error
+      - name: Preserve probe build diagnostics
+        if: always() && matrix.runner == 'ubuntu-24.04'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: rw040-probe-build-evidence
+          path: dist/rw040-probe-build-evidence/
 
   debian-vm:
     needs: check
