@@ -21,9 +21,13 @@ before return. Source descriptors and their offsets remain caller-owned.
 
 Capture existing regular files and directory metadata only. Directories do not
 recursively select children. Refuse hard-linked files, special permission bits,
-extended attributes (including ACLs/capabilities), writable/O_PATH descriptors,
+extended attributes other than `security.selinux` (including ACLs/capabilities), writable/O_PATH descriptors,
 unsupported types and invalid/duplicate/colliding labels. Record numeric
-UID/GID, ordinary mode, modification/change times and device/inode evidence.
+UID/GID, ordinary mode, modification/change times, device/inode evidence and
+the exact optional SELinux label bytes (bounded to 4096 bytes). The local host
+applies that label to every scratch object; the first test run established that
+an unconditional attribute refusal admitted no fixture. This explicit supported
+attribute does not authorize applying or rewriting a live security label.
 Access times, birth times, inode flags, sparse layout, absent targets, database
 consistency and a complete directory-tree snapshot are outside this contract.
 Reads may update source access times. Failures querying required metadata
@@ -35,8 +39,8 @@ and metadata rechecks detect observed changes but cannot replace those locks or
 prove a simultaneous multi-file snapshot. The module supplies no root policy,
 quiescing, SQLite online snapshot, quota reservation or execution authority.
 
-An existing effective-UID-owned private root must have exact mode 0700 and no
-extended attributes. Open it with openat2 NO_SYMLINKS/NO_MAGICLINKS. Retain its
+An existing effective-UID-owned private root must have exact mode 0700 and only
+the optional bounded SELinux attribute. Open it with openat2 NO_SYMLINKS/NO_MAGICLINKS. Retain its
 descriptor and create an exclusive random `before-images-<hex>` attempt. Use
 flat generated names, never source labels. Independently copy/hash regular
 files, create empty private directory objects for metadata entries, seal files
