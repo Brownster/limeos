@@ -21,6 +21,7 @@ use std::{
 };
 use tar::{Archive, Header, PaxExtensions};
 
+pub mod before_images;
 pub mod custody;
 pub mod preparation;
 pub mod staging;
