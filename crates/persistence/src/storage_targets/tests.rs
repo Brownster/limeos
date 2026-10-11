@@ -468,6 +468,7 @@ fn genuine_v7_schema_upgrade_preserves_preview_bytes_and_dependent_claims_or_rol
                 Ok((r.get(0)?, r.get(1)?))
             })
             .unwrap();
+        remove_v9_schema(&s.conn);
         s.conn.execute_batch("DROP TABLE storage_target_results; DROP TABLE storage_target_plans; PRAGMA user_version=7;").unwrap();
         if fail {
             s.conn

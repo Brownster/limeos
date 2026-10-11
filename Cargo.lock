@@ -782,6 +782,7 @@ name = "limeos-core"
 version = "0.2.0"
 dependencies = [
  "limeos-api",
+ "limeos-backup-archive",
  "limeos-contracts",
  "limeos-domain",
  "limeos-executor-protocol",
@@ -789,6 +790,7 @@ dependencies = [
  "limeos-observations",
  "limeos-persistence",
  "limeos-policy",
+ "rusqlite",
  "serde_json",
  "tempfile",
  "tokio",

@@ -115,6 +115,11 @@ fn main() {
     ts!(limeos_domain::Operation);
     ts!(limeos_domain::Principal);
     ts!(limeos_domain::JobState);
+    ts!(limeos_domain::CustodyBinding);
+    ts!(limeos_domain::BackupPreparationBinding);
+    ts!(limeos_domain::BackupPreparationJobPlan);
+    ts!(limeos_domain::PlannedBackupPreparation);
+    ts!(limeos_domain::BackupPreparationJob);
     ts!(limeos_domain::Intent);
     ts!(limeos_domain::ContainerSnapshot);
     ts!(limeos_domain::ContainerAction);
@@ -514,6 +519,15 @@ fn main() {
             "{}{}",
             authority,
             include_str!("../../../crates/persistence/src/migration-v8.sql")
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("authority-v9.sql"),
+        format!(
+            "{}{}",
+            std::fs::read_to_string(dir.join("authority-v8.sql")).unwrap(),
+            include_str!("../../../crates/persistence/src/migration-v9.sql")
         ),
     )
     .unwrap();

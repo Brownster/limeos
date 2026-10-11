@@ -313,7 +313,9 @@ def main():
         and r.get("previous", {}).get("authority_schema") == 7
         for r in results.values()
     ):
-        untested.append("genuine schema 7 ARM64 upgrade to schema 8")
+        untested.append(
+            f"genuine schema 7 ARM64 upgrade to schema {build['identity']['authority_schema']}"
+        )
     (out / "qualification-status.json").write_text(
         json.dumps(
             {

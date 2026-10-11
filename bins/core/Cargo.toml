@@ -25,6 +25,8 @@ tracing-subscriber.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+rusqlite.workspace = true
+limeos-backup-archive = { path = "../../crates/backup-archive", version = "=0.2.0" }
 
 [[bin]]
 name = "limeos-core"

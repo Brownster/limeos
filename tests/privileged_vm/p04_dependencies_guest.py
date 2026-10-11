@@ -114,7 +114,7 @@ def main(package_version="0.4.6"):
     if os.getuid() != 0 or socket.gethostname() != "limeos-p01-test":
         raise SystemExit("Disposable guest required")
     lifecycle.main(
-        package_version=package_version, authority_schema=8, qualify_upgrade=False
+        package_version=package_version, authority_schema=9, qualify_upgrade=False
     )
     output = Path(sys.argv[2])
     fixture.Proxy.do_GET = dependency_get

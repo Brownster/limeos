@@ -44,14 +44,14 @@ def main(package_version="0.4.4", qualify_upgrade=True):
             repo,
             previous_version="0.4.3",
             previous_schema=7,
-            authority_schema=8,
+            authority_schema=9,
             previous_package_sha256="c5e49b2117a19d0983b5afb9a3ea756f479c2ab9dc67be7001758265737204b6",
             previous_core_sha256="99c2c8a2a19919e093476e33fbaae9fc0d4da8559bfa8b5a2151135b23243c33",
         )
         if qualify_upgrade
         else None
     )
-    locks.main(VERSION, authority_schema=8, qualify_upgrade=False)
+    locks.main(VERSION, authority_schema=9, qualify_upgrade=False)
     evidence = json.loads(output.read_text())
 
     def passed(name):
@@ -521,7 +521,7 @@ def main(package_version="0.4.4", qualify_upgrade=True):
     assert http(BASE + f"/jobs/{job['id']}", cookie=cookie)[2]["state"] == "succeeded"
     evidence.update(
         scope="installed approved empty target jobs with complete core claims and receipt-only recovery; mount/fstab effects remain pending",
-        authority_schema=8,
+        authority_schema=9,
         package_version=VERSION,
         upgrade=upgrade,
         binary_sha256={

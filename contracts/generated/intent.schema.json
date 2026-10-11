@@ -87,9 +87,100 @@
         "operation",
         "plan"
       ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "backup_prepare_private"
+        },
+        "plan": {
+          "$ref": "#/$defs/BackupPreparationJobPlan"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "plan"
+      ]
     }
   ],
   "$defs": {
+    "BackupPreparationBinding": {
+      "description": "The trusted coordinator derives these facts from genuine private owners.\nNo path, caller claims or reconstruction of an opaque owner is accepted.",
+      "type": "object",
+      "properties": {
+        "custody": {
+          "$ref": "#/$defs/CustodyBinding"
+        },
+        "preparation_identity": {
+          "type": "string"
+        },
+        "selected_resources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "workspace_policy_identity": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "custody",
+        "preparation_identity",
+        "selected_resources",
+        "workspace_policy_identity"
+      ]
+    },
+    "BackupPreparationJobPlan": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "binding": {
+          "$ref": "#/$defs/BackupPreparationBinding"
+        },
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "id": {
+          "type": "string"
+        },
+        "principal": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "action",
+        "principal",
+        "grant_revision",
+        "created_at",
+        "expires_at",
+        "binding"
+      ]
+    },
     "ContainerAction": {
       "type": "string",
       "enum": [
@@ -166,6 +257,43 @@
         "image",
         "started_at",
         "running"
+      ]
+    },
+    "CustodyBinding": {
+      "description": "Existing custody encoding: field order and validation are unchanged.\nA genuine owner must recompute all fields from actual bytes and full policy.",
+      "type": "object",
+      "properties": {
+        "archive_bytes": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "archive_sha256": {
+          "type": "string"
+        },
+        "format_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "manifest_identity": {
+          "type": "string"
+        },
+        "policy_identity": {
+          "type": "string"
+        },
+        "record_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "format_version",
+        "record_id",
+        "archive_sha256",
+        "archive_bytes",
+        "policy_identity",
+        "manifest_identity"
       ]
     },
     "DirectoryIdentity": {

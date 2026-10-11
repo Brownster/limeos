@@ -1,4 +1,6 @@
 use schemars::JsonSchema;
+pub mod backup_jobs;
+pub use backup_jobs::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 mod operations;
@@ -193,6 +195,7 @@ pub enum Intent {
     ContainerStart { plan: ContainerPlan },
     ContainerStop { plan: ContainerPlan },
     StoragePrepareTargets { plan: Box<StorageTargetPlan> },
+    BackupPreparePrivate { plan: Box<BackupPreparationJobPlan> },
 }
 impl Intent {
     pub fn resource(&self) -> &str {
@@ -202,6 +205,7 @@ impl Intent {
             | Self::ContainerStart { plan }
             | Self::ContainerStop { plan } => &plan.expected.resource,
             Self::StoragePrepareTargets { .. } => "storage:configuration",
+            Self::BackupPreparePrivate { .. } => BACKUP_PREPARATION_RESOURCE,
         }
     }
     pub fn container(plan: ContainerPlan) -> Self {

@@ -12,7 +12,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 8;
+pub const SCHEMA_VERSION: u32 = 9;
 pub const QUEUE_CAPACITY: usize = 64;
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
@@ -127,11 +127,11 @@ impl Store {
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(durable)?;
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(durable)?;
         match version {
-            0..=7 => {
-                let tx = conn
-                    .transaction_with_behavior(TransactionBehavior::Immediate)
-                    .map_err(durable)?;
+            0..=8 => {
                 if version < 1 {
                     tx.execute_batch(include_str!("schema.sql"))
                         .map_err(durable)?;
@@ -160,28 +160,28 @@ impl Store {
                     tx.execute_batch(include_str!("migration-v7.sql"))
                         .map_err(durable)?;
                 }
-                tx.execute_batch(include_str!("migration-v8.sql"))
+                if version < 8 {
+                    tx.execute_batch(include_str!("migration-v8.sql"))
+                        .map_err(durable)?;
+                }
+                tx.execute_batch(include_str!("migration-v9.sql"))
                     .map_err(durable)?;
-                tx.commit().map_err(durable)?;
             }
             SCHEMA_VERSION => {}
             _ => return Err(Error(ErrorCode::Conflict)),
         }
-        let check: String = conn
+        let check: String = tx
             .query_row("PRAGMA quick_check", [], |r| r.get(0))
             .map_err(durable)?;
         if check != "ok" {
             return Err(Error(ErrorCode::StateNotDurable));
         }
-        resources::check(&conn)?;
+        resources::check(&tx)?;
         if fs2::available_space(&directory).map_err(|_| Error(ErrorCode::StateNotDurable))?
             < MIN_FREE_BYTES
         {
             return Err(Error(ErrorCode::StateNotDurable));
         }
-        let tx = conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(durable)?;
         let (audit_bytes, interrupted): (i64, i64) = tx.query_row(
             "SELECT audit_bytes,(SELECT count(*) FROM jobs WHERE state IN ('running','verifying')) FROM meta WHERE id=1",
             [], |r| Ok((r.get(0)?, r.get(1)?)),
@@ -243,6 +243,7 @@ impl Store {
     }
 }
 
+mod backup_preparation;
 mod budgets;
 mod compose;
 mod identity_store;
@@ -255,7 +256,13 @@ pub use compose::compose_scopes;
 pub use storage::storage_scope;
 
 #[cfg(test)]
+fn remove_v9_schema(conn: &Connection) {
+    conn.execute_batch("DROP TRIGGER backup_preparation_plan_immutable; DROP TRIGGER backup_preparation_insert_state; DROP TRIGGER backup_preparation_update_state; DROP TABLE backup_preparation_plans;").unwrap();
+}
+
+#[cfg(test)]
 fn remove_v7_schema(conn: &Connection) {
+    remove_v9_schema(conn);
     conn.execute_batch("DROP TABLE storage_target_results; DROP TABLE storage_target_plans;")
         .unwrap();
     // Existing migration fixtures must actually represent the older schema.

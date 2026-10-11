@@ -29,8 +29,8 @@ def main():
     if args.output.exists():
         parser.error("output exists; select a new result file")
     build = load_build(args.expected, args.repo)
-    if build["identity"]["authority_schema"] != 8:
-        parser.error("current approved-operation fixtures require schema 8")
+    if build["identity"]["authority_schema"] != 9:
+        parser.error("current approved-operation fixtures require schema 9")
     fixtures = Path(__file__).resolve().parents[3]
     verify_files(fixtures, build["fixtures_sha256"])
     previous = json.loads(args.previous_provenance.read_text())
@@ -82,7 +82,7 @@ def main():
             args.repo,
             previous_version=previous["package_version"],
             previous_schema=previous["authority_schema"],
-            authority_schema=8,
+            authority_schema=9,
             previous_package_sha256=previous["package_sha256"],
             previous_core_sha256=previous["core_sha256"],
         )

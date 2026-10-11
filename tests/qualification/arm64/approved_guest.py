@@ -69,8 +69,8 @@ def main():
     if args.output.exists():
         parser.error("output exists; select a new result file")
     build = load_build(args.expected, args.repo)
-    if build["identity"]["authority_schema"] != 8:
-        parser.error("approved-operation fixtures require schema 8")
+    if build["identity"]["authority_schema"] != 9:
+        parser.error("approved-operation fixtures require schema 9")
     fixtures = Path(__file__).resolve().parents[3]
     verify_files(fixtures, build["fixtures_sha256"])
     sys.path.insert(0, str(fixtures / "tests/privileged_vm"))

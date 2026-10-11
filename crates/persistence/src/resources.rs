@@ -15,7 +15,8 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             include_str!("migration-v5.sql"),
             include_str!("migration-v6.sql"),
             include_str!("migration-v7.sql"),
-            include_str!("migration-v8.sql")
+            include_str!("migration-v8.sql"),
+            include_str!("migration-v9.sql")
         ))
         .map_err(durable)?;
     let mut stmt = reference
@@ -38,7 +39,11 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             return Err(Error(ErrorCode::StateNotDurable));
         }
     }
-    for name in ["storage_target_plans", "storage_target_results"] {
+    for name in [
+        "storage_target_plans",
+        "storage_target_results",
+        "backup_preparation_plans",
+    ] {
         let expected: String = reference
             .query_row(
                 "SELECT sql FROM sqlite_schema WHERE type='table' AND name=?",
@@ -124,7 +129,7 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             return Err(Error(ErrorCode::StateNotDurable));
         }
     }
-    Ok(())
+    super::backup_preparation::check(conn)
 }
 
 #[cfg(test)]

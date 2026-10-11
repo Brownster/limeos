@@ -48,7 +48,6 @@ const ARCHIVE: &str = "archive";
 const RECORD: &str = "record.json";
 const PENDING: &str = "pending-";
 const PUBLISHED: &str = "retained-";
-const RECORD_ID_HEX: usize = 32;
 
 /// Finite trusted custody limits. Admission limits stay in the policy.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -73,42 +72,8 @@ impl CustodyLimits {
     }
 }
 
-/// The identity a trusted caller stores in its durable job record and later
-/// supplies, unchanged, to [`recover`]. It is a claim to verify, never proof:
-/// recovery recomputes every field from the actual sealed bytes and policy.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CustodyBinding {
-    /// Record format version; currently [`FORMAT_VERSION`].
-    pub format_version: u32,
-    /// Internally generated 128-bit identifier, lowercase hex.
-    pub record_id: String,
-    /// SHA-256 of every retained compressed byte, lowercase hex.
-    pub archive_sha256: String,
-    pub archive_bytes: u64,
-    /// SHA-256 of the complete policy's versioned identity encoding.
-    pub policy_identity: String,
-    /// SHA-256 of the complete manifest's versioned identity encoding.
-    pub manifest_identity: String,
-}
-
-impl CustodyBinding {
-    fn well_formed(&self) -> bool {
-        self.format_version == FORMAT_VERSION
-            && lower_hex(&self.record_id, RECORD_ID_HEX)
-            && lower_hex(&self.archive_sha256, 64)
-            && self.archive_bytes > 0
-            && lower_hex(&self.policy_identity, 64)
-            && lower_hex(&self.manifest_identity, 64)
-    }
-}
-
-fn lower_hex(value: &str, len: usize) -> bool {
-    value.len() == len
-        && value
-            .bytes()
-            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
-}
+/// Durable claim only; recovery still verifies actual sealed bytes and full policy.
+pub use limeos_domain::CustodyBinding;
 
 /// Closed record contents. The binding, full typed policy and full manifest
 /// must agree with each other and be byte-identical to their canonical form.
