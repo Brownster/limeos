@@ -1,0 +1,70 @@
+{
+  "ruff_initial": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "174cb8",
+        "wall_time_seconds": 0.390248688,
+        "exit_code": 0,
+        "original_token_count": 5,
+        "output": "All checks passed!\n"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "98911c",
+        "wall_time_seconds": 0.393104263,
+        "exit_code": 1,
+        "original_token_count": 28,
+        "output": "Would reformat: tests/qualification/arm64/record_run.py\n1 file would be reformatted, 6 files already formatted\n"
+      }
+    }
+  ],
+  "ruff_format_retry": {
+    "chunk_id": "9fe7e3",
+    "wall_time_seconds": 0.335242929,
+    "exit_code": 0,
+    "original_token_count": 7,
+    "output": "7 files already formatted\n"
+  },
+  "reference": [
+    {
+      "chunk_id": "9b2dfd",
+      "wall_time_seconds": 0.716486179,
+      "exit_code": 0,
+      "original_token_count": 31,
+      "output": ".......................\n----------------------------------------------------------------------\nRan 23 tests in 0.191s\n\nOK\n"
+    }
+  ],
+  "arm64": {
+    "chunk_id": "1db6b2",
+    "wall_time_seconds": 0.000013105,
+    "exit_code": 0,
+    "original_token_count": 248,
+    "output": ".usage: python3 -m unittest [-h] --run RUN [--artifact ARTIFACT]\n                           [--install-result INSTALL_RESULT]\n                           [--extra-result EXTRA_RESULT]\n                           --build-result BUILD_RESULT\n                           --source-manifest SOURCE_MANIFEST\n                           [--suite-result SUITE_RESULT]\npython3 -m unittest: error: invalid or duplicate artifact: /tmp/tmph6y75qhi=build\nusage: python3 -m unittest [-h] --run RUN [--artifact ARTIFACT]\n                           [--install-result INSTALL_RESULT]\n                           [--extra-result EXTRA_RESULT]\n                           --build-result BUILD_RESULT\n                           --source-manifest SOURCE_MANIFEST\n                           [--suite-result SUITE_RESULT]\npython3 -m unittest: error: run exists; historical evidence is immutable\n........................\n----------------------------------------------------------------------\nRan 33 tests in 10.839s\n\nOK\n"
+  },
+  "scope": "Only post-workspace source change is Ruff wrapping record_run.py dynamic version message; no Rust or semantic Python change",
+  "extras": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "252684",
+        "wall_time_seconds": 0.379722973,
+        "exit_code": 0,
+        "original_token_count": 0,
+        "output": ""
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "611fd6",
+        "wall_time_seconds": 0.051609611,
+        "exit_code": 0,
+        "original_token_count": 89,
+        "output": "b329e25933d01c36dd7c47d84ea5716694f9b7caf53a5003d45674703a8ed54a  /tmp/limeos-validation-bin/cargo-deny\n66f9c8f530950d106c1869ce27ef5a4008bcea53c7716c3ed8117586337ee7d8  /tmp/limeos-validation-bin/cargo-audit\n29d26e3878b2a9c9c96a74b522e42b7037e958903bd33652a5315034f53fde5a  /home/marc/.cache/uv/archive-v0/4v6pivDjFcV_mfYK/ruff-0.15.10.data/scripts/ruff\n"
+      }
+    }
+  ]
+}

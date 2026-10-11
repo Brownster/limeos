@@ -1,0 +1,93 @@
+{
+  "base": "e57a0d2a909baac11c0fbb93da8b6a0e2344fe67",
+  "ci": {
+    "conclusion": "success",
+    "record": "ci-validation.json",
+    "run_id": 38131915369,
+    "scope": "Separate actual exact-source CI; original local captures and tested/final snapshot identities retained",
+    "source_commit": "8288315c245c58e88b7ca946c6a755787371f1d2",
+    "status": "completed"
+  },
+  "dependencies": {
+    "advisories": 1290,
+    "advisory_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
+    "advisory_commit_time": "2026-10-03T10:14:03+02:00",
+    "audit_dependencies": 227,
+    "cached_content_sha256": "620ecfa835f53b6d1d8ffe9ae7de03d43c1d5e8da6927d79623cc0abbb3e8246",
+    "external_packages_unchanged": 211,
+    "online_freshness_claim": false
+  },
+  "estimate": {
+    "agent_or_wall_time_is_human_effort": false,
+    "cumulative_human_effort": "unmeasured; threshold status unknown",
+    "p04_human_hours": 320,
+    "p04_review_hours": 480,
+    "slice_human_hours": 32,
+    "slice_review_hours": 48
+  },
+  "focused": {
+    "core_behavioral_cases": 5,
+    "core_subprocess_helper": 1,
+    "domain": 3,
+    "genuine_core_integration": 6,
+    "persistence": 10
+  },
+  "gates_open": [
+    "BKP-001",
+    "P04 effects",
+    "installed backup coordination/recovery",
+    "live restore",
+    "cutover",
+    "production trust inputs"
+  ],
+  "migration_scope": "Genuinely compiled schema8 fixture preservation; no installed schema8 package upgrade or coordinator qualification",
+  "other_gates": {
+    "arm64_harness_cases": 33,
+    "cached_audit": "pass",
+    "cached_deny": "pass",
+    "contracts": "pass",
+    "fmt": "pass",
+    "git_diff_check": "pass",
+    "reference_cases": 23,
+    "repository": "pass",
+    "ruff_format": "pass",
+    "ruff_lint": "pass",
+    "strict_workspace_clippy": "pass"
+  },
+  "preserved_attempts": [
+    "Focused old-schema fixture setup failed before correction; strengthened focused run passes",
+    "Two full-workspace compile ENOSPC failures, no tests executed",
+    "Third compile actual retained exit0 recovered from orchestration store; initial unverified annotation corrected without changing raw chunks",
+    "Sandbox reference Unix socket EPERM failure; direct authorized retry23 passes",
+    "Ruff missing-executable/cache lock requests; cached executable final checks pass",
+    "Ruff formatting failure corrected by line wrapping only",
+    "Interrupted reference escalation returned TurnAborted/no execution result; original Ruff escalation actual retained exit0 is recovered",
+    "First core focused run passes with unused import warning; final warning-free source passes",
+    "Initial deny inclusion-graph capture truncated; complete compact rerun passes"
+  ],
+  "prior_budget_failure_unchanged": {
+    "ceiling_ms": 20,
+    "storage_inventory_p95_ms": 61.401
+  },
+  "recovered_compile": {
+    "exit_code": 0,
+    "final_chunk": "af46ec",
+    "scope": "Compilation only; full444 runtime result separate"
+  },
+  "snapshot": {
+    "files": 25,
+    "final_sha256": "d1e084c0932e3c01c1c6815a8adb49f78c2868d4cc265d749250eb3c3b542dd9",
+    "post_workspace_change": "Only record_run.py dynamic version-message wrapping; other24 files byte-identical",
+    "workspace_tested_sha256": "3f5de99ee5461d06efe962a96e137e45a3683deed6d54b7765f9e1f02369a007"
+  },
+  "source_commit": "8288315c245c58e88b7ca946c6a755787371f1d2",
+  "workspace": {
+    "compile_fail_doc_cases": 4,
+    "exit_code": 0,
+    "failed": 0,
+    "groups": 34,
+    "ignored": 0,
+    "passed": 444,
+    "runtime_and_unit_cases": 440
+  }
+}

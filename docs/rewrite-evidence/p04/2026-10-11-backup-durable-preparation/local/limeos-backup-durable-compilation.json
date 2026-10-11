@@ -1,0 +1,20 @@
+{
+  "command": "env TMPDIR=/home/marc/Documents/github/lime-os/target/integration-compiler-tmp CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo test -p limeos-domain -p limeos-persistence --offline --no-run",
+  "source_scope": "WIP domain/persistence before formatting, uncommitted; successful compilation only",
+  "chunks": [
+    {
+      "chunk_id": "37d291",
+      "wall_time_seconds": 1.001450222,
+      "session_id": 34005,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "chunk_id": "0fc178",
+      "wall_time_seconds": 0.000010409,
+      "exit_code": 0,
+      "original_token_count": 173,
+      "output": "   Compiling limeos-domain v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/domain)\n   Compiling limeos-identity v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/identity)\n   Compiling limeos-policy v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/policy)\n   Compiling limeos-persistence v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/persistence)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.87s\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_domain-83e43d35238ff601)\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_persistence-878c79e1b2015793)\n"
+    }
+  ]
+}

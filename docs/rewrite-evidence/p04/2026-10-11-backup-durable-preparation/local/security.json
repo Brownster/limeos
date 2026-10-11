@@ -1,0 +1,102 @@
+{
+  "deny_initial": {
+    "command": "env PATH=/tmp/limeos-validation-bin:/home/marc/.cargo/bin:/usr/local/bin:/usr/bin:/bin cargo deny --offline --config /tmp/limeos-backup-durable-deny.toml check",
+    "chunks": [
+      {
+        "chunk_id": "648696",
+        "wall_time_seconds": 1.000951133,
+        "session_id": 55464,
+        "original_token_count": 4474,
+        "output": "Warning: truncated output (original token count: 4474)\nTotal output lines: 334\n\nwarning[duplicate]: found 2 duplicate entries for crate 'base64'\n  ┌─ /tmp/limeos-backup-durable-preparation/Cargo.lock:6:1\n  │  \n6 │ ╭ base64 0.22.1 registry+https://github.com/rust-lang/crates.io-index\n7 │ │ base64 0.23.1 registry+https://github.com/rust-lang/crates.io-index\n  │ ╰───────────────────────────────────────────────────────────────────┘ lock entries\n  │  \n  ├ base64 v0.22.1\n    └── reqwest v0.12.28\n        └── limeos-footprint v0.0.1\n  ├ base64 v0.23.1\n    └── hyper-util v0.1.21\n        ├── axum v0.8.9\n        │   ├── limeos-api v0.2.0\n        │   │   └── limeos-core v0.2.0\n        │   └── limeos-footprint v0.0.1\n        ├── hyper-rustls v0.27.10\n        │   └── reqwest v0.12.28\n        │       └── limeos-footprint v0.0.1 (*)\n        ├── limeos-api v0.2.0 (*)\n        ├── limeos-executor-container v0.2.0\n        │   └── limeos-executor v0.2.0\n        ├── limeos-observations v0.2.0\n        │   ├── limeos-core v0.2.0 (*)\n        │   └── limeos-executor v0.2.0 (*)\n        └── reqwest v0.12.28 (*)\n\nwarning[duplicate]: found 2 duplicate entries for crate 'getrandom'\n   ┌─ /tmp/limeos-backup-durable-preparation/Cargo.lock:38:1\n   │  \n38 │ ╭ getrandom 0.2.17 registry+https://github.com/rust-lang/crates.io-index\n39 │ │ getrandom 0.3.4 registry+https://github.com/rust-lang/crates.io-index\n   │ ╰─────────────────────────────────────────────────────────────────────┘ lock entries\n   │  \n   ├ getrandom v0.2.17\n     ├── limeos-backup-archive v0.2.0\n     │   └── (dev) limeos-core v0.2.0\n     ├── limeos-identity v0.2.0\n     │   ├── limeos-core v0.2.0 (*)\n     │   ├── limeos-executor-container v0.2.0\n     │   │   └── limeos-executor v0.2.0\n     │   ├── limeos-executor-storage v0.2.0\n     │   │   └── limeos-executor v0.2.0 (*)\n     │   └── limeos-persistence v0.2.0\n     │       ├── limeos-core v0.2.0 (*)\n     │       └── limeosctl v0.2.0\n     └── ring v0.17.14\n         ├── limeos-identity v0.2.0 (*)\n         ├── rustls v0.23.45\n         │   ├── hyper-rustls v0.27.10\n         │   │   └── reqwest v0.12.28\n         │   │       └── limeos-footprint v0.0.1\n         │   ├── reqwest v0.12.28 (*)\n         │   └── tokio-rustls v0.26.6\n         │       ├── hyper-rustls v0.27.10 (*)\n         │       └── reqwest v0.12.28 (*)\n         └── rustls-webpki v0.103.15\n             └── rustls v0.23.45 (*)\n   ├ getrandom v0.3.4\n     └── tempfile v3.23.0\n         ├── (dev) limeos-backup-archive v0.2.0\n         │   └── (dev) limeos-core v0.2.0\n         ├── (dev) limeos-core v0.2.0 (*)\n         ├── (dev) limeos-executor-container v0.2.0\n         │   └── limeos-executor v0.2.0\n         ├── (dev) limeos-executor-protocol v0.2.0\n         │   ├── limeos-core v0.2.0 (*)\n         │   ├── limeos-executor v0.2.0 (*)\n         │   ├── limeos-observations v0.2.0\n         │   │   ├── limeos-core v0.2.0 (*)\n         │   │   └── limeos-executor v0.2.0 (*)\n         │   ├── limeos-schema v0.2.0\n         │   └── limeosctl v0.2.0\n         ├── (dev) limeos-executor-storage v0.2.0\n         │   └── limeos-executor v0.2.0 (*)\n         ├── (dev) limeos-identity v0.2.0\n         │   ├── limeos-core v0.2.0 (*)\n         │   ├── limeos-executor-container v0.2.0 (*)\n         │   ├── limeos-executor-storage v0.2.0 (*)\n         │   └── limeos-persistence v0.2.0\n         │       ├── limeos-core v0.2.0 (*)\n         │       └── limeosctl v0.2.0 (*)\n         ├── (dev) limeos-observations v0.2.0 (*)\n         └── (dev) limeos-persistence v0.2.0 (*)\n\nwarning[duplicate]: found 2 duplicate entries for crate 'syn'\n    ┌─ /tmp/limeos-backup-durable-preparation/Cargo.lock:133:1\n    │  \n133 │ ╭ syn 2.0.119 registry+https://github.com/rust-lang/crates.io-index\n134 │ │ syn 3.0.6 registry+https://github.com/rust-lang/crates.io-index\n    │ ╰───────────────────────────────────────────────────────────────┘ lock entries\n    │  \n    ├ syn v2.0.119\n      ├── schemars_derive v1.0.4\n      │   └── schemars v1.0.4\n      │       ├── limeos-contracts v0.2.0\n      │       │   ├── limeos-api v0.2.0\n      │       │   │   └── limeos-core v0.2.0\n      │       │   ├── limeos-core v0.2.0 (*)\n      │       │   ├── limeos-executor v0.2.0\n      │       │   ├── limeos-executor-protocol v0.2.0\n      │       │   │   ├── limeos-core v0.2.0 (*)\n      │       │   │   ├── limeos-executor v0.2.0 (*)\n      │       │   │   ├── limeos-observations v0.2.0\n      │       │   │   │   ├── limeos-core v0.2.0 (*)\n      │       │   │   │   └── limeos-executor v0.2.0 (*)\n      │       │   │   ├── limeos-schema v0.2.0\n      │       │   │   └── limeosctl v0.2.0\n      │       │   ├── limeos-observations v0.2.0 (*)\n      │       │   ├── limeos-schema v0.2.0 (*)\n      │       │   └── limeosctl v0.2.0 (*)\n      │       ├── limeos-domain v0.2.0\n      │       │   ├── limeos-api v0.2.0 (*)\n      │       │   ├── limeos-backup-archive v0.2.0\n      │       │   │   └── (dev) limeos-core v0.2.0 (*)\n      │       │   ├── limeos-contracts v0.2.0 (*)\n      │       │   ├── limeos-core v0.2.0 (*)\n      │       │   ├── limeos-executor v0.2.0 (*)\n      │       │   ├── limeos-executor-container v0.2.0\n      │       │   │   └── limeos-executor v0.2.0 (*)\n      │       │   ├── limeos-executor-protocol v0.2.0 (*)\n      │       │   ├── limeos-executor-storage v0.2.0\n      │       │   │   └── limeos-executor v0.2.0 (*)\n      │       │   ├── limeos-observations v0.2.0 (*)\n      │       │   ├── limeos-persistence v0.2.0\n      │       │   │   ├── limeos-core v0.2.0 (*)\n      │       │   │   └── limeosctl v0.2.0 (*)\n      │       │   ├── limeos-policy v0.2.0\n      │       │   │   ├── limeos-core v0.2.0 (*)\n      │       │   │   └── limeos-persistence v0.2.0 (*)\n      │       │   └─…974 tokens truncated…── tracing-attributes v0.1.31\n      │   └── tracing v0.1.41\n      │       ├── hyper-util v0.1.21 (*)\n      │       ├── limeos-core v0.2.0 (*)\n      │       └── limeos-executor v0.2.0 (*)\n      └── ts-rs-macros v11.0.1\n          └── ts-rs v11.0.1\n              ├── limeos-contracts v0.2.0 (*)\n              ├── limeos-domain v0.2.0 (*)\n              ├── limeos-executor-protocol v0.2.0 (*)\n              └── limeos-schema v0.2.0 (*)\n    ├ syn v3.0.6\n      ├── displaydoc v0.2.7\n      │   ├── icu_collections v2.3.0\n      │   │   ├── icu_normalizer v2.3.0\n      │   │   │   └── idna_adapter v1.2.2\n      │   │   │       └── idna v1.1.0\n      │   │   │           └── url v2.5.8\n      │   │   │               ├── reqwest v0.12.28\n      │   │   │               │   └── limeos-footprint v0.0.1\n      │   │   │               └── tower-http v0.6.11\n      │   │   │                   └── reqwest v0.12.28 (*)\n      │   │   └── icu_properties v2.3.0\n      │   │       └── idna_adapter v1.2.2 (*)\n      │   ├── icu_locale_core v2.3.0\n      │   │   ├── icu_properties v2.3.0 (*)\n      │   │   └── icu_provider v2.3.1\n      │   │       ├── icu_normalizer v2.3.0 (*)\n      │   │       └── icu_properties v2.3.0 (*)\n      │   ├── icu_properties v2.3.0 (*)\n      │   ├── icu_provider v2.3.1 (*)\n      │   ├── tinystr v0.8.4\n      │   │   └── icu_locale_core v2.3.0 (*)\n      │   └── zerotrie v0.2.5\n      │       ├── icu_properties v2.3.0 (*)\n      │       └── icu_provider v2.3.1 (*)\n      ├── futures-macro v0.3.34\n      │   └── futures-util v0.3.34\n      │       ├── axum v0.8.9\n      │       │   ├── limeos-api v0.2.0\n      │       │   │   └── limeos-core v0.2.0\n      │       │   └── limeos-footprint v0.0.1 (*)\n      │       ├── hyper-util v0.1.21\n      │       │   ├── axum v0.8.9 (*)\n      │       │   ├── hyper-rustls v0.27.10\n      │       │   │   └── reqwest v0.12.28 (*)\n      │       │   ├── limeos-api v0.2.0 (*)\n      │       │   ├── limeos-executor-container v0.2.0\n      │       │   │   └── limeos-executor v0.2.0\n      │       │   ├── limeos-observations v0.2.0\n      │       │   │   ├── limeos-core v0.2.0 (*)\n      │       │   │   └── limeos-executor v0.2.0 (*)\n      │       │   └── reqwest v0.12.28 (*)\n      │       ├── limeos-api v0.2.0 (*)\n      │       ├── tower v0.5.3\n      │       │   ├── axum v0.8.9 (*)\n      │       │   ├── limeos-api v0.2.0 (*)\n      │       │   ├── reqwest v0.12.28 (*)\n      │       │   └── tower-http v0.6.11 (*)\n      │       └── tower-http v0.6.11 (*)\n      ├── ref-cast-impl v1.0.27\n      │   └── ref-cast v1.0.27\n      │       └── schemars v1.0.4\n      │           ├── limeos-contracts v0.2.0\n      │           │   ├── limeos-api v0.2.0 (*)\n      │           │   ├── limeos-core v0.2.0 (*)\n      │           │   ├── limeos-executor v0.2.0 (*)\n      │           │   ├── limeos-executor-protocol v0.2.0\n      │           │   │   ├── limeos-core v0.2.0 (*)\n      │           │   │   ├── limeos-executor v0.2.0 (*)\n      │           │   │   ├── limeos-observations v0.2.0 (*)\n      │           │   │   ├── limeos-schema v0.2.0\n      │           │   │   └── limeosctl v0.2.0\n      │           │   ├── limeos-observations v0.2.0 (*)\n      │           │   ├── limeos-schema v0.2.0 (*)\n      │           │   └── limeosctl v0.2.0 (*)\n      │           ├── limeos-domain v0.2.0\n      │           │   ├── limeos-api v0.2.0 (*)\n      │           │   ├── limeos-backup-archive v0.2.0\n      │           │   │   └── (dev) limeos-core v0.2.0 (*)\n      │           │   ├── limeos-contracts v0.2.0 (*)\n      │           │   ├── limeos-core v0.2.0 (*)\n      │           │   ├── limeos-executor v0.2.0 (*)\n      │           │   ├── limeos-executor-container v0.2.0 (*)\n      │           │   ├── limeos-executor-protocol v0.2.0 (*)\n      │           │   ├── limeos-executor-storage v0.2.0\n      │           │   │   └── limeos-executor v0.2.0 (*)\n      │           │   ├── limeos-observations v0.2.0 (*)\n      │           │   ├── limeos-persistence v0.2.0\n      │           │   │   ├── limeos-core v0.2.0 (*)\n      │           │   │   └── limeosctl v0.2.0 (*)\n      │           │   ├── limeos-policy v0.2.0\n      │           │   │   ├── limeos-core v0.2.0 (*)\n      │           │   │   └── limeos-persistence v0.2.0 (*)\n      │           │   └── limeos-schema v0.2.0 (*)\n      │           ├── limeos-executor-protocol v0.2.0 (*)\n      │           └── limeos-schema v0.2.0 (*)\n      ├── synstructure v0.14.0\n      │   ├── yoke-derive v0.8.4\n      │   │   └── yoke v0.8.3\n      │   │       ├── icu_collections v2.3.0 (*)\n      │   │       ├── icu_provider v2.3.1 (*)\n      │   │       ├── zerotrie v0.2.5 (*)\n      │   │       └── zerovec v0.11.8\n      │   │           ├── icu_collections v2.3.0 (*)\n      │   │           ├── icu_locale_core v2.3.0 (*)\n      │   │           ├── icu_normalizer v2.3.0 (*)\n      │   │           ├── icu_properties v2.3.0 (*)\n      │   │           ├── icu_provider v2.3.1 (*)\n      │   │           ├── potential_utf v0.1.6\n      │   │           │   └── icu_collections v2.3.0 (*)\n      │   │           └── tinystr v0.8.4 (*)\n      │   └── zerofrom-derive v0.1.8\n      │       └── zerofrom v0.1.8\n      │           ├── icu_collections v2.3.0 (*)\n      │           ├── icu_provider v2.3.1 (*)\n      │           ├── yoke v0.8.3 (*)\n      │           ├── zerotrie v0.2.5 (*)\n      │           └── zerovec v0.11.8 (*)\n      ├── thiserror-impl v2.0.21\n      │   └── thiserror v2.0.21\n      │       └── ts-rs v11.0.1\n      │           ├── limeos-contracts v0.2.0 (*)\n      │           ├── limeos-domain v0.2.0 (*)\n      │           ├── limeos-executor-protocol v0.2.0 (*)\n      │           └── limeos-schema v0.2.0 (*)\n      ├── yoke-derive v0.8.4 (*)\n      ├── zerofrom-derive v0.1.8 (*)\n      └── zerovec-derive v0.11.6\n          └── zerovec v0.11.8 (*)\n\n"
+      },
+      {
+        "chunk_id": "a95081",
+        "wall_time_seconds": 0.000010916,
+        "exit_code": 0,
+        "original_token_count": 12,
+        "output": "advisories ok, bans ok, licenses ok, sources ok\n"
+      }
+    ],
+    "capture_limit": "First chunk truncated duplicate inclusion graphs, exact final exit0 preserved; complete compact rerun retained"
+  },
+  "deny": {
+    "command": "env PATH=/tmp/limeos-validation-bin:/home/marc/.cargo/bin:/usr/local/bin:/usr/bin:/bin cargo deny --offline --config /tmp/limeos-backup-durable-deny.toml check --hide-inclusion-graph",
+    "chunks": [
+      {
+        "chunk_id": "5143af",
+        "wall_time_seconds": 1.000713952,
+        "session_id": 25260,
+        "original_token_count": 0,
+        "output": ""
+      },
+      {
+        "chunk_id": "3408ff",
+        "wall_time_seconds": 0.000010196,
+        "exit_code": 0,
+        "original_token_count": 405,
+        "output": "warning[duplicate]: found 2 duplicate entries for crate 'base64'\n  ┌─ /tmp/limeos-backup-durable-preparation/Cargo.lock:6:1\n  │  \n6 │ ╭ base64 0.22.1 registry+https://github.com/rust-lang/crates.io-index\n7 │ │ base64 0.23.1 registry+https://github.com/rust-lang/crates.io-index\n  │ ╰───────────────────────────────────────────────────────────────────┘ lock entries\n\nwarning[duplicate]: found 2 duplicate entries for crate 'getrandom'\n   ┌─ /tmp/limeos-backup-durable-preparation/Cargo.lock:38:1\n   │  \n38 │ ╭ getrandom 0.2.17 registry+https://github.com/rust-lang/crates.io-index\n39 │ │ getrandom 0.3.4 registry+https://github.com/rust-lang/crates.io-index\n   │ ╰─────────────────────────────────────────────────────────────────────┘ lock entries\n\nwarning[duplicate]: found 2 duplicate entries for crate 'syn'\n    ┌─ /tmp/limeos-backup-durable-preparation/Cargo.lock:133:1\n    │  \n133 │ ╭ syn 2.0.119 registry+https://github.com/rust-lang/crates.io-index\n134 │ │ syn 3.0.6 registry+https://github.com/rust-lang/crates.io-index\n    │ ╰───────────────────────────────────────────────────────────────┘ lock entries\n\nadvisories ok, bans ok, licenses ok, sources ok\n"
+      }
+    ]
+  },
+  "audit": {
+    "command": "env PATH=/tmp/limeos-validation-bin:/home/marc/.cargo/bin:/usr/local/bin:/usr/bin:/bin cargo audit --no-fetch --db /tmp/limeos-backup-durable-advisory-dbs/advisory-db-3157b0e258782691",
+    "chunks": [
+      {
+        "chunk_id": "9aaa83",
+        "wall_time_seconds": 0.66798325,
+        "exit_code": 0,
+        "original_token_count": 46,
+        "output": "      Loaded 1290 security advisories (from /tmp/limeos-backup-durable-advisory-dbs/advisory-db-3157b0e258782691)\n    Scanning Cargo.lock for vulnerabilities (227 crate dependencies)\n"
+      }
+    ]
+  },
+  "snapshot_sha256": "3f5de99ee5461d06efe962a96e137e45a3683deed6d54b7765f9e1f02369a007",
+  "advisory_identity": "/tmp/limeos-backup-durable-advisory-identity.json",
+  "cache_copy": {
+    "chunk_id": "6c294a",
+    "wall_time_seconds": 1.000473822,
+    "session_id": 64345,
+    "original_token_count": 0,
+    "output": ""
+  },
+  "cache_copy_final": {
+    "status": "fulfilled",
+    "value": {
+      "chunk_id": "db6655",
+      "wall_time_seconds": 0.000009858,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    }
+  },
+  "clean": {
+    "dry_run": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "edb68a",
+        "wall_time_seconds": 1.665104897,
+        "exit_code": 0,
+        "original_token_count": 21,
+        "output": "     Summary 30969 files, 11.5GiB total\nwarning: no files deleted due to --dry-run\n"
+      }
+    },
+    "start": {
+      "chunk_id": "f1c550",
+      "wall_time_seconds": 1.001735743,
+      "session_id": 30739,
+      "original_token_count": 0,
+      "output": ""
+    },
+    "finish": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "028f90",
+        "wall_time_seconds": 5.000696633,
+        "session_id": 30739,
+        "original_token_count": 0,
+        "output": ""
+      }
+    }
+  },
+  "scope": "Cached advisory qualification only; no fetch or new dependencies"
+}

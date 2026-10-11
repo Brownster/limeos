@@ -1,0 +1,62 @@
+{
+  "command": "env TMPDIR=/home/marc/Documents/github/lime-os/target/integration-compiler-tmp CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+  "source_manifest": "/home/marc/Documents/github/lime-os/target/backup-durable-preparation-proof/source-snapshot.json",
+  "chunks": [
+    {
+      "chunk_id": "23cdb3",
+      "wall_time_seconds": 1.001710476,
+      "session_id": 7619,
+      "original_token_count": 70,
+      "output": "    Checking limeos-domain v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/domain)\n    Checking limeos-identity v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/identity)\n    Checking limeos-footprint v0.0.1 (/tmp/limeos-backup-durable-preparation/spikes/footprint)\n"
+    },
+    {
+      "chunk_id": "a6f3ea",
+      "wall_time_seconds": 0.000010742,
+      "exit_code": 0,
+      "original_token_count": 330,
+      "output": "    Checking limeos-contracts v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/contracts)\n    Checking limeos-backup-archive v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/backup-archive)\n    Checking limeos-policy v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/policy)\n    Checking limeos-executor-storage v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/executor-storage)\n    Checking limeos-executor-container v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/executor-container)\n    Checking limeos-persistence v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/persistence)\n    Checking limeos-executor-protocol v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/executor-protocol)\n    Checking limeos-api v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/api)\n    Checking limeos-observations v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/observations)\n    Checking limeos-schema v0.2.0 (/tmp/limeos-backup-durable-preparation/bins/schema)\n    Checking limeosctl v0.2.0 (/tmp/limeos-backup-durable-preparation/bins/ctl)\n    Checking limeos-core v0.2.0 (/tmp/limeos-backup-durable-preparation/bins/core)\n    Checking limeos-executor v0.2.0 (/tmp/limeos-backup-durable-preparation/bins/executor)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 16.14s\n"
+    }
+  ],
+  "static": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "56026f",
+        "wall_time_seconds": 1.258613544,
+        "exit_code": 0,
+        "original_token_count": 0,
+        "output": ""
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "17eb84",
+        "wall_time_seconds": 0.558022463,
+        "exit_code": 0,
+        "original_token_count": 13,
+        "output": "Repository dependency and hygiene checks passed.\n"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "1c4148",
+        "wall_time_seconds": 0.525647002,
+        "exit_code": 0,
+        "original_token_count": 0,
+        "output": ""
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "c3c9a3",
+        "wall_time_seconds": 1.065354307,
+        "exit_code": 0,
+        "original_token_count": 75,
+        "output": "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.10s\n     Running `/home/marc/Documents/github/lime-os/target/debug/limeos-schema /home/marc/Documents/github/lime-os/target/integration-compiler-tmp/limeos-contracts-p5v3vx58`\nGenerated schemas and TypeScript match Rust contracts.\n"
+      }
+    }
+  ]
+}

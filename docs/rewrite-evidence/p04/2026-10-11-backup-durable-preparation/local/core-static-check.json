@@ -1,0 +1,1 @@
+{"commands":["rustfmt --edition 2024 --check bins/core/tests/backup_preparation_binding.rs","sha256sum bins/core/tests/backup_preparation_binding.rs","du -sh target"],"exit_code":0}

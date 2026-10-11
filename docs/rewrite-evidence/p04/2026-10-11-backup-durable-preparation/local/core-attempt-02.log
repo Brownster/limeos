@@ -1,0 +1,15 @@
+   Compiling limeos-core v0.2.0 (/tmp/limeos-backup-durable-preparation/bins/core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.56s
+     Running tests/backup_preparation_binding.rs (target/debug/deps/backup_preparation_binding-8554bcfc91990700)
+
+running 6 tests
+test actual_audit_rollback_and_precommit_kill_leave_inert_custody_orphans ... ok
+test actual_commit_lost_response_and_process_restart_create_new_private_owners ... ok
+test current_full_policy_and_selection_limits_cannot_reuse_approved_preparation ... ok
+test killed_prepared_owner_is_not_a_durable_receipt_or_an_adopted_attempt ... ok
+test subprocess_driver ... ok
+test unavailable_custody_cannot_interfere_with_exact_read_only_database_replay ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+
+

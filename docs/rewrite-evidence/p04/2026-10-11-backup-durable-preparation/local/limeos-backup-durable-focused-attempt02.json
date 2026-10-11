@@ -1,0 +1,29 @@
+{
+  "source_scope": "Uncommitted WIP before formatting; corrected/strengthened regression source",
+  "command": "env TMPDIR=/tmp CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo test -p limeos-domain -p limeos-persistence --locked --offline backup_ -- --test-threads=1",
+  "compile_chunks": [
+    {
+      "chunk_id": "08dde9",
+      "wall_time_seconds": 1.001477854,
+      "session_id": 12903,
+      "original_token_count": 25,
+      "output": "   Compiling limeos-persistence v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/persistence)\n"
+    },
+    {
+      "chunk_id": "101926",
+      "wall_time_seconds": 0.000011007,
+      "exit_code": 0,
+      "original_token_count": 80,
+      "output": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.84s\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_domain-83e43d35238ff601)\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_persistence-878c79e1b2015793)\n"
+    }
+  ],
+  "chunks": [
+    {
+      "chunk_id": "4e0e09",
+      "wall_time_seconds": 0.923978835,
+      "exit_code": 0,
+      "original_token_count": 461,
+      "output": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s\n     Running unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_domain-83e43d35238ff601)\n\nrunning 3 tests\ntest backup_jobs::tests::custody_encoding_and_closed_form_remain_compatible ... ok\ntest backup_jobs::tests::plan_time_arithmetic_and_full_current_binding_are_checked ... ok\ntest backup_jobs::tests::selection_bounds_and_order_are_binding_facts ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 56 filtered out; finished in 0.00s\n\n     Running unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_persistence-878c79e1b2015793)\n\nrunning 10 tests\ntest backup_preparation::tests::bounds_and_cancel_audit_failures_make_no_partial_changes ... ok\ntest backup_preparation::tests::changed_full_facts_key_and_approval_never_replay_or_consume ... ok\ntest backup_preparation::tests::current_authorization_and_historical_revision_are_distinct ... ok\ntest backup_preparation::tests::exact_lost_response_replay_survives_expiry_restart_without_new_writes ... ok\ntest backup_preparation::tests::expired_and_revoked_unconsumed_plans_cannot_gain_new_authority ... ok\ntest backup_preparation::tests::genuine_compiled_schema8_upgrade_is_additive_and_failures_roll_back ... ok\ntest backup_preparation::tests::only_cancellation_is_possible_and_dispatchers_exclude_the_intent ... ok\ntest backup_preparation::tests::oversized_metadata_refuses_before_allocation_with_compiled_guards_present ... ok\ntest backup_preparation::tests::queue_and_approval_audit_failure_roll_back_every_join ... ok\ntest backup_preparation::tests::startup_refuses_missing_resources_guards_and_consumed_approval_before_generation ... ok\n\ntest result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 56 filtered out; finished in 0.44s\n\n"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "source_snapshot_sha256": "3f5de99ee5461d06efe962a96e137e45a3683deed6d54b7765f9e1f02369a007",
+  "compile_session": {
+    "id": 56877,
+    "command": "env CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0 TMPDIR=/home/marc/Documents/github/lime-os/target/integration-compiler-tmp CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo test --workspace --locked --offline --no-run",
+    "status": "Passed: actual retained final chunk af46ec exit0 after scoped cleanup; no tests executed by --no-run",
+    "chunks": [
+      {
+        "chunk_id": "a4a509",
+        "wall_time_seconds": 1.00137384,
+        "session_id": 56877,
+        "original_token_count": 46,
+        "output": "   Compiling limeos-domain v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/domain)\n   Compiling limeos-identity v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/identity)\n"
+      },
+      {
+        "chunk_id": "950fa7",
+        "wall_time_seconds": 5.001339035,
+        "session_id": 56877,
+        "original_token_count": 171,
+        "output": "   Compiling limeos-contracts v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/contracts)\n   Compiling limeos-executor-protocol v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/executor-protocol)\n   Compiling limeos-policy v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/policy)\n   Compiling limeos-backup-archive v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/backup-archive)\n   Compiling limeos-observations v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/observations)\n   Compiling limeos-persistence v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/persistence)\n   Compiling limeos-api v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/api)\n"
+      },
+      {
+        "chunk_id": "ffe6f9",
+        "wall_time_seconds": 5.00068216,
+        "session_id": 56877,
+        "original_token_count": 141,
+        "output": "   Compiling limeos-executor-container v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/executor-container)\n   Compiling limeos-executor-storage v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/executor-storage)\n   Compiling limeos-core v0.2.0 (/tmp/limeos-backup-durable-preparation/bins/core)\n   Compiling limeos-executor v0.2.0 (/tmp/limeos-backup-durable-preparation/bins/executor)\n   Compiling limeosctl v0.2.0 (/tmp/limeos-backup-durable-preparation/bins/ctl)\n   Compiling limeos-schema v0.2.0 (/tmp/limeos-backup-durable-preparation/bins/schema)\n"
+      },
+      {
+        "chunk_id": "af46ec",
+        "wall_time_seconds": 1.0051e-05,
+        "exit_code": 0,
+        "original_token_count": 737,
+        "output": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 06s\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_api-6de9a9117aac2a3b)\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_backup_archive-f73ff2fe07529e78)\n  Executable tests/archives.rs (/home/marc/Documents/github/lime-os/target/debug/deps/archives-c00dd5fc912bdeae)\n  Executable tests/custody.rs (/home/marc/Documents/github/lime-os/target/debug/deps/custody-a8d1a691df717c5e)\n  Executable tests/preparation.rs (/home/marc/Documents/github/lime-os/target/debug/deps/preparation-ed8f64b0c93eb7f1)\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_contracts-f5da43a2e8fc0b8d)\n  Executable unittests src/main.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_core-79fb642bbc4d0442)\n  Executable unittests src/password_worker.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_password_worker-0979777a9897fffd)\n  Executable tests/backup_preparation_binding.rs (/home/marc/Documents/github/lime-os/target/debug/deps/backup_preparation_binding-86f8e6805f9b4940)\n  Executable tests/worker.rs (/home/marc/Documents/github/lime-os/target/debug/deps/worker-b2783e85b11341e2)\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_domain-5fbeea227e935ee7)\n  Executable unittests src/main.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_executor-1e003240cc3509ea)\n  Executable tests/combined_read_probe.rs (/home/marc/Documents/github/lime-os/target/debug/deps/combined_read_probe-2b65601b4878636a)\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_executor_container-01758d83c5a0c573)\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_executor_protocol-4ba80e112bde77f5)\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_executor_storage-8c2072f080261b59)\n  Executable unittests src/main.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_footprint-581feafefd9da669)\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_identity-a1f8efc2973bcb25)\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_observations-4295200f8fe536cf)\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_persistence-3c6d2c74ecfc3e24)\n  Executable unittests src/lib.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_policy-4b8c04f4dffb6e37)\n  Executable unittests src/main.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeos_schema-4fc67487d0894e81)\n  Executable unittests src/main.rs (/home/marc/Documents/github/lime-os/target/debug/deps/limeosctl-f4631bc6a7d1e043)\n"
+      }
+    ]
+  },
+  "requests": [
+    {
+      "command": "env TMPDIR=/tmp python3 -m unittest discover -s tests/reference -p test_*.py",
+      "status": "TurnAborted rejection, no execution result; unverified request"
+    },
+    {
+      "command": "env UV_OFFLINE=1 uv tool run ruff check <seven changed qualification scripts>",
+      "status": "Passed: actual retained tool result212c71 exit0; raw result in recovered-requests.json"
+    }
+  ],
+  "scope": "Compile and Ruff retained actual successes; reference aborted request remains separate. Full workspace and later reference retry are independently captured.",
+  "initial_annotation_correction": "Initial recovery reported Unknown process id; the retained functions.exec store already contained final compile chunk af46ec exit0. Initial status prose overlooked that chunk; raw chunks are unchanged."
+}

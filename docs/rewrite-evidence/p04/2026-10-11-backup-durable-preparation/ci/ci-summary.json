@@ -1,0 +1,745 @@
+{
+  "all_reported_package_binary_hashes_match_native_artifact": true,
+  "capture_kind": "rw040-confinement-probe-integration",
+  "conclusion": "success",
+  "current_failure_diagnostics": [],
+  "excluded_artifact_paths": [
+    "p01/vm-failure.txt",
+    "p01/vm-result.json",
+    "p02/vm-failure.txt",
+    "p02/vm-result.json",
+    "p03/compose-vm-failure.txt",
+    "p03/compose-vm-result.json",
+    "p03/lifecycle-vm-failure.txt",
+    "p03/lifecycle-vm-result.json",
+    "p03/reference-vm-result.json",
+    "p03/vm-failure.txt",
+    "p03/vm-result.json",
+    "p04/approved-container-vm-result.json",
+    "p04/approved-current-fixture-vm-result.json",
+    "p04/approved-initial-container-vm-result.json",
+    "p04/approved-initial-package-vm-failure.txt",
+    "p04/approved-initial-teardown-vm-failure.txt",
+    "p04/approved-initial-vm-result.json",
+    "p04/approved-restart-fixture-vm-failure.txt",
+    "p04/approved-vm-failure.txt",
+    "p04/approved-vm-result.json",
+    "p04/locks-vm-failure.txt",
+    "p04/locks-container-vm-result.json",
+    "p04/locks-vm-result.json",
+    "p04/planning-diagnostic-vm-failure.txt",
+    "p04/planning-vm-failure.txt",
+    "p04/planning-vm-result.json",
+    "p04/storage-context-vm-failure.txt",
+    "p04/storage-permissions-vm-failure.txt",
+    "p04/storage-recovered-vm-failure.txt",
+    "p04/storage-vm-result.json",
+    "p04/storage-vm-failure.txt",
+    "p04/targets-initial-vm-result.json",
+    "p04/targets-vm-result.json"
+  ],
+  "expected_native": {
+    "arm64_harness": 33,
+    "compile_fail": 4,
+    "confinement_harness": 41,
+    "probe_identity_and_workflow": 8,
+    "rust_total": 444,
+    "unit_integration": 440
+  },
+  "expected_reference": 23,
+  "fresh_installed_results_qualified": true,
+  "installed": [
+    {
+      "artifact": {
+        "api_digest": "sha256:60a85770e34638785ac08710643549910d384d2b0a5390f8f18aa524d7952454",
+        "id": 11699839420,
+        "name": "debian-vm-evidence",
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1406205629,
+          "head_sha": "8288315c245c58e88b7ca946c6a755787371f1d2",
+          "id": 38131915369,
+          "repository_id": 1406205629
+        },
+        "zip_bytes": 71682,
+        "zip_sha256": "60a85770e34638785ac08710643549910d384d2b0a5390f8f18aa524d7952454"
+      },
+      "artifact_path": "p01/ci-vm-result.json",
+      "binary_sha256": null,
+      "bytes": 2005,
+      "check_field": "tests",
+      "checks": 14,
+      "file": "ci-foundation-vm-result.json",
+      "image": {
+        "name": "debian-12-genericcloud-amd64.qcow2",
+        "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+      },
+      "package_sha256": null,
+      "result_keys": [
+        "combined_pss_kib",
+        "date_utc",
+        "image",
+        "kernel",
+        "measurements",
+        "platform",
+        "ram_mib",
+        "result",
+        "startup_ms",
+        "status_cli_ms",
+        "tests",
+        "vcpus"
+      ],
+      "sha256": "b9a11cd954f5b0ad0d97b3a7963ed55a68358276462f8e907330b1d6c7f83674"
+    },
+    {
+      "artifact": {
+        "api_digest": "sha256:60a85770e34638785ac08710643549910d384d2b0a5390f8f18aa524d7952454",
+        "id": 11699839420,
+        "name": "debian-vm-evidence",
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1406205629,
+          "head_sha": "8288315c245c58e88b7ca946c6a755787371f1d2",
+          "id": 38131915369,
+          "repository_id": 1406205629
+        },
+        "zip_bytes": 71682,
+        "zip_sha256": "60a85770e34638785ac08710643549910d384d2b0a5390f8f18aa524d7952454"
+      },
+      "artifact_path": "p02/ci-vm-result.json",
+      "binary_sha256": null,
+      "bytes": 1131,
+      "check_field": "checks",
+      "checks": 6,
+      "file": "ci-observations-vm-result.json",
+      "image": {
+        "name": "debian-12-genericcloud-amd64.qcow2",
+        "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+      },
+      "package_sha256": null,
+      "result_keys": [
+        "cached_http_p95_ms",
+        "checks",
+        "combined_pss_kib",
+        "engine_calls",
+        "image",
+        "result",
+        "scope",
+        "shadow_pss_kib"
+      ],
+      "sha256": "d63770c7661578014696257b26487d37d0a8efe422e44e3db6d0bfbdf92765eb"
+    },
+    {
+      "artifact": {
+        "api_digest": "sha256:60a85770e34638785ac08710643549910d384d2b0a5390f8f18aa524d7952454",
+        "id": 11699839420,
+        "name": "debian-vm-evidence",
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1406205629,
+          "head_sha": "8288315c245c58e88b7ca946c6a755787371f1d2",
+          "id": 38131915369,
+          "repository_id": 1406205629
+        },
+        "zip_bytes": 71682,
+        "zip_sha256": "60a85770e34638785ac08710643549910d384d2b0a5390f8f18aa524d7952454"
+      },
+      "artifact_path": "p03/ci-reference-vm-result.json",
+      "binary_sha256": null,
+      "bytes": 8681,
+      "check_field": "checks",
+      "checks": 61,
+      "file": "ci-reference-vm-result.json",
+      "image": {
+        "name": "debian-12-genericcloud-amd64.qcow2",
+        "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+      },
+      "package_sha256": {
+        "limeos-shadow_0.4.4_amd64.deb": "b3378b8ccb724e7566854c9cfb287f8df07b6e30119255b1d0b73bbe1dfb9964",
+        "limeos_0.4.4+ci.1_amd64.deb": "669622999c6da4b5248ef69852c5dc0bad0dc1af80f5a73c2158f10248d8ee06",
+        "limeos_0.4.4_amd64.deb": "08df1b5d67fe2b35da88829493794eacd0ab397b4899ad617060256f4db1ab7e"
+      },
+      "result_keys": [
+        "checks",
+        "compose",
+        "container_fixture",
+        "engine_version",
+        "footprint",
+        "image",
+        "lifecycle_posts",
+        "operations",
+        "package_sha256",
+        "reference",
+        "restart_effect_ms",
+        "restart_posts",
+        "schemas",
+        "upgrade"
+      ],
+      "sha256": "3d39df628ee1ce2a08e40c6bc54fd5daa07b7e99444191282a4562cdf9ca916e"
+    },
+    {
+      "artifact": {
+        "api_digest": "sha256:60a85770e34638785ac08710643549910d384d2b0a5390f8f18aa524d7952454",
+        "id": 11699839420,
+        "name": "debian-vm-evidence",
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1406205629,
+          "head_sha": "8288315c245c58e88b7ca946c6a755787371f1d2",
+          "id": 38131915369,
+          "repository_id": 1406205629
+        },
+        "zip_bytes": 71682,
+        "zip_sha256": "60a85770e34638785ac08710643549910d384d2b0a5390f8f18aa524d7952454"
+      },
+      "artifact_path": "p04/ci-approved-vm-result.json",
+      "binary_sha256": {
+        "limeos-core": "dbcd8bcee63f914074d321f4530ce98f38c394f6b17aaa184ed5250a950c1a67",
+        "limeos-executor": "b94f534a62c667daf82b95ccce6b1232f42b51efcf45f7ad32318f3115e5829b",
+        "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+        "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+      },
+      "bytes": 7706,
+      "check_field": "passed",
+      "checks": 50,
+      "file": "ci-approved-vm-result.json",
+      "image": {
+        "name": "debian-12-genericcloud-amd64.qcow2",
+        "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+      },
+      "package_sha256": null,
+      "result_keys": [
+        "architecture",
+        "authority_schema",
+        "binary_sha256",
+        "core_payload_sha256",
+        "image",
+        "limitations",
+        "package_version",
+        "passed",
+        "payload_sha256",
+        "plan_wait_seconds",
+        "reader_payload_sha256",
+        "scope",
+        "target_payload_sha256",
+        "upgrade",
+        "watchdog_seconds"
+      ],
+      "sha256": "fa3d5aaf960589b55037f2efe1d274d0d4962fc2a2e0e6024427d7b483123c73"
+    },
+    {
+      "artifact": {
+        "api_digest": "sha256:60a85770e34638785ac08710643549910d384d2b0a5390f8f18aa524d7952454",
+        "id": 11699839420,
+        "name": "debian-vm-evidence",
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1406205629,
+          "head_sha": "8288315c245c58e88b7ca946c6a755787371f1d2",
+          "id": 38131915369,
+          "repository_id": 1406205629
+        },
+        "zip_bytes": 71682,
+        "zip_sha256": "60a85770e34638785ac08710643549910d384d2b0a5390f8f18aa524d7952454"
+      },
+      "artifact_path": "p04/ci-dependencies-vm-result.json",
+      "binary_sha256": {
+        "limeos-core": "dbcd8bcee63f914074d321f4530ce98f38c394f6b17aaa184ed5250a950c1a67",
+        "limeos-executor": "b94f534a62c667daf82b95ccce6b1232f42b51efcf45f7ad32318f3115e5829b",
+        "limeos-password-worker": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31",
+        "limeosctl": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+      },
+      "bytes": 18845,
+      "check_field": "checks",
+      "checks": 49,
+      "file": "ci-dependencies-vm-result.json",
+      "image": {
+        "name": "debian-12-genericcloud-amd64.qcow2",
+        "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+      },
+      "package_sha256": {
+        "limeos-shadow_0.4.4_amd64.deb": "b3378b8ccb724e7566854c9cfb287f8df07b6e30119255b1d0b73bbe1dfb9964",
+        "limeos_0.4.4+ci.1_amd64.deb": "669622999c6da4b5248ef69852c5dc0bad0dc1af80f5a73c2158f10248d8ee06",
+        "limeos_0.4.4_amd64.deb": "08df1b5d67fe2b35da88829493794eacd0ab397b4899ad617060256f4db1ab7e"
+      },
+      "result_keys": [
+        "binary_sha256",
+        "checks",
+        "container_fixture",
+        "dependency_cases",
+        "dependency_inventory",
+        "engine_version",
+        "footprint",
+        "image",
+        "lifecycle_posts",
+        "limitations",
+        "operations",
+        "package_sha256",
+        "package_version",
+        "restart_effect_ms",
+        "restart_posts",
+        "schemas",
+        "upgrade"
+      ],
+      "sha256": "398342b014dd1db46dccdfd8af099ef441759a8516d0cca4b6107c434a2b0a8b"
+    }
+  ],
+  "installed_image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "a09170d17e13af43da61774666f520e3bbec0f8bd96b4db37c15f3426fb327ccad950b80dbe78c09aa5ca90ce5015e99334b0ba5188fd4018736bc3fb5f0882c"
+  },
+  "installed_total_checks": 180,
+  "jobs": [
+    {
+      "compile_fail_doc_tests": 4,
+      "conclusion": "success",
+      "failed_steps": [],
+      "id": 114447823447,
+      "log_file": "ci-amd64.log.gz",
+      "log_gzip_sha256": "1bdcd6024872db8b2fc1974c94e3a5bdd33446d3d89d6dbb523fefcec9f37e8d",
+      "name": "check (ubuntu-24.04)",
+      "raw_log_bytes": 281045,
+      "raw_log_sha256": "9c0dc38a8b2b56b507ebbafb17babc9ecabb59bbaaf4137b51c8b1ce23d312d6",
+      "rust_failed": 0,
+      "rust_ignored": 0,
+      "rust_passed": 444,
+      "rust_unit_integration_passed": 440,
+      "unittest_counts": [
+        33,
+        8,
+        41
+      ]
+    },
+    {
+      "compile_fail_doc_tests": 4,
+      "conclusion": "success",
+      "failed_steps": [],
+      "id": 114447823556,
+      "log_file": "ci-arm64.log.gz",
+      "log_gzip_sha256": "ea7be50cf97de016675fae88fac88e18e9d6ee6b2a797b87204d8929032204e7",
+      "name": "check (ubuntu-24.04-arm)",
+      "raw_log_bytes": 263304,
+      "raw_log_sha256": "43d422c5946ee2ac3c4db77526e87529cfa48c50290aa6b0754884ead9cc4cd6",
+      "rust_failed": 0,
+      "rust_ignored": 0,
+      "rust_passed": 444,
+      "rust_unit_integration_passed": 440,
+      "unittest_counts": [
+        33,
+        8,
+        41
+      ]
+    },
+    {
+      "compile_fail_doc_tests": 0,
+      "conclusion": "success",
+      "failed_steps": [],
+      "id": 114450299194,
+      "log_file": "ci-vm.log.gz",
+      "log_gzip_sha256": "7c0c7616849c1472731ddf05053e9cc60a5bebefad08cb8a96a1b7b234c6be90",
+      "name": "debian-vm",
+      "raw_log_bytes": 88310,
+      "raw_log_sha256": "281f5597ef1f128a1c1c83ed622a0a9722ba6f40d83632faa55c391bce856474",
+      "rust_failed": 0,
+      "rust_ignored": 0,
+      "rust_passed": 0,
+      "rust_unit_integration_passed": 0,
+      "unittest_counts": [
+        23
+      ]
+    }
+  ],
+  "observed_at": "20261011T165803Z",
+  "packages": [
+    {
+      "artifact": {
+        "api_digest": "sha256:f0440133a79d2b83a842590e584076eea8356b49c84c7743dc748f1838ea679d",
+        "id": 11699822341,
+        "name": "debian-ubuntu-24.04",
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1406205629,
+          "head_sha": "8288315c245c58e88b7ca946c6a755787371f1d2",
+          "id": 38131915369,
+          "repository_id": 1406205629
+        },
+        "zip_bytes": 8853221,
+        "zip_sha256": "f0440133a79d2b83a842590e584076eea8356b49c84c7743dc748f1838ea679d"
+      },
+      "binaries": {
+        "limeos-core": {
+          "bytes": 5733624,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 62,
+          "path": "./usr/lib/limeos-shadow/limeos-core",
+          "sha256": "dbcd8bcee63f914074d321f4530ce98f38c394f6b17aaa184ed5250a950c1a67"
+        },
+        "limeos-executor": {
+          "bytes": 4426904,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 62,
+          "path": "./usr/lib/limeos-shadow/limeos-executor",
+          "sha256": "b94f534a62c667daf82b95ccce6b1232f42b51efcf45f7ad32318f3115e5829b"
+        },
+        "limeos-password-worker": {
+          "bytes": 553760,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 62,
+          "path": "./usr/lib/limeos-shadow/limeos-password-worker",
+          "sha256": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31"
+        },
+        "limeosctl": {
+          "bytes": 901984,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 62,
+          "path": "./usr/lib/limeos-shadow/limeosctl",
+          "sha256": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+        }
+      },
+      "bytes": 2950296,
+      "control": {
+        "Architecture": "amd64",
+        "Depends": "libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux",
+        "Description": "Secure host observations and approved container operations",
+        "Maintainer": "LimeOS maintainers <maintainers@limeos.invalid>",
+        "Package": "limeos-shadow",
+        "Priority": "optional",
+        "Section": "admin",
+        "Version": "0.4.4"
+      },
+      "file": "limeos-shadow_0.4.4_amd64.deb",
+      "raw_control": "Package: limeos-shadow\nVersion: 0.4.4\nArchitecture: amd64\nMaintainer: LimeOS maintainers <maintainers@limeos.invalid>\nDepends: libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux\nSection: admin\nPriority: optional\nDescription: Secure host observations and approved container operations\n Rust identity, durable authority, shared observations and bounded executors.\n",
+      "sha256": "b3378b8ccb724e7566854c9cfb287f8df07b6e30119255b1d0b73bbe1dfb9964"
+    },
+    {
+      "artifact": {
+        "api_digest": "sha256:f0440133a79d2b83a842590e584076eea8356b49c84c7743dc748f1838ea679d",
+        "id": 11699822341,
+        "name": "debian-ubuntu-24.04",
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1406205629,
+          "head_sha": "8288315c245c58e88b7ca946c6a755787371f1d2",
+          "id": 38131915369,
+          "repository_id": 1406205629
+        },
+        "zip_bytes": 8853221,
+        "zip_sha256": "f0440133a79d2b83a842590e584076eea8356b49c84c7743dc748f1838ea679d"
+      },
+      "binaries": {
+        "limeos-core": {
+          "bytes": 5733624,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 62,
+          "path": "./usr/lib/limeos/limeos-core",
+          "sha256": "dbcd8bcee63f914074d321f4530ce98f38c394f6b17aaa184ed5250a950c1a67"
+        },
+        "limeos-executor": {
+          "bytes": 4426904,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 62,
+          "path": "./usr/lib/limeos/limeos-executor",
+          "sha256": "b94f534a62c667daf82b95ccce6b1232f42b51efcf45f7ad32318f3115e5829b"
+        },
+        "limeos-password-worker": {
+          "bytes": 553760,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 62,
+          "path": "./usr/lib/limeos/limeos-password-worker",
+          "sha256": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31"
+        },
+        "limeosctl": {
+          "bytes": 901984,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 62,
+          "path": "./usr/lib/limeos/limeosctl",
+          "sha256": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+        }
+      },
+      "bytes": 2949986,
+      "control": {
+        "Architecture": "amd64",
+        "Depends": "libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux",
+        "Description": "Secure host observations and approved container operations",
+        "Maintainer": "LimeOS maintainers <maintainers@limeos.invalid>",
+        "Package": "limeos",
+        "Priority": "optional",
+        "Section": "admin",
+        "Version": "0.4.4+ci.1"
+      },
+      "file": "limeos_0.4.4+ci.1_amd64.deb",
+      "raw_control": "Package: limeos\nVersion: 0.4.4+ci.1\nArchitecture: amd64\nMaintainer: LimeOS maintainers <maintainers@limeos.invalid>\nDepends: libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux\nSection: admin\nPriority: optional\nDescription: Secure host observations and approved container operations\n Rust identity, durable authority, shared observations and bounded executors.\n",
+      "sha256": "669622999c6da4b5248ef69852c5dc0bad0dc1af80f5a73c2158f10248d8ee06"
+    },
+    {
+      "artifact": {
+        "api_digest": "sha256:f0440133a79d2b83a842590e584076eea8356b49c84c7743dc748f1838ea679d",
+        "id": 11699822341,
+        "name": "debian-ubuntu-24.04",
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1406205629,
+          "head_sha": "8288315c245c58e88b7ca946c6a755787371f1d2",
+          "id": 38131915369,
+          "repository_id": 1406205629
+        },
+        "zip_bytes": 8853221,
+        "zip_sha256": "f0440133a79d2b83a842590e584076eea8356b49c84c7743dc748f1838ea679d"
+      },
+      "binaries": {
+        "limeos-core": {
+          "bytes": 5733624,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 62,
+          "path": "./usr/lib/limeos/limeos-core",
+          "sha256": "dbcd8bcee63f914074d321f4530ce98f38c394f6b17aaa184ed5250a950c1a67"
+        },
+        "limeos-executor": {
+          "bytes": 4426904,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 62,
+          "path": "./usr/lib/limeos/limeos-executor",
+          "sha256": "b94f534a62c667daf82b95ccce6b1232f42b51efcf45f7ad32318f3115e5829b"
+        },
+        "limeos-password-worker": {
+          "bytes": 553760,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 62,
+          "path": "./usr/lib/limeos/limeos-password-worker",
+          "sha256": "baa0d448eed99a4a25769271ad8be45228c90af244b35b9e0ee8f1b97969ab31"
+        },
+        "limeosctl": {
+          "bytes": 901984,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 62,
+          "path": "./usr/lib/limeos/limeosctl",
+          "sha256": "0a4974c37af45eb8026923fa9cccaf5d11f2a86a7ad59e70d59108031da452b3"
+        }
+      },
+      "bytes": 2949974,
+      "control": {
+        "Architecture": "amd64",
+        "Depends": "libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux",
+        "Description": "Secure host observations and approved container operations",
+        "Maintainer": "LimeOS maintainers <maintainers@limeos.invalid>",
+        "Package": "limeos",
+        "Priority": "optional",
+        "Section": "admin",
+        "Version": "0.4.4"
+      },
+      "file": "limeos_0.4.4_amd64.deb",
+      "raw_control": "Package: limeos\nVersion: 0.4.4\nArchitecture: amd64\nMaintainer: LimeOS maintainers <maintainers@limeos.invalid>\nDepends: libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux\nSection: admin\nPriority: optional\nDescription: Secure host observations and approved container operations\n Rust identity, durable authority, shared observations and bounded executors.\n",
+      "sha256": "08df1b5d67fe2b35da88829493794eacd0ab397b4899ad617060256f4db1ab7e"
+    },
+    {
+      "artifact": {
+        "api_digest": "sha256:d1f60d24776c8559446243be3328402525a623d48dc7bfd7ffed85f71feadd0c",
+        "id": 11699652417,
+        "name": "debian-ubuntu-24.04-arm",
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1406205629,
+          "head_sha": "8288315c245c58e88b7ca946c6a755787371f1d2",
+          "id": 38131915369,
+          "repository_id": 1406205629
+        },
+        "zip_bytes": 8372136,
+        "zip_sha256": "d1f60d24776c8559446243be3328402525a623d48dc7bfd7ffed85f71feadd0c"
+      },
+      "binaries": {
+        "limeos-core": {
+          "bytes": 5000976,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 183,
+          "path": "./usr/lib/limeos-shadow/limeos-core",
+          "sha256": "16f9b6c799e607a58d2169af32e554e13ada1be73dc6d5776370a8b7329b1b8c"
+        },
+        "limeos-executor": {
+          "bytes": 3952320,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 183,
+          "path": "./usr/lib/limeos-shadow/limeos-executor",
+          "sha256": "0a7f2a8c49c21da41535724d27c6a206e5d751d1dcf7c5a09392d8ddecd00264"
+        },
+        "limeos-password-worker": {
+          "bytes": 529032,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 183,
+          "path": "./usr/lib/limeos-shadow/limeos-password-worker",
+          "sha256": "7e7ecbf68a0c75e1fd3b90d145859a26ae415ab9a583dac891917f06c84346f1"
+        },
+        "limeosctl": {
+          "bytes": 856792,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 183,
+          "path": "./usr/lib/limeos-shadow/limeosctl",
+          "sha256": "4322dabb7c0d11c3a630c8ce3e364c398f9789b73bdfc2c86c1baa61c4e6e930"
+        }
+      },
+      "bytes": 2789370,
+      "control": {
+        "Architecture": "arm64",
+        "Depends": "libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux",
+        "Description": "Secure host observations and approved container operations",
+        "Maintainer": "LimeOS maintainers <maintainers@limeos.invalid>",
+        "Package": "limeos-shadow",
+        "Priority": "optional",
+        "Section": "admin",
+        "Version": "0.4.4"
+      },
+      "file": "limeos-shadow_0.4.4_arm64.deb",
+      "raw_control": "Package: limeos-shadow\nVersion: 0.4.4\nArchitecture: arm64\nMaintainer: LimeOS maintainers <maintainers@limeos.invalid>\nDepends: libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux\nSection: admin\nPriority: optional\nDescription: Secure host observations and approved container operations\n Rust identity, durable authority, shared observations and bounded executors.\n",
+      "sha256": "431f26722716acabd77b14916757fa759e3d36f894f8a03bf09c97eb7943e9ea"
+    },
+    {
+      "artifact": {
+        "api_digest": "sha256:d1f60d24776c8559446243be3328402525a623d48dc7bfd7ffed85f71feadd0c",
+        "id": 11699652417,
+        "name": "debian-ubuntu-24.04-arm",
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1406205629,
+          "head_sha": "8288315c245c58e88b7ca946c6a755787371f1d2",
+          "id": 38131915369,
+          "repository_id": 1406205629
+        },
+        "zip_bytes": 8372136,
+        "zip_sha256": "d1f60d24776c8559446243be3328402525a623d48dc7bfd7ffed85f71feadd0c"
+      },
+      "binaries": {
+        "limeos-core": {
+          "bytes": 5000976,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 183,
+          "path": "./usr/lib/limeos/limeos-core",
+          "sha256": "16f9b6c799e607a58d2169af32e554e13ada1be73dc6d5776370a8b7329b1b8c"
+        },
+        "limeos-executor": {
+          "bytes": 3952320,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 183,
+          "path": "./usr/lib/limeos/limeos-executor",
+          "sha256": "0a7f2a8c49c21da41535724d27c6a206e5d751d1dcf7c5a09392d8ddecd00264"
+        },
+        "limeos-password-worker": {
+          "bytes": 529032,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 183,
+          "path": "./usr/lib/limeos/limeos-password-worker",
+          "sha256": "7e7ecbf68a0c75e1fd3b90d145859a26ae415ab9a583dac891917f06c84346f1"
+        },
+        "limeosctl": {
+          "bytes": 856792,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 183,
+          "path": "./usr/lib/limeos/limeosctl",
+          "sha256": "4322dabb7c0d11c3a630c8ce3e364c398f9789b73bdfc2c86c1baa61c4e6e930"
+        }
+      },
+      "bytes": 2790014,
+      "control": {
+        "Architecture": "arm64",
+        "Depends": "libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux",
+        "Description": "Secure host observations and approved container operations",
+        "Maintainer": "LimeOS maintainers <maintainers@limeos.invalid>",
+        "Package": "limeos",
+        "Priority": "optional",
+        "Section": "admin",
+        "Version": "0.4.4+ci.1"
+      },
+      "file": "limeos_0.4.4+ci.1_arm64.deb",
+      "raw_control": "Package: limeos\nVersion: 0.4.4+ci.1\nArchitecture: arm64\nMaintainer: LimeOS maintainers <maintainers@limeos.invalid>\nDepends: libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux\nSection: admin\nPriority: optional\nDescription: Secure host observations and approved container operations\n Rust identity, durable authority, shared observations and bounded executors.\n",
+      "sha256": "bcfd9926c5b9ab73e787f0543ed8da0f9f690a1856799297d0cd99df808a3e6b"
+    },
+    {
+      "artifact": {
+        "api_digest": "sha256:d1f60d24776c8559446243be3328402525a623d48dc7bfd7ffed85f71feadd0c",
+        "id": 11699652417,
+        "name": "debian-ubuntu-24.04-arm",
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1406205629,
+          "head_sha": "8288315c245c58e88b7ca946c6a755787371f1d2",
+          "id": 38131915369,
+          "repository_id": 1406205629
+        },
+        "zip_bytes": 8372136,
+        "zip_sha256": "d1f60d24776c8559446243be3328402525a623d48dc7bfd7ffed85f71feadd0c"
+      },
+      "binaries": {
+        "limeos-core": {
+          "bytes": 5000976,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 183,
+          "path": "./usr/lib/limeos/limeos-core",
+          "sha256": "16f9b6c799e607a58d2169af32e554e13ada1be73dc6d5776370a8b7329b1b8c"
+        },
+        "limeos-executor": {
+          "bytes": 3952320,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 183,
+          "path": "./usr/lib/limeos/limeos-executor",
+          "sha256": "0a7f2a8c49c21da41535724d27c6a206e5d751d1dcf7c5a09392d8ddecd00264"
+        },
+        "limeos-password-worker": {
+          "bytes": 529032,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 183,
+          "path": "./usr/lib/limeos/limeos-password-worker",
+          "sha256": "7e7ecbf68a0c75e1fd3b90d145859a26ae415ab9a583dac891917f06c84346f1"
+        },
+        "limeosctl": {
+          "bytes": 856792,
+          "elf_class": 64,
+          "elf_endianness": "little",
+          "elf_machine": 183,
+          "path": "./usr/lib/limeos/limeosctl",
+          "sha256": "4322dabb7c0d11c3a630c8ce3e364c398f9789b73bdfc2c86c1baa61c4e6e930"
+        }
+      },
+      "bytes": 2790050,
+      "control": {
+        "Architecture": "arm64",
+        "Depends": "libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux",
+        "Description": "Secure host observations and approved container operations",
+        "Maintainer": "LimeOS maintainers <maintainers@limeos.invalid>",
+        "Package": "limeos",
+        "Priority": "optional",
+        "Section": "admin",
+        "Version": "0.4.4"
+      },
+      "file": "limeos_0.4.4_arm64.deb",
+      "raw_control": "Package: limeos\nVersion: 0.4.4\nArchitecture: arm64\nMaintainer: LimeOS maintainers <maintainers@limeos.invalid>\nDepends: libc6 (>= 2.36), libgcc-s1, adduser, bash, systemd, util-linux\nSection: admin\nPriority: optional\nDescription: Secure host observations and approved container operations\n Rust identity, durable authority, shared observations and bounded executors.\n",
+      "sha256": "f70f4144b7b2a1b0b625fb94c75eab17d0731a64204a4da715839bb445e9f973"
+    }
+  ],
+  "run_id": 38131915369,
+  "run_url": "https://github.com/Brownster/limeos/actions/runs/38131915369",
+  "scope": "Exact schema9 durable private backup preparation binding CI and existing installed suites. Native genuine custody/restart/private-preparation regressions qualify API composition with synthetic trust inputs; existing installed suites do not exercise an installed backup coordinator or old-schema8 package upgrade. Ordinary public-library probe tests select no host collection. BKP001, installed backup coordination/recovery, live restore, production trust, P04 effects and cutover remain pending",
+  "selection": "Only five exact output paths from the tested workflow. A completed successful installed job establishes that all five were freshly overwritten; selected paths from a failed/incomplete job are not qualified as fresh proof.",
+  "status": "completed",
+  "tested_source": "8288315c245c58e88b7ca946c6a755787371f1d2"
+}

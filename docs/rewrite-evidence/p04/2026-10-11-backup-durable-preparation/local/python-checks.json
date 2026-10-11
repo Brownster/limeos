@@ -1,0 +1,89 @@
+{
+  "attempts": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "15b3ec",
+        "wall_time_seconds": 1.000243129,
+        "session_id": 81188,
+        "original_token_count": 2,
+        "output": "........"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "b3e757",
+        "wall_time_seconds": 1.00141731,
+        "session_id": 92580,
+        "original_token_count": 0,
+        "output": ""
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "8008cc",
+        "wall_time_seconds": 0.552554514,
+        "exit_code": 2,
+        "original_token_count": 21,
+        "output": "error: Failed to spawn: `ruff`\n  Caused by: No such file or directory (os error 2)\n"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "a74a98",
+        "wall_time_seconds": 0.590542503,
+        "exit_code": 2,
+        "original_token_count": 21,
+        "output": "error: Failed to spawn: `ruff`\n  Caused by: No such file or directory (os error 2)\n"
+      }
+    }
+  ],
+  "arm64_final": {
+    "chunk_id": "1db6b2",
+    "wall_time_seconds": 0.000013105,
+    "exit_code": 0,
+    "original_token_count": 248,
+    "output": ".usage: python3 -m unittest [-h] --run RUN [--artifact ARTIFACT]\n                           [--install-result INSTALL_RESULT]\n                           [--extra-result EXTRA_RESULT]\n                           --build-result BUILD_RESULT\n                           --source-manifest SOURCE_MANIFEST\n                           [--suite-result SUITE_RESULT]\npython3 -m unittest: error: invalid or duplicate artifact: /tmp/tmph6y75qhi=build\nusage: python3 -m unittest [-h] --run RUN [--artifact ARTIFACT]\n                           [--install-result INSTALL_RESULT]\n                           [--extra-result EXTRA_RESULT]\n                           --build-result BUILD_RESULT\n                           --source-manifest SOURCE_MANIFEST\n                           [--suite-result SUITE_RESULT]\npython3 -m unittest: error: run exists; historical evidence is immutable\n........................\n----------------------------------------------------------------------\nRan 33 tests in 10.839s\n\nOK\n"
+  },
+  "reference_sandbox_final": {
+    "chunk_id": "c9b145",
+    "wall_time_seconds": 0.0000095,
+    "exit_code": 1,
+    "original_token_count": 1590,
+    "output": "..EEEEEEE...............\n======================================================================\nERROR: test_authorized_health_and_exact_invalid_input_remain_explicit (test_executor_refusal_probe.ExecutorRefusalProbeTests.test_authorized_health_and_exact_invalid_input_remain_explicit)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 116, in test_authorized_health_and_exact_invalid_input_remain_explicit\n    ready = self.execute(frame({\"version\": 1, \"ready\": True}), close_peer=False)\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 58, in execute\n    peer.sendall(reply)\n    ~~~~~~~~~~~~^^^^^^^\nPermissionError: [Errno 1] Operation not permitted\n\n======================================================================\nERROR: test_buffered_explicit_forbidden_is_read_after_pre_send_close (test_executor_refusal_probe.ExecutorRefusalProbeTests.test_buffered_explicit_forbidden_is_read_after_pre_send_close)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 107, in test_buffered_explicit_forbidden_is_read_after_pre_send_close\n    result = self.execute(frame(reply))\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 58, in execute\n    peer.sendall(reply)\n    ~~~~~~~~~~~~^^^^^^^\nPermissionError: [Errno 1] Operation not permitted\n\n======================================================================\nERROR: test_buffered_health_success_never_qualifies_as_denial (test_executor_refusal_probe.ExecutorRefusalProbeTests.test_buffered_health_success_never_qualifies_as_denial)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 112, in test_buffered_health_success_never_qualifies_as_denial\n    result = self.execute(frame({\"version\": 1, \"ready\": True}))\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 58, in execute\n    peer.sendall(reply)\n    ~~~~~~~~~~~~^^^^^^^\nPermissionError: [Errno 1] Operation not permitted\n\n======================================================================\nERROR: test_connect_timeout_and_unexpected_write_error_are_not_denials (test_executor_refusal_probe.ExecutorRefusalProbeTests.test_connect_timeout_and_unexpected_write_error_are_not_denials) (kwargs={'recv_error': TimeoutError('stalled header')})\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 140, in test_connect_timeout_and_unexpected_write_error_are_not_denials\n    self.execute(close_peer=False, **kwargs)\n    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 91, in execute\n    exec(probe_code(), {})  # noqa: S102 - exercise the repository's fixed IPC probe\n    ~~~~^^^^^^^^^^^^^^^^^^\n  File \"<string>\", line 5, in <module>\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 73, in sendall\n    client.sendall(data)\n    ~~~~~~~~~~~~~~^^^^^^\nPermissionError: [Errno 1] Operation not permitted\n\n======================================================================\nERROR: test_partial_header_and_truncated_body_still_fail (test_executor_refusal_probe.ExecutorRefusalProbeTests.test_partial_header_and_truncated_body_still_fail) (reply=b'bad')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 129, in test_partial_header_and_truncated_body_still_fail\n    self.execute(reply)\n    ~~~~~~~~~~~~^^^^^^^\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 58, in execute\n    peer.sendall(reply)\n    ~~~~~~~~~~~~^^^^^^^\nPermissionError: [Errno 1] Operation not permitted\n\n======================================================================\nERROR: test_partial_header_and_truncated_body_still_fail (test_executor_refusal_probe.ExecutorRefusalProbeTests.test_partial_header_and_truncated_body_still_fail) (reply=b'\\x00\\x00\\x00\\nshort')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 129, in test_partial_header_and_truncated_body_still_fail\n    self.execute(reply)\n    ~~~~~~~~~~~~^^^^^^^\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 58, in execute\n    peer.sendall(reply)\n    ~~~~~~~~~~~~^^^^^^^\nPermissionError: [Errno 1] Operation not permitted\n\n======================================================================\nERROR: test_real_peer_close_before_send_is_a_refusal (test_executor_refusal_probe.ExecutorRefusalProbeTests.test_real_peer_close_before_send_is_a_refusal)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 97, in test_real_peer_close_before_send_is_a_refusal\n    self.assertEqual(self.execute(), \"denied\\n\")\n                     ~~~~~~~~~~~~^^\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 91, in execute\n    exec(probe_code(), {})  # noqa: S102 - exercise the repository's fixed IPC probe\n    ~~~~^^^^^^^^^^^^^^^^^^\n  File \"<string>\", line 5, in <module>\n  File \"/tmp/limeos-backup-durable-preparation/tests/reference/test_executor_refusal_probe.py\", line 73, in sendall\n    client.sendall(data)\n    ~~~~~~~~~~~~~~^^^^^^\nPermissionError: [Errno 1] Operation not permitted\n\n----------------------------------------------------------------------\nRan 23 tests in 0.177s\n\nFAILED (errors=7)\n"
+  },
+  "reference_retry": [
+    {
+      "chunk_id": "9b2dfd",
+      "wall_time_seconds": 0.716486179,
+      "exit_code": 0,
+      "original_token_count": 31,
+      "output": ".......................\n----------------------------------------------------------------------\nRan 23 tests in 0.191s\n\nOK\n"
+    }
+  ],
+  "ruff_final": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "174cb8",
+        "wall_time_seconds": 0.390248688,
+        "exit_code": 0,
+        "original_token_count": 5,
+        "output": "All checks passed!\n"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "98911c",
+        "wall_time_seconds": 0.393104263,
+        "exit_code": 1,
+        "original_token_count": 28,
+        "output": "Would reformat: tests/qualification/arm64/record_run.py\n1 file would be reformatted, 6 files already formatted\n"
+      }
+    }
+  ]
+}

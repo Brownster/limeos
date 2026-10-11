@@ -1,0 +1,1 @@
+{"command":"env TMPDIR=/tmp cargo test -p limeos-core --test backup_preparation_binding --offline -- --test-threads=1","cwd":"/tmp/limeos-backup-durable-preparation","source_sha256":"ef5648b7c6c51e3bee8928cbcd19662b523f237d0c270af0ed48abc4d5e992ef","exit_code":0,"tests":6,"behavioral_tests":5,"scope":"Local synthetic API composition; no installed recovery/effect claim"}

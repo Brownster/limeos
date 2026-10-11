@@ -1,0 +1,21 @@
+{
+  "command": "env CARGO_INCREMENTAL=0 TMPDIR=/home/marc/Documents/github/lime-os/target/integration-compiler-tmp CARGO_TARGET_DIR=/home/marc/Documents/github/lime-os/target cargo test --workspace --locked --offline --no-run",
+  "source_snapshot_sha256": "3f5de99ee5461d06efe962a96e137e45a3683deed6d54b7765f9e1f02369a007",
+  "scope": "Unchanged source compile only; failed ENOSPC, no tests executed",
+  "chunks": [
+    {
+      "chunk_id": "1c6366",
+      "wall_time_seconds": 1.001815322,
+      "session_id": 47117,
+      "original_token_count": 142,
+      "output": "   Compiling limeos-domain v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/domain)\n   Compiling limeos-identity v0.2.0 (/tmp/limeos-backup-durable-preparation/crates/identity)\n   Compiling limeos-footprint v0.0.1 (/tmp/limeos-backup-durable-preparation/spikes/footprint)\nerror: failed to write /home/marc/Documents/github/lime-os/target/debug/deps/liblimeos_identity-5757653e3a47c8d0.rmeta: No space left on device (os error 28)\n\nerror: could not compile `limeos-identity` (lib) due to 1 previous error\nwarning: build failed, waiting for other jobs to finish...\n"
+    },
+    {
+      "chunk_id": "6e5ff2",
+      "wall_time_seconds": 0.000039931,
+      "exit_code": 101,
+      "original_token_count": 57,
+      "output": "error: failed to write /home/marc/Documents/github/lime-os/target/debug/deps/liblimeos_domain-b221956378d4a4f3.rmeta: No space left on device (os error 28)\n\nerror: could not compile `limeos-domain` (lib) due to 1 previous error\n"
+    }
+  ]
+}

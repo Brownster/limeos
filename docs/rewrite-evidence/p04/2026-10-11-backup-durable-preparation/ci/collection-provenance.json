@@ -1,0 +1,48 @@
+{
+  "attempts": [
+    {
+      "attempt": 1,
+      "ci_failure": false,
+      "exit_code": 1,
+      "failure": "Networking to api.github.com failed before any download",
+      "raw_failure_scope": "Tool result was observed; this record retains an excerpt, not a reconstructed complete stderr",
+      "retained_error_excerpt": "error connecting to api.github.com",
+      "sandbox": "workspace sandbox",
+      "tool_chunk": "2e2537"
+    },
+    {
+      "approval_wait": "Request was pending, then approved; no duration inferred",
+      "attempt": 2,
+      "ci_failure": false,
+      "exit_code": 0,
+      "sandbox": "approved escalation",
+      "session_id": 69936,
+      "tool_result": "collector-tool-result.json",
+      "tool_result_sha256": "335e030d959f1b9918489137a6e71857a3282d0537a5e6152ee6451819661a43"
+    }
+  ],
+  "capture_kind": "backup-durable-preparation-ci-collection",
+  "collector": {
+    "command": [
+      "python3",
+      "/home/marc/Documents/github/lime-os/target/backup-durable-ci-38131915369/collect_ci.py"
+    ],
+    "file": "collect_ci.py",
+    "sha256": "6ced5afd288e5cac3c65d38b2cf2c209e05f2e820f71b592f9fdc2ab1ab45261"
+  },
+  "raw_api_capture": "ci-complete.json",
+  "raw_api_capture_sha256": "3f5cd01322194639ef56134998aca56e383a949df618315b2c75457b03a53286",
+  "raw_capture_label": {
+    "file": "ci-summary.json",
+    "meaning": "Inherited collector metadata label retained unchanged; normalized scope is backup durable preparation, with no new RW040 library or guest qualification",
+    "value": "rw040-confinement-probe-integration"
+  },
+  "run_id": 38131915369,
+  "scope": "Read-only collection of already-completed exact-source CI; no workflow rerun, local test, guest, Pi, SSH, Docker, policy or source action",
+  "source_identity": {
+    "files_matched_current_source": 25,
+    "final_snapshot_sha256": "d1e084c0932e3c01c1c6815a8adb49f78c2868d4cc265d749250eb3c3b542dd9",
+    "historical_authority_v8_byte_identical_to_base": true
+  },
+  "tested_source": "8288315c245c58e88b7ca946c6a755787371f1d2"
+}
