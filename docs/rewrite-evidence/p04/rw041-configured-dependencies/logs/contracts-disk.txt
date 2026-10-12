@@ -1,0 +1,7 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-pool-dependency-check-1fe521865d4a4440/bin/python3 scripts/check_contracts.py
+   Compiling limeos-contracts v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/crates/contracts)
+   Compiling limeos-executor-protocol v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/crates/executor-protocol)
+   Compiling limeos-schema v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/bins/schema)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.44s
+     Running `/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target/debug/limeos-schema /home/marc/Documents/github/lime-os/.cache/tmp/limeos-contracts-ytpovwti`
+Generated schemas and TypeScript match Rust contracts.

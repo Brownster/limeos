@@ -2,7 +2,14 @@
 
 Base `1401c255d4a05b8621c2dcd497d6f7f0cbe91d56`; branch
 `engineer/pool-protection-dependencies`; worktree
-`/tmp/limeos-pool-protection-dependencies`. RW-040/RW-041 need pool and protection
+`/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies`.
+The worktree and build cache moved off tmpfs at the operator's request; staged
+changes and every copied file were verified before deleting the original copies.
+Future builds, logs and general temporary files use disk-backed `.cache/`
+directories. Existing kernel storage tests use a small auto-cleaned tmpfs scratch
+directory because their fixtures require matching stat/mount-table devices and
+directory link-count semantics; the workstation's Btrfs scratch did not qualify.
+RW-040/RW-041 need pool and protection
 consumer propagation before unmount planning. Backup recovery/durable preparation
 remain integrator-owned; the Pi qualification freeze remains independent.
 

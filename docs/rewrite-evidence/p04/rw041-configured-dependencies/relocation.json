@@ -1,0 +1,47 @@
+{
+  "moves": [
+    {
+      "source": "/tmp/limeos-pool-protection-dependencies",
+      "destination": "/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies",
+      "head": "12ac93f6af80ec92fa2db33da63be5434409c7c7",
+      "branch": "engineer/pool-protection-dependencies",
+      "status": "A  crates/domain/src/configured_dependencies.rs\nA  crates/domain/src/configured_dependencies/tests.rs\nM  crates/domain/src/lib.rs\nA  tests/fixtures/configured-dependencies/expected.json\n?? docs/p04-configured-storage-dependencies.md\n?? tests/fixtures/configured-dependencies/README.md\n",
+      "note": "already relocated; active worktree was file-hash and Git-state verified, other worktrees moved during concurrent workspace cleanup"
+    },
+    {
+      "source": "/tmp/limeos-arm64-schema9-qualification",
+      "destination": "/home/marc/Documents/github/lime-os-arm64-schema9-qualification",
+      "head": "5efc3691baeaf5db5c5e6a3aa115d0fe6b884387",
+      "branch": "engineer/arm64-schema9-qualification",
+      "status": "",
+      "note": "already relocated; active worktree was file-hash and Git-state verified, other worktrees moved during concurrent workspace cleanup"
+    },
+    {
+      "source": "/tmp/limeos-backup-before-images",
+      "destination": "/home/marc/Documents/github/lime-os-backup-before-images",
+      "head": "d06f98494288510c4c35f13f6538fce5cd5e2908",
+      "branch": "engineer/backup-before-images",
+      "status": "",
+      "note": "already relocated; active worktree was file-hash and Git-state verified, other worktrees moved during concurrent workspace cleanup"
+    },
+    {
+      "source": "/tmp/limeos-snapraid-source-evidence",
+      "destination": "/home/marc/Documents/github/lime-os-snapraid-source-evidence",
+      "head": "c95bcdd1f1cd16e3f158087a14a5e1733a804e09",
+      "branch": "engineer/snapraid-source-evidence",
+      "status": "",
+      "note": "already relocated; active worktree was file-hash and Git-state verified, other worktrees moved during concurrent workspace cleanup"
+    },
+    {
+      "source": "/tmp/limeos-pool-dependencies-target",
+      "destination": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+      "files_verified": 6303,
+      "bytes": 3060202218
+    },
+    {
+      "source": "/tmp/limeos-arm64-prep-uv-cache",
+      "note": "already removed or relocated during workspace cleanup; no deletion by this script"
+    }
+  ],
+  "main_status": ""
+}

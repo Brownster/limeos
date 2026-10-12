@@ -1,0 +1,16 @@
+[
+  {
+    "path": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "fd_mount_id": "2253",
+    "stat_device": "0:36",
+    "links": 1,
+    "mountinfo": "2253 2081 0:35 /home/marc/Documents/github/lime-os /home/marc/Documents/github/lime-os rw,nosuid,nodev,relatime master:195 - btrfs /dev/nvme0n1p3 rw,seclabel,compress=zstd:1,ssd,discard=async,space_cache=v2,subvolid=256,subvol=/home"
+  },
+  {
+    "path": "/tmp",
+    "fd_mount_id": "2246",
+    "stat_device": "0:46",
+    "links": 253,
+    "mountinfo": "2246 2080 0:46 / /tmp rw,nosuid,nodev master:170 - tmpfs tmpfs rw,seclabel,nr_inodes=1048576,inode64,usrquota"
+  }
+]
