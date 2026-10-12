@@ -22,6 +22,7 @@ pub use protection::*;
 pub mod backups;
 pub mod configured_dependencies;
 pub mod shares;
+pub mod storage_dependency_graph;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
