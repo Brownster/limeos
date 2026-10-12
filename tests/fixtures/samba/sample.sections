@@ -1,0 +1,8 @@
+# BEGIN LIMEOS SAMBA V1
+[media]
+   path = /mnt/media
+   read only = no
+   guest ok = yes
+   browseable = yes
+
+# END LIMEOS SAMBA V1

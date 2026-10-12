@@ -1,0 +1,11 @@
+{
+  "shares": [
+    {
+      "name": "media",
+      "path": "/mnt/media",
+      "read_only": false,
+      "guest_ok": true,
+      "valid_users": ""
+    }
+  ]
+}
