@@ -514,6 +514,59 @@ INSIDE = native_vm.parse_utc("2026-10-06T23:00:00Z")
 
 
 class AuthorizationTests(unittest.TestCase):
+    def test_explicit_isolated_host_window_bounds_deadlines_and_dispatch(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("native_vm.STATE", Path(directory)),
+            patch("native_vm.subprocess.run") as run,
+            patch("native_vm.utc_now", return_value=INSIDE),
+        ):
+            path = write_authorization(directory, host="holly@spare")
+            guest = Guest("isolated", "holly@spare", path, resolve=False)
+            self.assertIsNotNone(guest.authorization)
+            terminate, kill = native_vm.deadlines(guest, None)
+            self.assertEqual(terminate, native_vm.parse_utc("2026-10-07T05:55:00Z"))
+            self.assertEqual(kill, native_vm.parse_utc("2026-10-07T05:57:00Z"))
+            with patch(
+                "native_vm.utc_now",
+                return_value=native_vm.parse_utc("2026-10-07T05:59:55Z"),
+            ):
+                self.assertEqual(guest.dispatch_options({"timeout": 60})["timeout"], 4)
+            with (
+                patch(
+                    "native_vm.utc_now",
+                    return_value=native_vm.parse_utc("2026-10-07T06:00:00Z"),
+                ),
+                self.assertRaisesRegex(SystemExit, "expired"),
+            ):
+                guest.host_run("true")
+            run.assert_not_called()
+
+    def test_invalid_explicit_isolated_host_window_refuses_before_resolution(self):
+        cases = [
+            {"host": "holly@other"},
+            {"not_before": "2026-10-06T23:30:00Z"},
+            {
+                "not_before": "2026-10-06T10:00:00Z",
+                "not_after": "2026-10-06T22:00:00Z",
+            },
+            {"scope": None},
+        ]
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("native_vm.subprocess.run") as run,
+            patch("native_vm.socket.getaddrinfo") as resolve,
+            patch("native_vm.utc_now", return_value=INSIDE),
+        ):
+            for change in cases:
+                path = write_authorization(
+                    directory, **({"host": "holly@spare"} | change)
+                )
+                with self.subTest(change=change), self.assertRaises(ValueError):
+                    Guest("isolated", "holly@spare", path)
+            run.assert_not_called()
+            resolve.assert_not_called()
+
     def test_dispatch_timeouts_end_before_the_authorized_cutoff(self):
         with tempfile.TemporaryDirectory() as directory:
             now = native_vm.parse_utc("2026-10-07T05:59:55Z")

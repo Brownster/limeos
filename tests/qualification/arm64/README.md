@@ -45,7 +45,7 @@ the older bundles too.
 | `build_guest.py` | Native build guest | Verify inputs and Rust 1.88.0 native toolchain; locked tests, strict Clippy, contracts, dependency checks, release binaries, standard/shadow packages and signed repository |
 | `install_guest.py` | Fresh guest | Signed install, schema/identity, dormant units, ownership/capabilities, imported hashes, bounded workers, durable sessions, shadow refusals and footprint |
 | `approved_guest.py` | Fresh storage/container guests | Reuse current approved-operation suites with original assertions; actual apt replacement/removal on storage guest |
-| `upgrade_guest.py` | Fresh upgrade guest | Genuine recorded schema 6/7 artifact upgrade, sessions, pending approval, receipts, active locks/claims and replay |
+| `upgrade_guest.py` | Fresh upgrade guest | Genuine recorded schema 6/7/8 artifact upgrade, sessions, pending approval, receipts, active locks/claims and replay |
 | `extra_guest.py` | Storage guest after approved suite | Exact installed hashes, command timings and separate optional reader/target memory/capabilities |
 | `guest_supervisor.py` | KVM host, detached root-owned launcher | Start foreground QEMU, retain its child/pidfd, verify exact process identities and enforce shutdown/cleanup independently of workstation SSH |
 | `inspector_guest.py` | Fresh native build guest | Build the frozen archive inspector example natively and record its own `VmHWM` over synthetic archives (standalone RSS, not service PSS) |
@@ -73,8 +73,10 @@ address comparison). A production host is usable only with
 `host` (the exact `user@host` string passed to `--host`), `not_before` and
 `not_after` (UTC, `YYYY-MM-DDTHH:MM:SSZ`, at most 12 hours apart),
 `authorized_by`, `reference` and `scope`. Absent, malformed, mismatched,
-not-yet-valid or expired authorization is refused before dispatch. Every host
-and guest SSH/SCP entry point re-checks the window and limits its local client
+not-yet-valid or expired authorization is refused before dispatch. A supplied
+authorization applies to every host, including isolated hosts, and is checked
+before alias/address resolution. Every authorized host and guest SSH/SCP entry
+point re-checks the window and limits its local client
 timeout to the remaining interval minus one second, preserving a stricter
 caller timeout. The authorization's SHA-256 is stored in each guest's state.
 Stopping an SSH client does not terminate arbitrary work already dispatched

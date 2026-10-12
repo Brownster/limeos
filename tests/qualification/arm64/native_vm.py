@@ -139,12 +139,12 @@ class Guest:
         if not re.fullmatch(r"(?:[A-Za-z0-9_.-]+@)?[A-Za-z0-9][A-Za-z0-9_.-]*", host):
             raise ValueError("host must be an explicit SSH alias or user@hostname")
         self.authorization = None
-        if production_host(host, resolve=resolve):
-            if authorization is None:
-                raise ValueError(
-                    "production host requires a recorded --authorization window"
-                )
+        if authorization is not None:
             self.authorization = load_authorization(authorization, host)
+        elif production_host(host, resolve=resolve):
+            raise ValueError(
+                "production host requires a recorded --authorization window"
+            )
         self.name = name
         self.host = host
         self.local = STATE / name
@@ -177,7 +177,7 @@ class Guest:
         ]
 
     def authorize(self):
-        """Refuse any further SSH once a production window has closed."""
+        """Refuse any further SSH once the supplied host window has closed."""
         if self.authorization and utc_now() >= self.authorization["end"]:
             raise SystemExit("authorization window expired; no further host access")
 
@@ -635,7 +635,7 @@ def main():
     parser.add_argument(
         "--authorization",
         type=Path,
-        help="Recorded JSON window required for a production host",
+        help="Recorded JSON window enforced for any host; required for production",
     )
     sub = parser.add_subparsers(dest="command", required=True)
     b = sub.add_parser("boot")
