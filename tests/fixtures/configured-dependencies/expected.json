@@ -1,0 +1,26 @@
+{
+  "single_disk": {
+    "devices": ["storage"],
+    "pools": {},
+    "protection_requirements": 0,
+    "containers": {"a/direct": ["storage"]}
+  },
+  "separate_downloads": {
+    "devices": ["backup", "downloads", "storage"],
+    "pools": {},
+    "protection_requirements": 0,
+    "containers": {"a/direct": ["storage"], "b/direct": ["downloads"]}
+  },
+  "protected_pool": {
+    "devices": ["data-01", "data-02", "data-03", "data-04", "data-05", "data-06", "data-07", "data-08", "data-09", "data-10", "data-11", "data-12", "data-13", "data-14", "parity-01"],
+    "pools": {"pool1": ["data-01", "data-02", "data-03", "data-04", "data-05", "data-06", "data-07", "data-08", "data-09", "data-10", "data-11", "data-12", "data-13", "data-14"]},
+    "protection_requirements": 33,
+    "containers": {"a/pool:pool1": ["data-01", "data-02", "data-03", "data-04", "data-05", "data-06", "data-07", "data-08", "data-09", "data-10", "data-11", "data-12", "data-13", "data-14"]}
+  },
+  "ordered_multi_parity": {
+    "devices": ["d1", "d2", "p1", "p2"],
+    "pools": {"pool1": ["d1", "d2"]},
+    "protection_requirements": 12,
+    "containers": {"a/pool:pool1": ["d1", "d2"]}
+  }
+}
