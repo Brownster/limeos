@@ -853,6 +853,30 @@ fn private_reader_mutation_latches_and_revalidate_cancellation_refuses() {
 
 #[test]
 fn maximum_object_fixture_reports_actual_descriptor_and_record_cost() {
+    // /proc/self/fd counts the whole process, including parallel test owners.
+    // Keep exact retention and release assertions in an owned isolated process.
+    const FLAG: &str = "LIMEOS_BEFORE_IMAGE_FD_PROBE";
+    if std::env::var_os(FLAG).is_none() {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "before_images::tests::maximum_object_fixture_reports_actual_descriptor_and_record_cost",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(FLAG, "1")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        print!("{}", String::from_utf8_lossy(&output.stdout));
+        eprint!("{}", String::from_utf8_lossy(&output.stderr));
+        return;
+    }
     let f = Fixture::new(17);
     let mut names = Vec::new();
     let mut files = Vec::new();
@@ -896,6 +920,7 @@ fn maximum_object_fixture_reports_actual_descriptor_and_record_cost() {
         owner.record().len()
     );
     owner.discard().unwrap();
+    assert_eq!(descriptors(), before);
     f.assert_clean();
 }
 
