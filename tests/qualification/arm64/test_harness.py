@@ -15,12 +15,13 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import guest_supervisor
 import native_vm
 import qualification as q
 import record_run
+import upgrade_guest
 from native_vm import Guest
 from record_run import budget_table
 
@@ -278,6 +279,217 @@ class EvidenceTests(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn("usage:", result.stdout)
+
+
+class UpgradeArtifactTests(unittest.TestCase):
+    def previous(self, schema=8):
+        return {
+            "source_commit": "a" * 40,
+            "authority_schema": schema,
+            "architecture": "arm64",
+            "package_version": "0.4.7+arm64.1",
+            "package_sha256": "b" * 64,
+            "core_sha256": "c" * 64,
+        }
+
+    def test_original_schemas_6_7_8_preserve_their_identity(self):
+        for schema in (6, 7, 8):
+            original = self.previous(schema)
+            before = copy.deepcopy(original)
+            upgrade_guest.validate_previous(original, {"source_commit": "d" * 40})
+            self.assertEqual(original, before)
+
+    def test_changed_incomplete_and_relabeled_provenance_refuses(self):
+        mutations = [{"authority_schema": n} for n in (5, 9, True, "8")] + [
+            {"architecture": "amd64"},
+            {"source_commit": "d" * 40},
+            {"source_commit": "invalid"},
+            {"package_sha256": "b" * 63},
+            {"core_sha256": None},
+            {"package_version": "0.4.*"},
+        ]
+        with patch("upgrade_guest.subprocess.check_output") as command:
+            for invalid in (None, [], "schema 8", 8):
+                with self.subTest(value=invalid), self.assertRaises(TypeError):
+                    upgrade_guest.validate_previous(
+                        invalid, {"source_commit": "d" * 40}
+                    )
+            for change in mutations:
+                with self.subTest(change=change), self.assertRaises(ValueError):
+                    upgrade_guest.validate_previous(
+                        self.previous() | change, {"source_commit": "d" * 40}
+                    )
+            for field in self.previous():
+                original = self.previous()
+                del original[field]
+                with self.subTest(missing=field), self.assertRaises(ValueError):
+                    upgrade_guest.validate_previous(
+                        original, {"source_commit": "d" * 40}
+                    )
+            command.assert_not_called()
+
+    def test_package_bytes_precede_control_checks_and_ambiguous_symlinks_refuse(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            original = self.previous()
+            package = repo / f"limeos_{original['package_version']}_arm64.deb"
+            with patch("upgrade_guest.subprocess.check_output") as command:
+                with self.assertRaisesRegex(ValueError, "exactly one"):
+                    upgrade_guest.verify_previous_package(repo, original)
+                package.write_bytes(b"changed")
+                with self.assertRaisesRegex(ValueError, "SHA-256"):
+                    upgrade_guest.verify_previous_package(repo, original)
+                command.assert_not_called()
+                original["package_sha256"] = q.sha(package)
+                duplicate = repo / "duplicate"
+                duplicate.mkdir()
+                (duplicate / package.name).write_bytes(package.read_bytes())
+                with self.assertRaisesRegex(ValueError, "exactly one"):
+                    upgrade_guest.verify_previous_package(repo, original)
+                (duplicate / package.name).unlink()
+                real = repo / "actual"
+                package.rename(real)
+                package.symlink_to(real)
+                with self.assertRaisesRegex(ValueError, "regular file"):
+                    upgrade_guest.verify_previous_package(repo, original)
+                command.assert_not_called()
+
+    def test_matching_control_and_bytes_are_required_for_original_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            original = self.previous()
+            package = repo / f"limeos_{original['package_version']}_arm64.deb"
+            package.write_bytes(b"fixture bytes")
+            original["package_sha256"] = q.sha(package)
+            expected = f"Package: limeos\nVersion: {original['package_version']}\nArchitecture: arm64\n"
+            with patch(
+                "upgrade_guest.subprocess.check_output", return_value=expected
+            ) as command:
+                self.assertEqual(
+                    upgrade_guest.verify_previous_package(repo, original), package
+                )
+                self.assertEqual(
+                    command.call_args.args[0],
+                    [
+                        "dpkg-deb",
+                        "-f",
+                        str(package),
+                        "Package",
+                        "Version",
+                        "Architecture",
+                    ],
+                )
+            for control in [
+                expected.replace("arm64", "amd64"),
+                expected.replace(original["package_version"], "0.4.8+arm64.1"),
+                "",
+            ]:
+                with (
+                    patch(
+                        "upgrade_guest.subprocess.check_output", return_value=control
+                    ),
+                    self.assertRaisesRegex(ValueError, "control identity"),
+                ):
+                    upgrade_guest.verify_previous_package(repo, original)
+
+    def test_schema8_wrapper_dispatches_exact_preservation_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build = build_fixture()
+            build["identity"].update(source_commit="d" * 40, authority_schema=9)
+            build["fixtures_sha256"] = {"tests/fixture.py": "e" * 64}
+            expected = root / "build.json"
+            expected.write_text(json.dumps(build))
+            original = self.previous()
+            provenance = root / "previous.json"
+            provenance.write_text(json.dumps(original))
+            output = root / "result.json"
+            repo = root / "repo"
+            repo.mkdir()
+            operation = Mock(return_value={"preserved": ["fixture result"]})
+            locks = SimpleNamespace(upgrade=operation, VERSION=None)
+            argv = [
+                "upgrade_guest.py",
+                "--repo",
+                str(repo),
+                "--expected",
+                str(expected),
+                "--previous-repo",
+                "/opt/limeos-previous-repo",
+                "--previous-provenance",
+                str(provenance),
+                "--output",
+                str(output),
+            ]
+            with (
+                patch.object(sys, "argv", argv),
+                patch.object(sys, "path", list(sys.path)),
+                patch("upgrade_guest.guest_guard"),
+                patch("upgrade_guest.load_build", return_value=build),
+                patch("upgrade_guest.verify_files"),
+                patch(
+                    "upgrade_guest.verify_previous_package",
+                    return_value=root / "original.deb",
+                ) as verify,
+                patch(
+                    "upgrade_guest.installed_binaries",
+                    return_value={n: b["sha256"] for n, b in build["binaries"].items()},
+                ),
+                patch.dict(sys.modules, {"p04_locks_guest": locks}),
+            ):
+                upgrade_guest.main()
+            verify.assert_called_once_with(Path("/opt/limeos-previous-repo"), original)
+            operation.assert_called_once_with(
+                repo,
+                previous_version=original["package_version"],
+                previous_schema=8,
+                authority_schema=9,
+                previous_package_sha256=original["package_sha256"],
+                previous_core_sha256=original["core_sha256"],
+            )
+            result = json.loads(output.read_text())
+            self.assertEqual(result["previous"], original)
+            self.assertEqual(result["previous_provenance_sha256"], q.sha(provenance))
+            self.assertEqual(result["summary"], "pass")
+
+    def test_invalid_schema8_provenance_never_dispatches_or_publishes_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build = build_fixture()
+            build["identity"].update(source_commit="d" * 40, authority_schema=9)
+            build["fixtures_sha256"] = {"fixture": "e" * 64}
+            expected = root / "build.json"
+            expected.write_text(json.dumps(build))
+            provenance = root / "previous.json"
+            provenance.write_text(
+                json.dumps(self.previous() | {"core_sha256": "wrong"})
+            )
+            output = root / "result.json"
+            argv = [
+                "upgrade_guest.py",
+                "--repo",
+                str(root),
+                "--expected",
+                str(expected),
+                "--previous-repo",
+                "/opt/limeos-previous-repo",
+                "--previous-provenance",
+                str(provenance),
+                "--output",
+                str(output),
+            ]
+            with (
+                patch.object(sys, "argv", argv),
+                patch("upgrade_guest.guest_guard"),
+                patch("upgrade_guest.load_build", return_value=build),
+                patch("upgrade_guest.verify_files"),
+                patch("upgrade_guest.verify_previous_package") as verify,
+                self.assertRaises(SystemExit) as refused,
+            ):
+                upgrade_guest.main()
+            self.assertEqual(refused.exception.code, 2)
+            verify.assert_not_called()
+            self.assertFalse(output.exists())
 
 
 def write_authorization(directory, **overrides):
