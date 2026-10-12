@@ -1,0 +1,205 @@
+{
+  "assembled_utc": "2026-10-11T22:36:43.463568+00:00",
+  "base": "1401c255d4a05b8621c2dcd497d6f7f0cbe91d56",
+  "branch": "engineer/backup-before-images",
+  "cached_advisories": {
+    "commit_time": "2026-10-03T10:14:03+02:00",
+    "count": 1290,
+    "fetched": false,
+    "git_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee"
+  },
+  "commands": {
+    "audit": "cargo audit --no-fetch",
+    "clippy": "cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+    "contracts": "python3 scripts/check_contracts.py",
+    "deny": "cargo deny --offline check",
+    "environment": {
+      "CARGO_BUILD_JOBS": "2",
+      "CARGO_INCREMENTAL": "0",
+      "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/target/backup-before-images",
+      "CCACHE_DIR": "/tmp/limeos-before-images-ccache"
+    },
+    "fmt": "cargo fmt --all --check",
+    "focused_final": "cargo test -p limeos-backup-archive --lib before_images::tests --locked --offline -- --nocapture --test-threads=1",
+    "repository": "python3 scripts/check_repository.py",
+    "workspace": "cargo test --workspace --locked --offline -- --test-threads=1"
+  },
+  "dependency_packages": 227,
+  "effort": {
+    "active_agent_hours": null,
+    "estimated_human_hours": 24,
+    "measured_human_hours": null,
+    "phase_estimate_hours": 320,
+    "phase_review_hours": 480,
+    "review_human_hours": 36
+  },
+  "external_packages": 211,
+  "external_versions_and_edges_unchanged": true,
+  "local_packages": 16,
+  "lockfile_unchanged": true,
+  "logs": {
+    "audit.txt.gz": {
+      "gzip_sha256": "7c7c21997df1426228b326860914dc898fb7c3ec64bfc836b49c1a863eb83143",
+      "raw_bytes": 144,
+      "raw_sha256": "5ab8a6f15ea0c9a169c08077d4e8ffa23218a435690b7d7c3df000b5ef4e11c9"
+    },
+    "cargo-version.txt.gz": {
+      "gzip_sha256": "46cfde9c7e99a96b2a67fc5e948760695b3093bcde0c8dc58e440b17a8cfd7b6",
+      "raw_bytes": 36,
+      "raw_sha256": "6c2df3721232c841c6af639c7b1c37c3032fcbf711e4f2914435f97ab5f4dff1"
+    },
+    "clippy-first.txt.gz": {
+      "gzip_sha256": "084d289a3ce8476f0544334d8f4b97605ed44dc9f79c4ddd71700b60a201ee5b",
+      "raw_bytes": 5245,
+      "raw_sha256": "1e7bda95befd88871b93cf2d8de3c13038b9db9f3c5c61b8a730752cf9c24c1d"
+    },
+    "clippy-second.txt.gz": {
+      "gzip_sha256": "f0b46118bcd23d122338e0f65827657683bda091b0548ceaf8b37553484c5d91",
+      "raw_bytes": 2503,
+      "raw_sha256": "336312df668cbdb1d7ccbfc136f17a7bfa2732e45678d7591b1b33d218ec6126"
+    },
+    "compiler.txt.gz": {
+      "gzip_sha256": "fabb3f6e995202e07ec256b73ebc1c8b1dfdb8d5f6189a480cdf55fa063798d4",
+      "raw_bytes": 196,
+      "raw_sha256": "2775ffb86baebfb4c9959501cdd336fe315dd8e1229ffaede4f428f33862f10d"
+    },
+    "contracts.txt.gz": {
+      "gzip_sha256": "c0a6cf284978647b0332fb2cb178014f9c2b0f17f470a79f69c73f4d64f702ad",
+      "raw_bytes": 647,
+      "raw_sha256": "4d893bae68e67c86b61dd8806a68d0b14b0c5dcd925114a5dbb23096b67dbcec"
+    },
+    "deny.txt.gz": {
+      "gzip_sha256": "09c6685755442cd98e546b3fbcc093b361839d928c982b4f146cde795257da88",
+      "raw_bytes": 17926,
+      "raw_sha256": "1a49a6f0e224441533c23903067845af1601dd897c4714e5a6409df8a3a7067a"
+    },
+    "diff-check.txt.gz": {
+      "gzip_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_bytes": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "fmt.txt.gz": {
+      "gzip_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_bytes": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "focused-final.txt.gz": {
+      "gzip_sha256": "5b4f0a8997e27e7337c2b7c50eb30e87e08550b6fe9a7bbc0e54368001fb0ba9",
+      "raw_bytes": 2560,
+      "raw_sha256": "5b2b03b700b967e8205f2a297ed24b03328684be74980e07adb2ec4cc474a9fa"
+    },
+    "focused-first.txt.gz": {
+      "gzip_sha256": "560ed09b0373e9bd95d30c05c52d8a3532952283520b98c4049a9bdcf3677002",
+      "raw_bytes": 2771,
+      "raw_sha256": "254191629cf33adea968aa1b7034bf00c57918885bf735d58bf8352d14c5476b"
+    },
+    "focused-second.txt.gz": {
+      "gzip_sha256": "97593b3ad81b645422b4fba083a3bc58190474a9d2bfbeea6b2514cb1d0879d4",
+      "raw_bytes": 8137,
+      "raw_sha256": "50bd0a5fedc4e140b99227245224cd93587a590e148f2c4533dcf436847e6697"
+    },
+    "focused-third.txt.gz": {
+      "gzip_sha256": "7869b3b2712c957d3093dfbabb271150fee3a8a262c7d7db8ebce6269f827e97",
+      "raw_bytes": 2560,
+      "raw_sha256": "3f71722bb8e52d591761108123ba8b84209e53fbbe1438328690aca859af69e2"
+    },
+    "frozen-source-check.txt.gz": {
+      "gzip_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_bytes": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "initial-check.txt.gz": {
+      "gzip_sha256": "c63adbcafdd64b0f3ba5116b021693ee3237e490c6c934ae9dc67cb41ad6ebc9",
+      "raw_bytes": 37301,
+      "raw_sha256": "0039e789f195c9b90a81d073cf6c0a8bece591c9293a27db0c4826db7fb39ec2"
+    },
+    "integration-first.txt.gz": {
+      "gzip_sha256": "28a69778666d6fe61c5df88a84b692a613bfab2da5c9ae5bf4af461a9d6e5953",
+      "raw_bytes": 599,
+      "raw_sha256": "e1ba5ebe0dc4586b848751082e77a59057ff5244201f231986146f13459ca3ea"
+    },
+    "repository.txt.gz": {
+      "gzip_sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+      "raw_bytes": 49,
+      "raw_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df"
+    },
+    "unchanged-integration-boundaries.txt.gz": {
+      "gzip_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_bytes": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "workspace.txt.gz": {
+      "gzip_sha256": "336a91fbaf1e0519ffeb3d09e06c417cbb680fb96a62d488fd79abb8d35f169d",
+      "raw_bytes": 55824,
+      "raw_sha256": "8ed1f94edbaed08c3370548cd1eea387e59a8c9054513113f58a8f6a2751600f"
+    }
+  },
+  "new_cases": {
+    "compile_fail": 2,
+    "runtime_unit_integration": 20,
+    "subprocess_helpers_included": 1
+  },
+  "owned_paths": [
+    "crates/backup-archive/src/before_images.rs",
+    "crates/backup-archive/src/before_images/",
+    "crates/backup-archive/tests/before_images.rs",
+    "crates/backup-archive/src/lib.rs",
+    "docs/plans/2026-10-11-backup-before-images-design.md",
+    "docs/p04-backup-before-images.md",
+    "docs/rewrite-evidence/p04/rw043-before-images/"
+  ],
+  "passed_checks": [
+    "workspace",
+    "focused-final",
+    "strict-clippy",
+    "fmt",
+    "repository",
+    "contracts",
+    "cached-deny",
+    "cached-audit",
+    "diff",
+    "frozen-source",
+    "unchanged-boundaries"
+  ],
+  "platform": {
+    "architecture": "x86_64",
+    "kernel": "7.0.14-101.fc43.x86_64"
+  },
+  "qualified_runtime_source": "c6ac7fbcb632222b685a548a3be245d2d066b29c",
+  "remaining": [
+    "BKP-001",
+    "P04 effects",
+    "trusted production inventory/metadata/limits",
+    "shared physical claims and writer exclusion",
+    "service/online-DB snapshots",
+    "durable before-image publication and receipts",
+    "installed worker ceilings/deadlines",
+    "live replacement and uncertainty reconciliation",
+    "power-loss recovery",
+    "native ARM64 before-image qualification",
+    "cutover"
+  ],
+  "resource_fixture": {
+    "added_retained_fds": 258,
+    "logical_bytes": 2048,
+    "objects": 256,
+    "record_bytes": 151326
+  },
+  "review": "implementer source review; no independent GO or native/installed qualification claimed",
+  "runtime_patch_raw_sha256": "92b8a27025f2565f356902bc1a0c053433c6e6796c303d839e30f9756904ff20",
+  "rust": {
+    "compile_fail": 6,
+    "failed": 0,
+    "ignored": 0,
+    "runtime_unit_integration": 460,
+    "total": 466
+  },
+  "sigkill_checkpoints": [
+    "AttemptCreated",
+    "Sealed",
+    "AttemptSynced",
+    "RootSynced"
+  ],
+  "source_manifest_sha256": "9b81e6ddf482b88e729e18f576ae7acdbc5e5ca7b0a02f0ed17e5d2e47de52f1",
+  "worktree": "/tmp/limeos-backup-before-images"
+}
