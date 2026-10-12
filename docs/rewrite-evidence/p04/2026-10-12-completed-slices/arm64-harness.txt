@@ -1,0 +1,25 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-integrated-check-e13aa66d387d640c/bin/python3 -m unittest discover -s tests/qualification/arm64 -p test_harness.py
+...........usage: python3 -m unittest [-h] --run RUN [--artifact ARTIFACT]
+                           [--install-result INSTALL_RESULT]
+                           [--extra-result EXTRA_RESULT]
+                           --build-result BUILD_RESULT
+                           --source-manifest SOURCE_MANIFEST
+                           [--suite-result SUITE_RESULT]
+python3 -m unittest: error: invalid or duplicate artifact: /home/marc/Documents/github/lime-os/.cache/tmp/tmpn_oobv5c=build
+usage: python3 -m unittest [-h] --run RUN [--artifact ARTIFACT]
+                           [--install-result INSTALL_RESULT]
+                           [--extra-result EXTRA_RESULT]
+                           --build-result BUILD_RESULT
+                           --source-manifest SOURCE_MANIFEST
+                           [--suite-result SUITE_RESULT]
+python3 -m unittest: error: run exists; historical evidence is immutable
+.........................usage: python3 -m unittest [-h] --repo REPO --expected EXPECTED
+                           --previous-repo PREVIOUS_REPO
+                           --previous-provenance PREVIOUS_PROVENANCE
+                           --output OUTPUT
+python3 -m unittest: error: valid previous core_sha256 required
+.....
+----------------------------------------------------------------------
+Ran 41 tests in 13.857s
+
+OK

@@ -1,0 +1,8 @@
+$ /home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target/debug/deps/limeos_backup_archive-f73ff2fe07529e78 --exact before_images::tests::maximum_object_fixture_reports_actual_descriptor_and_record_cost --nocapture --test-threads=1
+
+running 1 test
+test before_images::tests::maximum_object_fixture_reports_actual_descriptor_and_record_cost ... before-image fixture: objects=256, logical_bytes=2048, added_retained_fds=258, record_bytes=152862
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 60 filtered out; finished in 1.06s
+

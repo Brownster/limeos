@@ -1,0 +1,7 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-integrated-check-e13aa66d387d640c/bin/python3 scripts/check_contracts.py
+   Compiling limeos-contracts v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/crates/contracts)
+   Compiling limeos-executor-protocol v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/crates/executor-protocol)
+   Compiling limeos-schema v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/bins/schema)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.03s
+     Running `/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target/debug/limeos-schema /home/marc/Documents/github/lime-os/.cache/tmp/limeos-contracts-mxqq137n`
+Generated schemas and TypeScript match Rust contracts.

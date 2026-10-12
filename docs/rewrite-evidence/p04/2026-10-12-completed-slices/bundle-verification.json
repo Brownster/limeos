@@ -1,0 +1,47 @@
+{
+  "identity": {
+    "architecture": "arm64",
+    "authority_schema": 9,
+    "fixtures_commit": "016ba49a27b228576db5d4ca28dcd122c60a6278",
+    "package_version": "0.4.8+arm64.2",
+    "qualification_kind": "native-kvm",
+    "source_commit": "016ba49a27b228576db5d4ca28dcd122c60a6278"
+  },
+  "bundle_sha256": "fc746b8e564c015ce7bf6757ad60d833b5fd6cb88ff028c376bef3109c9414a3",
+  "manifest_sha256": "bee6bf0742de9b7e55fd3b9bcaeb82ac62c5cac33250360e53b88cade18cfd4c",
+  "bundle_bytes": 6731419,
+  "runtime_source_files": 1793,
+  "fixture_files": 39,
+  "frontend_dist_files": 3,
+  "frontend_steps": [
+    {
+      "command": [
+        "npm",
+        "ci",
+        "--ignore-scripts"
+      ],
+      "exit": 0,
+      "log": "0.txt"
+    },
+    {
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exit": 0,
+      "log": "1.txt"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "log": "2.txt"
+    }
+  ],
+  "previous_package_sha256": "6c86199b253e155c94d96e1395c069c4188e11a2379f14eff97eacab0203b898",
+  "host_accessed": false,
+  "native_build_or_install_qualified": false
+}

@@ -1,0 +1,10 @@
+{
+  "source": "9edb7c78d1e6af70a31f8c00494faa9231baf7ea",
+  "test": "before_images::tests::maximum_object_fixture_reports_actual_descriptor_and_record_cost",
+  "isolated_delta": 258,
+  "parallel_two_thread_delta": 255,
+  "parallel_eight_thread_delta": 468,
+  "reason": "/proc/self/fd includes descriptor owners from all test threads",
+  "fix_commit": "016ba49a27b228576db5d4ca28dcd122c60a6278",
+  "production_code_changed_by_fix": false
+}

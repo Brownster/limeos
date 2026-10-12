@@ -1,0 +1,18 @@
+$ cargo clippy --workspace --all-targets --locked --offline -- -D warnings
+    Checking limeos-domain v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/crates/domain)
+    Checking limeos-contracts v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/crates/contracts)
+    Checking limeos-identity v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/crates/identity)
+    Checking limeos-executor-protocol v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/crates/executor-protocol)
+    Checking limeos-backup-archive v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/crates/backup-archive)
+    Checking limeos-policy v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/crates/policy)
+    Checking limeos-observations v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/crates/observations)
+    Checking limeos-persistence v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/crates/persistence)
+    Checking limeos-api v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/crates/api)
+    Checking limeos-executor-container v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/crates/executor-container)
+    Checking limeos-executor-storage v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/crates/executor-storage)
+    Checking limeos-footprint v0.0.1 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/spikes/footprint)
+    Checking limeos-executor v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/bins/executor)
+    Checking limeos-core v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/bins/core)
+    Checking limeosctl v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/bins/ctl)
+    Checking limeos-schema v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/completed-slices/bins/schema)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 37.08s

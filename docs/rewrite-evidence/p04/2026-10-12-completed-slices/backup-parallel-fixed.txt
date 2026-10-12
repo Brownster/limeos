@@ -1,0 +1,91 @@
+$ /home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target/debug/deps/limeos_backup_archive-f73ff2fe07529e78 --nocapture --test-threads=8
+
+running 61 tests
+test before_images::tests::crash_child ... ok
+test before_images::tests::changed_or_symlink_name_and_private_root_overlap_refuse ... ok
+test before_images::tests::primary_errno_and_cleanup_errno_survive_without_drop_retry ... ok
+test before_images::tests::private_reader_mutation_latches_and_revalidate_cancellation_refuses ... ok
+test before_images::tests::protected_root_and_retained_rename ... ok
+test before_images::tests::selection_and_limits_refuse_before_owned_creation ... ok
+test before_images::tests::late_source_mutation_append_and_truncation_refuse ... ok
+
+running 1 test
+test before_images::tests::cancellation_at_each_lifecycle_point_cleans_owned_objects ... ok
+test before_images::tests::foreign_and_replaced_private_objects_are_preserved ... ok
+test before_images::tests::unverified_created_attempt_or_object_is_retained ... ok
+test before_images::tests::writable_opath_special_hardlinked_and_extended_metadata_refuse ... ok
+test before_images::tests::short_interrupted_and_failed_reads_and_precreation_allocation_refusal ... ok
+test before_images::tests::interrupted_and_short_writes_produce_complete_independent_copy ... ok
+before-image SIGKILL AttemptCreated: child reaped; orphan inode retained; fresh owner discarded
+test before_images::tests::late_source_metadata_name_and_directory_changes_refuse ... ok
+test custody::tests::crash_child ... ok
+
+running 1 test
+before-image SIGKILL Sealed: child reaped; orphan inode retained; fresh owner discarded
+
+running 1 test
+test before_images::tests::write_zero_enospc_corruption_and_every_sync_barrier_refuse ... ok
+before-image SIGKILL AttemptSynced: child reaped; orphan inode retained; fresh owner discarded
+
+running 1 test
+before-image SIGKILL RootSynced: child reaped; orphan inode retained; fresh owner discarded
+test custody::tests::canonical_record_escaping_is_counted_before_allocation_at_the_exact_cap ... ok
+test before_images::tests::sigkill_leaves_inert_orphan_and_fresh_capture_never_adopts_it ... ok
+test before_images::tests::exact_bytes_metadata_offsets_and_independent_owner ... ok
+test custody::tests::identity_encoding_is_versioned_order_sensitive_and_bounded ... ok
+test custody::tests::changing_source_is_refused_after_reading_only_the_sentinel ... ok
+test custody::tests::known_pending_directory_is_guarded_before_owned_file_allocation ... ok
+test custody::tests::pending_cleanup_reports_replaced_and_foreign_objects_and_keeps_them ... ok
+test custody::tests::recovery_counts_canonical_amplification_before_allocation_and_preserves_exact_bytes ... ok
+test custody::tests::cancellation_rolls_back_only_before_publication ... ok
+test custody::tests::every_durability_barrier_failure_is_typed_and_publication_is_never_rolled_back ... ok
+test preparation::tests::allocation_refusal_precedes_any_directory_effect ... ok
+test custody::tests::fifo_record_and_archive_replacements_refuse_without_waiting_for_a_writer ... ok
+test preparation::tests::crash_child ... ok
+test custody::tests::early_cleanup_refuses_to_unlink_names_without_verified_identity ... ok
+test preparation::tests::foreign_children_of_required_directories_are_retained ... ok
+test custody::tests::short_and_interrupted_reads_and_writes_preserve_the_exact_copy ... ok
+test preparation::tests::independent_copy_verification_handles_short_and_interrupted_reads ... ok
+test preparation::tests::each_object_attempt_and_root_fsync_failure_refuses ... ok
+test preparation::tests::interrupted_and_short_writes_complete_exact_bytes ... ok
+test preparation::tests::mutation_after_copy_refuses_even_after_root_fsync ... ok
+test preparation::tests::prepared_readers_refuse_mutation_and_latch_failure ... ok
+test custody::tests::zero_failed_and_full_writes_are_typed_and_cleaned ... ok
+test preparation::tests::primary_and_cleanup_fsync_failures_survive_together ... ok
+test preparation::tests::cancellation_at_every_lifecycle_point_returns_no_owner ... ok
+test preparation::tests::primary_and_cleanup_listing_io_errors_remain_distinct ... ok
+test preparation::tests::record_limit_after_private_copies_cleans_all_owned_objects ... ok
+test custody::tests::rename_failures_and_generated_name_collisions_never_replace_foreign_entries ... ok
+SIGKILL at created: child reaped; inert private orphan retained; live bytes unchanged
+test preparation::tests::replaced_files_and_symlinks_preserve_foreign_objects ... ok
+test staging::tests::allocation_and_total_file_byte_quotas_fail_before_creating_files ... ok
+test staging::tests::cleanup_refuses_a_replaced_attempt_name_and_keeps_foreign_directory ... ok
+test staging::tests::existing_attempt_and_file_symlink_attacks_never_overwrite_or_delete_foreign_files ... ok
+test preparation::tests::unknown_entries_and_replaced_attempts_are_never_deleted ... ok
+test staging::tests::independent_size_and_hash_verification_refuse_a_lying_or_corrupt_writer ... ok
+test staging::tests::input_io_failure_is_not_misclassified_as_archive_syntax ... ok
+test staging::tests::partial_write_and_each_durability_failure_are_typed_and_cleaned ... ok
+test tests::exactly_the_limit_is_accepted_and_cancellation_interrupts ... ok
+test tests::reads_stop_one_byte_past_the_limit_of_an_endless_source ... ok
+test tests::stop_reasons_survive_wrapping_by_decoders_and_parsers ... ok
+test staging::tests::short_interrupted_zero_writes_and_cancellation_before_completion ... ok
+test preparation::tests::zero_enospc_and_corrupt_writes_return_no_owner ... ok
+SIGKILL at sealed: child reaped; inert private orphan retained; live bytes unchanged
+test preparation::tests::unverified_created_directory_and_files_are_retained ... ok
+SIGKILL at attempt: child reaped; inert private orphan retained; live bytes unchanged
+SIGKILL at root: child reaped; inert private orphan retained; live bytes unchanged
+test preparation::tests::sigkill_leaves_inert_orphans_without_adoption_or_live_changes ... ok
+
+running 1 test
+test before_images::tests::maximum_object_fixture_reports_actual_descriptor_and_record_cost ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 60 filtered out; finished in 1.76s
+
+before-image fixture: objects=256, logical_bytes=2048, added_retained_fds=258, record_bytes=152862
+test before_images::tests::maximum_object_fixture_reports_actual_descriptor_and_record_cost ... ok
+test custody::tests::sigkill_at_every_custody_point_leaves_untrusted_or_freshly_validated_state ... ok
+256 objects, 2040 logical payload bytes, retained descriptor delta 258, record bytes 144214
+test preparation::tests::maximum_objects_have_bounded_retained_descriptors ... ok
+
+test result: ok. 61 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.15s
+

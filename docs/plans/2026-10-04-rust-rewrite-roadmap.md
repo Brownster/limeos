@@ -1,6 +1,7 @@
 # LimeOS Rust rewrite: delivery roadmap
 
 Status: P01 foundation implementation delivered 2026-10-04; local acceptance passes. Remaining P00 assumptions, native ARM64/remote CI and hardware/soak qualification stay open.
+Latest completed-slice integration: [October 12 acceptance](../rewrite-evidence/p04/2026-10-12-completed-slices/README.md), including before-images, retained SnapRAID sources, configured pool/protection dependencies, Samba planning and the current ARM64 harness. P04 and live storage/restore gates remain open. The [integrated Pi candidate](2026-10-12-arm64-integrated-qualification-runbook.md) has local inputs ready for a new operator-agreed test window.
 Current build baseline: [Brownster/pi-health@80593b2](https://github.com/Brownster/pi-health/tree/80593b2). The reference host runs `618ce92`.
 
 This is the entry point for the rewrite. Read the [target architecture](2026-10-04-rust-rewrite-architecture.md) for processes, permissions, storage, jobs, and packaging; the [assistant/model-routing design](2026-10-04-assistant-model-routing.md) for subscription support, native APIs, cost controls, and assistant workflows; and the [defect register](2026-10-04-rust-rewrite-defect-register.md) for every known defect in the current build and the rule that keeps it out of the new one.

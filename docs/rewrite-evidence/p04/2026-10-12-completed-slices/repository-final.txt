@@ -1,0 +1,2 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-integrated-check-e13aa66d387d640c/bin/python3 scripts/check_repository.py
+Repository dependency and hygiene checks passed.
