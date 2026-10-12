@@ -1,0 +1,23 @@
+{
+  "bundle_bytes": 6255527,
+  "bundle_path": ".cache/arm64-qual/schema9-2026-10-12/source.tar.gz",
+  "bundle_sha256": "91f28d97c5f5786f0e9687a3c5a35af8d673a554523d28cb485a56f109d7b5eb",
+  "fixture_files_verified": 39,
+  "frontend_files_verified": 3,
+  "identity": {
+    "architecture": "arm64",
+    "authority_schema": 9,
+    "fixtures_commit": "7ce2d98d8b7496cca0a1c1b6ca5349699ca0fa01",
+    "package_version": "0.4.8+arm64.1",
+    "qualification_kind": "native-kvm",
+    "source_commit": "1401c255d4a05b8621c2dcd497d6f7f0cbe91d56"
+  },
+  "installed_packages": "not run",
+  "native_build": "not run",
+  "pi_host": "awaiting exact target and current window",
+  "qualification_kind": "local source/frontend/fixture bundle verification only",
+  "shared_upgrade_fixture_sha256": "016ff3c25119f79b4eba3c95651ca63d56aa7f96c69a90bd57523fcc739d6893",
+  "source_files_verified": 1647,
+  "source_manifest_sha256": "1a625039b0be6eaaa7dcd484961ca198ca3854e4dc31eacea37e2329d761698c",
+  "summary": "pass"
+}

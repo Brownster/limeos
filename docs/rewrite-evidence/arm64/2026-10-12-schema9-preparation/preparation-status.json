@@ -1,0 +1,41 @@
+{
+  "status": "local preparation passed; native qualification pending",
+  "source_commit": "1401c255d4a05b8621c2dcd497d6f7f0cbe91d56",
+  "fixtures_commit": "8b7ff58c5cd9cd0279e3ea73bd5904a41d15cad7",
+  "package_version": "0.4.8+arm64.1",
+  "authority_schema": 9,
+  "architecture": "arm64",
+  "bundle_sha256": "a24da0ce098cfaf74e91dced22a9640d4f0a1ac5de87b7144e70e23daca8b1a2",
+  "host_accesses": 0,
+  "pi_target": "awaiting exact SSH target",
+  "window": "awaiting current start/end times; historical authorization expired",
+  "local_checks": {
+    "harness_tests": 41,
+    "harness_result": "pass",
+    "ruff_lint": "pass",
+    "ruff_format": "pass",
+    "repository_hygiene": "pass",
+    "frontend_test_files": 2,
+    "frontend_typecheck_build": "pass",
+    "bundle_bytes_source_schema_fixtures": "pass",
+    "original_schema8_package_and_payload_bytes": "pass"
+  },
+  "native_checks": {
+    "current_supervisor_deadline_proof": "not run",
+    "locked_build_and_elf_packages": "not run",
+    "fresh_standard_shadow_install": "not run",
+    "footprint": "not run",
+    "genuine_schema8_to_schema9_upgrade": "not run",
+    "storage_crash_recovery": "not run",
+    "container_crash_recovery": "not run",
+    "teardown": "not run"
+  },
+  "open_gates": [
+    "native qualification of this frozen identity",
+    "bare-metal and matched Python performance",
+    "inventory p95 20ms budget; prior 61.401ms result remains failed",
+    "backup recovery integration and qualification",
+    "P04",
+    "production cutover"
+  ]
+}

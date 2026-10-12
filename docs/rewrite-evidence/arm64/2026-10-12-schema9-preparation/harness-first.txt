@@ -1,0 +1,17 @@
+.........usage: record_run.py [-h] --run RUN [--artifact ARTIFACT]
+                     [--install-result INSTALL_RESULT]
+                     [--extra-result EXTRA_RESULT] --build-result BUILD_RESULT
+                     --source-manifest SOURCE_MANIFEST
+                     [--suite-result SUITE_RESULT]
+record_run.py: error: invalid or duplicate artifact: /tmp/tmp1hw_wgeu=build
+usage: record_run.py [-h] --run RUN [--artifact ARTIFACT]
+                     [--install-result INSTALL_RESULT]
+                     [--extra-result EXTRA_RESULT] --build-result BUILD_RESULT
+                     --source-manifest SOURCE_MANIFEST
+                     [--suite-result SUITE_RESULT]
+record_run.py: error: run exists; historical evidence is immutable
+............................
+----------------------------------------------------------------------
+Ran 37 tests in 10.689s
+
+OK

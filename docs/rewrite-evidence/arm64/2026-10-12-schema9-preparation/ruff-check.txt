@@ -1,0 +1,12 @@
+TRY004 Prefer `TypeError` exception for invalid type
+  --> tests/qualification/arm64/upgrade_guest.py:27:9
+   |
+25 |     """Refuse incomplete, relabeled or unsupported provenance before guest writes."""
+26 |     if not isinstance(previous, dict):
+27 |         raise ValueError("previous provenance must be an object")
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+28 |     for field, pattern in (
+29 |         ("source_commit", r"[0-9a-f]{40}"),
+   |
+
+Found 1 error.

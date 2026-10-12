@@ -1,0 +1,83 @@
+{
+  "copied_package": ".cache/arm64-qual/schema9-2026-10-12/upgrade-inputs/schema8/limeos_0.4.7+arm64.1_arm64.deb",
+  "historical_evidence_files_verified": 24,
+  "original_build_sha256": "8b6fe1dd64e3e4fedc454cc5a3ddbc630d5218bf5de187d285f56e774f31c50a",
+  "packages": {
+    "limeos-shadow_0.4.7+arm64.1_arm64.deb": {
+      "binaries": {
+        "limeos-core": {
+          "bytes": 4935440,
+          "elf_class": 64,
+          "elf_machine": 183,
+          "machine": "AArch64",
+          "sha256": "aab46a601a95924c8900a93749cd8cf5cc735cc2328783196732c363f258cde0"
+        },
+        "limeos-executor": {
+          "bytes": 3952320,
+          "elf_class": 64,
+          "elf_machine": 183,
+          "machine": "AArch64",
+          "sha256": "171bfb1e34101c00738955ddaa5c99823e4e42b033f34c8e44045b7e507940b2"
+        },
+        "limeos-password-worker": {
+          "bytes": 529032,
+          "elf_class": 64,
+          "elf_machine": 183,
+          "machine": "AArch64",
+          "sha256": "17610bb6d2fb4964ecacbcac1adc3e1ee3733bcdb8b87899ad38fadcf337f243"
+        },
+        "limeosctl": {
+          "bytes": 856792,
+          "elf_class": 64,
+          "elf_machine": 183,
+          "machine": "AArch64",
+          "sha256": "a0ebf9524d8c329693a0eadd1211bba5884cf2baf3f86569c1f26578752f6cc1"
+        }
+      },
+      "bytes": 2359380,
+      "control": "Package: limeos-shadow\nVersion: 0.4.7+arm64.1\nArchitecture: arm64\n",
+      "sha256": "20e10c7e19e902c7976b7ce37b26539d2d9a27bb4d2e5f63377ddb3f2e85fe55"
+    },
+    "limeos_0.4.7+arm64.1_arm64.deb": {
+      "binaries": {
+        "limeos-core": {
+          "bytes": 4935440,
+          "elf_class": 64,
+          "elf_machine": 183,
+          "machine": "AArch64",
+          "sha256": "aab46a601a95924c8900a93749cd8cf5cc735cc2328783196732c363f258cde0"
+        },
+        "limeos-executor": {
+          "bytes": 3952320,
+          "elf_class": 64,
+          "elf_machine": 183,
+          "machine": "AArch64",
+          "sha256": "171bfb1e34101c00738955ddaa5c99823e4e42b033f34c8e44045b7e507940b2"
+        },
+        "limeos-password-worker": {
+          "bytes": 529032,
+          "elf_class": 64,
+          "elf_machine": 183,
+          "machine": "AArch64",
+          "sha256": "17610bb6d2fb4964ecacbcac1adc3e1ee3733bcdb8b87899ad38fadcf337f243"
+        },
+        "limeosctl": {
+          "bytes": 856792,
+          "elf_class": 64,
+          "elf_machine": 183,
+          "machine": "AArch64",
+          "sha256": "a0ebf9524d8c329693a0eadd1211bba5884cf2baf3f86569c1f26578752f6cc1"
+        }
+      },
+      "bytes": 2358992,
+      "control": "Package: limeos\nVersion: 0.4.7+arm64.1\nArchitecture: arm64\n",
+      "sha256": "6c86199b253e155c94d96e1395c069c4188e11a2379f14eff97eacab0203b898"
+    }
+  },
+  "previous_provenance_sha256": "3ab929b261ae20094428a41d44534004b501116af6813e6ee0a590a1fa9c3f51",
+  "source_commit": "8acac403e32d3692b028a036a11f4fead2050580",
+  "source_files_verified": 557,
+  "summary": "pass",
+  "verification_kind": "local retained artifact bytes; no installation or execution",
+  "verified_at": "2026-10-12T12:51:30.326675+00:00"
+}

@@ -1,9 +1,13 @@
-#!/usr/bin/env python3
-"""Qualify a genuine schema-6/7 ARM64 upgrade using the existing authority fixtures.
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
+"""Qualify a genuine schema-6/7/8 ARM64 upgrade with the existing authority fixtures.
 
 The previous repository must contain the recorded original artifact. Provenance
 binds its SHA-256 and original source; changing the package version is no proof.
-No schema-7 claim is emitted for a schema-6 artifact.
+Each result records the actual historical schema; labels confer no provenance.
 """
 
 import argparse
@@ -15,6 +19,57 @@ import time
 from pathlib import Path
 
 from qualification import guest_guard, installed_binaries, load_build, sha, verify_files
+
+
+def validate_previous(previous: dict, current: dict) -> None:
+    """Refuse incomplete, relabeled or unsupported provenance before guest writes."""
+    if not isinstance(previous, dict):
+        raise TypeError("previous provenance must be an object")
+    for field, pattern in (
+        ("source_commit", r"[0-9a-f]{40}"),
+        ("package_sha256", r"[0-9a-f]{64}"),
+        ("core_sha256", r"[0-9a-f]{64}"),
+        ("package_version", r"[0-9][A-Za-z0-9.+~-]*"),
+    ):
+        value = previous.get(field)
+        if not isinstance(value, str) or not re.fullmatch(pattern, value):
+            raise ValueError(f"valid previous {field} required")
+    if previous["source_commit"] == current["source_commit"]:
+        raise ValueError("previous artifact must come from a different original source")
+    if (
+        type(previous.get("authority_schema")) is not int
+        or previous["authority_schema"] not in (6, 7, 8)
+        or previous.get("architecture") != "arm64"
+    ):
+        raise ValueError("genuine schema 6, 7 or 8 ARM64 provenance required")
+
+
+def verify_previous_package(repository: Path, previous: dict) -> Path:
+    """Select one contained original artifact and verify actual bytes/controls."""
+    candidates = list(
+        repository.rglob(f"limeos_{previous['package_version']}_arm64.deb")
+    )
+    if len(candidates) != 1:
+        raise ValueError("exactly one previous ARM64 standard package required")
+    package = candidates[0]
+    if (
+        package.is_symlink()
+        or not package.is_file()
+        or not package.resolve().is_relative_to(repository.resolve())
+    ):
+        raise ValueError("previous package must be a contained regular file")
+    if sha(package) != previous["package_sha256"]:
+        raise ValueError("previous package differs from original recorded SHA-256")
+    control = subprocess.check_output(
+        ["dpkg-deb", "-f", str(package), "Package", "Version", "Architecture"],
+        text=True,
+    )
+    if (
+        control
+        != f"Package: limeos\nVersion: {previous['package_version']}\nArchitecture: arm64\n"
+    ):
+        raise ValueError("previous package control identity differs from provenance")
+    return package
 
 
 def main():
@@ -34,31 +89,11 @@ def main():
     fixtures = Path(__file__).resolve().parents[3]
     verify_files(fixtures, build["fixtures_sha256"])
     previous = json.loads(args.previous_provenance.read_text())
-    if not re.fullmatch(r"[0-9a-f]{40}", previous["source_commit"]):
-        parser.error("previous original source commit required")
-    if previous["source_commit"] == build["identity"]["source_commit"]:
-        parser.error("previous artifact must come from a different original source")
-    if (
-        previous["authority_schema"] not in (6, 7)
-        or previous["architecture"] != "arm64"
-    ):
-        parser.error(
-            "authority preservation fixture supports genuine schema 6 or 7 ARM64 artifacts"
-        )
-    package = next(
-        args.previous_repo.rglob(f"limeos_{previous['package_version']}_arm64.deb")
-    )
-    if sha(package) != previous["package_sha256"]:
-        parser.error("previous package differs from original recorded SHA-256")
-    control = subprocess.check_output(
-        ["dpkg-deb", "-f", str(package), "Package", "Version", "Architecture"],
-        text=True,
-    )
-    if (
-        control
-        != f"Package: limeos\nVersion: {previous['package_version']}\nArchitecture: arm64\n"
-    ):
-        parser.error("previous package control identity differs from provenance")
+    try:
+        validate_previous(previous, build["identity"])
+        verify_previous_package(args.previous_repo, previous)
+    except (TypeError, ValueError, OSError, subprocess.CalledProcessError) as error:
+        parser.error(str(error))
     if args.previous_repo.resolve() != Path("/opt/limeos-previous-repo"):
         parser.error(
             "shared upgrade fixture requires --previous-repo /opt/limeos-previous-repo"

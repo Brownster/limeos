@@ -1,0 +1,73 @@
+FFFFFF
+======================================================================
+FAIL: test_explicit_isolated_host_window_bounds_deadlines_and_dispatch (__main__.AuthorizationTests.test_explicit_isolated_host_window_bounds_deadlines_and_dispatch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/limeos-arm64-schema9-qualification/tests/qualification/arm64/test_harness.py", line 526, in test_explicit_isolated_host_window_bounds_deadlines_and_dispatch
+    self.assertIsNotNone(guest.authorization)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None
+
+======================================================================
+FAIL: test_invalid_explicit_isolated_host_window_refuses_before_resolution (__main__.AuthorizationTests.test_invalid_explicit_isolated_host_window_refuses_before_resolution) (change={'host': 'holly@other'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/limeos-arm64-schema9-qualification/tests/qualification/arm64/test_harness.py", line 563, in test_invalid_explicit_isolated_host_window_refuses_before_resolution
+    with self.subTest(change=change), self.assertRaises(ValueError):
+                                      ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_invalid_explicit_isolated_host_window_refuses_before_resolution (__main__.AuthorizationTests.test_invalid_explicit_isolated_host_window_refuses_before_resolution) (change={'not_before': '2026-10-06T23:30:00Z'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/limeos-arm64-schema9-qualification/tests/qualification/arm64/test_harness.py", line 563, in test_invalid_explicit_isolated_host_window_refuses_before_resolution
+    with self.subTest(change=change), self.assertRaises(ValueError):
+                                      ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_invalid_explicit_isolated_host_window_refuses_before_resolution (__main__.AuthorizationTests.test_invalid_explicit_isolated_host_window_refuses_before_resolution) (change={'not_before': '2026-10-06T10:00:00Z', 'not_after': '2026-10-06T22:00:00Z'})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/limeos-arm64-schema9-qualification/tests/qualification/arm64/test_harness.py", line 563, in test_invalid_explicit_isolated_host_window_refuses_before_resolution
+    with self.subTest(change=change), self.assertRaises(ValueError):
+                                      ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_invalid_explicit_isolated_host_window_refuses_before_resolution (__main__.AuthorizationTests.test_invalid_explicit_isolated_host_window_refuses_before_resolution) (change={'scope': None})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/limeos-arm64-schema9-qualification/tests/qualification/arm64/test_harness.py", line 563, in test_invalid_explicit_isolated_host_window_refuses_before_resolution
+    with self.subTest(change=change), self.assertRaises(ValueError):
+                                      ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_invalid_explicit_isolated_host_window_refuses_before_resolution (__main__.AuthorizationTests.test_invalid_explicit_isolated_host_window_refuses_before_resolution)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/limeos-arm64-schema9-qualification/tests/qualification/arm64/test_harness.py", line 565, in test_invalid_explicit_isolated_host_window_refuses_before_resolution
+    run.assert_not_called()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib64/python3.14/unittest/mock.py", line 947, in assert_not_called
+    raise AssertionError(msg)
+AssertionError: Expected 'run' to not have been called. Called 4 times.
+Calls: [call(['ssh', '-G', 'holly@spare'], capture_output=True, text=True, timeout=10, check=False),
+ call().stdout.splitlines(),
+ call().stdout.splitlines().__iter__(),
+ call(['ssh', '-G', 'holly@spare'], capture_output=True, text=True, timeout=10, check=False),
+ call().stdout.splitlines(),
+ call().stdout.splitlines().__iter__(),
+ call(['ssh', '-G', 'holly@spare'], capture_output=True, text=True, timeout=10, check=False),
+ call().stdout.splitlines(),
+ call().stdout.splitlines().__iter__(),
+ call(['ssh', '-G', 'holly@spare'], capture_output=True, text=True, timeout=10, check=False),
+ call().stdout.splitlines(),
+ call().stdout.splitlines().__iter__()].
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.032s
+
+FAILED (failures=6)

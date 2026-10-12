@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/tmp/limeos-arm64-schema9-qualification/docs/rewrite-evidence/arm64/2026-10-12-schema9-preparation/verify_schema8_artifact.py", line 150, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/limeos-arm64-schema9-qualification/docs/rewrite-evidence/arm64/2026-10-12-schema9-preparation/verify_schema8_artifact.py", line 86, in main
+    assert len(members) == 1 and members[0].isfile(), binary
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: limeos-core

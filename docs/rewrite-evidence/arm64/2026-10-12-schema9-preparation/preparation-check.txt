@@ -1,0 +1,4 @@
+PASS: local documentation links and all packet JSON parse
+PASS: all 39 bundled fixture hashes match committed revision
+PASS: committed changes remain in owned ARM64 harness/design scope
+PASS: primary main worktree remains clean
