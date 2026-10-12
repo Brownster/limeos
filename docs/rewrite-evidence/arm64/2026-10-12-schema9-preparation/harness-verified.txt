@@ -1,0 +1,22 @@
+.........usage: record_run.py [-h] --run RUN [--artifact ARTIFACT]
+                     [--install-result INSTALL_RESULT]
+                     [--extra-result EXTRA_RESULT] --build-result BUILD_RESULT
+                     --source-manifest SOURCE_MANIFEST
+                     [--suite-result SUITE_RESULT]
+record_run.py: error: invalid or duplicate artifact: /tmp/tmpby96uoub=build
+usage: record_run.py [-h] --run RUN [--artifact ARTIFACT]
+                     [--install-result INSTALL_RESULT]
+                     [--extra-result EXTRA_RESULT] --build-result BUILD_RESULT
+                     --source-manifest SOURCE_MANIFEST
+                     [--suite-result SUITE_RESULT]
+record_run.py: error: run exists; historical evidence is immutable
+.........................usage: upgrade_guest.py [-h] --repo REPO --expected EXPECTED
+                        --previous-repo PREVIOUS_REPO
+                        --previous-provenance PREVIOUS_PROVENANCE
+                        --output OUTPUT
+upgrade_guest.py: error: valid previous core_sha256 required
+.....
+----------------------------------------------------------------------
+Ran 39 tests in 10.651s
+
+OK

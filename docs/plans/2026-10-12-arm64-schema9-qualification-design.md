@@ -40,6 +40,13 @@ Python lint/format, then make a source/fixture/frontend-bound bundle with schema
 ELF, package, signed test repository and installed results remain separate
 identities. Local mocked upgrade tests do not establish an installed upgrade.
 
+Local preparation also reproduced a host-window defect: explicit authorization
+was ignored outside the production host list. Apply any supplied record before
+host resolution, including on isolated targets. Preserve the default production
+refusal and the existing per-dispatch timeout and supervised deadline rules.
+Require regression proof for exact-target binding, invalid/expired windows,
+deadline calculation and refusal of dispatch after cutoff.
+
 ## Tonight's priority
 
 1. Read-only host capacity/architecture/KVM/image preflight within the recorded
