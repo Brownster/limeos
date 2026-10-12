@@ -1,0 +1,2 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-storage-graph-check-3aafc8e1488b53ad/bin/python3 scripts/check_repository.py
+Repository dependency and hygiene checks passed.
