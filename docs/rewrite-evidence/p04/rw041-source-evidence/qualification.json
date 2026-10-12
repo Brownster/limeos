@@ -1,0 +1,211 @@
+{
+  "assembled_utc": "2026-10-12T08:31:57.923603+00:00",
+  "base": "1401c255d4a05b8621c2dcd497d6f7f0cbe91d56",
+  "branch": "engineer/snapraid-source-evidence",
+  "cached_advisories": {
+    "commit_time": "2026-10-03T10:14:03+02:00",
+    "count": 1290,
+    "fetched": false,
+    "git_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee"
+  },
+  "commands": {
+    "audit": "cargo audit --no-fetch",
+    "clippy": "cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+    "contracts": "python3 scripts/check_contracts.py",
+    "deny": "cargo deny --offline check",
+    "environment": {
+      "CARGO_BUILD_JOBS": "2",
+      "CARGO_INCREMENTAL": "0",
+      "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/target/snapraid-source-evidence",
+      "CCACHE_DIR": "/tmp/limeos-snapraid-evidence-ccache"
+    },
+    "fmt": "cargo fmt --all --check",
+    "focused": "cargo test -p limeos-executor-storage --lib protection_sources::tests --locked --offline -- --nocapture --test-threads=1",
+    "repository": "python3 scripts/check_repository.py",
+    "workspace": "cargo test --workspace --locked --offline -- --test-threads=1"
+  },
+  "effort": {
+    "active_agent_hours": null,
+    "actual_human_hours": null,
+    "estimated_human_hours": 16,
+    "phase_estimate": 320,
+    "phase_review": 480,
+    "review_human_hours": 24
+  },
+  "fixture_scope": "Real scratch descriptors and mutations; synthetic mount/device/UUID facts, no public inventory owner fabrication or successful installed root collection",
+  "fixtures": [
+    {
+      "additional_retained_fds": 35,
+      "distinct_paths": 19,
+      "name": "protected_pool",
+      "ordered_rows": 33
+    },
+    {
+      "additional_retained_fds": 15,
+      "distinct_paths": 10,
+      "name": "ordered_multi_parity",
+      "ordered_rows": 12
+    }
+  ],
+  "historical_inventory_budget": {
+    "ceiling_ms": 20,
+    "p95_ms": 61.401,
+    "status": "failed; unchanged"
+  },
+  "logs": {
+    "audit.txt.gz": {
+      "gzip_sha256": "7c7c21997df1426228b326860914dc898fb7c3ec64bfc836b49c1a863eb83143",
+      "raw_bytes": 144,
+      "raw_sha256": "5ab8a6f15ea0c9a169c08077d4e8ffa23218a435690b7d7c3df000b5ef4e11c9"
+    },
+    "cargo-version.txt.gz": {
+      "gzip_sha256": "46cfde9c7e99a96b2a67fc5e948760695b3093bcde0c8dc58e440b17a8cfd7b6",
+      "raw_bytes": 36,
+      "raw_sha256": "6c2df3721232c841c6af639c7b1c37c3032fcbf711e4f2914435f97ab5f4dff1"
+    },
+    "clippy-final.txt.gz": {
+      "gzip_sha256": "f7ed38dd6b16ca596ae1ae224813be8642233d70633db421aee435bb90b159de",
+      "raw_bytes": 322,
+      "raw_sha256": "299f601ce40bd1a1a15e102ff22ea9af0a99a3ed77eae1cf0a8567366875b494"
+    },
+    "clippy-first.txt.gz": {
+      "gzip_sha256": "1b21b6f8ba7fb8f0eed80f7a4ab9ae6045e142bb91956d36cd23310015bb9eaf",
+      "raw_bytes": 5149,
+      "raw_sha256": "ad872c7b5a806c83b8d19f3d0ac65443a2ea76d4b58ccf73d5d8c459c1a76e7c"
+    },
+    "compiler.txt.gz": {
+      "gzip_sha256": "fabb3f6e995202e07ec256b73ebc1c8b1dfdb8d5f6189a480cdf55fa063798d4",
+      "raw_bytes": 196,
+      "raw_sha256": "2775ffb86baebfb4c9959501cdd336fe315dd8e1229ffaede4f428f33862f10d"
+    },
+    "contracts.txt.gz": {
+      "gzip_sha256": "2d7ff9e75ef6c8c7ef04ac0424ac8cca57a49b111d28e0798d85042c0a837c0b",
+      "raw_bytes": 548,
+      "raw_sha256": "6ea8525a6a14984c7d0f69aecf3e534ab396afbfa390fcd03ef9cfd8d778b9fd"
+    },
+    "deny.txt.gz": {
+      "gzip_sha256": "b9de51a6ef9672b4e861bc77094eba0079dc15f8bc79100fcbc22ff0b7827b7f",
+      "raw_bytes": 17938,
+      "raw_sha256": "8a5f7ee8eb49598ead1d7453d73dcecb6771308db8832db730b348e2e7ac4d1f"
+    },
+    "diff-check.txt.gz": {
+      "gzip_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_bytes": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "fmt.txt.gz": {
+      "gzip_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_bytes": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "focused-final.txt.gz": {
+      "gzip_sha256": "2af5384c9083bbe896fdbd867a2bee1597e9d0afd1c68262a6323dcd6d73180d",
+      "raw_bytes": 2098,
+      "raw_sha256": "6a4378a55ddac4dd365492bb5aec3dbdce2a139ccdc9b876079968e8da249c66"
+    },
+    "focused-first.txt.gz": {
+      "gzip_sha256": "5febe6805e33176bb625c5ab06743f4d4cbb6808ad31270c6fa98022b9392d5a",
+      "raw_bytes": 4270,
+      "raw_sha256": "08986261208a3bbd5f45f6d8624d949975b44997ce9bffa05b4181a14b5307cd"
+    },
+    "focused-second.txt.gz": {
+      "gzip_sha256": "a50cd1a4eef81ca4c28a4608556f159dd3b070a2d3fc1b3b110d35435272d661",
+      "raw_bytes": 1810,
+      "raw_sha256": "2c49b6b78293afc33ae8d9dc57c466c7d32939b326fcec58c3c0e99b19e80047"
+    },
+    "focused-third.txt.gz": {
+      "gzip_sha256": "8a336bfebd9eeae7ca47122d3f3241e15dde10192bb0936877beafd98f0bce3c",
+      "raw_bytes": 2098,
+      "raw_sha256": "18cf7650c922da84982c17dc0fa6bd14b65f758d5dfbccabd2ea8ad2968ef4f8"
+    },
+    "frozen-source.txt.gz": {
+      "gzip_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_bytes": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "initial-check.txt.gz": {
+      "gzip_sha256": "6a594dc2d960f846c9264f293ead588bf19860a93f4fe6b81561e7cefbe6dc7e",
+      "raw_bytes": 4170,
+      "raw_sha256": "ce6ea79f272c211e7dfb36a5342c0224ec5813f0b1960679126c704df11f6410"
+    },
+    "repository.txt.gz": {
+      "gzip_sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+      "raw_bytes": 49,
+      "raw_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df"
+    },
+    "unchanged-boundaries.txt.gz": {
+      "gzip_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "raw_bytes": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "workspace.txt.gz": {
+      "gzip_sha256": "e20617c547a1e307428d9f650960a02303e93516b3fda56d76d4ab49ec0e7a21",
+      "raw_bytes": 54966,
+      "raw_sha256": "67d0c2acef024e356d51eb4d7f3ded9ed376641096e925f40206fb286d8804b1"
+    }
+  },
+  "new_cases": {
+    "behavioral_unit": 15,
+    "compile_fail": 2,
+    "helpers_counted": 0
+  },
+  "open_gates": [
+    "SRA-001",
+    "SRA-002",
+    "DSK-001",
+    "P04 effects",
+    "protected production configuration source",
+    "actual root/confinement collection",
+    "pool/share propagation",
+    "independent worker deadlines/admission",
+    "whole-worker FD/memory headroom",
+    "fixed SnapRAID status/diff execution",
+    "physical shared claims",
+    "sync/scrub effects and recovery",
+    "native ARM64 qualification",
+    "cutover"
+  ],
+  "owned_paths": [
+    "crates/executor-storage/src/lib.rs",
+    "crates/executor-storage/src/protection_sources.rs",
+    "crates/executor-storage/src/protection_sources/",
+    "docs/plans/2026-10-12-snapraid-source-evidence-design.md",
+    "docs/p04-snapraid-source-evidence.md",
+    "docs/rewrite-evidence/p04/rw041-source-evidence/"
+  ],
+  "packages": {
+    "external": 211,
+    "local": 16,
+    "lockfile_and_edges_unchanged": true,
+    "total": 227
+  },
+  "passed_checks": [
+    "workspace",
+    "focused-final",
+    "strict-clippy-final",
+    "fmt",
+    "repository",
+    "contracts",
+    "cached-deny",
+    "cached-audit",
+    "diff",
+    "frozen-source",
+    "unchanged-boundaries"
+  ],
+  "platform": {
+    "architecture": "x86_64",
+    "kernel": "7.0.14-101.fc43.x86_64"
+  },
+  "qualified_runtime_source": "e0acec985895febd8d6173b450d0a465f30caafb",
+  "review": "Implementer source review; no independent GO, exact-source CI, installed root or native ARM64 qualification claimed",
+  "runtime_patch_raw_sha256": "9dfb4a91ddc073cc77c8bcf04193d8fff2a426e597560c7dbe06b977b8e8b8b7",
+  "rust": {
+    "compile_fail": 6,
+    "failed": 0,
+    "ignored": 0,
+    "runtime_unit_integration": 455,
+    "total": 461
+  },
+  "source_manifest_sha256": "194fd52516309001f8392f594caa5ea3ae569a8304beb7243394581fc3a368a3",
+  "worktree": "/tmp/limeos-snapraid-source-evidence"
+}
