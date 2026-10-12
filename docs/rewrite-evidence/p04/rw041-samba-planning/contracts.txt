@@ -1,0 +1,7 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-samba-check-57cf1c81a88689af/bin/python3 scripts/check_contracts.py
+   Compiling limeos-contracts v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/samba-planning/crates/contracts)
+   Compiling limeos-executor-protocol v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/samba-planning/crates/executor-protocol)
+   Compiling limeos-schema v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/samba-planning/bins/schema)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.83s
+     Running `/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target/debug/limeos-schema /home/marc/Documents/github/lime-os/.cache/tmp/limeos-contracts-ey4etf4r`
+Generated schemas and TypeScript match Rust contracts.
