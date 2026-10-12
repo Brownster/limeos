@@ -5,6 +5,7 @@ mod inventory;
 mod mounts;
 mod path;
 pub mod processes;
+pub mod protection_sources;
 mod sources;
 mod swaps;
 mod targets;
