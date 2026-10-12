@@ -1,0 +1,130 @@
+$ cargo clippy --workspace --all-targets --locked --offline -- -D warnings
+    Checking limeos-domain v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/crates/domain)
+    Checking crypto-common v0.1.7
+    Checking bitflags v2.13.2
+    Checking getrandom v0.2.17
+    Checking block-buffer v0.10.4
+    Checking smallvec v1.16.2
+    Checking digest v0.10.7
+    Checking linux-raw-sys v0.12.1
+    Checking cpufeatures v0.2.17
+    Checking rustix v1.1.5
+   Compiling ring v0.17.14
+    Checking futures-core v0.3.34
+    Checking sha2 v0.10.9
+    Checking untrusted v0.9.0
+    Checking hex v0.4.3
+    Checking http v1.5.0
+    Checking http-body v1.1.0
+    Checking percent-encoding v2.3.2
+   Compiling libsqlite3-sys v0.38.2
+    Checking tracing-core v0.1.36
+    Checking futures-task v0.3.34
+    Checking tower-service v0.3.3
+    Checking foldhash v0.2.0
+    Checking slab v0.4.12
+    Checking futures-util v0.3.34
+    Checking hashbrown v0.17.1
+    Checking getrandom v0.3.4
+    Checking try-lock v0.2.5
+    Checking fastrand v2.5.0
+    Checking tempfile v3.23.0
+    Checking want v0.3.1
+    Checking hashlink v0.12.2
+    Checking httparse v1.10.1
+    Checking futures-channel v0.3.34
+    Checking inout v0.1.4
+    Checking fallible-iterator v0.3.0
+    Checking httpdate v1.0.3
+    Checking atomic-waker v1.1.2
+    Checking fallible-streaming-iterator v0.1.9
+    Checking rusqlite v0.40.2
+    Checking hyper v1.11.1
+    Checking tracing v0.1.41
+    Checking cipher v0.4.4
+    Checking hmac v0.12.1
+    Checking ipnet v2.12.2
+    Checking base64 v0.23.1
+    Checking base64ct v1.8.3
+    Checking rand_core v0.6.4
+    Checking password-hash v0.5.0
+    Checking hyper-util v0.1.21
+    Checking pbkdf2 v0.12.2
+    Checking salsa20 v0.10.2
+    Checking http-body-util v0.1.3
+    Checking blake2 v0.10.6
+    Checking argon2 v0.5.3
+    Checking scrypt v0.11.0
+    Checking limeos-contracts v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/crates/contracts)
+    Checking zerofrom v0.1.8
+    Checking limeos-identity v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/crates/identity)
+   Compiling zstd-sys v2.1.0+zstd.1.5.7
+    Checking fs2 v0.4.3
+    Checking stable_deref_trait v1.2.1
+    Checking yoke v0.8.3
+    Checking limeos-executor-protocol v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/crates/executor-protocol)
+    Checking form_urlencoded v1.2.2
+    Checking sync_wrapper v1.0.2
+    Checking tower-layer v0.3.3
+   Compiling zstd-safe v8.0.0
+    Checking zerovec v0.11.8
+    Checking adler2 v2.0.1
+    Checking simd-adler32 v0.3.10
+    Checking miniz_oxide v0.9.1
+    Checking crc32fast v1.5.2
+    Checking tower v0.5.3
+    Checking filetime v0.2.29
+    Checking tar v0.4.46
+    Checking flate2 v1.1.10
+    Checking zstd v0.14.0
+    Checking serde_urlencoded v0.7.1
+    Checking mime v0.3.17
+    Checking axum-core v0.5.6
+    Checking tinystr v0.8.4
+    Checking serde_path_to_error v0.1.20
+    Checking lazy_static v1.5.1
+    Checking writeable v0.6.4
+    Checking matchit v0.8.4
+    Checking litemap v0.8.3
+    Checking icu_locale_core v2.3.0
+    Checking axum v0.8.9
+    Checking sharded-slab v0.1.7
+    Checking limeos-backup-archive v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/crates/backup-archive)
+    Checking zerotrie v0.2.5
+    Checking potential_utf v0.1.6
+    Checking tracing-serde v0.2.0
+    Checking limeos-policy v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/crates/policy)
+    Checking thread_local v1.1.10
+    Checking utf8_iter v1.0.4
+    Checking icu_collections v2.3.0
+    Checking tracing-subscriber v0.3.20
+    Checking icu_provider v2.3.1
+    Checking limeos-observations v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/crates/observations)
+    Checking zeroize v1.9.0
+    Checking rustls-pki-types v1.15.1
+    Checking icu_normalizer_data v2.3.0
+    Checking icu_properties_data v2.3.0
+    Checking limeos-persistence v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/crates/persistence)
+    Checking icu_properties v2.3.0
+    Checking icu_normalizer v2.3.0
+   Compiling rustls v0.23.45
+    Checking idna_adapter v1.2.2
+    Checking rustls-webpki v0.103.15
+    Checking limeos-api v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/crates/api)
+    Checking idna v1.1.0
+    Checking url v2.5.8
+    Checking tokio-rustls v0.26.6
+    Checking webpki-roots v1.0.9
+    Checking hyper-rustls v0.27.10
+    Checking tower-http v0.6.11
+    Checking limeos-executor-container v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/crates/executor-container)
+    Checking limeos-executor-storage v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/crates/executor-storage)
+    Checking base64 v0.22.1
+    Checking log v0.4.34
+    Checking reqwest v0.12.28
+    Checking limeos-footprint v0.0.1 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/spikes/footprint)
+    Checking limeos-executor v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/bins/executor)
+    Checking limeos-core v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/bins/core)
+    Checking limeosctl v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/bins/ctl)
+    Checking limeos-schema v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/pool-protection-dependencies/bins/schema)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2m 39s

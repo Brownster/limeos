@@ -20,6 +20,7 @@ pub use pools::*;
 mod protection;
 pub use protection::*;
 pub mod backups;
+pub mod configured_dependencies;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

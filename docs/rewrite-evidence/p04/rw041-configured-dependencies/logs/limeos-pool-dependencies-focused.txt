@@ -1,0 +1,24 @@
+   Compiling limeos-domain v0.2.0 (/tmp/limeos-pool-protection-dependencies/crates/domain)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.00s
+     Running unittests src/lib.rs (/tmp/limeos-pool-dependencies-target/debug/deps/limeos_domain-83e43d35238ff601)
+
+running 16 tests
+test configured_dependencies::tests::disabled_recursive_pools_and_protection_pool_paths_still_refuse ... ok
+test configured_dependencies::tests::disabled_configuration_stopped_containers_and_read_only_mounts_remain_visible ... ok
+test configured_dependencies::tests::generated_source_data_content_and_ordered_parity_paths_are_preserved ... ok
+test configured_dependencies::tests::inputs_remain_unchanged_and_numeric_media_ownership_is_preserved ... ok
+test configured_dependencies::tests::ancestor_sources_keep_both_direct_and_pool_routes ... ok
+test configured_dependencies::tests::invalid_contract_pool_or_protection_refuses_the_entire_preview ... ok
+test configured_dependencies::tests::direct_branch_paths_do_not_invent_consumption_of_other_pool_members ... ok
+test configured_dependencies::tests::named_volume_identity_and_each_destination_survive_projection ... ok
+test configured_dependencies::tests::reordered_records_are_deterministic_without_renewing_original_age ... ok
+test configured_dependencies::tests::stale_future_invalid_and_ambiguous_docker_declarations_refuse ... ok
+test configured_dependencies::tests::same_device_branches_preserve_order_without_duplicate_pool_routes ... ok
+test configured_dependencies::tests::expansion_accepts_511_and_512_but_never_returns_a_clipped_result ... ok
+test configured_dependencies::tests::pool_paths_expand_to_every_data_member_and_never_parity ... ok
+test configured_dependencies::tests::component_boundaries_and_case_are_literal ... ok
+test configured_dependencies::tests::pool_amplification_counts_every_route_across_the_whole_request ... ok
+test configured_dependencies::tests::four_frozen_layouts_match_independent_golden_relations ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 59 filtered out; finished in 0.02s
+

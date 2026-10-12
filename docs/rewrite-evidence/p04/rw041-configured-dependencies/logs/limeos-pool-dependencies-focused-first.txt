@@ -1,0 +1,37 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.26
+   Compiling serde_core v1.0.228
+   Compiling syn v2.0.119
+   Compiling syn v3.0.6
+   Compiling thiserror v2.0.21
+   Compiling serde_json v1.0.145
+   Compiling serde v1.0.228
+   Compiling ref-cast v1.0.27
+   Compiling serde_derive v1.0.228
+   Compiling ref-cast-impl v1.0.27
+   Compiling thiserror-impl v2.0.21
+   Compiling serde_derive_internals v0.29.1
+   Compiling memchr v2.8.3
+   Compiling termcolor v1.4.1
+   Compiling itoa v1.0.18
+   Compiling ryu v1.0.23
+   Compiling ts-rs-macros v11.0.1
+   Compiling schemars_derive v1.0.4
+   Compiling dyn-clone v1.0.20
+   Compiling ts-rs v11.0.1
+   Compiling schemars v1.0.4
+   Compiling limeos-domain v0.2.0 (/tmp/limeos-pool-protection-dependencies/crates/domain)
+error[E0502]: cannot borrow `bad.containers` as immutable because it is also borrowed as mutable
+   --> crates/domain/src/configured_dependencies/tests.rs:386:23
+    |
+384 |             2 => bad.containers[0]
+    |                  -------------- mutable borrow occurs here
+385 |                 .mounts
+386 |                 .push(bad.containers[0].mounts[0].clone()),
+    |                  ---- ^^^^^^^^^^^^^^ immutable borrow occurs here
+    |                  |
+    |                  mutable borrow later used by call
+
+For more information about this error, try `rustc --explain E0502`.
+error: could not compile `limeos-domain` (lib test) due to 1 previous error

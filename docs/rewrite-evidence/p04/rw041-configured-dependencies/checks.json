@@ -1,0 +1,33 @@
+{
+  "base_commit": "1401c255d4a05b8621c2dcd497d6f7f0cbe91d56",
+  "build_cache": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+  "build_jobs": 1,
+  "clippy": "pass",
+  "compile_fail": 6,
+  "contracts": "pass",
+  "coverage": {
+    "storage-fixtures": {
+      "command": "$ cargo test -p limeos-executor-storage --locked --offline --no-fail-fast",
+      "failed": 0,
+      "ignored": 0,
+      "passed": 84
+    },
+    "test-disk-rest": {
+      "command": "$ cargo test --workspace --exclude limeos-executor-storage --locked --offline --no-fail-fast",
+      "failed": 0,
+      "ignored": 0,
+      "passed": 376
+    }
+  },
+  "fmt": "pass",
+  "general_scratch": "/home/marc/Documents/github/lime-os/.cache/tmp",
+  "incremental": false,
+  "native_or_installed": "not run",
+  "new_tests": 16,
+  "repository": "pass",
+  "rust_test_threads": 2,
+  "source_commit": "356f52849a0f48d1fdd5d1b0c31e57a08d8924bf",
+  "storage_fixture_observed_peak_bytes": 912880,
+  "storage_fixture_scratch": "owned tmpfs directory, removed after tests",
+  "unit_integration": 454
+}
