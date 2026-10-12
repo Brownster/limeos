@@ -1,0 +1,9 @@
+{
+  "single_disk": [["storage:direct"], [], []],
+  "separate_downloads": [["storage:direct"], ["downloads:direct"], []],
+  "protected_pool": [
+    ["data-01:pool1", "data-02:pool1", "data-03:pool1", "data-04:pool1", "data-05:pool1", "data-06:pool1", "data-07:pool1", "data-08:pool1", "data-09:pool1", "data-10:pool1", "data-11:pool1", "data-12:pool1", "data-13:pool1", "data-14:pool1"],
+    [], []
+  ],
+  "ordered_multi_parity": [["d1:pool1", "d2:pool1"], [], []]
+}

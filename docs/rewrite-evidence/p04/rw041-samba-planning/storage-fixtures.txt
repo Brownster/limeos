@@ -1,0 +1,101 @@
+$ cargo test -p limeos-executor-storage --locked --offline --no-fail-fast
+   Compiling limeos-identity v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/samba-planning/crates/identity)
+   Compiling limeos-domain v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/samba-planning/crates/domain)
+   Compiling limeos-executor-storage v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/samba-planning/crates/executor-storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.74s
+     Running unittests src/lib.rs (/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target/debug/deps/limeos_executor_storage-4459ab38628ba0dd)
+
+running 82 tests
+test dependencies::tests::altered_alias_root_device_type_and_missing_mount_ids_are_refused ... ok
+test dependencies::tests::alias_and_symlink_sources_bind_uuid_without_lexical_overlap ... ok
+test dependencies::tests::assignment_boot_swap_serial_and_filesystem_mismatch_are_refused ... ok
+test dependencies::tests::device_missing_from_topology_is_unknown_not_an_independent_disk ... ok
+test dependencies::tests::duplicate_uuid_on_unmounted_device_refuses_the_whole_report ... ok
+test dependencies::tests::dependency_match_limit_refuses_instead_of_clipping ... ok
+test dependencies::tests::empty_sources_remain_explicit_with_all_contract_and_evidence_digests ... ok
+test dependencies::tests::inconsistent_source_identity_and_repeated_candidates_are_refused ... ok
+test dependencies::tests::independent_disks_do_not_match_even_with_overlapping_declared_names ... ok
+test dependencies::tests::missing_uuid_and_unprobed_source_refuse_instead_of_returning_empty ... ok
+test dependencies::tests::invalid_or_expired_input_is_refused_before_privileged_collection ... ok
+test dependencies::tests::raw_mount_digest_namespace_and_selected_table_digest_must_all_match ... ok
+test dependencies::tests::ntfs_kernel_driver_matches_direct_probe_but_tmpfs_requires_nonblock_device ... ok
+test dependencies::tests::root_ancestor_candidate_includes_nested_storage_without_matching_boot_disk ... ok
+test dependencies::tests::sibling_partitions_are_conservative_shared_backing_consumers ... ok
+test dependencies::tests::tmpfs_has_no_block_backing_but_its_nested_candidates_still_count ... ok
+test dependencies::tests::unsupported_or_misidentified_nested_filesystem_refuses_complete_read ... ok
+test fstab::tests::parser_bounds_markers_and_keeps_remote_credentials_private ... ok
+test fstab::tests::section_replacement_preserves_operator_bytes_and_refuses_stale_source ... ok
+test inventory::tests::public_storage_collection_requires_root ... ok
+test inventory::tests::retained_fstab_identity_refuses_equal_bytes_at_a_replaced_name ... ok
+test inventory::tests::retained_fstab_identity_refuses_unlinked_or_multiply_linked_files ... ok
+test processes::tests::all_stopped_retains_host_observation_but_no_running_consumers ... ok
+test processes::tests::bounded_reader_checks_sentinel_interruption_io_and_mid_read_budget ... ok
+test processes::tests::btrfs_root_stat_device_and_mount_table_device_remain_distinct_observations ... ok
+test processes::tests::complete_sorted_membership_includes_no_mount_and_excludes_stopped ... ok
+test processes::tests::cooperative_work_budget_refuses_and_original_lease_survives_no_failure ... ok
+test dependencies::tests::serialized_report_limit_refuses_below_the_match_count_limit ... ok
+test processes::tests::future_expired_and_mid_read_age_are_rejected ... ok
+test processes::tests::credentials_start_root_and_namespace_changes_invalidate_and_latch ... ok
+test processes::tests::maximum_numeric_credential_and_identity_facts_are_preserved ... ok
+test processes::tests::missing_primitives_denials_and_descriptor_exhaustion_fail_without_partial_owner ... ok
+test processes::tests::mount_records_reject_ambiguous_malformed_oversized_and_whitespace_amplification ... ok
+test processes::tests::namespace_and_root_changes_between_initial_and_final_observation_refuse ... ok
+test processes::tests::original_declaration_digest_covers_engine_stopped_and_sources ... ok
+test processes::tests::pid_reuse_between_pidfd_and_proc_open_and_exit_during_collection_refuse ... ok
+test processes::tests::pidfd_fdinfo_requires_live_visible_unique_pid ... ok
+test processes::tests::raw_table_binds_parent_propagation_options_superoptions_and_source ... ok
+test processes::tests::real_dead_pidfd_and_proc_handles_do_not_provide_live_evidence ... ok
+test processes::tests::real_directory_link_count_is_validity_not_identity_and_detachment_refuses ... ok
+test processes::tests::real_ordinary_descriptors_cannot_substitute_for_namespace_or_root ... ok
+test processes::tests::real_owned_child_exit_between_pidfd_and_proc_open_refuses_collection ... ok
+test processes::tests::real_owned_child_retains_live_kernel_identity_and_exit_invalidates ... ok
+test processes::tests::real_owner_drop_resource_measurement ... ok
+test processes::tests::rejects_all_membership_and_full_snapshot_disagreements_before_open ... ok
+test processes::tests::row_byte_aggregate_and_report_limits_refuse_without_clipping ... ok
+test processes::tests::stat_comm_is_opaque_even_with_spaces_parentheses_controls_and_invalid_utf8 ... ok
+test processes::tests::stat_refuses_malformed_truncated_oversized_and_dead_records ... ok
+test processes::tests::status_parses_numeric_ids_and_refuses_duplicates_truncation_and_overflow ... ok
+test processes::tests::unprivileged_public_collection_refuses_without_weak_metadata_fallback ... ok
+test processes::tests::wall_rollback_monotonic_expiry_and_repeated_revalidation_never_renew ... ok
+test sources::tests::aggregate_mount_reference_limit_covers_multiple_containers_and_duplicate_sources ... ok
+test sources::tests::alias_roots_and_nested_mounts_preserve_device_identity_and_component_boundaries ... ok
+test sources::tests::changed_mount_tables_namespace_and_both_age_clocks_invalidate_evidence ... ok
+test sources::tests::invalid_names_do_not_reach_kernel_lookup ... ok
+test sources::tests::link_count_target_bytes_control_characters_and_non_file_types_are_bounded ... ok
+test sources::tests::link_targets_preserve_kernel_directory_and_trailing_slash_semantics ... ok
+test sources::tests::linked_parent_and_normal_target_dotdot_follow_the_kernel_object ... ok
+test sources::tests::literal_case_spaces_and_distinct_files_remain_distinct ... ok
+test sources::tests::malformed_proc_ids_expired_work_and_unprivileged_boundary_fail_closed ... ok
+test sources::tests::missing_cyclic_and_magic_links_never_yield_source_evidence ... ok
+test sources::tests::named_volume_facts_bind_the_inventory_and_empty_inventory_is_explicit ... ok
+test sources::tests::ordinary_relative_and_absolute_links_resolve_the_same_kernel_identity ... ok
+test sources::tests::oversized_reports_are_refused_after_bounded_collection ... ok
+test sources::tests::raw_mount_digest_detects_parent_propagation_and_option_changes ... ok
+test sources::tests::real_descriptors_bind_stopped_sources_without_reading_or_changing_contents ... ok
+test sources::tests::replacement_deletion_and_parent_rename_invalidate_retained_evidence ... ok
+test sources::tests::root_ancestor_and_per_source_mount_reference_limits_refuse_clipping ... ok
+test sources::tests::symlink_retargeting_invalidates_but_file_content_changes_preserve_dependencies ... ok
+test sources::tests::wrong_mount_device_missing_mount_and_remote_filesystems_refuse_metadata ... ok
+test swaps::tests::swap_identity_ignores_utilization_but_bounds_and_validates_kernel_rows ... ok
+test targets::tests::durable_prepared_and_unknown_receipts_keep_all_resources_across_restarts ... ok
+test targets::tests::journal_refuses_symlinks_hardlinks_writable_files_and_future_schemas ... ok
+test targets::tests::missing_and_extra_dependent_claims_refuse_a_healthy_root_journal ... ok
+test targets::tests::only_verified_or_no_effect_outcomes_release_claims_atomically ... ok
+test targets::tests::preparation_is_a_closed_distinct_operation_with_bounded_expiry ... ok
+test tests::boot_graph_excludes_siblings_aliases_and_all_mapper_backings ... ok
+test tests::descriptor_walk_rejects_writable_ancestors_links_and_escaping_paths ... ok
+test tests::filesystem_types_are_explicit_and_multidevice_btrfs_stays_closed ... ok
+test tests::mount_parser_preserves_literal_paths_and_rejects_ambiguous_evidence ... ok
+test tests::namespace_proof_requires_kernel_mount_identity_not_equal_paths_or_devices ... ok
+test processes::tests::maximum_admitted_retention_resource_measurement ... ok
+
+test result: ok. 82 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.27s
+
+   Doc-tests limeos_executor_storage
+
+running 2 tests
+test crates/executor-storage/src/processes.rs - processes::RunningContainerProcessSnapshot (line 87) - compile fail ... ok
+test crates/executor-storage/src/processes.rs - processes::RunningContainerProcessEvidence (line 106) - compile fail ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+

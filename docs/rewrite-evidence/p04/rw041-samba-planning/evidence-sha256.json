@@ -1,0 +1,13 @@
+{
+  "README.md": "f893dd17ebb9a0a85b46216ff81a5a500d82d98fa409092aa80a6a3bbfbcb83b",
+  "case-matrix.md": "40d3dce5e1be76575ac75ebada2b7694b991153a817eada3097d95c4f01ec5ad",
+  "checks.json": "1e2a355f3f0f15056dc0e5712393f0383fc5de98e1f37f14dbc66ae2a7a3fe48",
+  "clippy.txt": "b25292e669d3ddbdf1e7d66fac13bfc6680fd621819f595188e3a72da30b3ea9",
+  "contracts.txt": "51624e9d008c4ddde094985b99eb432e16d5f161b7e0d44389b3fd1403adab60",
+  "fmt-check.txt": "5fcb04dce61431e03194e48dc201c4f32c352e4a96d055e73ed0191c5364579a",
+  "repository.txt": "b9850e1aab9583edd5adb64593ea437703dd4b4f4be4a12f36fa09f5f78ec268",
+  "run-local-checks.py": "f80f27b4c1dfbeeef3ae9a5ac3d5265ee425af97931eccdaf3e5b54930a384ab",
+  "source-manifest.json": "e013a7f40b3295d166bbb17a617a9b99b7e2225f26582e685bf76a4fcba1eb96",
+  "storage-fixtures.txt": "800de638abaafffa6bdc87f216eab3bdac7b35e3d3cebfbcec7cc442b58d6c6b",
+  "test-rest-final.txt": "28c1a1817401fdece3733e1173740f9e864ffebb9bb6dba8ec6f130442b9c3ea"
+}

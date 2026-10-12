@@ -1,0 +1,23 @@
+{
+  "commit": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+  "source_sha256": {
+    "storage_plugins/samba_plugin.py": "a23ed6d35395e512673d661864a007eb753676cffe81c0ee3eadbc9dcaa5d5c4",
+    "storage_plugins/base.py": "8b55fa2285e914bfdf537d21a67b737158d8268d887a2880b28e522e4c2ad805",
+    "tests/test_samba_plugin.py": "1b59d5d003bf6c7173e3546634b59958df567999348c2dde3190b97265610165",
+    "tests/e2e/test_v2_shares_parity.py": "34713d60445d02ce1743250de43e58dd590bc869d35e783332137954d350361a"
+  },
+  "fixture_sha256": {
+    "imported.json": "1d86ff5cfa5a2e5e6b0188c8fb66b4bbb2ab41e9cefba01df8b0fa4d98d2adec",
+    "imported.sections": "3ec2874a1b561deb1f1cf2c536c6a94a2199c6d9ea1d747de070f7e31f0a1cb4",
+    "layout-dependencies.json": "bd269d3e183edb394c03e2dd955b1ad6159d4d75f7f6a2b6456c89c08372de29",
+    "sample.json": "82b383f7657d8c6edf41098ae1b153294eecdaefe8d2122157bc9f9210ff0700",
+    "sample.sections": "4be76223f7d0b391ad30d71209b5dae00bb689198e7e110a625d0c87b43a4c95"
+  },
+  "fixture_kind": "synthetic configuration and declared path mapping; no live Samba, mount or host-effect proof",
+  "derivation": {
+    "sample.json": "Copy of tests/test_samba_plugin.py sample_config()",
+    "imported.json": "Manually transcribed output of test_import_existing_shares input according to the frozen parser; parser not executed",
+    "*.sections": "Hand-written golden section bodies from frozen _generate_smb_config rules with LimeOS owned begin/end markers",
+    "layout-dependencies.json": "Hand-written device/route expectations for three synthetic share declarations against the unchanged four pool-protection layouts"
+  }
+}

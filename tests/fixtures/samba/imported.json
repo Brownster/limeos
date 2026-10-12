@@ -1,0 +1,24 @@
+{
+  "shares": [
+    {
+      "name": "media",
+      "path": "/mnt/media",
+      "comment": "",
+      "read_only": false,
+      "guest_ok": true,
+      "browseable": true,
+      "valid_users": "pi,media",
+      "enabled": true
+    },
+    {
+      "name": "docs",
+      "path": "/srv/docs",
+      "comment": "",
+      "read_only": true,
+      "guest_ok": false,
+      "browseable": false,
+      "valid_users": "",
+      "enabled": false
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-samba-check-57cf1c81a88689af/bin/python3 scripts/check_repository.py
+Repository dependency and hygiene checks passed.
