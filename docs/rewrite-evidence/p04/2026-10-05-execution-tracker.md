@@ -2,6 +2,13 @@
 
 Status: local implementation started after P03's 62-group representative-layout suite passed. The operator authorized continuing P03 then P04 on 2026-10-05. All implementation happens in this Rust repository; the Python checkout is frozen. Mutation tests use disposable VMs. The earlier corrected 0.4.2 payload has separate native ARM64 qualification; current payload and reference-host measurement gates remain open.
 
+Latest local acceptance: [October 13 graph integration](2026-10-13-configured-graph-integration/README.md),
+533 Rust cases and 61 ARM64 harness tests. The configured graph joins container,
+pool, protection and Samba relationships with one 512-route bound. It remains
+separate from protected live evidence and effect authority. The operator deferred
+the proposed Pi replacement; continue rewrite work and report readiness later.
+No new overnight host window is authorized.
+
 Estimate: forty implementer days (320 hours) for RW-040 through RW-045, including their API/UI screens and regression evidence. Review the cutover scope at 480 hours. Allocation: 72 hours for storage identities, mount planning, boot exclusion and mount-loss safety; 64 for pools/protection/remote mounts/shares/prerequisites; 64 for catalog/Compose/media paths and tools; 48 for encrypted backup/restore and recovery; 32 for package/container update transitions; 40 for schedules/alerts/notifications and restart recovery. Record actual agent work and approval waits separately; neither is a measured human implementer-day figure.
 
 The first slice ports the frozen storage contract into typed, generated domain contracts before registering a host effect. [ADR 0006](../../adr/0006-p04-storage-contract.md) defines its boundary. Live disk identity/topology, mount namespace, descriptor traversal and installed-unit deadlines must be qualified before any storage mutation is enabled.

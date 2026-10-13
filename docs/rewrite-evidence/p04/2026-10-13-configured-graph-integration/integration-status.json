@@ -1,0 +1,26 @@
+{
+  "qualified_source": "bd87ee2b2a462cdf896c3ea4b68907cdc59d2210",
+  "new_runtime_files": [
+    "crates/domain/src/lib.rs",
+    "crates/domain/src/storage_dependency_graph.rs"
+  ],
+  "new_test_files": [
+    "crates/domain/src/storage_dependency_graph/tests.rs",
+    "tests/fixtures/storage-dependency-graph/expected.json"
+  ],
+  "backup_bound_recovery_excluded": true,
+  "runtime_configuration_join_only": true,
+  "schema_change": false,
+  "api_or_ui_change": false,
+  "new_dependencies_or_capabilities": false,
+  "pending": [
+    "protected live configuration and physical/namespace composition",
+    "complete affected-resource claims",
+    "approved mount/fstab/unmount effects and runtime-loss shutdown",
+    "effect-time revalidation and durable recovery",
+    "current native CI and installed ARM64 qualification",
+    "minimum container/stack UI and migration/return evidence for cutover"
+  ],
+  "frozen_arm64_candidate_source": "af94f19ac21f9da14b207439808ffb33c87e8e10",
+  "frozen_arm64_candidate_contains_graph": false
+}

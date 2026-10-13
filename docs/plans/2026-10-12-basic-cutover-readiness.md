@@ -5,13 +5,22 @@ rewrite supplies enough basic functionality. The Pi remains the household's
 daytime media server. This changes the release priority; it does not declare a
 feature ready or authorize two applications to mutate the host together.
 
+On October 13 the operator deferred the proposed replacement and asked to
+continue the rewrite, with a readiness update when a swap becomes appropriate.
+The proposed overnight window and scope questions below are no longer active.
+No new host access, shadow installation or activation is authorized. Continue
+local implementation and report the supported minimum UI scope, installed ARM64
+evidence, actual-layout comparison and rehearsed return path before revisiting
+cutover.
+
 ## October 13 minimum dashboard trial
 
 The operator now needs performance metrics and container/stack support in the
 UI at minimum, and proposed a swap on the evening of October 13. This permits a
 smaller trial than full storage/deployment/assistant parity. The exact meaning of
-stack support is still being clarified. No new host window or unconditional
-activation decision has been supplied.
+stack support had not been settled before the operator deferred this trial.
+The proposal remains here as a scope comparison, without a new host window or
+activation decision.
 
 | Minimum function | Current source behavior | Trial boundary |
 | --- | --- | --- |
@@ -113,6 +122,7 @@ not an assumption that all other current functions are unused.
    the old checkout, runtime state and every media/storage path through soak.
 
 The next integrator work remains bounded protected RW-040 collection and
-dependency/claim composition. A separate completed pure dependency-graph branch
-must be reviewed and integrated independently; it is outside tonight's frozen
-candidate. Backup-bound recovery remains owned by its existing worktree.
+dependency/claim composition. The pure dependency-graph branch is now integrated
+with [current local acceptance](../rewrite-evidence/p04/2026-10-13-configured-graph-integration/README.md).
+The frozen ARM64 CI candidate still excludes it. Backup-bound recovery remains
+owned by its existing worktree.
