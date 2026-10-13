@@ -1,0 +1,20 @@
+{
+  "original_git_commit": "11c4959",
+  "format": "original apt gzip -n files; exact paragraph terminators retained",
+  "indexes": [
+    {
+      "original": "preparation/repo/dists/stable/main/binary-arm64/Packages",
+      "compressed": "preparation/repo/dists/stable/main/binary-arm64/Packages.gz",
+      "raw_sha256": "a4d7eb681f3a19787e8795cb98435943ee88602e6a70caa418ab6ba2de048add",
+      "compressed_sha256": "0d0bb9f375f4a81f7024def0aa5be0892bbf57d19205bb87b09511b71ca6637d",
+      "raw_bytes": 1492
+    },
+    {
+      "original": "preparation/previous-repo/dists/stable/main/binary-arm64/Packages",
+      "compressed": "preparation/previous-repo/dists/stable/main/binary-arm64/Packages.gz",
+      "raw_sha256": "e7a434d4c7c29224bbad7900b1ea9e3e2a7ad9daf322cc24dac55a78a78b20bf",
+      "compressed_sha256": "871e2abd279cdb6f23deee4afbd38d8d52ad3b8fd65bb1402c97ee414b20da05",
+      "raw_bytes": 739
+    }
+  ]
+}

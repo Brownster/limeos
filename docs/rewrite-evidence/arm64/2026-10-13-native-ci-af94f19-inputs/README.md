@@ -74,6 +74,10 @@ pre-existing `timezone.utc` aliases in untouched `native_vm.py`; its failed
 [raw log](validation/broad-probe/ruff-check.log.gz) is preserved. Host guards and
 deadline supervision were not changed. Raw command logs use lossless gzip; the
 [evidence index](evidence-sha256.json) binds all packet files.
+The two uncompressed ARM64 apt indexes use their original `Packages.gz` copies
+in this packet; [compression bindings](repository-index-compression.json) retain
+raw hashes and exact paragraph terminators. Complete runnable repositories stay
+unchanged in the prepared disk directory.
 
 For the next authorized window, the prepared root is:
 
