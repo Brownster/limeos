@@ -19,5 +19,6 @@ limeos-executor-storage = { path = "../../crates/executor-storage", version = "=
 tokio.workspace = true
 rustix.workspace = true
 serde_json.workspace = true
+serde.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
