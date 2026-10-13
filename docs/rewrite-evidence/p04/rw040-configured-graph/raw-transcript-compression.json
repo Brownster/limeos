@@ -1,0 +1,20 @@
+{
+  "original_git_commit": "f5d5f6adb5219ec4286e8c8a4adba0a1e8d81c57",
+  "format": "lossless gzip; mtime=0",
+  "transcripts": [
+    {
+      "original": "storage-fixtures.txt",
+      "compressed": "storage-fixtures.txt.gz",
+      "raw_sha256": "e0d11e06a6a559e8c1e9d890dc491ed2db7f65a255057538b95bc97acd0de0a7",
+      "raw_bytes": 10740,
+      "compressed_sha256": "10253577f22d878e765e1aee274f2755051934dac0dd79e5df5ee2f06c3d0321"
+    },
+    {
+      "original": "test-rest-final.txt",
+      "compressed": "test-rest-final.txt.gz",
+      "raw_sha256": "2eca4c3cca215a3665ee8bda6bbfc99eb3ff370b432321a18939c0e8cbc5fa7e",
+      "raw_bytes": 48201,
+      "compressed_sha256": "9d601275d5da77917b18faf7d443fd2ff22fed4833be298e2f3488ad7483885d"
+    }
+  ]
+}

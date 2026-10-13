@@ -1,11 +1,12 @@
 {
-  "README.md": "a04dbf881f9165749e5c195540359265538a35d212b5b8767addb4efa8f9aba0",
+  "README.md": "2d78cac7699a332031f63c7c69795e126dd1ca727a0359954eb3c6972287d8f0",
   "checks.json": "b5db554d2605ba3bc5e077b372d0c4da22df93c24e91679e766ed6a135ffd38a",
   "clippy.txt": "d88dcbc293ac771a98c3f403a7acde0560cdbc524f42b5a749dbab64f62b7aa2",
   "contracts.txt": "1b5d0144d7b85165f2ab514b0e8835333f5a00a67c7fd275c9598a66b343e13f",
   "fmt-check.txt": "5fcb04dce61431e03194e48dc201c4f32c352e4a96d055e73ed0191c5364579a",
+  "raw-transcript-compression.json": "2bf12b10b203aaaf71792870c7638977a3f4675404eeb1ac05324936197ca0b4",
   "repository.txt": "eb52144ba241c2ba6561b4021883185458eb9f69f806f7be8d0315db671a3545",
   "source-manifest.json": "9d6ee6d4231e38b45b7f75a2611e95b115a2df3340e3c6f218c4453f8bd802cb",
-  "storage-fixtures.txt": "e0d11e06a6a559e8c1e9d890dc491ed2db7f65a255057538b95bc97acd0de0a7",
-  "test-rest-final.txt": "2eca4c3cca215a3665ee8bda6bbfc99eb3ff370b432321a18939c0e8cbc5fa7e"
+  "storage-fixtures.txt.gz": "10253577f22d878e765e1aee274f2755051934dac0dd79e5df5ee2f06c3d0321",
+  "test-rest-final.txt.gz": "9d601275d5da77917b18faf7d443fd2ff22fed4833be298e2f3488ad7483885d"
 }

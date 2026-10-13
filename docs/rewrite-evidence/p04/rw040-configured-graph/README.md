@@ -21,7 +21,9 @@ passes 101 with owned small auto-cleaned tmpfs scratch. Strict workspace/all-tar
 Clippy, fmt, generated contracts and repository checks pass. Local byte/source
 hashes and commands appear in `checks.json`/`source-manifest.json`; evidence
 hashes cover packet files except the hash index itself. Raw terminal blank lines
-are retained. Compiler concurrency is one, test concurrency two. Historical
+are retained through lossless `.txt.gz` copies for `storage-fixtures` and
+`test-rest-final`; [compression bindings](raw-transcript-compression.json) retain
+their original hashes and Git snapshot. Compiler concurrency is one, test concurrency two. Historical
 preliminary failures remain in ignored cache and are excluded from totals.
 
 | New regression | Established behavior |
