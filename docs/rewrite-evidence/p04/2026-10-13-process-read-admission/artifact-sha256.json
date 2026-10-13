@@ -1,0 +1,23 @@
+{
+  "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+  "files": {
+    "README.md": "76bc9e7ee2760ffb3907d2014e98193b1af3a162f529425dc69f7b9a4d42debf",
+    "arm64-harness.log.gz": "98aa882887b7b60687f03b48a42a1bfafdef25811bc9af6f8b45135b028b2075",
+    "checks.json": "8ea893a836f09da722c886b5936979a7681d8933f25e3687a4cff1681ea9b1ff",
+    "clippy.log.gz": "0273527285569eed09458cfd92240a4123ace5ee6c7bd03e376f5ba2d0f39f30",
+    "contracts.log.gz": "559b91633d461a55fcffedc820b30c3ae9bff5005da60a68fb2f4ad4d3286e45",
+    "fmt.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "package-process-read-admission.py": "6ccd33bbe7d6d8c9e86ba35bfbaf39be6fa2751b0b779826a033282bf3a71261",
+    "payload-accepted.log.gz": "46b0aced5032baeb6f69a34b7574491fc0cd063c89b694b1a8934169badca1db",
+    "process-fd-measurement.log.gz": "2fc0c0ebd8cbadc8cc5acb2a321afd446497fce734df666f7b60df116446bc9c",
+    "process-payload-measurement.log.gz": "5c115ac8441ba6d24ed89688d992f096c719863617f0da816fa3dcc5469d3686",
+    "profile-accepted.log.gz": "32b7612c879dbcbe6731929594d0056f258934bf67a4c7d96dd949a890424f12",
+    "repository.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "run-process-read-admission-check.py": "3f5dc1b79868f0e36465965a28a06756a2ee6a826ca309c14c6e7aaafb4736a4",
+    "scope.json": "72d330de47344d777e789fc86311cf235936107c81ca0212323a3f255a7c2866",
+    "source-manifest.json": "035473df0cf5385d7030496eeb206a6d1dcf91cd23254efe998f1ff73be7485c",
+    "storage-compile-on-disk.log.gz": "471e48b080ed3fb422b7919797116a4b66718b677d893fdc5f0f55b1255089cb",
+    "storage-fixtures.log.gz": "563d358bb5690b61eb763ab84f14fa00343999ceaeb725bd73101768fa2baa8a",
+    "test-rest.log.gz": "7d8e7123ff000aaa38d46496bb3acaf5fe3528db8bd16126599ebc40b7f2fd70"
+  }
+}

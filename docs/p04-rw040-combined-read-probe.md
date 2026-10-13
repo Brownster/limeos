@@ -57,4 +57,11 @@ Final `ok` proves completed selected-owner revalidation. Blocking stdout deliver
 
 Local tests ran the no-host default/contract/input/output paths as UID 1000. Guest UID-0/public-library success, cross-UID/nondumpable/capability cases, actual resource headroom and transitions belong to the engineer's separate proof. The current service caps remain unchanged. The process-only maximum already holds 261 descriptors before other owners and its maximum-row fixture reached 65.78 MiB; the combined design must reject whole requests before unsupported resource acquisition rather than omit consumers or raise 256-FD/64-MiB service limits.
 
+The additive [closed process profile](p04-process-read-admission.md) now supplies
+the process portion of future worker admission, alongside the existing
+[Engine profile](p04-rw040-engine-read-admission.md). This standalone probe still
+uses Standard collection; its earlier qualification and 261-descriptor maximum
+do not qualify CombinedV1 or a combined worker. Storage/source bounds and a
+concrete whole-worker budget still precede independent supervision.
+
 Namespace-local mount IDs are not host filesystem/UUID identity. Destination mapping, combined worker admission/deadlines/parent-death/descendant reaping, pool/protection/share propagation, claims/approvals/effect-time checks and live restore remain open. No P04/defect/cutover gate closes. The [probe-first design](plans/2026-10-08-rw040-combined-read-design.md) separates this delivered prerequisite from that later implementation.

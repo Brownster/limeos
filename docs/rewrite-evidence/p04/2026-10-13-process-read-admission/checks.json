@@ -1,0 +1,520 @@
+{
+  "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+  "rust_cases": 602,
+  "unit_integration_cases": 589,
+  "compile_fail_doctests": 13,
+  "new_focused_cases": 13,
+  "focused_and_measurement_cases_already_in_workspace_total": true,
+  "arm64_harness_cases": 61,
+  "checks": [
+    {
+      "name": "profile-accepted",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "limeos-executor-storage",
+        "processes::tests::admission",
+        "--locked",
+        "--offline"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/process-read-admission",
+      "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+      "started_utc": "2026-10-13T18:02:46.403573+00:00",
+      "seconds": 0.222,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "profile-accepted.log.gz",
+      "raw_sha256": "743445f0660d8e4dfc330588cd7acee40e3bfaf407789f4d980b85b71d12fa12",
+      "compressed_sha256": "32b7612c879dbcbe6731929594d0056f258934bf67a4c7d96dd949a890424f12",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 11,
+      "pi_accessed": false,
+      "trusted_test_flags": {},
+      "worktree_status": " M docs/p04-rw040-combined-read-probe.md\n M docs/plans/2026-10-04-rust-rewrite-roadmap.md\n?? docs/p04-process-read-admission.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/processes.rs": "9827d07ad75244cedb2439aa814e2c725563a57e7fa1d2420295658c44fd69ad",
+        "crates/executor-storage/src/processes/admission.rs": "e27756ae4baf1649e0278d8b1147aefacdc93ccef5b0af90b2029d650433dec4",
+        "crates/executor-storage/src/processes/tests.rs": "92ca04fc326cf552e87efdf487950e635fb40356dab875bbdd8dfc0b30ba2445",
+        "crates/executor-storage/src/processes/tests/admission.rs": "2334847e0052a185c5dfed3cedcede6081aa81960f16fee4c290fb3eb3a8b1ce"
+      }
+    },
+    {
+      "name": "payload-accepted",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "limeos-executor-storage",
+        "processes::admission::tests",
+        "--locked",
+        "--offline"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/process-read-admission",
+      "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+      "started_utc": "2026-10-13T18:02:47.142936+00:00",
+      "seconds": 0.141,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "payload-accepted.log.gz",
+      "raw_sha256": "cbdcd39ceb7328b99ddb65e16124555ad212434500bc7be1ad8dc3438b59ac0c",
+      "compressed_sha256": "46b0aced5032baeb6f69a34b7574491fc0cd063c89b694b1a8934169badca1db",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 2,
+      "pi_accessed": false,
+      "trusted_test_flags": {},
+      "worktree_status": " M docs/p04-rw040-combined-read-probe.md\n M docs/plans/2026-10-04-rust-rewrite-roadmap.md\n?? docs/p04-process-read-admission.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/processes.rs": "9827d07ad75244cedb2439aa814e2c725563a57e7fa1d2420295658c44fd69ad",
+        "crates/executor-storage/src/processes/admission.rs": "e27756ae4baf1649e0278d8b1147aefacdc93ccef5b0af90b2029d650433dec4",
+        "crates/executor-storage/src/processes/tests.rs": "92ca04fc326cf552e87efdf487950e635fb40356dab875bbdd8dfc0b30ba2445",
+        "crates/executor-storage/src/processes/tests/admission.rs": "2334847e0052a185c5dfed3cedcede6081aa81960f16fee4c290fb3eb3a8b1ce"
+      }
+    },
+    {
+      "name": "process-payload-measurement",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "limeos-executor-storage",
+        "--locked",
+        "--offline",
+        "processes::tests::admission::combined_maximum_row_payload_measurement",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/process-read-admission",
+      "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+      "started_utc": "2026-10-13T18:02:47.795768+00:00",
+      "seconds": 0.164,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "process-payload-measurement.log.gz",
+      "raw_sha256": "5d1a97653dbb7c41e76970c14f5a4a6ebd76a678bbda16e752009f2e58aac205",
+      "compressed_sha256": "5c115ac8441ba6d24ed89688d992f096c719863617f0da816fa3dcc5469d3686",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 1,
+      "pi_accessed": false,
+      "trusted_test_flags": {},
+      "worktree_status": " M docs/p04-rw040-combined-read-probe.md\n M docs/plans/2026-10-04-rust-rewrite-roadmap.md\n?? docs/p04-process-read-admission.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/processes.rs": "9827d07ad75244cedb2439aa814e2c725563a57e7fa1d2420295658c44fd69ad",
+        "crates/executor-storage/src/processes/admission.rs": "e27756ae4baf1649e0278d8b1147aefacdc93ccef5b0af90b2029d650433dec4",
+        "crates/executor-storage/src/processes/tests.rs": "92ca04fc326cf552e87efdf487950e635fb40356dab875bbdd8dfc0b30ba2445",
+        "crates/executor-storage/src/processes/tests/admission.rs": "2334847e0052a185c5dfed3cedcede6081aa81960f16fee4c290fb3eb3a8b1ce"
+      }
+    },
+    {
+      "name": "process-fd-measurement",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "limeos-executor-storage",
+        "--locked",
+        "--offline",
+        "processes::tests::admission::combined_real_owned_children_descriptor_measurement",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/process-read-admission",
+      "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+      "started_utc": "2026-10-13T18:02:48.471317+00:00",
+      "seconds": 0.172,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "process-fd-measurement.log.gz",
+      "raw_sha256": "3860398a03b60e451567448345ffbbd2a041f6aa50d5d3ac0b55a183a284fe19",
+      "compressed_sha256": "2fc0c0ebd8cbadc8cc5acb2a321afd446497fce734df666f7b60df116446bc9c",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 1,
+      "pi_accessed": false,
+      "trusted_test_flags": {
+        "LIMEOS_COMBINED_PROCESS_FD_PROBE": "1"
+      },
+      "worktree_status": " M docs/p04-rw040-combined-read-probe.md\n M docs/plans/2026-10-04-rust-rewrite-roadmap.md\n?? docs/p04-process-read-admission.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/processes.rs": "9827d07ad75244cedb2439aa814e2c725563a57e7fa1d2420295658c44fd69ad",
+        "crates/executor-storage/src/processes/admission.rs": "e27756ae4baf1649e0278d8b1147aefacdc93ccef5b0af90b2029d650433dec4",
+        "crates/executor-storage/src/processes/tests.rs": "92ca04fc326cf552e87efdf487950e635fb40356dab875bbdd8dfc0b30ba2445",
+        "crates/executor-storage/src/processes/tests/admission.rs": "2334847e0052a185c5dfed3cedcede6081aa81960f16fee4c290fb3eb3a8b1ce"
+      }
+    },
+    {
+      "name": "test-rest",
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--exclude",
+        "limeos-executor-storage",
+        "--locked",
+        "--offline",
+        "--no-fail-fast"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/process-read-admission",
+      "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+      "started_utc": "2026-10-13T17:57:16.211270+00:00",
+      "seconds": 162.345,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "test-rest.log.gz",
+      "raw_sha256": "327e5731618d9afdd622ddb25dbc372775c4575ca518ea7948cd83c05553abc2",
+      "compressed_sha256": "7d8e7123ff000aaa38d46496bb3acaf5fe3528db8bd16126599ebc40b7f2fd70",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 432,
+      "pi_accessed": false,
+      "trusted_test_flags": {},
+      "worktree_status": "?? docs/p04-process-read-admission.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/processes.rs": "9827d07ad75244cedb2439aa814e2c725563a57e7fa1d2420295658c44fd69ad",
+        "crates/executor-storage/src/processes/admission.rs": "e27756ae4baf1649e0278d8b1147aefacdc93ccef5b0af90b2029d650433dec4",
+        "crates/executor-storage/src/processes/tests.rs": "92ca04fc326cf552e87efdf487950e635fb40356dab875bbdd8dfc0b30ba2445",
+        "crates/executor-storage/src/processes/tests/admission.rs": "2334847e0052a185c5dfed3cedcede6081aa81960f16fee4c290fb3eb3a8b1ce"
+      }
+    },
+    {
+      "name": "storage-compile-on-disk",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "limeos-executor-storage",
+        "--locked",
+        "--offline",
+        "--no-run"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/process-read-admission",
+      "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+      "started_utc": "2026-10-13T18:00:20.273521+00:00",
+      "seconds": 5.051,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "storage-compile-on-disk.log.gz",
+      "raw_sha256": "40c21f8fc4863ac6ce0b017774319a837166f5079581cec5ed6ac8808cb6c1e5",
+      "compressed_sha256": "471e48b080ed3fb422b7919797116a4b66718b677d893fdc5f0f55b1255089cb",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 0,
+      "pi_accessed": false,
+      "trusted_test_flags": {},
+      "worktree_status": "?? docs/p04-process-read-admission.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/processes.rs": "9827d07ad75244cedb2439aa814e2c725563a57e7fa1d2420295658c44fd69ad",
+        "crates/executor-storage/src/processes/admission.rs": "e27756ae4baf1649e0278d8b1147aefacdc93ccef5b0af90b2029d650433dec4",
+        "crates/executor-storage/src/processes/tests.rs": "92ca04fc326cf552e87efdf487950e635fb40356dab875bbdd8dfc0b30ba2445",
+        "crates/executor-storage/src/processes/tests/admission.rs": "2334847e0052a185c5dfed3cedcede6081aa81960f16fee4c290fb3eb3a8b1ce"
+      }
+    },
+    {
+      "name": "storage-fixtures",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "limeos-executor-storage",
+        "--locked",
+        "--offline",
+        "--no-fail-fast"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/process-read-admission",
+      "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+      "started_utc": "2026-10-13T18:01:05.984698+00:00",
+      "seconds": 2.741,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/tmp/limeos-process-read-admission-tests-f7mbgcpz",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "storage-fixtures.log.gz",
+      "raw_sha256": "9249b21063215c615c17377a7b26500b000fe3ecbe3427ba3bbe9d643417dea0",
+      "compressed_sha256": "563d358bb5690b61eb763ab84f14fa00343999ceaeb725bd73101768fa2baa8a",
+      "tmpfs_fixture_peak": {
+        "bytes": 61440,
+        "files": 8
+      },
+      "tmpfs_fixture_removed": true,
+      "rust_cases": 170,
+      "pi_accessed": false,
+      "trusted_test_flags": {},
+      "worktree_status": " M docs/p04-rw040-combined-read-probe.md\n M docs/plans/2026-10-04-rust-rewrite-roadmap.md\n?? docs/p04-process-read-admission.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/processes.rs": "9827d07ad75244cedb2439aa814e2c725563a57e7fa1d2420295658c44fd69ad",
+        "crates/executor-storage/src/processes/admission.rs": "e27756ae4baf1649e0278d8b1147aefacdc93ccef5b0af90b2029d650433dec4",
+        "crates/executor-storage/src/processes/tests.rs": "92ca04fc326cf552e87efdf487950e635fb40356dab875bbdd8dfc0b30ba2445",
+        "crates/executor-storage/src/processes/tests/admission.rs": "2334847e0052a185c5dfed3cedcede6081aa81960f16fee4c290fb3eb3a8b1ce"
+      }
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/process-read-admission",
+      "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+      "started_utc": "2026-10-13T18:01:17.332769+00:00",
+      "seconds": 40.254,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "clippy.log.gz",
+      "raw_sha256": "2ecc78de9ab4478c0ed984911e79c8a3fb3da4d7cd16b1ef1d82d0c55b319f3e",
+      "compressed_sha256": "0273527285569eed09458cfd92240a4123ace5ee6c7bd03e376f5ba2d0f39f30",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 0,
+      "pi_accessed": false,
+      "trusted_test_flags": {},
+      "worktree_status": " M docs/p04-rw040-combined-read-probe.md\n M docs/plans/2026-10-04-rust-rewrite-roadmap.md\n?? docs/p04-process-read-admission.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/processes.rs": "9827d07ad75244cedb2439aa814e2c725563a57e7fa1d2420295658c44fd69ad",
+        "crates/executor-storage/src/processes/admission.rs": "e27756ae4baf1649e0278d8b1147aefacdc93ccef5b0af90b2029d650433dec4",
+        "crates/executor-storage/src/processes/tests.rs": "92ca04fc326cf552e87efdf487950e635fb40356dab875bbdd8dfc0b30ba2445",
+        "crates/executor-storage/src/processes/tests/admission.rs": "2334847e0052a185c5dfed3cedcede6081aa81960f16fee4c290fb3eb3a8b1ce"
+      }
+    },
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/process-read-admission",
+      "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+      "started_utc": "2026-10-13T17:57:16.032871+00:00",
+      "seconds": 1.417,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "fmt.log.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 0,
+      "pi_accessed": false,
+      "trusted_test_flags": {},
+      "worktree_status": "",
+      "runtime_hashes": {
+        "crates/executor-storage/src/processes.rs": "9827d07ad75244cedb2439aa814e2c725563a57e7fa1d2420295658c44fd69ad",
+        "crates/executor-storage/src/processes/admission.rs": "e27756ae4baf1649e0278d8b1147aefacdc93ccef5b0af90b2029d650433dec4",
+        "crates/executor-storage/src/processes/tests.rs": "92ca04fc326cf552e87efdf487950e635fb40356dab875bbdd8dfc0b30ba2445",
+        "crates/executor-storage/src/processes/tests/admission.rs": "2334847e0052a185c5dfed3cedcede6081aa81960f16fee4c290fb3eb3a8b1ce"
+      }
+    },
+    {
+      "name": "contracts",
+      "command": [
+        "/home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-process-read-admission-check-814d972e95d750ba/bin/python3",
+        "scripts/check_contracts.py"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/process-read-admission",
+      "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+      "started_utc": "2026-10-13T17:57:16.205680+00:00",
+      "seconds": 4.533,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "contracts.log.gz",
+      "raw_sha256": "4a3dff3db28f06eaef46c114ee1dce6b3826794d30bf8295abcaf35dab8203c7",
+      "compressed_sha256": "559b91633d461a55fcffedc820b30c3ae9bff5005da60a68fb2f4ad4d3286e45",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 0,
+      "pi_accessed": false,
+      "trusted_test_flags": {},
+      "worktree_status": "",
+      "runtime_hashes": {
+        "crates/executor-storage/src/processes.rs": "9827d07ad75244cedb2439aa814e2c725563a57e7fa1d2420295658c44fd69ad",
+        "crates/executor-storage/src/processes/admission.rs": "e27756ae4baf1649e0278d8b1147aefacdc93ccef5b0af90b2029d650433dec4",
+        "crates/executor-storage/src/processes/tests.rs": "92ca04fc326cf552e87efdf487950e635fb40356dab875bbdd8dfc0b30ba2445",
+        "crates/executor-storage/src/processes/tests/admission.rs": "2334847e0052a185c5dfed3cedcede6081aa81960f16fee4c290fb3eb3a8b1ce"
+      }
+    },
+    {
+      "name": "repository",
+      "command": [
+        "/home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-process-read-admission-check-814d972e95d750ba/bin/python3",
+        "scripts/check_repository.py"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/process-read-admission",
+      "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+      "started_utc": "2026-10-13T17:57:16.229820+00:00",
+      "seconds": 0.121,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "repository.log.gz",
+      "raw_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "compressed_sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 0,
+      "pi_accessed": false,
+      "trusted_test_flags": {},
+      "worktree_status": "",
+      "runtime_hashes": {
+        "crates/executor-storage/src/processes.rs": "9827d07ad75244cedb2439aa814e2c725563a57e7fa1d2420295658c44fd69ad",
+        "crates/executor-storage/src/processes/admission.rs": "e27756ae4baf1649e0278d8b1147aefacdc93ccef5b0af90b2029d650433dec4",
+        "crates/executor-storage/src/processes/tests.rs": "92ca04fc326cf552e87efdf487950e635fb40356dab875bbdd8dfc0b30ba2445",
+        "crates/executor-storage/src/processes/tests/admission.rs": "2334847e0052a185c5dfed3cedcede6081aa81960f16fee4c290fb3eb3a8b1ce"
+      }
+    },
+    {
+      "name": "arm64-harness",
+      "command": [
+        "/home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-process-read-admission-check-814d972e95d750ba/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/qualification/arm64",
+        "-p",
+        "test_*.py"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/process-read-admission",
+      "qualified_source": "e0ee0f3243a5a225894afbc538191044715b7f7a",
+      "started_utc": "2026-10-13T17:57:16.194000+00:00",
+      "seconds": 15.446,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "arm64-harness.log.gz",
+      "raw_sha256": "f945f5b2456267aadc9faee6948e38e738b4f47e456c81412a01cee0032a3f87",
+      "compressed_sha256": "98aa882887b7b60687f03b48a42a1bfafdef25811bc9af6f8b45135b028b2075",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 0,
+      "pi_accessed": false,
+      "trusted_test_flags": {},
+      "worktree_status": "",
+      "runtime_hashes": {
+        "crates/executor-storage/src/processes.rs": "9827d07ad75244cedb2439aa814e2c725563a57e7fa1d2420295658c44fd69ad",
+        "crates/executor-storage/src/processes/admission.rs": "e27756ae4baf1649e0278d8b1147aefacdc93ccef5b0af90b2029d650433dec4",
+        "crates/executor-storage/src/processes/tests.rs": "92ca04fc326cf552e87efdf487950e635fb40356dab875bbdd8dfc0b30ba2445",
+        "crates/executor-storage/src/processes/tests/admission.rs": "2334847e0052a185c5dfed3cedcede6081aa81960f16fee4c290fb3eb3a8b1ce"
+      }
+    }
+  ]
+}
