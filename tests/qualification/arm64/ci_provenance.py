@@ -488,6 +488,23 @@ def verify_repository(repo, fingerprint, now=None):
             break
         value, size, name = line.split()
         relative(name)
+        require(name not in covered, "duplicate repository Release entry")
+        if name == "Release":
+            # The frozen repository.sh redirects apt-ftparchive output into
+            # the directory being scanned. apt-ftparchive hashes its already
+            # written header, not the eventual self-referential Release file.
+            # Both full signatures were verified above; index bindings below
+            # always refer to the complete files actually served to apt.
+            header = release.split("MD5Sum:\n", 1)[0].encode()
+            require(
+                int(size) == len(header) and digest(header) == value,
+                "repository Release header binding differs",
+            )
+            covered[name] = value
+            continue
+        require(
+            "dists/stable/" + name in indexes, "unexpected repository Release index"
+        )
         path = repo / "dists/stable" / name
         require(
             files.get("dists/stable/" + name) == value

@@ -446,6 +446,29 @@ class RepositoryTests(unittest.TestCase):
                     ci.verify_repository(root, key)
                 command.assert_not_called()
 
+    def test_frozen_apt_ftparchive_self_entry_binds_only_its_written_header(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            key = self.repository(root)
+            release_path = root / "dists/stable/Release"
+            header = "Origin: LimeOS\n"
+            old = release_path.read_text()
+            release = old.replace(
+                "SHA256:\n",
+                "MD5Sum:\nSHA256:\n"
+                + f" {ci.digest(header.encode())} {len(header)} Release\n",
+            )
+            release_path.write_text(release)
+            signed = root / "dists/stable/InRelease"
+            signed.write_text(signed.read_text().replace(old, release))
+            with patch.object(ci.subprocess, "run", return_value=self.signature(key)):
+                self.assertEqual(ci.verify_repository(root, key), ci.file_map(root))
+                wrong = release.replace(ci.digest(header.encode()), "0" * 64)
+                release_path.write_text(wrong)
+                signed.write_text(signed.read_text().replace(release, wrong))
+                with self.assertRaisesRegex(ValueError, "Release header"):
+                    ci.verify_repository(root, key)
+
 
 class BuildBindingTests(unittest.TestCase):
     def build(self, root):
