@@ -12,6 +12,67 @@ use std::{
 };
 use tempfile::TempDir;
 
+#[test]
+fn combined_profile_accepts_all_frozen_layouts_and_preserves_lease_and_handles() {
+    for case in cases() {
+        let f = Fixture::from_case(&case);
+        let paths = f.paths();
+        let limits = ConfigurationReadProfile::CombinedV1.limits();
+        let parts = admit(&paths, limits).unwrap();
+        let owner = collect(
+            f.root(),
+            &paths,
+            parts,
+            CollectionBudget {
+                owner: rustix::process::geteuid().as_raw(),
+                limits,
+                at: 100,
+                expires: Instant::now() + LIFETIME,
+                deadline: Instant::now() + WORK,
+                profile: Some(ConfigurationReadProfile::CombinedV1),
+            },
+            &|| false,
+        )
+        .unwrap();
+        assert_eq!(owner.profile, Some(ConfigurationReadProfile::CombinedV1));
+        assert!(owner.retained_descriptor_count() <= 33);
+        let expires = owner.expires;
+        f.revalidate(&owner, 101, &|| false).unwrap();
+        assert_eq!(owner.expires, expires);
+        assert_eq!(owner.snapshot.limits, limits);
+        assert_eq!(
+            owner.configuration.contract,
+            serde_json::from_value(case["contract"].clone()).unwrap()
+        );
+    }
+}
+
+#[test]
+fn combined_profile_preflights_total_descriptors_before_host_collection() {
+    let names = ["contract", "pools", "protection", "shares"]
+        .map(|n| PathBuf::from(format!("/a/b/c/d/e/f/g/{n}")));
+    let paths = ConfigurationPaths {
+        contract: &names[0],
+        pools: &names[1],
+        protection: &names[2],
+        shares: &names[3],
+    };
+    assert!(admit(&paths, ConfigurationReadProfile::CombinedV1.limits()).is_ok());
+    let extra = PathBuf::from("/a/b/c/d/e/f/g/h/shares");
+    let paths = ConfigurationPaths {
+        shares: &extra,
+        ..paths
+    };
+    refusal(
+        inspect_storage_configuration_with_profile(
+            paths,
+            ConfigurationReadProfile::CombinedV1,
+            &|| false,
+        ),
+        Failure::Unavailable,
+    );
+}
+
 fn limits() -> ConfigurationLimits {
     ConfigurationLimits {
         max_file_bytes: MAX_FILE_BYTES,
@@ -145,6 +206,7 @@ impl Fixture {
             &paths,
             parts,
             CollectionBudget {
+                profile: None,
                 owner: rustix::process::geteuid().as_raw(),
                 limits,
                 at: 100,

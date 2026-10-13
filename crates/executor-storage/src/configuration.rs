@@ -1,5 +1,5 @@
 //! Retained declared planning configuration; no physical or operation authority.
-use crate::{Failure, Result, namespace, path};
+use crate::{Failure, Result, StorageReadProfile, namespace, namespace_with_profile, path};
 use limeos_domain::{PoolsConfig, SnapraidConfig, StorageContract, shares::SambaSharesConfig};
 use rustix::{
     fd::OwnedFd,
@@ -13,8 +13,10 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+mod admission;
 #[cfg(test)]
 mod tests;
+pub use admission::ConfigurationReadProfile;
 
 const MAX_FILE_BYTES: u32 = 64 * 1024;
 const MAX_TOTAL_BYTES: u32 = 128 * 1024;
@@ -185,6 +187,7 @@ pub struct StorageConfigurationEvidence {
     expires: Instant,
     state: Cell<ValidationState>,
     owner: u32,
+    profile: Option<ConfigurationReadProfile>,
 }
 impl StorageConfigurationEvidence {
     /// Borrowed declarations alone establish neither currentness nor authority.
@@ -206,9 +209,9 @@ impl StorageConfigurationEvidence {
         self.checked(|| {
             let deadline = Instant::now() + WORK;
             poll(self.expires, deadline, cancelled)?;
-            let fresh_root = host_root()?;
+            let fresh_root = host_root(self.profile)?;
             self.validate_from(&fresh_root, now()?, deadline, cancelled)?;
-            let final_root = host_root()?;
+            let final_root = host_root(self.profile)?;
             if directory(&final_root, 0)? != self.snapshot.host_root {
                 return Err(Failure::Conflict);
             }
@@ -315,18 +318,25 @@ fn directory(fd: &OwnedFd, owner: u32) -> Result<ConfigurationObjectIdentity> {
     }
     Ok((&stat).into())
 }
-fn host_root() -> Result<OwnedFd> {
+fn host_root(profile: Option<ConfigurationReadProfile>) -> Result<OwnedFd> {
     if !rustix::process::geteuid().is_root() {
         return Err(Failure::Unavailable);
     }
-    let mount_id = namespace()?;
+    let view = || {
+        if profile.is_some() {
+            namespace_with_profile(StorageReadProfile::CombinedV1)
+        } else {
+            namespace()
+        }
+    };
+    let mount_id = view()?;
     let root = rustix::fs::open(
         "/",
         OFlags::PATH | OFlags::DIRECTORY | OFlags::CLOEXEC,
         Mode::empty(),
     )
     .map_err(|_| Failure::Unavailable)?;
-    if directory(&root, 0)?.mount_id != mount_id || namespace()? != mount_id {
+    if directory(&root, 0)?.mount_id != mount_id || view()? != mount_id {
         return Err(Failure::WrongNamespace);
     }
     Ok(root)
@@ -520,12 +530,28 @@ pub fn inspect_storage_configuration(
     limits: ConfigurationLimits,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<StorageConfigurationEvidence> {
+    inspect(paths, limits, None, cancelled)
+}
+/// Closed trusted configuration admission for the later combined worker.
+pub fn inspect_storage_configuration_with_profile(
+    paths: ConfigurationPaths<'_>,
+    profile: ConfigurationReadProfile,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<StorageConfigurationEvidence> {
+    inspect(paths, profile.limits(), Some(profile), cancelled)
+}
+fn inspect(
+    paths: ConfigurationPaths<'_>,
+    limits: ConfigurationLimits,
+    profile: Option<ConfigurationReadProfile>,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<StorageConfigurationEvidence> {
     let parts = admit(&paths, limits)?;
     let expires = Instant::now() + LIFETIME;
     let deadline = Instant::now() + WORK;
     let at = now()?;
     poll(expires, deadline, cancelled)?;
-    let root = host_root()?;
+    let root = host_root(profile)?;
     let evidence = collect(
         root,
         &paths,
@@ -536,6 +562,7 @@ pub fn inspect_storage_configuration(
             at,
             expires,
             deadline,
+            profile,
         },
         cancelled,
     )?;
@@ -549,6 +576,7 @@ struct CollectionBudget {
     at: i64,
     expires: Instant,
     deadline: Instant,
+    profile: Option<ConfigurationReadProfile>,
 }
 fn collect(
     root: OwnedFd,
@@ -563,6 +591,7 @@ fn collect(
         at,
         expires,
         deadline,
+        profile,
     } = budget;
     poll(expires, deadline, cancelled)?;
     let root_identity = directory(&root, owner)?;
@@ -624,6 +653,14 @@ fn collect(
     }
     let files: [File; 4] = files.try_into().map_err(|_| Failure::InvalidPlan)?;
     poll(expires, deadline, cancelled)?;
+    if profile.is_some() {
+        let mut shape = admission::Shape::new();
+        for file in &files {
+            poll(expires, deadline, cancelled)?;
+            shape.inspect(&file.bytes)?;
+        }
+        poll(expires, deadline, cancelled)?;
+    }
     let configuration = parse(&files)?;
     let configuration_digest =
         configuration_digest(&configuration, limits.max_total_bytes as usize + 128)?;
@@ -650,6 +687,7 @@ fn collect(
         expires,
         state: Cell::new(ValidationState::Ready),
         owner,
+        profile,
     };
     evidence.checked(|| evidence.validate_from(&evidence.root, at, deadline, cancelled))?;
     Ok(evidence)
