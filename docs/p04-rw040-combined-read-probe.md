@@ -63,7 +63,11 @@ the process portion of future worker admission, alongside the existing
 uses Standard collection; its earlier qualification and 261-descriptor maximum
 do not qualify CombinedV1 or a combined worker. The
 [closed storage profile](p04-storage-read-admission.md) now propagates bounds
-through the retained inventory/source/dependency parents. A concrete budget
-across all owners still precedes independent supervision and worker enablement.
+through the retained inventory/source/dependency parents. The unregistered
+[combined budget library](p04-combined-read-budget.md) now selects the closed
+configuration profile and reserves all owner envelopes under the existing
+service caps. Genuine owner composition, independent supervision and installed
+resource qualification remain required. This probe keeps its Standard cases
+and its blocked combined case; budget phases are no collection proof.
 
 Namespace-local mount IDs are not host filesystem/UUID identity. Destination mapping, combined worker admission/deadlines/parent-death/descendant reaping, pool/protection/share propagation, claims/approvals/effect-time checks and live restore remain open. No P04/defect/cutover gate closes. The [probe-first design](plans/2026-10-08-rw040-combined-read-design.md) separates this delivered prerequisite from that later implementation.

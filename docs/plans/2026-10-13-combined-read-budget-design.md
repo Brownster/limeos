@@ -47,7 +47,8 @@ The payload model totals 21.25 MiB, inside a fixed 24 MiB envelope. Admit a fres
 worker baseline of at most 24 MiB RSS and four threads. The service retains
 MemoryMax=64M, MemorySwapMax=0 and TasksMax=16. Baseline plus modeled payload is
 48 MiB, leaving a modeled 16 MiB margin. This is a conditional planning model,
-not a total-heap/RSS/cgroup guarantee: allocator metadata/abort, library mapping,+runtime growth, child memory and unmeasured implementation scratch need installed
+not a total-heap/RSS/cgroup guarantee: allocator metadata/abort, library mapping,
+runtime growth, child memory and unmeasured implementation scratch need installed
 qualification. Never turn a sampled RSS value into a claim of peak enforcement.
 
 The configuration envelope conservatively allows typed cells and Vec growth for

@@ -1,0 +1,21 @@
+{
+  "qualified_source": "94a2826861c94763306e91b23cf17642d5f3acf6",
+  "files": {
+    "README.md": "e82152106749e36cd71389c1d4f0bba3e6de85b4ca299dc792e54c34bcd083f5",
+    "arm64-harness-accepted.log.gz": "859903e390f3da17b242ad18e7fd6c63ba0688913db7c225e5968953dc9ac89a",
+    "budget-focused.log.gz": "5e42942de196f789dbb962ea70ee9a518f9ec351b061efae713986d351b1fd59",
+    "budget-measurement.log.gz": "b7e5deb47568522bb01da625347b03d29bbc09ed80300800e34e74490094eed3",
+    "checks.json": "39ad533963971b9741283ce465c58f750e09b4021f591843999a3fd97236e5e3",
+    "clippy-accepted.log.gz": "90f80f5091e411bf3cee70c3c2c6e6ac1cc477cd477d27ccf8e92ca8afc991e3",
+    "contracts-accepted.log.gz": "2c9d305d8942999a19321c1ad94e6e254e57bd60bbef133b866dc9b7126625bf",
+    "fmt-accepted.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "package-combined-read-budget.py": "53f0fe27983b93fad99718cb85a01df433d4d2386f0787a07ba71600051cd2f9",
+    "repository-accepted.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "run-combined-read-budget-check.py": "99600d5cf530374b740127638cdd003e6fd678134f1b33ffd790ae398455b4a3",
+    "scope.json": "a39bb29f9d985eda2708ff5f6ad4d44374f69e9f65a5843647f52b6b6a090005",
+    "source-manifest.json": "63e5e3993e1c254b61e252412cd596150ce2adf46db685cfd1c1a82dc85e96da",
+    "storage-compile-on-disk.log.gz": "14e8f28b0f29ce254e1bde37781066c3dfa1eb4a232e10948f442ce0648e5700",
+    "storage-fixtures.log.gz": "cbe7cd99532d0242b096cc1122a0207787ce81c152b26efad1c3c92571b00955",
+    "test-rest.log.gz": "3591af2b52fbbe02dff1376e4c5b9af53ee852fbcfe5e7fe10e4a83e31682e95"
+  }
+}
