@@ -17,7 +17,7 @@ use rustix::{
 };
 use serde::Serialize;
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
     collections::BTreeSet,
     fmt,
     fs::File,
@@ -34,6 +34,10 @@ const TABLE_ROWS: usize = 4096;
 const REPORT_BYTES: usize = 48 * 1024;
 const DECLARATION_BYTES: usize = 64 * 1024;
 const WORK: Duration = Duration::from_secs(2);
+
+mod admission;
+use admission::MountPayload;
+pub use admission::ProcessReadProfile;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct RunningContainerProcessBinding {
@@ -148,6 +152,21 @@ pub fn inspect_running_container_processes(
     declarations: &ContainerStorageInventory,
     bindings: &[RunningContainerProcessBinding],
 ) -> Result<RunningContainerProcessEvidence> {
+    inspect_running_container_processes_with_profile(
+        declarations,
+        bindings,
+        ProcessReadProfile::Standard,
+    )
+}
+
+/// Closed trusted-library admission; the profile is retained for revalidation.
+/// This does not authenticate Engine declarations or enable a combined worker.
+pub fn inspect_running_container_processes_with_profile(
+    declarations: &ContainerStorageInventory,
+    bindings: &[RunningContainerProcessBinding],
+    profile: ProcessReadProfile,
+) -> Result<RunningContainerProcessEvidence> {
+    profile.admit(declarations, bindings.len())?;
     let kernel = Linux;
     let lease = Lease::new(declarations, kernel.clock()?)?;
     let sorted = validate_bindings(declarations, bindings)?;
@@ -155,7 +174,7 @@ pub fn inspect_running_container_processes(
         return Err(Failure::Unavailable);
     }
     Ok(RunningContainerProcessEvidence {
-        inner: collect(kernel, declarations, &sorted, lease)?,
+        inner: collect_with_profile(kernel, declarations, &sorted, lease, profile)?,
     })
 }
 
@@ -268,16 +287,22 @@ impl Lease {
     }
 }
 
-// Each complete pass admits at most 8 MiB, including duplicate namespaces.
+// Each complete pass admits its profile bound, including duplicate namespaces.
 // Repeated before/after observations do not enlarge retained parsed data.
 struct Budget<'a, K: Kernel> {
     kernel: &'a K,
     lease: &'a Lease,
     deadline: Instant,
     table_bytes: [Cell<usize>; 3],
+    profile: ProcessReadProfile,
+    mount_payload: RefCell<MountPayload>,
 }
 impl<'a, K: Kernel> Budget<'a, K> {
+    #[cfg(test)]
     fn new(kernel: &'a K, lease: &'a Lease) -> Result<Self> {
+        Self::with_profile(kernel, lease, ProcessReadProfile::Standard)
+    }
+    fn with_profile(kernel: &'a K, lease: &'a Lease, profile: ProcessReadProfile) -> Result<Self> {
         let now = kernel.clock()?;
         lease.check(now)?;
         Ok(Self {
@@ -285,6 +310,8 @@ impl<'a, K: Kernel> Budget<'a, K> {
             lease,
             deadline: now.monotonic + WORK,
             table_bytes: std::array::from_fn(|_| Cell::new(0)),
+            profile,
+            mount_payload: RefCell::new(MountPayload::new(profile)),
         })
     }
     fn check(&self) -> Result<()> {
@@ -301,14 +328,17 @@ impl<'a, K: Kernel> Budget<'a, K> {
         let total = self.table_bytes[pass]
             .get()
             .checked_add(bytes)
-            .filter(|n| bytes <= TABLE_BYTES && *n <= AGGREGATE_TABLE_BYTES)
+            .filter(|n| bytes <= self.profile.table_bytes() && *n <= self.profile.aggregate_bytes())
             .ok_or(Failure::Unavailable)?;
         self.table_bytes[pass].set(total);
         Ok(())
     }
     fn table_limit(&self, pass: usize) -> Result<usize> {
         self.check()?;
-        Ok(TABLE_BYTES.min(AGGREGATE_TABLE_BYTES - self.table_bytes[pass].get()))
+        Ok(self
+            .profile
+            .table_bytes()
+            .min(self.profile.aggregate_bytes() - self.table_bytes[pass].get()))
     }
 }
 
@@ -436,6 +466,7 @@ struct Evidence<K: Kernel> {
     snapshot: RunningContainerProcessSnapshot,
     retained: Vec<RetainedProcess<K::Handle>>,
     invalid: Cell<bool>,
+    profile: ProcessReadProfile,
 }
 impl<K: Kernel> Evidence<K> {
     fn mounts(&self, resource: &str) -> Option<&[ContainerProcessMount]> {
@@ -448,7 +479,8 @@ impl<K: Kernel> Evidence<K> {
         if self.invalid.get() {
             return Err(Failure::Conflict);
         }
-        let result = Budget::new(&self.kernel, &self.lease).and_then(|budget| self.check(&budget));
+        let result = Budget::with_profile(&self.kernel, &self.lease, self.profile)
+            .and_then(|budget| self.check(&budget));
         if result.is_err() {
             self.invalid.set(true);
         }
@@ -483,15 +515,33 @@ impl<K: Kernel> Evidence<K> {
     }
 }
 
+#[cfg(test)]
 fn collect<K: Kernel>(
     kernel: K,
     declarations: &ContainerStorageInventory,
     bindings: &[&RunningContainerProcessBinding],
     lease: Lease,
 ) -> Result<Evidence<K>> {
+    collect_with_profile(
+        kernel,
+        declarations,
+        bindings,
+        lease,
+        ProcessReadProfile::Standard,
+    )
+}
+
+fn collect_with_profile<K: Kernel>(
+    kernel: K,
+    declarations: &ContainerStorageInventory,
+    bindings: &[&RunningContainerProcessBinding],
+    lease: Lease,
+    profile: ProcessReadProfile,
+) -> Result<Evidence<K>> {
+    profile.admit(declarations, bindings.len())?;
     let declaration_digest = digest_json(declarations, DECLARATION_BYTES)?;
     let binding_digest = digest_json(&bindings, DECLARATION_BYTES)?;
-    let budget = Budget::new(&kernel, &lease)?;
+    let budget = Budget::with_profile(&kernel, &lease, profile)?;
     let context = kernel.context(&budget)?;
     let host = kernel.host(&context, &budget)?;
     let mut retained = Vec::new();
@@ -511,7 +561,12 @@ fn collect<K: Kernel>(
         let root_identity = kernel.directory_identity(&root, &budget)?;
         let raw = kernel.table(&proc, &budget, budget.table_limit(0)?)?;
         budget.table(raw.len(), 0)?;
-        let mounts = parse_mounts(&raw, &|| budget.check())?;
+        let mounts = parse_mounts_with_profile(
+            &raw,
+            &|| budget.check(),
+            profile,
+            &mut budget.mount_payload.borrow_mut(),
+        )?;
         // stat's device may be a Btrfs subvolume alias, distinct from the
         // mount table's superblock device. Preserve both facts for the later
         // filesystem/backing composer; neither authenticates physical storage.
@@ -563,12 +618,15 @@ fn collect<K: Kernel>(
         snapshot,
         retained,
         invalid: Cell::new(false),
+        profile,
     };
     let budget = Budget {
         kernel: &evidence.kernel,
         lease: &evidence.lease,
         deadline,
         table_bytes: std::array::from_fn(|_| Cell::new(0)),
+        profile,
+        mount_payload: RefCell::new(MountPayload::new(profile)),
     };
     evidence.check(&budget)?;
     Ok(evidence)
@@ -679,14 +737,30 @@ impl Kernel for Linux {
         {
             return Err(Failure::Conflict);
         }
-        let current = read_proc(&context.own_proc, "mountinfo", TABLE_BYTES, &|| {
-            budget.check()
-        })?;
-        let host = read_proc(&context.init_proc, "mountinfo", TABLE_BYTES, &|| {
-            budget.check()
-        })?;
-        let current_root = host_root_row(&parse_mounts(&current, &|| budget.check())?)?;
-        let host_root = host_root_row(&parse_mounts(&host, &|| budget.check())?)?;
+        let current = read_proc(
+            &context.own_proc,
+            "mountinfo",
+            budget.profile.table_bytes(),
+            &|| budget.check(),
+        )?;
+        let host = read_proc(
+            &context.init_proc,
+            "mountinfo",
+            budget.profile.table_bytes(),
+            &|| budget.check(),
+        )?;
+        let current_root = host_root_row(&parse_mounts_with_profile(
+            &current,
+            &|| budget.check(),
+            budget.profile,
+            &mut MountPayload::new(budget.profile),
+        )?)?;
+        let host_root = host_root_row(&parse_mounts_with_profile(
+            &host,
+            &|| budget.check(),
+            budget.profile,
+            &mut MountPayload::new(budget.profile),
+        )?)?;
         let namespace =
             self.namespace_identity(&self.namespace(&context.own_proc, budget)?, budget)?;
         let init_namespace =
@@ -1128,18 +1202,30 @@ fn pidfd_pid(text: &str) -> Result<u32> {
     Ok(pid)
 }
 
+#[cfg(test)]
 fn parse_mounts(text: &str, check: &dyn Fn() -> Result<()>) -> Result<Vec<ContainerProcessMount>> {
-    if text.is_empty() || text.len() > TABLE_BYTES || !text.ends_with('\n') {
+    parse_mounts_with_profile(
+        text,
+        check,
+        ProcessReadProfile::Standard,
+        &mut MountPayload::new(ProcessReadProfile::Standard),
+    )
+}
+fn parse_mounts_with_profile(
+    text: &str,
+    check: &dyn Fn() -> Result<()>,
+    profile: ProcessReadProfile,
+    payload: &mut MountPayload,
+) -> Result<Vec<ContainerProcessMount>> {
+    check()?;
+    if text.is_empty() || text.len() > profile.table_bytes() || !text.ends_with('\n') {
         return Err(Failure::Unavailable);
     }
     let count = text.lines().count();
-    if count > TABLE_ROWS {
+    if count > profile.table_rows() {
         return Err(Failure::Unavailable);
     }
-    let mut parsed = Vec::new();
-    parsed
-        .try_reserve_exact(count)
-        .map_err(|_| Failure::Unavailable)?;
+    let mut parsed = payload.vector(count)?;
     let mut ids = BTreeSet::new();
     for line in text.lines() {
         check()?;
@@ -1182,8 +1268,8 @@ fn parse_mounts(text: &str, check: &dyn Fn() -> Result<()>) -> Result<Vec<Contai
         {
             return Err(Failure::Unavailable);
         }
-        let root = mounts::unescape(root)?;
-        let path = mounts::unescape(path)?;
+        let root = payload.path(root, profile)?;
+        let path = payload.path(path, profile)?;
         if !root.starts_with('/') || !path.starts_with('/') {
             return Err(Failure::Unavailable);
         }
@@ -1193,7 +1279,7 @@ fn parse_mounts(text: &str, check: &dyn Fn() -> Result<()>) -> Result<Vec<Contai
             device,
             filesystem_root: root,
             mountpoint: path,
-            filesystem: filesystem.into(),
+            filesystem: payload.filesystem(filesystem, profile)?,
             writable: options.split(',').any(|o| o == "rw")
                 && super_options.split(',').any(|o| o == "rw"),
         });

@@ -7,6 +7,8 @@ use std::{
     rc::Rc,
 };
 
+mod admission;
+
 const TABLE: &str =
     include_str!("../../../../tests/fixtures/container-process-evidence/mountinfo.txt");
 const STATUS: &str =
@@ -867,7 +869,8 @@ macro_rules! delegate_linux {
         fn $name(&self, $($arg: $ty,)* b: &Budget<'_, Self>) -> Result<$out> {
             self.sample();
             let local = Budget { kernel: &Linux, lease: b.lease, deadline: b.deadline,
-                table_bytes: std::array::from_fn(|_| Cell::new(0)) };
+                table_bytes: std::array::from_fn(|_| Cell::new(0)), profile: b.profile,
+                mount_payload: RefCell::new(MountPayload::new(b.profile)) };
             let result = Linux.$name($($arg,)* &local);
             if let Err(failure) = &result { eprintln!("local child phase {}: {failure:?}", stringify!($name)); }
             self.sample(); result
@@ -903,6 +906,8 @@ impl Kernel for LocalChildren {
             lease: b.lease,
             deadline: b.deadline,
             table_bytes: std::array::from_fn(|_| Cell::new(0)),
+            profile: b.profile,
+            mount_payload: RefCell::new(MountPayload::new(b.profile)),
         };
         let result = Linux.proc(context, pid, &local);
         self.sample();
@@ -918,7 +923,7 @@ impl Kernel for LocalChildren {
     fn host(&self, context: &HostHandles<OwnedFd>, b: &Budget<'_, Self>) -> Result<HostFacts> {
         let root = self.directory_identity(&context.root, b)?;
         let proc_root = self.directory_identity(&context.proc_root, b)?;
-        let raw = self.table(&context.own_proc, b, TABLE_BYTES)?;
+        let raw = self.table(&context.own_proc, b, b.profile.table_bytes())?;
         let namespace = self.namespace_identity(&self.namespace(&context.own_proc, b)?, b)?;
         let boot = read_proc(
             &context.proc_root,
