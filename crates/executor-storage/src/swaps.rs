@@ -16,23 +16,44 @@ struct Entry {
     device: DeviceNumber,
     inode: u64,
 }
+#[cfg(test)]
 fn rows(text: &str) -> Result<Vec<(String, String, u64, i32)>> {
+    rows_with_profile(text, StorageReadProfile::Standard)
+}
+fn rows_with_profile(
+    text: &str,
+    profile: StorageReadProfile,
+) -> Result<Vec<(String, String, u64, i32)>> {
+    if text.len() > 65536 {
+        return Err(Failure::Unavailable);
+    }
     let mut lines = text.lines();
     if lines
         .next()
-        .map(|s| s.split_whitespace().collect::<Vec<_>>())
-        != Some(vec!["Filename", "Type", "Size", "Used", "Priority"])
+        .and_then(|s| mounts::fixed_fields::<5>(s, false).ok())
+        != Some(["Filename", "Type", "Size", "Used", "Priority"])
     {
         return Err(Failure::Unavailable);
     }
     let mut result = Vec::new();
     let mut names = BTreeSet::new();
     for line in lines {
-        let fields: Vec<_> = line.split_whitespace().collect();
-        if fields.len() != 5 || result.len() >= 128 || !matches!(fields[1], "file" | "partition") {
+        let fields = mounts::fixed_fields::<5>(line, false)?;
+        if result.len()
+            >= if profile == StorageReadProfile::CombinedV1 {
+                8
+            } else {
+                128
+            }
+            || !matches!(fields[1], "file" | "partition")
+        {
             return Err(Failure::Unavailable);
         }
-        let name = mounts::unescape(fields[0])?;
+        let name = if profile == StorageReadProfile::CombinedV1 {
+            read_admission::decode_path(fields[0], 512)?
+        } else {
+            mounts::unescape(fields[0])?
+        };
         if !names.insert(name.clone()) || fields[3].parse::<u64>().is_err() {
             return Err(Failure::Unavailable);
         }
@@ -48,9 +69,14 @@ fn rows(text: &str) -> Result<Vec<(String, String, u64, i32)>> {
 }
 impl Snapshot {
     pub fn collect() -> Result<Self> {
+        Self::collect_with_profile(StorageReadProfile::Standard)
+    }
+    pub(crate) fn collect_with_profile(profile: StorageReadProfile) -> Result<Self> {
         let mut entries = Vec::new();
         let mut devices = BTreeSet::new();
-        for (name, kind, size, priority) in rows(&bounded_read(Path::new("/proc/swaps"), 65536)?)? {
+        for (name, kind, size, priority) in
+            rows_with_profile(&profile.read(Path::new("/proc/swaps"), 65536)?, profile)?
+        {
             let fd = path::open(Path::new(&name), false, false)?;
             let s = path::stat(&fd)?;
             let device = match (kind.as_str(), s.stx_mode & 0o170000) {
@@ -80,6 +106,42 @@ impl Snapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn combined_swap_admission_bounds_complete_rows_and_decoded_names() {
+        let header = "Filename Type Size Used Priority\n";
+        let rows: String = (0..8)
+            .map(|i| format!("/dev/sd{i} partition 10 0 -2\n"))
+            .collect();
+        assert_eq!(
+            rows_with_profile(&format!("{header}{rows}"), StorageReadProfile::CombinedV1)
+                .unwrap()
+                .len(),
+            8
+        );
+        let extra = format!("{header}{rows}/dev/extra partition 10 0 -2\n");
+        assert_eq!(
+            rows_with_profile(&extra, StorageReadProfile::CombinedV1),
+            Err(Failure::Unavailable)
+        );
+        assert_eq!(
+            rows_with_profile(&extra, StorageReadProfile::Standard)
+                .unwrap()
+                .len(),
+            9
+        );
+        let oversized = format!("{header}/{} file 10 0 -2\n", "x".repeat(512));
+        assert_eq!(
+            rows_with_profile(&oversized, StorageReadProfile::CombinedV1),
+            Err(Failure::Unavailable)
+        );
+        assert!(
+            rows_with_profile(
+                &format!("{header}{}", "a ".repeat(20000)),
+                StorageReadProfile::CombinedV1
+            )
+            .is_err()
+        );
+    }
     #[test]
     fn swap_identity_ignores_utilization_but_bounds_and_validates_kernel_rows() {
         let header = "Filename\tType\tSize\tUsed\tPriority\n";

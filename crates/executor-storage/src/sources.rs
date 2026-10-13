@@ -1,5 +1,8 @@
 //! Retained host source descriptors, not complete physical dependency authority.
-use crate::{Failure, Result, bounded_read, host_view, mounts, topology::DeviceNumber};
+use crate::{
+    Failure, Result, StorageReadProfile, bounded_read, host_view, mounts, read_admission,
+    topology::DeviceNumber,
+};
 use limeos_domain::{
     CONTAINER_STORAGE_MAX_AGE_SECONDS, ContainerStorageInventory, container_storage_path,
 };
@@ -15,6 +18,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+#[cfg(test)]
 const MAX_MOUNT_REFERENCES: usize = 512;
 const MAX_REPORT_BYTES: usize = 48 * 1024;
 const WORK_SECONDS: u64 = 2;
@@ -68,6 +72,7 @@ pub struct ContainerSourceEvidence {
     context: Context,
     retained: Vec<OwnedFd>,
     expires: Instant,
+    profile: StorageReadProfile,
 }
 impl ContainerSourceEvidence {
     pub fn snapshot(&self) -> &ContainerSourceSnapshot {
@@ -83,13 +88,15 @@ impl ContainerSourceEvidence {
     fn revalidate_inner(&self, deadline: Instant) -> Result<()> {
         check_deadline(self.expires)?;
         self.inventory.validate(now()?).map_err(domain_failure)?;
-        table_matches(
-            &read_mount_text()?,
+        table_matches_with_profile(
+            &read_mount_text_with_profile(self.profile)?,
             &self.table,
             &self.snapshot.mounts_digest,
+            self.profile,
         )?;
         let table = &self.table;
-        if host_view(table, &read_host_table()?)? != self.snapshot.host_root_mount_id
+        if host_view(table, &read_host_table_with_profile(self.profile)?)?
+            != self.snapshot.host_root_mount_id
             || descriptor_mount_id(&self.context.root)? != self.snapshot.host_root_mount_id
         {
             return Err(Failure::Conflict);
@@ -102,7 +109,9 @@ impl ContainerSourceEvidence {
                 return Err(Failure::Conflict);
             }
             for name in [&source.declared_path, &source.resolved_path] {
-                let again = self.context.open(name, table, deadline)?;
+                let again = self
+                    .context
+                    .open_with_profile(name, table, deadline, self.profile)?;
                 if self.context.inspect(&again, table)?
                     != (source.identity.clone(), source.resolved_path.clone())
                 {
@@ -110,12 +119,15 @@ impl ContainerSourceEvidence {
                 }
             }
         }
-        table_matches(
-            &read_mount_text()?,
+        table_matches_with_profile(
+            &read_mount_text_with_profile(self.profile)?,
             &self.table,
             &self.snapshot.mounts_digest,
+            self.profile,
         )?;
-        if host_view(&self.table, &read_host_table()?)? != self.snapshot.host_root_mount_id {
+        if host_view(&self.table, &read_host_table_with_profile(self.profile)?)?
+            != self.snapshot.host_root_mount_id
+        {
             return Err(Failure::Conflict);
         }
         self.inventory.validate(now()?).map_err(domain_failure)?;
@@ -128,16 +140,25 @@ impl ContainerSourceEvidence {
 pub fn inspect_container_sources(
     inventory: &ContainerStorageInventory,
 ) -> Result<ContainerSourceEvidence> {
+    inspect_container_sources_with_profile(inventory, StorageReadProfile::Standard)
+}
+pub fn inspect_container_sources_with_profile(
+    inventory: &ContainerStorageInventory,
+    profile: StorageReadProfile,
+) -> Result<ContainerSourceEvidence> {
+    profile.admit_sources(inventory)?;
     inventory.validate(now()?).map_err(domain_failure)?;
+    read_admission::json_limit(inventory, 64 * 1024)?;
     if !rustix::process::geteuid().is_root() {
         return Err(Failure::Unavailable);
     }
     let deadline = Instant::now() + Duration::from_secs(WORK_SECONDS);
-    let table = read_table()?;
-    let ns = host_view(&table, &read_host_table()?)?;
-    collect(inventory, Context::new()?, table, ns, deadline)
+    let table = read_table_with_profile(profile)?;
+    let ns = host_view(&table, &read_host_table_with_profile(profile)?)?;
+    collect_with_profile(inventory, Context::new()?, table, ns, deadline, profile)
 }
 
+#[cfg(test)]
 fn collect(
     inventory: &ContainerStorageInventory,
     context: Context,
@@ -145,32 +166,54 @@ fn collect(
     ns: u64,
     deadline: Instant,
 ) -> Result<ContainerSourceEvidence> {
+    collect_with_profile(
+        inventory,
+        context,
+        table,
+        ns,
+        deadline,
+        StorageReadProfile::Standard,
+    )
+}
+fn collect_with_profile(
+    inventory: &ContainerStorageInventory,
+    context: Context,
+    table: Vec<mounts::Mount>,
+    ns: u64,
+    deadline: Instant,
+    profile: StorageReadProfile,
+) -> Result<ContainerSourceEvidence> {
+    let count = profile.admit_sources(inventory)?;
     let observed_at = now()?;
     inventory.validate(observed_at).map_err(domain_failure)?;
     let expires = Instant::now()
         + Duration::from_secs(
             (CONTAINER_STORAGE_MAX_AGE_SECONDS - (observed_at - inventory.observed_at)) as u64,
         );
-    let mounts_digest = limeos_identity::digest(&read_mount_text()?);
-    if descriptor_mount_id(&context.root)? != ns
-        || serde_json::to_vec(inventory)
-            .map_err(|_| Failure::Unavailable)?
-            .len()
-            > 64 * 1024
-    {
+    let mounts_digest = limeos_identity::digest(&read_mount_text_with_profile(profile)?);
+    read_admission::json_limit(inventory, 64 * 1024)?;
+    if descriptor_mount_id(&context.root)? != ns {
         return Err(Failure::Unavailable);
     }
     let mut pinned = Vec::new();
+    pinned
+        .try_reserve_exact(count)
+        .map_err(|_| Failure::Unavailable)?;
     let mut selected = BTreeSet::<u64>::new();
     let mut references = 0usize;
     for consumer in &inventory.containers {
         for source in &consumer.mounts {
             check_deadline(deadline)?;
-            let fd = context.open(source.source.path(), &table, deadline)?;
+            let fd = context.open_with_profile(source.source.path(), &table, deadline, profile)?;
             let (identity, resolved_path) = context.inspect(&fd, &table)?;
-            let potential_mount_ids = candidates(&identity, &resolved_path, &table)?;
+            let potential_mount_ids = candidates_with_limit(
+                &identity,
+                &resolved_path,
+                &table,
+                profile.references() - references,
+            )?;
             references += potential_mount_ids.len();
-            if references > MAX_MOUNT_REFERENCES {
+            if references > profile.references() {
                 return Err(Failure::Unavailable);
             }
             selected.extend(potential_mount_ids.iter().copied());
@@ -206,7 +249,7 @@ fn collect(
     let evidence = ContainerSourceEvidence {
         snapshot: ContainerSourceSnapshot {
             version: 1,
-            inventory_digest: digest(inventory)?,
+            inventory_digest: profile.digest(inventory)?,
             host_root_mount_id: ns,
             mounts_digest,
             sources,
@@ -217,14 +260,9 @@ fn collect(
         context,
         retained,
         expires,
+        profile,
     };
-    if serde_json::to_vec(evidence.snapshot())
-        .map_err(|_| Failure::Unavailable)?
-        .len()
-        > MAX_REPORT_BYTES
-    {
-        return Err(Failure::Unavailable);
-    }
+    read_admission::json_limit(evidence.snapshot(), MAX_REPORT_BYTES)?;
     evidence.revalidate_inner(deadline)?;
     Ok(evidence)
 }
@@ -248,15 +286,26 @@ impl Context {
             descriptors: open(&format!("/proc/{}/fd", std::process::id()))?,
         })
     }
+    #[cfg(test)]
     fn open(&self, name: &str, table: &[mounts::Mount], deadline: Instant) -> Result<OwnedFd> {
+        self.open_with_profile(name, table, deadline, StorageReadProfile::Standard)
+    }
+    fn open_with_profile(
+        &self,
+        name: &str,
+        table: &[mounts::Mount],
+        deadline: Instant,
+        profile: StorageReadProfile,
+    ) -> Result<OwnedFd> {
         if !container_storage_path(name) {
             return Err(Failure::InvalidPlan);
         }
-        let mut pending: VecDeque<_> = name.split('/').map(str::to_owned).collect();
+        let mut pending = Pending::new(profile);
+        pending.prepend(name)?;
         let mut resolved = Vec::<String>::new();
         let mut links = 0;
         let mut steps = 0;
-        while let Some(part) = pending.pop_front() {
+        while let Some(part) = pending.pop() {
             check_deadline(deadline)?;
             steps += 1;
             if steps > 512 {
@@ -321,9 +370,7 @@ impl Context {
                 if target.starts_with('/') {
                     resolved.clear();
                 }
-                for component in target.split('/').rev() {
-                    pending.push_front(component.into());
-                }
+                pending.prepend(target)?;
             } else {
                 // A subsequent '.', '..' or empty trailing component also
                 // requires a directory in the real VFS path walk.
@@ -417,26 +464,103 @@ impl Context {
     }
 }
 
+struct Pending {
+    values: VecDeque<String>,
+    bytes: usize,
+    profile: StorageReadProfile,
+}
+impl Pending {
+    fn new(profile: StorageReadProfile) -> Self {
+        Self {
+            values: VecDeque::new(),
+            bytes: 0,
+            profile,
+        }
+    }
+    fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+    fn pop(&mut self) -> Option<String> {
+        let part = self.values.pop_front()?;
+        self.bytes -= part.capacity();
+        Some(part)
+    }
+    fn prepend(&mut self, text: &str) -> Result<()> {
+        let count = text.split('/').count();
+        let bytes = text
+            .split('/')
+            .try_fold(self.bytes, |n, c| n.checked_add(c.len()))
+            .ok_or(Failure::Unavailable)?;
+        let total = self
+            .values
+            .len()
+            .checked_add(count)
+            .ok_or(Failure::Unavailable)?;
+        if self.profile == StorageReadProfile::CombinedV1 && (total > 256 || bytes > 16 * 1024) {
+            return Err(Failure::Unavailable);
+        }
+        self.values
+            .try_reserve_exact(count)
+            .map_err(|_| Failure::Unavailable)?;
+        if self.profile == StorageReadProfile::CombinedV1 && self.values.capacity() > 256 {
+            return Err(Failure::Unavailable);
+        }
+        for component in text.split('/').rev() {
+            let value = read_admission::copy_text(component, usize::MAX)?;
+            self.bytes = self
+                .bytes
+                .checked_add(value.capacity())
+                .ok_or(Failure::Unavailable)?;
+            if self.profile == StorageReadProfile::CombinedV1 && self.bytes > 16 * 1024 {
+                return Err(Failure::Unavailable);
+            }
+            self.values.push_front(value);
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
 fn candidates(
     identity: &ContainerSourceIdentity,
     resolved: &str,
     table: &[mounts::Mount],
 ) -> Result<Vec<u64>> {
+    candidates_with_limit(identity, resolved, table, MAX_MOUNT_REFERENCES)
+}
+fn candidates_with_limit(
+    identity: &ContainerSourceIdentity,
+    resolved: &str,
+    table: &[mounts::Mount],
+    limit: usize,
+) -> Result<Vec<u64>> {
     if !table.iter().any(|m| m.id == identity.mount_id) {
         return Err(Failure::Conflict);
     }
-    let ids: BTreeSet<_> = table
-        .iter()
-        .filter(|m| {
-            m.id == identity.mount_id
-                || (identity.kind == ContainerSourceKind::Directory && beneath(&m.path, resolved))
-        })
-        .map(|m| m.id)
-        .collect();
-    if ids.len() > MAX_MOUNT_REFERENCES {
+    let selected = || {
+        table
+            .iter()
+            .filter(|m| {
+                m.id == identity.mount_id
+                    || (identity.kind == ContainerSourceKind::Directory
+                        && beneath(&m.path, resolved))
+            })
+            .map(|m| m.id)
+    };
+    let count = selected().count();
+    if count > limit {
         return Err(Failure::Unavailable);
     }
-    Ok(ids.into_iter().collect())
+    let mut ids = Vec::new();
+    ids.try_reserve_exact(count)
+        .map_err(|_| Failure::Unavailable)?;
+    ids.extend(selected());
+    ids.sort_unstable();
+    ids.dedup();
+    if ids.len() != count {
+        return Err(Failure::Unavailable);
+    }
+    Ok(ids)
 }
 fn beneath(path: &str, root: &str) -> bool {
     root == "/" || path == root || path.strip_prefix(root).is_some_and(|s| s.starts_with('/'))
@@ -473,8 +597,12 @@ fn mount_id(text: &str) -> Result<u64> {
     }
     Ok(id)
 }
+#[cfg(test)]
 fn read_table() -> Result<Vec<mounts::Mount>> {
-    let table = mounts::parse(&read_mount_text()?)?;
+    read_table_with_profile(StorageReadProfile::Standard)
+}
+fn read_table_with_profile(profile: StorageReadProfile) -> Result<Vec<mounts::Mount>> {
+    let table = mounts::parse_with_profile(&read_mount_text_with_profile(profile)?, profile)?;
     if table
         .iter()
         .any(|m| m.id == 0 || !container_storage_path(&m.path) || !container_storage_path(&m.root))
@@ -483,18 +611,38 @@ fn read_table() -> Result<Vec<mounts::Mount>> {
     }
     Ok(table)
 }
-fn read_mount_text() -> Result<String> {
-    bounded_read(Path::new("/proc/self/mountinfo"), 1024 * 1024)
+fn read_mount_text_with_profile(profile: StorageReadProfile) -> Result<String> {
+    profile.read(Path::new("/proc/self/mountinfo"), profile.table_bytes())
 }
+#[cfg(test)]
 fn table_matches(text: &str, table: &[mounts::Mount], expected_digest: &str) -> Result<()> {
-    if limeos_identity::digest(text) != expected_digest || mounts::parse(text)? != table {
+    table_matches_with_profile(text, table, expected_digest, StorageReadProfile::Standard)
+}
+fn table_matches_with_profile(
+    text: &str,
+    table: &[mounts::Mount],
+    expected_digest: &str,
+    profile: StorageReadProfile,
+) -> Result<()> {
+    if profile == StorageReadProfile::Standard && limeos_identity::digest(text) != expected_digest {
+        return Err(Failure::Conflict);
+    }
+    let parsed = mounts::parse_with_profile(text, profile)?;
+    if limeos_identity::digest(text) != expected_digest || parsed != table {
         Err(Failure::Conflict)
     } else {
         Ok(())
     }
 }
+#[cfg(test)]
 fn read_host_table() -> Result<Vec<mounts::Mount>> {
-    mounts::parse(&bounded_read(Path::new("/proc/1/mountinfo"), 1024 * 1024)?)
+    read_host_table_with_profile(StorageReadProfile::Standard)
+}
+fn read_host_table_with_profile(profile: StorageReadProfile) -> Result<Vec<mounts::Mount>> {
+    mounts::parse_with_profile(
+        &profile.read(Path::new("/proc/1/mountinfo"), profile.table_bytes())?,
+        profile,
+    )
 }
 fn check_deadline(deadline: Instant) -> Result<()> {
     if Instant::now() >= deadline {
@@ -510,6 +658,7 @@ pub(crate) fn now() -> Result<i64> {
         .and_then(|d| i64::try_from(d.as_secs()).ok())
         .ok_or(Failure::Unavailable)
 }
+#[cfg(test)]
 fn digest<T: Serialize>(value: &T) -> Result<String> {
     Ok(limeos_identity::digest(
         &serde_json::to_string(value).map_err(|_| Failure::Unavailable)?,

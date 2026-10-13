@@ -14,6 +14,31 @@ struct Facts {
     table: Vec<Mount>,
     sources: ContainerSourceSnapshot,
 }
+
+#[test]
+fn combined_binding_preserves_standard_complete_dependency_report_and_digests() {
+    let f = Facts::new();
+    let standard = bind(
+        &f.contract,
+        &f.storage,
+        &f.topology,
+        &f.table,
+        &f.sources.mounts_digest,
+        &f.sources,
+    )
+    .unwrap();
+    let combined = bind_with_profile(
+        &f.contract,
+        &f.storage,
+        &f.topology,
+        &f.table,
+        &f.sources.mounts_digest,
+        &f.sources,
+        StorageReadProfile::CombinedV1,
+    )
+    .unwrap();
+    assert_eq!(standard, combined);
+}
 impl Facts {
     fn new() -> Self {
         let fixtures: serde_json::Value = serde_json::from_str(include_str!(

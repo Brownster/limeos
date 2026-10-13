@@ -1,8 +1,9 @@
 //! Read-only UUID/backing binding. Running namespaces and effects remain gated.
 use crate::{
     ContainerSourceEvidence, ContainerSourceSnapshot, DeviceNumber, Failure, Result,
-    StorageInventoryEvidence, filesystem_matches, inspect_container_sources,
-    inspect_storage_inventory, inventory::digest, mounts::Mount, topology::Topology,
+    StorageInventoryEvidence, StorageReadProfile, filesystem_matches,
+    inspect_container_sources_with_profile, inspect_storage_inventory_with_profile, mounts::Mount,
+    read_admission, topology::Topology,
 };
 use limeos_domain::{ContainerStorageInventory, StorageContract, StorageInventory};
 use serde::Serialize;
@@ -14,6 +15,8 @@ use std::{
 const MAX_MATCHES: usize = 512;
 const MAX_REPORT_BYTES: usize = 48 * 1024;
 const WORK_SECONDS: u64 = 4;
+#[cfg(test)]
+use crate::inventory::digest;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -87,6 +90,15 @@ pub async fn inspect_container_dependencies(
     contract: &StorageContract,
     containers: &ContainerStorageInventory,
 ) -> Result<ContainerDependencyEvidence> {
+    inspect_container_dependencies_with_profile(contract, containers, StorageReadProfile::Standard)
+        .await
+}
+pub async fn inspect_container_dependencies_with_profile(
+    contract: &StorageContract,
+    containers: &ContainerStorageInventory,
+    profile: StorageReadProfile,
+) -> Result<ContainerDependencyEvidence> {
+    profile.admit_sources(containers)?;
     contract.validate().map_err(|_| Failure::InvalidPlan)?;
     containers.validate(crate::sources::now()?).map_err(|e| {
         if e.0 == limeos_domain::ErrorCode::Conflict {
@@ -95,18 +107,23 @@ pub async fn inspect_container_dependencies(
             Failure::InvalidPlan
         }
     })?;
+    if profile == StorageReadProfile::CombinedV1 {
+        read_admission::json_limit(containers, 64 * 1024)?;
+        read_admission::json_limit(contract, 256 * 1024)?;
+    }
     let deadline = Instant::now() + Duration::from_secs(WORK_SECONDS);
     tokio::time::timeout(Duration::from_secs(WORK_SECONDS), async {
-        let storage = inspect_storage_inventory().await?;
+        let storage = inspect_storage_inventory_with_profile(profile).await?;
         check_deadline(deadline)?;
-        let sources = inspect_container_sources(containers)?;
-        let snapshot = bind(
+        let sources = inspect_container_sources_with_profile(containers, profile)?;
+        let snapshot = bind_with_profile(
             contract,
             storage.snapshot(),
             &storage.topology,
             &storage.table,
             &storage.raw_mounts_digest,
             sources.snapshot(),
+            profile,
         )?;
         let evidence = ContainerDependencyEvidence {
             snapshot,
@@ -141,6 +158,7 @@ fn mounted_filesystem_matches(probed: &str, mounted: &str) -> bool {
 }
 
 // This helper is private: only the retained collectors supply its observations.
+#[cfg(test)]
 fn bind(
     contract: &StorageContract,
     storage: &StorageInventory,
@@ -149,11 +167,30 @@ fn bind(
     raw_mounts_digest: &str,
     sources: &ContainerSourceSnapshot,
 ) -> Result<ContainerDependencySnapshot> {
+    bind_with_profile(
+        contract,
+        storage,
+        topology,
+        table,
+        raw_mounts_digest,
+        sources,
+        StorageReadProfile::Standard,
+    )
+}
+fn bind_with_profile(
+    contract: &StorageContract,
+    storage: &StorageInventory,
+    topology: &Topology,
+    table: &[Mount],
+    raw_mounts_digest: &str,
+    sources: &ContainerSourceSnapshot,
+    profile: StorageReadProfile,
+) -> Result<ContainerDependencySnapshot> {
     contract.validate().map_err(|_| Failure::InvalidPlan)?;
     storage.validate().map_err(|_| Failure::Unavailable)?;
     if sources.host_root_mount_id != storage.host_root_mount_id
         || sources.mounts_digest != raw_mounts_digest
-        || digest(&table)? != storage.mounts_digest
+        || profile.digest(&table)? != storage.mounts_digest
     {
         return Err(Failure::IdentityMismatch);
     }
@@ -279,21 +316,15 @@ fn bind(
     dependencies.sort_by(|a, b| a.mountpoint.cmp(&b.mountpoint));
     let result = ContainerDependencySnapshot {
         version: 1,
-        contract_digest: digest(contract)?,
+        contract_digest: profile.digest(contract)?,
         container_inventory_digest: sources.inventory_digest.clone(),
-        storage_inventory_digest: digest(storage)?,
-        source_snapshot_digest: digest(sources)?,
+        storage_inventory_digest: profile.digest(storage)?,
+        source_snapshot_digest: profile.digest(sources)?,
         host_root_mount_id: storage.host_root_mount_id,
         mounts_digest: raw_mounts_digest.into(),
         dependencies,
     };
-    if serde_json::to_vec(&result)
-        .map_err(|_| Failure::Unavailable)?
-        .len()
-        > MAX_REPORT_BYTES
-    {
-        return Err(Failure::Unavailable);
-    }
+    read_admission::json_limit(&result, MAX_REPORT_BYTES)?;
     Ok(result)
 }
 

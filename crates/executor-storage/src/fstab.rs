@@ -5,13 +5,19 @@ use limeos_domain::{
 };
 use rustix::fd::OwnedFd;
 
-pub(crate) fn read() -> Result<(OwnedFd, String)> {
+pub(crate) fn read_with_profile(profile: StorageReadProfile) -> Result<(OwnedFd, String)> {
     let fd = path::open(Path::new("/etc/fstab"), false, true)?;
     let s = path::stat(&fd)?;
     if s.stx_mode & 0o170000 != 0o100000 || s.stx_size > 65536 || s.stx_nlink != 1 {
         return Err(Failure::UnsafePath);
     }
     let duplicate = rustix::io::dup(&fd).map_err(|_| Failure::Unavailable)?;
+    if profile == StorageReadProfile::CombinedV1 {
+        let mut file = std::fs::File::from(duplicate);
+        let text = String::from_utf8(processes::read_bounded(&mut file, 65536, &|| Ok(()))?)
+            .map_err(|_| Failure::Unavailable)?;
+        return Ok((fd, text));
+    }
     let mut text = String::new();
     std::fs::File::from(duplicate)
         .take(65537)
@@ -53,7 +59,15 @@ fn span(text: &str) -> Result<Option<(usize, usize)>> {
         _ => Err(Failure::InvalidPlan),
     }
 }
+#[cfg(test)]
 pub(crate) fn entries(text: &str, topology: &topology::Topology) -> Result<Vec<StorageFstabEntry>> {
+    entries_with_profile(text, topology, StorageReadProfile::Standard)
+}
+pub(crate) fn entries_with_profile(
+    text: &str,
+    topology: &topology::Topology,
+    profile: StorageReadProfile,
+) -> Result<Vec<StorageFstabEntry>> {
     let managed = span(text)?;
     let mut entries = Vec::new();
     let mut offset = 0;
@@ -68,21 +82,34 @@ pub(crate) fn entries(text: &str, topology: &topology::Topology) -> Result<Vec<S
             return Err(Failure::Unavailable);
         }
         // Inline comments after the six standard fields are preserved privately.
-        let fields: Vec<_> = trimmed
+        let mut words = trimmed
             .split_whitespace()
-            .take_while(|s| !s.starts_with('#'))
-            .collect();
-        if fields.len() != 6
+            .take_while(|s| !s.starts_with('#'));
+        let mut fields = [""; 6];
+        for field in &mut fields {
+            *field = words.next().ok_or(Failure::InvalidPlan)?;
+        }
+        if words.next().is_some()
             || !fields[4].bytes().all(|c| c.is_ascii_digit())
             || !fields[5].bytes().all(|c| c.is_ascii_digit())
         {
             return Err(Failure::InvalidPlan);
         }
-        let source = mounts::unescape(fields[0])?;
+        let decode = |value: &str| {
+            if profile == StorageReadProfile::CombinedV1 {
+                read_admission::decode_path(value, 512)
+            } else {
+                mounts::unescape(value)
+            }
+        };
+        if profile == StorageReadProfile::CombinedV1 && fields[2].len() > 64 {
+            return Err(Failure::Unavailable);
+        }
+        let source = decode(fields[0])?;
         let mountpoint = if fields[2] == "swap" && fields[1] == "none" {
             "/".into()
         } else {
-            mounts::unescape(fields[1])?
+            decode(fields[1])?
         };
         let uuid = source
             .strip_prefix("UUID=")
@@ -152,6 +179,40 @@ pub fn planned_fstab(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn combined_fstab_fields_and_whole_row_bounds_preserve_private_options() {
+        let topology = topology::Topology(BTreeMap::new());
+        let raw: String = (0..128)
+            .map(|i| format!("server:/data /mnt/{i} nfs secret=hidden 0 0 # operator\n"))
+            .collect();
+        let value = entries_with_profile(&raw, &topology, StorageReadProfile::CombinedV1).unwrap();
+        assert_eq!(value.len(), 128);
+        assert!(!serde_json::to_string(&value).unwrap().contains("hidden"));
+        assert!(
+            entries_with_profile(
+                &(raw + "server:/data /extra nfs defaults 0 0\n"),
+                &topology,
+                StorageReadProfile::CombinedV1
+            )
+            .is_err()
+        );
+        assert!(
+            entries_with_profile(
+                &format!("server:/data /{} nfs defaults 0 0\n", "x".repeat(512)),
+                &topology,
+                StorageReadProfile::CombinedV1
+            )
+            .is_err()
+        );
+        assert_eq!(
+            entries_with_profile(
+                &"a ".repeat(20000),
+                &topology,
+                StorageReadProfile::CombinedV1
+            ),
+            Err(Failure::InvalidPlan)
+        );
+    }
     #[test]
     fn parser_bounds_markers_and_keeps_remote_credentials_private() {
         let topology = topology::Topology(BTreeMap::new());

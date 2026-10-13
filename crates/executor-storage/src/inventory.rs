@@ -48,6 +48,7 @@ pub struct StorageInventoryEvidence {
     fstab: OwnedFd,
     handles: Vec<(OwnedFd, Option<Filesystem>)>,
     expires: Instant,
+    profile: StorageReadProfile,
 }
 impl StorageInventoryEvidence {
     pub fn snapshot(&self) -> &StorageInventory {
@@ -80,13 +81,16 @@ impl StorageInventoryEvidence {
     }
     fn check_context(&self) -> Result<()> {
         self.check_age()?;
-        let text = bounded_read(Path::new("/proc/self/mountinfo"), 1024 * 1024)?;
-        let (fresh_fstab, fstab_text) = fstab::read()?;
-        if namespace()? != self.snapshot.host_root_mount_id
+        let text = self.profile.read(
+            Path::new("/proc/self/mountinfo"),
+            self.profile.table_bytes(),
+        )?;
+        let (fresh_fstab, fstab_text) = fstab::read_with_profile(self.profile)?;
+        if namespace_with_profile(self.profile)? != self.snapshot.host_root_mount_id
             || limeos_identity::digest(&text) != self.raw_mounts_digest
-            || mounts::parse(&text)? != self.table
-            || topology::Topology::collect()? != self.topology
-            || swaps::Snapshot::collect()? != self.swaps
+            || mounts::parse_with_profile(&text, self.profile)? != self.table
+            || topology::Topology::collect_with_profile(self.profile)? != self.topology
+            || swaps::Snapshot::collect_with_profile(self.profile)? != self.swaps
             || limeos_identity::digest(&fstab_text) != self.snapshot.fstab_digest
         {
             return Err(Failure::IdentityMismatch);
@@ -121,26 +125,35 @@ pub async fn inventory() -> Result<StorageInventory> {
 /// Retained read-only evidence. Synchronous reads still require process admission
 /// and a process deadline at the later service boundary.
 pub async fn inspect_storage_inventory() -> Result<StorageInventoryEvidence> {
+    inspect_storage_inventory_with_profile(StorageReadProfile::Standard).await
+}
+pub async fn inspect_storage_inventory_with_profile(
+    profile: StorageReadProfile,
+) -> Result<StorageInventoryEvidence> {
     if !rustix::process::geteuid().is_root() {
         return Err(Failure::Unavailable);
     }
     let expires = Instant::now() + Duration::from_secs(5);
-    let ns = namespace()?;
-    let topology = topology::Topology::collect()?;
-    let mount_text = bounded_read(Path::new("/proc/self/mountinfo"), 1024 * 1024)?;
-    let mounts = mounts::parse(&mount_text)?;
+    let ns = namespace_with_profile(profile)?;
+    let topology = topology::Topology::collect_with_profile(profile)?;
+    let probe_count = profile.admit_probes(&topology)?;
+    let mount_text = profile.read(Path::new("/proc/self/mountinfo"), profile.table_bytes())?;
+    let mounts = mounts::parse_with_profile(&mount_text, profile)?;
     let boot = topology.connected(&mounts::protected(&mounts)?)?;
-    let swaps = swaps::Snapshot::collect()?;
+    let swaps = swaps::Snapshot::collect_with_profile(profile)?;
     let swap_backing = topology.connected(&swaps.devices)?;
-    let (fstab_handle, fstab_text) = fstab::read()?;
-    let fstab_entries = fstab::entries(&fstab_text, &topology)?;
+    let (fstab_handle, fstab_text) = fstab::read_with_profile(profile)?;
+    let fstab_entries = fstab::entries_with_profile(&fstab_text, &topology, profile)?;
     let mut devices = Vec::new();
     let mut handles = Vec::new();
+    handles
+        .try_reserve_exact(probe_count)
+        .map_err(|_| Failure::Unavailable)?;
+    devices
+        .try_reserve_exact(probe_count)
+        .map_err(|_| Failure::Unavailable)?;
     for (number, node) in &topology.0 {
-        if ["loop", "ram", "zram", "sr"]
-            .iter()
-            .any(|p| node.name.starts_with(p))
-        {
+        if !read_admission::probe_candidate(&node.name) {
             continue;
         }
         let fd = path::open(&topology.path(*number)?, false, false)?;
@@ -185,20 +198,14 @@ pub async fn inspect_storage_inventory() -> Result<StorageInventoryEvidence> {
     let topology_rows: Vec<_> = topology.0.iter().collect();
     let value = StorageInventory {
         host_root_mount_id: ns,
-        topology_digest: digest(&(topology_rows, &swaps))?,
-        mounts_digest: digest(&mounts)?,
+        topology_digest: profile.digest(&(topology_rows, &swaps))?,
+        mounts_digest: profile.digest(&mounts)?,
         fstab_digest: limeos_identity::digest(&fstab_text),
         fstab_entries,
         devices,
     };
     value.validate().map_err(|_| Failure::Unavailable)?;
-    if serde_json::to_vec(&value)
-        .map_err(|_| Failure::Unavailable)?
-        .len()
-        > 48 * 1024
-    {
-        return Err(Failure::Unavailable);
-    }
+    read_admission::json_limit(&value, 48 * 1024)?;
     let evidence = StorageInventoryEvidence {
         snapshot: value,
         topology,
@@ -208,6 +215,7 @@ pub async fn inspect_storage_inventory() -> Result<StorageInventoryEvidence> {
         fstab: fstab_handle,
         handles,
         expires,
+        profile,
     };
     evidence.revalidate().await?;
     Ok(evidence)

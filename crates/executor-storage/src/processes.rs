@@ -1025,7 +1025,7 @@ fn read_proc_bytes(
     let mut file = File::from(open_proc_at(parent, path, OFlags::RDONLY)?);
     read_bounded(&mut file, limit, check)
 }
-fn read_bounded(
+pub(crate) fn read_bounded(
     reader: &mut impl Read,
     limit: usize,
     check: &dyn Fn() -> Result<()>,

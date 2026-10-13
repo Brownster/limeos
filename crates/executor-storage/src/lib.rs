@@ -6,6 +6,8 @@ mod fstab;
 mod inventory;
 mod mounts;
 mod path;
+pub mod read_admission;
+pub use read_admission::StorageReadProfile;
 pub mod processes;
 pub mod protection_sources;
 mod sources;
@@ -15,15 +17,19 @@ mod topology;
 pub use dependencies::{
     ContainerDependencyEvidence, ContainerDependencySnapshot, ContainerFilesystemConsumer,
     ContainerFilesystemMatch, ContainerFilesystemRelation, PhysicalContainerStorageDependency,
-    inspect_container_dependencies,
+    inspect_container_dependencies, inspect_container_dependencies_with_profile,
 };
 pub use fstab::planned_fstab;
-pub use inventory::{StorageInventoryEvidence, inspect_storage_inventory, inventory};
+pub use inventory::{
+    StorageInventoryEvidence, inspect_storage_inventory, inspect_storage_inventory_with_profile,
+    inventory,
+};
 use limeos_domain::{StorageFilesystem, StorageMountWaitPlan};
 use serde::Serialize;
 pub use sources::{
     ContainerSourceEvidence, ContainerSourceIdentity, ContainerSourceKind, ContainerSourceMount,
     ContainerSourcePath, ContainerSourceSnapshot, inspect_container_sources,
+    inspect_container_sources_with_profile,
 };
 use std::{
     collections::BTreeMap,
@@ -108,6 +114,20 @@ fn namespace() -> Result<u64> {
         1024 * 1024,
     )?)?;
     let host = mounts::parse(&bounded_read(Path::new("/proc/1/mountinfo"), 1024 * 1024)?)?;
+    host_view(&current, &host)
+}
+fn namespace_with_profile(profile: StorageReadProfile) -> Result<u64> {
+    if profile == StorageReadProfile::Standard {
+        return namespace();
+    }
+    let current = mounts::parse_with_profile(
+        &profile.read(Path::new("/proc/self/mountinfo"), profile.table_bytes())?,
+        profile,
+    )?;
+    let host = mounts::parse_with_profile(
+        &profile.read(Path::new("/proc/1/mountinfo"), profile.table_bytes())?,
+        profile,
+    )?;
     host_view(&current, &host)
 }
 fn host_view(current: &[mounts::Mount], host: &[mounts::Mount]) -> Result<u64> {

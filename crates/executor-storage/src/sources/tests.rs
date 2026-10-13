@@ -8,6 +8,8 @@ use std::{
     os::unix::fs::{PermissionsExt, symlink},
 };
 
+mod admission_tests;
+
 fn inventory(paths: &[&Path]) -> ContainerStorageInventory {
     ContainerStorageInventory {
         version: 1,
