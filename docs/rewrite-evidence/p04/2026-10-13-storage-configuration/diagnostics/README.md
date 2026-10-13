@@ -1,0 +1,1 @@
+The precommit reentrant-validation reproduction failed before the state-machine fix. Its metadata names the committed design baseline, not the uncommitted implementation; it is diagnostic evidence, not an exact-source qualification. The final focused and full tests above qualify the committed fix. The compressed transcript retains every original byte.

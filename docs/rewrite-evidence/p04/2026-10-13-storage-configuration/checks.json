@@ -1,0 +1,367 @@
+{
+  "qualified_source": "a303e72fe3484643f34bc4b394e13a507cc32a1f",
+  "rust_cases": 559,
+  "unit_integration_cases": 549,
+  "compile_fail_doctests": 10,
+  "focused_configuration_cases": 24,
+  "focused_cases_already_in_workspace_total": true,
+  "arm64_harness_cases": 61,
+  "checks": [
+    {
+      "name": "configuration-focused",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "limeos-executor-storage",
+        "configuration::tests",
+        "--locked",
+        "--offline"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-configuration-evidence",
+      "qualified_source": "a303e72fe3484643f34bc4b394e13a507cc32a1f",
+      "started_utc": "2026-10-13T14:53:35.427101+00:00",
+      "seconds": 8.708,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "configuration-focused.log.gz",
+      "raw_sha256": "3a6e06ab076a0f3ce8a3c4ae6bc776f3952ca657c20c31da19391dce274b77bb",
+      "compressed_sha256": "1315ed30b2aaf8ea793feab8dfb191801e6078f177699f3b313b53b9eb0fbb49",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 24,
+      "pi_accessed": false,
+      "worktree_status": " M docs/plans/2026-10-13-storage-configuration-evidence-design.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/lib.rs": "c5b0ade283b7b1becd76ad589ed6ecf341cdd572d7d0d2fb3336afc6c2f9f25f",
+        "crates/executor-storage/src/configuration.rs": "1a3182d1fafbe287ea5ecd011acc909e37efc70dd57f83c9263bb026926cbde4",
+        "crates/executor-storage/src/configuration/tests.rs": "18d01ef83f021eb93446cf15ff413afa5c8b30854785f4c586339bbcc7bec846"
+      }
+    },
+    {
+      "name": "test-rest",
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--exclude",
+        "limeos-executor-storage",
+        "--locked",
+        "--offline",
+        "--no-fail-fast"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-configuration-evidence",
+      "qualified_source": "a303e72fe3484643f34bc4b394e13a507cc32a1f",
+      "started_utc": "2026-10-13T14:54:24.264085+00:00",
+      "seconds": 186.558,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "test-rest.log.gz",
+      "raw_sha256": "cc76e120cc2575483d14762b8bf7e29333068216c9eff83492bcb09bd6094d21",
+      "compressed_sha256": "43fb1c75904e0e7d6fc651e45f0063aa44b088ccb172211c0f08e96ca415d75b",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 432,
+      "pi_accessed": false,
+      "worktree_status": " M docs/plans/2026-10-13-storage-configuration-evidence-design.md\n?? docs/p04-storage-configuration-evidence.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/lib.rs": "c5b0ade283b7b1becd76ad589ed6ecf341cdd572d7d0d2fb3336afc6c2f9f25f",
+        "crates/executor-storage/src/configuration.rs": "1a3182d1fafbe287ea5ecd011acc909e37efc70dd57f83c9263bb026926cbde4",
+        "crates/executor-storage/src/configuration/tests.rs": "18d01ef83f021eb93446cf15ff413afa5c8b30854785f4c586339bbcc7bec846"
+      }
+    },
+    {
+      "name": "storage-compile-on-disk",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "limeos-executor-storage",
+        "--locked",
+        "--offline",
+        "--no-run"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-configuration-evidence",
+      "qualified_source": "a303e72fe3484643f34bc4b394e13a507cc32a1f",
+      "started_utc": "2026-10-13T14:56:48.031458+00:00",
+      "seconds": 4.773,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "storage-compile-on-disk.log.gz",
+      "raw_sha256": "22ee89331943ec70cedd2eca953dc9613a79622db69db5d2584d16367cad8e45",
+      "compressed_sha256": "dc02ba5dff61154e157fd0ab3787356b8eb399e81650a9c1f186b6b1347dc5c3",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 0,
+      "pi_accessed": false,
+      "worktree_status": " M docs/plans/2026-10-13-storage-configuration-evidence-design.md\n?? docs/p04-storage-configuration-evidence.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/lib.rs": "c5b0ade283b7b1becd76ad589ed6ecf341cdd572d7d0d2fb3336afc6c2f9f25f",
+        "crates/executor-storage/src/configuration.rs": "1a3182d1fafbe287ea5ecd011acc909e37efc70dd57f83c9263bb026926cbde4",
+        "crates/executor-storage/src/configuration/tests.rs": "18d01ef83f021eb93446cf15ff413afa5c8b30854785f4c586339bbcc7bec846"
+      }
+    },
+    {
+      "name": "storage-fixtures",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "limeos-executor-storage",
+        "--locked",
+        "--offline",
+        "--no-fail-fast"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-configuration-evidence",
+      "qualified_source": "a303e72fe3484643f34bc4b394e13a507cc32a1f",
+      "started_utc": "2026-10-13T14:58:36.471668+00:00",
+      "seconds": 1.604,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/tmp/limeos-storage-configuration-tests-1sfc7gf7",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "storage-fixtures.log.gz",
+      "raw_sha256": "179880516860f9983bae127fcefa8adc5e9e26c61441c1c2321a9561c5c6fdae",
+      "compressed_sha256": "a927ea0b4a3a319f682f834cabb16d1315fea92ed813ffd41ca0a39a8cde55c0",
+      "tmpfs_fixture_peak": {
+        "bytes": 12020,
+        "files": 8
+      },
+      "tmpfs_fixture_removed": true,
+      "rust_cases": 127,
+      "pi_accessed": false,
+      "worktree_status": " M docs/plans/2026-10-13-storage-configuration-evidence-design.md\n?? docs/p04-storage-configuration-evidence.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/lib.rs": "c5b0ade283b7b1becd76ad589ed6ecf341cdd572d7d0d2fb3336afc6c2f9f25f",
+        "crates/executor-storage/src/configuration.rs": "1a3182d1fafbe287ea5ecd011acc909e37efc70dd57f83c9263bb026926cbde4",
+        "crates/executor-storage/src/configuration/tests.rs": "18d01ef83f021eb93446cf15ff413afa5c8b30854785f4c586339bbcc7bec846"
+      }
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-configuration-evidence",
+      "qualified_source": "a303e72fe3484643f34bc4b394e13a507cc32a1f",
+      "started_utc": "2026-10-13T14:59:13.245315+00:00",
+      "seconds": 37.008,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "clippy.log.gz",
+      "raw_sha256": "3334b58084bfe1fcebd9fdd0bacd63c1d01946ddd229bca2106891f013fc089c",
+      "compressed_sha256": "6b83540a47aa3164a793beeefaf9a276e339a8e2d672ffd2bcad62aa8d8cd52c",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 0,
+      "pi_accessed": false,
+      "worktree_status": " M docs/plans/2026-10-13-storage-configuration-evidence-design.md\n?? docs/p04-storage-configuration-evidence.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/lib.rs": "c5b0ade283b7b1becd76ad589ed6ecf341cdd572d7d0d2fb3336afc6c2f9f25f",
+        "crates/executor-storage/src/configuration.rs": "1a3182d1fafbe287ea5ecd011acc909e37efc70dd57f83c9263bb026926cbde4",
+        "crates/executor-storage/src/configuration/tests.rs": "18d01ef83f021eb93446cf15ff413afa5c8b30854785f4c586339bbcc7bec846"
+      }
+    },
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-configuration-evidence",
+      "qualified_source": "a303e72fe3484643f34bc4b394e13a507cc32a1f",
+      "started_utc": "2026-10-13T14:54:13.710632+00:00",
+      "seconds": 0.839,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "fmt.log.gz",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compressed_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 0,
+      "pi_accessed": false,
+      "worktree_status": " M docs/plans/2026-10-13-storage-configuration-evidence-design.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/lib.rs": "c5b0ade283b7b1becd76ad589ed6ecf341cdd572d7d0d2fb3336afc6c2f9f25f",
+        "crates/executor-storage/src/configuration.rs": "1a3182d1fafbe287ea5ecd011acc909e37efc70dd57f83c9263bb026926cbde4",
+        "crates/executor-storage/src/configuration/tests.rs": "18d01ef83f021eb93446cf15ff413afa5c8b30854785f4c586339bbcc7bec846"
+      }
+    },
+    {
+      "name": "contracts",
+      "command": [
+        "/home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-storage-configuration-check-aa836805dac9c6c9/bin/python3",
+        "scripts/check_contracts.py"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-configuration-evidence",
+      "qualified_source": "a303e72fe3484643f34bc4b394e13a507cc32a1f",
+      "started_utc": "2026-10-13T15:00:24.898321+00:00",
+      "seconds": 4.09,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "contracts.log.gz",
+      "raw_sha256": "1988717e7709c047d661ccbe71225b350456594321903564af11974deafa5f0a",
+      "compressed_sha256": "4d41f6200e3d0119d1935e2827033e79a8c0d8534b63187236e8915508a3250c",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 0,
+      "pi_accessed": false,
+      "worktree_status": " M docs/plans/2026-10-13-storage-configuration-evidence-design.md\n?? docs/p04-storage-configuration-evidence.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/lib.rs": "c5b0ade283b7b1becd76ad589ed6ecf341cdd572d7d0d2fb3336afc6c2f9f25f",
+        "crates/executor-storage/src/configuration.rs": "1a3182d1fafbe287ea5ecd011acc909e37efc70dd57f83c9263bb026926cbde4",
+        "crates/executor-storage/src/configuration/tests.rs": "18d01ef83f021eb93446cf15ff413afa5c8b30854785f4c586339bbcc7bec846"
+      }
+    },
+    {
+      "name": "repository",
+      "command": [
+        "/home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-storage-configuration-check-aa836805dac9c6c9/bin/python3",
+        "scripts/check_repository.py"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-configuration-evidence",
+      "qualified_source": "a303e72fe3484643f34bc4b394e13a507cc32a1f",
+      "started_utc": "2026-10-13T14:54:13.700770+00:00",
+      "seconds": 0.058,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "repository.log.gz",
+      "raw_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "compressed_sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 0,
+      "pi_accessed": false,
+      "worktree_status": " M docs/plans/2026-10-13-storage-configuration-evidence-design.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/lib.rs": "c5b0ade283b7b1becd76ad589ed6ecf341cdd572d7d0d2fb3336afc6c2f9f25f",
+        "crates/executor-storage/src/configuration.rs": "1a3182d1fafbe287ea5ecd011acc909e37efc70dd57f83c9263bb026926cbde4",
+        "crates/executor-storage/src/configuration/tests.rs": "18d01ef83f021eb93446cf15ff413afa5c8b30854785f4c586339bbcc7bec846"
+      }
+    },
+    {
+      "name": "arm64-harness",
+      "command": [
+        "/home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-storage-configuration-check-aa836805dac9c6c9/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/qualification/arm64",
+        "-p",
+        "test_*.py"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-configuration-evidence",
+      "qualified_source": "a303e72fe3484643f34bc4b394e13a507cc32a1f",
+      "started_utc": "2026-10-13T14:54:13.700778+00:00",
+      "seconds": 15.625,
+      "exit": 0,
+      "environment": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "log": "arm64-harness.log.gz",
+      "raw_sha256": "6a0abb0db26e9d82d4058b1758a06302076492040279e25045ee5a2077412b9a",
+      "compressed_sha256": "b7d58864010262c04b7813ab9ffdd0049414dd42d49c34246c280f65a928a2be",
+      "tmpfs_fixture_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 0,
+      "pi_accessed": false,
+      "worktree_status": " M docs/plans/2026-10-13-storage-configuration-evidence-design.md\n",
+      "runtime_hashes": {
+        "crates/executor-storage/src/lib.rs": "c5b0ade283b7b1becd76ad589ed6ecf341cdd572d7d0d2fb3336afc6c2f9f25f",
+        "crates/executor-storage/src/configuration.rs": "1a3182d1fafbe287ea5ecd011acc909e37efc70dd57f83c9263bb026926cbde4",
+        "crates/executor-storage/src/configuration/tests.rs": "18d01ef83f021eb93446cf15ff413afa5c8b30854785f4c586339bbcc7bec846"
+      },
+      "harness_cases": 61
+    }
+  ]
+}

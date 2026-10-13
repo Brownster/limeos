@@ -55,7 +55,7 @@ reconstruct descriptors; the owner is neither cloneable nor deserializable.
 Admission is explicit: up to 64 KiB per file, 128 KiB across four raw files, 65
 retained descriptors and a 16 KiB metadata report. Paths are at most 512 UTF-8
 bytes and 16 components. Charge root, repeated ancestors and file handles before
-opening; classification/reopen adds at most two transient descriptors. Read and
+opening; revalidation adds at most four transient descriptors. Read and
 report allocation is fallible and capped before serialization or parsing. These
 are this owner's bounds, not proof that a whole combined worker fits LimitNOFILE
 256 or MemoryMax 64M. Service caps remain unchanged.

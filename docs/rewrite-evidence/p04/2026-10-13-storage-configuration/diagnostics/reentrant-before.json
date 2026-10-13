@@ -1,0 +1,34 @@
+{
+  "name": "reentrant-before",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "limeos-executor-storage",
+    "failed_reentrant_validation",
+    "--locked",
+    "--offline"
+  ],
+  "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-configuration-evidence",
+  "qualified_source": "c2468b94d0a5b36980937eb04d18abf0017ecb05",
+  "started_utc": "2026-10-13T14:50:30.708696+00:00",
+  "seconds": 8.56,
+  "exit": 101,
+  "environment": {
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+    "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "2",
+    "CARGO_NET_OFFLINE": "true"
+  },
+  "log": "reentrant-before.log.gz",
+  "raw_sha256": "d9a55e63ee9ee3de5839faed6d3466c020a6001c6df25240ecea0a0c20fab7ba",
+  "compressed_sha256": "cf05d180ee865909c66813391b40be9191a9818168224352cb7cc39fac4a97a5",
+  "tmpfs_fixture_peak": null,
+  "tmpfs_fixture_removed": false,
+  "rust_cases": 0,
+  "pi_accessed": false
+}

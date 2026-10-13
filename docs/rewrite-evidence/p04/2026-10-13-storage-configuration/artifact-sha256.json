@@ -1,0 +1,23 @@
+{
+  "qualified_source": "a303e72fe3484643f34bc4b394e13a507cc32a1f",
+  "files": {
+    "README.md": "672d17f0b4f54f41fa3ab31d64c9bc5e4da7256c32bb650492ed493121e7cadf",
+    "arm64-harness.log.gz": "b7d58864010262c04b7813ab9ffdd0049414dd42d49c34246c280f65a928a2be",
+    "checks.json": "e6544cae9fa5a7c78fb8795bddeeb8995e7f6e6ac65865b6844418307aa7ba5d",
+    "clippy.log.gz": "6b83540a47aa3164a793beeefaf9a276e339a8e2d672ffd2bcad62aa8d8cd52c",
+    "configuration-focused.log.gz": "1315ed30b2aaf8ea793feab8dfb191801e6078f177699f3b313b53b9eb0fbb49",
+    "contracts.log.gz": "4d41f6200e3d0119d1935e2827033e79a8c0d8534b63187236e8915508a3250c",
+    "diagnostics/README.md": "9ef27aad4d13baedaa541d841a42d3a7a160f24afdf15a0e83fd203c7ed75454",
+    "diagnostics/reentrant-before.json": "b7b0d9abe7538bb4a73fd82735f96850b0ae0d647ec41a3789ae9874ce7bbdcc",
+    "diagnostics/reentrant-before.log.gz": "cf05d180ee865909c66813391b40be9191a9818168224352cb7cc39fac4a97a5",
+    "fmt.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "package-storage-configuration.py": "80360ad62e48ac2053d2a3f9c4501092e21d5aa8f07ea125f68be09b7634533b",
+    "repository.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "run-storage-configuration-check.py": "8ef7976253963960738be8be946560b2c704715cf6d9508373a50fdf7b1a045b",
+    "scope.json": "c64b3d4f08197ea0168dc701c0b8db28f978d024311d9ebf159f195b98bde7d6",
+    "source-manifest.json": "775343ed58525ec9a3e1b9415d9acb020f2e1ff13055eb26b051a775e9e0a44e",
+    "storage-compile-on-disk.log.gz": "dc02ba5dff61154e157fd0ab3787356b8eb399e81650a9c1f186b6b1347dc5c3",
+    "storage-fixtures.log.gz": "a927ea0b4a3a319f682f834cabb16d1315fea92ed813ffd41ca0a39a8cde55c0",
+    "test-rest.log.gz": "43fb1c75904e0e7d6fc651e45f0063aa44b088ccb172211c0f08e96ca415d75b"
+  }
+}

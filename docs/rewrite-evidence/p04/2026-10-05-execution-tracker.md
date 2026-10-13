@@ -2,10 +2,13 @@
 
 Status: local implementation started after P03's 62-group representative-layout suite passed. The operator authorized continuing P03 then P04 on 2026-10-05. All implementation happens in this Rust repository; the Python checkout is frozen. Mutation tests use disposable VMs. The earlier corrected 0.4.2 payload has separate native ARM64 qualification; current payload and reference-host measurement gates remain open.
 
-Latest local acceptance: [October 13 graph integration](2026-10-13-configured-graph-integration/README.md),
-533 Rust cases and 61 ARM64 harness tests. The configured graph joins container,
-pool, protection and Samba relationships with one 512-route bound. It remains
-separate from protected live evidence and effect authority. The operator deferred
+Latest local acceptance: [October 13 retained configuration](2026-10-13-storage-configuration/README.md),
+559 Rust cases and 61 ARM64 harness tests. A protected read-only owner now retains
+the four typed planning files and checks fresh/held names, identities and bytes
+under its original lease. The earlier configured graph joins container, pool,
+protection and Samba relationships with one 512-route bound. Physical/namespace
+composition, whole-worker admission, actual Samba state and effect authority
+remain open. The operator deferred
 the proposed Pi replacement; continue rewrite work and report readiness later.
 No new overnight host window is authorized.
 
@@ -16,7 +19,7 @@ The first slice ports the frozen storage contract into typed, generated domain c
 | Work package | Current status |
 | --- | --- |
 | RW-040 — Storage identities, contracts and mounts | Approved empty target jobs, complete core claims and explicit recovery qualify in frozen AMD64 0.4.4 packages. Fresh Docker declarations qualify in frozen 0.4.6 packages with 49 installed groups. The retained-source library has 250 passing local/native tests; subsequent fresh UUID/backing binding has 21 further regressions and 271 passing local workspace tests. Combined installed collection, running namespaces, pool/protection/share dependencies, mount/fstab effects, unmount/loss handling, guided UI and current installed native qualification remain pending. |
-| RW-041 — Pools, protection, remote mounts and shares | Engineer's pure pool/SnapRAID configuration, previews and bounded imports/parsers integrated with 30 new regressions. Protected collection, executable operations, schedules, remote mounts and shares remain pending. |
+| RW-041 — Pools, protection, remote mounts and shares | Pure pool/SnapRAID planning/imports, retained protection-source and planning-configuration libraries, Samba planning and the configured dependency graph are integrated locally. Actual pool/share state, combined installed protected collection, executable operations, schedules and remote mounts remain pending. |
 | RW-042 — Catalog, Compose and media deployment | P03 preview foundation exists; deployment execution, live imports and UI remain pending. |
 | RW-043 — Backup, restore and recovery | Bounded archive inspector and pure admission planner integrated. Manifest v2 coalesces exact inert legacy repeats; 22 inspector tests pass locally and on native AMD64/ARM64 CI. Restore executor, production inventory limits, backup creation and recovery remain pending; BKP-001 stays open. |
 | RW-044 — Package/container updates and host prerequisites | Pending. |

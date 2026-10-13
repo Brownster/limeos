@@ -1,0 +1,45 @@
+{
+  "qualified_source": "a303e72fe3484643f34bc4b394e13a507cc32a1f",
+  "parent_main": "0ab4870d6b689cffd314241922feadd041d056cc",
+  "production_surface": "unregistered read-only library",
+  "public_root_success": "unqualified",
+  "local_filesystem_authentication": "private scratch root and actual test UID; production traversal/read code",
+  "configuration_roles": [
+    "storage_contract",
+    "pools",
+    "snapraid",
+    "declared_samba_shares"
+  ],
+  "resource_caps": {
+    "per_file_bytes": 65536,
+    "total_raw_file_bytes": 131072,
+    "retained_fds": 65,
+    "additional_revalidation_fds": 4,
+    "report_bytes": 16384,
+    "path_bytes": 512,
+    "path_components": 16,
+    "original_lease_seconds": 4,
+    "cooperative_work_seconds": 2
+  },
+  "pi_accessed": false,
+  "installed_qualification": "untested",
+  "cutover": "deferred by operator",
+  "backup_bound_recovery_excluded": true,
+  "new_dependencies": false,
+  "schema_or_api_change": false,
+  "service_or_capability_change": false,
+  "frozen_arm64_candidate_source": "af94f19ac21f9da14b207439808ffb33c87e8e10",
+  "frozen_arm64_candidate_contains_configuration_owner": false,
+  "pending": [
+    "actual Samba global/account/include state",
+    "retained configuration and physical/namespace composition",
+    "whole-worker admission and independently killable supervision",
+    "complete affected-resource claims",
+    "storage locks, effect-time revalidation and durable recovery",
+    "current native CI and installed ARM64 qualification",
+    "minimum container/stack UI and migration/return evidence"
+  ],
+  "inventory_performance_gate": "historical p95 61.401 ms against 20 ms remains failed",
+  "p04_closed": false,
+  "defect_rows_closed": []
+}
