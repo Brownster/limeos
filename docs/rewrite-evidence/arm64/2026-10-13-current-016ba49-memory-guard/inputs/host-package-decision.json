@@ -1,0 +1,7 @@
+{
+  "recorded_utc": "2026-10-12T22:42:12Z",
+  "decision": "Operator explicitly approved continuing and leaving setup installed but stopped if it has no major impact, to save further testing time before replacing the frozen app.",
+  "scope": "Install the simulated 41-package QEMU, ARM64 firmware and dependency set without upgrading/removing existing packages. Retain dormant prerequisites and checksum-bound base image if final health is acceptable. Remove all this run's guest overlays, controls and supervisors. No Rust package or test workload runs on the production host.",
+  "cutoff_utc": "2026-10-13T06:00:00Z",
+  "original_authorization_sha256": "Retained in authorization-pi45-original.json and the baseline host command record"
+}

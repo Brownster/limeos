@@ -1,0 +1,131 @@
+{
+  "pid": 619687,
+  "started_utc": "2026-10-12T22:56:50.337644+00:00",
+  "source_commit": "016ba49a27b228576db5d4ca28dcd122c60a6278",
+  "steps": [
+    {
+      "label": "integrated-build-20261012-boot",
+      "argv": [
+        "boot",
+        "integrated-build-20261012",
+        "--port",
+        "22912",
+        "--cpus",
+        "2",
+        "--memory",
+        "1536",
+        "--disk",
+        "24G",
+        "--image-sha512",
+        "835b929522716de9798d1c0fbe61caae8313ab78858b278f3389a2db922ae42e4619b4a776ecad39583c149fb85334a2f8cdae685bc56987160e5c86a2354375",
+        "--timeout",
+        "450",
+        "--terminate-at",
+        "2026-10-13T05:30:00Z"
+      ],
+      "exit": 0,
+      "seconds": 28.005,
+      "log": "sequence-logs/integrated-build-20261012-boot.txt"
+    },
+    {
+      "label": "integrated-build-20261012-mkdir",
+      "argv": [
+        "exec",
+        "integrated-build-20261012",
+        "mkdir -p /root/qual"
+      ],
+      "exit": 0,
+      "seconds": 1.001,
+      "log": "sequence-logs/integrated-build-20261012-mkdir.txt"
+    },
+    {
+      "label": "integrated-build-20261012-bundle",
+      "argv": [
+        "push",
+        "integrated-build-20261012",
+        "/home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/source.tar.gz",
+        "/root/qual/source.tar.gz"
+      ],
+      "exit": 0,
+      "seconds": 4.002,
+      "log": "sequence-logs/integrated-build-20261012-bundle.txt"
+    },
+    {
+      "label": "integrated-build-20261012-manifest",
+      "argv": [
+        "push",
+        "integrated-build-20261012",
+        "/home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/source-manifest.json",
+        "/root/qual/source-manifest.json"
+      ],
+      "exit": 0,
+      "seconds": 1.001,
+      "log": "sequence-logs/integrated-build-20261012-manifest.txt"
+    },
+    {
+      "label": "integrated-build-20261012-extract",
+      "argv": [
+        "exec",
+        "integrated-build-20261012",
+        "cd /root/qual && tar -xzf source.tar.gz"
+      ],
+      "exit": 0,
+      "seconds": 1.001,
+      "log": "sequence-logs/integrated-build-20261012-extract.txt"
+    },
+    {
+      "label": "integrated-build-20261012-build-swap",
+      "argv": [
+        "exec",
+        "integrated-build-20261012",
+        "python3 -c 'import os,subprocess; subprocess.run(['\"'\"'fallocate'\"'\"','\"'\"'-l'\"'\"','\"'\"'512M'\"'\"','\"'\"'/root/qual/build-swap'\"'\"'],check=True); os.chmod('\"'\"'/root/qual/build-swap'\"'\"',0o600); subprocess.run(['\"'\"'mkswap'\"'\"','\"'\"'/root/qual/build-swap'\"'\"'],check=True); subprocess.run(['\"'\"'swapon'\"'\"','\"'\"'/root/qual/build-swap'\"'\"'],check=True)'"
+      ],
+      "exit": 0,
+      "seconds": 1.001,
+      "log": "sequence-logs/integrated-build-20261012-build-swap.txt"
+    },
+    {
+      "label": "integrated-build-20261012-native-build",
+      "argv": [
+        "exec",
+        "integrated-build-20261012",
+        "RUST_TEST_THREADS=2 python3 /root/qual/fixtures/tests/qualification/arm64/build_guest.py --work /root/qual --manifest /root/qual/source-manifest.json"
+      ],
+      "exit": -15,
+      "seconds": 119.793,
+      "log": "sequence-logs/integrated-build-20261012-native-build.txt"
+    },
+    {
+      "label": "integrated-build-20261012-stop",
+      "argv": [
+        "stop",
+        "integrated-build-20261012"
+      ],
+      "exit": 0,
+      "seconds": 3.002,
+      "log": "sequence-logs/integrated-build-20261012-stop.txt"
+    }
+  ],
+  "active_guest": null,
+  "summary": "failed",
+  "last_host_sample": {
+    "path": "host-samples/004.json",
+    "available_mib": 5928,
+    "swap_mib": 437,
+    "temperature_c": 51.25,
+    "http": {
+      "http://127.0.0.1:8002/": {
+        "status": 200,
+        "seconds": 0.0048
+      },
+      "http://127.0.0.1:8096/health": {
+        "status": 200,
+        "seconds": 0.0039
+      }
+    },
+    "failures": []
+  },
+  "current_step": "integrated-build-20261012-stop",
+  "error": "RuntimeError('host swap exceeds 450 MiB')",
+  "finished_utc": "2026-10-12T22:59:30.395874+00:00"
+}

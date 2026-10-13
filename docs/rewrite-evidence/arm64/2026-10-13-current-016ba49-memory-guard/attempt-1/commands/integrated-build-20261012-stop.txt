@@ -1,0 +1,2 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/pi-qualification-sequence-a57693ce11eae277/bin/python /home/marc/Documents/github/lime-os/tests/qualification/arm64/native_vm.py --host holly@192.168.0.45 --authorization /home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/authorization-pi45.json stop integrated-build-20261012
+guest integrated-build-20261012 stopped; local state kept in /home/marc/Documents/github/lime-os/.cache/arm64-qual/stopped/integrated-build-20261012

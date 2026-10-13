@@ -1,0 +1,4 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/pi-qualification-d268ab3c25851f79/bin/python3 /home/marc/Documents/github/lime-os/tests/qualification/arm64/native_vm.py --host holly@192.168.0.45 --authorization /home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/authorization-pi45.json host-exec --log /home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/host-commands-pi45.jsonl 'set -eu
+test -d "$HOME/limeos-arm64-qual"
+mkdir -m 700 "$HOME/limeos-arm64-qual/image"
+'

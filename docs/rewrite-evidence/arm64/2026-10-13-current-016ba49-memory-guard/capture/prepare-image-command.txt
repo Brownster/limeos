@@ -1,0 +1,3 @@
+set -eu
+test -d "$HOME/limeos-arm64-qual"
+mkdir -m 700 "$HOME/limeos-arm64-qual/image"

@@ -1,0 +1,17 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/pi-qualification-d268ab3c25851f79/bin/python3 /home/marc/Documents/github/lime-os/tests/qualification/arm64/native_vm.py --host holly@192.168.0.45 --authorization /home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/low-memory-1/authorization-pi45.json exec integrated-lowmem-build-20261012 'date -u; free -m; tail -6 /root/qual/logs/clippy.txt; ps -eo comm,rss --sort=-rss | head -6'
+Mon Oct 12 23:13:36 UTC 2026
+               total        used        free      shared  buff/cache   available
+Mem:             470         191          13           0         276         278
+Swap:           2047          83        1964
+   Compiling rustls v0.23.45
+    Checking rustls-webpki v0.103.15
+    Checking limeos-api v0.2.0 (/root/qual/source/crates/api)
+    Checking idna_adapter v1.2.2
+    Checking idna v1.1.0
+    Checking url v2.5.8
+COMMAND           RSS
+rustc           149476
+rustc           127492
+cc1             22720
+sshd             9548
+cargo            6740

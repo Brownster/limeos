@@ -1,0 +1,3 @@
+{"utc": "2026-10-12T23:05:46.169Z", "epoch": 1791846346.17, "event": "launching", "marker": "limeos-arm64-integrated-lowmem-build-20261012-1e721f350e1fc467"}
+{"utc": "2026-10-12T23:05:46.426Z", "epoch": 1791846346.427, "event": "bound", "supervisor_pid": 3265419, "terminate_at": 1791869400.0, "kill_at": 1791869520.0, "pid": 3265427, "start_ticks": 38521992, "uid": 1000, "marker": "limeos-arm64-integrated-lowmem-build-20261012-1e721f350e1fc467"}
+{"utc": "2026-10-12T23:17:46.552Z", "epoch": 1791847066.553, "event": "guest_gone", "signalled": false}

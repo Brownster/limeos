@@ -1,0 +1,5 @@
+PASS apt 131.5s
+PASS rustup 57.0s
+PASS fetch 25.8s
+PASS fmt 1.3s
+PASS clippy 269.4s

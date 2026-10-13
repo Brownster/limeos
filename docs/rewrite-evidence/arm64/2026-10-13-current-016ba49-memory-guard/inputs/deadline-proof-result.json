@@ -1,0 +1,203 @@
+{
+  "summary": "pass",
+  "orchestrator_commit": "af94f19ac21f9da14b207439808ffb33c87e8e10",
+  "supervisor_sha256": "45a2ab6ed07e50a10a8caebb950a5f0689f0978f1cc460fb9a96387a711aa1b4",
+  "proof_deadline_utc": "2026-10-12T22:55:00Z",
+  "sigterm_epoch": 1791845700.0,
+  "guest_gone_epoch": 1791845700.033,
+  "sigkill_needed": false,
+  "detached_owner_parent_pid": 1,
+  "unrelated_pi_health_identity_preserved": {
+    "pid": 2758,
+    "state": "S",
+    "parent_pid": 1,
+    "start_ticks": 3029,
+    "uid": 1000,
+    "argv": [
+      "/home/holly/pi-health/.venv/bin/python",
+      "/home/holly/pi-health/app.py"
+    ]
+  },
+  "before": {
+    "captured_epoch": 1791845364.0637646,
+    "recorded_owner": {
+      "pid": 3252843,
+      "start_ticks": 38407161,
+      "uid": 0,
+      "marker": "limeos-arm64-integrated-proof-20261012-95495f6306f353dd"
+    },
+    "recorded_child": {
+      "pid": 3252844,
+      "start_ticks": 38407168,
+      "uid": 1000,
+      "marker": "limeos-arm64-integrated-proof-20261012-95495f6306f353dd"
+    },
+    "actual_owner": {
+      "pid": 3252843,
+      "state": "S",
+      "parent_pid": 1,
+      "start_ticks": 38407161,
+      "uid": 0,
+      "argv": [
+        "/usr/bin/python3",
+        "-I",
+        "/tmp/limeos-arm64-supervisor-PYDx8erm/guest_supervisor.py",
+        "launch",
+        "--command",
+        "/tmp/limeos-arm64-supervisor-PYDx8erm/launch.json",
+        "--state",
+        "/tmp/limeos-arm64-supervisor-PYDx8erm/process.json",
+        "--log",
+        "/tmp/limeos-arm64-supervisor-PYDx8erm/supervisor.log",
+        "--uid",
+        "1000",
+        "--marker",
+        "limeos-arm64-integrated-proof-20261012-95495f6306f353dd",
+        "--terminate-at",
+        "1791845700",
+        "--kill-at",
+        "1791845820",
+        "--not-after",
+        "1791871200"
+      ]
+    },
+    "actual_child": {
+      "pid": 3252844,
+      "state": "S",
+      "parent_pid": 3252843,
+      "start_ticks": 38407168,
+      "uid": 1000,
+      "argv": [
+        "/usr/bin/qemu-system-aarch64",
+        "-name",
+        "limeos-arm64-integrated-proof-20261012-95495f6306f353dd",
+        "-machine",
+        "virt,gic-version=host",
+        "-accel",
+        "kvm",
+        "-cpu",
+        "host",
+        "-smp",
+        "1",
+        "-m",
+        "768",
+        "-display",
+        "none",
+        "-serial",
+        "file:console.log",
+        "-drive",
+        "if=pflash,format=raw,readonly=on,file=/usr/share/AAVMF/AAVMF_CODE.fd",
+        "-drive",
+        "if=pflash,format=raw,file=vars.fd",
+        "-drive",
+        "file=disk.qcow2,format=qcow2,if=none,id=system",
+        "-device",
+        "virtio-blk-pci,drive=system,bootindex=1",
+        "-device",
+        "virtio-scsi-pci,id=scsi0",
+        "-drive",
+        "file=seed.iso,format=raw,if=none,id=seed,media=cdrom,readonly=on",
+        "-device",
+        "scsi-cd,drive=seed,bus=scsi0.0",
+        "-netdev",
+        "user,id=n1,hostfwd=tcp:127.0.0.1:22911-:22",
+        "-device",
+        "virtio-net-pci,netdev=n1,romfile=",
+        "-runas",
+        "holly"
+      ]
+    },
+    "production_identity": {
+      "pid": 2758,
+      "state": "S",
+      "parent_pid": 1,
+      "start_ticks": 3029,
+      "uid": 1000,
+      "argv": [
+        "/home/holly/pi-health/.venv/bin/python",
+        "/home/holly/pi-health/app.py"
+      ]
+    },
+    "supervisor_log": [
+      {
+        "utc": "2026-10-12T22:46:37.922Z",
+        "epoch": 1791845197.923,
+        "event": "launching",
+        "marker": "limeos-arm64-integrated-proof-20261012-95495f6306f353dd"
+      },
+      {
+        "utc": "2026-10-12T22:46:38.132Z",
+        "epoch": 1791845198.132,
+        "event": "bound",
+        "supervisor_pid": 3252843,
+        "terminate_at": 1791845700.0,
+        "kill_at": 1791845820.0,
+        "pid": 3252844,
+        "start_ticks": 38407168,
+        "uid": 1000,
+        "marker": "limeos-arm64-integrated-proof-20261012-95495f6306f353dd"
+      }
+    ],
+    "protected_hashes": "45a2ab6ed07e50a10a8caebb950a5f0689f0978f1cc460fb9a96387a711aa1b4  /tmp/limeos-arm64-supervisor-PYDx8erm/guest_supervisor.py\nbd8626c2aa5ddfdb83e2aae39ff13205840ae1de6f0bbcf17661bbc48757be14  /tmp/limeos-arm64-supervisor-PYDx8erm/launch.json\n"
+  },
+  "after": {
+    "captured_epoch": 1791845746.7634957,
+    "recorded_owner": {
+      "pid": 3252843,
+      "start_ticks": 38407161,
+      "uid": 0,
+      "marker": "limeos-arm64-integrated-proof-20261012-95495f6306f353dd"
+    },
+    "recorded_child": {
+      "pid": 3252844,
+      "start_ticks": 38407168,
+      "uid": 1000,
+      "marker": "limeos-arm64-integrated-proof-20261012-95495f6306f353dd"
+    },
+    "actual_owner": null,
+    "actual_child": null,
+    "production_identity": {
+      "pid": 2758,
+      "state": "S",
+      "parent_pid": 1,
+      "start_ticks": 3029,
+      "uid": 1000,
+      "argv": [
+        "/home/holly/pi-health/.venv/bin/python",
+        "/home/holly/pi-health/app.py"
+      ]
+    },
+    "supervisor_log": [
+      {
+        "utc": "2026-10-12T22:46:37.922Z",
+        "epoch": 1791845197.923,
+        "event": "launching",
+        "marker": "limeos-arm64-integrated-proof-20261012-95495f6306f353dd"
+      },
+      {
+        "utc": "2026-10-12T22:46:38.132Z",
+        "epoch": 1791845198.132,
+        "event": "bound",
+        "supervisor_pid": 3252843,
+        "terminate_at": 1791845700.0,
+        "kill_at": 1791845820.0,
+        "pid": 3252844,
+        "start_ticks": 38407168,
+        "uid": 1000,
+        "marker": "limeos-arm64-integrated-proof-20261012-95495f6306f353dd"
+      },
+      {
+        "utc": "2026-10-12T22:55:00.000Z",
+        "epoch": 1791845700.0,
+        "event": "sigterm"
+      },
+      {
+        "utc": "2026-10-12T22:55:00.032Z",
+        "epoch": 1791845700.033,
+        "event": "guest_gone",
+        "signalled": true
+      }
+    ],
+    "protected_hashes": "45a2ab6ed07e50a10a8caebb950a5f0689f0978f1cc460fb9a96387a711aa1b4  /tmp/limeos-arm64-supervisor-PYDx8erm/guest_supervisor.py\nbd8626c2aa5ddfdb83e2aae39ff13205840ae1de6f0bbcf17661bbc48757be14  /tmp/limeos-arm64-supervisor-PYDx8erm/launch.json\n"
+  }
+}

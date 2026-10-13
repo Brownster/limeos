@@ -1,0 +1,15 @@
+{
+  "reason": "1536 MiB build guest stopped at 498 MiB host swap; production HTTP/services preserved, no OOM/kernel error. Subsequent passive read shows 5952 MiB available and 407 MiB swap. Reduce guest allocation without changing the 450 MiB host swap safeguard or any frozen source/fixture/service limit.",
+  "build": {
+    "cpus": 1,
+    "memory_mib": 512,
+    "guest_disk_swap_mib": 2048
+  },
+  "tests": {
+    "cpus": 1,
+    "memory_mib": 768
+  },
+  "controller_sha256": "86ebbea72691a5dde237add0d2e01229fa82ae8e72b99af5ed60982327911ea4",
+  "source_commit": "016ba49a27b228576db5d4ca28dcd122c60a6278",
+  "previous_attempt": ".cache/arm64-qual/integrated-2026-10-12/sequence-status.json"
+}

@@ -1,0 +1,100 @@
+{
+  "source_commit": "af94f19ac21f9da14b207439808ffb33c87e8e10",
+  "workflow_run_id": 38302065106,
+  "workflow_url": "https://github.com/Brownster/limeos/actions/runs/38302065106",
+  "native_arm64_job_id": 114997846707,
+  "native_arm64_job_url": "https://github.com/Brownster/limeos/actions/runs/38302065106/job/114997846707",
+  "artifact_id": 11770788524,
+  "artifact_zip_sha256": "45462b1787cb95d1bc6fcfa4b3c8befa565f8552aaebd5d57833b91e3a9b3080",
+  "packages": {
+    "limeos-shadow_0.4.4_arm64.deb": {
+      "bytes": 2771834,
+      "sha256": "3da999d196a8b00c5cefdc6f9ad3b26a6c1d33e2bb6a103d1a752a0cc2c222a9",
+      "control": "Package: limeos-shadow\nVersion: 0.4.4\nArchitecture: arm64\n",
+      "binaries": {
+        "limeos-core": {
+          "bytes": 5000976,
+          "sha256": "f2f92ca620598b0486c31ba620ebac7a466d0e7bdba3f2d95d976c58cae50e81",
+          "elf_machine": 183
+        },
+        "limeos-executor": {
+          "bytes": 3952320,
+          "sha256": "151b9f4a5b6bd77859fc82b737bd646857a4ae414df3f721b13300e8d3f334d9",
+          "elf_machine": 183
+        },
+        "limeos-password-worker": {
+          "bytes": 529032,
+          "sha256": "7e7ecbf68a0c75e1fd3b90d145859a26ae415ab9a583dac891917f06c84346f1",
+          "elf_machine": 183
+        },
+        "limeosctl": {
+          "bytes": 856792,
+          "sha256": "4322dabb7c0d11c3a630c8ce3e364c398f9789b73bdfc2c86c1baa61c4e6e930",
+          "elf_machine": 183
+        }
+      }
+    },
+    "limeos_0.4.4+ci.1_arm64.deb": {
+      "bytes": 2771786,
+      "sha256": "c99c454816ba64f0562c671e42f2f611b8d80728ead9b4b2761b1a84a03fb2f2",
+      "control": "Package: limeos\nVersion: 0.4.4+ci.1\nArchitecture: arm64\n",
+      "binaries": {
+        "limeos-core": {
+          "bytes": 5000976,
+          "sha256": "f2f92ca620598b0486c31ba620ebac7a466d0e7bdba3f2d95d976c58cae50e81",
+          "elf_machine": 183
+        },
+        "limeos-executor": {
+          "bytes": 3952320,
+          "sha256": "151b9f4a5b6bd77859fc82b737bd646857a4ae414df3f721b13300e8d3f334d9",
+          "elf_machine": 183
+        },
+        "limeos-password-worker": {
+          "bytes": 529032,
+          "sha256": "7e7ecbf68a0c75e1fd3b90d145859a26ae415ab9a583dac891917f06c84346f1",
+          "elf_machine": 183
+        },
+        "limeosctl": {
+          "bytes": 856792,
+          "sha256": "4322dabb7c0d11c3a630c8ce3e364c398f9789b73bdfc2c86c1baa61c4e6e930",
+          "elf_machine": 183
+        }
+      }
+    },
+    "limeos_0.4.4_arm64.deb": {
+      "bytes": 2771758,
+      "sha256": "127382ab65d775739f744a0142f5feb9edc4b1857c237c449482a443d5ce2c43",
+      "control": "Package: limeos\nVersion: 0.4.4\nArchitecture: arm64\n",
+      "binaries": {
+        "limeos-core": {
+          "bytes": 5000976,
+          "sha256": "f2f92ca620598b0486c31ba620ebac7a466d0e7bdba3f2d95d976c58cae50e81",
+          "elf_machine": 183
+        },
+        "limeos-executor": {
+          "bytes": 3952320,
+          "sha256": "151b9f4a5b6bd77859fc82b737bd646857a4ae414df3f721b13300e8d3f334d9",
+          "elf_machine": 183
+        },
+        "limeos-password-worker": {
+          "bytes": 529032,
+          "sha256": "7e7ecbf68a0c75e1fd3b90d145859a26ae415ab9a583dac891917f06c84346f1",
+          "elf_machine": 183
+        },
+        "limeosctl": {
+          "bytes": 856792,
+          "sha256": "4322dabb7c0d11c3a630c8ce3e364c398f9789b73bdfc2c86c1baa61c4e6e930",
+          "elf_machine": 183
+        }
+      }
+    }
+  },
+  "pi_accessed": false,
+  "pi_install_upgrade_crash_or_footprint_qualified": false,
+  "limitations": [
+    "These original current-source CI packages are version 0.4.4, not tonight's 0.4.8+arm64.2 candidate.",
+    "Version 0.4.4 is older than the genuine schema-8 version 0.4.7+arm64.1; do not count direct installation as an upgrade.",
+    "A separately recorded fresh candidate must bind the original native CI ELF hashes, actual source/build/package inputs, fixture identity and new test signing repository.",
+    "The current guest recorder requires a successful native guest build; CI evidence needs an explicit supported provenance path, never fabricated guest build steps."
+  ]
+}

@@ -1,0 +1,285 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/pi-qualification-d268ab3c25851f79/bin/python3 /home/marc/Documents/github/lime-os/tests/qualification/arm64/native_vm.py --host holly@192.168.0.45 --authorization /home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/authorization-pi45.json host-exec --log /home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/host-commands-pi45.jsonl 'python3 -c '"'"'"""Passive memory/reclaim diagnosis after the guard stopped the owned guest."""
+import json
+import pathlib
+import subprocess
+import time
+result = {'"'"'"'"'"'"'"'"'captured_utc'"'"'"'"'"'"'"'"':time.strftime('"'"'"'"'"'"'"'"'%Y-%m-%dT%H:%M:%SZ'"'"'"'"'"'"'"'"',time.gmtime()), '"'"'"'"'"'"'"'"'meminfo'"'"'"'"'"'"'"'"':pathlib.Path('"'"'"'"'"'"'"'"'/proc/meminfo'"'"'"'"'"'"'"'"').read_text(), '"'"'"'"'"'"'"'"'vmstat'"'"'"'"'"'"'"'"':pathlib.Path('"'"'"'"'"'"'"'"'/proc/vmstat'"'"'"'"'"'"'"'"').read_text(), '"'"'"'"'"'"'"'"'swappiness'"'"'"'"'"'"'"'"':pathlib.Path('"'"'"'"'"'"'"'"'/proc/sys/vm/swappiness'"'"'"'"'"'"'"'"').read_text().strip(), '"'"'"'"'"'"'"'"'processes'"'"'"'"'"'"'"'"':[]}
+for directory in pathlib.Path('"'"'"'"'"'"'"'"'/proc'"'"'"'"'"'"'"'"').iterdir():
+    if not directory.name.isdigit():
+        continue
+    try:
+        text = (directory/'"'"'"'"'"'"'"'"'status'"'"'"'"'"'"'"'"').read_text()
+        fields = {line.split('"'"'"'"'"'"'"'"':'"'"'"'"'"'"'"'"',1)[0]:line.split('"'"'"'"'"'"'"'"':'"'"'"'"'"'"'"'"',1)[1].strip() for line in text.splitlines() if '"'"'"'"'"'"'"'"':'"'"'"'"'"'"'"'"' in line}
+        rss = int(fields.get('"'"'"'"'"'"'"'"'VmRSS'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'0'"'"'"'"'"'"'"'"').split()[0])
+        swap = int(fields.get('"'"'"'"'"'"'"'"'VmSwap'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'0'"'"'"'"'"'"'"'"').split()[0])
+        if rss >= 32768 or swap >= 1024:
+            stat = (directory/'"'"'"'"'"'"'"'"'stat'"'"'"'"'"'"'"'"').read_text()
+            values = stat[stat.rindex('"'"'"'"'"'"'"'"')'"'"'"'"'"'"'"'"')+2:].split()
+            result['"'"'"'"'"'"'"'"'processes'"'"'"'"'"'"'"'"'].append({'"'"'"'"'"'"'"'"'pid'"'"'"'"'"'"'"'"':int(directory.name),'"'"'"'"'"'"'"'"'name'"'"'"'"'"'"'"'"':fields['"'"'"'"'"'"'"'"'Name'"'"'"'"'"'"'"'"'],'"'"'"'"'"'"'"'"'rss_kib'"'"'"'"'"'"'"'"':rss,'"'"'"'"'"'"'"'"'swap_kib'"'"'"'"'"'"'"'"':swap,'"'"'"'"'"'"'"'"'major_faults'"'"'"'"'"'"'"'"':int(values[9]),'"'"'"'"'"'"'"'"'start_ticks'"'"'"'"'"'"'"'"':int(values[19])})
+    except (OSError, ValueError, KeyError):
+        pass
+result['"'"'"'"'"'"'"'"'processes'"'"'"'"'"'"'"'"'].sort(key=lambda process:process['"'"'"'"'"'"'"'"'swap_kib'"'"'"'"'"'"'"'"'],reverse=True)
+result['"'"'"'"'"'"'"'"'memory_pressure_available'"'"'"'"'"'"'"'"'] = pathlib.Path('"'"'"'"'"'"'"'"'/proc/pressure/memory'"'"'"'"'"'"'"'"').exists()
+result['"'"'"'"'"'"'"'"'services'"'"'"'"'"'"'"'"'] = subprocess.check_output(['"'"'"'"'"'"'"'"'systemctl'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'show'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'pi-health'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'pihealth-helper'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'docker'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'smbd'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'--property=Id,ActiveState,SubState,MainPID,NRestarts'"'"'"'"'"'"'"'"'],text=True)
+result['"'"'"'"'"'"'"'"'kernel_errors'"'"'"'"'"'"'"'"'] = subprocess.run(['"'"'"'"'"'"'"'"'sudo'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'-n'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'journalctl'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'-k'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'--since'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'2026-10-12 22:42:12 UTC'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'--no-pager'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'--grep'"'"'"'"'"'"'"'"','"'"'"'"'"'"'"'"'Out of memory|oom-kill|Killed process|I/O error|EXT4-fs error|under-voltage'"'"'"'"'"'"'"'"'],capture_output=True,text=True).stdout
+print(json.dumps(result,indent=2))
+'"'"''
+{
+  "captured_utc": "2026-10-12T23:02:47Z",
+  "meminfo": "MemTotal:        8257232 kB\nMemFree:         2005168 kB\nMemAvailable:    6095248 kB\nBuffers:         1514656 kB\nCached:          2796480 kB\nSwapCached:        21472 kB\nActive:          1534784 kB\nInactive:        4091504 kB\nActive(anon):    1078656 kB\nInactive(anon):   515904 kB\nActive(file):     456128 kB\nInactive(file):  3575600 kB\nUnevictable:          16 kB\nMlocked:               0 kB\nSwapTotal:        524272 kB\nSwapFree:         107504 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:              2656 kB\nWriteback:             0 kB\nAnonPages:       1294448 kB\nMapped:           849200 kB\nShmem:            279488 kB\nKReclaimable:     344944 kB\nSlab:             464064 kB\nSReclaimable:     344944 kB\nSUnreclaim:       119120 kB\nKernelStack:       15344 kB\nPageTables:        34896 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     4652880 kB\nCommitted_AS:    7830592 kB\nVmallocTotal:   68447887360 kB\nVmallocUsed:       65600 kB\nVmallocChunk:          0 kB\nPercpu:             4992 kB\nCmaTotal:          65536 kB\nCmaFree:               0 kB\n",
+  "vmstat": "nr_free_pages 125323\nnr_zone_inactive_anon 32244\nnr_zone_active_anon 67416\nnr_zone_inactive_file 223475\nnr_zone_active_file 28508\nnr_zone_unevictable 1\nnr_zone_write_pending 166\nnr_mlock 0\nnr_bounce 0\nnr_zspages 0\nnr_free_cma 0\nnuma_hit 102813293\nnuma_miss 44129410\nnuma_foreign 44128264\nnuma_interleave 100891364\nnuma_local 25830539\nnuma_other 121111507\nnr_inactive_anon 32244\nnr_active_anon 67416\nnr_inactive_file 223475\nnr_active_file 28508\nnr_unevictable 1\nnr_slab_reclaimable 21559\nnr_slab_unreclaimable 7445\nnr_isolated_anon 0\nnr_isolated_file 0\nworkingset_nodes 23916\nworkingset_refault_anon 21183\nworkingset_refault_file 69256\nworkingset_activate_anon 6811\nworkingset_activate_file 20948\nworkingset_restore_anon 6786\nworkingset_restore_file 3071\nworkingset_nodereclaim 87721\nnr_anon_pages 80903\nnr_mapped 53075\nnr_file_pages 270788\nnr_dirty 166\nnr_writeback 0\nnr_writeback_temp 0\nnr_shmem 17468\nnr_shmem_hugepages 0\nnr_shmem_pmdmapped 0\nnr_file_hugepages 0\nnr_file_pmdmapped 0\nnr_anon_transparent_hugepages 0\nnr_vmscan_write 66612\nnr_vmscan_immediate_reclaim 0\nnr_dirtied 3995628\nnr_written 3541742\nnr_throttled_written 0\nnr_kernel_misc_reclaimable 0\nnr_foll_pin_acquired 2970\nnr_foll_pin_released 2970\nnr_kernel_stack 15344\nnr_page_table_pages 2181\nnr_sec_page_table_pages 0\nnr_iommu_pages 0\nnr_swapcached 1342\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\nnr_dirty_threshold 75033\nnr_dirty_background_threshold 37516\nnr_memmap_pages 0\nnr_memmap_boot_pages 2048\npgpgin 41372120\npgpgout 53264601\npswpin 28210\npswpout 62803\npgalloc_dma 75067908\npgalloc_dma32 0\npgalloc_normal 73349358\npgalloc_movable 0\nallocstall_dma 0\nallocstall_dma32 0\nallocstall_normal 11\nallocstall_movable 15\npgskip_dma 0\npgskip_dma32 0\npgskip_normal 0\npgskip_movable 0\npgfree 152292205\npgactivate 28073\npgdeactivate 0\npglazyfree 0\npgfault 200931999\npgmajfault 52449\npglazyfreed 0\npgrefill 724449\npgreuse 2985076\npgsteal_kswapd 6148029\npgsteal_direct 5694\npgsteal_khugepaged 0\npgscan_kswapd 6450648\npgscan_direct 6096\npgscan_khugepaged 0\npgscan_direct_throttle 1\npgscan_anon 253474\npgscan_file 6203270\npgsteal_anon 63548\npgsteal_file 6090175\nzone_reclaim_success 0\nzone_reclaim_failed 0\npginodesteal 0\nslabs_scanned 743446\nkswapd_inodesteal 1741\nkswapd_low_wmark_hit_quickly 24878\nkswapd_high_wmark_hit_quickly 144\npageoutrun 34616\npgrotated 324492\ndrop_pagecache 0\ndrop_slab 0\noom_kill 0\npgmigrate_success 3299196\npgmigrate_fail 109383\nthp_migration_success 0\nthp_migration_fail 0\nthp_migration_split 0\ncompact_migrate_scanned 368118073\ncompact_free_scanned 655108654\ncompact_isolated 11420450\ncompact_stall 0\ncompact_fail 0\ncompact_success 0\ncompact_daemon_wake 5712\ncompact_daemon_migrate_scanned 368118073\ncompact_daemon_free_scanned 655108654\ncma_alloc_success 12\ncma_alloc_fail 0\nunevictable_pgs_culled 1227\nunevictable_pgs_scanned 0\nunevictable_pgs_rescued 80\nunevictable_pgs_mlocked 80\nunevictable_pgs_munlocked 80\nunevictable_pgs_cleared 0\nunevictable_pgs_stranded 0\nswap_ra 4380\nswap_ra_hit 3866\nswpin_zero 493\nswpout_zero 3809\nzswpin 0\nzswpout 0\nzswpwb 0\nnr_unstable 0\n",
+  "swappiness": "60",
+  "processes": [
+    {
+      "pid": 2793,
+      "name": "jellyfin",
+      "rss_kib": 421792,
+      "swap_kib": 57776,
+      "major_faults": 11177,
+      "start_ticks": 3034
+    },
+    {
+      "pid": 4107,
+      "name": "dotnet",
+      "rss_kib": 90176,
+      "swap_kib": 51216,
+      "major_faults": 3166,
+      "start_ticks": 4426
+    },
+    {
+      "pid": 2729,
+      "name": "python3",
+      "rss_kib": 19840,
+      "swap_kib": 25600,
+      "major_faults": 3,
+      "start_ticks": 3025
+    },
+    {
+      "pid": 4541,
+      "name": "MainThread",
+      "rss_kib": 52752,
+      "swap_kib": 25600,
+      "major_faults": 828,
+      "start_ticks": 4476
+    },
+    {
+      "pid": 1740,
+      "name": "python3",
+      "rss_kib": 22064,
+      "swap_kib": 25088,
+      "major_faults": 151,
+      "start_ticks": 2927
+    },
+    {
+      "pid": 3196285,
+      "name": "Sonarr",
+      "rss_kib": 186320,
+      "swap_kib": 14336,
+      "major_faults": 85,
+      "start_ticks": 37809195
+    },
+    {
+      "pid": 567,
+      "name": "python3",
+      "rss_kib": 23248,
+      "swap_kib": 13312,
+      "major_faults": 334,
+      "start_ticks": 1682
+    },
+    {
+      "pid": 665,
+      "name": "python3",
+      "rss_kib": 17712,
+      "swap_kib": 12800,
+      "major_faults": 6,
+      "start_ticks": 1807
+    },
+    {
+      "pid": 34606,
+      "name": "python3",
+      "rss_kib": 82672,
+      "swap_kib": 11264,
+      "major_faults": 700,
+      "start_ticks": 368179
+    },
+    {
+      "pid": 2729095,
+      "name": "jackett",
+      "rss_kib": 195056,
+      "swap_kib": 10160,
+      "major_faults": 1491,
+      "start_ticks": 32766844
+    },
+    {
+      "pid": 2741,
+      "name": "python",
+      "rss_kib": 41344,
+      "swap_kib": 9728,
+      "major_faults": 356,
+      "start_ticks": 3027
+    },
+    {
+      "pid": 2736,
+      "name": "python3",
+      "rss_kib": 13616,
+      "swap_kib": 9216,
+      "major_faults": 0,
+      "start_ticks": 3026
+    },
+    {
+      "pid": 2740,
+      "name": "python",
+      "rss_kib": 31088,
+      "swap_kib": 8192,
+      "major_faults": 168,
+      "start_ticks": 3027
+    },
+    {
+      "pid": 669,
+      "name": "unattended-upgr",
+      "rss_kib": 14128,
+      "swap_kib": 7680,
+      "major_faults": 24,
+      "start_ticks": 1808
+    },
+    {
+      "pid": 2393736,
+      "name": "Radarr",
+      "rss_kib": 183600,
+      "swap_kib": 6896,
+      "major_faults": 2333,
+      "start_ticks": 29166631
+    },
+    {
+      "pid": 1792848,
+      "name": "perl",
+      "rss_kib": 12352,
+      "swap_kib": 6656,
+      "major_faults": 3,
+      "start_ticks": 22686827
+    },
+    {
+      "pid": 2734,
+      "name": "python3",
+      "rss_kib": 47408,
+      "swap_kib": 5120,
+      "major_faults": 269,
+      "start_ticks": 3026
+    },
+    {
+      "pid": 2758,
+      "name": "python",
+      "rss_kib": 75616,
+      "swap_kib": 5120,
+      "major_faults": 162,
+      "start_ticks": 3029
+    },
+    {
+      "pid": 2748,
+      "name": "python",
+      "rss_kib": 19264,
+      "swap_kib": 3584,
+      "major_faults": 36,
+      "start_ticks": 3028
+    },
+    {
+      "pid": 5009,
+      "name": "dotnet",
+      "rss_kib": 160288,
+      "swap_kib": 3584,
+      "major_faults": 1364,
+      "start_ticks": 4548
+    },
+    {
+      "pid": 1739,
+      "name": "gluetun-entrypo",
+      "rss_kib": 51568,
+      "swap_kib": 3072,
+      "major_faults": 710,
+      "start_ticks": 2927
+    },
+    {
+      "pid": 650,
+      "name": "ModemManager",
+      "rss_kib": 8448,
+      "swap_kib": 2048,
+      "major_faults": 103,
+      "start_ticks": 1756
+    },
+    {
+      "pid": 668,
+      "name": "tailscaled",
+      "rss_kib": 83872,
+      "swap_kib": 2048,
+      "major_faults": 471,
+      "start_ticks": 1808
+    },
+    {
+      "pid": 1205,
+      "name": "smbd",
+      "rss_kib": 15824,
+      "swap_kib": 2048,
+      "major_faults": 66,
+      "start_ticks": 2751
+    },
+    {
+      "pid": 1371,
+      "name": "smbd-notifyd",
+      "rss_kib": 10960,
+      "swap_kib": 2048,
+      "major_faults": 3,
+      "start_ticks": 2760
+    },
+    {
+      "pid": 1378,
+      "name": "cleanupd",
+      "rss_kib": 7264,
+      "swap_kib": 2048,
+      "major_faults": 2,
+      "start_ticks": 2760
+    },
+    {
+      "pid": 323,
+      "name": "systemd-udevd",
+      "rss_kib": 5232,
+      "swap_kib": 1024,
+      "major_faults": 21,
+      "start_ticks": 481
+    },
+    {
+      "pid": 637,
+      "name": "NetworkManager",
+      "rss_kib": 19328,
+      "swap_kib": 1024,
+      "major_faults": 107,
+      "start_ticks": 1752
+    },
+    {
+      "pid": 670,
+      "name": "containerd",
+      "rss_kib": 46368,
+      "swap_kib": 512,
+      "major_faults": 1277,
+      "start_ticks": 1809
+    },
+    {
+      "pid": 752,
+      "name": "dockerd",
+      "rss_kib": 93024,
+      "swap_kib": 512,
+      "major_faults": 625,
+      "start_ticks": 2559
+    },
+    {
+      "pid": 4196,
+      "name": "navidrome",
+      "rss_kib": 38464,
+      "swap_kib": 512,
+      "major_faults": 350,
+      "start_ticks": 4438
+    }
+  ],
+  "memory_pressure_available": false,
+  "services": "MainPID=2758\nNRestarts=0\nId=pi-health.service\nActiveState=active\nSubState=running\n\nMainPID=567\nNRestarts=0\nId=pihealth-helper.service\nActiveState=active\nSubState=running\n\nMainPID=752\nNRestarts=0\nId=docker.service\nActiveState=active\nSubState=running\n\nMainPID=1205\nNRestarts=0\nId=smbd.service\nActiveState=active\nSubState=running\n",
+  "kernel_errors": "-- No entries --\n"
+}

@@ -1,0 +1,35 @@
+{
+  "name": "integrated-lowmem-build-20261012",
+  "host": "holly@192.168.0.45",
+  "port": 22922,
+  "cpus": 1,
+  "memory_mib": 512,
+  "disk": "24G",
+  "storage_disks": false,
+  "image_sha512": "835b929522716de9798d1c0fbe61caae8313ab78858b278f3389a2db922ae42e4619b4a776ecad39583c149fb85334a2f8cdae685bc56987160e5c86a2354375",
+  "qemu": "/usr/bin/nice -n 19 /usr/bin/ionice -c 3 /usr/bin/qemu-system-aarch64 -name limeos-arm64-integrated-lowmem-build-20261012-1e721f350e1fc467 -machine virt,gic-version=host -accel kvm -cpu host -smp 1 -m 512 -display none -serial file:console.log -drive if=pflash,format=raw,readonly=on,file=/usr/share/AAVMF/AAVMF_CODE.fd -drive if=pflash,format=raw,file=vars.fd -drive file=disk.qcow2,format=qcow2,if=none,id=system -device virtio-blk-pci,drive=system,bootindex=1 -device virtio-scsi-pci,id=scsi0 -drive file=seed.iso,format=raw,if=none,id=seed,media=cdrom,readonly=on -device scsi-cd,drive=seed,bus=scsi0.0 -netdev user,id=n1,hostfwd=tcp:127.0.0.1:22922-:22 -device virtio-net-pci,netdev=n1,romfile= -runas holly",
+  "marker": "limeos-arm64-integrated-lowmem-build-20261012-1e721f350e1fc467",
+  "supervisor": {
+    "sha256": "45a2ab6ed07e50a10a8caebb950a5f0689f0978f1cc460fb9a96387a711aa1b4",
+    "terminate_at": "2026-10-13T05:30:00Z",
+    "kill_at": "2026-10-13T05:32:00Z",
+    "control_directory": "/tmp/limeos-arm64-supervisor-yJwT9tWD",
+    "bound": {
+      "pid": 3265427,
+      "start_ticks": 38521992,
+      "uid": 1000,
+      "marker": "limeos-arm64-integrated-lowmem-build-20261012-1e721f350e1fc467"
+    }
+  },
+  "authorization": {
+    "authorized_by": "marc, explicit user instruction and host correction on 2026-10-12",
+    "host": "holly@192.168.0.45",
+    "not_after": "2026-10-13T06:00:00Z",
+    "not_before": "2026-10-12T21:44:28Z",
+    "reference": "docs/plans/2026-10-12-arm64-integrated-qualification-runbook.md; user supplied holly@192.168.0.45 (correcting .46), available until 07:00 Europe/London, required a healthy daytime host, then explicitly approved temporary QEMU prerequisites and retaining the setup installed but stopped for further testing",
+    "scope": "Disposable ARM64 KVM guest qualification: bounded native build, packages, upgrades, crash recovery and footprint; read-only host health checks and cleanup of this run's owned guests. Also install the reviewed 41-package QEMU/ARM64 firmware dependency set without existing package upgrades/removals, and retain these prerequisites plus the verified base image dormant if final health shows no major impact. Stop and reap every guest and test supervisor before cutoff. Preserve the frozen production app, host services, Docker workload, mounts and data; no Rust host installation or production activation.",
+    "sha256": "39fd965dfeea3b2b2a0d2a8f689e0ffb116d04d6f9e9965c6d405c27ad106cf6",
+    "version": 1
+  },
+  "started": "2026-10-13T00:05:45+0100"
+}

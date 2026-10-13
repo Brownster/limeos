@@ -1,0 +1,3 @@
+{"utc": "2026-10-12T22:56:57.329Z", "epoch": 1791845817.33, "event": "launching", "marker": "limeos-arm64-integrated-build-20261012-4219e1527d684c27"}
+{"utc": "2026-10-12T22:56:57.534Z", "epoch": 1791845817.535, "event": "bound", "supervisor_pid": 3258969, "terminate_at": 1791869400.0, "kill_at": 1791869520.0, "pid": 3258970, "start_ticks": 38469108, "uid": 1000, "marker": "limeos-arm64-integrated-build-20261012-4219e1527d684c27"}
+{"utc": "2026-10-12T22:59:28.076Z", "epoch": 1791845968.077, "event": "guest_gone", "signalled": false}

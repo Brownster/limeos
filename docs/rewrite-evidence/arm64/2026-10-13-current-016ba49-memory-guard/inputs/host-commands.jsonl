@@ -1,0 +1,1 @@
+{"started": "2026-10-12T21:48:30Z", "host": "holly@192.168.0.46", "authorization_sha256": "693ea216e6451234b370ee0fecc1264e485673fb8f0d2102858e8f90a3ed7e89", "command": "date -u; hostname; uptime; sudo -n true", "exit": 255, "stdout": "", "stderr": "ssh: connect to host 192.168.0.46 port 22: No route to host\n"}

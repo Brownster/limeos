@@ -1,0 +1,65 @@
+{
+  "identity": {
+    "architecture": "arm64",
+    "authority_schema": 9,
+    "fixtures_commit": "016ba49a27b228576db5d4ca28dcd122c60a6278",
+    "package_version": "0.4.8+arm64.2",
+    "qualification_kind": "native-kvm",
+    "source_commit": "016ba49a27b228576db5d4ca28dcd122c60a6278"
+  },
+  "status": "incomplete: host swap guard stopped both native build attempts",
+  "deadline_proof": "pass",
+  "native_build_gates_completed_in_retry": [
+    "apt",
+    "rustup",
+    "fetch",
+    "fmt",
+    "clippy"
+  ],
+  "native_workspace_tests_completed": false,
+  "native_packages_created": false,
+  "untested_gates": [
+    "current-candidate installed ARM64 behavior",
+    "genuine schema-8 to schema-9 ARM64 upgrade",
+    "current-candidate storage/container interruption recovery",
+    "current-candidate footprint and latency",
+    "bare-metal 16 KiB kernel qualification",
+    "hardware power interruption and soak"
+  ],
+  "last_post_teardown_health": {
+    "captured_utc": "2026-10-12T23:17:48Z",
+    "boot_id_unchanged": true,
+    "running_containers_preserved": 14,
+    "preexisting_stopped_containers_preserved": 4,
+    "service_pids_and_restart_counts_unchanged": true,
+    "http": {
+      "http://127.0.0.1:8002/": {
+        "status": 200,
+        "seconds": 0.004
+      },
+      "http://127.0.0.1:8096/health": {
+        "status": 200,
+        "seconds": 0.0035
+      }
+    },
+    "test_processes": [],
+    "new_oom_kills": 0,
+    "available_ram_mib": 6005,
+    "swap_mib": 449,
+    "temperature_c": 55.1
+  },
+  "baseline_conditions": {
+    "swap_mib": 299.64,
+    "failed_unit": "docker-compose-start.service",
+    "stopped_containers": [
+      "airsonic-advanced",
+      "limeos-mattermost-db",
+      "limeos-alertd",
+      "limeos-mattermost"
+    ]
+  },
+  "retained_host_setup": "Only the approved QEMU/firmware/dependency set and verified base image/preparation records; no guest or supervisor remains in the last post-test sample",
+  "missing_evidence": "Safety teardown deleted both overlays before full guest build/log collection. The delayed progress snapshot was refused after expiry before SSH. Complete available coordinator, console, supervisor and host-sample evidence is retained; detailed guest test logs and partial build JSON are unavailable.",
+  "no_successful_native_guest_record": "record_run.py was not invoked: it requires a successful native build, which this run lacks",
+  "next_input_preparation": "Original native CI artifacts verified and fresh 0.4.8+arm64.3 packages prepared locally from unchanged native CI ELFs; explicit CI-provenance fixture support, fresh signing, and a new test window remain required"
+}

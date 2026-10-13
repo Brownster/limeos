@@ -1,0 +1,257 @@
+{
+  "format_version": 1,
+  "build_kind": "native-ci-elfs-local-packaging",
+  "source_commit": "af94f19ac21f9da14b207439808ffb33c87e8e10",
+  "package_version": "0.4.8+arm64.3",
+  "architecture": "arm64",
+  "expected_authority_schema": 9,
+  "original_ci_evidence": {
+    "source_commit": "af94f19ac21f9da14b207439808ffb33c87e8e10",
+    "workflow_run_id": 38302065106,
+    "workflow_url": "https://github.com/Brownster/limeos/actions/runs/38302065106",
+    "native_arm64_job_id": 114997846707,
+    "native_arm64_job_url": "https://github.com/Brownster/limeos/actions/runs/38302065106/job/114997846707",
+    "artifact_id": 11770788524,
+    "artifact_zip_sha256": "45462b1787cb95d1bc6fcfa4b3c8befa565f8552aaebd5d57833b91e3a9b3080",
+    "packages": {
+      "limeos-shadow_0.4.4_arm64.deb": {
+        "bytes": 2771834,
+        "sha256": "3da999d196a8b00c5cefdc6f9ad3b26a6c1d33e2bb6a103d1a752a0cc2c222a9",
+        "control": "Package: limeos-shadow\nVersion: 0.4.4\nArchitecture: arm64\n",
+        "binaries": {
+          "limeos-core": {
+            "bytes": 5000976,
+            "sha256": "f2f92ca620598b0486c31ba620ebac7a466d0e7bdba3f2d95d976c58cae50e81",
+            "elf_machine": 183
+          },
+          "limeos-executor": {
+            "bytes": 3952320,
+            "sha256": "151b9f4a5b6bd77859fc82b737bd646857a4ae414df3f721b13300e8d3f334d9",
+            "elf_machine": 183
+          },
+          "limeos-password-worker": {
+            "bytes": 529032,
+            "sha256": "7e7ecbf68a0c75e1fd3b90d145859a26ae415ab9a583dac891917f06c84346f1",
+            "elf_machine": 183
+          },
+          "limeosctl": {
+            "bytes": 856792,
+            "sha256": "4322dabb7c0d11c3a630c8ce3e364c398f9789b73bdfc2c86c1baa61c4e6e930",
+            "elf_machine": 183
+          }
+        }
+      },
+      "limeos_0.4.4+ci.1_arm64.deb": {
+        "bytes": 2771786,
+        "sha256": "c99c454816ba64f0562c671e42f2f611b8d80728ead9b4b2761b1a84a03fb2f2",
+        "control": "Package: limeos\nVersion: 0.4.4+ci.1\nArchitecture: arm64\n",
+        "binaries": {
+          "limeos-core": {
+            "bytes": 5000976,
+            "sha256": "f2f92ca620598b0486c31ba620ebac7a466d0e7bdba3f2d95d976c58cae50e81",
+            "elf_machine": 183
+          },
+          "limeos-executor": {
+            "bytes": 3952320,
+            "sha256": "151b9f4a5b6bd77859fc82b737bd646857a4ae414df3f721b13300e8d3f334d9",
+            "elf_machine": 183
+          },
+          "limeos-password-worker": {
+            "bytes": 529032,
+            "sha256": "7e7ecbf68a0c75e1fd3b90d145859a26ae415ab9a583dac891917f06c84346f1",
+            "elf_machine": 183
+          },
+          "limeosctl": {
+            "bytes": 856792,
+            "sha256": "4322dabb7c0d11c3a630c8ce3e364c398f9789b73bdfc2c86c1baa61c4e6e930",
+            "elf_machine": 183
+          }
+        }
+      },
+      "limeos_0.4.4_arm64.deb": {
+        "bytes": 2771758,
+        "sha256": "127382ab65d775739f744a0142f5feb9edc4b1857c237c449482a443d5ce2c43",
+        "control": "Package: limeos\nVersion: 0.4.4\nArchitecture: arm64\n",
+        "binaries": {
+          "limeos-core": {
+            "bytes": 5000976,
+            "sha256": "f2f92ca620598b0486c31ba620ebac7a466d0e7bdba3f2d95d976c58cae50e81",
+            "elf_machine": 183
+          },
+          "limeos-executor": {
+            "bytes": 3952320,
+            "sha256": "151b9f4a5b6bd77859fc82b737bd646857a4ae414df3f721b13300e8d3f334d9",
+            "elf_machine": 183
+          },
+          "limeos-password-worker": {
+            "bytes": 529032,
+            "sha256": "7e7ecbf68a0c75e1fd3b90d145859a26ae415ab9a583dac891917f06c84346f1",
+            "elf_machine": 183
+          },
+          "limeosctl": {
+            "bytes": 856792,
+            "sha256": "4322dabb7c0d11c3a630c8ce3e364c398f9789b73bdfc2c86c1baa61c4e6e930",
+            "elf_machine": 183
+          }
+        }
+      }
+    },
+    "pi_accessed": false,
+    "pi_install_upgrade_crash_or_footprint_qualified": false,
+    "limitations": [
+      "These original current-source CI packages are version 0.4.4, not tonight's 0.4.8+arm64.2 candidate.",
+      "Version 0.4.4 is older than the genuine schema-8 version 0.4.7+arm64.1; do not count direct installation as an upgrade.",
+      "A separately recorded fresh candidate must bind the original native CI ELF hashes, actual source/build/package inputs, fixture identity and new test signing repository.",
+      "The current guest recorder requires a successful native guest build; CI evidence needs an explicit supported provenance path, never fabricated guest build steps."
+    ]
+  },
+  "package_builder_sha256": "f6d3532b88d288d4ddb28aa82fd533d8e4495b598fb4005a2ee93ca8c067bb08",
+  "frontend_dist_sha256": {
+    "assets/index-C3RxCNyi.css": "64c20446c003aed19c6bed2fede7316b50f9e1d9ac8e17633b1fff8cd5e37df8",
+    "assets/index-D-RFxl0f.js": "280e06ad09d13899981bbf34395b7ff28007885247bbec86b85913250aa6816b",
+    "index.html": "bc2f63d645e52dddad3fa637739fcc0e22ae1e8c5c21eb6d38a64bbc3f8e9536"
+  },
+  "contracts_sha256": {
+    "approval-input.schema.json": "3c35b2c7963aba5e432b4f788bcbafd5888f7c538c35d9c8572de9166155b1a3",
+    "authority-v1.sql": "1e91fe17b555fd635af084c2411efeeb7180b33e57dfddc963d3c8433b3dc0a0",
+    "authority-v2.sql": "ed55e5e49ffa64c2b0e77863ff26cc3bb8c2199391c77a4aef4518c13a71dcd0",
+    "authority-v3.sql": "0c0ca602475427c19d6e941ad99f255353ebe676ff9146b70ee5c54a28c0457b",
+    "authority-v4.sql": "d9ba4a9de4c67a37370de1bb2d127301070bf136b16b7c965e75fd99560e9344",
+    "authority-v5.sql": "7a0f5df0241bc70534e0e4b4910bc39277732f3298c026a06a5fc23798c9f8e5",
+    "authority-v6.sql": "8668cfe59b02ed49636b05b39ea2c978ed203eb3ffe17a2fb5746db07bd553a7",
+    "authority-v7.sql": "b3522c4dffd01930e25ee4ff3abe3d91b3e21a21313248abfc5804ac9cd595f1",
+    "authority-v8.sql": "b14b10810c4353aab3fb524487c6a4415422e4e9c039ef3579376a7f444e85ba",
+    "authority-v9.sql": "bbe5754519e76bfc9e4d953bc645351069af31a276453590b9e605227c55f3b0",
+    "compose-catalog.schema.json": "40d5d5a041cd30121f0211258bf7741b01220775ba98e9fda00bcf06e15730de",
+    "compose-plan.schema.json": "64469ecdbab98890dee89a40c167f675b57812f7ce0ab986f0c712ff367dcf9a",
+    "compose-selection.schema.json": "6d106d2ac83662cfd8d972448016199a4686d6fe8375d29b6ee94302a792ed3f",
+    "container-input.schema.json": "cbc02bbd29e2d50d4e7a2c38abb4ef0b8dbedf8c639f2a0c2a0c8e53e3497a7f",
+    "container-job.schema.json": "ac6bbd5da6fb2723169ed672f5d98a4bd2d3d43c0221d6bbb1735ba23611ce42",
+    "container-logs.schema.json": "7091718cb9125bc188958ab477f4f2e378ef123686b773278ed46ddf58fcea92",
+    "container-plan.schema.json": "cdc92e81180f819b1d7cec9f60b08d9d1992f4d4e38763c19f7b459202a77ad0",
+    "container-storage-inventory.schema.json": "5c4c7dfa08179513099d2a749dd11928b0a3b38d17a65a645278fe41611b5de1",
+    "core-request.schema.json": "c842f8b5ec4a73e0c9554f1074598134eb1ff71adf955084791a5f1881a8c214",
+    "core-response.schema.json": "fa5b375df12fc514cd9188c490356122564cc1050541882b9a5958f0b31e3c4f",
+    "event.schema.json": "2019978d6569e39e087879b5c0153528f6adc95dd59548896d2f75667dd10038",
+    "executor-ceiling.schema.json": "84cfdf2abbc6395d8b720473e53becdf2b704ca8335c2d6ee22e95799c573725",
+    "executor-receipt.schema.json": "0ebae9ed4207ec8786d6c1047a3e03a9b71d4b72fd888e96c1fecdcdd2c03b2b",
+    "executor-request.schema.json": "19fa0335c9f5bffaeece7d010349e179d41b5f04a5d7e5082b440b53d00ce2c3",
+    "intent.schema.json": "ed30fbbc95cb4e64a8770ab5e8dd9502f3f835584493fcffb29f0d1fcfd90fee",
+    "job-progress.schema.json": "cdbe7cf02e13b6e70dfd6e5d208a6136bfa1425a840bfd18704beedaa1449740",
+    "metric-history.schema.json": "dbea2ee240baa8c70ccf6b649cc8ed4c709cb09f5337ba832849740bc9bb8618",
+    "openapi.json": "1d1ea22075a1a070300ef031c075a948ceb16725cccf2d9575dbac76cc65d39c",
+    "overview.schema.json": "b97e69854857da13185855a6bc7ab1f96b05a684da4088edfe896557584ae41c",
+    "pool-preview.schema.json": "3c439e099076ceadf025e0fcd2f185c10c074642c134d526721dbb8c5ff0e971",
+    "pools-config.schema.json": "4649b28b13f75840113a281c69f282ecbf4972a5daa4752bb3fef88054b4c3b6",
+    "queue-restart-input.schema.json": "0d072d76ad1f0a2809b6c9fb23797d27b6339501454a9405d0eceed5db809100",
+    "queue-storage-targets-input.schema.json": "66319e7fc5b33fbbef39eef6f8b2f40c8508cc1042422664ab95674b2d3b2b75",
+    "resource-page.schema.json": "381de806be805126e34618067ed9c480ef8c1720a15e8d36098c5d66dcdf9e36",
+    "restart-input.schema.json": "545a2a140d308489fab07d54d25666491a2c1aacdb0d6e61357cdbae80d19a63",
+    "restart-job.schema.json": "ac6bbd5da6fb2723169ed672f5d98a4bd2d3d43c0221d6bbb1735ba23611ce42",
+    "restart-plan.schema.json": "cdc92e81180f819b1d7cec9f60b08d9d1992f4d4e38763c19f7b459202a77ad0",
+    "snapraid-config.schema.json": "05f55ea3cfb5a9c558df80e3822a45358c6604d5b4bba477f9afc0537c6a87e4",
+    "snapraid-diff-evidence.schema.json": "d914ebadbeb7590cf5a4e19ae88d5f1c8303e7f4280d066324cd80fb6540a348",
+    "snapraid-preview.schema.json": "e9bc8a388cd34151eb9384fa6b79dc11e04b3856eddee7ea1896171816610079",
+    "snapraid-sync-preview.schema.json": "f7cbc9bd767a9078e57d2cf227e991de5b356b318ffad15b42da8bd3a37c208c",
+    "storage-contract.schema.json": "6799e0686454809eb748376757047f20ac0141ae0aec32cfdc694d031d1ccba2",
+    "storage-inventory.schema.json": "f595284b2571cbb8fddc3667307567dc96385b17e6217ce345a04c662496f37a",
+    "storage-mount-wait-plan.schema.json": "24de5cc466fa87d853e5e4833700b862935f5f70fa83eb1b7ddc60dc13646cde",
+    "storage-read-failure.schema.json": "3f58987c5dc40e024dfe1ae2a99fb49d8d65f22beebfc23f1d2b035eeff4a66a",
+    "storage-setup-input.schema.json": "9058191733013ba937a46181467f063d6b9c24b124b3d6aabbca0fe7f75d7847",
+    "storage-setup-plan.schema.json": "ab2f2839540c024612c206da46e2dfa608028d6877ba0f096c92c1aab66ae4bc",
+    "storage-target-ceiling.schema.json": "b3e70cd40362d312397c330b2455e71dec90957ec34c710e342ecfea94b4f3c6",
+    "storage-target-job.schema.json": "01568458e3de9b4544fada97dbfcb55129af32a9e8f34c0a8281580af5f512c0",
+    "storage-target-plan.schema.json": "f6ed44393db91bfd67a656b1481b92ec5f742b70da002084b0ee54e1d580c2d3",
+    "types.ts": "8c0d75355fb7886df03d34d268732f6cbaa9336fef5e101e0fdd8404721e3554"
+  },
+  "binaries": {
+    "limeos-core": {
+      "bytes": 5000976,
+      "sha256": "f2f92ca620598b0486c31ba620ebac7a466d0e7bdba3f2d95d976c58cae50e81",
+      "elf_machine": 183
+    },
+    "limeos-executor": {
+      "bytes": 3952320,
+      "sha256": "151b9f4a5b6bd77859fc82b737bd646857a4ae414df3f721b13300e8d3f334d9",
+      "elf_machine": 183
+    },
+    "limeos-password-worker": {
+      "bytes": 529032,
+      "sha256": "7e7ecbf68a0c75e1fd3b90d145859a26ae415ab9a583dac891917f06c84346f1",
+      "elf_machine": 183
+    },
+    "limeosctl": {
+      "bytes": 856792,
+      "sha256": "4322dabb7c0d11c3a630c8ce3e364c398f9789b73bdfc2c86c1baa61c4e6e930",
+      "elf_machine": 183
+    }
+  },
+  "packaging_steps": [
+    {
+      "profile": "standard",
+      "argv": [
+        "/home/marc/Documents/github/lime-os/.cache/uv/environments-v2/package-arm64-ci-candidate-fe69413b9e73cb6f/bin/python",
+        "/home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/ci-candidate-0.4.8-arm64.3/source/packaging/build.py",
+        "--arch",
+        "arm64",
+        "--binaries",
+        "/home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/ci-candidate-0.4.8-arm64.3/binaries",
+        "--version",
+        "0.4.8+arm64.3",
+        "--profile",
+        "standard",
+        "--output",
+        "/home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/ci-candidate-0.4.8-arm64.3/packages"
+      ],
+      "exit": 0
+    },
+    {
+      "profile": "shadow",
+      "argv": [
+        "/home/marc/Documents/github/lime-os/.cache/uv/environments-v2/package-arm64-ci-candidate-fe69413b9e73cb6f/bin/python",
+        "/home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/ci-candidate-0.4.8-arm64.3/source/packaging/build.py",
+        "--arch",
+        "arm64",
+        "--binaries",
+        "/home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/ci-candidate-0.4.8-arm64.3/binaries",
+        "--version",
+        "0.4.8+arm64.3",
+        "--profile",
+        "shadow",
+        "--output",
+        "/home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/ci-candidate-0.4.8-arm64.3/packages"
+      ],
+      "exit": 0
+    }
+  ],
+  "packages": {
+    "limeos-shadow_0.4.8+arm64.3_arm64.deb": {
+      "bytes": 2387032,
+      "sha256": "b0b4aaa47fed3788fccda86b139cead9c4a046f72976a6fd5c727cc323b081cb",
+      "control": "Package: limeos-shadow\nVersion: 0.4.8+arm64.3\nArchitecture: arm64\n",
+      "binary_sha256": {
+        "limeos-core": "f2f92ca620598b0486c31ba620ebac7a466d0e7bdba3f2d95d976c58cae50e81",
+        "limeos-executor": "151b9f4a5b6bd77859fc82b737bd646857a4ae414df3f721b13300e8d3f334d9",
+        "limeos-password-worker": "7e7ecbf68a0c75e1fd3b90d145859a26ae415ab9a583dac891917f06c84346f1",
+        "limeosctl": "4322dabb7c0d11c3a630c8ce3e364c398f9789b73bdfc2c86c1baa61c4e6e930"
+      }
+    },
+    "limeos_0.4.8+arm64.3_arm64.deb": {
+      "bytes": 2387124,
+      "sha256": "68cf2de38e7bb82656773103c61e5e938d30e4b4142495018412acbea2127b8a",
+      "control": "Package: limeos\nVersion: 0.4.8+arm64.3\nArchitecture: arm64\n",
+      "binary_sha256": {
+        "limeos-core": "f2f92ca620598b0486c31ba620ebac7a466d0e7bdba3f2d95d976c58cae50e81",
+        "limeos-executor": "151b9f4a5b6bd77859fc82b737bd646857a4ae414df3f721b13300e8d3f334d9",
+        "limeos-password-worker": "7e7ecbf68a0c75e1fd3b90d145859a26ae415ab9a583dac891917f06c84346f1",
+        "limeosctl": "4322dabb7c0d11c3a630c8ce3e364c398f9789b73bdfc2c86c1baa61c4e6e930"
+      }
+    }
+  },
+  "pi_accessed": false,
+  "native_guest_build_qualified": false,
+  "installed_behavior_qualified": false,
+  "signed_test_repository_prepared": false,
+  "qualification_fixture_provenance": "Pending explicit CI provenance support; do not feed this record to the native-guest build recorder",
+  "previous_artifact_unchanged": true
+}

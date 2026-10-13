@@ -1,0 +1,105 @@
+{
+  "captured_utc": "2026-10-12T23:16:44Z",
+  "meminfo": "MemTotal:        8257232 kB\nMemFree:          226032 kB\nMemAvailable:    5496624 kB\nBuffers:          699952 kB\nCached:          4729264 kB\nSwapCached:        22128 kB\nActive:          2218800 kB\nInactive:        5194208 kB\nActive(anon):    1533952 kB\nInactive(anon):   726336 kB\nActive(file):     684848 kB\nInactive(file):  4467872 kB\nUnevictable:          16 kB\nMlocked:               0 kB\nSwapTotal:        524272 kB\nSwapFree:          65616 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:             58448 kB\nWriteback:             0 kB\nAnonPages:       1962240 kB\nMapped:           860448 kB\nShmem:            276560 kB\nKReclaimable:     338928 kB\nSlab:             458432 kB\nSReclaimable:     338928 kB\nSUnreclaim:       119504 kB\nKernelStack:       16240 kB\nPageTables:        36480 kB\nSecPageTables:       544 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     4652880 kB\nCommitted_AS:    9214704 kB\nVmallocTotal:   68447887360 kB\nVmallocUsed:       66512 kB\nVmallocChunk:          0 kB\nPercpu:             5376 kB\nCmaTotal:          65536 kB\nCmaFree:               0 kB\n",
+  "vmstat": {
+    "pswpin": 28864,
+    "pswpout": 65931,
+    "oom_kill": 0
+  },
+  "loadavg": "1.25 1.11 0.74 2/1012 3271926",
+  "temperature_millidegrees": 57850,
+  "boot_id": "2c58cdca-4786-4e0e-a053-4907aa7b36b5",
+  "services": {
+    "exit": 0,
+    "stdout": "MainPID=2758\nNRestarts=0\nId=pi-health.service\nActiveState=active\nSubState=running\n\nMainPID=567\nNRestarts=0\nId=pihealth-helper.service\nActiveState=active\nSubState=running\n\nMainPID=752\nNRestarts=0\nId=docker.service\nActiveState=active\nSubState=running\n\nMainPID=1205\nNRestarts=0\nId=smbd.service\nActiveState=active\nSubState=running\n",
+    "stderr": ""
+  },
+  "containers": {
+    "exit": 0,
+    "stdout": "de68dbf2678ad95ea2e391e6dbd95fb07b6e6e8da0a55b9f6bd114028670a31b\tsonarr\trunning\tUp 2 hours\n9c2055ae40445e5508080d08ce85554e44b6e01c81b3e66e4dfdc1493e1abc5b\tjackett\trunning\tUp 16 hours\nfa1f3133b72f5e3b6c6e7f2d07ffb316dcb806a9bc0777fbcabf820492782781\tradarr\trunning\tUp 26 hours\nc61338bb08384aa09c83b29edac2988e0a9f09e7ec00e54960e38a931d9c36e3\tget_iplayer\trunning\tUp 44 hours\ncaca095f622d365422adafc55ef0b8b81a98a0b48ac09136a2c667a64616dfc1\tsabnzbd\trunning\tUp 4 days\n07c87f083e764b74a2aafd712f50bd1aa11660d423d84cb8337dcf92836f0780\ttransmission\trunning\tUp 4 days\n7502a6e8d25db4f57dc0873fb0ffceb0d6c4722cae9fcd81f9524a53bfe21f10\trdtclient\trunning\tUp 4 days (healthy)\ne8dc105689623ffac5034e86548bd3745570da6944561eedb0c39bca843305f9\tvpn\trunning\tUp 4 days (healthy)\n3a2367cd1f9fbcc7456ecafd6d29926a716f3e75a3652252367872cb4ccb416c\taudiobookshelf\trunning\tUp 4 days\n28c15fdb9251f1f0014ae70204354f821da98b0f505074de8acf81afada80730\tnavidrome\trunning\tUp 4 days\n0e2db7c2f8fba0a21208b0f320ad3089018485983026e2c20fb87cd86012e887\tjellyfin\trunning\tUp 4 days\n811dd0702550e04c64fb5d33a7fa525cf1f7a6818586150dee4e143132c91a00\tairsonic-advanced\texited\tExited (0) 6 days ago\n07a490371530d452dd53cab2b376b9b597a86d92c067f6a6d90d5f80fae535b6\tlimeos-mattermost-db\texited\tExited (0) 6 days ago\n3786b5a354b5fdefabfc15eb7063259bb14a91af3b5323e3a41373658e0d2a81\tlimeos-alertd\texited\tExited (137) 4 days ago\nda5103e8097f0324ec804651649e6dd4910756a3e758a8ffb294cb0aa90025c4\tlimeos-mattermost\texited\tExited (0) 6 days ago\n3817f81e9027266a8a9a5e4b969c35172788f8cff879ae8acd324fffd9d8ded1\tyt-to-jellyfin\trunning\tUp 4 days\n39c021eb5bf16131c8a2cfd733f5cd88996694c2672007cf9c90151b85f4198d\trequestrr\trunning\tUp 4 days\n90f0d8d33b52d1708c9822d13269e30722247c560a09128d2fd745af9724c629\twatchtower\trunning\tUp 4 days (healthy)\n",
+    "stderr": ""
+  },
+  "test_processes": [
+    {
+      "pid": 3265419,
+      "state": "S",
+      "start_ticks": 38521986,
+      "argv": [
+        "/usr/bin/python3",
+        "-I",
+        "/tmp/limeos-arm64-supervisor-yJwT9tWD/guest_supervisor.py",
+        "launch",
+        "--command",
+        "/tmp/limeos-arm64-supervisor-yJwT9tWD/launch.json",
+        "--state",
+        "/tmp/limeos-arm64-supervisor-yJwT9tWD/process.json",
+        "--log",
+        "/tmp/limeos-arm64-supervisor-yJwT9tWD/supervisor.log",
+        "--uid",
+        "1000",
+        "--marker",
+        "limeos-arm64-integrated-lowmem-build-20261012-1e721f350e1fc467",
+        "--terminate-at",
+        "1791869400",
+        "--kill-at",
+        "1791869520",
+        "--not-after",
+        "1791871200"
+      ]
+    },
+    {
+      "pid": 3265427,
+      "state": "S",
+      "start_ticks": 38521992,
+      "argv": [
+        "/usr/bin/qemu-system-aarch64",
+        "-name",
+        "limeos-arm64-integrated-lowmem-build-20261012-1e721f350e1fc467",
+        "-machine",
+        "virt,gic-version=host",
+        "-accel",
+        "kvm",
+        "-cpu",
+        "host",
+        "-smp",
+        "1",
+        "-m",
+        "512",
+        "-display",
+        "none",
+        "-serial",
+        "file:console.log",
+        "-drive",
+        "if=pflash,format=raw,readonly=on,file=/usr/share/AAVMF/AAVMF_CODE.fd",
+        "-drive",
+        "if=pflash,format=raw,file=vars.fd",
+        "-drive",
+        "file=disk.qcow2,format=qcow2,if=none,id=system",
+        "-device",
+        "virtio-blk-pci,drive=system,bootindex=1",
+        "-device",
+        "virtio-scsi-pci,id=scsi0",
+        "-drive",
+        "file=seed.iso,format=raw,if=none,id=seed,media=cdrom,readonly=on",
+        "-device",
+        "scsi-cd,drive=seed,bus=scsi0.0",
+        "-netdev",
+        "user,id=n1,hostfwd=tcp:127.0.0.1:22922-:22",
+        "-device",
+        "virtio-net-pci,netdev=n1,romfile=",
+        "-runas",
+        "holly"
+      ]
+    }
+  ],
+  "http": {
+    "http://127.0.0.1:8002/": {
+      "status": 200,
+      "seconds": 0.0053
+    },
+    "http://127.0.0.1:8096/health": {
+      "status": 200,
+      "seconds": 0.005
+    }
+  }
+}

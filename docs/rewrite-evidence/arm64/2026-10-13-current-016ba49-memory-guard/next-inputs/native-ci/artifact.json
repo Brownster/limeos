@@ -1,0 +1,20 @@
+{
+  "id": 11770788524,
+  "node_id": "MDg6QXJ0aWZhY3QxMTc3MDc4ODUyNA==",
+  "name": "debian-ubuntu-24.04-arm",
+  "size_in_bytes": 8318123,
+  "url": "https://api.github.com/repos/Brownster/limeos/actions/artifacts/11770788524",
+  "archive_download_url": "https://api.github.com/repos/Brownster/limeos/actions/artifacts/11770788524/zip",
+  "expired": false,
+  "digest": "sha256:45462b1787cb95d1bc6fcfa4b3c8befa565f8552aaebd5d57833b91e3a9b3080",
+  "created_at": "2026-10-12T20:17:21Z",
+  "updated_at": "2026-10-12T20:17:21Z",
+  "expires_at": "2027-01-10T20:06:39Z",
+  "workflow_run": {
+    "id": 38302065106,
+    "repository_id": 1406205629,
+    "head_repository_id": 1406205629,
+    "head_branch": "main",
+    "head_sha": "af94f19ac21f9da14b207439808ffb33c87e8e10"
+  }
+}

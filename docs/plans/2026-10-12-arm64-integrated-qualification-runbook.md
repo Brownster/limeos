@@ -1,10 +1,19 @@
 # Integrated rewrite Pi qualification
 
-This candidate supersedes the earlier schema-9 preparation for tonight's tests.
+This candidate superseded the earlier schema-9 preparation for the October 12/13 tests.
 Completed before-image, SnapRAID-source, pool/protection and Samba libraries plus
 the current harness are integrated. Backup-bound recovery remains excluded.
-No Pi has been accessed. Exact SSH user/host and Europe/London start/end times
-remain pending; do not reuse the expired October 6/7 authorization.
+The operator supplied `holly@192.168.0.45` (correcting an initial `.46`) and a
+new window ending **2026-10-13 07:00 Europe/London (06:00 UTC)**. Guarded host
+preflight and the current supervisor proof ran within that window. The
+operator separately approved QEMU prerequisites and retaining the dormant setup
+if final health shows no major impact. The exact 41-package installation changed
+no existing package. The [run report](../rewrite-evidence/arm64/2026-10-13-current-016ba49-memory-guard/README.md)
+records a passing deadline proof, two builds stopped by the host swap safeguard,
+untested installed/upgrade/recovery/footprint gates and healthy post-test service
+checks. Every guest/supervisor was removed by 00:17 BST; the approved setup was
+retained dormant. This window is now expired. Preserve its records and obtain a
+new window for further host work.
 
 | Input | Identity |
 | --- | --- |
@@ -24,7 +33,8 @@ the new run directory. Earlier artifacts stay intact. The new bundle contains
 1793 source files, 39 fixtures and three frontend-dist files, verified after
 extracting on disk. Local acceptance is recorded in the
 [integration packet](../rewrite-evidence/p04/2026-10-12-completed-slices/README.md).
-Native build, installed behavior, crash recovery and footprint remain pending.
+Native build, installed behavior, crash recovery and footprint require results
+bound to these inputs. Preparation alone does not qualify those gates.
 
 Follow the [schema-9 runbook](2026-10-12-arm64-schema9-qualification-runbook.md)'s
 window/preflight, supervised short-deadline proof, native build, fresh install,
@@ -53,8 +63,9 @@ V=(uv run tests/qualification/arm64/native_vm.py --host "$HOST" --authorization 
 Check native AArch64, KVM/QEMU/AAVMF, sudo, the retained Debian 12 image, disk,
 memory and the host's workload within the authorized window. Verify image bytes
 against Debian's original SHA512SUMS. Missing host prerequisites require separate
-preparation; this run installs no host package, service or group and changes no
-host Docker engine, mount, filesystem or media data. An in-use Pi stays a
+preparation. The separately approved October 12 preparation installs only the
+recorded QEMU prerequisite set; it changes no existing package, account/group,
+production service, Docker engine, mount or media data. An in-use Pi stays a
 protected host; all active package/load/failure tests run in disposable guests.
 
 Use one guest at a time. Build ceilings remain three CPUs/2048 MiB, test ceilings
@@ -64,6 +75,13 @@ build and general scratch on disk. Each guest must have the runner's host-owned
 deadline supervisor. First prove termination with a short disposable deadline;
 stop five minutes before cutoff and enforce forced cleanup three minutes before.
 An expired window cannot authorize retry or new work.
+
+Both native compilation attempts hit the swap guard, including a reduced
+one-CPU/512-MiB guest. The next preparation uses explicit native CI artifact
+provenance and fresh `0.4.8+arm64.3` packaging to keep compilation off the Pi.
+Its source, ELF, package and pending fixture/signing identities are recorded
+separately in the report. The commands below describe the original native-build
+path; they do not admit the CI candidate or authorize another host window.
 
 Build using the bundled `fixtures/tests/qualification/arm64/build_guest.py` and
 external manifest, not an uncommitted workstation script. Require Rust 1.88.0,

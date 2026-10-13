@@ -1,0 +1,13 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/pi-qualification-d268ab3c25851f79/bin/python3 /home/marc/Documents/github/lime-os/tests/qualification/arm64/native_vm.py --host holly@192.168.0.45 --authorization /home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/low-memory-1/authorization-pi45.json exec integrated-lowmem-build-20261012 'python3 -c '"'"'import json,pathlib,shutil; root=pathlib.Path('"'"'\'"'"''"'"'/root/qual'"'"'\'"'"''"'"'); payload=(root/'"'"'\'"'"''"'"'build-result.json'"'"'\'"'"''"'"').read_bytes(); json.loads(payload); target=root/'"'"'\'"'"''"'"'progress-1'"'"'\'"'"''"'"'; target.mkdir(); (target/'"'"'\'"'"''"'"'build-result.json'"'"'\'"'"''"'"').write_bytes(payload); shutil.copytree(root/'"'"'\'"'"''"'"'logs'"'"'\'"'"''"'"',target/'"'"'\'"'"''"'"'logs'"'"'\'"'"''"'"'); print('"'"'\'"'"''"'"'Captured incomplete build progress; not a completed gate record'"'"'\'"'"''"'"')'"'"''
+Traceback (most recent call last):
+  File "/home/marc/Documents/github/lime-os/tests/qualification/arm64/native_vm.py", line 732, in <module>
+    main()
+    ~~~~^^
+  File "/home/marc/Documents/github/lime-os/tests/qualification/arm64/native_vm.py", line 720, in main
+    guest = Guest(args.name, args.host, args.authorization)
+  File "/home/marc/Documents/github/lime-os/tests/qualification/arm64/native_vm.py", line 143, in __init__
+    self.authorization = load_authorization(authorization, host)
+                         ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/home/marc/Documents/github/lime-os/tests/qualification/arm64/native_vm.py", line 125, in load_authorization
+    raise ValueError("authorization window has expired")
+ValueError: authorization window has expired

@@ -1,0 +1,4 @@
+{"utc": "2026-10-12T22:46:37.922Z", "epoch": 1791845197.923, "event": "launching", "marker": "limeos-arm64-integrated-proof-20261012-95495f6306f353dd"}
+{"utc": "2026-10-12T22:46:38.132Z", "epoch": 1791845198.132, "event": "bound", "supervisor_pid": 3252843, "terminate_at": 1791845700.0, "kill_at": 1791845820.0, "pid": 3252844, "start_ticks": 38407168, "uid": 1000, "marker": "limeos-arm64-integrated-proof-20261012-95495f6306f353dd"}
+{"utc": "2026-10-12T22:55:00.000Z", "epoch": 1791845700.0, "event": "sigterm"}
+{"utc": "2026-10-12T22:55:00.032Z", "epoch": 1791845700.033, "event": "guest_gone", "signalled": true}

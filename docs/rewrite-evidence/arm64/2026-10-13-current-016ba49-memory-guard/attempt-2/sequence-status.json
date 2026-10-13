@@ -1,0 +1,131 @@
+{
+  "pid": 625347,
+  "started_utc": "2026-10-12T23:05:38.189527+00:00",
+  "source_commit": "016ba49a27b228576db5d4ca28dcd122c60a6278",
+  "steps": [
+    {
+      "label": "integrated-lowmem-build-20261012-boot",
+      "argv": [
+        "boot",
+        "integrated-lowmem-build-20261012",
+        "--port",
+        "22922",
+        "--cpus",
+        "1",
+        "--memory",
+        "512",
+        "--disk",
+        "24G",
+        "--image-sha512",
+        "835b929522716de9798d1c0fbe61caae8313ab78858b278f3389a2db922ae42e4619b4a776ecad39583c149fb85334a2f8cdae685bc56987160e5c86a2354375",
+        "--timeout",
+        "450",
+        "--terminate-at",
+        "2026-10-13T05:30:00Z"
+      ],
+      "exit": 0,
+      "seconds": 34.007,
+      "log": "sequence-logs/integrated-lowmem-build-20261012-boot.txt"
+    },
+    {
+      "label": "integrated-lowmem-build-20261012-mkdir",
+      "argv": [
+        "exec",
+        "integrated-lowmem-build-20261012",
+        "mkdir -p /root/qual"
+      ],
+      "exit": 0,
+      "seconds": 1.002,
+      "log": "sequence-logs/integrated-lowmem-build-20261012-mkdir.txt"
+    },
+    {
+      "label": "integrated-lowmem-build-20261012-bundle",
+      "argv": [
+        "push",
+        "integrated-lowmem-build-20261012",
+        "/home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/low-memory-1/source.tar.gz",
+        "/root/qual/source.tar.gz"
+      ],
+      "exit": 0,
+      "seconds": 4.002,
+      "log": "sequence-logs/integrated-lowmem-build-20261012-bundle.txt"
+    },
+    {
+      "label": "integrated-lowmem-build-20261012-manifest",
+      "argv": [
+        "push",
+        "integrated-lowmem-build-20261012",
+        "/home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/low-memory-1/source-manifest.json",
+        "/root/qual/source-manifest.json"
+      ],
+      "exit": 0,
+      "seconds": 1.002,
+      "log": "sequence-logs/integrated-lowmem-build-20261012-manifest.txt"
+    },
+    {
+      "label": "integrated-lowmem-build-20261012-extract",
+      "argv": [
+        "exec",
+        "integrated-lowmem-build-20261012",
+        "cd /root/qual && tar -xzf source.tar.gz"
+      ],
+      "exit": 0,
+      "seconds": 2.001,
+      "log": "sequence-logs/integrated-lowmem-build-20261012-extract.txt"
+    },
+    {
+      "label": "integrated-lowmem-build-20261012-build-swap",
+      "argv": [
+        "exec",
+        "integrated-lowmem-build-20261012",
+        "python3 -c 'import os,subprocess; subprocess.run(['\"'\"'fallocate'\"'\"','\"'\"'-l'\"'\"','\"'\"'2G'\"'\"','\"'\"'/root/qual/build-swap'\"'\"'],check=True); os.chmod('\"'\"'/root/qual/build-swap'\"'\"',0o600); subprocess.run(['\"'\"'mkswap'\"'\"','\"'\"'/root/qual/build-swap'\"'\"'],check=True); subprocess.run(['\"'\"'swapon'\"'\"','\"'\"'/root/qual/build-swap'\"'\"'],check=True)'"
+      ],
+      "exit": 0,
+      "seconds": 1.001,
+      "log": "sequence-logs/integrated-lowmem-build-20261012-build-swap.txt"
+    },
+    {
+      "label": "integrated-lowmem-build-20261012-native-build",
+      "argv": [
+        "exec",
+        "integrated-lowmem-build-20261012",
+        "RUST_TEST_THREADS=2 python3 /root/qual/fixtures/tests/qualification/arm64/build_guest.py --work /root/qual --manifest /root/qual/source-manifest.json"
+      ],
+      "exit": -15,
+      "seconds": 683.445,
+      "log": "sequence-logs/integrated-lowmem-build-20261012-native-build.txt"
+    },
+    {
+      "label": "integrated-lowmem-build-20261012-stop",
+      "argv": [
+        "stop",
+        "integrated-lowmem-build-20261012"
+      ],
+      "exit": 0,
+      "seconds": 3.002,
+      "log": "sequence-logs/integrated-lowmem-build-20261012-stop.txt"
+    }
+  ],
+  "active_guest": null,
+  "summary": "failed",
+  "last_host_sample": {
+    "path": "host-samples/014.json",
+    "available_mib": 6005,
+    "swap_mib": 449,
+    "temperature_c": 55.1,
+    "http": {
+      "http://127.0.0.1:8002/": {
+        "status": 200,
+        "seconds": 0.004
+      },
+      "http://127.0.0.1:8096/health": {
+        "status": 200,
+        "seconds": 0.0035
+      }
+    },
+    "failures": []
+  },
+  "current_step": "integrated-lowmem-build-20261012-stop",
+  "error": "RuntimeError('host swap exceeds 450 MiB')",
+  "finished_utc": "2026-10-12T23:17:48.942557+00:00"
+}

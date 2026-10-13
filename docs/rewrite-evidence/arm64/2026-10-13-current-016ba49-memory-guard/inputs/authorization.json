@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "host": "holly@192.168.0.46",
+  "not_before": "2026-10-12T21:44:28Z",
+  "not_after": "2026-10-13T06:00:00Z",
+  "authorized_by": "marc, explicit user instruction on 2026-10-12",
+  "reference": "docs/plans/2026-10-12-arm64-integrated-qualification-runbook.md; user supplied holly@192.168.0.46, available until 07:00 Europe/London, and required a healthy daytime host",
+  "scope": "Disposable ARM64 KVM guest qualification only: bounded native build, packages, upgrades, crash recovery and footprint; read-only host health checks and cleanup of this run's owned guests. Preserve the frozen production app, host services, Docker workload, mounts and data."
+}

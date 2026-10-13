@@ -1,0 +1,11 @@
+{
+  "identity": {"source_commit": "016ba49a27b228576db5d4ca28dcd122c60a6278", "fixtures_commit": "016ba49a27b228576db5d4ca28dcd122c60a6278", "package_version": "0.4.8+arm64.2", "architecture": "arm64", "authority_schema": 9},
+  "summary": "Host swap safeguard aborted the build; not a successful native build or runtime qualification",
+  "resources": {"cpus": 2, "memory_mib": 1536, "guest_disk_swap_mib": 512},
+  "host_guard": {"limit_swap_mib": 450, "observed_swap_mib": 498, "observed_available_mib": 4321, "new_oom_kills": 0, "production_http_health": "both 200", "after_stop_swap_mib": 437, "after_stop_available_mib": 5928},
+  "retained": ["sequence-status.json", "sequence-logs", "commands", "host-samples", "attempt-1-controller", "../stopped/integrated-build-20261012 metadata, console and supervisor logs (private SSH keys excluded from published evidence)"],
+  "native_build_stdout": "PASS apt 67.2s; runner interrupted during subsequent build setup",
+  "untested": ["complete native build and source gates", "package creation", "install", "upgrade", "storage", "container", "footprint"],
+  "missing_evidence": "The safety teardown removed the overlay immediately, before the collection stage. The guest's partial build-result.json and detailed apt/rustup files were not pulled. The retained coordinator stdout, host samples, console and supervisor logs are the complete available evidence for this attempt.",
+  "retry": "low-memory-1/retry-decision.json; same source and fixture bytes with smaller guest allocations and unchanged host guard"
+}

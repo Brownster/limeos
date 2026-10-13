@@ -1,0 +1,148 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/pi-qualification-d268ab3c25851f79/bin/python3 /home/marc/Documents/github/lime-os/tests/qualification/arm64/native_vm.py --host holly@192.168.0.45 --authorization /home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/authorization-pi45.json host-exec --log /home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/host-commands-pi45.jsonl 'python3 -c '"'"'"""Light passive host health evidence while a disposable guest is active."""
+import json
+import pathlib
+import subprocess
+import time
+import urllib.request
+
+def cmd(*argv):
+    result = subprocess.run(argv, capture_output=True, text=True, timeout=15)
+    return {"exit": result.returncode, "stdout": result.stdout, "stderr": result.stderr}
+
+result = {"captured_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+          "meminfo": pathlib.Path("/proc/meminfo").read_text(),
+          "vmstat": {line.split()[0]: int(line.split()[1]) for line in pathlib.Path("/proc/vmstat").read_text().splitlines() if line.startswith(("pswpin ", "pswpout ", "oom_kill "))},
+          "loadavg": pathlib.Path("/proc/loadavg").read_text().strip(),
+          "temperature_millidegrees": int(pathlib.Path("/sys/class/thermal/thermal_zone0/temp").read_text()),
+          "boot_id": pathlib.Path("/proc/sys/kernel/random/boot_id").read_text().strip()}
+result["services"] = cmd("systemctl", "show", "pi-health", "pihealth-helper", "docker", "smbd", "--property=Id,ActiveState,SubState,MainPID,NRestarts")
+result["containers"] = cmd("docker", "ps", "-a", "--no-trunc", "--format", "{{.ID}}\t{{.Names}}\t{{.State}}\t{{.Status}}")
+result["test_processes"] = []
+for directory in pathlib.Path('"'"'"'"'"'"'"'"'/proc'"'"'"'"'"'"'"'"').iterdir():
+    if not directory.name.isdigit():
+        continue
+    try:
+        argv = (directory / '"'"'"'"'"'"'"'"'cmdline'"'"'"'"'"'"'"'"').read_bytes().split(b'"'"'"'"'"'"'"'"'\0'"'"'"'"'"'"'"'"')
+        argv = [part.decode(errors='"'"'"'"'"'"'"'"'replace'"'"'"'"'"'"'"'"') for part in argv if part]
+        if not argv or not (pathlib.Path(argv[0]).name == '"'"'"'"'"'"'"'"'qemu-system-aarch64'"'"'"'"'"'"'"'"' or any(pathlib.Path(part).name == '"'"'"'"'"'"'"'"'guest_supervisor.py'"'"'"'"'"'"'"'"' for part in argv[:4])):
+            continue
+        stat = (directory / '"'"'"'"'"'"'"'"'stat'"'"'"'"'"'"'"'"').read_text()
+        result['"'"'"'"'"'"'"'"'test_processes'"'"'"'"'"'"'"'"'].append({'"'"'"'"'"'"'"'"'pid'"'"'"'"'"'"'"'"':int(directory.name), '"'"'"'"'"'"'"'"'state'"'"'"'"'"'"'"'"':stat[stat.rindex('"'"'"'"'"'"'"'"')'"'"'"'"'"'"'"'"')+2:].split()[0], '"'"'"'"'"'"'"'"'start_ticks'"'"'"'"'"'"'"'"':int(stat[stat.rindex('"'"'"'"'"'"'"'"')'"'"'"'"'"'"'"'"')+2:].split()[19]), '"'"'"'"'"'"'"'"'argv'"'"'"'"'"'"'"'"':argv})
+    except (OSError, ValueError, IndexError):
+        pass
+result["http"] = {}
+for url in ["http://127.0.0.1:8002/", "http://127.0.0.1:8096/health"]:
+    try:
+        started = time.monotonic()
+        with urllib.request.urlopen(url, timeout=5) as response:
+            response.read(32768)
+            result["http"][url] = {"status": response.status, "seconds": round(time.monotonic()-started, 4)}
+    except OSError as error:
+        result["http"][url] = {"error": str(error)}
+print(json.dumps(result, indent=2))
+'"'"''
+{
+  "captured_utc": "2026-10-12T22:50:23Z",
+  "meminfo": "MemTotal:        8257232 kB\nMemFree:          308848 kB\nMemAvailable:    5351120 kB\nBuffers:         1896112 kB\nCached:          3496000 kB\nSwapCached:        15888 kB\nActive:          2035088 kB\nInactive:        5290160 kB\nActive(anon):    1470480 kB\nInactive(anon):   761200 kB\nActive(file):     564608 kB\nInactive(file):  4528960 kB\nUnevictable:          16 kB\nMlocked:               0 kB\nSwapTotal:        524272 kB\nSwapFree:         208224 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:               688 kB\nWriteback:             0 kB\nAnonPages:       1917920 kB\nMapped:           986112 kB\nShmem:            298624 kB\nKReclaimable:     347792 kB\nSlab:             466032 kB\nSReclaimable:     347792 kB\nSUnreclaim:       118240 kB\nKernelStack:       15424 kB\nPageTables:        35584 kB\nSecPageTables:       512 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     4652880 kB\nCommitted_AS:    8998496 kB\nVmallocTotal:   68447887360 kB\nVmallocUsed:       65216 kB\nVmallocChunk:          0 kB\nPercpu:             4800 kB\nCmaTotal:          65536 kB\nCmaFree:               0 kB\n",
+  "vmstat": {
+    "pswpin": 24909,
+    "pswpout": 51009,
+    "oom_kill": 0
+  },
+  "loadavg": "0.06 0.18 0.15 1/963 3254977",
+  "temperature_millidegrees": 48500,
+  "boot_id": "2c58cdca-4786-4e0e-a053-4907aa7b36b5",
+  "services": {
+    "exit": 0,
+    "stdout": "MainPID=2758\nNRestarts=0\nId=pi-health.service\nActiveState=active\nSubState=running\n\nMainPID=567\nNRestarts=0\nId=pihealth-helper.service\nActiveState=active\nSubState=running\n\nMainPID=752\nNRestarts=0\nId=docker.service\nActiveState=active\nSubState=running\n\nMainPID=1205\nNRestarts=0\nId=smbd.service\nActiveState=active\nSubState=running\n",
+    "stderr": ""
+  },
+  "containers": {
+    "exit": 0,
+    "stdout": "de68dbf2678ad95ea2e391e6dbd95fb07b6e6e8da0a55b9f6bd114028670a31b\tsonarr\trunning\tUp 2 hours\n9c2055ae40445e5508080d08ce85554e44b6e01c81b3e66e4dfdc1493e1abc5b\tjackett\trunning\tUp 16 hours\nfa1f3133b72f5e3b6c6e7f2d07ffb316dcb806a9bc0777fbcabf820492782781\tradarr\trunning\tUp 26 hours\nc61338bb08384aa09c83b29edac2988e0a9f09e7ec00e54960e38a931d9c36e3\tget_iplayer\trunning\tUp 44 hours\ncaca095f622d365422adafc55ef0b8b81a98a0b48ac09136a2c667a64616dfc1\tsabnzbd\trunning\tUp 4 days\n07c87f083e764b74a2aafd712f50bd1aa11660d423d84cb8337dcf92836f0780\ttransmission\trunning\tUp 4 days\n7502a6e8d25db4f57dc0873fb0ffceb0d6c4722cae9fcd81f9524a53bfe21f10\trdtclient\trunning\tUp 4 days (healthy)\ne8dc105689623ffac5034e86548bd3745570da6944561eedb0c39bca843305f9\tvpn\trunning\tUp 4 days (healthy)\n3a2367cd1f9fbcc7456ecafd6d29926a716f3e75a3652252367872cb4ccb416c\taudiobookshelf\trunning\tUp 4 days\n28c15fdb9251f1f0014ae70204354f821da98b0f505074de8acf81afada80730\tnavidrome\trunning\tUp 4 days\n0e2db7c2f8fba0a21208b0f320ad3089018485983026e2c20fb87cd86012e887\tjellyfin\trunning\tUp 4 days\n811dd0702550e04c64fb5d33a7fa525cf1f7a6818586150dee4e143132c91a00\tairsonic-advanced\texited\tExited (0) 6 days ago\n07a490371530d452dd53cab2b376b9b597a86d92c067f6a6d90d5f80fae535b6\tlimeos-mattermost-db\texited\tExited (0) 6 days ago\n3786b5a354b5fdefabfc15eb7063259bb14a91af3b5323e3a41373658e0d2a81\tlimeos-alertd\texited\tExited (137) 4 days ago\nda5103e8097f0324ec804651649e6dd4910756a3e758a8ffb294cb0aa90025c4\tlimeos-mattermost\texited\tExited (0) 6 days ago\n3817f81e9027266a8a9a5e4b969c35172788f8cff879ae8acd324fffd9d8ded1\tyt-to-jellyfin\trunning\tUp 4 days\n39c021eb5bf16131c8a2cfd733f5cd88996694c2672007cf9c90151b85f4198d\trequestrr\trunning\tUp 4 days\n90f0d8d33b52d1708c9822d13269e30722247c560a09128d2fd745af9724c629\twatchtower\trunning\tUp 4 days (healthy)\n",
+    "stderr": ""
+  },
+  "test_processes": [
+    {
+      "pid": 3252843,
+      "state": "S",
+      "start_ticks": 38407161,
+      "argv": [
+        "/usr/bin/python3",
+        "-I",
+        "/tmp/limeos-arm64-supervisor-PYDx8erm/guest_supervisor.py",
+        "launch",
+        "--command",
+        "/tmp/limeos-arm64-supervisor-PYDx8erm/launch.json",
+        "--state",
+        "/tmp/limeos-arm64-supervisor-PYDx8erm/process.json",
+        "--log",
+        "/tmp/limeos-arm64-supervisor-PYDx8erm/supervisor.log",
+        "--uid",
+        "1000",
+        "--marker",
+        "limeos-arm64-integrated-proof-20261012-95495f6306f353dd",
+        "--terminate-at",
+        "1791845700",
+        "--kill-at",
+        "1791845820",
+        "--not-after",
+        "1791871200"
+      ]
+    },
+    {
+      "pid": 3252844,
+      "state": "S",
+      "start_ticks": 38407168,
+      "argv": [
+        "/usr/bin/qemu-system-aarch64",
+        "-name",
+        "limeos-arm64-integrated-proof-20261012-95495f6306f353dd",
+        "-machine",
+        "virt,gic-version=host",
+        "-accel",
+        "kvm",
+        "-cpu",
+        "host",
+        "-smp",
+        "1",
+        "-m",
+        "768",
+        "-display",
+        "none",
+        "-serial",
+        "file:console.log",
+        "-drive",
+        "if=pflash,format=raw,readonly=on,file=/usr/share/AAVMF/AAVMF_CODE.fd",
+        "-drive",
+        "if=pflash,format=raw,file=vars.fd",
+        "-drive",
+        "file=disk.qcow2,format=qcow2,if=none,id=system",
+        "-device",
+        "virtio-blk-pci,drive=system,bootindex=1",
+        "-device",
+        "virtio-scsi-pci,id=scsi0",
+        "-drive",
+        "file=seed.iso,format=raw,if=none,id=seed,media=cdrom,readonly=on",
+        "-device",
+        "scsi-cd,drive=seed,bus=scsi0.0",
+        "-netdev",
+        "user,id=n1,hostfwd=tcp:127.0.0.1:22911-:22",
+        "-device",
+        "virtio-net-pci,netdev=n1,romfile=",
+        "-runas",
+        "holly"
+      ]
+    }
+  ],
+  "http": {
+    "http://127.0.0.1:8002/": {
+      "status": 200,
+      "seconds": 0.0061
+    },
+    "http://127.0.0.1:8096/health": {
+      "status": 200,
+      "seconds": 0.0061
+    }
+  }
+}
