@@ -181,12 +181,21 @@ async fn successful_work_passes_both_checks_without_renewing_start_time() {
     let w = CollectionWindow::new().unwrap();
     let started = w.started;
     let wall = w.started_wall;
+    assert_eq!(w.wall(&|| false).unwrap(), w.wall_high_water.get());
     assert_eq!(
         w.checked(Stage::Report, &|| false, async { Ok(7) }).await,
         Ok(7)
     );
     assert_eq!(w.started, started);
     assert_eq!(w.started_wall, wall);
+    assert_eq!(
+        w.check_at(started, wall + WINDOW.as_secs() as i64 + 1, false),
+        Err(Failure::Expired)
+    );
+    assert_eq!(
+        w.wall(&|| panic!("the planner cannot renew a failed window")),
+        Err(Failure::Expired)
+    );
 }
 
 #[tokio::test]

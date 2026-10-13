@@ -174,7 +174,7 @@ pub async fn collect(
                 &config.protection,
                 engine.declarations(),
                 &config.shares,
-                wall_now()?,
+                window.wall(cancelled)?,
             )
             .map_err(|_| Failure::InvalidPlan)
         })
@@ -263,6 +263,10 @@ impl CollectionWindow {
             self.failed.set(Some(failure));
         }
         result
+    }
+    fn wall(&self, cancelled: &dyn Fn() -> bool) -> std::result::Result<i64, Failure> {
+        self.check(cancelled)?;
+        Ok(self.wall_high_water.get())
     }
     fn check_at(
         &self,
