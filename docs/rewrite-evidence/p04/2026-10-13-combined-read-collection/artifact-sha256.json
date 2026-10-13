@@ -1,0 +1,24 @@
+{
+  "qualified_source": "ed6bd09c936fb281dc36b5e6eaba49c7a46f03e3",
+  "files": {
+    "README.md": "dea0fe10f7632fa251fc794e4399e7aee9b3ecfd052197defe87fcdd9f6dde93",
+    "arm64-harness-accepted.log.gz": "23b3b5edaa8a49e6c008789d2501f8d73b031b97f4231c76e66c535be6c2329c",
+    "checks.json": "999224a15043cc8f569a0d83f48eb194c4a9ff6be6812c63e921bce8473a99ec",
+    "clippy-accepted.log.gz": "efc9bc280fcd78fcad3450e4085d47de15d867761876070256bfeacf2ea0724c",
+    "collection-focused.log.gz": "272b1173a21e0733e0f49b5dd3052fce89e6ddc9d68a7c1ec1b4baa6611b9915",
+    "collection-measurement.log.gz": "c7cf5170ca97a6c8c84cddda8947146628b55aa03e701e95f589b51ac4b610bc",
+    "contracts-accepted.log.gz": "c9b31b939cb1ba9f8779c669710b869f78dc904a6c5cd2162eb6a8cc5a23c8eb",
+    "diagnostics/README.md": "97dabf88dd4d649ee10a88d6d88032cd6f9ece83ccd57f4a9a417a5673af74ed",
+    "diagnostics/test-rest.json": "7f8c05541dde753986018482e217c790e7e67db50904ee802b1a298488f3eaa9",
+    "diagnostics/test-rest.log.gz": "0d789c348d51f3789fa9a48a7482bed5cb6a1e52045137121bbd7350879ac13d",
+    "fmt-accepted.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "package-combined-read-collection.py": "79fe8e9138d15f770b5da82e30f5c9a2b7ec213bd03ae42a96f4b8c6eaca4077",
+    "repository-accepted.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "run-combined-read-collection-check.py": "2ccc0572be4d109225244b99da5b6da1a033a21f5a01ac878584c2f1118d9a85",
+    "scope.json": "fcc1d91bd6228cc97e0773e27b0260fc2717680d2726a8441d77fb236dd8e161",
+    "source-manifest.json": "4853aee6d1a448a53a0be086e3f35f28a22fefd205dde4386406d82395b170e8",
+    "storage-compile-on-disk.log.gz": "4f05270eab23b537d371d290dbf780a6794c835cd5ccb81767630a4dfc67d6ed",
+    "storage-fixtures.log.gz": "5581c41ec4e349055f1038031aeca13b507535c235cc5ffd631ddd2ec279c4af",
+    "test-rest-accepted.log.gz": "a5f0a899de4f6fc09708e7e1a66ed5839fed3b77b1daa034e812872a93935081"
+  }
+}

@@ -78,8 +78,10 @@ neither root authorization, child supervision, full collection nor footprint.
 Its parent's descriptor limit is verified unchanged. Compile-fail tests protect
 profile import, phase borrowing and single-use report serialization.
 
-Next is genuine owner composition and independent worker supervision: deadline,
-cancellation, parent death and descendant reaping, followed by installed resource
-qualification. Fresh Engine/configuration integration, complete physical
-consumers/claims, actual pool/share state, locks, effects, recovery and cutover
-remain open. No Pi, Docker or block probe is part of this slice.
+[Retained combined collection](p04-combined-read-collection.md) now composes the
+genuine owners under this admission session, with original-age validation and
+bounded borrowed reporting. Its entry remains unregistered. Next is independent
+worker supervision: deadline, cancellation, parent death and descendant reaping,
+followed by installed resource qualification. Complete physical consumers/claims,
+actual pool/share state, locks, effects, recovery and cutover remain open. No Pi,
+Docker or block probe is part of this slice.

@@ -1,0 +1,80 @@
+{
+  "qualified_source": "ed6bd09c936fb281dc36b5e6eaba49c7a46f03e3",
+  "parent_main": "56afdd6",
+  "production_surface": "unregistered bin-library genuine retained collection; no launch or runtime registration",
+  "configuration": "existing four trusted protected paths; every role required",
+  "engine": "fixed /run/docker.sock; EnginePeerPolicy::root(); CombinedV1",
+  "profiles": "fixed CombinedV1 configuration/Engine/process/storage and closed destination limits",
+  "collection_phases": [
+    "configuration",
+    "engine",
+    "processes",
+    "physical",
+    "destinations",
+    "graph"
+  ],
+  "final_validation": [
+    "configuration",
+    "engine",
+    "destinations with original physical/process parents",
+    "engine",
+    "configuration"
+  ],
+  "window": {
+    "monotonic_seconds": 4,
+    "starts_before_admission": true,
+    "wall_high_water_checked": true,
+    "cooperative_only": true,
+    "post_serialization_check": true
+  },
+  "original_leases_and_engine_ledger_preserved": true,
+  "report_bytes": 262144,
+  "required_worker_soft_nofile": 226,
+  "real_local_facts": [
+    "owned test child UID 1000 lowers only its own soft limit",
+    "genuine public configuration root guard refuses collection",
+    "parent descriptor limit preserved",
+    "blocked synchronous fixture returns after window and its value is discarded"
+  ],
+  "private_synthetic_facts": [
+    "window clock boundary samples",
+    "operation/publication gate fixtures"
+  ],
+  "genuine_owner_composition": "implemented using existing public adapters; root-positive execution unqualified",
+  "public_root_collection": "unqualified",
+  "independent_supervision": false,
+  "atomic_snapshot_claimed": false,
+  "independent_review": "pending",
+  "pi_accessed": false,
+  "docker_accessed": false,
+  "raw_block_probe_used": false,
+  "guest_launched": false,
+  "reserved_backup_touched": false,
+  "external_qualification_paths_touched": false,
+  "service_guards_changed": false,
+  "installed_qualification": false,
+  "frozen_signed_arm64_candidate_contains_slice": false,
+  "memory_model_exclusions": [
+    "allocator metadata/abort",
+    "runtime/library growth",
+    "child memory",
+    "unmeasured implementation scratch",
+    "sampled RSS is not peak enforcement"
+  ],
+  "remaining": [
+    "single-flight supervisor through child cleanup",
+    "blocked-work termination/cancellation",
+    "parent death and descendant reaping",
+    "root/capability/foreign-namespace positives",
+    "installed memory/FD/task headroom",
+    "original-age race qualification",
+    "complete physical consumers/claims",
+    "actual pool/share state",
+    "locks/effects/recovery"
+  ],
+  "historical_inventory_p95_ms": 61.401,
+  "inventory_p95_target_ms": 20,
+  "performance_gate_closed": false,
+  "p04_closed": false,
+  "defect_rows_closed": []
+}

@@ -1,0 +1,49 @@
+{
+  "name": "test-rest",
+  "command": [
+    "cargo",
+    "test",
+    "--workspace",
+    "--exclude",
+    "limeos-executor-storage",
+    "--locked",
+    "--offline",
+    "--no-fail-fast"
+  ],
+  "cwd": "/home/marc/Documents/github/lime-os/.worktrees/combined-read-collection",
+  "qualified_source": "54f539a476fb27426110fc8feb426111fb243931",
+  "started_utc": "2026-10-13T21:38:27.074881+00:00",
+  "seconds": 161.078,
+  "exit": 101,
+  "environment": {
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+    "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "2",
+    "CARGO_NET_OFFLINE": "true"
+  },
+  "log": "test-rest.log.gz",
+  "raw_sha256": "db08580bf9739a89936309cfb473a75e2830f1193b53f32c5de80e8e8f085d4e",
+  "compressed_sha256": "0d789c348d51f3789fa9a48a7482bed5cb6a1e52045137121bbd7350879ac13d",
+  "tmpfs_fixture_peak": null,
+  "tmpfs_fixture_removed": false,
+  "rust_cases": 348,
+  "pi_accessed": false,
+  "trusted_test_flags": {},
+  "worktree_status": "?? docs/p04-combined-read-collection.md\n",
+  "runtime_hashes": {
+    "bins/executor/Cargo.toml": "3b4b2489dd8174b13a749af24d6fdce35b8bd11c081021de55b712a42b9cc00c",
+    "Cargo.lock": "9d85daa08aa164e3db2c1bd352a3d30de27f521c473bf130f7a5937b123e02c6",
+    "bins/executor/src/lib.rs": "8505be2921088f2945eb29872347c05e6edf770502d6e7d4204d43a4aef7c4ba",
+    "bins/executor/src/read_budget.rs": "8c41bcddc1193cbb7db969c5cb6b3d9bc8e9996319896bb9bef46d0818a21172",
+    "bins/executor/src/read_budget/tests.rs": "95aad8221b2fa617e14350fe5fa91d6da75d410d25f1e2e016430bf177a4036e",
+    "bins/executor/src/read_collection.rs": "b5955a7a4f4eb4989eb2d03153f305877748e3a58c236085274a695870c17db7",
+    "bins/executor/src/read_collection/tests.rs": "1a0137d825f3624e1d8fee7ce4717eb0afdcfa704a40f279fc0d89597ac161e0",
+    "crates/executor-storage/src/configuration.rs": "76958cea8e358676b6705f2b3cd7c74538f256055ed4f0b078017fa5c2618546",
+    "crates/executor-storage/src/configuration/admission.rs": "c3c5fafa348c9744bba8515515952abad61fc6e798e21185b9f5254918569420",
+    "crates/executor-storage/src/configuration/tests.rs": "e13cb7feffaf2d926049bfa133bd83b528303d537ab6da6cc202645a4c5f37fa"
+  }
+}
