@@ -61,7 +61,9 @@ The additive [closed process profile](p04-process-read-admission.md) now supplie
 the process portion of future worker admission, alongside the existing
 [Engine profile](p04-rw040-engine-read-admission.md). This standalone probe still
 uses Standard collection; its earlier qualification and 261-descriptor maximum
-do not qualify CombinedV1 or a combined worker. Storage/source bounds and a
-concrete whole-worker budget still precede independent supervision.
+do not qualify CombinedV1 or a combined worker. The
+[closed storage profile](p04-storage-read-admission.md) now propagates bounds
+through the retained inventory/source/dependency parents. A concrete budget
+across all owners still precedes independent supervision and worker enablement.
 
 Namespace-local mount IDs are not host filesystem/UUID identity. Destination mapping, combined worker admission/deadlines/parent-death/descendant reaping, pool/protection/share propagation, claims/approvals/effect-time checks and live restore remain open. No P04/defect/cutover gate closes. The [probe-first design](plans/2026-10-08-rw040-combined-read-design.md) separates this delivered prerequisite from that later implementation.

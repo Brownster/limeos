@@ -1,0 +1,20 @@
+{
+  "qualified_source": "6c4a5e4923f20df46d8dc8ff359d1f3898585832",
+  "files": {
+    "README.md": "a1a0c1241aa85a3fd4875bcb1cf558a9e6defc67db5a0ee13fa39a927a0a2e4d",
+    "arm64-harness-accepted.log.gz": "54184bfade0dc073dcc75641aed8a8b96598bc12e5f9ec5370df97369c0bbce4",
+    "checks.json": "715284ac86e7eca69643755b8f2e56ca6cf5e54d03bd89590f2be0377fec07ff",
+    "clippy-accepted.log.gz": "7d26207525ab8e932913937be940045f98c6b70eacb43f44a560848c863bb4a0",
+    "contracts-accepted.log.gz": "3f989db811969ee4998520fc9da272c05e6e254ae212de480c0cd4c32973d6fd",
+    "fmt-accepted.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "package-storage-read-admission.py": "8ba5d28b43c79f2f6f19b1e60b858bd318b6db9c979c8b5a20432071406cda17",
+    "repository-accepted.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "run-storage-read-admission-check.py": "c36824de75e69b522a0692ca1d5968d098efd8ffbe90d76ddaf2edd80a7e8b68",
+    "scope.json": "4fed3c640a5ae313396d418a747e38dd5491cc49b497837ebccb5b5983d5cc00",
+    "source-manifest.json": "4476998969bc68123544811d47c862eecba7d4f493605e10c028f3c84946ca6b",
+    "source-measurement.log.gz": "ffd9a1149ada5b248a01983d4dd1d6f8404865b9b50b50ee16955853a6511cfe",
+    "storage-compile-on-disk.log.gz": "eee642b937110ba267f761234f868917cadacae814eb9cc0ccd6c1939da2de6a",
+    "storage-fixtures.log.gz": "b4acdee06ec56f238c2816c8df2f9272ce6039ac0ab173f32bde269703530616",
+    "test-rest.log.gz": "ef33c2143f2356a753f5ffa53d941fab071c45442b0690d25424133acaeb2f50"
+  }
+}
