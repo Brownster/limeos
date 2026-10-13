@@ -69,6 +69,41 @@ def verify_source(work, manifest):
 
 def load_build(path, repo=None):
     build = load_manifest(path)
+    kind = build.get("build_kind", "native-kvm")
+    if kind == "native-ci-elfs-local-packaging":
+        from ci_provenance import validate_build
+
+        try:
+            validate_build(Path(path), build, repo)
+        except (KeyError, TypeError, IndexError, AttributeError) as error:
+            raise ValueError("malformed CI build provenance") from error
+    elif kind == "native-kvm":
+        validate_native_gates(build)
+    else:
+        raise ValueError(f"unknown build provenance kind: {kind}")
+    if set(build["binaries"]) != set(BINARIES):
+        raise ValueError("all four runtime binaries required")
+    if any(b["machine"] != "AArch64" for b in build["binaries"].values()):
+        raise ValueError("AArch64 ELF binaries required")
+    version = build["identity"]["package_version"]
+    names = {f"{p}_{version}_arm64.deb" for p in ("limeos", "limeos-shadow")}
+    if set(build["packages"]) != names:
+        raise ValueError("exact standard and shadow package pair required")
+    for package in ("limeos", "limeos-shadow"):
+        name = f"{package}_{version}_arm64.deb"
+        expected = f"Package: {package}\nVersion: {version}\nArchitecture: arm64\n"
+        if build["package_control"][name] != expected:
+            raise ValueError(f"package control identity differs: {name}")
+    if repo is not None:
+        packages = {p.name: sha(p) for p in Path(repo).rglob("*.deb")}
+        if packages != build["packages"]:
+            raise ValueError("repository package hashes differ from native build")
+    return build
+
+
+def validate_native_gates(build):
+    if "ci" in build or "provenance_version" in build:
+        raise ValueError("ambiguous native guest and CI provenance")
     required = {
         "apt",
         "rustup",
@@ -87,26 +122,8 @@ def load_build(path, repo=None):
     steps = {step["step"]: step for step in build["steps"]}
     if not required.issubset(steps) or any(steps[s]["exit"] != 0 for s in required):
         raise ValueError("complete successful native build gates required")
-    if set(build["binaries"]) != set(BINARIES):
-        raise ValueError("all four runtime binaries required")
-    if any(b["machine"] != "AArch64" for b in build["binaries"].values()):
-        raise ValueError("AArch64 ELF binaries required")
     if build["tests"]["failed"] or not build["tests"]["passed"]:
         raise ValueError("successful workspace tests required")
-    version = build["identity"]["package_version"]
-    names = {f"{p}_{version}_arm64.deb" for p in ("limeos", "limeos-shadow")}
-    if set(build["packages"]) != names:
-        raise ValueError("exact standard and shadow package pair required")
-    for package in ("limeos", "limeos-shadow"):
-        name = f"{package}_{version}_arm64.deb"
-        expected = f"Package: {package}\nVersion: {version}\nArchitecture: arm64\n"
-        if build["package_control"][name] != expected:
-            raise ValueError(f"package control identity differs: {name}")
-    if repo is not None:
-        packages = {p.name: sha(p) for p in Path(repo).rglob("*.deb")}
-        if packages != build["packages"]:
-            raise ValueError("repository package hashes differ from native build")
-    return build
 
 
 def installed_binaries(build, prefix=Path("/usr/lib/limeos")):

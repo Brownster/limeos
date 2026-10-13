@@ -17,6 +17,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 
+from ci_provenance import inspect_ci, require
 from qualification import load_manifest, sha, verify_source
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -64,6 +65,11 @@ def main():
     parser.add_argument("--authority-schema", required=True, type=int)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument(
+        "--ci-inputs",
+        type=Path,
+        help="Retained run.json, job.json, artifact.json and artifact.zip; reuse verified native CI UI bytes",
+    )
     args = parser.parse_args()
     logs = args.output.with_suffix(".frontend-logs")
     if args.output.exists() or args.manifest.exists() or logs.exists():
@@ -95,11 +101,15 @@ def main():
         source_files = files(work / "source")
         fixtures_files = files(work / "fixtures")
         frontend = work / "source/frontend"
-        commands = [
-            ["npm", "ci", "--ignore-scripts"],
-            ["npm", "test"],
-            ["npm", "run", "build"],
-        ]
+        commands = (
+            []
+            if args.ci_inputs
+            else [
+                ["npm", "ci", "--ignore-scripts"],
+                ["npm", "test"],
+                ["npm", "run", "build"],
+            ]
+        )
         steps = []
         for i, command in enumerate(commands):
             with (logs / f"{i}.txt").open("w") as log:
@@ -116,25 +126,59 @@ def main():
             (logs / "steps.json").write_text(json.dumps(steps, indent=2) + "\n")
             if result.returncode:
                 raise SystemExit(f"frontend gate failed: {command}; see {logs}")
+        frontend_build = (
+            {
+                "steps": steps,
+                "node": subprocess.check_output(
+                    ["node", "--version"], text=True
+                ).strip(),
+            }
+            if not args.ci_inputs
+            else None
+        )
+        if args.ci_inputs:
+            ci, runtime = inspect_ci(args.ci_inputs, commits["source_commit"])
+            contracts = {
+                n: d
+                for n, d in source_files.items()
+                if n.startswith("contracts/generated/")
+            }
+            require(
+                all(p["contracts"] == contracts for p in ci["packages"].values()),
+                "CI contracts differ from frozen source",
+            )
+            for name, data in runtime.items():
+                if name.startswith("ui/"):
+                    target = frontend / "dist" / name.removeprefix("ui/")
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(data)
+            frontend_build = {
+                "kind": "native-ci",
+                "run_id": ci["observations"]["run"]["id"],
+                "job_id": ci["observations"]["job"]["id"],
+                "artifact_zip_sha256": ci["observations"]["artifact"][
+                    "digest"
+                ].removeprefix("sha256:"),
+            }
+            (logs / "ci-inputs.json").write_text(
+                json.dumps(frontend_build, indent=2) + "\n"
+            )
         manifest = {
             "identity": {
                 **commits,
                 "package_version": args.package_version,
                 "authority_schema": args.authority_schema,
                 "architecture": "arm64",
-                "qualification_kind": "native-kvm",
+                "qualification_kind": "native-ci-build-kvm-install"
+                if args.ci_inputs
+                else "native-kvm",
             },
             "runtime_source_sha256": source_files,
             "fixtures_sha256": fixtures_files,
             "frontend_dist_sha256": {
                 "frontend/dist/" + n: s for n, s in files(frontend / "dist").items()
             },
-            "frontend_build": {
-                "steps": steps,
-                "node": subprocess.check_output(
-                    ["node", "--version"], text=True
-                ).strip(),
-            },
+            "frontend_build": frontend_build,
         }
         internal = work / "source-manifest.json"
         internal.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")

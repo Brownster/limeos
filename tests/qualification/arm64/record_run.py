@@ -256,6 +256,14 @@ def main():
         (args.source_manifest, "source-manifest.json"),
         (args.build_result, "build/build-result.json"),
     ]
+    ci_build = build.get("build_kind") == "native-ci-elfs-local-packaging"
+    if ci_build:
+        inputs = args.build_result.parent / "inputs"
+        copies.extend(
+            (inputs / "ci" / f"{name}.json", f"build/ci/{name}.json")
+            for name in ("run", "job", "artifact")
+        )
+        copies.append((inputs / "packaging", "build/packaging"))
     copies.extend(
         (Path(src), dest)
         for src, dest in (item.split("=", 1) for item in args.artifact)
@@ -320,12 +328,33 @@ def main():
         json.dumps(
             {
                 "identity": build["identity"],
+                "build_provenance": {
+                    "kind": build.get("build_kind", "native-kvm"),
+                    "compilation": "native ARM64 GitHub CI; Debian 12 release container"
+                    if ci_build
+                    else "native ARM64 KVM build guest",
+                    "packaging": "local frozen-builder payload comparison"
+                    if ci_build
+                    else "native ARM64 KVM build guest",
+                    "installed_measurements": "native ARM64 KVM guest"
+                    if results
+                    else "untested",
+                },
                 "untested_gates": untested,
                 "result_summaries": {
                     p: r.get("summary", "incomplete") for p, r in results.items()
                 },
                 "limitations": [
-                    "Native KVM guest evidence; bare metal and comparable Python baseline are separate untested claims",
+                    "Native CI compilation and local packaging do not qualify installed behavior; KVM, bare metal and comparable Python baseline are separate claims"
+                    if ci_build
+                    else "Native KVM guest evidence; bare metal and comparable Python baseline are separate untested claims",
+                    *(
+                        [
+                            "Offline CI archive, bundle and signed repository remain adjacent inputs/; include that directory explicitly for a self-contained replay"
+                        ]
+                        if ci_build
+                        else []
+                    ),
                     "Daily write values extrapolate only the recorded interval",
                     "Eight registered storage disks and assistant-inclusive workload were not measured by the footprint fixture",
                 ],

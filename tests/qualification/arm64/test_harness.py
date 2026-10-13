@@ -267,6 +267,7 @@ class EvidenceTests(unittest.TestCase):
             "native_vm",
             "guest_supervisor",
             "make_bundle",
+            "prepare_ci",
             "record_run",
         ):
             with self.subTest(script=name):
