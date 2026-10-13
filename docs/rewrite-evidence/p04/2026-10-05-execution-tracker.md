@@ -2,13 +2,14 @@
 
 Status: local implementation started after P03's 62-group representative-layout suite passed. The operator authorized continuing P03 then P04 on 2026-10-05. All implementation happens in this Rust repository; the Python checkout is frozen. Mutation tests use disposable VMs. The earlier corrected 0.4.2 payload has separate native ARM64 qualification; current payload and reference-host measurement gates remain open.
 
-Latest local acceptance: [October 13 retained configuration](2026-10-13-storage-configuration/README.md),
-559 Rust cases and 61 ARM64 harness tests. A protected read-only owner now retains
-the four typed planning files and checks fresh/held names, identities and bytes
-under its original lease. The earlier configured graph joins container, pool,
-protection and Samba relationships with one 512-route bound. Physical/namespace
-composition, whole-worker admission, actual Samba state and effect authority
-remain open. The operator deferred
+Latest local acceptance: [October 13 destination composition](2026-10-13-container-destinations/README.md),
+589 Rust cases and 61 local ARM64 harness tests. A borrowed read-only owner now
+checks flat running destinations against genuine process/physical parents and
+retains same-object O_PATH descriptors under the original leases. The earlier
+retained planning files and configured graph remain separate inputs. Whole-worker
+admission/supervision, Engine/configuration integration, nested and unselected
+physical consumers, actual pool/share state, installed namespace qualification
+and effect authority remain open. The operator deferred
 the proposed Pi replacement; continue rewrite work and report readiness later.
 No new overnight host window is authorized.
 

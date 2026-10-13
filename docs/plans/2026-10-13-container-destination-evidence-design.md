@@ -84,6 +84,7 @@ disk-backed compilation; general scratch and caches stay on disk.
 
 Fresh authenticated Engine reacquisition, retained configuration integration,
 actual pool/protection/share state, nested propagation, whole-worker admission,
+physical consumers of unselected process mounts and root filesystem backing,
 independent supervision, storage locks, claims, approvals, effects and recovery
 remain open. No successful protected root/foreign namespace collection, installed
 ARM64 or cutover claim is made. No Pi, Docker, raw workstation storage or frozen

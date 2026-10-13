@@ -1,0 +1,20 @@
+{
+  "qualified_source": "93ec390fc8c5ebe3c896fb88a913f98e4d4e4a7d",
+  "files": {
+    "README.md": "e07c2afcea50981c1329b0128e6dfe07b36c18fde065e2d2c3ee3748fea45037",
+    "arm64-harness.log.gz": "039c8e08e1bc7e1538b9984a234aa09a2c5065f22a4ae00468e295d46f5b105a",
+    "checks.json": "be6de54def03a45b6881425d144eabd47977f9479f0a000577dbb7f9e417b605",
+    "clippy.log.gz": "0716a4d7d66a84cd0061292ff4e47634e9cdf25c5dabef49facc2e7eb20ff4bc",
+    "contracts.log.gz": "3848c0475f5b2b89786f4b70e1c45080784bb4d47b82ff464178c0a28546ef7f",
+    "destinations-focused.log.gz": "8d3f96b4e1d2851a30c20ad6b37dbe618cabce9eee24d6ccbeb1d390268c41b1",
+    "fmt.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "package-container-destinations.py": "07214654b763bd8e0f17df55e9a22bad561e6c4fd58a77227f71bb09a5d1c532",
+    "repository.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "run-container-destinations-check.py": "14eb0cf2ad595c1013253a816a27176c191c65fea0fa34a9502367bd1d2ab0f1",
+    "scope.json": "6ccc669c92d82c08c4b69efe9a019defb182e31bb26b07f373864da78c29447e",
+    "source-manifest.json": "c90cdccb0e73c1e8fb8940acf20360ed0ce0e4bb59cd06edf63ce9273701c28e",
+    "storage-compile-on-disk.log.gz": "098e306948d394fac42c801c110f25f38587f46f98c6292cb2c330503d35f238",
+    "storage-fixtures.log.gz": "b5605f73b7c99bdf64c3135b4ab3692a0527caa195cd867e658ccac398ee1c2c",
+    "test-rest.log.gz": "c4d5dc1b75253f070a519cca31c24c776d16959fbc1ae28c081bfae0d93840fd"
+  }
+}
