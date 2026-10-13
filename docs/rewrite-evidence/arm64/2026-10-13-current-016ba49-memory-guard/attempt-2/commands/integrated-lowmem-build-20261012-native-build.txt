@@ -1,6 +1,0 @@
-$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/pi-qualification-low-memory-212a89fa4969b2eb/bin/python /home/marc/Documents/github/lime-os/tests/qualification/arm64/native_vm.py --host holly@192.168.0.45 --authorization /home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/low-memory-1/authorization-pi45.json exec integrated-lowmem-build-20261012 'RUST_TEST_THREADS=2 python3 /root/qual/fixtures/tests/qualification/arm64/build_guest.py --work /root/qual --manifest /root/qual/source-manifest.json'
-PASS apt 131.5s
-PASS rustup 57.0s
-PASS fetch 25.8s
-PASS fmt 1.3s
-PASS clippy 269.4s

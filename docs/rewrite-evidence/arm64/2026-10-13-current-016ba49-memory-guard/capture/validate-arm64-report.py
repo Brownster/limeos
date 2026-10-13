@@ -3,6 +3,7 @@
 # dependencies = []
 # ///
 import hashlib
+import gzip
 import json
 import pathlib
 import re
@@ -15,6 +16,8 @@ for path in OUT.rglob('*'):
         continue
     assert path.name not in ('key','seed.iso','user-data','known_hosts')
     data=path.read_bytes()
+    if path.suffix=='.gz':
+        data=gzip.decompress(data)
     assert not re.search(rb'(?m)^-----BEGIN [A-Z ]*PRIVATE KEY-----$',data),path
     if path.suffix=='.json':
         json.loads(data)
