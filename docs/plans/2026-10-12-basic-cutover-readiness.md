@@ -5,7 +5,61 @@ rewrite supplies enough basic functionality. The Pi remains the household's
 daytime media server. This changes the release priority; it does not declare a
 feature ready or authorize two applications to mutate the host together.
 
-Tonight's candidate is source/fixtures `016ba49`, schema 9, package
+## October 13 minimum dashboard trial
+
+The operator now needs performance metrics and container/stack support in the
+UI at minimum, and proposed a swap on the evening of October 13. This permits a
+smaller trial than full storage/deployment/assistant parity. The exact meaning of
+stack support is still being clarified. No new host window or unconditional
+activation decision has been supplied.
+
+| Minimum function | Current source behavior | Trial boundary |
+| --- | --- | --- |
+| Host performance | CPU, memory, root disk usage and temperature; live snapshots and host history | Compare actual Pi readings and unavailable/stale behavior; the UI has a recent-history table, not full graph/network/disk-I/O parity |
+| Container performance/status | Engine inventory, health, CPU and memory while a dashboard is open | Compare actual container identities and samples, including stopped containers |
+| Container logs/lifecycle | Logs and individually approved start/stop/restart with durable jobs | Qualify the current package in isolation before enabling an explicit production allowlist; validate mounts for each managed media container |
+| Existing stack status | Stacks tab derives Compose project names and aggregate status from Docker labels | No whole-stack lifecycle button, member drill-down, filesystem stack catalog, empty-stack discovery, deployment or Compose editing |
+
+The current candidate is signed `0.4.8+arm64.3`, source `af94f19`, schema 9,
+with fixtures `687ddb4`. Its [input handoff](../rewrite-evidence/arm64/2026-10-13-native-ci-af94f19-inputs/README.md)
+records passing native CI source gates, 61 local harness tests and verified
+offline inputs. Current installed ARM64 behavior is still untested. The
+production Pi has 16 KiB kernel pages; earlier KVM evidence used 4 KiB pages.
+
+A limited swap is conditional on these checks within a newly authorized window:
+
+1. Qualify the current signed package's fresh install, authentication, service
+   restart, container lifecycle/receipt interruption and measured footprint in
+   an isolated ARM64 guest. Compilation stays off the Pi. Stop if the host
+   pressure safeguard fires.
+2. Install the enforced read-only shadow package on a separate HTTPS origin.
+   Enroll an administrator through the existing local-root flow, check access
+   from Holly's browser, compare real metrics/container IDs/Compose labels and
+   measure on the actual 16 KiB-page kernel. Preserve old credentials/history;
+   a production importer and history migration are not claimed.
+3. Rehearse returning to the frozen dashboard before activation. Preserve its
+   checkout, configuration, credentials, history and service definitions. Identify
+   its helper/action/automation writers and unit dependencies before stopping
+   anything; application shutdown must leave Docker, media containers, mounts
+   and boot-time stack handling intact.
+4. If the checks pass and the proposed stack scope is sufficient, activate a
+   standard Rust instance with fresh independent state and a confirmed HTTPS
+   endpoint. Stop the identified frozen writers before granting any Rust
+   container write ceiling. Limit effects to explicitly selected container IDs;
+   other unfinished operations remain disabled. Verify media health and return
+   to the frozen application on any failed check before the agreed cutoff.
+
+The production host currently runs the Python build, so genuine older-Rust
+schema upgrades remain a release qualification task rather than a prerequisite
+for this fresh Rust instance. A narrower trial does not close P04/P06, storage
+mount-loss supervision, deployment, backup/restore, schedules or assistant gates.
+Retain any boot/storage handling needed by the running media independently.
+If whole-stack actions or deployment/editing are required, this candidate does
+not meet the minimum without further implementation.
+
+## Earlier qualification preparation
+
+The October 12/13 candidate was source/fixtures `016ba49`, schema 9, package
 `0.4.8+arm64.2`. The [qualification runbook](2026-10-12-arm64-integrated-qualification-runbook.md)
 uses disposable native ARM64 KVM guests on `holly@192.168.0.45`, with an explicit
 window ending October 13 at 07:00 Europe/London. The operator additionally
