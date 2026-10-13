@@ -1,0 +1,18 @@
+$ cargo clippy --workspace --all-targets --locked --offline -- -D warnings
+    Checking limeos-domain v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/crates/domain)
+    Checking limeos-contracts v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/crates/contracts)
+    Checking limeos-identity v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/crates/identity)
+    Checking limeos-executor-protocol v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/crates/executor-protocol)
+    Checking limeos-backup-archive v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/crates/backup-archive)
+    Checking limeos-policy v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/crates/policy)
+    Checking limeos-observations v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/crates/observations)
+    Checking limeos-persistence v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/crates/persistence)
+    Checking limeos-api v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/crates/api)
+    Checking limeos-executor-container v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/crates/executor-container)
+    Checking limeos-executor-storage v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/crates/executor-storage)
+    Checking limeos-footprint v0.0.1 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/spikes/footprint)
+    Checking limeos-executor v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/bins/executor)
+    Checking limeos-core v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/bins/core)
+    Checking limeosctl v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/bins/ctl)
+    Checking limeos-schema v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/bins/schema)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 36.87s

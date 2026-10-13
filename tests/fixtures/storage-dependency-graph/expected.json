@@ -1,0 +1,7 @@
+{
+  "single_disk": {"consumer_matches":2,"shares":{"storage":["media:direct"]},"unmapped":["downloads","docs"]},
+  "separate_downloads": {"consumer_matches":4,"shares":{"downloads":["downloads:direct"],"storage":["media:direct"]},"unmapped":["docs"]},
+  "protected_pool": {"consumer_matches":28,"shares":{
+    "data-01":["media:pool1"],"data-02":["media:pool1"],"data-03":["media:pool1"],"data-04":["media:pool1"],"data-05":["media:pool1"],"data-06":["media:pool1"],"data-07":["media:pool1"],"data-08":["media:pool1"],"data-09":["media:pool1"],"data-10":["media:pool1"],"data-11":["media:pool1"],"data-12":["media:pool1"],"data-13":["media:pool1"],"data-14":["media:pool1"]},"unmapped":["downloads","docs"]},
+  "ordered_multi_parity": {"consumer_matches":4,"shares":{"d1":["media:pool1"],"d2":["media:pool1"]},"unmapped":["downloads","docs"]}
+}

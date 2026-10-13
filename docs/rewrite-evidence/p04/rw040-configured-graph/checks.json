@@ -1,0 +1,174 @@
+{
+  "qualified_code": "c62ecf0f7e78bb3009673684df9418da56542564",
+  "rust_cases": 533,
+  "unit_and_integration_cases": 525,
+  "compile_fail_doctests": 8,
+  "new_graph_cases": 12,
+  "checks": [
+    {
+      "name": "test-rest-final",
+      "sha256": "2eca4c3cca215a3665ee8bda6bbfc99eb3ff370b432321a18939c0e8cbc5fa7e",
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--exclude",
+        "limeos-executor-storage",
+        "--locked",
+        "--offline",
+        "--no-fail-fast"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph",
+      "exit_code": 0,
+      "started_utc": "2026-10-12T20:30:20.366328+00:00",
+      "seconds": 78.167,
+      "environment_overrides": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2"
+      },
+      "tmpfs_fixture_observed_peak": null,
+      "tmpfs_fixture_removed": false,
+      "rust_cases": 432
+    },
+    {
+      "name": "storage-fixtures",
+      "sha256": "e0d11e06a6a559e8c1e9d890dc491ed2db7f65a255057538b95bc97acd0de0a7",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "limeos-executor-storage",
+        "--locked",
+        "--offline",
+        "--no-fail-fast"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph",
+      "exit_code": 0,
+      "started_utc": "2026-10-12T20:38:01.988608+00:00",
+      "seconds": 20.98,
+      "environment_overrides": {
+        "TMPDIR": "/tmp/limeos-storage-fixtures-ke5tjr49",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2"
+      },
+      "tmpfs_fixture_observed_peak": {
+        "bytes": 1849,
+        "files": 4
+      },
+      "tmpfs_fixture_removed": true,
+      "rust_cases": 101
+    },
+    {
+      "name": "clippy",
+      "sha256": "d88dcbc293ac771a98c3f403a7acde0560cdbc524f42b5a749dbab64f62b7aa2",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--offline",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph",
+      "exit_code": 0,
+      "started_utc": "2026-10-12T20:34:50.295482+00:00",
+      "seconds": 37.006,
+      "environment_overrides": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2"
+      },
+      "tmpfs_fixture_observed_peak": null,
+      "tmpfs_fixture_removed": false
+    },
+    {
+      "name": "fmt-check",
+      "sha256": "5fcb04dce61431e03194e48dc201c4f32c352e4a96d055e73ed0191c5364579a",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph",
+      "exit_code": 0,
+      "started_utc": "2026-10-12T20:38:03.311966+00:00",
+      "seconds": 0.91,
+      "environment_overrides": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2"
+      },
+      "tmpfs_fixture_observed_peak": null,
+      "tmpfs_fixture_removed": false
+    },
+    {
+      "name": "contracts",
+      "sha256": "1b5d0144d7b85165f2ab514b0e8835333f5a00a67c7fd275c9598a66b343e13f",
+      "command": [
+        "/home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-storage-graph-check-3aafc8e1488b53ad/bin/python3",
+        "scripts/check_contracts.py"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph",
+      "exit_code": 0,
+      "started_utc": "2026-10-12T20:40:26.113746+00:00",
+      "seconds": 3.997,
+      "environment_overrides": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "tmpfs_fixture_observed_peak": null,
+      "tmpfs_fixture_removed": false
+    },
+    {
+      "name": "repository",
+      "sha256": "eb52144ba241c2ba6561b4021883185458eb9f69f806f7be8d0315db671a3545",
+      "command": [
+        "/home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-storage-graph-check-3aafc8e1488b53ad/bin/python3",
+        "scripts/check_repository.py"
+      ],
+      "cwd": "/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph",
+      "exit_code": 0,
+      "started_utc": "2026-10-12T20:38:03.322104+00:00",
+      "seconds": 0.074,
+      "environment_overrides": {
+        "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+        "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+        "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+        "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+        "CARGO_BUILD_JOBS": "1",
+        "CARGO_INCREMENTAL": "0",
+        "RUST_TEST_THREADS": "2"
+      },
+      "tmpfs_fixture_observed_peak": null,
+      "tmpfs_fixture_removed": false
+    }
+  ]
+}

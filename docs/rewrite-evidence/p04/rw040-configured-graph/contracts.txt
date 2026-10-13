@@ -1,0 +1,7 @@
+$ /home/marc/Documents/github/lime-os/.cache/uv/environments-v2/run-storage-graph-check-3aafc8e1488b53ad/bin/python3 scripts/check_contracts.py
+   Compiling limeos-contracts v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/crates/contracts)
+   Compiling limeos-executor-protocol v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/crates/executor-protocol)
+   Compiling limeos-schema v0.2.0 (/home/marc/Documents/github/lime-os/.worktrees/storage-dependency-graph/bins/schema)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.82s
+     Running `/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target/debug/limeos-schema /home/marc/Documents/github/lime-os/.cache/tmp/limeos-contracts-y6bwusy_`
+Generated schemas and TypeScript match Rust contracts.
