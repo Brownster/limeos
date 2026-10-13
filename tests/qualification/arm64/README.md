@@ -42,6 +42,7 @@ the older bundles too.
 |---|---|---|
 | `native_vm.py` | Workstation | Explicit host, checked image, bounded guest resources, synthetic disks, platform/pressure capture, SSH copy/exec and teardown |
 | `make_bundle.py` | Workstation | Archive frozen runtime and separate fixture commits; build/test UI against archived source; hash all inputs |
+| `prepare_ci.py` | Workstation | Validate retained native CI provenance, compare complete candidate payloads with the frozen builder and prepare offline inputs for an existing signed test repository |
 | `build_guest.py` | Native build guest | Verify inputs and Rust 1.88.0 native toolchain; locked tests, strict Clippy, contracts, dependency checks, release binaries, standard/shadow packages and signed repository |
 | `install_guest.py` | Fresh guest | Signed install, schema/identity, dormant units, ownership/capabilities, imported hashes, bounded workers, durable sessions, shadow refusals and footprint |
 | `approved_guest.py` | Fresh storage/container guests | Reuse current approved-operation suites with original assertions; actual apt replacement/removal on storage guest |
@@ -51,6 +52,7 @@ the older bundles too.
 | `inspector_guest.py` | Fresh native build guest | Build the frozen archive inspector example natively and record its own `VmHWM` over synthetic archives (standalone RSS, not service PSS) |
 | `record_run.py` | Workstation | Reject mixed identities/overwrites; collect raw artifacts, summaries, budget comparisons and evidence hashes |
 | `test_harness.py` | Workstation | Local regressions without SSH or installed-service mutations |
+| `test_ci_provenance.py` | Workstation | Native CI identity, byte, package, repository and recorder refusals |
 
 Guest scripts use Debian's Python 3.11 stdlib; workstation scripts use `uv`.
 All scripts support `--help`. Exit 0 means checks passed, 1 means a failed
@@ -63,6 +65,64 @@ Commit small shared fixture adaptations separately. The bundle's
 `tests/privileged_vm/`; guest wrappers verify these bytes independently of
 `--commit`. Execute the bundled fixture scripts, not the historical scripts
 in `source/tests/` or an uncommitted workstation copy.
+
+## Native CI input preparation
+
+Version 1 admits the reviewed CI workflow and Debian release-container digests
+in `ci_provenance.py`. Obtain `run.json`, `job.json`, `artifact.json` and the
+original `artifact.zip` from the same successful Brownster/limeos native ARM64
+run. Retain those API observations unchanged. They bind the repository, source,
+run/job/artifact IDs, runner, ordered source/release/upload gates and ZIP digest;
+they are not a cryptographic build attestation. A changed workflow requires an
+explicit reviewed provenance update, rather than skipping a gate.
+
+Use `make_bundle.py --ci-inputs DIRECTORY` to archive exact runtime/fixture
+commits and copy the original CI UI bytes. It verifies original package controls,
+all four AArch64 ELFs and generated contracts. The bundle identity uses
+`qualification_kind: native-ci-build-kvm-install`; keep the actual CI source
+commit even when its runtime matches an earlier integrated revision.
+
+Assemble a distinct newer candidate version with the frozen source builder and
+unchanged CI ELFs/UI. Sign a fresh disposable test repository with
+`source/packaging/repository.sh`, then prepare its offline record:
+
+```bash
+export TMPDIR="$PWD/.cache/tmp" UV_CACHE_DIR="$PWD/.cache/uv"
+mkdir -p "$TMPDIR" "$UV_CACHE_DIR"
+uv run tests/qualification/arm64/prepare_ci.py \
+  --bundle <frozen-source.tar.gz> --manifest <external-source-manifest.json> \
+  --ci-inputs <retained-CI-directory> --repository <signed-candidate-repository> \
+  --signing-fingerprint <disposable-public-fingerprint> \
+  --output <new-prepared-directory>
+uv run --no-project python -m unittest discover \
+  -s tests/qualification/arm64 -p 'test_*.py'
+```
+
+Preparation reconstructs both package payloads with the frozen builder and
+unchanged native CI binaries, then compares every file, mode, owner and control.
+Archive timestamps are excluded from that payload comparison; the exact supplied
+`.deb` bytes are independently pinned by SHA-256. The record has explicit CI
+provenance and local comparison logs, with no invented native-guest build steps
+or test totals. Both complete repository signatures, the signing fingerprint,
+Release expiry, indexes and package hashes must validate before the record is promoted
+to `build-result.json`. Existing outputs are refused.
+
+Copy the entire prepared directory: `build-result.json` requires its adjacent
+`inputs/`, containing the source bundle/manifest, original CI records/ZIP,
+comparison logs and signed repository. Guest wrappers validate those actual bytes
+offline before installing. Supply `inputs/repo/` as `--repo`. Extract the same
+bundle for the frozen guest fixtures; preserve its external manifest bytes.
+The existing native-KVM guest guard and installation, upgrade, recovery and
+measurement assertions apply to both provenance paths.
+
+The recorder retains raw CI observations and local comparison logs and labels
+compilation, packaging and installed measurements separately. Large input bytes
+remain in the prepared directory unless explicitly supplied as an evidence
+artifact. Preserve that directory for a self-contained offline replay. Use the
+genuine prior artifact and a fresh signature around its unchanged bytes for
+upgrade. The [October 13 handoff](../../../docs/rewrite-evidence/arm64/2026-10-13-native-ci-af94f19-inputs/README.md)
+records the currently prepared input. No host window or installed qualification
+is granted by local preparation.
 
 ## Production host authorization and guest deadlines
 

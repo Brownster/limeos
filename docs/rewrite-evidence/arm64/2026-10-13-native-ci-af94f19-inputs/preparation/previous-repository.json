@@ -1,0 +1,32 @@
+{
+  "original_provenance_sha256": "3ab929b261ae20094428a41d44534004b501116af6813e6ee0a590a1fa9c3f51",
+  "previous": {
+    "architecture": "arm64",
+    "authority_schema": 8,
+    "core_sha256": "aab46a601a95924c8900a93749cd8cf5cc735cc2328783196732c363f258cde0",
+    "original_build_sha256": "8b6fe1dd64e3e4fedc454cc5a3ddbc630d5218bf5de187d285f56e774f31c50a",
+    "original_evidence": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded",
+    "original_evidence_index_sha256": "cda3668ea4a4b55b3d52765fff28e0688b4a2d8d906d9803db74a561cb8f3bbc",
+    "original_source_manifest_sha256": "b0b983754544b3b6560cfbf8957bb3c327f7e5fcff8adce5b4c1efb4a7160ef4",
+    "package_sha256": "6c86199b253e155c94d96e1395c069c4188e11a2379f14eff97eacab0203b898",
+    "package_version": "0.4.7+arm64.1",
+    "retained_package": "/home/marc/Documents/github/lime-os-arm64-overnight/.cache/arm64-qual/overnight/packages/limeos_0.4.7+arm64.1_arm64.deb",
+    "source_commit": "8acac403e32d3692b028a036a11f4fead2050580"
+  },
+  "repository_sha256": {
+    "dists/stable/InRelease": "0023a4532385e36422827e9b1e95d63bd591d4b51afa5b016c520e0a3cc56204",
+    "dists/stable/Release": "6e24672485476163c0201e5e6a99040c35cfc848ff6928aecbbe5c14ddcf7c3e",
+    "dists/stable/Release.gpg": "a5ca4fccc15851aac406df7e75356d5208b6cbb786300e0d4d719cdb8a19fb2d",
+    "dists/stable/main/binary-amd64/Packages": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "dists/stable/main/binary-amd64/Packages.gz": "59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2",
+    "dists/stable/main/binary-arm64/Packages": "e7a434d4c7c29224bbad7900b1ea9e3e2a7ad9daf322cc24dac55a78a78b20bf",
+    "dists/stable/main/binary-arm64/Packages.gz": "871e2abd279cdb6f23deee4afbd38d8d52ad3b8fd65bb1402c97ee414b20da05",
+    "limeos-archive-keyring.gpg": "2e4e281f7b59010476f0f32171f6d8995354539e5fd0aa693165578274951008",
+    "pool/main/limeos_0.4.7+arm64.1_arm64.deb": "6c86199b253e155c94d96e1395c069c4188e11a2379f14eff97eacab0203b898"
+  },
+  "signing_fingerprint": "96213BC58271A79707C267C724633C5051BBE7A2",
+  "package_unchanged": true,
+  "core_unchanged": true,
+  "new_version_is_greater": true,
+  "actual_upgrade_test": "untested"
+}

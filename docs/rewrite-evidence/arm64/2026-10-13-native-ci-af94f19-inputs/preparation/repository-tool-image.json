@@ -1,0 +1,5 @@
+{
+  "id": "sha256:e0df67a00f0f3080a0d01274c4c492c1173c6e39853913864d2cf596ad726fab",
+  "platform": "linux/amd64",
+  "purpose": "local apt-ftparchive/GPG tooling; not the native CI release builder"
+}

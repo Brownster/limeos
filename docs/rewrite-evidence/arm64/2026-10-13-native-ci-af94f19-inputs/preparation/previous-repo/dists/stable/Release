@@ -1,0 +1,32 @@
+Architectures: amd64 arm64
+Codename: stable
+Components: main
+Date: Tue, 13 Oct 2026 11:17:49 +0000
+Label: LimeOS
+Origin: LimeOS
+Suite: stable
+MD5Sum:
+ 4ebecfe3dc79fb5e2e8afc3bf3f84298              142 Release
+ d41d8cd98f00b204e9800998ecf8427e                0 main/binary-amd64/Packages
+ 7029066c27ac6f5ef18d660d5741979a               20 main/binary-amd64/Packages.gz
+ 37993427a096fb997d560dfea35c0bd3              739 main/binary-arm64/Packages
+ 9614a9c1e9d533249d5cc3f461b06428              512 main/binary-arm64/Packages.gz
+SHA1:
+ cdcac2dbd778b4eb5f08b1a4d866b1a7c20e4b22              142 Release
+ da39a3ee5e6b4b0d3255bfef95601890afd80709                0 main/binary-amd64/Packages
+ 46c6643f07aa7f6bfe7118de926b86defc5087c4               20 main/binary-amd64/Packages.gz
+ bfb5a7c0a61539160fba548dbfa10b401f56312a              739 main/binary-arm64/Packages
+ eb69888b2060bdb709b02d9b8aad285870a8d58a              512 main/binary-arm64/Packages.gz
+SHA256:
+ 8902207235f20a0f6b8d98c46cd6b955b6f4a18686b6211ed97a7acdc6571737              142 Release
+ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855                0 main/binary-amd64/Packages
+ 59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2               20 main/binary-amd64/Packages.gz
+ e7a434d4c7c29224bbad7900b1ea9e3e2a7ad9daf322cc24dac55a78a78b20bf              739 main/binary-arm64/Packages
+ 871e2abd279cdb6f23deee4afbd38d8d52ad3b8fd65bb1402c97ee414b20da05              512 main/binary-arm64/Packages.gz
+SHA512:
+ 649ab3323a0eeb6998bb16024b47d08e007a446c429ea6432061104d13360e551d0c9d617e7fa34d9cbd6cf106d0051298917bd7b3b3a1ce6c9931ccc36c1727              142 Release
+ cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e                0 main/binary-amd64/Packages
+ 7e8e93f4a89ce7fae011403e14a1d53544c6e6f6b6010d61129dc27937806d2b03802610d7999eab33a4c36b0f9e001d9d76001b8354087634c1aa9c740c536f               20 main/binary-amd64/Packages.gz
+ fdcf98a7ce984bdd58d3bc71e41bb20b130dd2805a6841de2032acf7b447041e62aa955120a00b7fe2572f672efefb265cceddb841bdb0b57cc317c5676bc0bb              739 main/binary-arm64/Packages
+ 82ccb0d057ee771524ba1777355c4b2a7d70b619e314d698e7e5cc5a5412266721b881f4e071ccde8d92801622f4dd897c788d6aca0c6674f2c43d50e7e23fdc              512 main/binary-arm64/Packages.gz
+Valid-Until: Tue, 20 Oct 2026 11:17:49 UTC

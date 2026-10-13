@@ -13,7 +13,11 @@ approved retaining dormant QEMU prerequisites for subsequent tests. No Rust
 package was installed on the production host in this run. The
 [overnight report](../rewrite-evidence/arm64/2026-10-13-current-016ba49-memory-guard/README.md)
 records successful deadline supervision and healthy teardown, but both native
-builds stopped at the host swap guard. Installed qualification remains open.
+builds stopped at the host swap guard. The subsequent
+[CI-input handoff](../rewrite-evidence/arm64/2026-10-13-native-ci-af94f19-inputs/README.md)
+prepares signed `0.4.8+arm64.3` packages from native CI source `af94f19`, with
+fixtures `687ddb4` and 61 passing local tests. It keeps compilation off the Pi.
+Installed qualification remains open; the October 12/13 host window has expired.
 
 ## Candidate first-release scope
 

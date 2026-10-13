@@ -1,0 +1,80 @@
+{
+  "fixture_commit": "687ddb43d889d693bcd55c0bf6352c20347a98ef",
+  "recorded_at": "2026-10-13T11:26:36.387280+00:00",
+  "pi_accessed": false,
+  "rust_rebuilt": false,
+  "checks": [
+    {
+      "name": "ruff-check",
+      "command": [
+        "uv",
+        "tool",
+        "run",
+        "--offline",
+        "ruff",
+        "check",
+        "tests/qualification/arm64/ci_provenance.py",
+        "tests/qualification/arm64/prepare_ci.py",
+        "tests/qualification/arm64/test_ci_provenance.py",
+        "tests/qualification/arm64/qualification.py",
+        "tests/qualification/arm64/make_bundle.py",
+        "tests/qualification/arm64/record_run.py",
+        "tests/qualification/arm64/test_harness.py"
+      ],
+      "exit": 0,
+      "seconds": 0.037,
+      "log": "ruff-check.log.gz",
+      "raw_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "compressed_sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"
+    },
+    {
+      "name": "ruff-format",
+      "command": [
+        "uv",
+        "tool",
+        "run",
+        "--offline",
+        "ruff",
+        "format",
+        "--check",
+        "tests/qualification/arm64/ci_provenance.py",
+        "tests/qualification/arm64/prepare_ci.py",
+        "tests/qualification/arm64/test_ci_provenance.py",
+        "tests/qualification/arm64/qualification.py",
+        "tests/qualification/arm64/make_bundle.py",
+        "tests/qualification/arm64/record_run.py",
+        "tests/qualification/arm64/test_harness.py"
+      ],
+      "exit": 0,
+      "seconds": 0.035,
+      "log": "ruff-format.log.gz",
+      "raw_sha256": "0321fffcb91606a42c0a19d8c1121d5c544379d663821fce616c71a7bb62f6b5",
+      "compressed_sha256": "1555138f16fdad6e80ea2757bcf718bab24f7a930ed5b14c9f6ebe45f3afad5a"
+    },
+    {
+      "name": "repository-hygiene",
+      "command": [
+        "/home/marc/Documents/github/lime-os/.cache/uv/environments-v2/capture-validation-9e43340f8f00f431/bin/python3",
+        "scripts/check_repository.py"
+      ],
+      "exit": 0,
+      "seconds": 0.046,
+      "log": "repository-hygiene.log.gz",
+      "raw_sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df",
+      "compressed_sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"
+    },
+    {
+      "name": "offline-build-validation",
+      "command": [
+        "/home/marc/Documents/github/lime-os/.cache/uv/environments-v2/capture-validation-9e43340f8f00f431/bin/python3",
+        "-c",
+        "from qualification import load_build; import json; b=load_build(\"/home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/ci-ready-2026-10-13/prepared/build-result.json\", \"/home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/ci-ready-2026-10-13/repo\"); print(json.dumps({\"identity\":b[\"identity\"],\"packages\":b[\"packages\"],\"installed_qualification\":\"untested\"}))"
+      ],
+      "exit": 0,
+      "seconds": 1.105,
+      "log": "offline-build-validation.log.gz",
+      "raw_sha256": "dab8c87affddfefc0015cc328f049724a93e5c9ac8b0a7dcff278ae2645dc25d",
+      "compressed_sha256": "38cf05953241d3a1c2c1036be9eaf8ba53b9e7f79d71b015a93971255b391517"
+    }
+  ]
+}

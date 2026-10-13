@@ -79,8 +79,12 @@ An expired window cannot authorize retry or new work.
 Both native compilation attempts hit the swap guard, including a reduced
 one-CPU/512-MiB guest. The next preparation uses explicit native CI artifact
 provenance and fresh `0.4.8+arm64.3` packaging to keep compilation off the Pi.
-Its source, ELF, package and pending fixture/signing identities are recorded
-separately in the report. The commands below describe the original native-build
+Its source, ELF and package identities are retained separately in the original
+report. The [CI-input handoff](../rewrite-evidence/arm64/2026-10-13-native-ci-af94f19-inputs/README.md)
+now freezes source `af94f19`, fixtures `687ddb4`, the verified offline build input
+and fresh signed repositories. Follow that handoff for the next installed run;
+the older native-build inputs below remain immutable. The commands below
+describe the original native-build
 path; they do not admit the CI candidate or authorize another host window.
 
 Build using the bundled `fixtures/tests/qualification/arm64/build_guest.py` and

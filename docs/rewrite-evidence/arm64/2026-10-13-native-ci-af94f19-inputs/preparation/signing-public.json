@@ -1,0 +1,8 @@
+{
+  "signing_fingerprint": "96213BC58271A79707C267C724633C5051BBE7A2",
+  "key_lifetime": "2d",
+  "previous_package_sha256": "6c86199b253e155c94d96e1395c069c4188e11a2379f14eff97eacab0203b898",
+  "tool_versions": "apt-utils 2.6.1\ndpkg 1.21.22\ngnupg 2.2.40-1.1\n",
+  "production_key": false,
+  "pi_accessed": false
+}

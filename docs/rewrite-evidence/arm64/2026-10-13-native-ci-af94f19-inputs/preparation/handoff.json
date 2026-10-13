@@ -1,0 +1,47 @@
+{
+  "recorded_at": "2026-10-13T11:27:39.515607+00:00",
+  "identity": {
+    "architecture": "arm64",
+    "authority_schema": 9,
+    "fixtures_commit": "687ddb43d889d693bcd55c0bf6352c20347a98ef",
+    "package_version": "0.4.8+arm64.3",
+    "qualification_kind": "native-ci-build-kvm-install",
+    "source_commit": "af94f19ac21f9da14b207439808ffb33c87e8e10"
+  },
+  "bundle_sha256": "5f041f8f37fbfcc9568490015ba6fa464122e8ccf360808ebb282a70ccb76348",
+  "source_manifest_sha256": "fad3172e4b187a27cbf7c60f57af298559a21ef53422b6b186d9296ac1f17798",
+  "build_result_sha256": "da27cdd0efe29639f029ff01845a43a976aee16a7c7e76dfd14d92f3f8c2dc0c",
+  "source_files": 1818,
+  "fixture_files": 42,
+  "frontend_files": 3,
+  "ready_directory": "/home/marc/Documents/github/lime-os/.cache/arm64-qual/integrated-2026-10-12/ci-ready-2026-10-13",
+  "guest_copy": {
+    "expected": "prepared/build-result.json",
+    "required_sidecar": "prepared/inputs/",
+    "current_repo": "prepared/inputs/repo/",
+    "previous_repo": "previous-repo/",
+    "previous_provenance": "public-handoff/previous-artifact.json"
+  },
+  "signing_fingerprint": "96213BC58271A79707C267C724633C5051BBE7A2",
+  "key_lifetime": "2d",
+  "package_sha256": {
+    "limeos-shadow_0.4.8+arm64.3_arm64.deb": "b0b4aaa47fed3788fccda86b139cead9c4a046f72976a6fd5c727cc323b081cb",
+    "limeos_0.4.8+arm64.3_arm64.deb": "68cf2de38e7bb82656773103c61e5e938d30e4b4142495018412acbea2127b8a"
+  },
+  "native_ci_input_archive_sha256": "sha256:45462b1787cb95d1bc6fcfa4b3c8befa565f8552aaebd5d57833b91e3a9b3080",
+  "local_tests": 61,
+  "native_guest_or_pi_tests_performed": false,
+  "pi_accessed": false,
+  "untested": [
+    "install",
+    "footprint",
+    "upgrade",
+    "storage crash recovery",
+    "container crash recovery",
+    "bare-metal 16KiB pages",
+    "read-only production shadow",
+    "migration and return",
+    "P04 live storage/restore"
+  ],
+  "signing_log_raw_sha256": "16bbae89c2f2f72a0c39a92ad90ed0cdb21419548cee800205f33b1341dfc62f"
+}

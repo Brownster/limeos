@@ -1,0 +1,23 @@
+{
+  "fixture_commit": "687ddb43d889d693bcd55c0bf6352c20347a98ef",
+  "debian_python311_harness": {
+    "exit": 0,
+    "tests": 61,
+    "log": "debian-python311-harness.log.gz"
+  },
+  "whole_directory_ruff_probe": {
+    "exit": 1,
+    "log": "ruff-check.log.gz",
+    "finding": "Two pre-existing UP017 timezone.utc aliases in untouched native_vm.py; changed-file Ruff gates pass separately"
+  },
+  "logs": {
+    "debian-python311-harness.log.gz": {
+      "compressed_sha256": "f8d107701c83c148d9840eb65b1cbadbe57e6a6b225278ebfb4eff243eabbb77",
+      "raw_sha256": "39b901e3379f80f2d69531eed287d389ad8e74b43008e69f214dcdad23ca512d"
+    },
+    "ruff-check.log.gz": {
+      "compressed_sha256": "2f63f8653edbee65540141e9760c3c95fcfac2e1a7592d342437f248a7691d91",
+      "raw_sha256": "677358c38f90ea660aae9a96480ae58e8a35d87bdbe112b5066f8c41a508a2fe"
+    }
+  }
+}

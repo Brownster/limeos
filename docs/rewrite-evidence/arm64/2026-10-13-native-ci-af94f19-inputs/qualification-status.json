@@ -1,0 +1,31 @@
+{
+  "identity": {
+    "architecture": "arm64",
+    "authority_schema": 9,
+    "fixtures_commit": "687ddb43d889d693bcd55c0bf6352c20347a98ef",
+    "package_version": "0.4.8+arm64.3",
+    "qualification_kind": "native-ci-build-kvm-install",
+    "source_commit": "af94f19ac21f9da14b207439808ffb33c87e8e10"
+  },
+  "build_provenance": {
+    "kind": "native-ci-elfs-local-packaging",
+    "compilation": "native ARM64 GitHub CI; Debian 12 release container",
+    "packaging": "local frozen-builder payload comparison",
+    "installed_measurements": "untested"
+  },
+  "untested_gates": [
+    "container",
+    "extra",
+    "install",
+    "storage",
+    "upgrade",
+    "genuine schema 7 ARM64 upgrade to schema 9"
+  ],
+  "result_summaries": {},
+  "limitations": [
+    "Native CI compilation and local packaging do not qualify installed behavior; KVM, bare metal and comparable Python baseline are separate claims",
+    "Offline CI archive, bundle and signed repository remain adjacent inputs/; include that directory explicitly for a self-contained replay",
+    "Daily write values extrapolate only the recorded interval",
+    "Eight registered storage disks and assistant-inclusive workload were not measured by the footprint fixture"
+  ]
+}
