@@ -448,7 +448,7 @@ fn local_filesystem(fs: &str) -> bool {
         "ext2" | "ext3" | "ext4" | "xfs" | "btrfs" | "vfat" | "exfat" | "ntfs3" | "tmpfs"
     )
 }
-fn descriptor_mount_id(fd: &OwnedFd) -> Result<u64> {
+pub(crate) fn descriptor_mount_id(fd: &OwnedFd) -> Result<u64> {
     mount_id(&bounded_read(
         Path::new(&format!(
             "/proc/{}/fdinfo/{}",

@@ -1,6 +1,7 @@
 //! Fresh storage evidence and protected root operator target preparation.
 pub mod configuration;
 mod dependencies;
+pub mod destinations;
 mod fstab;
 mod inventory;
 mod mounts;

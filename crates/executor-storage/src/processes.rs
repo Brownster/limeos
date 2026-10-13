@@ -118,6 +118,16 @@ impl fmt::Debug for RunningContainerProcessEvidence {
     }
 }
 impl RunningContainerProcessEvidence {
+    pub(crate) fn declarations(&self) -> &ContainerStorageInventory {
+        &self.inner.declarations
+    }
+    pub(crate) fn root_descriptor(&self, resource: &str) -> Option<&OwnedFd> {
+        self.inner
+            .retained
+            .iter()
+            .find(|p| p.observation.container.resource == resource)
+            .map(|p| &p.handles.root)
+    }
     pub fn snapshot(&self) -> &RunningContainerProcessSnapshot {
         &self.inner.snapshot
     }
@@ -327,7 +337,7 @@ fn json_bytes(value: &impl Serialize, limit: usize) -> Result<Vec<u8>> {
     serde_json::to_writer(&mut buffer, value).map_err(|_| Failure::Unavailable)?;
     Ok(buffer.bytes)
 }
-fn digest_json(value: &impl Serialize, limit: usize) -> Result<String> {
+pub(crate) fn digest_json(value: &impl Serialize, limit: usize) -> Result<String> {
     let bytes = json_bytes(value, limit)?;
     Ok(limeos_identity::digest(
         std::str::from_utf8(&bytes).map_err(|_| Failure::Unavailable)?,
