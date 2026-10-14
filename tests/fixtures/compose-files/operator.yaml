@@ -1,0 +1,12 @@
+# Operator formatting and anchors must remain byte-for-byte intact.
+x-common: &common
+  restart: unless-stopped
+  environment:
+    SYNTHETIC_SECRET: SYNTHETIC_SECRET_DO_NOT_REPORT
+services:
+  media:
+    <<: *common
+    image: example.invalid/media@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    user: "1000:1000"
+    volumes:
+      - /mnt/storage/Movies:/media:ro

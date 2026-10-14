@@ -832,6 +832,7 @@ name = "limeos-executor-container"
 version = "0.2.0"
 dependencies = [
  "fs2",
+ "hex",
  "http-body-util",
  "hyper",
  "hyper-util",
@@ -841,6 +842,7 @@ dependencies = [
  "rustix",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tokio",
 ]

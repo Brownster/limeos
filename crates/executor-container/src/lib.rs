@@ -5,6 +5,7 @@ use limeos_domain::{ContainerAction, ContainerSnapshot, Error, ErrorCode, Result
 pub use limeos_domain::{
     ContainerReceipt, ContainerRequest, ExecutionState, RestartReceipt, RestartRequest,
 };
+pub mod compose_files;
 pub mod docker;
 mod logs;
 use rusqlite::{Connection, OptionalExtension, params};
