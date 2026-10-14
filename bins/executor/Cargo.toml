@@ -16,6 +16,12 @@ path = "tests/support/read_worker_probe.rs"
 required-features = ["read-worker-probe"]
 test = false
 
+[[bin]]
+name = "limeos-combined-read-probe"
+path = "tests/support/combined_read_probe.rs"
+required-features = ["read-worker-probe"]
+test = false
+
 [lints]
 workspace = true
 
@@ -30,5 +36,6 @@ tokio.workspace = true
 rustix.workspace = true
 serde_json.workspace = true
 serde.workspace = true
+sha2.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

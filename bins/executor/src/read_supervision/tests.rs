@@ -122,3 +122,24 @@ fn queued_reports_cannot_pass_after_ticket_expiry_or_cancellation() {
         ));
     }
 }
+
+#[test]
+fn preparation_deadline_reaches_the_monitor_without_a_new_window() {
+    // This owned sleeper deliberately supplies no guardian acknowledgment.
+    // Its later exit must not replace the original, shorter preparation deadline.
+    let manager = Supervisor::default();
+    let lease = Arc::new(());
+    let weak = Arc::downgrade(&lease);
+    let mut command = Command::new("/usr/bin/sleep");
+    command.arg("0.5");
+    let deadline = Instant::now() + Duration::from_millis(100);
+    let ticket = manager.start_held(command, deadline, lease).unwrap();
+    assert_eq!(ticket.started + WINDOW, deadline);
+    assert!(matches!(ticket.wait(), Err(Refusal::Deadline)));
+    // Leave no live fixture or leased image after the unconfirmed exit.
+    let cleanup = Instant::now() + WINDOW;
+    while weak.upgrade().is_some() && Instant::now() < cleanup {
+        thread::sleep(TICK);
+    }
+    assert!(weak.upgrade().is_none());
+}

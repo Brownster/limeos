@@ -62,7 +62,27 @@ pub struct Ticket {
 impl Supervisor {
     /// Trusted Rust-side guardian selection only. No runtime route calls this.
     /// The dedicated guardian must invoke `guardian` before any other work.
-    pub fn start(&self, mut command: Command) -> Result<Ticket> {
+    pub fn start(&self, command: Command) -> Result<Ticket> {
+        self.start_owned(command, Instant::now(), ())
+    }
+    pub(crate) fn start_held<L: Send + 'static>(
+        &self,
+        command: Command,
+        deadline: Instant,
+        lease: L,
+    ) -> Result<Ticket> {
+        if Instant::now() >= deadline {
+            return Err(Refusal::Deadline);
+        }
+        let started = Instant::now().min(deadline - WINDOW);
+        self.start_owned(command, started, lease)
+    }
+    fn start_owned<L: Send + 'static>(
+        &self,
+        mut command: Command,
+        started: Instant,
+        lease: L,
+    ) -> Result<Ticket> {
         if self.poisoned.load(Ordering::Acquire) {
             return Err(Refusal::CleanupUnconfirmed);
         }
@@ -70,7 +90,6 @@ impl Supervisor {
         if self.poisoned.load(Ordering::Acquire) {
             return Err(Refusal::CleanupUnconfirmed);
         }
-        let started = Instant::now();
         let cancelled = Arc::new(AtomicBool::new(false));
         let (sender, receiver) = mpsc::sync_channel(1);
         command
@@ -81,7 +100,10 @@ impl Supervisor {
         let poisoned = self.poisoned.clone();
         thread::Builder::new()
             .name("read-monitor".into())
-            .spawn(move || monitor(command, flight, started, cancel, poisoned, sender))
+            .spawn(move || {
+                let _image_lease = lease;
+                monitor(command, flight, started, cancel, poisoned, sender);
+            })
             .map_err(|_| Refusal::Unavailable)?;
         Ok(Ticket {
             receiver,
