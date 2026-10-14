@@ -1,0 +1,26 @@
+{
+  "qualified_source": "3b0f78edb2584f95aa2c2da9b452e9d42e634991",
+  "files": {
+    "README.md": "abcf1dc8bee8f4aa56caeb7aec8456c407bff2b7751603fc8ca324f4daff2ffa",
+    "arm64-harness.log.gz": "e0a1031f79dc40e8f18182433c6484dcd42716323ef7a00f468aaee5e3008166",
+    "checks.json": "3c4987dfab630740db422424063ca9aa9ebe735f4a2ae5fdc0e6628f0d9fb381",
+    "clippy.log.gz": "cb49d8ff01b57022de3c1f41eeaf8d583b63c6d3315a556a98024be34acf7551",
+    "compose-conformance.log.gz": "e8c20d517d3df42addb615792a0d3dd4a724ccfec41a253467a4b72b3a91bd88",
+    "contracts.log.gz": "772c1a23e4e763a83b8cc8823881c59fc4c970b93d9485a5eece413680390bc5",
+    "diagnosis.json": "f89cde304895cd05f96fc59313fa1786f8dfec27f25f24ec3021837259b75b11",
+    "fmt.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "lifecycle-final-review.log.gz": "a172791561c0f7a0390813ccdc9bfb81f1f74ac4311aaec898bbb4ff56904071",
+    "lifecycle-focused.log.gz": "b59c1d00aacd2a85fdaa11a98a001cb3a80a464c9a9888b6aa2cc1c83bf0a21c",
+    "lifecycle-initial.log.gz": "08b492cbbd83e1c44e2cf1abe8757990a152fe371d544b6ff3aeffb2e518efe8",
+    "lifecycle-reviewed.log.gz": "6acbf507f0f3b9cb745dcf94f5d6ab16cd178dbae5b59a82201c5da1ece1d89e",
+    "package-compose-lifecycle.py": "12103db15aa9c9613adafc0b98e0b414d266ea5f40a90bd1c38287ba94e222bc",
+    "repository.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "run-compose-lifecycle-check.py": "c56c9d45cb4c1929494577e33d53ae4878738461e263e3c093c07e33a69d9357",
+    "scope.json": "8fa86c5907e85cad0ef99e0fd42cc6bafbfe74ed1ab407baace2536c12cc972e",
+    "source-manifest.json": "b8965cc1e1012be66ee487db7ccfa9c38e8b4078023b9688a2e68e6542bd338f",
+    "storage-compile.log.gz": "39d21e934c7057615ca3526f72f4dafcf8fa35594dc16abe6ced2d86317860d4",
+    "storage-fixtures.log.gz": "4ec332abac24a96e69f278229dd3994fdd73d744501ca67ef12d736511cd2867",
+    "test-rest.log.gz": "75d5946b46f817378555edba014653691e6c30021b344668f4f33d98310e16c5",
+    "verify-compose-lifecycle.py": "6792e9c5545903ac59ca6e481e198cd8f942b115b4a0cd64d54e02a64227c112"
+  }
+}

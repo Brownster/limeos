@@ -1,0 +1,23 @@
+{
+  "initial": {
+    "log": "lifecycle-initial.log.gz",
+    "exit": 101,
+    "issue": "New removal assertion expected an empty volumes map; established renderer deliberately omits it",
+    "correction": "Expect exact existing services-only empty override; production code unchanged",
+    "source_tracking": "Diagnostic only: whole-report regression was added during this run; end-of-run dirty hashes do not identify its compiled binary"
+  },
+  "reviewed": {
+    "log": "lifecycle-reviewed.log.gz",
+    "exit": 101,
+    "issue": "Oversized report fixture performed an extra full source pass first and exhausted the original 1 MiB ledger",
+    "correction": "Use genuine initially admitted owner plus independently admitted valid child plan to test constructor report refusal before redundant full revalidation; guards/budgets unchanged"
+  },
+  "final": {
+    "log": "lifecycle-final-review.log.gz",
+    "exit": 0,
+    "rust_cases": 212,
+    "source_tracking": "Before/after hashes agree; precommit diagnostic rather than exact committed-source acceptance"
+  },
+  "production_changed_by_test_corrections": false,
+  "independent_review": "pending"
+}

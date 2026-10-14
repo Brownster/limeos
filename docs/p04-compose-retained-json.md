@@ -68,10 +68,14 @@ foreign namespace, independently identified daemon/physical host and installed
 resource qualification remain open. The existing six pinned offline parser checks
 cover their earlier supported fixtures, with no daemon effects.
 
+The [lifecycle proposal composition](p04-compose-lifecycle-proposals.md) consumes
+this owner to bind exact compiled candidate bytes and source changes to the original
+complete membership, with no additional lease or execution authority.
+
 General YAML/.env/includes/interpolation, actual deployed configuration equivalence,
 complete physical consumers, principal/fresh executable approval, acquired claims/
 locks, writes/recovery, verified shutdown, worker integration and independent review
 remain open. Core/Store, generated contracts, dependencies, service guards and the
 frozen signed ARM64 candidate stay unchanged. No Pi, SSH, production Docker, raw
-block probe or guest was used. Next is bounded lifecycle proposal integration with
-fresh permissions/approval and effect-time verification through locks/recovery.
+block probe or guest was used. Durable principal/approval and claim/lock integration
+through recovery, with fresh checks immediately before effects, remain subsequent work.

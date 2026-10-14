@@ -1,5 +1,9 @@
 # Typed managed Compose override proposals
 
+The [bound lifecycle composition](p04-compose-lifecycle-proposals.md) now connects
+this compiler to original retained catalog/file/Engine/source evidence, exact
+candidate bytes and complete observed service membership, without host effects.
+
 `limeos_domain::compose_override::plan_managed_override(operator, current, desired)`
 compiles a bounded replacement `limeos.override.json` from three borrowed P03
 projects. It performs pure logic only. The operator project describes the supported
