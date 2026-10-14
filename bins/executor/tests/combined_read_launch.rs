@@ -60,14 +60,29 @@ fn sealed_guardian_and_worker_reach_genuine_nonroot_collection_refusal() {
 }
 #[test]
 fn on_disk_internal_roles_refuse_before_any_collection() {
+    let source = ImageFile::new();
+    let image = SealedExecutable::capture(&File::open(&source.0).unwrap()).unwrap();
+    let metadata = serde_json::to_value(image.metadata()).unwrap();
     for role in ["guardian", "worker"] {
-        let output = Command::new(env!("CARGO_BIN_EXE_limeos-combined-read-probe"))
+        let output = Command::new(&source.0)
             .arg(role)
             .env_clear()
+            .env(
+                "LIMEOS_READ_IMAGE_DIGEST",
+                metadata["sha256"].as_str().unwrap(),
+            )
+            .env("LIMEOS_READ_CONTRACT", "/not-opened/contract.json")
+            .env("LIMEOS_READ_POOLS", "/not-opened/pools.json")
+            .env("LIMEOS_READ_PROTECTION", "/not-opened/protection.json")
+            .env("LIMEOS_READ_SHARES", "/not-opened/shares.json")
             .output()
             .unwrap();
         assert!(!output.status.success());
         assert!(output.stdout.is_empty());
+        assert_eq!(
+            String::from_utf8(output.stderr).unwrap().trim_end(),
+            "combined probe failed: image: UntrustedImage"
+        );
     }
 }
 #[test]
