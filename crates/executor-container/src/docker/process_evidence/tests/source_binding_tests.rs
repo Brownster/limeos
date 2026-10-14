@@ -10,6 +10,7 @@ use crate::{
     docker::compose_evidence::EngineComposeEvidence,
 };
 use std::{fs, sync::atomic::AtomicBool};
+mod lifecycle_tests;
 
 fn labels(project: &str, service: &str, directory: &str, files: &str, oneoff: bool) -> Value {
     json!({"com.docker.compose.project":project,"com.docker.compose.service":service,

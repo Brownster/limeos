@@ -2,6 +2,7 @@
 use super::*;
 use crate::compose_source::{ComposeJsonSourceSummary, ComposeJsonSources};
 const REPORT_BYTES: usize = 256 * 1024;
+pub mod lifecycle;
 
 /// Original metadata and parsed source facts cannot reconstruct the retained owner.
 /// ```compile_fail

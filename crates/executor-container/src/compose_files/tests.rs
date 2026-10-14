@@ -1,4 +1,10 @@
 use super::*;
+
+impl ComposeFileEvidence {
+    pub(crate) fn exhaust_local_reads(&self) {
+        self.budget.spent.store(READ_BYTES, Ordering::Relaxed);
+    }
+}
 use std::{
     cell::Cell,
     fs,
