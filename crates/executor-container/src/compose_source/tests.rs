@@ -646,3 +646,46 @@ fn full_unique_resource_sets_allow_key_replacement_without_growing() {
     .unwrap();
     assert_eq!(owner.summary().declared_volumes.len(), 128);
 }
+
+#[test]
+fn array_representations_of_structs_refuse_at_every_object_boundary() {
+    refused(json!({"services":{},"volumes":{"cache":[]}}));
+    let image = minimal_service()["image"].clone();
+    for value in [
+        json!([{}]),
+        json!({"services":{"api":[image.clone()]}}),
+        json!({"services":{"api":{"image":image,"ports":[["127.0.0.1","8080",80,"tcp"]]}}}),
+    ] {
+        refused(value);
+    }
+    for m in [
+        json!(["bind","/srv/media","/media",false,{"create_host_path":false}]),
+        json!({"type":"bind","source":"/srv/media","target":"/media","read_only":false,"bind":[false]}),
+    ] {
+        let mut value = minimal();
+        value["services"]["api"]["volumes"] = json!([m]);
+        refused(value);
+    }
+}
+
+#[test]
+fn enum_objects_refuse_where_compose_requires_literal_strings() {
+    for (field, value) in [
+        ("restart", json!({"always":null})),
+        ("network_mode", json!({"host":null})),
+    ] {
+        let mut raw = minimal();
+        raw["services"]["api"][field] = value;
+        refused(raw);
+    }
+    let mut raw = minimal();
+    let mut p = port(8080);
+    p["protocol"] = json!({"tcp":null});
+    raw["services"]["api"]["ports"] = json!([p]);
+    refused(raw);
+    let mut raw = minimal();
+    let mut m = mount(0);
+    m["type"] = json!({"bind":null});
+    raw["services"]["api"]["volumes"] = json!([m]);
+    refused(raw);
+}

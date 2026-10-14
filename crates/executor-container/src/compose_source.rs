@@ -134,12 +134,55 @@ fn present<'de, D: de::Deserializer<'de>, T: Deserialize<'de>>(
     T::deserialize(d).map(Some)
 }
 
+// Derived structs also accept sequences. Compose objects must use map shape.
+struct Object<T>(T);
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for Object<T> {
+    fn deserialize<D: de::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        struct ObjectVisitor<T>(PhantomData<T>);
+        impl<'de, T: Deserialize<'de>> Visitor<'de> for ObjectVisitor<T> {
+            type Value = Object<T>;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a Compose JSON object")
+            }
+            fn visit_map<A: MapAccess<'de>>(
+                self,
+                access: A,
+            ) -> std::result::Result<Self::Value, A::Error> {
+                T::deserialize(de::value::MapAccessDeserializer::new(access)).map(Object)
+            }
+        }
+        d.deserialize_map(ObjectVisitor::<T>(PhantomData))
+    }
+}
+
+// Serde's unit enums also accept tagged objects. Compose requires these strings.
+#[derive(Clone, Copy)]
+struct EnumText<T>(T);
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for EnumText<T> {
+    fn deserialize<D: de::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        struct EnumVisitor<T>(PhantomData<T>);
+        impl<'de, T: Deserialize<'de>> Visitor<'de> for EnumVisitor<T> {
+            type Value = EnumText<T>;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a literal Compose enum string")
+            }
+            fn visit_str<E: de::Error>(self, value: &str) -> std::result::Result<Self::Value, E> {
+                if value.len() > 16 {
+                    return Err(E::custom("Compose enum string limit"));
+                }
+                T::deserialize(de::value::StrDeserializer::<E>::new(value)).map(EnumText)
+            }
+        }
+        d.deserialize_str(EnumVisitor::<T>(PhantomData))
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Document {
-    services: Map<Service, 16>,
+    services: Map<Object<Service>, 16>,
     #[serde(default)]
-    volumes: Map<Empty, 128>,
+    volumes: Map<Object<Empty>, 128>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -151,15 +194,15 @@ struct Service {
     #[serde(default, deserialize_with = "present")]
     user: Option<Text<21>>,
     #[serde(default, deserialize_with = "present")]
-    restart: Option<ComposeRestart>,
+    restart: Option<EnumText<ComposeRestart>>,
     #[serde(default, deserialize_with = "present")]
     privileged: Option<bool>,
     #[serde(default, deserialize_with = "present")]
-    network_mode: Option<Host>,
+    network_mode: Option<EnumText<Host>>,
     #[serde(default)]
-    ports: List<Port, 8>,
+    ports: List<Object<Port>, 8>,
     #[serde(default)]
-    volumes: List<Mount, 8>,
+    volumes: List<Object<Mount>, 8>,
     #[serde(default)]
     devices: List<Text<517>, 8>,
 }
@@ -174,7 +217,7 @@ struct Port {
     host_ip: Text<45>,
     published: Text<5>,
     target: u16,
-    protocol: PortProtocol,
+    protocol: EnumText<PortProtocol>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -186,12 +229,12 @@ enum Kind {
 #[serde(deny_unknown_fields)]
 struct Mount {
     #[serde(rename = "type")]
-    kind: Kind,
+    kind: EnumText<Kind>,
     source: Text<256>,
     target: Text<256>,
     read_only: bool,
     #[serde(default, deserialize_with = "present")]
-    bind: Option<Bind>,
+    bind: Option<Object<Bind>>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -285,7 +328,9 @@ fn decode(raw: &[u8]) -> Result<Document> {
     if raw.is_empty() || raw.len() > SOURCE_BYTES {
         return Err(invalid());
     }
-    serde_json::from_slice(raw).map_err(|_| invalid())
+    serde_json::from_slice::<Object<Document>>(raw)
+        .map(|object| object.0)
+        .map_err(|_| invalid())
 }
 fn fingerprint(raw: &[u8]) -> ComposeSourceFingerprint {
     ComposeSourceFingerprint {
@@ -309,6 +354,7 @@ fn numeric(value: &str) -> Result<u32> {
 fn project(document: &Document) -> Result<ComposeProject> {
     let mut services = Vec::new();
     for (name, service) in &document.services.0 {
+        let service = &service.0;
         let user = service
             .user
             .as_ref()
@@ -322,17 +368,19 @@ fn project(document: &Document) -> Result<ComposeProject> {
             .transpose()?;
         let mut ports = Vec::new();
         for p in &service.ports.0 {
+            let p = &p.0;
             let published = numeric(&p.published.0)?.try_into().map_err(|_| invalid())?;
             ports.push(ComposePort {
                 host_ip: p.host_ip.0.clone(),
                 published,
                 target: p.target,
-                protocol: p.protocol,
+                protocol: p.protocol.0,
             });
         }
         let mut mounts = Vec::new();
         for m in &service.volumes.0 {
-            mounts.push(match m.kind {
+            let m = &m.0;
+            mounts.push(match m.kind.0 {
                 Kind::Volume if m.bind.is_none() && compose_name(&m.source.0) => {
                     ComposeMount::Volume {
                         name: m.source.0.clone(),
@@ -340,7 +388,7 @@ fn project(document: &Document) -> Result<ComposeProject> {
                         read_only: m.read_only,
                     }
                 }
-                Kind::Bind if m.bind.as_ref().is_some_and(|b| !b.create_host_path) => {
+                Kind::Bind if m.bind.as_ref().is_some_and(|b| !b.0.create_host_path) => {
                     ComposeMount::Bind {
                         source: m.source.0.clone(),
                         target: m.target.0.clone(),
@@ -367,7 +415,10 @@ fn project(document: &Document) -> Result<ComposeProject> {
             name: name.clone(),
             image: service.image.0.clone(),
             user,
-            restart: service.restart.unwrap_or(ComposeRestart::No),
+            restart: service
+                .restart
+                .map(|value| value.0)
+                .unwrap_or(ComposeRestart::No),
             privileged: service.privileged.unwrap_or(false),
             host_network: service.network_mode.is_some(),
             ports,
@@ -424,7 +475,7 @@ fn combine(
             combined.services.push(addition);
             continue;
         };
-        let fields = &managed.services.0[&addition.name];
+        let fields = &managed.services.0[&addition.name].0;
         base.image = addition.image;
         if fields.user.is_some() {
             base.user = addition.user;
