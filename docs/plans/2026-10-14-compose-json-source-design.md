@@ -13,6 +13,8 @@ or growth, and duplicate-field/key refusal including escaped equivalents. Reject
 explicit null, trailing documents and unsupported keys at every level. Services
 are at most sixteen; ports/mounts/devices at most eight per service; empty standard
 named-volume definitions at most 128 across the combination.
+Require object-only struct decoding and bounded string-only enums; generic
+Serde array-struct and tagged-object enum representations are unsupported.
 
 Supported service fields are immutable image, canonical numeric `uid:gid`, restart,
 privileged, host-only network mode, explicit long-form ports/mounts and literal

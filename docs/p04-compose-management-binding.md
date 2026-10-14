@@ -108,4 +108,7 @@ candidate are unchanged. No Pi, SSH, real Docker, raw block probe or guest was u
 The [pure override compiler](p04-compose-override-compiler.md) now checks whether
 supplied typed operator/current/desired projects can be expressed by a replacement
 managed JSON file. It remains separate from these retained owners; actual supported
-source admission and executable approval still require later integration.
+source admission and executable approval still require later integration. The
+[strict JSON source adapter](p04-compose-json-source.md) now validates supported
+byte slices and compiler round trips; it supplies no descriptor freshness or
+Engine binding until composed with these genuine retained owners.

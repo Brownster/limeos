@@ -1,0 +1,40 @@
+{
+  "passed_pre_hardening_source": "dd284070f6600d4225e1e8882303596a3757729f",
+  "qualified_hardened_source": "2c68557c112b4caf10fe0f502a73580edfd7f411",
+  "struct_shape_failure": {
+    "log": "object-shape-red.log.gz",
+    "exit": 101,
+    "input": {
+      "services": {},
+      "volumes": {
+        "cache": []
+      }
+    },
+    "cause": "serde_json deserialize_struct accepts array or map; derived empty struct supplied a sequence visitor",
+    "fix": "Object<T> requires deserialize_map then delegates through MapAccessDeserializer",
+    "corrective_log": "object-shape-green.log.gz"
+  },
+  "enum_shape_failure": {
+    "log": "enum-shape-red.log.gz",
+    "exit": 101,
+    "input": {
+      "services": {
+        "api": {
+          "restart": {
+            "always": null
+          }
+        }
+      }
+    },
+    "cause": "serde_json deserialize_enum accepts string or externally tagged object for unit variants",
+    "fix": "EnumText<T> requires a bounded literal string before StrDeserializer",
+    "corrective_log": "enum-shape-green.log.gz"
+  },
+  "primary_local_sources": [
+    "serde_json-1.0.145/src/de.rs deserialize_struct/map/enum",
+    "serde_derive-1.0.228/src/de/struct_.rs visit_seq generation"
+  ],
+  "hardened_focused_cases": 21,
+  "production_effects_added": false,
+  "earlier_passed_checks_retained_as_diagnostics": true
+}

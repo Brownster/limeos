@@ -60,9 +60,12 @@ oracle and the existing P03 catalog. It qualifies the typed subset, rather than
 actual YAML/.env/includes/interpolation or a pinned installed Compose binary.
 See the [design](plans/2026-10-14-compose-override-compiler-design.md).
 
-The [retained management binding](p04-compose-management-binding.md) remains a
-separate read-only boundary. This compiler adds no host adapter, CLI/RPC/route,
-Core/Store job, lock, write, deployment, service or package activation. Supported
-source admission and independent Compose conformance come next, followed by a
-fresh approved operation using locks and recovery. P04, installed performance
-and cutover gates remain open.
+The [strict JSON source adapter](p04-compose-json-source.md) now checks actual
+supported source bytes, combines their declarations and re-admits generated
+artifacts. Shared local fixtures pass an independently pinned configuration parser;
+general YAML and other versions remain unqualified. The
+[retained management binding](p04-compose-management-binding.md) stays separate.
+This compiler adds no CLI/RPC/route, Core/Store job, lock, write, deployment, service
+or package activation. Retained source integration and a fresh approved operation
+using locks/recovery remain next. P04, installed performance and cutover gates
+remain open.
