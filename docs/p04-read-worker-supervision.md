@@ -41,8 +41,12 @@ Malformed/partial/trailing/oversized output and nonzero exit refuse the whole
 request. A valid guardian refusal frame still confirms cleanup; transport failure
 does not. `SupervisedReport::as_bytes()` exposes past observations, never retained
 storage facts or effect authority. Neither JSON nor frame status authenticates
-an arbitrary executable: trusted fixed image/configuration selection is a later
-launcher responsibility.
+an arbitrary executable. The unregistered
+[protected launch policy](p04-combined-read-launch.md) now supplies fixed image
+selection, sealed executable bytes and bounded configuration names for a separate
+opt-in combined probe. Its preparation deadline reaches this monitor unchanged,
+and the monitor holds the image lease through cleanup. Installed qualification
+remains open.
 
 Local process fixtures are enabled only by `read-worker-probe`. The helper binary
 lives under tests/support, is disabled by default and is absent from packaging's

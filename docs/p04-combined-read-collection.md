@@ -71,8 +71,11 @@ Existing adapter fixtures remain the evidence for each closed profile. See the
 
 [Independent worker supervision](p04-read-worker-supervision.md) now supplies
 unregistered guardian/monitor mechanics and local owned-process qualification.
-Trusted fixed launch/configuration selection and installed confinement remain next.
-The standalone probe's combined case stays blocked pending that integration.
+[Protected launch selection](p04-combined-read-launch.md) now supplies sealed
+fixed-image bytes and bounded configuration names through a separate opt-in
+combined probe. Installed confinement and root-positive qualification remain next.
+The existing standalone probe's combined case stays blocked pending external
+adoption of that separate seam.
 Installed root/capability/namespace cases, resource headroom and performance remain
 unqualified. Service guards, P04/defect/cutover gates, locks, claims, effects and
 recovery are unchanged. This slice is outside the frozen signed ARM64 candidate.

@@ -1,0 +1,20 @@
+{
+  "qualified_source": "fbd89657fc960f52349a1c1876ddd98678c50e0d",
+  "files": {
+    "README.md": "0e747559cc8bbd1ec058b73b0386e6ff37b177220e16f86b0f72cdf8828a1425",
+    "arm64-harness-accepted.log.gz": "949742838af5ca2afd6b4e31207bdc902860f054d35a661e11bb768ef7fdbba7",
+    "checks.json": "32cbb2533500dc92eaeccd48362e867d4da61d7a37a0a1e4513798c435c0fc3a",
+    "clippy-accepted.log.gz": "4ed9940177180e32ca6aa96a0a0b6d959206c1d6f057040b7190c98ee3fe9c24",
+    "contracts-accepted.log.gz": "127d3bd157ce0ae8be4640808efcba36b34e12008b2ccdcaa353cf3ce5191068",
+    "fmt-accepted.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "launch-focused.log.gz": "e539fad47d32865576f5b4f63b3d4cd90aed98834db18abbf462da8aa28312e5",
+    "package-combined-read-launch.py": "ca0a819495fc1e12cac003628cf7359da17241239f5331bd3a364bd73d8e3dae",
+    "repository-accepted.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "run-combined-read-launch-check.py": "bb9ca7289529faf9aeaf5d01aace5e9dc28ed325f5f53744a79e436dfdc79a0b",
+    "scope.json": "cc229952b5bcecc2201e95ecad9a89163b642ec37840293b5e4d6ef5f8d3413b",
+    "source-manifest.json": "1bef5861a4689749c74fcf48e28363ca8f6df319a6a47f3284d50aed7b03c7e6",
+    "storage-compile-on-disk.log.gz": "fe51bf8f750921fab20843eb895db0dfb027df7bb0613cf4f5556a34f0c2d32b",
+    "storage-fixtures.log.gz": "a872ecc89af0307eb11fa1791f605ef3c1e54d8fff17652d1fec3ce3b294cc54",
+    "test-rest-accepted.log.gz": "7e03daacd61538ca13d4c6c7e34d7b78058427db7ddfb8cff1d2143d281c601d"
+  }
+}
