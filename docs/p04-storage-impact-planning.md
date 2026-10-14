@@ -63,6 +63,10 @@ management identity and full claim binding remain required; this planner's
 The [protected Compose file reader](p04-compose-file-evidence.md) adds actual
 retained file observations. Its names/hashes still need approved catalog,
 management and genuine Engine binding before stack ownership can be resolved.
+The later [selected management binder](p04-compose-management-binding.md) supplies
+that declared registration/file/Engine join. Actual combined Compose semantics,
+complete physical consumers, principal approval and acquired claims remain open;
+the planner's stack-ownership evidence boundary stays unresolved.
 
 [Local acceptance](rewrite-evidence/p04/2026-10-14-storage-impact/README.md) covers
 four independent frozen-layout goldens, full graph preservation, complete target

@@ -89,6 +89,9 @@ The [Engine membership owner](p04-compose-membership-evidence.md) still describe
 declarations separately. This slice does not bind its labels or a P03 approved
 catalog to actual files, infer a stack resource key, read `.env`/includes, evaluate
 interpolation or combined Compose semantics, or establish complete consumers.
+The later [management binding](p04-compose-management-binding.md) joins a selected
+root-controlled registration to genuine file/Engine owners. It supplies declared
+management identity while keeping principal approval and actual semantics separate.
 Approved catalog/hash/management binding, genuine Engine composition, claims,
 locks, approvals, effects/recovery, independent review, worker integration and
 installed qualification remain open. The signed ARM64 candidate excludes this

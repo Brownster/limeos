@@ -1,0 +1,17 @@
+{
+  "initial_log": "management-initial.log.gz",
+  "exit": 101,
+  "passed_before_failure": 137,
+  "failed": 2,
+  "catalog_issue": "Serde internally tagged unit absent accepted extra sha256; empty struct variant now rejects it",
+  "fixture_issue": "first stopped fixture container retained PID 1000; fixture now uses zero with production guard unchanged",
+  "targeted_corrective_logs": [
+    "catalog-diagnostic.log.gz",
+    "stopped-diagnostic.log.gz"
+  ],
+  "reviewed_precommit_crate_cases": 149,
+  "final_test_hardening": "use sixty-second future wall time, avoiding a real second-boundary race in the rollback fixture",
+  "passed_pre_hardening_source": "50e4b882fd4fbd50cc418382a42a8ef2a0732825",
+  "production_runtime_changed_by_test_hardening": false,
+  "accepted_runtime": "9504baf58800cf997c98283bbbe2efc421f284a7"
+}

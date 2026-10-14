@@ -80,6 +80,10 @@ stack discovery, managed-stack membership or approved lifecycle actions. The
 actual-file identities/hashes for one recognized operator and optional fixed
 managed file. Approved catalog/management and genuine Engine-to-file binding are
 still required; neither owner infers a trusted stack resource. The
+[management binder](p04-compose-management-binding.md) now compares one selected
+root-controlled registration with genuine retained file and Engine owners. It
+supplies a declared stack subject, with executable approval and actual semantics
+still unresolved. The
 [storage impact planner](p04-storage-impact-planning.md) still lists stack ownership
 and complete physical/runtime/claim evidence as unresolved. Combined-worker/probe
 integration, actual stack files/claims/locks/approvals/effects/recovery, independent

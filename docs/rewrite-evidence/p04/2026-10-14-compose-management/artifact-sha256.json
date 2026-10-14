@@ -1,0 +1,32 @@
+{
+  "qualified_source": "9504baf58800cf997c98283bbbe2efc421f284a7",
+  "files": {
+    "README.md": "b260c6c6ac97ea0bdd8e9f07595fddb20844ca1f23d3f51782da668b2fae08c2",
+    "arm64-harness-final.log.gz": "895d1b2029de9f44002ef0b782ca048ff0b376418784e1865ca17aaeb6b22e60",
+    "arm64-harness.log.gz": "5e7211263d5d4da0bd175efd2b18895a96f072a1d588ab0f5929712e92275da7",
+    "catalog-diagnostic.log.gz": "9bad916fb1509afc95b4f5ac15f5ed15374f74fe5cf38de47963a477588a5a4e",
+    "checks.json": "b33637ab86e8d53673da97e2d5e40f3638e2db88740a5889429b75f9baa27a41",
+    "clippy-final.log.gz": "006c732acc3536f43f1910a92d9d40fe2d0143c08642a45c2d3526aa92b042d1",
+    "clippy.log.gz": "611ea4156f294d46f7b25e23980b471b7d452d3b7c34f3a4d9936958fb37d267",
+    "contracts-final.log.gz": "6472f0b69651083a6aabe8b5d25ccd309a941dc28588214382f5f7dd1b9119c1",
+    "diagnosis.json": "8c0573338241305aa2cf82aa4bdf9d0446a5032973634fd950e028593cc60dc8",
+    "fmt-final.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "fmt.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "management-focused-final.log.gz": "95fda3db66486886bbe246de526c6cdfe7e102de3ad3c844b49571eff68190a6",
+    "management-initial.log.gz": "45c93c4bb65caf5cacdc9ed730ea5545e1b6ca46587e616d6caaa2d354ac335a",
+    "management-reviewed.log.gz": "38f65ee1a7985645d6b8181807ee37240ae4a0e275499e8157a4f383e0951017",
+    "package-compose-management-v1.py": "952d5f06f56b8940052cdd463032d51016e3be075de24aec7938d54b333618ed",
+    "repository-final.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "repository.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "run-compose-management-check.py": "66b8e7888c287f31179e54d82bf6c47639b0d6c4f8fbbe9d95b62e131a7c7b1f",
+    "scope.json": "82f544606ea957eb0a785a70877378c321aa5543f3f1946f51b720e579e63a41",
+    "source-manifest.json": "0a92399360449fdf8fac03365298919ff74fdbbd0b1e80ef9754668b3496deb7",
+    "stopped-diagnostic.log.gz": "e5b46d1099d1b63348ccb30b73f025037129afe57d6f8563435dfafeff6488e5",
+    "storage-compile-final.log.gz": "1078b86467f4c7bda33c2ae90e81005e198bc73d7b2396f9c7620649fef6932c",
+    "storage-compile.log.gz": "906c4c9da93e35ac6f25b4ba33c139f4acd18dcc0c1374ab3301e7d273223b47",
+    "storage-fixtures-final.log.gz": "e7c6d1d6a26cae44cc2e34eb1ec3a312eba2bdea77220e09f396a1c311ee57a3",
+    "storage-fixtures.log.gz": "4df2b993a2939c518494acae38f7a3af928168084776d5e0992a3187e031db12",
+    "test-rest-final.log.gz": "a6d834e98244398ddb7d0959ea62f950ae674aa87883a802d7233186c4b46a49",
+    "test-rest.log.gz": "06ace4195915c40686f31c3f16ef804b9ac04a1484b76bfa7ebfe3c38bbeffcd"
+  }
+}
