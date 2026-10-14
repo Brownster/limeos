@@ -2,14 +2,16 @@
 
 Engineer B branch: `engineer/p04-automation-b1`, based on local main `0c7ec8c`. The [design](plans/2026-10-14-b1-automation-design.md) and [stream brief](plans/2026-10-14-engineer-p04-deployment-scheduling-runtime.md) define ownership. This is the observation-only leaf implementation. It is not registered B1 completion, persistent deduplication proof or installed qualification.
 
+October 15 continuation: the branch consumes main's published Rustls fix `b37c718`. Qualified leaf source `5a8a8cf0959d23ed520f9a99ec922c77d5bbf1a9` adds ordered in-app delivery, interrupted-attempt reconciliation and a mount-ready panel/controller. [Focused evidence](rewrite-evidence/p04/2026-10-15-b1-delivery-controller/README.md) records 38 Rust and 24 frontend cases. The central automation contract is still absent on the checked main; shared registration and durable acceptance remain open.
+
 ## Supplied leaves
 
 | Path | Behavior |
 | --- | --- |
-| `crates/domain/src/automation/` | Closed operation definitions, UTC interval/window arithmetic, stable occurrence tuple, bounded views, frozen signal rules, threshold alert folding, delivery/retry/retention policy. |
+| `crates/domain/src/automation/` | Closed operation definitions, UTC interval/window arithmetic, stable occurrence tuple, bounded views, frozen signal rules, threshold alert folding, delivery ordering/interruption/retry/retention policy. |
 | `bins/core/src/automation/` | One bounded scheduler page, typed observation job completion, bounded in-app publication. Effects can only create blocked records. Proposed adapter to the sole central Store. |
 | `crates/api/src/automation.rs` | Six authenticated read/mutation routes using existing cookie/origin/session/CSRF/error helpers. Mutations require POST, typed input and expected revision. Responses cap at 64 KiB. |
-| `frontend/src/AutomationView.tsx`, `NotificationsView.tsx`, `automation-client.ts` | Create observation schedule, UTC window, pause/resume, partial observations, active alerts, latest occurrence/job status, delivery failure/ambiguity and acknowledgment. Bounded response parsing; refresh after successful mutation. |
+| `frontend/src/AutomationView.tsx`, `NotificationsView.tsx`, `automation-client.ts`, `automation-controller.ts` | Mount-ready `AutomationPanel`, bounded independent pages, reconnect/expiry/stale-state handling, observation creation/window/pause, alert and occurrence status, delivery failure/ambiguity and acknowledgment. |
 | `tests/fixtures/automation/` | Frozen arithmetic cases and an isolated compilation harness that adds proposed exports without changing shared crate roots. |
 
 No shared source, Cargo manifest/lock, Store, SQL migration, resource registry, auth/protocol, package or dashboard file was edited. No `crates/persistence/src/automation/` implementation was invented: there was no accepted automation schema/Store contract on the starting branch. B will implement that leaf after the integrator supplies the frozen contract. The API trait and runner trait are explicit proposals for that handoff, not a parallel authority or transaction model.
@@ -44,7 +46,22 @@ These snippets are intentionally not applied. The integrator implements `Automat
 
 The current concrete backend is `Core` in `bins/core/src/main.rs`. Its production implementation must supply the six methods. The existing API-only test backends `Fake`, `Mutations` and `ReadBackend` also need empty `AutomationBackend` implementations to retain their unavailable defaults under the proposed router bound. This is a sequenced central registration change; B's isolated harness leaves the current router bound intact and compiles/tests the automation routes separately.
 
-Frontend mounting: import the two views and `automationClient` into the existing dashboard. Read three separate pages, preserve independent cursors/partial/error state, and refresh after each mutation. Permission booleans must come from current authority; the server always rechecks. An unauthenticated response ends the session. Initial/reconnect reads must show committed state and last occurrence, never optimistic success. Keep pagination bounded rather than appending every page to memory. The handwritten leaf wire types are proposals; the integrator adds approved schemas/type exports and replaces these declarations with generated contract imports. Do not register effect operation adapters through this observation runner.
+Frontend mounting now uses one component from the existing dashboard:
+
+```tsx
+import { AutomationPanel } from "./AutomationView";
+
+<AutomationPanel
+  principal={session.principal.id}
+  grantRevision={session.principal.grant_revision}
+  csrf={session.csrf_token}
+  canManage={manageSchedules}
+  canAcknowledge={acknowledgeNotifications}
+  expired={expired}
+/>
+```
+
+`manageSchedules` and `acknowledgeNotifications` are placeholders for centrally accepted current permission checks, not new role-based grants. The server always rechecks. The panel owns three independent bounded pages, clears private state on session expiry, refreshes on focus/reconnect or after a mutation, and disables changes while reads are stale/unavailable. It aborts and ignores pre-mutation/abandoned page responses. No polling loop, session store or automatic POST retry is added. Malformed error bodies cannot mask HTTP `401`/`403`. The handwritten leaf wire types remain proposals; the integrator adds approved schemas/type exports and replaces these declarations with generated contract imports. Do not register effect operation adapters through this observation runner.
 
 ## Required Store contract
 
@@ -57,6 +74,8 @@ The following are requirements for central acceptance, not a proposed parallel S
 5. `announced` means an opening delivery has been reserved in the durable outbox; it does not mean an external receiver accepted it. In-app publication commits the readable row and delivered state together. External channel parity later needs ordered incident/recovery delivery: consult the actual opening delivery receipt, suppress/cancel a recovery for an opening never delivered, and preserve failure/ambiguous state. The frozen notifier's delivery-failure behavior must be covered in that central integration. Never mark a notification delivered before commit, and never automatically retry a non-idempotent ambiguous external send.
 6. Cap outbox at 1,024 rows, attempts at four, explicit retry delays 30/120/600 seconds. Retain only delivered/acknowledged rows after seven days. Failed/pending/blocked/ambiguous rows remain actionable and count toward the cap. Acknowledgment is a current-principal-authorized POST with revision compare-and-swap, never a GET side effect. Failed/stale acknowledgment leaves the UI unacknowledged until a committed read proves otherwise.
 7. All read pages are sorted, unique and limited to 32 rows, with opaque/stable continuation and explicit partial status; reads never update watermarks, retries, delivery, acknowledgment, expiry or retention. The Store ensures current owner/grants on every read. `last_occurrence` carries the committed tuple plus original job/state, skipped or blocked outcome. Snapshot consistency across page reads is central ownership.
+
+The October 15 helper `plan_in_app_delivery` supplies the ordering decision for requirement 5. Under the existing transaction, load the owner-scoped recovery and exact opening, check both revisions and current authority, then apply the decision atomically. `OpeningMissing` is incomplete evidence; `OpeningBlocked` and `OpeningAmbiguous` remain visible and cannot release recovery. Acknowledgment is not a verified delivery receipt. External channels return `AdapterUnavailable`. Startup may use `recover_interrupted` only for attempts the central supervisor identifies as interrupted; it keeps the ID/event/attempt count and marks ambiguity. Retention uses the later acknowledgment or verified-delivery time, preventing early deletion after delayed delivery. None of these helpers authenticates rows or creates a second receipt/transaction registry.
 
 Recurring effect policies, complete resource claims, fresh evidence, approval, storage locks and uncertain-effect recovery remain central/A/B follow-ups. A one-time human approval is never recurring authority. Backup/protection adapters consume A's accepted operations; deployment/APT adapters wait for B's registered effect milestones.
 
