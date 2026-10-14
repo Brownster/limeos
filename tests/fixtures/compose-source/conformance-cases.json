@@ -1,0 +1,454 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "new_service",
+      "operator": {
+        "services": {}
+      },
+      "current_managed": null,
+      "desired": {
+        "services": [
+          {
+            "name": "worker",
+            "image": "example.invalid/worker@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "user": {
+              "uid": 12345,
+              "gid": 23456
+            },
+            "restart": "no",
+            "ports": [
+              {
+                "host_ip": "::1",
+                "published": 8443,
+                "target": 443,
+                "protocol": "tcp"
+              }
+            ],
+            "mounts": [
+              {
+                "kind": "volume",
+                "name": "cache",
+                "target": "/cache",
+                "read_only": true
+              },
+              {
+                "kind": "bind",
+                "source": "/srv/media",
+                "target": "/media",
+                "read_only": false
+              }
+            ],
+            "devices": [
+              {
+                "source": "/dev/video0",
+                "target": "/dev/video1"
+              }
+            ],
+            "privileged": false,
+            "host_network": false
+          }
+        ]
+      },
+      "artifact": {
+        "services": {
+          "worker": {
+            "image": "example.invalid/worker@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "user": "12345:23456",
+            "restart": "no",
+            "privileged": false,
+            "ports": [
+              {
+                "host_ip": "::1",
+                "published": "8443",
+                "target": 443,
+                "protocol": "tcp"
+              }
+            ],
+            "volumes": [
+              {
+                "type": "volume",
+                "source": "cache",
+                "target": "/cache",
+                "read_only": true
+              },
+              {
+                "type": "bind",
+                "source": "/srv/media",
+                "target": "/media",
+                "read_only": false,
+                "bind": {
+                  "create_host_path": false
+                }
+              }
+            ],
+            "devices": [
+              "/dev/video0:/dev/video1:rwm"
+            ]
+          }
+        },
+        "volumes": {
+          "cache": {}
+        }
+      }
+    },
+    {
+      "id": "merge_delta",
+      "operator": {
+        "services": {
+          "api": {
+            "image": "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "user": "1000:1000",
+            "restart": "unless-stopped",
+            "privileged": false,
+            "ports": [
+              {
+                "host_ip": "0.0.0.0",
+                "published": "8080",
+                "target": 80,
+                "protocol": "tcp"
+              }
+            ],
+            "volumes": [
+              {
+                "type": "volume",
+                "source": "cache",
+                "target": "/cache",
+                "read_only": false
+              },
+              {
+                "type": "bind",
+                "source": "/srv/media",
+                "target": "/media",
+                "read_only": true,
+                "bind": {
+                  "create_host_path": false
+                }
+              }
+            ],
+            "devices": [
+              "/dev/video0:/dev/video0:rwm"
+            ]
+          }
+        },
+        "volumes": {
+          "cache": {}
+        }
+      },
+      "current_managed": null,
+      "desired": {
+        "services": [
+          {
+            "name": "api",
+            "image": "example.invalid/api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "user": {
+              "uid": 0,
+              "gid": 4294967295
+            },
+            "restart": "unless-stopped",
+            "ports": [
+              {
+                "host_ip": "0.0.0.0",
+                "published": 8080,
+                "target": 80,
+                "protocol": "tcp"
+              },
+              {
+                "host_ip": "127.0.0.1",
+                "published": 8081,
+                "target": 81,
+                "protocol": "udp"
+              }
+            ],
+            "mounts": [
+              {
+                "kind": "volume",
+                "name": "cache-new",
+                "target": "/cache",
+                "read_only": true
+              },
+              {
+                "kind": "bind",
+                "source": "/srv/new-media",
+                "target": "/media",
+                "read_only": false
+              }
+            ],
+            "devices": [
+              {
+                "source": "/dev/video0",
+                "target": "/dev/video0"
+              },
+              {
+                "source": "/dev/video1",
+                "target": "/dev/video1"
+              }
+            ],
+            "privileged": true,
+            "host_network": false
+          }
+        ]
+      },
+      "artifact": {
+        "services": {
+          "api": {
+            "image": "example.invalid/api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "user": "0:4294967295",
+            "restart": "unless-stopped",
+            "privileged": true,
+            "ports": [
+              {
+                "host_ip": "127.0.0.1",
+                "published": "8081",
+                "target": 81,
+                "protocol": "udp"
+              }
+            ],
+            "volumes": [
+              {
+                "type": "volume",
+                "source": "cache-new",
+                "target": "/cache",
+                "read_only": true
+              },
+              {
+                "type": "bind",
+                "source": "/srv/new-media",
+                "target": "/media",
+                "read_only": false,
+                "bind": {
+                  "create_host_path": false
+                }
+              }
+            ],
+            "devices": [
+              "/dev/video1:/dev/video1:rwm"
+            ]
+          }
+        },
+        "volumes": {
+          "cache-new": {}
+        }
+      }
+    },
+    {
+      "id": "scalar_false",
+      "operator": {
+        "services": {
+          "api": {
+            "image": "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "user": "42:43",
+            "restart": "always",
+            "privileged": true
+          }
+        }
+      },
+      "current_managed": null,
+      "desired": {
+        "services": [
+          {
+            "name": "api",
+            "image": "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "user": {
+              "uid": 42,
+              "gid": 43
+            },
+            "restart": "always",
+            "ports": [],
+            "mounts": [],
+            "devices": [],
+            "privileged": false,
+            "host_network": false
+          }
+        ]
+      },
+      "artifact": {
+        "services": {
+          "api": {
+            "image": "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "user": "42:43",
+            "restart": "always",
+            "privileged": false
+          }
+        }
+      }
+    },
+    {
+      "id": "remove_one_managed",
+      "operator": {
+        "services": {
+          "api": {
+            "image": "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "other": {
+            "image": "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        }
+      },
+      "current_managed": {
+        "services": {
+          "worker": {
+            "image": "example.invalid/worker@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "user": "12345:23456",
+            "restart": "no",
+            "privileged": false,
+            "ports": [
+              {
+                "host_ip": "::1",
+                "published": "8443",
+                "target": 443,
+                "protocol": "tcp"
+              }
+            ],
+            "volumes": [
+              {
+                "type": "volume",
+                "source": "cache",
+                "target": "/cache",
+                "read_only": true
+              },
+              {
+                "type": "bind",
+                "source": "/srv/media",
+                "target": "/media",
+                "read_only": false,
+                "bind": {
+                  "create_host_path": false
+                }
+              }
+            ],
+            "devices": [
+              "/dev/video0:/dev/video1:rwm"
+            ]
+          }
+        },
+        "volumes": {
+          "cache": {}
+        }
+      },
+      "desired": {
+        "services": [
+          {
+            "name": "api",
+            "image": "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "user": null,
+            "restart": "no",
+            "ports": [],
+            "mounts": [],
+            "devices": [],
+            "privileged": false,
+            "host_network": false
+          },
+          {
+            "name": "other",
+            "image": "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "user": null,
+            "restart": "no",
+            "ports": [],
+            "mounts": [],
+            "devices": [],
+            "privileged": false,
+            "host_network": false
+          }
+        ]
+      },
+      "artifact": {
+        "services": {}
+      }
+    },
+    {
+      "id": "host_mode",
+      "operator": {
+        "services": {
+          "api": {
+            "image": "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        }
+      },
+      "current_managed": null,
+      "desired": {
+        "services": [
+          {
+            "name": "api",
+            "image": "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "user": null,
+            "restart": "no",
+            "ports": [],
+            "mounts": [],
+            "devices": [],
+            "privileged": true,
+            "host_network": true
+          }
+        ]
+      },
+      "artifact": {
+        "services": {
+          "api": {
+            "image": "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "restart": "no",
+            "privileged": true,
+            "network_mode": "host"
+          }
+        }
+      }
+    },
+    {
+      "id": "scalar_update_keeps_sequences",
+      "operator": {
+        "services": {
+          "api": {
+            "image": "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "ports": [
+              {
+                "host_ip": "127.0.0.1",
+                "published": "8080",
+                "target": 80,
+                "protocol": "tcp"
+              }
+            ],
+            "devices": [
+              "/dev/video0:/dev/video0:rwm"
+            ]
+          }
+        }
+      },
+      "current_managed": null,
+      "desired": {
+        "services": [
+          {
+            "name": "api",
+            "image": "example.invalid/api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "user": null,
+            "restart": "no",
+            "ports": [
+              {
+                "host_ip": "127.0.0.1",
+                "published": 8080,
+                "target": 80,
+                "protocol": "tcp"
+              }
+            ],
+            "mounts": [],
+            "devices": [
+              {
+                "source": "/dev/video0",
+                "target": "/dev/video0"
+              }
+            ],
+            "privileged": false,
+            "host_network": false
+          }
+        ]
+      },
+      "artifact": {
+        "services": {
+          "api": {
+            "image": "example.invalid/api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "restart": "no",
+            "privileged": false
+          }
+        }
+      }
+    }
+  ]
+}

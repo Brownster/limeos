@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "parser_version": "5.3.0",
+  "parser_sha256": "4727d85c084b042897384b58f65e767fb5d2e98a4783acc6380f544a59c68b32",
+  "architecture": "amd64",
+  "publisher_trust_qualified": false,
+  "daemon_effects_qualified": false
+}

@@ -7,6 +7,7 @@ pub use limeos_domain::{
 };
 pub mod compose_files;
 pub mod compose_management;
+pub mod compose_source;
 pub mod docker;
 mod logs;
 use rusqlite::{Connection, OptionalExtension, params};
