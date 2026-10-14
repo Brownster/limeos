@@ -1,0 +1,20 @@
+{
+  "qualified_source": "a17d1f3bdd91b9cda72c8d0ff0b4f9c37bab15cf",
+  "files": {
+    "README.md": "e2ff13e5b898794a54cf94cdec6fe3c53cd01dfb16c52e328d4f734db1ee47d5",
+    "arm64-harness-accepted.log.gz": "7f53fcd25597d4205c1588a966a137ec97ff577bc62544d7dc43114b9118a163",
+    "checks.json": "7df190cb6d0431186eaf442e8cfca62b6934d7decb63c56aa481926237890a5a",
+    "clippy-accepted.log.gz": "8e98a9837f3cb4307a58c1d338a0cd903adb86c5ff098d4f15386a78ebe7d2e1",
+    "compose-focused.log.gz": "023b1ad5b5fd5d9391db99ed55db0c6aeb5e2f2c7f549f6963a37dbcfc55cad8",
+    "contracts-accepted.log.gz": "85e1078b84478a49aa5a1a51b25653790651bf6b8452c61cd52c41ac42b8ec87",
+    "fmt-accepted.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "package-compose-membership.py": "3859500c3d4c88c2c2f15f60919a9f6760e2bf69c6a7bfc76c1f500a32026afa",
+    "repository-accepted.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "run-compose-membership-check.py": "04bb16e6762349ab80d0220fdfa744726d0113e7711ee263624fb75898da00e4",
+    "scope.json": "9dda18bb5a6787ec494c7b6f50c6aa8a4c36586bab38f8b03b8bff40c31cecca",
+    "source-manifest.json": "32166ee2348a1502c2408244a509c36a5769f5afd61eeead69ef36152e0c75b6",
+    "storage-compile-on-disk.log.gz": "7d3684ae3708bad9fc945e790eb33c1276d1bb5103080d88bf85d8ca26710df0",
+    "storage-fixtures.log.gz": "b6a7489962f8c594cd41f38569dd73ee275d4d7d752aba2fb72b81781a0550f4",
+    "test-rest-accepted.log.gz": "ffa4109941899cca31150f2a48a1d9be095b643611edb2ce9d6c95bc16a4244e"
+  }
+}

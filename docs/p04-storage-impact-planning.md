@@ -56,6 +56,10 @@ and unmapped shares cannot become evidence of safe absence. A future coordinator
 must bind the protected configuration, physical aliases/backing, current runtime
 state and actual storage/container/stack resources before claims or operations.
 Approvals, storage locks and recovery remain in their existing workstream.
+The [retained Compose membership reader](p04-compose-membership-evidence.md) now
+supplies an authenticated declaration prerequisite. Actual protected stack files,
+management identity and full claim binding remain required; this planner's
+`StackOwnership` evidence boundary stays unresolved.
 
 [Local acceptance](rewrite-evidence/p04/2026-10-14-storage-impact/README.md) covers
 four independent frozen-layout goldens, full graph preservation, complete target

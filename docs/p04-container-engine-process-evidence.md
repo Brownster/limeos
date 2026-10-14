@@ -1,5 +1,11 @@
 # Authenticated Engine and running-PID evidence
 
+The additive [Compose membership reader](p04-compose-membership-evidence.md) now
+projects selected project/service metadata through this genuine collector under
+closed admission. Its new fixed-endpoint owner retains the original facts and
+checks selected labels on revalidation; existing interfaces/reports remain
+unchanged. Engine labels provide no protected stack-file or operation authority.
+
 RW-040 now has a GET-only executor-container library that authenticates each Unix connection, double-inspects complete selected Docker declarations and host PIDs, and freshly reacquires those facts without renewing their original lifetime. It adds no route, RPC, executor command, policy ceiling or storage effect. The current declaration endpoint keeps its existing wire format and behavior, including legacy inspection fixtures without `State.Pid`.
 
 The trusted in-process runtime caller constructs `Docker` from a package-selected absolute socket path and supplies `EnginePeerPolicy::root()`. The policy has no public UID override or deserialization. Every stream requires kernel peer UID 0 before the HTTP handshake or any request bytes. The library retains an `O_PATH` socket descriptor and checks its device/inode, UID, mode, single link and current name around every authenticated request. Wrong initial socket type/owner/mode refuses; observed replacement invalidates existing evidence.
