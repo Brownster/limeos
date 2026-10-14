@@ -1,26 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
-import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-const require = createRequire(import.meta.url);
-const encode = source => `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
-async function code(file) {
-  return ts.transpileModule(await readFile(new URL(`../src/${file}`, import.meta.url), "utf8"), {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
-  }).outputText
-    .replace('"react/jsx-runtime"', JSON.stringify(pathToFileURL(require.resolve("react/jsx-runtime")).href))
-    .replace('"react"', JSON.stringify(pathToFileURL(require.resolve("react")).href));
-}
-const apiURL = encode(await code("api.ts"));
-const clientURL = encode((await code("automation-client.ts")).replace('"./api"', JSON.stringify(apiURL)));
-const { automationClient, deliveryLabel } = await import(clientURL);
-const { AutomationView } = await import(encode((await code("AutomationView.tsx")).replace('"./automation-client"', JSON.stringify(clientURL))));
-const { NotificationsView } = await import(encode((await code("NotificationsView.tsx")).replace('"./automation-client"', JSON.stringify(clientURL))));
+import { automationClient, deliveryLabel, AutomationView, NotificationsView } from "./helpers/automation.mjs";
 const definition = { operation: "observe_health", anchor: 1000, interval_seconds: 60, grace_seconds: 30, missed: "coalesce_latest", window: null };
 const row = { schedule: { id: "health", revision: 4, paused: false, settled_through: null, definition }, status: "active", last_occurrence: null };
 const note = { id: "note-1", revision: 2, event: { key: "mount:/mnt/Media", generation: 1, event: "incident", kind: "mount", severity: "critical", summary: "<script>alert(1)</script>", at: 1000 }, channel: "in_app", delivery: { state: "failed", retry_at: null }, attempts: 4, acknowledged_at: null };
@@ -82,4 +65,21 @@ test("latest durable occurrence and job state are visible after refresh", () => 
   const current = { ...row, last_occurrence: { key: { schedule: "health", revision: 4, due: 1000 }, outcome: { outcome: "job", id: "job-1", state: "succeeded" } } };
   const html = render(AutomationView, { schedules: page([current]), alerts: page([]), csrf: "csrf", canManage: false, changed() {}, moreSchedules() {}, moreAlerts() {} });
   assert.match(html, /Latest occurrence/); assert.match(html, /Job job-1/); assert.match(html, /succeeded/);
+});
+test("read abort signal is forwarded and invalid-body 401 still expires the session", async () => {
+  const saved = globalThis.fetch; const abort = new AbortController(); let signal;
+  globalThis.fetch = async (_url, options) => { signal = options.signal; return new Response("not JSON", { status: 401 }); };
+  try {
+    await assert.rejects(automationClient.schedules(undefined, abort.signal), error => error.detail.code === "unauthenticated");
+    abort.abort(); assert.equal(signal.aborted, true);
+  } finally { globalThis.fetch = saved; }
+});
+test("invalid or contradictory error bodies cannot mask a forbidden read", async () => {
+  const saved = globalThis.fetch;
+  try {
+    for (const response of [new Response("not JSON", { status: 403 }), Response.json({ code: "unavailable", message: "Proxy failure", retry: true, audit_id: "case-2" }, { status: 403 })]) {
+      globalThis.fetch = async () => response;
+      await assert.rejects(automationClient.schedules(), error => error.detail.code === "forbidden");
+    }
+  } finally { globalThis.fetch = saved; }
 });

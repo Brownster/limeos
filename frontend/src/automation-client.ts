@@ -28,6 +28,9 @@ const MAX_RESPONSE = 64 * 1024;
 function unavailable(status: number): ApiError {
   return new ApiError({ code: "unavailable", message: "Unable to read automation state. Refresh to check the outcome.", retry: true, audit_id: `http-${status}` });
 }
+function forbidden(): ApiError {
+  return new ApiError({ code: "forbidden", message: "The request is outside the permitted scope.", retry: false, audit_id: "http-403" });
+}
 async function boundedJSON(response: Response): Promise<unknown> {
   if (!response.body) throw unavailable(response.status);
   const reader = response.body.getReader();
@@ -85,19 +88,26 @@ function notification(value: unknown): value is Notification {
   }
 }
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api/v1/automation${path}`, { ...init, credentials: "same-origin", signal: AbortSignal.timeout(12_000) }).catch(() => { throw unavailable(0); });
-  const value = await boundedJSON(response).catch(() => { throw unavailable(response.status); });
+  const timeout = AbortSignal.timeout(12_000);
+  const signal = init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+  const response = await fetch(`/api/v1/automation${path}`, { ...init, credentials: "same-origin", cache: "no-store", signal }).catch(() => { throw unavailable(0); });
+  if (response.status === 401) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new ApiError({ code: "unauthenticated", message: "Your session has expired. Sign in again.", retry: false, audit_id: "http-401" });
+  }
+  const value = await boundedJSON(response).catch(() => { throw response.status === 403 ? forbidden() : unavailable(response.status); });
   if (!response.ok) {
     if (object(value) && typeof value.code === "string" && typeof value.message === "string" && value.message.length <= 512 && typeof value.audit_id === "string" && value.audit_id.length <= 128 && typeof value.retry === "boolean") {
+      if (response.status === 403 && value.code !== "forbidden" && value.code !== "expired") throw forbidden();
       throw new ApiError(value as unknown as ConstructorParameters<typeof ApiError>[0]);
     }
-    throw unavailable(response.status);
+    throw response.status === 403 ? forbidden() : unavailable(response.status);
   }
   if (!object(value)) throw unavailable(response.status);
   return value as T;
 }
-async function page<T>(path: string, guard: (value: unknown) => value is T, after?: string): Promise<Page<T>> {
-  const value = await request<Page<T>>(path + (after ? `?after=${encodeURIComponent(after)}` : ""));
+async function page<T>(path: string, guard: (value: unknown) => value is T, after?: string, signal?: AbortSignal): Promise<Page<T>> {
+  const value = await request<Page<T>>(path + (after ? `?after=${encodeURIComponent(after)}` : ""), { signal });
   if (!Array.isArray(value.items) || value.items.length > 32 || !value.items.every(guard) || typeof value.partial !== "boolean" || !(value.next === null || text(value.next, 256))) throw unavailable(200);
   return value;
 }
@@ -110,9 +120,9 @@ async function checked<T>(value: Promise<T>, guard: (value: unknown) => value is
   return result;
 }
 export const automationClient = {
-  schedules: (after?: string) => page<ScheduleView>("/schedules", schedule, after),
-  alerts: (after?: string) => page<AlertState>("/alerts", alert, after),
-  notifications: (after?: string) => page<Notification>("/notifications", notification, after),
+  schedules: (after?: string, signal?: AbortSignal) => page<ScheduleView>("/schedules", schedule, after, signal),
+  alerts: (after?: string, signal?: AbortSignal) => page<AlertState>("/alerts", alert, after, signal),
+  notifications: (after?: string, signal?: AbortSignal) => page<Notification>("/notifications", notification, after, signal),
   create: (definition: ScheduleDefinition, csrf: string) => checked(post<ScheduleView>("/schedules", { definition }, csrf), schedule),
   pause: (row: ScheduleView, csrf: string) => checked(post<ScheduleView>(`/schedules/${encodeURIComponent(row.schedule.id)}/pause`, { revision: row.schedule.revision, paused: !row.schedule.paused }, csrf), schedule),
   acknowledge: (row: Notification, csrf: string) => checked(post<Notification>(`/notifications/${encodeURIComponent(row.id)}/acknowledgment`, { revision: row.revision }, csrf), notification),
