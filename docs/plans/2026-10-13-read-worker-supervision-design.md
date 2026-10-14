@@ -23,8 +23,9 @@ It lowers its own soft NOFILE to 226 before spawning; the worker inherits it.
 Worker bootstrap sets SIGKILL on parent death and brackets the setting with the
 expected guardian PID/group/limit checks before permitting collection.
 
-On completion or refusal, the guardian kills the owned worker group and repeatedly
-kills/reaps its direct children. Subreaper adoption brings orphaned grandchildren,
+On completion or refusal, the guardian repeatedly kills/reaps its direct children
+through pinned pidfds. It never signals a reusable numeric group ID. Subreaper
+adoption brings orphaned grandchildren,
 including a child that changed process group/session, into this owned child set.
 Read only bounded `/proc/thread-self/children`, open pidfds for adopted children,
 verify parentage around the handle, signal through pidfds and use nonblocking wait.

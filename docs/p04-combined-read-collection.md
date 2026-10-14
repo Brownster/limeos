@@ -69,9 +69,10 @@ Existing adapter fixtures remain the evidence for each closed profile. See the
 [design](plans/2026-10-13-combined-read-collection-design.md) and
 [local acceptance packet](rewrite-evidence/p04/2026-10-13-combined-read-collection/README.md).
 
-Next is independent worker supervision: single-flight ownership through cleanup,
-blocked-work deadline/cancellation, parent death and descendant termination/reaping.
-The standalone probe's combined case stays blocked until that boundary exists.
+[Independent worker supervision](p04-read-worker-supervision.md) now supplies
+unregistered guardian/monitor mechanics and local owned-process qualification.
+Trusted fixed launch/configuration selection and installed confinement remain next.
+The standalone probe's combined case stays blocked pending that integration.
 Installed root/capability/namespace cases, resource headroom and performance remain
 unqualified. Service guards, P04/defect/cutover gates, locks, claims, effects and
 recovery are unchanged. This slice is outside the frozen signed ARM64 candidate.
