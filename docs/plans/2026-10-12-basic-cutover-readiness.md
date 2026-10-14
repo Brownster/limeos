@@ -8,10 +8,16 @@ feature ready or authorize two applications to mutate the host together.
 On October 13 the operator deferred the proposed replacement and asked to
 continue the rewrite, with a readiness update when a swap becomes appropriate.
 The proposed overnight window and scope questions below are no longer active.
-No new host access, shadow installation or activation is authorized. Continue
-local implementation and report the supported minimum UI scope, installed ARM64
+Continue local implementation and report the supported minimum UI scope, installed ARM64
 evidence, actual-layout comparison and rehearsed return path before revisiting
 cutover.
+
+On October 14 the operator permitted needed testing on Holly's Pi after 22:00
+Europe/London. This opens optional test access to `holly@192.168.0.45`, preserving
+the frozen app, media/mounts and host health, with the earlier 07:00 return boundary.
+It does not authorize replacement, production write ceilings or activation. Use
+isolated qualification and existing pressure guards if a local slice needs the host;
+the authenticated Compose database-read slice uses local tests and no host access.
 
 ## October 13 minimum dashboard trial
 

@@ -6,6 +6,11 @@ ordinary `PlannedCompose` input with its genuine private source/artifact/Engine 
 The result is unregistered read-only library logic; no CLI/RPC/route, job, service,
 grant, approval or package activates it.
 
+The [authenticated Store resolver](p04-compose-authority-reads.md) now supplies the
+actual current session/task principal, stored preview and complete exact requirements
+as a read-only observation. Root broker/transport composition and durable fresh
+approval remain open; an earlier successful read is no permission lease.
+
 The P03 [preview approval](p03-compose-planning.md) remains preview-only. This owner
 accepts no approval token and provides no execution or receipt method. An input
 preview is an ordinary typed value, without authenticated Store or session provenance.

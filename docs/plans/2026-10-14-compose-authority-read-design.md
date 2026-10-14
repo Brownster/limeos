@@ -40,6 +40,11 @@ method. The observation's borrowed preview/scopes fit the retained review subjec
 existing check_current inputs, without adding an executor dependency or authority
 shortcut. Re-resolve before and after genuine host validation in the future broker.
 
+Integrate session resolution into the existing Core preview-read path and preserve
+its original response. Cross-check stored revision/expiry columns with the canonical
+plan, retaining a red/green API regression for inconsistent expiry metadata. No new
+route or approval behavior is introduced.
+
 Reads leave total_changes, audit events, generation, preview expiry/approval,
 jobs/resources/locks and schema untouched. Current permissions are checked even for
 an administrator; media/container grants do not imply deployment, and wildcard

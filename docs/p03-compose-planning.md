@@ -32,4 +32,8 @@ The [retained review-subject library](p04-compose-review-subjects.md) now compar
 ordinary preview facts with genuine source/artifact/Engine evidence and derives a
 distinct review digest and existing scope requirements. Store authentication/current
 grants and fresh executable approval still require composition-root integration;
-P03 preview approvals retain their original scope.
+P03 preview approvals retain their original scope. The later
+[authenticated review read](p04-compose-authority-reads.md) supplies actual current
+session/task authority and exact stored preview/scopes. Existing Core preview reads
+use that resolver and refuse inconsistent durable row revision/expiry, preserving
+the same response and schema without creating executable approval.

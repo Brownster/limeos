@@ -1,0 +1,41 @@
+{
+  "initial": {
+    "log": "authority-initial.log.gz",
+    "exit": 101,
+    "issue": "Test passed an unsized Scope slice to existing Sized generic json helper",
+    "correction": "Pass a reference to the slice reference; production serializer remains unchanged"
+  },
+  "core_regression": {
+    "red_log": "core-metadata-red.log.gz",
+    "red_exit": 101,
+    "issue": "Existing preview read returned canonical plan despite inconsistent stored expiry column",
+    "green_log": "core-metadata-green.log.gz",
+    "green_exit": 0,
+    "cases": 1,
+    "correction": "Use authenticated session resolver, including durable revision/expiry cross-checks"
+  },
+  "reviewed": {
+    "log": "authority-reviewed.log.gz",
+    "exit": 101,
+    "issues": [
+      "Fixture changed already-privileged normalized elevated template instead of standard template",
+      "Fixture used a time before actual session expiry and received preview-expired classification"
+    ],
+    "correction": "Select standard template by ID and use actual stored session cutoff; production checks unchanged"
+  },
+  "final": {
+    "log": "authority-final-review.log.gz",
+    "exit": 0,
+    "rust_cases": 84
+  },
+  "precommit_diagnostics_are_exact_committed_source_acceptance": false,
+  "all_logs_retained": true,
+  "independent_review": "pending",
+  "integration": {
+    "main": "4846a96",
+    "qualified_merge": "afc1514290f2bf65809eb430842ce910af04d933",
+    "premerge_runtime": "f4a64f4f2445fc1f01e485f78a2cda1652b2fae5",
+    "premerge_rust_cases": 913,
+    "premerge_checks_retained": true
+  }
+}
