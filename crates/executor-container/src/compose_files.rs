@@ -267,6 +267,60 @@ impl ComposeFileEvidence {
     pub fn retained_descriptor_count(&self) -> usize {
         1 + usize::from(self.root.view.is_some()) + self.ancestors.len() + self.files.len()
     }
+    // Typed, crate-private admission only. Original policy, lease and ledger apply.
+    pub(crate) fn admit_json_sources(
+        &self,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<crate::compose_source::ComposeJsonSources> {
+        self.admit_json_with(cancelled, host_root, now)
+    }
+    fn admit_json_with(
+        &self,
+        cancelled: &dyn Fn() -> bool,
+        fresh_root: impl Fn() -> Result<Root>,
+        clock: impl Fn() -> Result<i64>,
+    ) -> Result<crate::compose_source::ComposeJsonSources> {
+        let mut admitted = None;
+        self.checked(|| {
+            let deadline = Instant::now() + WORK;
+            self.validate_from(&fresh_root()?, clock()?, deadline, cancelled)?;
+            let operator = read_body(
+                self.files.first().ok_or_else(conflict)?,
+                self.owner,
+                &self.budget,
+                deadline,
+                cancelled,
+            )?;
+            let managed = self
+                .files
+                .get(1)
+                .map(|file| read_body(file, self.owner, &self.budget, deadline, cancelled))
+                .transpose()?;
+            self.budget.poll(deadline, cancelled)?;
+            age(self.snapshot.observed_at, clock()?)?;
+            let sources = crate::compose_source::admit_json_sources(&operator, managed.as_deref())?;
+            self.budget.poll(deadline, cancelled)?;
+            self.validate_from(&fresh_root()?, clock()?, deadline, cancelled)?;
+            self.check_root(&fresh_root()?)?;
+            age(self.snapshot.observed_at, clock()?)?;
+            self.budget.poll(deadline, cancelled)?;
+            admitted = Some(sources);
+            Ok(())
+        })?;
+        admitted.ok_or_else(unavailable)
+    }
+    #[cfg(test)]
+    pub(crate) fn admit_json_local(
+        &self,
+        root: &Path,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<crate::compose_source::ComposeJsonSources> {
+        self.admit_json_with(
+            cancelled,
+            || Ok(crate::compose_management::catalog::local_root(root)),
+            now,
+        )
+    }
     /// Fresh protected names and held bytes must still match the original observation.
     pub fn revalidate(&self, cancelled: &dyn Fn() -> bool) -> Result<()> {
         self.checked(|| {
@@ -431,6 +485,50 @@ impl ComposeFileEvidence {
         }
         Ok(())
     }
+}
+
+fn read_body(
+    file: &File,
+    owner: u32,
+    budget: &Budget,
+    deadline: Instant,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<u8>> {
+    budget.poll(deadline, cancelled)?;
+    let before = file_identity(&file.fd, owner)?;
+    if before != file.observation.identity {
+        return Err(conflict());
+    }
+    let size = usize::try_from(before.size).map_err(|_| unavailable())?;
+    let capacity = size.checked_add(1).ok_or_else(unavailable)?;
+    let mut body = Vec::new();
+    body.try_reserve_exact(capacity)
+        .map_err(|_| unavailable())?;
+    body.resize(capacity, 0);
+    let mut offset = 0;
+    while offset < capacity {
+        budget.poll(deadline, cancelled)?;
+        let end = (offset + 4096).min(capacity);
+        budget.charge(end - offset)?;
+        let count = rustix::io::pread(&file.fd, &mut body[offset..end], offset as u64)
+            .map_err(|_| unavailable())?;
+        if count == 0 {
+            break;
+        }
+        offset += count;
+        if offset > size {
+            return Err(conflict());
+        }
+    }
+    body.truncate(offset);
+    if offset != size
+        || file_identity(&file.fd, owner)? != before
+        || hex::encode(Sha256::digest(&body)) != file.observation.sha256
+    {
+        return Err(conflict());
+    }
+    budget.poll(deadline, cancelled)?;
+    Ok(body)
 }
 
 pub(crate) fn now() -> Result<i64> {

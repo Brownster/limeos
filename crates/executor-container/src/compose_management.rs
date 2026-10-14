@@ -13,6 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 pub mod catalog;
+pub mod sources;
 use catalog::{
     ManagedFileExpectation, ManagementCatalogEvidence, ManagementCatalogSnapshot, StackRegistration,
 };

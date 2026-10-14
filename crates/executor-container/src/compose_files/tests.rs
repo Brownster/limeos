@@ -26,6 +26,206 @@ fn refusal<T>(result: Result<T>, code: ErrorCode) {
         Ok(_) => panic!("expected refusal: {code:?}"),
     }
 }
+
+fn json_fixture(managed: bool) -> Fixture {
+    let f = Fixture::new(ComposeFileName::ComposeYaml, managed);
+    f.write(
+        "compose.yaml",
+        include_bytes!("../../../../tests/fixtures/compose-source/operator.json"),
+    );
+    if managed {
+        f.write(
+            COMPOSE_MANAGED_FILE,
+            include_bytes!("../../../../tests/fixtures/compose-override/merge-delta.override.json"),
+        );
+    }
+    f
+}
+
+#[test]
+fn typed_body_read_uses_original_ledger_and_preserves_issues_and_descriptors() {
+    for managed in [false, true] {
+        let f = json_fixture(managed);
+        let e = f.acquire();
+        let before = e.budget.spent.load(Ordering::Relaxed);
+        let count = e.retained_descriptor_count();
+        let sources = e
+            .admit_json_with(&|| false, || Ok(f.root()), || Ok(101))
+            .unwrap();
+        assert!(e.budget.spent.load(Ordering::Relaxed) > before);
+        assert_eq!(e.snapshot.observed_at, 100);
+        assert_eq!(e.retained_descriptor_count(), count);
+        assert_eq!(
+            sources.summary().operator_fingerprint.sha256,
+            e.snapshot.files[0].sha256
+        );
+        assert_eq!(sources.summary().managed_fingerprint.is_some(), managed);
+        e.budget.spent.store(READ_BYTES, Ordering::Relaxed);
+        refusal(
+            e.admit_json_with(&|| false, || Ok(f.root()), || Ok(101)),
+            ErrorCode::Unavailable,
+        );
+        refusal(f.validate(&e, 101, &|| false), ErrorCode::Conflict);
+    }
+}
+
+#[test]
+fn held_body_reads_charge_requested_bytes_and_eof_and_refuse_changed_bytes() {
+    let f = json_fixture(false);
+    let e = f.acquire();
+    let before = e.budget.spent.load(Ordering::Relaxed);
+    let body = read_body(
+        &e.files[0],
+        e.owner,
+        &e.budget,
+        Instant::now() + WORK,
+        &|| false,
+    )
+    .unwrap();
+    assert_eq!(body, fs::read(f.path("compose.yaml")).unwrap());
+    assert_eq!(
+        e.budget.spent.load(Ordering::Relaxed) - before,
+        body.len() as u64 + 2
+    );
+    f.write("compose.yaml", b"{}");
+    refusal(
+        read_body(
+            &e.files[0],
+            e.owner,
+            &e.budget,
+            Instant::now() + WORK,
+            &|| false,
+        ),
+        ErrorCode::Conflict,
+    );
+}
+
+#[test]
+fn typed_admission_parse_failure_cancel_expiry_reentrancy_and_unwind_poison() {
+    let f = Fixture::new(ComposeFileName::ComposeYaml, false);
+    let e = f.acquire();
+    refusal(
+        e.admit_json_with(&|| false, || Ok(f.root()), || Ok(101)),
+        ErrorCode::InvalidInput,
+    );
+    refusal(f.validate(&e, 101, &|| false), ErrorCode::Conflict);
+    for kind in 0..4 {
+        let f = json_fixture(false);
+        let e = f.acquire();
+        match kind {
+            0 => refusal(
+                e.admit_json_with(&|| true, || Ok(f.root()), || Ok(101)),
+                ErrorCode::Conflict,
+            ),
+            1 => refusal(
+                e.admit_json_with(&|| false, || Ok(f.root()), || Ok(105)),
+                ErrorCode::Expired,
+            ),
+            2 => {
+                let called = Cell::new(false);
+                refusal(
+                    e.admit_json_with(
+                        &|| {
+                            if !called.replace(true) {
+                                refusal(f.validate(&e, 101, &|| false), ErrorCode::Conflict);
+                            }
+                            false
+                        },
+                        || Ok(f.root()),
+                        || Ok(101),
+                    ),
+                    ErrorCode::Conflict,
+                );
+            }
+            _ => assert!(
+                catch_unwind(AssertUnwindSafe(|| {
+                    let _ = e.admit_json_with(
+                        &|| panic!("owned typed admission unwind"),
+                        || Ok(f.root()),
+                        || Ok(101),
+                    );
+                }))
+                .is_err()
+            ),
+        }
+        refusal(f.validate(&e, 101, &|| false), ErrorCode::Conflict);
+    }
+}
+
+#[test]
+fn late_named_replacement_after_body_admission_refuses_and_poisoned_owner_cannot_retry() {
+    let f = json_fixture(false);
+    let e = f.acquire();
+    let roots = Cell::new(0);
+    refusal(
+        e.admit_json_with(
+            &|| false,
+            || {
+                let root = f.root();
+                roots.set(roots.get() + 1);
+                if roots.get() == 2 {
+                    fs::rename(f.path("compose.yaml"), f.path("old.json")).unwrap();
+                    f.write(
+                        "compose.yaml",
+                        include_bytes!("../../../../tests/fixtures/compose-source/operator.json"),
+                    );
+                }
+                Ok(root)
+            },
+            || Ok(101),
+        ),
+        ErrorCode::Conflict,
+    );
+    refusal(f.validate(&e, 101, &|| false), ErrorCode::Conflict);
+}
+
+#[test]
+fn held_body_maximum_sentinel_growth_and_identity_change_during_read_refuse() {
+    let f = json_fixture(false);
+    let mut raw = br#"{"services":{}}"#.to_vec();
+    raw.resize(FILE_BYTES as usize, b' ');
+    f.write("compose.yaml", &raw);
+    let e = f.acquire();
+    assert_eq!(
+        read_body(
+            &e.files[0],
+            e.owner,
+            &e.budget,
+            Instant::now() + WORK,
+            &|| false
+        )
+        .unwrap(),
+        raw
+    );
+    for grow in [false, true] {
+        let f = json_fixture(false);
+        let e = f.acquire();
+        let polls = Cell::new(0);
+        refusal(
+            read_body(
+                &e.files[0],
+                e.owner,
+                &e.budget,
+                Instant::now() + WORK,
+                &|| {
+                    polls.set(polls.get() + 1);
+                    if polls.get() == 2 {
+                        let raw = if grow {
+                            let mut raw = fs::read(f.path("compose.yaml")).unwrap();
+                            raw.push(b' ');
+                            raw
+                        } else {
+                            b"changed held bytes during read".to_vec()
+                        };
+                        fs::write(f.path("compose.yaml"), raw).unwrap();
+                    }
+                    false
+                },
+            ),
+            ErrorCode::Conflict,
+        );
+    }
+}
 struct Fixture {
     tree: TempDir,
     selection: ComposeFileSelection,
