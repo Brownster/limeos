@@ -71,9 +71,10 @@ Unix daemon endpoint. Complete canonical outputs are retained. This qualifies
 the selected parser/subset, not publisher trust, protected production launch,
 other versions, ARM64 installation or broader YAML support.
 
-See the [design](plans/2026-10-14-compose-json-source-design.md). Next is integrating
-byte admission with the genuine [retained catalog/file/Engine binding](p04-compose-management-binding.md)
-under its original freshness/read/resource limits. Principal/fresh executable
+See the [design](plans/2026-10-14-compose-json-source-design.md). The later
+[retained source binding](p04-compose-retained-json.md) now admits held protected
+bytes against the genuine catalog/file/Engine owners under their original limits.
+Principal/fresh executable
 approval, physical consumers, locks, atomic writes/recovery, verified shutdown,
 independent review and installed/performance/cutover gates remain open. Core/Store,
 generated contracts, services, packages and the frozen signed ARM64 candidate are

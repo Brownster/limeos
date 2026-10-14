@@ -111,4 +111,7 @@ managed JSON file. It remains separate from these retained owners; actual suppor
 source admission and executable approval still require later integration. The
 [strict JSON source adapter](p04-compose-json-source.md) now validates supported
 byte slices and compiler round trips; it supplies no descriptor freshness or
-Engine binding until composed with these genuine retained owners.
+Engine binding until composed with these genuine retained owners. The later
+[retained JSON source binding](p04-compose-retained-json.md) now performs that
+composition with original time/read budgets and complete service association;
+deployed configuration equivalence and execution authority remain separate.

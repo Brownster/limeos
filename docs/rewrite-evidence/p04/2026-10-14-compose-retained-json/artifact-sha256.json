@@ -1,0 +1,25 @@
+{
+  "qualified_source": "20f57bb1d6bf93ffb3f0f6cd41c3044ad5dd6467",
+  "files": {
+    "README.md": "38ad3130dde785bebea78da847986f2f9037f053b1c5e1cd506aed1a1c351103",
+    "arm64-harness.log.gz": "a3615c68ad11ceaad2fbc7b076f6e12ef5714c4284fb94977a7ae122ba908c98",
+    "binding-final-review.log.gz": "eb3222ab4fb221747625b944b4abf7eef00e44aeb49e00e97c084d5f1bb0e1c6",
+    "binding-focused.log.gz": "8f9ddd995f0551c3d82535731b0824523f449c59dd51fc486f529e13b3d02ffc",
+    "binding-initial.log.gz": "9c63ddda4f14a8942069e515aad4260a1cff9a7ab4610ea6118d419546d02704",
+    "binding-reviewed.log.gz": "b57435a7b82199eaded3d7ce5c6664ec9ffa4560bc0eff123c37e53b749cf3c9",
+    "checks.json": "7890dc5255614fac03270b78dbb100050df732841a3d458a5e280677551a9f74",
+    "clippy.log.gz": "a558b31bfc3e9d6079eeb91de32e31719a450f11614620fd6923e8b5c7fcec7e",
+    "compose-conformance.log.gz": "5d653c775cc19a41601113bd141b8e798e5525633db23a54d92dde542c28b471",
+    "contracts.log.gz": "1409061340c4075db3de16d59a9dd7986a761e4900abdecd9465c1e5a99470e5",
+    "diagnosis.json": "68e8acf3610ee12ddaac06f80c9e43304c3225a5679978910c930fb61e9982a7",
+    "fmt.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "package-retained-json.py": "d1ca8f5b0a1c642b181777538ac3f706beef87bfb3cbf3d332f271c97e51a1d5",
+    "repository.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "run-retained-json-check.py": "8d0255bdac15e4435160a8e80a92974103cd39c1fba5b63d8fd3b340deca5267",
+    "scope.json": "4e2bde987e8de4c3a48286eb7cf12e8409f3db3b3ae585e15b88bdc64eaffbc3",
+    "source-manifest.json": "d7922ee8bfe8b1b6ad22e7b4d88d789d23cb44c11d6dc706f50acf8cb5548419",
+    "storage-compile.log.gz": "834b87e76f1b628722a65ba84f3c2c2e7a3f75f866ecd72d8422c8b996074cdd",
+    "storage-fixtures.log.gz": "11061ed8699fb1098aea2323074615dc64b4075e01c790d7796d1802593207c0",
+    "test-rest.log.gz": "d4aa21c155457accccae763cf9e135cde78c33ca1eb59db36904c50937d339a8"
+  }
+}

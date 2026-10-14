@@ -38,7 +38,7 @@ Expose one borrowed serialize-only report containing the original binding and
 source summary, without child-owner accessors or report clones. Count the whole
 compact report against 256 KiB; existing 80 KiB binding/192 KiB source caps remain
 individual limits, and excess combined output refuses. Retain the original at-most
-38 FDs. Temporary body capacity is at most 131074 bytes plus bounded parser/model
+38 FDs. Temporary body buffer requests are at most 131074 bytes plus bounded parser/model
 allocations; this is no peak allocator/RSS or combined-worker headroom proof.
 
 During collection and subsequent async revalidation, bracket fresh genuine Engine

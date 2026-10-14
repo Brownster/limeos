@@ -1,0 +1,10 @@
+{
+  "initial_log": "binding-initial.log.gz",
+  "exit": 101,
+  "issue": "Sibling Engine test module called private production constructor/report helpers and imported an unused self",
+  "correction": "Add cfg(test)-only delegating wrappers; keep production helpers private and remove unused test import",
+  "production_changed_by_compile_correction": false,
+  "reviewed_crate_cases": 195,
+  "final_review": "Add proof that successful original child validation cannot restore cancelled source owner",
+  "final_review_crate_cases": 196
+}
