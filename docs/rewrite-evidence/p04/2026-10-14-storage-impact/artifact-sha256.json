@@ -1,0 +1,23 @@
+{
+  "qualified_source": "4e7f73d71f8cdf84e14489277fa371941bb05332",
+  "files": {
+    "README.md": "81fb40cac29b5eda75a7ad363a77cfc562abe3541e4f968bd01e1f39c1f25fb7",
+    "arm64-harness-accepted.log.gz": "9fcacdc7245a718c3b86b413cd2435c64a1032e807da705aff9be6ecfe8203f7",
+    "checks.json": "7a2aeae51376d548636a18a332f8cbcef9752d7dda8e4878f25a66361275901e",
+    "clippy-accepted.log.gz": "cd139a275dedd6600618732b2594465c3ead83ce0a24fde4f93b2f33c4c21d43",
+    "contracts-accepted.log.gz": "3b77f4132a2aa672fffc30f2ea94f5d263cf71a03eb640a8d47dd594cff509ca",
+    "diagnostics/README.md": "99505df9193480406251ade46101e9a27c322dcee4bc7d34108991f127dfbe34",
+    "diagnostics/impact-initial.json": "7570d819158c5d581be9c1b697e8629837b7058d7f1badbc9a8d9ffe82a5c009",
+    "diagnostics/impact-initial.log.gz": "f7bf5dc9d557b6e165a019c08ef2151cb4834731cb2045320db52cfc1b75d309",
+    "fmt-accepted.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "impact-focused.log.gz": "2b9f7bfcfafdffec6babd2beecfc7abfdb20303262f152119e55971850e0318d",
+    "package-storage-impact.py": "0dd30ad10102252e7df6f33ebce6665f7a7ed7f1946a371ba23326b1f63d15b0",
+    "repository-accepted.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "run-storage-impact-check.py": "8163c19c85773012a1f4e5e9e0b0c680bcfc2538abf954b547e78851ba78cd49",
+    "scope.json": "128d9745ffd99f672104ac54f9764d9d9b786753bc776ae5abaf5faab68454ad",
+    "source-manifest.json": "64b51be17cb81cdf7662122383befab8ec802e2de7249b64ef3f9211256faae1",
+    "storage-compile-on-disk.log.gz": "650ee20f2ee9f8135352e9ead3c45ee0eafcfcd0003b04f2592d59dc20ceb70d",
+    "storage-fixtures.log.gz": "8d8f22f971cafca1977675aa813e32733bf00f6ececcc59c2abf0f476a5b9b12",
+    "test-rest-accepted.log.gz": "fc02c64538edf5fd1f8499a3adc336853641323305e7b15b2e0894ef15463d9b"
+  }
+}

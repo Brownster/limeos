@@ -49,6 +49,11 @@ The integrator must bind trusted configuration revisions and protected evidence,
 claim every affected device/mount/pool/protection/share/container resource,
 revalidate at effect time and use approvals, storage locks and recovery. No live
 operation, schema, HTTP route, CLI, UI, wire type or dependency is added here.
+The additive [declared impact planner](p04-storage-impact-planning.md) now selects
+complete expected devices, separates selected dependents from related pool/global
+protection members, and returns bounded typed resource candidates. It preserves
+this full graph and its original time, while explicitly retaining all missing
+live-evidence/claim boundaries. It acquires no claims or effect authority.
 DSK-001, MNT-001/MNT-002, RT-001, SRA-001/SRA-002, UI-003, BKP-001, P04 and cutover
 remain open. The [current integration](rewrite-evidence/p04/2026-10-13-configured-graph-integration/README.md)
 includes this graph with the ARM64 harness, while the earlier signed Pi candidate
