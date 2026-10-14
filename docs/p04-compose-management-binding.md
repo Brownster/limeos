@@ -104,3 +104,8 @@ probe integration, independent review, root/foreign-namespace/installed/resource
 performance qualification, P04/defect gates and cutover remain open. Reserved
 recovery paths, generated/wire schemas, service guards and the frozen signed ARM64
 candidate are unchanged. No Pi, SSH, real Docker, raw block probe or guest was used.
+
+The [pure override compiler](p04-compose-override-compiler.md) now checks whether
+supplied typed operator/current/desired projects can be expressed by a replacement
+managed JSON file. It remains separate from these retained owners; actual supported
+source admission and executable approval still require later integration.

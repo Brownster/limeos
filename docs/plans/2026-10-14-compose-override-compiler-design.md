@@ -40,6 +40,8 @@ file and Engine binding, physical consumers, principal/fresh approval, stack/
 storage locks, atomic writes/recovery and shutdown/effect-time verification.
 The result is a reviewable proposal with no receipt, claim, approval or effect.
 Empty desired projects are shutdown proposals, not permission to delete directories.
+Count the complete borrowed compact summary against 256 KiB without a report
+buffer; this is an admission ceiling, not peak allocator/RSS qualification.
 
 Local tests use byte-exact synthetic artifact fixtures and a test-side merge
 oracle over emitted JSON, alongside the existing P03 catalog. Cover scalar and

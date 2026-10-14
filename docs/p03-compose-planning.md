@@ -22,3 +22,8 @@ All POSTs require a current session, expected HTTPS origin and CSRF token. Appro
 An assistant-shaped local caller uses `propose_compose` with a task token, task identifier and selection. The kernel UID, generation, expiry and every required scope are checked through the same policy and store as HTTP. Task transport has no approval method. Its token cannot substitute for a human session.
 
 A preview approval cannot authorize a container job or deployment. P04 must issue a new executable operation and fresh approval after observing actual files, mount identities and combined Compose semantics. Its per-stack lock must cover managed-file edits and Docker operations; path traversal must use protected descriptor-based resolution. Directory removal remains gated on verified shutdown.
+
+The later [pure override compiler](p04-compose-override-compiler.md) turns supplied
+typed projects into a conservative replacement managed file. It refuses inherited
+settings ordinary JSON cannot remove and records managed-service shutdown
+requirements. It supplies no source-file validation or executable approval.
