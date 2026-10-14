@@ -437,7 +437,7 @@ async fn original_wall_time_and_borrowed_report_bounds_do_not_renew() {
         inspect(&f).await.unwrap(),
     )
     .unwrap();
-    b.set_wall_time(crate::compose_files::now().unwrap() + 1);
+    b.set_wall_time(crate::compose_files::now().unwrap() + 60);
     refusal(b.revalidate(&|| false).await, ErrorCode::Expired);
 }
 #[tokio::test]
