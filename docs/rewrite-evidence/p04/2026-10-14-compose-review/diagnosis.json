@@ -1,0 +1,17 @@
+{
+  "initial": {
+    "log": "review-initial.log.gz",
+    "exit": 0,
+    "rust_cases": 228
+  },
+  "final_review": {
+    "log": "review-final-review.log.gz",
+    "exit": 0,
+    "rust_cases": 230,
+    "additional_proofs": "late cancellation after Engine bytes and P03 expiry during genuine child validation"
+  },
+  "precommit_runs_are_exact_committed_source_acceptance": false,
+  "before_after_runtime_hashes_recorded": true,
+  "failed_checks": [],
+  "independent_review": "pending"
+}

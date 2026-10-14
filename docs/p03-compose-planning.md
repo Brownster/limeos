@@ -27,3 +27,9 @@ The later [pure override compiler](p04-compose-override-compiler.md) turns suppl
 typed projects into a conservative replacement managed file. It refuses inherited
 settings ordinary JSON cannot remove and records managed-service shutdown
 requirements. It supplies no source-file validation or executable approval.
+
+The [retained review-subject library](p04-compose-review-subjects.md) now compares
+ordinary preview facts with genuine source/artifact/Engine evidence and derives a
+distinct review digest and existing scope requirements. Store authentication/current
+grants and fresh executable approval still require composition-root integration;
+P03 preview approvals retain their original scope.

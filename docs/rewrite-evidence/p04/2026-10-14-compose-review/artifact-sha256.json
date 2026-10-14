@@ -1,0 +1,25 @@
+{
+  "qualified_source": "36d8d61b24808cdfda8254ec557f4d9baef4e397",
+  "files": {
+    "README.md": "c5e776576f810f921d449ea12c22f5ed6330f84c479c79c02d9eaf007fac2111",
+    "arm64-harness.log.gz": "fe81e89cf8d66d654954505766f73514ed53f49821721f4c19004ae220578e77",
+    "checks.json": "db568b6c42af139d87ba74e1cb74d91f3c459ce12624bce3b7fbbe29357b4be4",
+    "clippy.log.gz": "6636b36a2a9a02d435a793b544f598770adad1895e05d7a8fd2fba4d95bc5e0e",
+    "compose-conformance.log.gz": "7a42ba6ed1c16e6f9eaa8109a1f4c5854f1967ad40de60238ec8cf8a124b8891",
+    "contracts.log.gz": "14fde3266f92a56c0a2dca1781a837e2ee24cc973f6d20d3a3e9680ad2c717c6",
+    "diagnosis.json": "5585c38bb0e7844990179c48dad52e8308c058537e5e1aeb1a3f7e06e896f7ec",
+    "fmt.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "package-compose-review.py": "8195055648998a166e80e4a1f4ad2d1d6c9dedb1464a72f3961029ce1d64fe12",
+    "repository.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "review-final-review.log.gz": "477f0576d1c730980731dd7c96ced924ca024db5d01401c990fcb1191c2be050",
+    "review-focused.log.gz": "4d25aefa19ee4bb1c09e52d290d293edd7043b4cdb96e3b7c84d2515e0c31456",
+    "review-initial.log.gz": "5be003d2b55d817b2671396bad6e4a9a47727431878edfedf515d0516845b7ae",
+    "run-compose-review-check.py": "7494473ad59c1e6f1f3ca3ba139acb81d5a359d6f9c2309e38c0c803411e5b7f",
+    "scope.json": "a56b80846f31ebc772c3431252785c7e8555651b16d60daf265e9d0899925433",
+    "source-manifest.json": "46a33c4f3d068752967224cb136e0490ceac17eb97dbf59dadcc65f3f13babec",
+    "storage-compile.log.gz": "a06e56fe638aa4dd092b89a43ba06b8812990504340336c9aad0e365f6071864",
+    "storage-fixtures.log.gz": "fef7a4170d0131e68da72dcc97d035814b76ea9c4614c3ac52b6825ef91f5b51",
+    "test-rest.log.gz": "fe50a9e9bcc5fce6ae804c519fa33386ac2dbd58f69a81e32deaab1ec85963a4",
+    "verify-compose-review.py": "eb4469450c27275bf2ce4b22e51d50578b4cb63349103257ea654eb26ec649d7"
+  }
+}

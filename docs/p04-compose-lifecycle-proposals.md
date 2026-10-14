@@ -66,5 +66,8 @@ independent review remain open. The existing six pinned standalone parser checks
 use version/config only, without daemon effects. No Pi/SSH, production Docker, raw
 block probe or guest was used. P04 and cutover gates remain open.
 
-Next is durable principal/approval and acquired claim/lock integration through the
-recovery path, with fresh checks immediately before any effect.
+The [review-subject composition](p04-compose-review-subjects.md) now associates
+ordinary P03 preview facts with this owner, preserving original evidence and deriving
+a distinct stable review digest and existing exact scope requirements. Authenticated
+durable review/approval and acquired claim/lock integration through recovery, with
+fresh checks immediately before effects, remain subsequent work.
