@@ -1,0 +1,24 @@
+{
+  "single_disk": {
+    "target": "storage", "selected": ["storage"], "related": ["storage"], "running": ["a"],
+    "resources": ["device:storage", "mount:/mnt/storage", "share:media", "container:a"]
+  },
+  "separate_downloads": {
+    "target": "downloads", "selected": ["downloads"], "related": ["downloads"], "running": ["b"],
+    "resources": ["device:downloads", "mount:/mnt/downloads", "share:downloads", "container:b"]
+  },
+  "protected_pool": {
+    "target": "data-01", "selected": ["data-01"],
+    "related": ["data-01", "data-02", "data-03", "data-04", "data-05", "data-06", "data-07", "data-08", "data-09", "data-10", "data-11", "data-12", "data-13", "data-14", "parity-01"],
+    "running": ["a"],
+    "resources": [
+      "device:data-01", "device:data-02", "device:data-03", "device:data-04", "device:data-05", "device:data-06", "device:data-07", "device:data-08", "device:data-09", "device:data-10", "device:data-11", "device:data-12", "device:data-13", "device:data-14", "device:parity-01",
+      "mount:/mnt/disks/data-01", "mount:/mnt/disks/data-02", "mount:/mnt/disks/data-03", "mount:/mnt/disks/data-04", "mount:/mnt/disks/data-05", "mount:/mnt/disks/data-06", "mount:/mnt/disks/data-07", "mount:/mnt/disks/data-08", "mount:/mnt/disks/data-09", "mount:/mnt/disks/data-10", "mount:/mnt/disks/data-11", "mount:/mnt/disks/data-12", "mount:/mnt/disks/data-13", "mount:/mnt/disks/data-14", "mount:/mnt/parity/parity-01", "mount:/mnt/storage",
+      "pool:pool1", "snapraid", "share:media", "container:a"
+    ]
+  },
+  "ordered_multi_parity": {
+    "target": "p1", "selected": ["p1"], "related": ["d1", "d2", "p1", "p2"], "running": [],
+    "resources": ["device:d1", "device:d2", "device:p1", "device:p2", "mount:/mnt/disk1", "mount:/mnt/disk2", "mount:/mnt/parity1", "mount:/mnt/parity2", "snapraid"]
+  }
+}

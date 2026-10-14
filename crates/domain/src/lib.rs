@@ -23,6 +23,7 @@ pub mod backups;
 pub mod configured_dependencies;
 pub mod shares;
 pub mod storage_dependency_graph;
+pub mod storage_impact;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
