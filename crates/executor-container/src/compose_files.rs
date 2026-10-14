@@ -33,7 +33,7 @@ fn unavailable() -> Error {
 fn conflict() -> Error {
     Error(ErrorCode::Conflict)
 }
-fn base_name(name: ComposeFileName) -> &'static str {
+pub(crate) fn base_name(name: ComposeFileName) -> &'static str {
     match name {
         ComposeFileName::ComposeYaml => BASES[0],
         ComposeFileName::ComposeYml => BASES[1],
@@ -174,18 +174,18 @@ pub struct ComposeFileSnapshot {
     /// Only fixed recognized basenames; not absence of arbitrary includes or consumers.
     pub absent_names: Vec<String>,
 }
-struct View {
-    fd: OwnedFd,
-    identity: ComposeMountView,
+pub(crate) struct View {
+    pub(crate) fd: OwnedFd,
+    pub(crate) identity: ComposeMountView,
 }
-struct Root {
-    fd: OwnedFd,
-    view: Option<View>,
+pub(crate) struct Root {
+    pub(crate) fd: OwnedFd,
+    pub(crate) view: Option<View>,
 }
-struct Ancestor {
-    name: String,
-    fd: OwnedFd,
-    identity: ComposeObjectIdentity,
+pub(crate) struct Ancestor {
+    pub(crate) name: String,
+    pub(crate) fd: OwnedFd,
+    pub(crate) identity: ComposeObjectIdentity,
 }
 struct File {
     name: &'static str,
@@ -193,12 +193,12 @@ struct File {
     observation: ComposeFileObservation,
 }
 
-struct Budget {
-    spent: AtomicU64,
-    expires: Instant,
+pub(crate) struct Budget {
+    pub(crate) spent: AtomicU64,
+    pub(crate) expires: Instant,
 }
 impl Budget {
-    fn poll(&self, deadline: Instant, cancelled: &dyn Fn() -> bool) -> Result<()> {
+    pub(crate) fn poll(&self, deadline: Instant, cancelled: &dyn Fn() -> bool) -> Result<()> {
         if cancelled() {
             return Err(conflict());
         }
@@ -207,7 +207,7 @@ impl Budget {
         }
         Ok(())
     }
-    fn charge(&self, bytes: usize) -> Result<()> {
+    pub(crate) fn charge(&self, bytes: usize) -> Result<()> {
         self.spent
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |spent| {
                 spent
@@ -218,12 +218,12 @@ impl Budget {
             .map_err(|_| unavailable())
     }
 }
-struct Validation<'a> {
-    state: &'a AtomicU8,
-    completed: bool,
+pub(crate) struct Validation<'a> {
+    pub(crate) state: &'a AtomicU8,
+    pub(crate) completed: bool,
 }
 impl Validation<'_> {
-    fn finish(mut self, result: Result<()>) -> Result<()> {
+    pub(crate) fn finish(mut self, result: Result<()>) -> Result<()> {
         self.completed = true;
         if result.is_ok()
             && self
@@ -280,7 +280,7 @@ impl ComposeFileEvidence {
             self.budget.poll(deadline, cancelled)
         })
     }
-    fn checked(&self, operation: impl FnOnce() -> Result<()>) -> Result<()> {
+    pub(crate) fn checked(&self, operation: impl FnOnce() -> Result<()>) -> Result<()> {
         if self
             .state
             .compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst)
@@ -310,7 +310,7 @@ impl ComposeFileEvidence {
         }
         Ok(())
     }
-    fn validate_from(
+    pub(crate) fn validate_from(
         &self,
         fresh_root: &Root,
         at: i64,
@@ -433,7 +433,7 @@ impl ComposeFileEvidence {
     }
 }
 
-fn now() -> Result<i64> {
+pub(crate) fn now() -> Result<i64> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| conflict())?
@@ -441,7 +441,7 @@ fn now() -> Result<i64> {
         .try_into()
         .map_err(|_| conflict())
 }
-fn age(issued: i64, at: i64) -> Result<()> {
+pub(crate) fn age(issued: i64, at: i64) -> Result<()> {
     if at
         .checked_sub(issued)
         .is_some_and(|age| (0..=4).contains(&age))
@@ -460,7 +460,7 @@ fn stat(fd: &OwnedFd) -> Result<Statx> {
     }
     Ok(stat)
 }
-fn directory(fd: &OwnedFd, owner: u32) -> Result<ComposeObjectIdentity> {
+pub(crate) fn directory(fd: &OwnedFd, owner: u32) -> Result<ComposeObjectIdentity> {
     let s = stat(fd)?;
     if s.stx_mode & 0o170000 != 0o040000
         || s.stx_uid != owner
@@ -471,7 +471,7 @@ fn directory(fd: &OwnedFd, owner: u32) -> Result<ComposeObjectIdentity> {
     }
     Ok((&s).into())
 }
-fn view_identity(fd: &OwnedFd) -> Result<ComposeMountView> {
+pub(crate) fn view_identity(fd: &OwnedFd) -> Result<ComposeMountView> {
     // Namespace references intentionally follow these fixed proc magic links.
     // Linux NSFS_MAGIC, include/uapi/linux/magic.h; no arbitrary path selector.
     if rustix::fs::fstatfs(fd).map_err(|_| unavailable())?.f_type != 0x6e736673 {
@@ -502,7 +502,7 @@ fn view() -> Result<View> {
         identity,
     })
 }
-fn host_root() -> Result<Root> {
+pub(crate) fn host_root() -> Result<Root> {
     if !rustix::process::geteuid().is_root() {
         return Err(Error(ErrorCode::Forbidden));
     }
@@ -522,7 +522,7 @@ fn host_root() -> Result<Root> {
         view: Some(original),
     })
 }
-fn open_directory(parent: &OwnedFd, name: &str) -> Result<OwnedFd> {
+pub(crate) fn open_directory(parent: &OwnedFd, name: &str) -> Result<OwnedFd> {
     rustix::fs::openat(
         parent,
         name,
@@ -531,7 +531,7 @@ fn open_directory(parent: &OwnedFd, name: &str) -> Result<OwnedFd> {
     )
     .map_err(|_| unavailable())
 }
-fn classified(parent: &OwnedFd, name: &str) -> Result<Option<OwnedFd>> {
+pub(crate) fn classified(parent: &OwnedFd, name: &str) -> Result<Option<OwnedFd>> {
     match rustix::fs::openat(
         parent,
         name,
@@ -560,7 +560,7 @@ fn check_names(
     }
     Ok(())
 }
-fn file_identity(fd: &OwnedFd, owner: u32) -> Result<ComposeFileIdentity> {
+pub(crate) fn file_identity(fd: &OwnedFd, owner: u32) -> Result<ComposeFileIdentity> {
     let s = stat(fd)?;
     if s.stx_mode & 0o170000 != 0o100000
         || s.stx_uid != owner
@@ -579,8 +579,21 @@ fn hash_file(
     deadline: Instant,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<(ComposeFileIdentity, String)> {
+    hash_file_with_limit(fd, owner, budget, deadline, cancelled, FILE_BYTES)
+}
+pub(crate) fn hash_file_with_limit(
+    fd: &OwnedFd,
+    owner: u32,
+    budget: &Budget,
+    deadline: Instant,
+    cancelled: &dyn Fn() -> bool,
+    limit: u64,
+) -> Result<(ComposeFileIdentity, String)> {
     budget.poll(deadline, cancelled)?;
     let before = file_identity(fd, owner)?;
+    if before.size > limit {
+        return Err(unavailable());
+    }
     let mut digest = Sha256::new();
     let mut buffer = [0u8; 4096];
     let mut offset = 0u64;
@@ -643,9 +656,9 @@ fn read_file(
     ))
 }
 
-struct Count {
-    bytes: usize,
-    max: usize,
+pub(crate) struct Count {
+    pub(crate) bytes: usize,
+    pub(crate) max: usize,
 }
 impl Write for Count {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
@@ -683,7 +696,7 @@ pub fn inspect_compose_files(
     evidence.revalidate(cancelled)?;
     Ok(evidence)
 }
-fn collect(
+pub(crate) fn collect(
     root: Root,
     selection: &ComposeFileSelection,
     owner: u32,

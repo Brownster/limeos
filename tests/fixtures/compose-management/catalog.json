@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "engine_id": "fixture-engine",
+  "stacks": [{
+    "stack": "media-stack",
+    "project": "media",
+    "working_directory": "/opt/stacks/media",
+    "operator": {"name": "compose.yaml", "sha256": "114d90849a3d345850d50150fccfba8ae62d67e0256fbc38250a26881c44a92c"},
+    "managed": {"state": "present", "sha256": "bac5b001fd7168278fee8a30eb65554b37ecf6e808ac98267ff62a9994bc27f8"},
+    "services": ["media", "transcoder"]
+  }]
+}

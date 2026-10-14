@@ -288,6 +288,7 @@ async fn fixture(config: Config) -> Fixture {
 }
 
 mod compose_tests;
+mod management_tests;
 
 #[tokio::test]
 async fn combined_admits_complete_sixteen_eight_thirty_two_and_revalidates() {
