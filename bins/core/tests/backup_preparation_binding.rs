@@ -5,6 +5,7 @@ use limeos_backup_archive::{
         self, InstalledMetadata, ManagedTarget, PreparationLimits, PreparationPlan,
         PreparationRoot, PreparedRestore, ResourceSelection, Selection,
     },
+    recovery::{self, CurrentInputs},
     staging::{StagingRoot, VerifiedCatalog},
 };
 use limeos_domain::{
@@ -181,12 +182,20 @@ impl Fixture {
                 .map(|r| r.id.clone())
                 .collect(),
             // A trusted synthetic identity, not a production workspace/ancestor proof.
-            workspace_policy_identity: limeos_identity::digest(
-                &json!({"root": self.root,
-                "policy": self.policy(), "selection": plan.selection(), "limits": plan.limits()})
-                .to_string(),
-            ),
+            workspace_policy_identity: self
+                .current_workspace_identity(plan.selection(), plan.limits()),
         }
+    }
+    fn current_workspace_identity(
+        &self,
+        selection: &Selection,
+        limits: &PreparationLimits,
+    ) -> String {
+        limeos_identity::digest(
+            &json!({"root": self.root,
+            "policy": self.policy(), "selection": selection, "limits": limits})
+            .to_string(),
+        )
     }
     fn store(&self) -> (Store, Principal) {
         let path = self.path("core.sqlite");
@@ -553,22 +562,21 @@ fn subprocess_driver() {
     assert_eq!(mode, "verify");
     let stale = names(&scene.path("preparation"));
     let stale_staging = names(&scene.path("staging"));
-    let mut retained = custody::recover(
-        &CustodyRoot::open(&scene.path("custody")).unwrap(),
-        &job.plan.binding.custody,
-        scene.policy(),
-        &custody_limits(),
-        &|| false,
-    )
-    .unwrap();
-    let (catalog, plan) = scene.stage_plan(&mut retained);
-    assert_eq!(scene.binding(&retained, &plan), job.plan.binding);
-    let prepared = preparation::prepare(
-        &catalog,
-        &plan,
-        &scene.selection(),
-        &PreparationRoot::open(&scene.path("preparation")).unwrap(),
-        &scene.limits(),
+    let selection = scene.selection();
+    let limits = scene.limits();
+    let current_workspace_identity = scene.current_workspace_identity(&selection, &limits);
+    let prepared = recovery::reconstruct(
+        &job.plan.binding,
+        CurrentInputs {
+            custody_root: &CustodyRoot::open(&scene.path("custody")).unwrap(),
+            staging_root: &StagingRoot::open(&scene.path("staging")).unwrap(),
+            preparation_root: &PreparationRoot::open(&scene.path("preparation")).unwrap(),
+            admission_policy: &scene.policy(),
+            custody_limits: &custody_limits(),
+            selection,
+            preparation_limits: limits,
+            workspace_policy_identity: &current_workspace_identity,
+        },
         &|| false,
     )
     .unwrap();
@@ -581,7 +589,6 @@ fn subprocess_driver() {
         assert_eq!(json!(stale), old["attempts"]);
     }
     prepared.discard().unwrap();
-    catalog.discard().unwrap();
     assert_eq!(names(&scene.path("preparation")), stale);
     assert_eq!(names(&scene.path("staging")), stale_staging);
     assert_eq!(snapshot(&observer), before);

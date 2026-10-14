@@ -247,7 +247,7 @@ struct Quarantine {
     name: String,
     identity: Stat,
     files: Vec<PrivateFile>,
-    removed: bool,
+    cleanup_attempted: bool,
 }
 
 impl Quarantine {
@@ -306,7 +306,7 @@ impl Quarantine {
             name,
             identity,
             files,
-            removed: false,
+            cleanup_attempted: false,
         };
         if !private_directory(&quarantine.identity) {
             return Err(StagingError::UnsafeRoot);
@@ -315,9 +315,12 @@ impl Quarantine {
     }
 
     fn cleanup(&mut self) -> io::Result<()> {
-        if self.removed {
+        if self.cleanup_attempted {
             return Ok(());
         }
+        // Explicit refusal must survive Drop; partially completed cleanup is
+        // never silently retried after the caller observes its ambiguity.
+        self.cleanup_attempted = true;
         for file in &self.files {
             match rustix::fs::statat(
                 &self.directory,
@@ -348,7 +351,6 @@ impl Quarantine {
             Err(e) if e == rustix::io::Errno::NOENT => {}
             Err(e) => return Err(e.into()),
         }
-        self.removed = true;
         self.root.sync_all()
     }
 }

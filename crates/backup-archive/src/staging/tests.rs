@@ -56,6 +56,23 @@ fn empty(path: &Path) -> bool {
 }
 
 #[test]
+fn failed_explicit_cleanup_is_not_retried_by_drop() {
+    let temp = private_tempdir();
+    let root = StagingRoot::open(temp.path()).unwrap();
+    let mut quarantine = Quarantine::create(&root, 0).unwrap();
+    let attempt = temp.path().join(&quarantine.name);
+    let foreign = attempt.join("foreign");
+    std::fs::write(&foreign, b"foreign entry").unwrap();
+    assert!(quarantine.cleanup().is_err());
+    // Removing the obstacle would let the old Drop retry erase the attempt.
+    // Only the test removes its foreign fixture; production never adopts it.
+    std::fs::remove_file(foreign).unwrap();
+    drop(quarantine);
+    assert!(attempt.is_dir());
+    assert!(empty(&attempt));
+}
+
+#[test]
 fn partial_write_and_each_durability_failure_are_typed_and_cleaned() {
     struct Fault {
         write: bool,

@@ -24,6 +24,7 @@ use tar::{Archive, Header, PaxExtensions};
 pub mod before_images;
 pub mod custody;
 pub mod preparation;
+pub mod recovery;
 pub mod staging;
 
 const GZIP_MAGIC: [u8; 3] = [0x1f, 0x8b, 0x08];
