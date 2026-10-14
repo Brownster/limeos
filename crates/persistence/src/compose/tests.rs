@@ -1,5 +1,5 @@
 use super::*;
-fn catalog() -> ComposeCatalog {
+pub(super) fn catalog() -> ComposeCatalog {
     let mut c: ComposeCatalog = serde_json::from_str(include_str!(
         "../../../../tests/fixtures/compose-catalog.json"
     ))
@@ -7,13 +7,13 @@ fn catalog() -> ComposeCatalog {
     c.normalize().unwrap();
     c
 }
-fn selection(template: &str) -> ComposeSelection {
+pub(super) fn selection(template: &str) -> ComposeSelection {
     ComposeSelection {
         stack: "media".into(),
         template: template.into(),
     }
 }
-fn setup(template: &str) -> (tempfile::TempDir, Store, Principal, ComposeCatalog) {
+pub(super) fn setup(template: &str) -> (tempfile::TempDir, Store, Principal, ComposeCatalog) {
     let dir = tempfile::tempdir().unwrap();
     let mut store = Store::open(&dir.path().join("core.sqlite")).unwrap();
     store.issue_bootstrap("bootstrap", 100).unwrap();

@@ -402,7 +402,12 @@ impl Backend for Core {
         self.db
             .call(move |s| {
                 let principal = s.authenticate(&digest, None, now())?;
-                s.compose_plan(&principal, &catalog, &id, now())
+                let preview = s.compose_plan(&principal, &catalog, &id, now())?;
+                let scopes = limeos_persistence::compose_scopes(&catalog, &preview.plan.selection)?;
+                Ok(
+                    s.resolve_compose_session(&digest, &catalog, &preview, &scopes)?
+                        .into_preview(),
+                )
             })
             .await
     }

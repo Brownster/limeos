@@ -75,6 +75,49 @@ fn selection(template: &str) -> ComposeSelection {
 }
 
 #[tokio::test]
+async fn compose_read_resolves_live_authority_and_refuses_inconsistent_durable_row_metadata() {
+    let (dir, core, token, csrf, _task, _uid) = fixture(Role::Operator, "standard", false).await;
+    let proposal = core
+        .plan_compose(token.clone(), csrf.clone(), selection("standard"))
+        .await
+        .unwrap();
+    let approval = core
+        .approve_compose(
+            token.clone(),
+            csrf,
+            proposal.plan.id.clone(),
+            proposal.digest.clone(),
+        )
+        .await
+        .unwrap();
+    let conn = rusqlite::Connection::open(dir.path().join("core.sqlite")).unwrap();
+    let state = || {
+        conn.query_row(
+        "SELECT generation,audit_bytes,(SELECT count(*) FROM events),(SELECT count(*) FROM jobs),(SELECT count(*) FROM resource_locks),(SELECT expires FROM compose_plans),(SELECT approval_digest FROM compose_plans) FROM meta WHERE id=1",
+        [],|r|Ok((r.get::<_,i64>(0)?,r.get::<_,i64>(1)?,r.get::<_,i64>(2)?,r.get::<_,i64>(3)?,r.get::<_,i64>(4)?,r.get::<_,i64>(5)?,r.get::<_,Option<String>>(6)?))
+    ).unwrap()
+    };
+    let before = state();
+    assert_eq!(
+        core.compose_plan(token.clone(), proposal.plan.id.clone())
+            .await
+            .unwrap(),
+        proposal
+    );
+    assert_eq!(state(), before);
+    assert_eq!(before.6, Some(limeos_identity::digest(&approval.token)));
+    conn.execute("UPDATE compose_plans SET expires=expires+1", [])
+        .unwrap();
+    assert_eq!(
+        core.compose_plan(token, proposal.plan.id)
+            .await
+            .unwrap_err()
+            .0,
+        ErrorCode::StateNotDurable
+    );
+}
+
+#[tokio::test]
 async fn browser_and_task_have_identical_compose_policy_and_task_cannot_approve() {
     for (role, template, allowed) in [
         (Role::Operator, "standard", true),

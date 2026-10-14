@@ -252,7 +252,9 @@ mod plans;
 mod resources;
 mod storage;
 mod storage_targets;
-pub use compose::compose_scopes;
+pub use compose::{
+    AuthenticatedComposePreview, ComposeAuthorityKind, ComposeAuthorityObservation, compose_scopes,
+};
 pub use storage::storage_scope;
 
 #[cfg(test)]

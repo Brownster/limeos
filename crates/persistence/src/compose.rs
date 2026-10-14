@@ -3,6 +3,10 @@ use limeos_domain::{ComposeCatalog, ComposePlan, ComposeSelection, PlanApproval,
 
 const COMPOSE_PLAN_LIMIT: i64 = 1024;
 const COMPOSE_PLAN_BYTES: usize = 48 * 1024;
+mod authority;
+pub use authority::{
+    AuthenticatedComposePreview, ComposeAuthorityKind, ComposeAuthorityObservation,
+};
 
 fn normalized(catalog: &ComposeCatalog) -> Result<ComposeCatalog> {
     if json(catalog)?.len() > config::CONFIG_LIMIT as usize {
