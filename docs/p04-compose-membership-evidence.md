@@ -76,6 +76,10 @@ See the [design](plans/2026-10-14-compose-membership-evidence-design.md).
 This supplies authenticated declarations in the caller's context, not independent
 daemon-PID identity, host namespace proof, actual protected Compose files, empty
 stack discovery, managed-stack membership or approved lifecycle actions. The
+[protected Compose file reader](p04-compose-file-evidence.md) now supplies retained
+actual-file identities/hashes for one recognized operator and optional fixed
+managed file. Approved catalog/management and genuine Engine-to-file binding are
+still required; neither owner infers a trusted stack resource. The
 [storage impact planner](p04-storage-impact-planning.md) still lists stack ownership
 and complete physical/runtime/claim evidence as unresolved. Combined-worker/probe
 integration, actual stack files/claims/locks/approvals/effects/recovery, independent

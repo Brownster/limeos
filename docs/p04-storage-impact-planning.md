@@ -60,6 +60,9 @@ The [retained Compose membership reader](p04-compose-membership-evidence.md) now
 supplies an authenticated declaration prerequisite. Actual protected stack files,
 management identity and full claim binding remain required; this planner's
 `StackOwnership` evidence boundary stays unresolved.
+The [protected Compose file reader](p04-compose-file-evidence.md) adds actual
+retained file observations. Its names/hashes still need approved catalog,
+management and genuine Engine binding before stack ownership can be resolved.
 
 [Local acceptance](rewrite-evidence/p04/2026-10-14-storage-impact/README.md) covers
 four independent frozen-layout goldens, full graph preservation, complete target

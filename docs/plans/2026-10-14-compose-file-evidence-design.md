@@ -18,7 +18,7 @@ the root and afterwards. Recheck this PID-1-relative mount view on validation.
 This does not independently identify the physical host or Docker daemon namespace.
 Walk from the root with descriptor-relative no-follow directory opens. Root and
 all traversed directories must belong to UID 0 without group/world write access.
-Retain every ancestor and the selected read-only files, with device/inode/mount,
+Retain a namespace reference, every ancestor and the selected read-only files, with device/inode/mount,
 mode and ownership identities. Ignore directory timestamps so unrelated entries
 can change without changing the directory object.
 
@@ -44,7 +44,7 @@ They observe changes; separate files and hashes are not a writer transaction.
 Keep a fixed original four-second monotonic/wall lifetime and a two-second
 cooperative work deadline per pass. A shared 1 MiB lifetime ledger charges requested
 read bytes before each syscall, including repeated comparisons and sentinels;
-successful validation never replenishes it. Count at most 18 retained descriptors,
+successful validation never replenishes it. Count at most 19 retained descriptors,
 with a conservative six additional transient descriptors during validation.
 Count the complete compact metadata report against 16 KiB without allocating a
 second report. These bounds qualify no combined-worker peak allocation/RSS.

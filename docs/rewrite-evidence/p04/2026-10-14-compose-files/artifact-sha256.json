@@ -1,0 +1,22 @@
+{
+  "qualified_source": "7359a97756c898aa0cc324c905cca9c9fedf4851",
+  "files": {
+    "README.md": "187ca9068f9c199f525fb9b0ad3547862649f5051b5dc1d92dca465b4f8d72f9",
+    "arm64-harness.log.gz": "a327b31e541f483212414bbd4b3b744497e7eb5b6d32935599b4b4bdded78028",
+    "checks.json": "8eb8f89466532ffcddab152d6ddaf2433976ad2501a83f48f60b2a3caceb1507",
+    "clippy.log.gz": "8bd462f9b35aa7efffc53279cdd1c4c688d6de00905f4a169e079b3c059347bb",
+    "contracts.log.gz": "abfd9bfb3f9bcd76f2fee4d5778d01d306ed4e91fca10901fe2c228f164432b2",
+    "files-focused.log.gz": "a8b7f25b1ca829ae57ae54538d117139405c20ee4d1cf0f3d5f9160ee6a984f5",
+    "files-initial.log.gz": "9f3d63e81c2e6e108c5d7bd64526514d2b89fdd0a64fa88dee80a74caaeca95c",
+    "files-reviewed.log.gz": "0cbfe502f648c6ccf37b112297791eda8979d8ffebfcb905f0589c9fbce9343a",
+    "fmt.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "package-compose-files.py": "f5fa68e4e98f85399cb6027aa01fa3fc2f5e5891678847493b830cb6f5f8b125",
+    "repository.log.gz": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef",
+    "run-compose-files-check.py": "edf206c6a0769eeab29093b4c777f6943365f5224d89fbc9512f46a0e7f101d7",
+    "scope.json": "2d4d3fd30c1f65d898d375741f000c5ab221db12904eb636589e508feff2524b",
+    "source-manifest.json": "641bf8ec123c9de6401e22f468a4b9fe9ddd94e40b53712f2e310eb238d8e891",
+    "storage-compile.log.gz": "d7d56c04ae19877eac5cf84d4370efc5b940236d184bd7dc2cff9e5c9fad54ef",
+    "storage-fixtures.log.gz": "495454ebaa9c798d36d3e0e9d85e5c4abf6d4cf3310944dda155a6c3cc1d2615",
+    "test-rest.log.gz": "4ff6dfb008281d176b24dc784530d2cb176f5bfcdbdaf4d1527c7c68ab13b54b"
+  }
+}
