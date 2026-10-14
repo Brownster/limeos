@@ -82,6 +82,19 @@ pub struct EngineStorageProcessSnapshot {
     running: Vec<EngineRunningProcess>,
 }
 
+/// Stable declared facts for a review identity; original observation age stays separate.
+#[derive(Serialize)]
+pub(crate) struct EngineReviewFacts<'a> {
+    version: u16,
+    endpoint: &'a Path,
+    policy: &'a EnginePeerPolicy,
+    socket: &'a SocketIdentity,
+    declaration_version: u16,
+    engine_id: &'a str,
+    containers: &'a [limeos_domain::ContainerStorageConsumer],
+    running: &'a [EngineRunningProcess],
+}
+
 /// Only authenticated complete collection constructs this owner. Reports cannot
 /// reconstruct its socket descriptor, original lifetime or fresh observations.
 pub struct EngineStorageProcessEvidence {
@@ -95,6 +108,18 @@ pub struct EngineStorageProcessEvidence {
     _launch: Option<Scope>,
 }
 impl EngineStorageProcessEvidence {
+    pub(crate) fn review_facts(&self) -> EngineReviewFacts<'_> {
+        EngineReviewFacts {
+            version: self.snapshot.version,
+            endpoint: &self.snapshot.endpoint,
+            policy: &self.snapshot.policy,
+            socket: &self.snapshot.socket,
+            declaration_version: self.snapshot.declarations.version,
+            engine_id: &self.snapshot.declarations.engine_id,
+            containers: &self.snapshot.declarations.containers,
+            running: &self.snapshot.running,
+        }
+    }
     pub fn snapshot(&self) -> &EngineStorageProcessSnapshot {
         &self.snapshot
     }

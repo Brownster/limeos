@@ -5,6 +5,7 @@ use crate::compose_management::sources::lifecycle::{
 };
 use limeos_domain::{ComposeProject, ComposeService, ComposeUser};
 use sha2::{Digest, Sha256};
+mod review_tests;
 
 fn worker() -> ComposeService {
     ComposeService {

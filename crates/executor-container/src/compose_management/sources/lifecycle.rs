@@ -6,6 +6,7 @@ use limeos_domain::{
 };
 use sha2::{Digest, Sha256};
 use std::future::Future;
+pub mod review;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]

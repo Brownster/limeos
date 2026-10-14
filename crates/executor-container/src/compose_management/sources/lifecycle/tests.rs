@@ -19,34 +19,7 @@ pub(crate) fn counted(summary: &ComposeLifecycleSummary<'_>, max: usize) -> Resu
 }
 impl LocalProposal {
     pub(crate) async fn check_source_only(&self, cancelled: &dyn Fn() -> bool) -> Result<()> {
-        let source = &self.owner.evidence;
-        source
-            .validate_with(
-                cancelled,
-                || {
-                    source
-                        .binding
-                        .catalog
-                        .revalidate_local(self.tree.path(), cancelled)
-                },
-                || {
-                    source.binding.files.checked(|| {
-                        source.binding.files.validate_from(
-                            &catalog::local_root(self.tree.path()),
-                            compose_files::now()?,
-                            Instant::now() + Duration::from_secs(2),
-                            cancelled,
-                        )
-                    })
-                },
-                || {
-                    source
-                        .binding
-                        .files
-                        .admit_json_local(self.tree.path(), cancelled)
-                },
-            )
-            .await
+        source_check(&self.owner, self.tree.path(), cancelled).await
     }
     pub(crate) async fn revalidate(&self, cancelled: &dyn Fn() -> bool) -> Result<()> {
         self.owner
@@ -62,4 +35,28 @@ impl LocalProposal {
     pub(crate) fn exhaust_reads(&self) {
         self.owner.evidence.binding.files.exhaust_local_reads();
     }
+}
+pub(crate) async fn source_check(
+    proposal: &BoundComposeLifecycleProposal,
+    root: &Path,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<()> {
+    let source = &proposal.evidence;
+    source
+        .validate_with(
+            cancelled,
+            || source.binding.catalog.revalidate_local(root, cancelled),
+            || {
+                source.binding.files.checked(|| {
+                    source.binding.files.validate_from(
+                        &catalog::local_root(root),
+                        compose_files::now()?,
+                        Instant::now() + Duration::from_secs(2),
+                        cancelled,
+                    )
+                })
+            },
+            || source.binding.files.admit_json_local(root, cancelled),
+        )
+        .await
 }
