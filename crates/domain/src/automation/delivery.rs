@@ -131,10 +131,11 @@ impl Notification {
         if !valid_time(now) {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        let at = self.acknowledged_at.or(match self.delivery {
+        let delivered = match self.delivery {
             DeliveryState::Delivered { at } => Some(at),
             _ => None,
-        });
+        };
+        let at = self.acknowledged_at.into_iter().chain(delivered).max();
         Ok(at.is_some_and(|at| now >= at && now - at >= DELIVERED_RETENTION_SECONDS))
     }
 }

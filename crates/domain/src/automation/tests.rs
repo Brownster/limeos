@@ -587,3 +587,18 @@ fn wire_integer_and_corrupt_state_bounds_refuse_before_copy() {
         .is_err()
     );
 }
+
+#[test]
+fn retention_keeps_late_delivery_for_full_resolved_period() {
+    let mut row = notification(DeliveryChannel::InApp)
+        .begin(1000)
+        .unwrap()
+        .finish(DeliveryResult::Verified, 5000)
+        .unwrap();
+    row.acknowledged_at = Some(1001);
+    assert!(!row.retainable(1001 + DELIVERED_RETENTION_SECONDS).unwrap());
+    assert!(row.retainable(5000 + DELIVERED_RETENTION_SECONDS).unwrap());
+    row.acknowledged_at = Some(6000);
+    assert!(!row.retainable(5000 + DELIVERED_RETENTION_SECONDS).unwrap());
+    assert!(row.retainable(6000 + DELIVERED_RETENTION_SECONDS).unwrap());
+}
