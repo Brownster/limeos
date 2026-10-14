@@ -59,6 +59,9 @@ pub trait ObservationStore {
 
     /// Publish bounded in-app outbox rows in the existing transaction. Mark delivered
     /// only when the authenticated notification view can read the committed row.
+    /// Use plan_in_app_delivery with the exact owner-scoped opening receipt for
+    /// recoveries; check both row revisions in this transaction. An acknowledged,
+    /// missing, failed or ambiguous opening is never verified delivery evidence.
     /// No external delivery, model invocation, acknowledgment or retry as a GET effect.
     fn publish_in_app(&mut self, limit: usize, now: i64) -> Result<usize>;
 }

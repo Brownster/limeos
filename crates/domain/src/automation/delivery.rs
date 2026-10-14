@@ -1,6 +1,8 @@
 use super::{AlertEvent, MAX_REVISION, valid_time};
 use crate::{Error, ErrorCode, Result, identifier};
 use serde::{Deserialize, Serialize};
+mod planning;
+pub use planning::*;
 
 pub const MAX_DELIVERY_ATTEMPTS: u8 = 4;
 pub const DELIVERED_RETENTION_SECONDS: i64 = 7 * 86400;
@@ -124,6 +126,12 @@ impl Notification {
             },
         };
         Ok(next)
+    }
+    /// Startup reconciliation uses the same identity and attempt count. An in-flight
+    /// send may already have reached a receiver, so interruption is not rejection.
+    /// The central supervisor decides which attempts were actually interrupted.
+    pub fn recover_interrupted(&self, now: i64) -> Result<Self> {
+        self.finish(DeliveryResult::Unknown, now)
     }
     /// Only resolved rows qualify for automatic retention. Pending/failed/ambiguous rows remain visible.
     pub fn retainable(&self, now: i64) -> Result<bool> {
