@@ -28,7 +28,7 @@ The integrator supplies methods matching the Core leaf's proposed `ObservationSt
 - Reconcile queued/running observation jobs at startup using the existing recovery mechanism; do not create replacement occurrences.
 - Authenticated CRUD/read/pause and notification acknowledgment run through the existing identity and CSRF mechanisms. Schedules are owned by the current principal, never an input owner. Mutation uses revision compare-and-swap. Each pause/resume increments the revision and resets the anchor/watermark explicitly; resuming must not replay paused history.
 
-Proposed caps: 128 schedules; 32 schedules per tick/page; 256 observed resources; 256-byte identifiers; 512-byte alert summaries; 1,024 notifications; 4 delivery attempts; retry delays 30/120/600 seconds; seven-day delivered retention. Final cap admission and storage retention are central responsibilities. None permits growth of credential-bearing payloads or arbitrary strings as operation names.
+Proposed caps: 128 schedules; 32 schedules per tick/page; 256 observed resources; 128-byte schedule/job IDs and 256-byte alert keys; 512-byte alert summaries; 1,024 notifications; 4 delivery attempts; retry delays 30/120/600 seconds; seven-day delivered retention. Final cap admission and storage retention are central responsibilities. None permits growth of credential-bearing payloads or arbitrary strings as operation names.
 
 ## Verification and integration
 
