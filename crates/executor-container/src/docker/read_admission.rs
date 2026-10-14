@@ -184,12 +184,19 @@ impl Json {
             _scope: None,
         }
     }
-    pub(super) fn decode(bytes: &[u8], mut scope: Scope, list: bool) -> Result<Self> {
+    pub(super) fn decode(bytes: &[u8], scope: Scope, list: bool) -> Result<Self> {
+        Self::decode_mode(bytes, scope, list, false)
+    }
+    pub(super) fn decode_unique(bytes: &[u8], scope: Scope, list: bool) -> Result<Self> {
+        Self::decode_mode(bytes, scope, list, true)
+    }
+    fn decode_mode(bytes: &[u8], mut scope: Scope, list: bool, unique: bool) -> Result<Self> {
         let mut decoder = serde_json::Deserializer::from_slice(bytes);
         let mut state = Decode {
             scope: &mut scope,
             nodes: 0,
             strings: 0,
+            unique,
         };
         let value = Seed {
             state: &mut state,
@@ -209,6 +216,7 @@ struct Decode<'a> {
     scope: &'a mut Scope,
     nodes: usize,
     strings: usize,
+    unique: bool,
 }
 impl Decode<'_> {
     fn node(&mut self, depth: usize) -> std::result::Result<(), &'static str> {
@@ -311,6 +319,9 @@ impl<'de> Visitor<'de> for Seed<'_, '_> {
                 break;
             };
             entries += 1;
+            if self.state.unique && values.contains_key(&key) {
+                return Err(de::Error::custom("duplicate JSON key"));
+            }
             let value = object.next_value_seed(Seed {
                 state: self.state,
                 depth: self.depth + 1,

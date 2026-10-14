@@ -37,6 +37,8 @@ struct Config {
     partial: bool,
     response_delay: Duration,
     clock_on_final_info: Option<(Arc<AtomicI64>, i64)>,
+    compose_labels: Option<Vec<Value>>,
+    compose_labels_after: Option<Vec<Value>>,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -58,6 +60,8 @@ impl Default for Config {
             partial: false,
             response_delay: Duration::ZERO,
             clock_on_final_info: None,
+            compose_labels: None,
+            compose_labels_after: None,
         }
     }
 }
@@ -221,6 +225,17 @@ async fn fixture(config: Config) -> Fixture {
                     "Labels": {"credential": "private"},
                     "padding": "x".repeat(config.padding),
                 });
+                let selected_labels = if nth > 1 {
+                    config
+                        .compose_labels_after
+                        .as_ref()
+                        .or(config.compose_labels.as_ref())
+                } else {
+                    config.compose_labels.as_ref()
+                };
+                if let Some(labels) = selected_labels {
+                    value["Config"]["Labels"] = labels.get(index).cloned().unwrap_or(Value::Null);
+                }
                 if index == 0 {
                     if let Some(pid) = config.pid {
                         value["State"]["Pid"] = pid;
@@ -271,6 +286,8 @@ async fn fixture(config: Config) -> Fixture {
         task,
     }
 }
+
+mod compose_tests;
 
 #[tokio::test]
 async fn combined_admits_complete_sixteen_eight_thirty_two_and_revalidates() {

@@ -111,6 +111,7 @@ fn exact_string_map_sequence_limits_and_unknown_node_amplification() {
         scope: &mut scope,
         nodes: 0,
         strings: 0,
+        unique: false,
     };
     let mut decoder = serde_json::Deserializer::from_slice(&nodes);
     assert!(
@@ -220,6 +221,7 @@ fn excess_nested_item_or_escaped_key_is_not_read_by_decoder() {
             scope: &mut scope,
             nodes: 0,
             strings: 0,
+            unique: false,
         };
         assert!(
             Seed {
@@ -237,4 +239,28 @@ fn excess_nested_item_or_escaped_key_is_not_read_by_decoder() {
             prefix
         );
     }
+}
+
+#[test]
+fn compose_unique_mode_refuses_nested_and_escaped_duplicate_keys_without_changing_legacy_decode() {
+    for text in [
+        br#"{"a":1,"a":2}"#.as_slice(),
+        br#"{"nested":{"a":1,"\u0061":2}}"#,
+    ] {
+        let admission = Admission::new(EngineReadProfile::CombinedV1);
+        assert!(
+            Json::decode_unique(text, admission.response_scope(RESPONSE).unwrap(), false).is_err()
+        );
+        assert_eq!(admission.remaining_live(), LIVE_BYTES);
+        assert!(decode(text, false).is_ok());
+    }
+}
+#[test]
+fn compose_unique_mode_allows_equal_key_names_in_distinct_objects() {
+    let admission = Admission::new(EngineReadProfile::CombinedV1);
+    let text = br#"{"one":{"key":1},"two":{"key":2}}"#;
+    assert_eq!(
+        *Json::decode_unique(text, admission.response_scope(RESPONSE).unwrap(), false).unwrap(),
+        serde_json::from_slice::<Value>(text).unwrap()
+    );
 }

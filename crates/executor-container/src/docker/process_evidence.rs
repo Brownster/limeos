@@ -1,7 +1,9 @@
 //! Authenticated GET-only Engine observations; no retained daemon/process authority.
 pub use super::read_admission::EngineReadProfile;
 use super::{
-    Docker, StatusCode, Value, parse_api_version,
+    Docker, StatusCode, Value,
+    compose_evidence::{self, EngineComposeSnapshot},
+    parse_api_version,
     read_admission::{self, Admission, Json, Scope},
 };
 use limeos_domain::{
@@ -84,6 +86,8 @@ pub struct EngineStorageProcessSnapshot {
 /// reconstruct its socket descriptor, original lifetime or fresh observations.
 pub struct EngineStorageProcessEvidence {
     snapshot: EngineStorageProcessSnapshot,
+    // Charged projection data drops before its payload reservation.
+    compose: Option<compose_evidence::Capture>,
     authenticated: AuthenticatedEngine,
     lifetime: EvidenceLifetime,
     admission: Option<Admission>,
@@ -100,20 +104,43 @@ impl EngineStorageProcessEvidence {
     pub fn running(&self) -> &[EngineRunningProcess] {
         &self.snapshot.running
     }
+    pub(super) fn compose_snapshot(&self) -> Option<&EngineComposeSnapshot> {
+        self.compose.as_ref().map(|capture| &capture.snapshot)
+    }
     /// Fresh GETs compare complete facts; they do not extend the original age,
     /// authenticate a daemon PID, retain container processes or authorize effects.
     pub async fn revalidate(&self) -> Result<()> {
-        self.lifetime.check()?;
-        let fresh = collect(&self.authenticated, &self.lifetime, self.admission.as_ref()).await?;
-        self.lifetime.check()?;
-        if fresh.declarations.engine_id != self.snapshot.declarations.engine_id
-            || fresh.declarations.containers != self.snapshot.declarations.containers
-            || fresh.running != self.snapshot.running
-        {
-            return Err(conflict());
+        let validation = self
+            .compose
+            .as_ref()
+            .map(compose_evidence::Capture::begin)
+            .transpose()?;
+        let result = async {
+            self.lifetime.check()?;
+            let fresh = collect(
+                &self.authenticated,
+                &self.lifetime,
+                self.admission.as_ref(),
+                self.compose.is_some(),
+            )
+            .await?;
+            self.lifetime.check()?;
+            if fresh.declarations.engine_id != self.snapshot.declarations.engine_id
+                || fresh.declarations.containers != self.snapshot.declarations.containers
+                || fresh.running != self.snapshot.running
+                || fresh.compose.as_ref() != self.compose_snapshot()
+            {
+                return Err(conflict());
+            }
+            self.authenticated.revalidate_socket()?;
+            self.lifetime.check()
         }
-        self.authenticated.revalidate_socket()?;
-        self.lifetime.check()
+        .await;
+        if let Some(validation) = validation {
+            validation.finish(result)
+        } else {
+            result
+        }
     }
 }
 
@@ -154,6 +181,31 @@ async fn inspect_profile(
     clock: TimeSource,
     admission: Option<Admission>,
 ) -> Result<EngineStorageProcessEvidence> {
+    inspect_selected(docker, policy, clock, admission, false).await
+}
+pub(super) async fn inspect_compose(
+    docker: &Docker,
+    policy: EnginePeerPolicy,
+) -> Result<EngineStorageProcessEvidence> {
+    inspect_selected(
+        docker,
+        policy,
+        TimeSource::default(),
+        Some(Admission::new(EngineReadProfile::CombinedV1)),
+        true,
+    )
+    .await
+}
+async fn inspect_selected(
+    docker: &Docker,
+    policy: EnginePeerPolicy,
+    clock: TimeSource,
+    admission: Option<Admission>,
+    capture_compose: bool,
+) -> Result<EngineStorageProcessEvidence> {
+    if capture_compose && admission.is_none() {
+        return Err(unavailable());
+    }
     let lifetime = EvidenceLifetime::new(clock)?;
     if admission.is_some()
         && (!docker.socket.is_absolute() || docker.socket.as_os_str().len() > 512)
@@ -165,7 +217,13 @@ async fn inspect_profile(
         scope.charge(8192)?;
     }
     let authenticated = AuthenticatedEngine::open(docker.clone(), policy)?;
-    let collected = collect(&authenticated, &lifetime, admission.as_ref()).await?;
+    let collected = collect(
+        &authenticated,
+        &lifetime,
+        admission.as_ref(),
+        capture_compose,
+    )
+    .await?;
     let snapshot = EngineStorageProcessSnapshot {
         version: 1,
         endpoint: docker.socket.clone(),
@@ -175,6 +233,17 @@ async fn inspect_profile(
         running: collected.running,
     };
     check_report(&snapshot)?;
+    if let Some(compose) = &collected.compose {
+        #[derive(Serialize)]
+        struct Report<'a> {
+            storage: &'a EngineStorageProcessSnapshot,
+            compose: &'a EngineComposeSnapshot,
+        }
+        check_report(&Report {
+            storage: &snapshot,
+            compose,
+        })?;
+    }
     lifetime.check()?;
     Ok(EngineStorageProcessEvidence {
         snapshot,
@@ -183,6 +252,7 @@ async fn inspect_profile(
         admission,
         _scope: collected._scope,
         _launch: launch,
+        compose: collected.compose.map(compose_evidence::Capture::new),
     })
 }
 
@@ -275,6 +345,7 @@ impl AuthenticatedEngine {
         budget: &ResponseBudget,
         lifetime: &EvidenceLifetime,
         admission: Option<&Admission>,
+        unique: bool,
     ) -> Result<Json> {
         lifetime.check()?;
         if let Some(admission) = admission {
@@ -297,6 +368,7 @@ impl AuthenticatedEngine {
                 return Err(unavailable());
             }
             match scope {
+                Some(scope) if unique => Json::decode_unique(&bytes, scope, list),
                 Some(scope) => Json::decode(&bytes, scope, list),
                 None => serde_json::from_slice(&bytes)
                     .map(Json::standard)
@@ -387,12 +459,14 @@ impl EvidenceLifetime {
 struct Collected {
     declarations: ContainerStorageInventory,
     running: Vec<EngineRunningProcess>,
+    compose: Option<EngineComposeSnapshot>,
     _scope: Option<Scope>,
 }
 async fn collect(
     authenticated: &AuthenticatedEngine,
     lifetime: &EvidenceLifetime,
     admission: Option<&Admission>,
+    capture_compose: bool,
 ) -> Result<Collected> {
     lifetime.check()?;
     let _collecting = admission.map(Admission::collect).transpose()?;
@@ -408,7 +482,9 @@ async fn collect(
         if let Some(scope) = &mut scope {
             scope.charge(8192)?;
         }
-        let get = |path, limit| authenticated.json(path, limit, &budget, lifetime, admission);
+        let get = |path, limit| {
+            authenticated.json(path, limit, &budget, lifetime, admission, capture_compose)
+        };
         let version_json = get("/version".into(), 8192).await?;
         let version = parse_api_version(&version_json)?;
         drop(version_json);
@@ -425,9 +501,13 @@ async fn collect(
         drop(list);
         let mut containers = Vec::new();
         let mut pids = Vec::new();
+        let mut members = Vec::new();
         if let Some(scope) = &mut scope {
             scope.reserve(&mut containers, ids.len())?;
             scope.reserve(&mut pids, ids.len())?;
+            if capture_compose {
+                scope.reserve(&mut members, ids.len())?;
+            }
         } else {
             containers.reserve(ids.len());
             pids.reserve(ids.len());
@@ -450,6 +530,13 @@ async fn collect(
                 scope.as_mut(),
             )?;
             let pid = container_pid(&value, &consumer)?;
+            if capture_compose {
+                members.push(compose_evidence::parse(
+                    &value,
+                    &consumer.container,
+                    scope.as_mut().ok_or_else(unavailable)?,
+                )?);
+            }
             if pid != 0 {
                 if let Some(scope) = &mut scope {
                     scope.charge(32)?;
@@ -471,10 +558,18 @@ async fn collect(
             observed_at: lifetime.observed_at,
             containers,
         };
+        if capture_compose {
+            compose_evidence::consistent(&members)?;
+        }
         declarations
             .validate(lifetime.clock.now()?)
             .map_err(|_| unavailable())?;
-        for ((id, before), &pid) in ids.iter().zip(&declarations.containers).zip(&pids) {
+        for (index, ((id, before), &pid)) in ids
+            .iter()
+            .zip(&declarations.containers)
+            .zip(&pids)
+            .enumerate()
+        {
             let value = get(format!("/{version}/containers/{id}/json"), 512 * 1024).await?;
             let mut comparison = admission.map(Admission::scope);
             let after = super::storage::parse_storage_container_with_admission(
@@ -484,6 +579,15 @@ async fn collect(
                 comparison.as_mut(),
             )?;
             if after != *before || container_pid(&value, &after)? != pid {
+                return Err(conflict());
+            }
+            if capture_compose
+                && compose_evidence::parse(
+                    &value,
+                    &after.container,
+                    comparison.as_mut().ok_or_else(unavailable)?,
+                )? != members[index]
+            {
                 return Err(conflict());
             }
         }
@@ -524,10 +628,24 @@ async fn collect(
             };
             running.push(EngineRunningProcess { container, pid });
         }
+        let compose = if capture_compose {
+            Some(EngineComposeSnapshot {
+                version: 1,
+                engine_id: scope
+                    .as_mut()
+                    .ok_or_else(unavailable)?
+                    .string(&declarations.engine_id)?,
+                containers_observed_at: lifetime.observed_at,
+                containers: members,
+            })
+        } else {
+            None
+        };
         Ok(Collected {
             declarations,
             running,
             _scope: scope,
+            compose,
         })
     })
     .await
@@ -557,7 +675,7 @@ fn container_pid(value: &Value, consumer: &ContainerStorageConsumer) -> Result<u
     }
     Ok(pid as u32)
 }
-fn check_report(snapshot: &EngineStorageProcessSnapshot) -> Result<()> {
+fn check_report(snapshot: &impl Serialize) -> Result<()> {
     struct Size(usize);
     impl Write for Size {
         fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {

@@ -6,6 +6,7 @@ use limeos_domain::{ContainerAction, ContainerSnapshot, Error, ErrorCode, Result
 use serde_json::Value;
 use std::{path::PathBuf, time::Duration};
 use tokio::net::UnixStream;
+pub mod compose_evidence;
 pub mod process_evidence;
 mod read_admission;
 mod storage;
