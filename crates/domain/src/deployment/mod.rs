@@ -1,2 +1,3 @@
-//! Read-only deployment discovery. These values confer no management authority.
+//! Deployment discovery and pure proposals. These confer no management authority.
+pub mod catalog;
 pub mod discovery;

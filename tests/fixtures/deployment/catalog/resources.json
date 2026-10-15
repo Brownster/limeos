@@ -1,0 +1,20 @@
+{
+  "operator": {
+    "networks": {"user-net": {"kind": "external", "name": null}},
+    "volumes": {"user-data": {"kind": "named", "name": null}},
+    "configs": {"user-config": {"kind": "file", "file": "./user.conf"}},
+    "secrets": {"user-secret": {"kind": "external", "name": null}}
+  },
+  "template": {
+    "networks": {"app-net": {"kind": "bridge", "name": null, "internal": false}},
+    "volumes": {"app-data": {"kind": "named", "name": null}},
+    "configs": {"app-config": {"kind": "file", "file": "/srv/Resource-App/app.conf"}},
+    "secrets": {"app-secret": {"kind": "file", "file": "/srv/Resource-App/Key.secret"}}
+  },
+  "expected_artifact_resources": {
+    "networks": {"app-net": {"driver": "bridge", "internal": false}},
+    "volumes": {"app-data": {}},
+    "configs": {"app-config": {"file": "/srv/Resource-App/app.conf"}},
+    "secrets": {"app-secret": {"file": "/srv/Resource-App/Key.secret"}}
+  }
+}
