@@ -1,0 +1,6 @@
+[
+  {"label":"download progress without image change","pull_text":"Downloading Extracting Pull complete Downloaded newer image","manifest":"b","config":"a","decision":"current"},
+  {"label":"changed image with empty output","pull_text":"","manifest":"c","config":"b","decision":"update_proposed"},
+  {"label":"manifest is not the image config id","pull_text":"Already exists","manifest":"a","config":"b","decision":"update_proposed"},
+  {"label":"manifest changes while config stays the same","pull_text":"Download complete","manifest":"c","config":"a","decision":"current"}
+]
