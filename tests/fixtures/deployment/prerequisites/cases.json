@@ -40,6 +40,9 @@
     {"name":"zero-do-not-overwrite-operator","main":"[Journal]\nSystemMaxUse=0\n","expected":"unknown","reason":"UnsupportedSyntax"},
     {"name":"unsupported-decimal-do-not-overwrite","main":"[Journal]\nSystemMaxUse=1.5G\n","expected":"unknown","reason":"UnsupportedSyntax"},
     {"name":"overflow-is-unknown","main":"[Journal]\nSystemMaxUse=16E\n","expected":"unknown","reason":"UnsupportedSyntax"},
-    {"name":"continuation-is-unknown","main":"[Journal]\nSystemMaxUse=200\\\nM\n","expected":"unknown","reason":"UnsupportedSyntax"}
+    {"name":"continuation-is-unknown","main":"[Journal]\nSystemMaxUse=200\\\nM\n","expected":"unknown","reason":"UnsupportedSyntax"},
+    {"name":"bare-cr-cannot-hide-reset-after-comment","main":"[Journal]\nSystemMaxUse=500M\n# comment\rSystemMaxUse=\n","expected":"unknown","reason":"UnsupportedSyntax"},
+    {"name":"bare-cr-cannot-hide-operator-cap","main":"[Journal]\n# comment\rSystemMaxUse=500M\n","expected":"unknown","reason":"UnsupportedSyntax"},
+    {"name":"crlf-still-supported","main":"[Journal]\r\nSystemMaxUse=500M\r\n","expected":"satisfied"}
   ]
 }

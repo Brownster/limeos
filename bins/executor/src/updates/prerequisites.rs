@@ -361,6 +361,16 @@ fn apply_source(source: FileFact<'_>, cap: &mut Option<u64>) -> Result<(), Reaso
         FileFact::Absent | FileFact::Masked => return Ok(()),
         FileFact::Unavailable => return Err(Reason::Unavailable),
         FileFact::Bytes(bytes) => {
+            // systemd also splits on bare CR; Rust's lines() only splits LF or
+            // CRLF. Refuse unsupported separators before comments can hide a
+            // subsequent assignment. NUL separators are rejected by text().
+            if bytes
+                .iter()
+                .enumerate()
+                .any(|(index, byte)| *byte == b'\r' && bytes.get(index + 1) != Some(&b'\n'))
+            {
+                return Err(Reason::UnsupportedSyntax);
+            }
             let mut journal = false;
             for line in text(bytes)?.lines() {
                 let line = line.trim_ascii();
