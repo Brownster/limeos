@@ -116,15 +116,62 @@ pub struct DataGrant {
     pub target: Option<String>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum NetworkMode {
+    Service { service: String },
+}
+impl NetworkMode {
+    fn provider(&self) -> &String {
+        match self {
+            Self::Service { service } => service,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DependencyCondition {
+    ServiceStarted,
+    ServiceHealthy,
+    ServiceCompletedSuccessfully,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Dependency {
+    pub service: String,
+    pub condition: DependencyCondition,
+    pub restart: bool,
+    pub required: bool,
+}
+impl From<&str> for Dependency {
+    fn from(service: &str) -> Self {
+        Self {
+            service: service.into(),
+            condition: DependencyCondition::ServiceStarted,
+            restart: false,
+            required: true,
+        }
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CatalogService {
     pub base: ComposeService,
     /// Package/catalog metadata, not an implicit Compose startup-order edit.
     pub requires: Vec<String>,
-    pub depends_on: Vec<String>,
+    pub depends_on: Vec<Dependency>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network_mode: Option<NetworkMode>,
     pub networks: Vec<String>,
     pub configs: Vec<DataGrant>,
     pub secrets: Vec<DataGrant>,
+}
+impl CatalogService {
+    fn dependency_names(&self) -> impl Iterator<Item = &String> {
+        self.requires
+            .iter()
+            .chain(self.depends_on.iter().map(|d| &d.service))
+            .chain(self.network_mode.iter().map(NetworkMode::provider))
+    }
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -178,6 +225,7 @@ pub enum CatalogGate {
     PreparedTargetAndAbsence,
     ExplicitOrphanReview,
     VerifiedSelectedServiceShutdown,
+    VerifiedNamespaceProviderAndStartup,
 }
 const GATES: &[CatalogGate] = &[
     CatalogGate::ApprovedTemplateAndCompleteSource,
@@ -187,7 +235,15 @@ const GATES: &[CatalogGate] = &[
     CatalogGate::PreparedTargetAndAbsence,
     CatalogGate::ExplicitOrphanReview,
     CatalogGate::VerifiedSelectedServiceShutdown,
+    CatalogGate::VerifiedNamespaceProviderAndStartup,
 ];
+
+/// Declared edges only. Not live namespace membership or VPN protection proof.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct NamespaceBinding {
+    pub service: String,
+    pub provider: String,
+}
 
 /// Opaque draft only. No deserializer or stop-result shortcut enables a write.
 pub struct CatalogPlan {
@@ -202,6 +258,8 @@ pub struct CatalogPlan {
     reused: Vec<ResourceKey>,
     base: ManagedOverridePlan,
     artifact: Vec<u8>,
+    namespace_before: Vec<NamespaceBinding>,
+    namespace_desired: Vec<NamespaceBinding>,
 }
 impl fmt::Debug for CatalogPlan {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -225,7 +283,9 @@ pub struct CatalogSummary<'a> {
     pub added_resources: &'a [ResourceKey],
     pub reused_resources: &'a [ResourceKey],
     pub shutdown_required: &'a [String],
-    /// Existing base-service projection only; excludes resource/grant metadata.
+    pub namespace_before: &'a [NamespaceBinding],
+    pub namespace_desired: &'a [NamespaceBinding],
+    /// Existing base-service projection only; excludes namespace/startup/resource metadata.
     /// Execution review must bind the complete model and artifact instead.
     pub base_service_impact: &'a ComposeImpact,
     pub managed_file: &'static str,
@@ -240,7 +300,7 @@ impl CatalogPlan {
     pub fn summary(&self) -> CatalogSummary<'_> {
         let base = self.base.summary();
         CatalogSummary {
-            version: 1,
+            version: 2,
             installation: &self.key,
             action: self.action,
             project: &self.project,
@@ -251,6 +311,8 @@ impl CatalogPlan {
             added_resources: &self.added,
             reused_resources: &self.reused,
             shutdown_required: base.shutdown_required,
+            namespace_before: &self.namespace_before,
+            namespace_desired: &self.namespace_desired,
             base_service_impact: base.impact,
             managed_file: COMPOSE_MANAGED_FILE,
             artifact_bytes: self.artifact.len(),
@@ -375,7 +437,27 @@ fn service(service: &CatalogService, bytes: &mut usize) -> Result<()> {
         charge(bytes, device.source.len() + device.target.len())?;
     }
     names(&service.requires, bytes)?;
-    names(&service.depends_on, bytes)?;
+    if service.depends_on.len() > MAX_ENTRIES {
+        return Err(error(CatalogErrorCode::Limit));
+    }
+    for (i, dependency) in service.depends_on.iter().enumerate() {
+        check(
+            compose_name(&dependency.service)
+                && !service.depends_on[..i]
+                    .iter()
+                    .any(|d| d.service == dependency.service),
+        )?;
+        charge(bytes, dependency.service.len())?;
+    }
+    if let Some(mode) = &service.network_mode {
+        check(
+            compose_name(mode.provider())
+                && !base.host_network
+                && base.ports.is_empty()
+                && service.networks.is_empty(),
+        )?;
+        charge(bytes, mode.provider().len())?;
+    }
     names(&service.networks, bytes)?;
     check(!base.host_network || service.networks.is_empty())?;
     for (grants, secret) in [(&service.configs, false), (&service.secrets, true)] {
@@ -622,7 +704,7 @@ fn references(operator: &Project, managed: &Project) -> Result<()> {
     }
     let mut missing = BTreeSet::new();
     for service in &all {
-        for required in service.requires.iter().chain(&service.depends_on) {
+        for required in service.dependency_names() {
             if !all.iter().any(|s| s.base.name == *required) {
                 missing.insert(required.clone());
             }
@@ -655,7 +737,7 @@ fn references(operator: &Project, managed: &Project) -> Result<()> {
         if !visiting.insert(index) {
             return false;
         }
-        for name in all[index].requires.iter().chain(&all[index].depends_on) {
+        for name in all[index].dependency_names() {
             if let Some(next) = all.iter().position(|s| s.base.name == *name)
                 && !visit(next, all, visiting, done)
             {
@@ -670,6 +752,28 @@ fn references(operator: &Project, managed: &Project) -> Result<()> {
     for index in 0..all.len() {
         if !visit(index, &all, &mut visiting, &mut done) {
             return Err(error(CatalogErrorCode::CyclicDependencies));
+        }
+    }
+    // The preceding graph check bounds every walk and proves references exist.
+    // A consumer needs its providers live, not successfully exited; host
+    // namespace inheritance requires a separate supported adapter and claims.
+    for consumer in &all {
+        let mut current = *consumer;
+        while let Some(mode) = &current.network_mode {
+            let provider = all
+                .iter()
+                .copied()
+                .find(|s| s.base.name == *mode.provider())
+                .ok_or_else(|| error(CatalogErrorCode::InvalidReference))?;
+            if provider.base.host_network
+                || consumer.depends_on.iter().any(|d| {
+                    d.service == provider.base.name
+                        && d.condition == DependencyCondition::ServiceCompletedSuccessfully
+                })
+            {
+                return Err(error(CatalogErrorCode::Unsupported));
+            }
+            current = provider;
         }
     }
     Ok(())
@@ -757,13 +861,7 @@ pub fn plan_remove(stacks: &[StackDeclaration], key: &InstallationKey) -> Result
         .services
         .iter()
         .chain(&stack.managed.services)
-        .filter(|s| {
-            s.base.name != key.app
-                && s.requires
-                    .iter()
-                    .chain(&s.depends_on)
-                    .any(|name| *name == key.app)
-        })
+        .filter(|s| s.base.name != key.app && s.dependency_names().any(|name| *name == key.app))
         .map(|s| s.base.name.clone())
         .collect();
     dependents.sort();
@@ -806,6 +904,24 @@ fn finish(
         .services
         .sort_by(|a, b| a.base.name.cmp(&b.base.name));
     let artifact = render(&base, &desired)?;
+    let bindings = |managed: &Project| {
+        let mut rows: Vec<_> = stack
+            .operator
+            .services
+            .iter()
+            .chain(&managed.services)
+            .filter_map(|s| {
+                s.network_mode.as_ref().map(|mode| NamespaceBinding {
+                    service: s.base.name.clone(),
+                    provider: mode.provider().clone(),
+                })
+            })
+            .collect();
+        rows.sort_by(|a, b| a.service.cmp(&b.service));
+        rows
+    };
+    let namespace_before = bindings(&stack.managed);
+    let namespace_desired = bindings(&desired);
     let plan = CatalogPlan {
         key: InstallationKey {
             app: app.into(),
@@ -821,6 +937,8 @@ fn finish(
         reused,
         base,
         artifact,
+        namespace_before,
+        namespace_desired,
     };
     serde_json::to_writer(
         LimitWriter {
@@ -882,7 +1000,25 @@ fn render(base: &ManagedOverridePlan, desired: &Project) -> Result<Vec<u8>> {
             .and_then(Value::as_object_mut)
             .ok_or_else(|| error(CatalogErrorCode::Unsupported))?;
         if !service.depends_on.is_empty() {
-            target.insert("depends_on".into(), json!(service.depends_on));
+            let dependencies: Map<_, _> = service
+                .depends_on
+                .iter()
+                .map(|d| {
+                    (
+                        d.service.clone(),
+                        json!({
+                            "condition": d.condition, "restart": d.restart, "required": d.required,
+                        }),
+                    )
+                })
+                .collect();
+            target.insert("depends_on".into(), Value::Object(dependencies));
+        }
+        if let Some(mode) = &service.network_mode {
+            target.insert(
+                "network_mode".into(),
+                json!(format!("service:{}", mode.provider())),
+            );
         }
         if !service.networks.is_empty() {
             target.insert("networks".into(), json!(service.networks));

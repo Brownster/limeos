@@ -1,6 +1,8 @@
 use super::*;
 use crate::{ComposeDevice, ComposeRestart, ComposeUser};
 
+mod namespaces;
+
 fn service(name: &str) -> CatalogService {
     CatalogService {
         base: ComposeService {
@@ -16,6 +18,7 @@ fn service(name: &str) -> CatalogService {
         },
         requires: vec![],
         depends_on: vec![],
+        network_mode: None,
         networks: vec![],
         configs: vec![],
         secrets: vec![],
@@ -275,7 +278,7 @@ fn catalog_requires_does_not_silently_add_compose_startup_order() {
     template.service.depends_on.push("db".into());
     assert_eq!(
         artifact(&install(&state, &template).unwrap())["services"]["web"]["depends_on"],
-        json!(["db"])
+        json!({"db": {"condition": "service_started", "restart": false, "required": true}})
     );
     assert_eq!(
         install(&stack("other"), &template).unwrap_err().code,

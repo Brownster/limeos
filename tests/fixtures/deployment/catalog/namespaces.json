@@ -1,0 +1,25 @@
+{
+  "provider": "vpn",
+  "ports": [
+    {"host_ip": "127.0.0.1", "published": 9091, "target": 9091, "protocol": "tcp"},
+    {"host_ip": "127.0.0.1", "published": 8989, "target": 8989, "protocol": "tcp"}
+  ],
+  "members": [
+    {
+      "name": "transmission",
+      "network_mode": {"kind": "service", "service": "vpn"},
+      "depends_on": [{"service": "vpn", "condition": "service_healthy", "restart": false, "required": true}],
+      "host_path": "/srv/Media/Downloads",
+      "container_path": "/downloads"
+    },
+    {
+      "name": "sonarr",
+      "network_mode": {"kind": "service", "service": "vpn"},
+      "depends_on": [{"service": "vpn", "condition": "service_healthy", "restart": false, "required": true}],
+      "host_path": "/srv/Media/TV",
+      "container_path": "/tv"
+    }
+  ],
+  "expected_namespace": "service:vpn",
+  "expected_dependency": {"vpn": {"condition": "service_healthy", "restart": false, "required": true}}
+}
