@@ -1,0 +1,3 @@
+[
+  {"Name": "Movies", "CollectionType": "movies", "Locations": ["/media/movies"], "LibraryOptions": {"secret": "MEDIA_PRIVATE_VALUE=fixture-only"}}
+]

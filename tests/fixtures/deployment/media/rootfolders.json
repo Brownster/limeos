@@ -1,0 +1,4 @@
+[
+  {"id": 1, "path": "/downloads/complete/sonarr", "unrelated": {"apiKey": "MEDIA_PRIVATE_VALUE=fixture-only"}},
+  {"id": 2, "path": "/OtherLibrary"}
+]
