@@ -1,0 +1,12 @@
+[
+  {"name":"registered-empty","services":["web","db"],"members":[],"runtime":"no_containers","missing":2,"ordinary":0,"running":0,"one_offs":0},
+  {"name":"all-stopped","services":["web","db"],"members":[["web",false,false],["db",false,false]],"runtime":"stopped","missing":0,"ordinary":2,"running":0,"one_offs":0},
+  {"name":"all-running","services":["web","db"],"members":[["web",true,false],["db",true,false]],"runtime":"running","missing":0,"ordinary":2,"running":2,"one_offs":0},
+  {"name":"mixed-replicas","services":["web"],"members":[["web",true,false],["web",false,false]],"runtime":"partial","missing":0,"ordinary":2,"running":1,"one_offs":0},
+  {"name":"all-replicas-running","services":["web"],"members":[["web",true,false],["web",true,false]],"runtime":"running","missing":0,"ordinary":2,"running":2,"one_offs":0},
+  {"name":"missing-service-is-partial","services":["web","db"],"members":[["web",true,false]],"runtime":"partial","missing":1,"ordinary":1,"running":1,"one_offs":0},
+  {"name":"one-off-cannot-satisfy-service","services":["web"],"members":[["web",true,true]],"runtime":"no_containers","missing":1,"ordinary":0,"running":0,"one_offs":1},
+  {"name":"one-off-cannot-mask-stopped-service","services":["web"],"members":[["web",false,false],["web",true,true]],"runtime":"stopped","missing":0,"ordinary":1,"running":0,"one_offs":1},
+  {"name":"one-off-does-not-degrade-running-service","services":["web"],"members":[["web",true,false],["web",false,true]],"runtime":"running","missing":0,"ordinary":1,"running":1,"one_offs":1},
+  {"name":"undeclared-service-visible","services":["web"],"members":[["web",true,false],["old",true,false]],"runtime":"partial","missing":0,"ordinary":2,"running":2,"one_offs":0,"drift":true}
+]

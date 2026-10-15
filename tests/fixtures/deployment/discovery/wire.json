@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "generated_at": 101,
+  "catalog": {
+    "state": "fresh",
+    "sampled_at": 100,
+    "max_age_seconds": 90
+  },
+  "engine": {
+    "state": "fresh",
+    "sampled_at": 100,
+    "max_age_seconds": 90
+  },
+  "engine_matches_catalog": true,
+  "stacks": [
+    {
+      "stack": "media",
+      "project": "media",
+      "working_directory": "/opt/stacks/Media",
+      "config_files": [
+        "/opt/stacks/Media/compose.yaml"
+      ],
+      "files": {
+        "state": "not_inspected"
+      },
+      "runtime": "partial",
+      "counts": {
+        "ordinary": 2,
+        "running": 1,
+        "one_offs": 1,
+        "one_off_running": 1
+      },
+      "missing_services": 0,
+      "services": [
+        {
+          "name": "web",
+          "declared": true,
+          "runtime": "partial",
+          "counts": {
+            "ordinary": 2,
+            "running": 1,
+            "one_offs": 1,
+            "one_off_running": 1
+          },
+          "members": [
+            {
+              "container": {
+                "resource": "container:0000000000000000000000000000000000000000000000000000000000000000",
+                "image": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "started_at": "2026-10-15T00:00:00Z",
+                "running": true
+              },
+              "one_off": false
+            },
+            {
+              "container": {
+                "resource": "container:0000000000000000000000000000000000000000000000000000000000000001",
+                "image": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "started_at": "2026-10-15T00:00:00Z",
+                "running": false
+              },
+              "one_off": false
+            },
+            {
+              "container": {
+                "resource": "container:0000000000000000000000000000000000000000000000000000000000000002",
+                "image": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "started_at": "2026-10-15T00:00:00Z",
+                "running": true
+              },
+              "one_off": true
+            }
+          ]
+        }
+      ],
+      "issues": []
+    }
+  ],
+  "other_projects": [],
+  "standalone_containers": 0
+}
