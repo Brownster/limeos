@@ -12,6 +12,7 @@ pub const MAX_SERVICES: usize = 16;
 pub const MAX_IMAGES: usize = 16;
 pub const MAX_TEXT_BYTES: usize = 32 * 1024;
 pub const MAX_REPORT_BYTES: usize = 64 * 1024;
+pub const UPDATE_REPORT_VERSION: u16 = 2;
 const MAX_TIME: i64 = 253_402_300_799;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,7 +65,7 @@ pub enum ImageSource {
     },
     Digest {
         repository: String,
-        manifest_digest: String,
+        root_digest: String,
     },
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -92,6 +93,7 @@ pub struct ImageResolution {
     pub service: String,
     pub source: ImageSource,
     pub platform: Platform,
+    pub root_digest: String,
     pub manifest_digest: String,
     pub config_digest: String,
     pub sampled_at: i64,
@@ -142,6 +144,7 @@ pub struct ServiceTarget {
     pub source: ImageSource,
     pub platform: Platform,
     pub replicas: u16,
+    pub root_digest: String,
     pub manifest_digest: String,
     pub config_digest: String,
     pub resolution_sampled_at: i64,
@@ -216,7 +219,7 @@ pub struct UpdateSummary<'a> {
 impl UpdatePlan {
     pub fn summary(&self) -> UpdateSummary<'_> {
         UpdateSummary {
-            version: 1,
+            version: UPDATE_REPORT_VERSION,
             generated_at: self.generated_at,
             engine_id: self.engine_id.as_deref(),
             config: self.config.as_ref(),
@@ -336,8 +339,8 @@ fn image_source(source: &ImageSource, text: &mut usize) -> Result<()> {
         ),
         ImageSource::Digest {
             repository,
-            manifest_digest,
-        } => (repository, manifest_digest, digest(manifest_digest)),
+            root_digest,
+        } => (repository, root_digest, digest(root_digest)),
     };
     checked(text, repo, repository(repo))?;
     checked(text, selector, valid)
@@ -410,6 +413,7 @@ fn admit(input: &UpdateInput<'_>) -> Result<()> {
         }
         identity(&image.project, &mut text)?;
         image_source(&image.source, &mut text)?;
+        checked(&mut text, &image.root_digest, digest(&image.root_digest))?;
         checked(
             &mut text,
             &image.manifest_digest,
@@ -496,7 +500,7 @@ fn targets(
         if image.platform != platform {
             return Err(Issue::PlatformMismatch);
         }
-        if matches!(&track.source, ImageSource::Digest {manifest_digest,..} if *manifest_digest != image.manifest_digest)
+        if matches!(&track.source, ImageSource::Digest {root_digest,..} if *root_digest != image.root_digest)
         {
             return Err(Issue::PinnedSourceMoved);
         }
@@ -505,6 +509,7 @@ fn targets(
             source: track.source.clone(),
             platform,
             replicas: track.replicas,
+            root_digest: image.root_digest.clone(),
             manifest_digest: image.manifest_digest.clone(),
             config_digest: image.config_digest.clone(),
             resolution_sampled_at: image.sampled_at,
@@ -798,7 +803,7 @@ pub fn assess_post_update(plan: &UpdatePlan, input: PostInput<'_>) -> Result<Pos
         rows.push(observation);
     }
     let report = PostAssessment {
-        version: 1,
+        version: UPDATE_REPORT_VERSION,
         generated_at: input.now,
         catalog_sampled_at: after.catalog.sampled_at,
         engine_sampled_at: after.engine.sampled_at,

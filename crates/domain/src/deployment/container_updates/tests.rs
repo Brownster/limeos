@@ -46,6 +46,7 @@ fn image(stack: &str, config: char) -> ImageResolution {
         service: "web".into(),
         source: spec(stack).services[0].source.clone(),
         platform: Platform::LinuxArm64V8,
+        root_digest: hash('c'),
         manifest_digest: hash('c'),
         config_digest: hash(config),
         sampled_at: 100,
@@ -405,7 +406,7 @@ fn pinned_sources_cannot_move_and_arm64_tracks_cannot_select_amd64() {
     let mut track = spec("media");
     track.services[0].source = ImageSource::Digest {
         repository: "example/web".into(),
-        manifest_digest: hash('d'),
+        root_digest: hash('d'),
     };
     let mut candidate = image("media", 'b');
     candidate.source = track.services[0].source.clone();
@@ -804,4 +805,33 @@ fn review_summary_contains_only_requested_stacks_not_unrelated_inventory() {
     let summary = serde_json::to_string(&result.summary()).unwrap();
     assert_eq!(result.summary().before.stacks.len(), 1);
     assert!(!summary.contains("private-other"));
+}
+
+#[test]
+fn pinned_multi_platform_root_may_differ_from_selected_manifest() {
+    let mut track = spec("media");
+    track.services[0].source = ImageSource::Digest {
+        repository: "example/web".into(),
+        root_digest: hash('d'),
+    };
+    let mut candidate = image("media", 'b');
+    candidate.source = track.services[0].source.clone();
+    candidate.root_digest = hash('d');
+    let result = read(
+        Some(&UpdateConfig::default()),
+        RunMode::Manual,
+        &["media".into()],
+        &[track],
+        &[declaration("media")],
+        &[member("media", 1, 'a')],
+        &[candidate],
+        100,
+    )
+    .unwrap();
+    assert_eq!(result.summary().rows[0].decision, Decision::UpdateProposed);
+    assert_eq!(result.summary().version, 2);
+    assert_ne!(
+        result.summary().rows[0].services[0].root_digest,
+        result.summary().rows[0].services[0].manifest_digest
+    );
 }
