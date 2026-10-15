@@ -1,0 +1,13 @@
+[package]
+name = "limeos-network-adapter-leaf"
+version = "0.0.0"
+edition = "2024"
+publish = false
+[dependencies]
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+limeos-domain = { package = "limeos-network-domain-leaf", path = "../domain" }
+[lib]
+path = "lib.rs"
+[lints.rust]
+unsafe_code = "forbid"
