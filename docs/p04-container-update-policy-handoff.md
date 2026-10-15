@@ -5,6 +5,11 @@ based on B2 `5e275ca`. Tested code: `46f63015d380f20ca31768d188c02e0f4e60e786`.
 This branch includes B2, not B4 or the package/HOST-001 branch. It delivers pure
 selection and diagnostic convergence comparison; RW-044 execution stays open.
 
+October 15 follow-up: [image-content admission](p04-image-content-handoff.md)
+supersedes the draft digest-source binding with version 2, separating an immutable
+root (index or manifest), selected platform manifest and runtime config digest.
+The earlier evidence below retains its original version-1 source identity.
+
 ## Delivered behavior
 
 `crates/domain/src/deployment/container_updates.rs::plan_updates(UpdateInput)`

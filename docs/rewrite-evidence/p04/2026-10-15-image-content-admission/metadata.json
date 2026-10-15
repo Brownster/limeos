@@ -1,0 +1,165 @@
+{
+  "recorded_at_utc": "2026-10-15T13:21:21.910405+00:00",
+  "source_commit": "f0ea172be9b917b972cc57c1bbaab4ae9fae9456",
+  "base_commit": "d8f94ded7dd151bea150066cec354da7b87646fc",
+  "root_pin_fix_commit": "869c74d8bed94dd21164aa45ab6c509b09593f0b",
+  "branch": "engineer/p04-image-content-admission",
+  "source_files_sha256": {
+    "Cargo.lock": "292f5ac185d4835c18e6f455e8888075e3dbf93689f4303a84e0c8188765f974",
+    "Cargo.toml": "904578398be9460bbc087d2e5988a3ba1082160a6af7ebfa70b12256fc90d2a3",
+    "crates/domain/Cargo.toml": "52f391156ec91153a8a4d256ee37bd170624ab13b5c7608156bd3fb81182a9ea",
+    "crates/domain/src/backup_jobs.rs": "7b985dea6d8f2ffb71d7833b5626dbcd99f44c207ab9d98801dda127ddcaec7f",
+    "crates/domain/src/backup_jobs/tests.rs": "d2ff77d2a3ae56e006aeb12dac342a522158c475a3d1fac737b4f44111db0294",
+    "crates/domain/src/backups.rs": "838bf9d185c9bdb4ba6e8c8fc0d23c77506c7840988ee51271140bd59a6d491b",
+    "crates/domain/src/backups/tests.rs": "b171d8a3b887ff6ecd8e3c62a9decd62a02861500aee6769b508d6f5fc8046f7",
+    "crates/domain/src/compose.rs": "5d9e42206d758830f8df669250af98edd8bf757c252debbb5883f3ec714302a2",
+    "crates/domain/src/compose/tests.rs": "a5655ed5e180c24773374388d6a06881dacefa38568533e4d2644332549691ad",
+    "crates/domain/src/compose_override.rs": "cff9d301ded62d867fe945d1a3722127248f4d9e1a01d8d70ea276ea654e8af5",
+    "crates/domain/src/compose_override/tests.rs": "6563b4aa1bdbee9530602c83a3e6dfd5e782398aa6bf81e8b6fe6b81d82b6201",
+    "crates/domain/src/configured_dependencies.rs": "fd441f0e9c4d6685d5dda9f3ceb2e1bea002d283e19c40bbfaf1021679e5c555",
+    "crates/domain/src/configured_dependencies/tests.rs": "ff81c22636251f9deea8b02df1a0c013eeb3e3f304a3a0757cc9c6253d1fb134",
+    "crates/domain/src/deployment/container_updates.rs": "fe315b6b4a85a2f9cc3e6c3ba34c2821ace68df923f8a818fa9696e9bebadf7b",
+    "crates/domain/src/deployment/container_updates/tests.rs": "57c4990c6a7805d045ac3462b0a9e8b5055c0c62c8ef693029f543b3be50acb4",
+    "crates/domain/src/deployment/discovery.rs": "151b7ad63438a58011c63eddc26295b686a02ffb5b6191445ef11dbf057071e2",
+    "crates/domain/src/deployment/discovery/tests.rs": "7320399215c828eb921e280878ea63c091bdc9661883902c3574481dcdce1e65",
+    "crates/domain/src/deployment/mod.rs": "b0184e0beb1b9ba75247eda37f2f283fd2902f4ddbb232dd1574a61269819ac3",
+    "crates/domain/src/lib.rs": "8efb1348e22800f2b3256ba761e5d1faef36107977d3e6d422e33e06e247ec95",
+    "crates/domain/src/logs.rs": "40e611fedd1d2f2068c3f0880f4917fac75ddb7b808bfac80938e814f007ebf1",
+    "crates/domain/src/operations.rs": "ad2ef3fa9a8084a48f472fe4c277d3fccf99378e99ac902539de444ddfc52e6c",
+    "crates/domain/src/pools.rs": "6b52beb20b43b2518c221d874eb00ae52ad344f1120386f15720fedc72fa7b96",
+    "crates/domain/src/pools/tests.rs": "941a6ec05bb4a05e458a87b4032c9f3a01ac45b86bd964b5fd2dc81c4987b366",
+    "crates/domain/src/protection.rs": "6d73cc0e52f25fc168400f763f56ae62bcd6cded5bb2b52370e7a69ad2804aca",
+    "crates/domain/src/protection/tests.rs": "2c2c5e47d6d83cbae38580d53cae00ad99a2db33d035516994b34c73eeccf6fe",
+    "crates/domain/src/shares.rs": "2ac77a99c0a8e1ba8cae5f6f5d2d06e3d9135167c6875d555e4bbbfa434e7621",
+    "crates/domain/src/shares/tests.rs": "28ce2192f98437e12d527c4536e86d8befdb4533dd94a8dc9a8faabe313adde4",
+    "crates/domain/src/storage.rs": "92399f87c36476f2fb03a063240cd5e8fdef98e46bfddfb66ea3e8ffc13a0111",
+    "crates/domain/src/storage/planning.rs": "f1cb72a2800c7263fa49a9fcb29bb71e5d0f36cf10ba4e613562748bc5ec142c",
+    "crates/domain/src/storage/planning/tests.rs": "caaf77b585f418eda044b8d8f51353f2d83c4b09d1cb4b895839d97cdb22d013",
+    "crates/domain/src/storage/tests.rs": "9d2e8a447e7c025986081f74bfb64539465bca82cbec8d13b6fa6f8ccae71f75",
+    "crates/domain/src/storage_dependencies.rs": "e2335af5670f22d47bca09658f9770a9a44141f307d2628ff889617b709e7887",
+    "crates/domain/src/storage_dependencies/tests.rs": "cf845f62fb794993a67ed64ef43823f7e89baece9757dc6ab55dc1b17eb4974f",
+    "crates/domain/src/storage_dependency_graph.rs": "9be43516ac127fa9edfc97a7881618f8182662d462d2a9222dea6d151ac97450",
+    "crates/domain/src/storage_dependency_graph/tests.rs": "bbefb8bb35ab2f751fb1c912477c3e08701f474d1cedd704c8ff04913c361f90",
+    "crates/domain/src/storage_impact.rs": "3c0ab8ef032de07411d045793d3f20130167d7af861e0d1994a04a86f0fb67c3",
+    "crates/domain/src/storage_impact/tests.rs": "f688661dc30e55845649d0d70bf0125d17d7696673c6e58e0a6b701cbe781221",
+    "crates/domain/src/storage_targets.rs": "691df1674c6ceffb8344b077304615743545ec50d31848de90abc839e137fac1",
+    "crates/executor-container/Cargo.toml": "e2f32ab1c52b94efe3c56b0e9d238c7b23bd8e84a148bf511e94ae49272f3be5",
+    "crates/executor-container/src/deployment/images.rs": "6fa21e338bb70943ac1330e31cfb98a6b926b8b91cc08def1f9d2b3b04e3c2a1",
+    "crates/executor-container/src/deployment/images/tests.rs": "e58fafa29835d1d8c94b8f313ed8182e657f61baea638392aa23ad821adc2e16",
+    "crates/executor-container/src/deployment/mod.rs": "554573f41f89c236f7ad84f0427f1447caafb5c634bc5aed97e824cecfc15233",
+    "tests/fixtures/deployment/container-updates/check-leaf.py": "f96658e4ac67993b92438bc2a3123922d4367de6e1435920d788e527f6bf5e3a",
+    "tests/fixtures/deployment/container-updates/config.json": "0e13aa79a1cf7c76966612cba6bccae1b3816a2ac0b68aedae0708799903e783",
+    "tests/fixtures/deployment/container-updates/image-cases.json": "c9783a7b45ebfcfa4ddb3b0d013281d1a540d9592bf24f376a95e0e0d67a764c",
+    "tests/fixtures/deployment/discovery/scenarios.json": "649875c6b1cc2a19056986cba28685d3556dfcdac526d50994d7c5ea4cb5b178",
+    "tests/fixtures/deployment/discovery/wire.json": "d3ada6a3e29506aa1033c1098fc67dd8d5f5e88621b362cec5a851fbe4c24fb2",
+    "tests/fixtures/deployment/images/check-leaves.py": "5dd804ccb20f2b735f7ab0734017447756df2241ab946bc80283b25410a64472",
+    "tests/fixtures/deployment/images/docker-amd64-config.json": "ae710a21706a7cfda86e2099d92ab2099c44d4fd69ea5ec376bd6f25873baee3",
+    "tests/fixtures/deployment/images/docker-amd64-manifest.json": "a5896ef33283b5d94a73232c41a6b290b100a343e5a09f9bba0d772d074f8d64",
+    "tests/fixtures/deployment/images/docker-arm64-config.json": "5c5079c3e933ca4c72936bc0e32efbac149bb56913dfb5100b6d072cd913d6bf",
+    "tests/fixtures/deployment/images/docker-arm64-manifest.json": "0c6dae9261263ac8cfc42b1abb5043e728f400acba719297b0c907efdd33a441",
+    "tests/fixtures/deployment/images/docker-index.json": "a8b4164977bb6de19132122b2e82836702255a34d8f6643398b9414ad00ca681",
+    "tests/fixtures/deployment/images/hashes.json": "8bed01c46a1ef83c701635fd224138c8920f498d6b16c84fe9f5e51670fa55b7",
+    "tests/fixtures/deployment/images/oci-amd64-config.json": "ae710a21706a7cfda86e2099d92ab2099c44d4fd69ea5ec376bd6f25873baee3",
+    "tests/fixtures/deployment/images/oci-amd64-manifest.json": "2802526da3cebe3ee5e4ba2fc21a5a2d35694dd627d415d309f26a5473af348b",
+    "tests/fixtures/deployment/images/oci-arm64-config.json": "5c5079c3e933ca4c72936bc0e32efbac149bb56913dfb5100b6d072cd913d6bf",
+    "tests/fixtures/deployment/images/oci-arm64-manifest.json": "7430a65589bc5e59969c10cd4adbf1cf74609e48764a4aece7fdfb8708809542",
+    "tests/fixtures/deployment/images/oci-index.json": "1a1df03abc210e9814f68a65d3ef8d2f26d6f937bf82f8f54cad89cb5fe6dd58"
+  },
+  "frozen_reference": {
+    "commit": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+    "files_sha256": {
+      "update_service.py": "f5c4078a13b514837f1f0e80df04761b4b57e681b2d5e8293e1711bc9d1258fd",
+      "tests/test_update_service.py": "f386062f6eb2758aa14cea851d2af0254f9de7283e8457836cb155aa49eb2ebd"
+    }
+  },
+  "rust_tests": {
+    "image_adapter": 23,
+    "update_policy": 25,
+    "b2_domain": 12,
+    "total": 60
+  },
+  "synthetic_metadata_documents": 10,
+  "fixture_hash_oracle": "Independent Python hashlib over exact synthetic bytes; layer hashes are unfetched placeholders",
+  "tool_versions": {
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5",
+    "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+    "clippy": "clippy 0.1.88 (6b00bc3880 2025-06-23)",
+    "rustfmt": "rustfmt 1.8.0-stable (6b00bc3880 2025-06-23)",
+    "uv": "uv 0.11.25 (x86_64-unknown-linux-gnu)",
+    "ruff": "ruff 0.17.0 (explicit cached uv package pin)"
+  },
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "2 for tests",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv"
+  },
+  "checks": [
+    {
+      "command": "cargo test --offline --locked --manifest-path .cache/image-content-leaf/Cargo.toml",
+      "exit_code": 0,
+      "log": "test-final.log.gz"
+    },
+    {
+      "command": "cargo clippy --offline --locked --manifest-path .cache/image-content-leaf/Cargo.toml --all-targets -- -D warnings",
+      "exit_code": 0,
+      "log": "clippy-final.log.gz"
+    },
+    {
+      "command": "rustfmt --check --edition 2024 crates/domain/src/deployment/mod.rs crates/executor-container/src/deployment/mod.rs",
+      "exit_code": 0,
+      "log": "rustfmt.log.gz"
+    },
+    {
+      "command": "uv run --offline --no-project --with ruff==0.17.0 ruff check tests/fixtures/deployment/images/check-leaves.py",
+      "exit_code": 0,
+      "log": "ruff.log.gz"
+    },
+    {
+      "command": "uv run --offline --no-project --with ruff==0.17.0 ruff format --check tests/fixtures/deployment/images/check-leaves.py",
+      "exit_code": 0,
+      "log": "python-format.log.gz"
+    }
+  ],
+  "captured_logs": [
+    "clippy-before-raw-layer.log.gz",
+    "clippy-final.log.gz",
+    "clippy-queued.log.gz",
+    "python-format.log.gz",
+    "raw-layer-red.log.gz",
+    "root-regression-green.log.gz",
+    "root-regression-red.log.gz",
+    "ruff.log.gz",
+    "rustfmt.log.gz",
+    "test-final.log.gz",
+    "test-first.log.gz"
+  ],
+  "diagnostics": [
+    "root-regression-red.log.gz: pinned index blocked when compared with child manifest; experimental intermediate source was not committed",
+    "root-regression-green.log.gz: 25 policy tests pass after root binding/version-2 correction",
+    "test-first.log.gz: 59 checks before uncompressed-layer consistency regression",
+    "raw-layer-red.log.gz: impossible raw tar descriptor/DiffID mismatch was accepted before adding equality check",
+    "clippy-before-raw-layer.log.gz: strict check of earlier source",
+    "clippy-queued.log.gz: invocation queued before test process exited, serialized compilation by Cargo build lock; final strict Clippy invocation ran after both processes exited",
+    "Shared-cache build-lock waits occurred; no process killed or performance claim made",
+    "Red experiments/intermediate sources retain no final acceptance claim"
+  ],
+  "registration": {
+    "shared_roots_modified": false,
+    "production_manifests_lock_modified": false,
+    "runtime_registered": false,
+    "new_sql_migration": false,
+    "host_effects": false,
+    "standalone_harness_registration_only": true
+  },
+  "limits": [
+    "Supported metadata consistency against an untrusted expected root digest; no protected source or origin proof",
+    "No layer download/decompression/hash verification, full config validity or runtime/health proof",
+    "Unregistered update report/source proposal is version 2; published API/protocol remain unchanged",
+    "No network/registry/Engine collection, whole-worker resource, API/UI/browser, effects/recovery qualification",
+    "No ARM64/Pi, package, performance or cutover qualification",
+    "B2 API/reader/UI evidence retains its earlier separate source identity"
+  ]
+}
