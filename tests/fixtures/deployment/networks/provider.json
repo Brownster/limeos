@@ -1,0 +1,10 @@
+{
+  "Id": "0000000000000000000000000000000000000000000000000000000000000001",
+  "Name": "/vpn",
+  "HostConfig": {"NetworkMode": "bridge"},
+  "State": {
+    "Running": true, "Paused": false, "Restarting": false, "Dead": false,
+    "Health": {"Status": "healthy", "Log": [{"Output": "NETWORK_PRIVATE_VALUE=fixture-only"}]}
+  },
+  "Config": {"Env": ["NETWORK_PRIVATE_VALUE=fixture-only"], "Labels": {"operator.private": "NETWORK_PRIVATE_VALUE=fixture-only"}}
+}

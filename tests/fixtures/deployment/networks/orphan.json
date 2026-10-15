@@ -1,0 +1,7 @@
+{
+  "Id": "0000000000000000000000000000000000000000000000000000000000000003",
+  "Name": "/transmission",
+  "HostConfig": {"NetworkMode": "container:0000000000000000000000000000000000000000000000000000000000000099"},
+  "State": {"Running": false, "Paused": false, "Restarting": false, "Dead": false},
+  "Config": {"Labels": {"com.docker.compose.depends_on": "vpn:service_started:true"}}
+}

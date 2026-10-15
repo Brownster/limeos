@@ -30,11 +30,14 @@ A single well-formed frozen dependency label may supply a project-scoped display
 hint for a dead provider ID. It never repairs the reference or changes an orphan
 into a resolved member. Multiple dependencies have no preferred hint. Groups
 with hinted orphans are degraded. Unconfigured health differs from missing health;
-no health check means only that the provider was observed running.
+no configured health-check object means only that the provider was observed
+running. A present check object without an observed result remains unknown,
+including disabled checks: command/test contents are deliberately not interpreted.
 
 The adapter parses one inspect response against an expected full container ID.
-It retains only name, running flag, network mode, health status and a single
-dependency hint. Compose membership is supplied separately by the existing B2
+It consumes name, running/paused/restarting/dead flags, network mode, health status
+and a single dependency hint. Only normalized availability and selected display
+metadata survive. Compose membership is supplied separately by the existing B2
 projection; this adapter does not reconstruct source ownership from labels.
 Ignored config/environment, health logs and other payloads never enter reports,
 Debug or error strings. Duplicate consumed JSON fields, malformed consumed data,
