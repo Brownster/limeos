@@ -1,0 +1,11 @@
+[package]
+name = "limeos-b2-adapter"
+version = "0.0.0"
+edition = "2024"
+publish = false
+[dependencies]
+tokio = { version = "=1.48.0", features = ["rt-multi-thread", "macros", "net", "sync", "time", "signal", "io-util", "process", "test-util"] }
+limeos-domain = { package = "limeos-b2-domain", path = "../domain" }
+original-executor = { package = "limeos-executor-container", path = "/home/marc/Documents/github/lime-os/.worktrees/p04-stack-discovery/crates/executor-container" }
+[lints.rust]
+unsafe_code = "forbid"

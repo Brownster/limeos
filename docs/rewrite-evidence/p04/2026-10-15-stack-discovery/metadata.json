@@ -1,0 +1,112 @@
+{
+  "recorded_at_utc": "2026-10-15T09:52:59.357634+00:00",
+  "source_commit": "c4b30f52e1d7f1cb318ff16e122a13f0cac219df",
+  "base_commit": "b37c7187488ff1c9421f88625c66bcf8ad0ae385",
+  "source_files_sha256": {
+    "crates/api/src/deployment.rs": "53e785445c12ba464df52a1f5dc7cf33ae269f28a2b278d3de00737f9fc0cfd8",
+    "crates/domain/src/deployment/discovery.rs": "151b7ad63438a58011c63eddc26295b686a02ffb5b6191445ef11dbf057071e2",
+    "crates/domain/src/deployment/discovery/tests.rs": "7320399215c828eb921e280878ea63c091bdc9661883902c3574481dcdce1e65",
+    "crates/domain/src/deployment/mod.rs": "cefbd95749360355a51553307f3a7a55ed32b74117928a27ac86efead9688a8f",
+    "crates/executor-container/src/deployment/discovery.rs": "fae63609cf41d100ae131c008c8cf4978a12fd63c084122fb691fdb58d1bda4f",
+    "crates/executor-container/src/deployment/mod.rs": "e5af84e9cccbf16c4082317aed53f45079df1b1d492fa3de47cff4b134a8581a",
+    "frontend/src/StackManagement.tsx": "18bf8d670ea9e2a2289b90c7da6410a07f2465315baf31939e7d11d19f946c25",
+    "frontend/src/stack-inventory-client.ts": "66eb6a9509c82594b3bab1ab94346c994e66a0baba86c077f120e08f4017e191",
+    "frontend/src/stack-inventory-controller.ts": "984394c88a0c47504a92a844c8a892458f8b07a23b56c6658b5c4c8eb57dea70",
+    "frontend/tests/helpers/stack-discovery.mjs": "b94b329ed2a5e47bfa8a539eebb1cc52267f088c691b7a75a9ec34b55f38a12e",
+    "frontend/tests/stack-discovery.test.mjs": "faa4715e9dc819f2e5af753c23c072025b55c8fe27843f9cedb707c28cbcaa97",
+    "tests/fixtures/deployment/discovery/check-leaves.py": "71f4b42e5a26bb7d49df4a0611affd19bcadde31b02487c9efe56e9425c45526",
+    "tests/fixtures/deployment/discovery/scenarios.json": "649875c6b1cc2a19056986cba28685d3556dfcdac526d50994d7c5ea4cb5b178",
+    "tests/fixtures/deployment/discovery/wire.json": "d3ada6a3e29506aa1033c1098fc67dd8d5f5e88621b362cec5a851fbe4c24fb2"
+  },
+  "frozen_reference": {
+    "commit": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+    "files_sha256": {
+      "stack_read_service.py": "a008f3ff513980d9b3a6d567dad68e89124e2a490dfb993e161ca4c11764088c",
+      "tests/test_stack_read_service.py": "c9dcbfe83d4f95cf8be23fbab7b5cd257c633e5acebee4188125f2a4e9a422d8",
+      "tests/test_stacks.py": "d2b502c2e6ddaeda3e7eb6abdc5df5b60be0503d518afc648ff78b220bdaf7cb"
+    }
+  },
+  "rust_tests": {
+    "domain": 12,
+    "adapter_private_projection": 2,
+    "api_stub_backend": 2,
+    "total": 16,
+    "existing_api_tests_compiled_but_filtered": 9
+  },
+  "frontend_tests": 18,
+  "runtime_layout_fixture_cases": 10,
+  "tool_versions": {
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5",
+    "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+    "clippy": "clippy 0.1.88 (6b00bc3880 2025-06-23)",
+    "node": "v22.14.0",
+    "npm": "11.2.0",
+    "uv": "uv 0.11.25 (x86_64-unknown-linux-gnu)",
+    "ruff": "ruff 0.17.0"
+  },
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "2 for tests",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv"
+  },
+  "checks": [
+    {
+      "command": "cargo test --offline --locked --manifest-path .cache/b2-discovery-harness/Cargo.toml deployment",
+      "exit_code": 0,
+      "log": "test-final.log.gz"
+    },
+    {
+      "command": "cargo clippy --offline --locked --manifest-path .cache/b2-discovery-harness/Cargo.toml --all-targets -- -D warnings",
+      "exit_code": 0,
+      "log": "clippy-final.log.gz"
+    },
+    {
+      "command": "rustfmt --check --edition 2024 crates/domain/src/deployment/mod.rs crates/executor-container/src/deployment/mod.rs crates/api/src/deployment.rs",
+      "exit_code": 0,
+      "log": "rustfmt.log.gz"
+    },
+    {
+      "command": "cd frontend; node tests/stack-discovery.test.mjs",
+      "exit_code": 0,
+      "log": "frontend-final.log.gz"
+    },
+    {
+      "command": "cd frontend; node --test tests/stack-discovery.test.mjs",
+      "exit_code": 0,
+      "log": "frontend-project-runner.log.gz"
+    },
+    {
+      "command": "cd frontend; npm run check",
+      "exit_code": 0,
+      "log": "typescript-final.log.gz"
+    },
+    {
+      "command": "uv run --offline --no-project --with ruff ruff check tests/fixtures/deployment/discovery/check-leaves.py",
+      "exit_code": 0,
+      "log": "ruff.log.gz"
+    },
+    {
+      "command": "uv run --offline --no-project --with ruff ruff format --check tests/fixtures/deployment/discovery/check-leaves.py",
+      "exit_code": 0,
+      "log": "python-format.log.gz"
+    }
+  ],
+  "registration": {
+    "shared_roots_modified": false,
+    "runtime_registered": false,
+    "new_sql_migration": false,
+    "api_harness_leaf_mount_only": true,
+    "shared_dashboard_mounted": false,
+    "host_effects": false
+  },
+  "limits": [
+    "Diagnostic intermediate sources are not frozen commits",
+    "No public adapter/root-positive owner collection qualification; two adapter tests use snapshots",
+    "Static React rendering and client/controller tests; no browser or installed UI qualification",
+    "No whole-worker budgets, ARM64/Pi, lifecycle/recovery, performance or cutover qualification"
+  ]
+}

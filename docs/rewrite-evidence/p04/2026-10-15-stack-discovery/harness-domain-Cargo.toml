@@ -1,0 +1,11 @@
+[package]
+name = "limeos-b2-domain"
+version = "0.0.0"
+edition = "2024"
+publish = false
+[dependencies]
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+original-domain = { package = "limeos-domain", path = "/home/marc/Documents/github/lime-os/.worktrees/p04-stack-discovery/crates/domain" }
+[lints.rust]
+unsafe_code = "forbid"
