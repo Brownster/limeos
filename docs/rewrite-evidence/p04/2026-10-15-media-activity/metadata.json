@@ -1,0 +1,225 @@
+{
+  "recorded_at_utc": "2026-10-15T16:27:00.501106+00:00",
+  "source_commit": "873938a17b153415196874b8fa2d99a6c8d732cc",
+  "rust_api_commit": "80cf363a97e19042240e7f4025d75dfd2e54fc9b",
+  "base_commit": "1f649790c98f1bebfd3545d817c699ee3d80e79e",
+  "branch": "engineer/p04-media-activity",
+  "source_files_sha256": {
+    "Cargo.lock": "292f5ac185d4835c18e6f455e8888075e3dbf93689f4303a84e0c8188765f974",
+    "Cargo.toml": "904578398be9460bbc087d2e5988a3ba1082160a6af7ebfa70b12256fc90d2a3",
+    "contracts/generated/types.ts": "8c0d75355fb7886df03d34d268732f6cbaa9336fef5e101e0fdd8404721e3554",
+    "crates/api/Cargo.toml": "a9758a3545f766ecfef68f8bfa50a752d60529faff8ab27a0355f5fb3465b2f9",
+    "crates/api/src/compose.rs": "7d05695fbb807086febf4e3a6c29c26833fa5cd2ef67b5f3b230776e1e56de3d",
+    "crates/api/src/deployment.rs": "c3acce05f91033d7e3d36cf44d84799f509eb94f72b3cfd9fab834178f2b238d",
+    "crates/api/src/lib.rs": "d80aecd7cb6a167d0dec9ac320d2b7732987d17f2db449d9d51d8ce7347a5ab7",
+    "crates/api/src/operation_tests.rs": "e02b0533ea4ed80754bfb4621234a5de88477b8e8e58ddd6ca22802955a0cb92",
+    "crates/api/src/operations.rs": "ca13eef6f9ecf550255b0dba631441dbf237adcb4d33d12a5aa01ee409a3bbd7",
+    "crates/api/src/read_tests.rs": "d86b5eb757017489a5274682b0dc2b58b8e9bb8e6aefbac789842ad565b11e0b",
+    "crates/api/src/reads.rs": "318aa5525e92ed38791cc27bf360a956727988c43b5d992ec7d6ed12f16a84a0",
+    "crates/api/src/storage.rs": "4b65f3e8699f0022098dfe68a6fdbcc9061c5b836510780f59399e2ffbd7f706",
+    "crates/contracts/Cargo.toml": "eaf6cfff4989784bc61e9fcff219bb3baf598d3f3926321143a1681106fa9ac9",
+    "crates/contracts/src/lib.rs": "8d1f1ba06edd526d609b491128ab2cfa3249eae7d048a683a03153ffcd3ab53a",
+    "crates/contracts/src/observations.rs": "a8e598e03c4da5144cdc0e47dda4eb4c0ba891f0836151ea2ca96a5467c9ef12",
+    "crates/contracts/src/operations.rs": "e9c8d2d28387c1b42254994c21cf20e24e8c31afc8e3a61ad254f99a3d7ba794",
+    "crates/domain/Cargo.toml": "52f391156ec91153a8a4d256ee37bd170624ab13b5c7608156bd3fb81182a9ea",
+    "crates/domain/src/backup_jobs.rs": "7b985dea6d8f2ffb71d7833b5626dbcd99f44c207ab9d98801dda127ddcaec7f",
+    "crates/domain/src/backup_jobs/tests.rs": "d2ff77d2a3ae56e006aeb12dac342a522158c475a3d1fac737b4f44111db0294",
+    "crates/domain/src/backups.rs": "838bf9d185c9bdb4ba6e8c8fc0d23c77506c7840988ee51271140bd59a6d491b",
+    "crates/domain/src/backups/tests.rs": "b171d8a3b887ff6ecd8e3c62a9decd62a02861500aee6769b508d6f5fc8046f7",
+    "crates/domain/src/compose.rs": "5d9e42206d758830f8df669250af98edd8bf757c252debbb5883f3ec714302a2",
+    "crates/domain/src/compose/tests.rs": "a5655ed5e180c24773374388d6a06881dacefa38568533e4d2644332549691ad",
+    "crates/domain/src/compose_override.rs": "cff9d301ded62d867fe945d1a3722127248f4d9e1a01d8d70ea276ea654e8af5",
+    "crates/domain/src/compose_override/tests.rs": "6563b4aa1bdbee9530602c83a3e6dfd5e782398aa6bf81e8b6fe6b81d82b6201",
+    "crates/domain/src/configured_dependencies.rs": "fd441f0e9c4d6685d5dda9f3ceb2e1bea002d283e19c40bbfaf1021679e5c555",
+    "crates/domain/src/configured_dependencies/tests.rs": "ff81c22636251f9deea8b02df1a0c013eeb3e3f304a3a0757cc9c6253d1fb134",
+    "crates/domain/src/deployment/activity.rs": "13ecb5a0f8f73a5d2f979dd93e0f56635b86c75892572f00692cb2404c53d4c0",
+    "crates/domain/src/deployment/activity/tests.rs": "3645c9c64cfb90429766ef51dcc8559479704afe9a6e49e4ba066d8e6b3e2199",
+    "crates/domain/src/deployment/catalog.rs": "b9015c9be17103b78045df791cd714e04882ce63fb2d79ff2fdd88ba344f0c55",
+    "crates/domain/src/deployment/catalog/tests.rs": "030cf334b351f90a1a8f95b7b97f4018512689d9975d1f197ebbf7befcd096bd",
+    "crates/domain/src/deployment/discovery.rs": "151b7ad63438a58011c63eddc26295b686a02ffb5b6191445ef11dbf057071e2",
+    "crates/domain/src/deployment/discovery/tests.rs": "7320399215c828eb921e280878ea63c091bdc9661883902c3574481dcdce1e65",
+    "crates/domain/src/deployment/media.rs": "75f92550a4c0d08f46accfb543f66298145742bf1b0bc4993c5a63e1e6d68cd3",
+    "crates/domain/src/deployment/media/tests.rs": "e3ff09984ac2b6ccf9d658daf95576002bf5008eb497aea5465e459f7eda4590",
+    "crates/domain/src/deployment/mod.rs": "afc735ab7f88941baaf8b47e0c19f8729fb4933b3d2f878a147fab3caaebbd36",
+    "crates/domain/src/lib.rs": "8efb1348e22800f2b3256ba761e5d1faef36107977d3e6d422e33e06e247ec95",
+    "crates/domain/src/logs.rs": "40e611fedd1d2f2068c3f0880f4917fac75ddb7b808bfac80938e814f007ebf1",
+    "crates/domain/src/operations.rs": "ad2ef3fa9a8084a48f472fe4c277d3fccf99378e99ac902539de444ddfc52e6c",
+    "crates/domain/src/pools.rs": "6b52beb20b43b2518c221d874eb00ae52ad344f1120386f15720fedc72fa7b96",
+    "crates/domain/src/pools/tests.rs": "941a6ec05bb4a05e458a87b4032c9f3a01ac45b86bd964b5fd2dc81c4987b366",
+    "crates/domain/src/protection.rs": "6d73cc0e52f25fc168400f763f56ae62bcd6cded5bb2b52370e7a69ad2804aca",
+    "crates/domain/src/protection/tests.rs": "2c2c5e47d6d83cbae38580d53cae00ad99a2db33d035516994b34c73eeccf6fe",
+    "crates/domain/src/shares.rs": "2ac77a99c0a8e1ba8cae5f6f5d2d06e3d9135167c6875d555e4bbbfa434e7621",
+    "crates/domain/src/shares/tests.rs": "28ce2192f98437e12d527c4536e86d8befdb4533dd94a8dc9a8faabe313adde4",
+    "crates/domain/src/storage.rs": "92399f87c36476f2fb03a063240cd5e8fdef98e46bfddfb66ea3e8ffc13a0111",
+    "crates/domain/src/storage/planning.rs": "f1cb72a2800c7263fa49a9fcb29bb71e5d0f36cf10ba4e613562748bc5ec142c",
+    "crates/domain/src/storage/planning/tests.rs": "caaf77b585f418eda044b8d8f51353f2d83c4b09d1cb4b895839d97cdb22d013",
+    "crates/domain/src/storage/tests.rs": "9d2e8a447e7c025986081f74bfb64539465bca82cbec8d13b6fa6f8ccae71f75",
+    "crates/domain/src/storage_dependencies.rs": "e2335af5670f22d47bca09658f9770a9a44141f307d2628ff889617b709e7887",
+    "crates/domain/src/storage_dependencies/tests.rs": "cf845f62fb794993a67ed64ef43823f7e89baece9757dc6ab55dc1b17eb4974f",
+    "crates/domain/src/storage_dependency_graph.rs": "9be43516ac127fa9edfc97a7881618f8182662d462d2a9222dea6d151ac97450",
+    "crates/domain/src/storage_dependency_graph/tests.rs": "bbefb8bb35ab2f751fb1c912477c3e08701f474d1cedd704c8ff04913c361f90",
+    "crates/domain/src/storage_impact.rs": "3c0ab8ef032de07411d045793d3f20130167d7af861e0d1994a04a86f0fb67c3",
+    "crates/domain/src/storage_impact/tests.rs": "f688661dc30e55845649d0d70bf0125d17d7696673c6e58e0a6b701cbe781221",
+    "crates/domain/src/storage_targets.rs": "691df1674c6ceffb8344b077304615743545ec50d31848de90abc839e137fac1",
+    "crates/executor-container/Cargo.toml": "e2f32ab1c52b94efe3c56b0e9d238c7b23bd8e84a148bf511e94ae49272f3be5",
+    "crates/executor-container/src/deployment/activity.rs": "8e2faf863ca49adbb8d28ddbc5a244739999dc2a497e686568b34a3d974fe967",
+    "crates/executor-container/src/deployment/activity/tests.rs": "0ed4fb75300d278178e96576ab69d8637f5107fbf3f246d12717c479f9eddef2",
+    "crates/executor-container/src/deployment/media.rs": "c0af19ded1e6ed2604486461cf1adef3004b18c2d55675d4f775c814a79d5bfa",
+    "crates/executor-container/src/deployment/media/tests.rs": "11ad33f9881bc225627678283c7fa2c8ea0ba41ac4ceb72860cb0f0b1763fc95",
+    "crates/executor-container/src/deployment/mod.rs": "834038638d986ad6fa7999412c53c944b4839c05a08ff49a70a71d7fb1450f56",
+    "frontend/package-lock.json": "45e038f91c1c99f2944228478cb5957a3890497c41ade9b73d667942cedc28f0",
+    "frontend/package.json": "9b113f09d068a3c4c7c158191397726a22eb24ce8e07a423b73698d69dd8389c",
+    "frontend/src/ContainerActions.tsx": "156a80c61315d331532df84193233babed3c524152d1d542dd858bc8eebdce39",
+    "frontend/src/Dashboard.tsx": "1ec088c1aad04aad45d2d53a6345045dfdfce2e011fa6196371acc27a0f7efb1",
+    "frontend/src/MediaActivityView.tsx": "179a1ae320797bee66ad33a1ea8f47695262a39317be9e7600fea20e88287a09",
+    "frontend/src/ObservationView.tsx": "7223bfd5b58670f56626b7f093a500fa4a8f76737df9ef13a9abfa505615e149",
+    "frontend/src/StackManagement.tsx": "18bf8d670ea9e2a2289b90c7da6410a07f2465315baf31939e7d11d19f946c25",
+    "frontend/src/api.ts": "f3b011b98ae655b1f9d54e47eec669832bd5fe2c74bfe0bc83e0c4b79a9ad4da",
+    "frontend/src/main.tsx": "67dfa80dd5eabc9a257aed7cc95f01ffb8d20d70b882441d29442e1bde28f4f2",
+    "frontend/src/media-activity-model.ts": "af0c9a7738e4b371e95368cc2c5623a66539c7698ba12780014448421f1993fa",
+    "frontend/src/model.ts": "1109005f8054f2cde97ae626c8c62967c0b6dcb61629165f4c561f5692dadfc1",
+    "frontend/src/stack-inventory-client.ts": "66eb6a9509c82594b3bab1ab94346c994e66a0baba86c077f120e08f4017e191",
+    "frontend/src/stack-inventory-controller.ts": "984394c88a0c47504a92a844c8a892458f8b07a23b56c6658b5c4c8eb57dea70",
+    "frontend/src/style.css": "84e097e82ef44525651ee04356b48a2669aa35e6bf69827dde313c37f8416069",
+    "frontend/tests/helpers/media-activity.mjs": "f8055c7ba5f67afb5491395e3c3c500aaa1109c00c1a3695d53efa9d3a907b3d",
+    "frontend/tests/media-activity.test.mjs": "a9ec445293f2ee26ce1984a6a1ecdfed268b9c6ec6aec26ce4760deeea886921",
+    "frontend/tsconfig.json": "a013e29d0a24a46bfb4843c172736d5ea745b39f6b5f5e3429e6a306a99f6283",
+    "tests/fixtures/deployment/activity/arr.json": "0e761c1c970115b497379a45a695579722ddb85ce5186ac006cc4df432ae99dc",
+    "tests/fixtures/deployment/activity/check-leaves.py": "af16fd5347830edbe4b4b29c20008b593559779d41986756431cb9eeb424b6fe",
+    "tests/fixtures/deployment/activity/jellyfin.json": "0acc6c2e1f6e026c2f3679332dc7c2c630f7dde0b8661b02e829c0cf7056850d",
+    "tests/fixtures/deployment/activity/sabnzbd.json": "543ce9016dc097e0fac58798d9717b8dbb78bf07ec81b2e194f494330b12a4e5",
+    "tests/fixtures/deployment/activity/transmission.json": "45f409b55fc358279ca6bcfc96302d9b86fc9b9193602ad4572ca14ba0eaf5cf",
+    "tests/fixtures/deployment/activity/wire.json": "b6ab8a570e8a6937c0610773503f4626bea8ec9383cc3bdec56a3f3c21512f2f",
+    "tests/fixtures/deployment/catalog/check-leaf.py": "996ac63212c12af52d90f10fead71de40657bb9ac142aaa744bf03cff4e1c943",
+    "tests/fixtures/deployment/catalog/resources.json": "e7ba39970be9677db746a215eb4831008fa7f64ea00300bbde1eeb6830b97932",
+    "tests/fixtures/deployment/discovery/check-leaves.py": "71f4b42e5a26bb7d49df4a0611affd19bcadde31b02487c9efe56e9425c45526",
+    "tests/fixtures/deployment/discovery/scenarios.json": "649875c6b1cc2a19056986cba28685d3556dfcdac526d50994d7c5ea4cb5b178",
+    "tests/fixtures/deployment/discovery/wire.json": "d3ada6a3e29506aa1033c1098fc67dd8d5f5e88621b362cec5a851fbe4c24fb2",
+    "tests/fixtures/deployment/media/check-leaves.py": "a4fd71ec4bfd9303ce6923fc9c3eac89ec5c25b69d2024ee699d89d2353c0f89",
+    "tests/fixtures/deployment/media/libraries.json": "0c83127f4e780c18fd87eb611f0db61a4ce932c5a5fbfad49a30c9679e93901a",
+    "tests/fixtures/deployment/media/rootfolders.json": "5b45aee9ca404a04dfb34550be2771c367f3861418d7ce20f65c75cfdbcd75a1",
+    "tests/fixtures/storage-contracts.json": "0c9fb27c9b5d59eeb6a820f47d108da86b6c2abc783dea16f815f1dba929ec7a"
+  },
+  "frozen_reference": {
+    "commit": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+    "files_sha256": {
+      "activity_service.py": "d67419ef1db2c2c9ada9440b033c46d439a39a79210560de7022417fdab78f23",
+      "activity_credentials.py": "793618f02e82e52a4eeb548746d6c31a5196c4e0840de0770c8d464d3377770e",
+      "tests/test_activity_service.py": "3d07de935b1c84e3161bb1bfffbbb3a5b47b6ae69beb483098983d0cf1d34521"
+    },
+    "execution": "Read/hash only; no Python imported or executed"
+  },
+  "rust_tests": {
+    "activity_domain": 15,
+    "activity_decoder": 16,
+    "activity_api": 2,
+    "existing_library_domain": 21,
+    "existing_library_decoder": 10,
+    "existing_catalog": 20,
+    "existing_b2_domain": 12,
+    "existing_b2_api": 2,
+    "existing_api_helpers": 9,
+    "total": 107,
+    "filtered": 0
+  },
+  "frontend_tests": {
+    "static_react_and_expiry": 10,
+    "browser": 0
+  },
+  "fixtures": {
+    "synthetic_provider_responses": 4,
+    "rust_generated_serialization_fixture": 1,
+    "live_captures": 0
+  },
+  "tool_versions": {
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5",
+    "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+    "node": "v22.14.0",
+    "typescript": "5.7.3",
+    "react": "18.3.1",
+    "react_dom": "18.3.1",
+    "clippy": "clippy 0.1.88 (6b00bc3880 2025-06-23)",
+    "rustfmt": "rustfmt 1.8.0-stable (6b00bc3880 2025-06-23)",
+    "uv": "uv 0.11.25 (x86_64-unknown-linux-gnu)",
+    "ruff": "0.17.0 (explicit cached uv pin)"
+  },
+  "cargo_environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "2 for tests",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp"
+  },
+  "uv_environment": {
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp"
+  },
+  "checks": [
+    {
+      "command": "cargo test --offline --locked --manifest-path .cache/media-activity-leaf/Cargo.toml",
+      "exit_code": 0,
+      "log": "test-final.log.gz"
+    },
+    {
+      "command": "cargo clippy --offline --locked --manifest-path .cache/media-activity-leaf/Cargo.toml --all-targets -- -D warnings",
+      "exit_code": 0,
+      "log": "clippy-final.log.gz"
+    },
+    {
+      "command": "node frontend/tests/media-activity.test.mjs",
+      "exit_code": 0,
+      "log": "ui-final.log.gz"
+    },
+    {
+      "command": "frontend/node_modules/.bin/tsc --noEmit --project frontend/tsconfig.json",
+      "exit_code": 0,
+      "log": "typescript.log.gz"
+    },
+    {
+      "command": "rustfmt --check --edition 2024 crates/domain/src/deployment/mod.rs crates/executor-container/src/deployment/mod.rs crates/api/src/deployment.rs",
+      "exit_code": 0,
+      "log": "rustfmt.log.gz"
+    },
+    {
+      "command": "uv run --offline --no-project --with ruff==0.17.0 ruff check tests/fixtures/deployment/activity/check-leaves.py",
+      "exit_code": 0,
+      "log": "ruff.log.gz"
+    },
+    {
+      "command": "uv run --offline --no-project --with ruff==0.17.0 ruff format --check tests/fixtures/deployment/activity/check-leaves.py",
+      "exit_code": 0,
+      "log": "ruff-format.log.gz"
+    }
+  ],
+  "diagnostics": [
+    "All local Cargo/Node/TypeScript suites were sequential; one Cargo build job",
+    "UI direct regression: partial snapshots showed supplied totals; final view requires complete",
+    "Initial Node --test output was file-level only; direct node:test logs supply 9/1 red and 10/0 green case detail; wrapper green not counted again",
+    "Initial wire generation omitted Tokio test-util; final standalone harness adds the existing API test feature",
+    "Initial strict Clippy found missing non-test proposed route wrapper in the harness; final wrapper added, no production lint suppressed",
+    "Wire-generation write branch was removed before final Rust run; final test compares committed JSON without writes",
+    "Python helper concatenation was parenthesized for Ruff; harness-stable log verifies unchanged final manifests/wrappers/lock",
+    "Frontend used a temporary worktree symlink to existing main frontend dependencies, removed after checks; no dependency install or production lock change"
+  ],
+  "registration": {
+    "runtime": false,
+    "actual_collector": false,
+    "api_leaf_only": true,
+    "ui_presentational_only": true,
+    "shared_roots_modified": false,
+    "production_manifests_lock_modified": false,
+    "stream_a_files_modified": false,
+    "host_effects": false
+  },
+  "primary_references": [
+    "https://github.com/transmission/transmission/blob/4.0.6/docs/rpc-spec.md",
+    "https://sabnzbd.org/wiki/configuration/5.1/api"
+  ],
+  "limits": [
+    "Plain supplied data, never source/endpoint/credential/namespace authority",
+    "No live HTTP/Engine/credential or physical collection",
+    "No frontend cache/decoder/controller/session/deadline registration or browser/layout acceptance",
+    "No whole-worker, installed/package/ARM64/Pi/performance/soak/cutover qualification",
+    "No phase or registered milestone closure; A and central ownership remain separate"
+  ]
+}
