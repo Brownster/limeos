@@ -29,7 +29,7 @@ logs are neither image-change nor convergence proof. Add no pull-text input at a
 The plain resolution DTO is not a trusted resolver or proof of content integrity.
 
 Return an opaque bounded review draft with sorted per-stack/service changes,
-original source timestamps, full before inventory and unresolved central gates.
+original source timestamps, full selected before inventory and unresolved gates.
 It generates no Compose artifact. The integrator binds accepted targets into the
 existing managed-file/lifecycle machinery, preserving all other configuration.
 Exclusions do not bypass input validation or expand the requested resource set.
