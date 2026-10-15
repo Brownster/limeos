@@ -28,8 +28,10 @@ This is a conservative targeted ConfigObj subset, not a full INI validator.
 Missing keys are inserted before any nested section; missing `[misc]` is appended
 as a new top-level section. Render new path values quoted.
 
-Bound input to 64 KiB, output to 68 KiB, paths to 512 bytes, root JSON fields to
-128, INI lines to 2048 and nesting to 32. The opaque non-deserializable draft
+Bound input and output to 64 KiB, paths to 512 bytes, root JSON fields to
+128, INI lines to 2048 and nesting to 32. Charge generated fields/lines too, so
+output remains admissible on rerun. Refuse scalar/section name collisions in
+SABnzbd's root and selected section. The opaque non-deserializable draft
 exposes optional artifact bytes only for a future protected writer. Debug and
 serializable summaries contain no source values or artifact contents. A no-op
 returns no artifact. All source/instance, physical path/ownership, quiescence,
