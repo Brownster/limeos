@@ -1,0 +1,1 @@
+{"totalRecords":3,"records":[{"title":"A","status":"warning","trackedDownloadState":"downloading","downloadClientId":"ACTIVITY_PRIVATE_VALUE=fixture-only"},{"title":"B","status":"completed","trackedDownloadStatus":"error"},{"title":"C","status":"downloading","trackedDownloadStatus":"ok"}]}

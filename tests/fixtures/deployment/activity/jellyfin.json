@@ -1,0 +1,4 @@
+[
+  {"UserName":"holly","Client":"Jellyfin Web","DeviceName":"Firefox","NowPlayingItem":{"Name":"Reservoir Dogs","Type":"Episode","SeriesName":"Copycat Killers","ParentIndexNumber":2,"IndexNumber":10,"RunTimeTicks":36000000000},"PlayState":{"PositionTicks":9000000000,"PlayMethod":"Transcode","IsPaused":false},"TranscodingInfo":{"Bitrate":4000000,"TranscodeReasons":["VideoCodecNotSupported"]},"AccessToken":"ACTIVITY_PRIVATE_VALUE=fixture-only"},
+  {"UserName":"idle-session","PlayState":{}}
+]

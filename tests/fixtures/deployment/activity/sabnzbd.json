@@ -1,0 +1,1 @@
+{"queue":{"status":"Downloading","kbpersec":"5120.0","noofslots_total":2,"start":0,"slots":[{"filename":"Some.Show.S01E01","status":"Downloading","percentage":"42","mb":"1024","mbleft":"512","timeleft":"0:02:30","password":"ACTIVITY_PRIVATE_VALUE=fixture-only"},{"filename":"Queued.Item","status":"Queued","percentage":"0","mb":"700","mbleft":"700","timeleft":"0:00:00"}]}}

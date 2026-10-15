@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "generated_at": 101,
+  "sampled_at": 100,
+  "max_age_seconds": 8,
+  "source": "fresh",
+  "complete": true,
+  "services": [
+    {
+      "target": {
+        "container": {
+          "resource": "container:0000000000000000000000000000000000000000000000000000000000000001",
+          "image": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+          "started_at": "2026-10-15T01:02:03.000000000Z",
+          "running": true
+        },
+        "name": "service-1",
+        "provider": "jellyfin"
+      },
+      "sampled_at": 100,
+      "state": "ready"
+    }
+  ],
+  "streams": [
+    {
+      "source": "container:0000000000000000000000000000000000000000000000000000000000000001",
+      "data": {
+        "title": "Example title",
+        "subtitle": "Example · S02E10",
+        "user": "viewer",
+        "client": "Web",
+        "device": "Browser",
+        "play_method": "Transcode",
+        "paused": false,
+        "transcoding": true,
+        "transcode_reason": "VideoCodecNotSupported",
+        "bitrate": 4000000.0,
+        "progress_percent": 25.0,
+        "position_seconds": 900.0,
+        "duration_seconds": 3600.0
+      }
+    }
+  ],
+  "downloads": [],
+  "queues": [],
+  "omitted_streams": 0,
+  "omitted_downloads": 0,
+  "totals": {
+    "streams": 1,
+    "transcodes": 1,
+    "downloads": 0,
+    "download_speed": 0.0,
+    "queued": 0,
+    "queue_problems": 0
+  }
+}
