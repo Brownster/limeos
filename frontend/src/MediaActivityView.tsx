@@ -8,10 +8,10 @@ const rate = (n: number | null) => known(n) ? `${(n! / 1048576).toFixed(1)} MiB/
 const size = (n: number | null) => known(n) ? `${(n! / 1073741824).toFixed(1)} GiB` : "Unknown size";
 const sample = (n: number | null) => n === null ? "No sample" : new Date(n * 1000).toISOString();
 
-/** Presentational leaf. Parent owns authenticated cache reads, admission, session
- * clearing and a one-shot expiry rerender; `now` must advance without polling. */
+/** Presentational leaf. MediaActivityPanel owns admission, authenticated reads
+ * and the one-shot expiry rerender; `now` uses integer seconds. */
 export function MediaActivityView({ value, now, loading = false, stale = false, error = "", refresh }: {
-  value: ActivitySnapshot | null; now: number; loading?: boolean; stale?: boolean; error?: string; refresh: () => void;
+  value: ActivitySnapshot | null; now: number; loading?: boolean; stale?: boolean; error?: string; refresh?: () => void;
 }) {
   const previous = value !== null && (stale || activityExpired(value, now));
   const source = (resource: string) => value?.services.find(row => row.target.container.resource === resource)?.target.name ?? "Unknown service";
@@ -19,7 +19,7 @@ export function MediaActivityView({ value, now, loading = false, stale = false, 
   return <section aria-labelledby="media-activity-heading" aria-busy={loading}>
     <p className="eyebrow">MEDIA · ACTIVITY</p><h2 id="media-activity-heading">What’s happening</h2>
     <p>Streams, transfers and queue problems reported by your media services.</p>
-    <button onClick={refresh} disabled={loading}>Refresh activity</button>
+    <button onClick={refresh} disabled={loading || !refresh}>Refresh activity</button>
     {loading && <p role="status">Reading activity…</p>}
     {error && <p className="error" role="alert">{error}</p>}
     {!value && !loading && <p>Media activity is unavailable.</p>}
