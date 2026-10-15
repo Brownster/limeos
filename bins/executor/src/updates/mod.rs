@@ -1,3 +1,4 @@
-//! Fixed host prerequisite rules. Collection, authority and effects are external.
+//! Fixed host prerequisite rules and package projections. Effects are external.
 
+pub mod packages;
 pub mod prerequisites;
