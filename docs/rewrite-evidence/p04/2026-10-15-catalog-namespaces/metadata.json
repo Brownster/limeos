@@ -1,0 +1,31 @@
+{
+  "source": "0ead2a40c8d123e792003d919e6e090d8beb0f9e",
+  "base": "0972b26",
+  "product_committed_after_checks_without_intervening_changes": true,
+  "cases": {
+    "namespace": 17,
+    "catalog_existing": 20,
+    "media": 21,
+    "activity": 15,
+    "discovery": 12
+  },
+  "total": 85,
+  "input_count": 59,
+  "frozen_source": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+  "frozen_input_count": 4,
+  "commands": [
+    "uv run --offline --no-project tests/fixtures/deployment/catalog/check-leaf.py",
+    "cargo test --offline --locked --manifest-path .cache/catalog-leaf/Cargo.toml",
+    "cargo clippy --offline --locked --manifest-path .cache/catalog-leaf/Cargo.toml --all-targets -- -D warnings",
+    "rustfmt --edition 2024 --check crates/domain/src/deployment/catalog.rs crates/domain/src/deployment/catalog/tests.rs crates/domain/src/deployment/catalog/tests/namespaces.rs"
+  ],
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "2",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv"
+  },
+  "limits": "Pure local domain/harness checks; no registration, execution, API/UI, ARM64 or host acceptance"
+}
