@@ -1,0 +1,11 @@
+[package]
+name = "limeos-package-adapter-leaf"
+version = "0.0.0"
+edition = "2024"
+publish = false
+[dependencies]
+limeos-domain = { package = "limeos-package-domain-leaf", path = "../domain" }
+[lib]
+path = "lib.rs"
+[lints.rust]
+unsafe_code = "forbid"

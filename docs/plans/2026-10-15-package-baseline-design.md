@@ -15,7 +15,8 @@ Use a native bounded Debian comparator. Reusing the frozen best-effort comparato
 would mishandle epochs, tildes and revisions; invoking dpkg from domain planning
 would couple pure logic to a host process. Compare native results with the local
 read-only dpkg oracle. Validate a conservative Policy-compatible version subset,
-including epoch/revision, with no integer conversion of potentially large numbers.
+including epoch/revision, with epochs limited to 999999999 and no integer
+conversion of potentially large numbers.
 Upstream pins deliberately retain the frozen revision-insensitive match rule;
 minimum versions use full Debian ordering. Revision-only pending updates stay
 suppressed as in the reference; this is not security-update policy.
