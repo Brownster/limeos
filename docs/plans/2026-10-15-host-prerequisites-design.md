@@ -35,6 +35,11 @@ only missing fixed flags while preserving every existing byte and line ending.
 Reject multiline/non-ASCII/oversized boot input, conflicting or repeated relevant
 parameters, and quoted syntax. Already-present flags with missing runtime memory
 mean reboot/runtime verification is pending, with no repeated file proposal.
+Refuse the kernel `--` separator and recognize hyphen aliases when detecting
+conflicts. Require positive ARM64 Pi platform facts for a boot proposal; other
+platforms remain unsupported. Bound the complete proposed file to 2047 bytes,
+conservatively retaining space for ARM64's terminating NUL. This leaf's input
+read bound remains 4 KiB; it is distinct from the output eligibility limit.
 
 Journal assessment consumes a complete selected source set: main file followed
 by unique, lexicographically sorted drop-in basenames. The trusted collector must
@@ -45,7 +50,7 @@ An empty final assignment means no explicit cap. Respect supported positive
 operator limits. Unsupported relevant syntax, zero or malformed values are
 unknown and receive no automatic repair. This conservative parser accepts
 positive decimal integers with optional K/M/G/T/P/E binary suffix, bounded to u64.
-It refuses continuations and malformed section/assignment syntax rather than
+It refuses continuations, bare carriage-return separators and malformed section/assignment syntax rather than
 guessing how systemd interpreted them. Journald's built-in defaults are distinct
 from this product requirement for an explicit cap.
 
@@ -56,7 +61,7 @@ managed content is idempotent. A file proposal requires reload and independent
 verification; it does not establish activation or reclaimed disk space.
 
 Bound input to 64 drop-ins, 64 KiB per journal source, 256 KiB total journal bytes,
-4 KiB controller bytes and 4 KiB boot bytes including proposed output. Reject
+4 KiB controller bytes and 4 KiB boot input, with the smaller Pi output limit above. Reject
 oversized, malformed or incomplete snapshots with typed reasons. Proposals expose
 no arbitrary paths or command text and redact byte payloads from Debug output.
 Revalidation compares the whole relevant source snapshot, including masks,
@@ -81,5 +86,8 @@ belongs to the existing test owner after central integration.
 
 Sources: [systemd 252 journald configuration and precedence](https://www.freedesktop.org/software/systemd/man/252/journald.conf.html),
 [kernel cgroup-v2 controller availability](https://www.kernel.org/doc/html/v6.1/admin-guide/cgroup-v2.html),
+[kernel argument parsing](https://www.kernel.org/doc/html/v6.1/admin-guide/kernel-parameters.html),
+[ARM64 command-line capacity](https://github.com/torvalds/linux/blob/v6.1/arch/arm64/include/uapi/asm/setup.h),
+[systemd line delimiters](https://github.com/systemd/systemd/blob/v252/src/basic/fileio.c),
 [HOST-001 register](2026-10-04-rust-rewrite-defect-register.md),
 [B ownership](2026-10-14-engineer-p04-deployment-scheduling-runtime.md).

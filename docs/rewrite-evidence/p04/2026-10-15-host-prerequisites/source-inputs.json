@@ -1,0 +1,7 @@
+{
+  "bins/executor/src/updates/mod.rs": "61156c863fee0e49c74e2722778ed8e7fd293f392c47dd56b1aa90fd76ab9901",
+  "bins/executor/src/updates/prerequisites.rs": "cc840c8ddf714fca751ae1b5cf0098c5c418159504105fcfcf60e78966f735a1",
+  "bins/executor/src/updates/prerequisites_tests.rs": "2afe00e07ad440eaf34a8b5017066e9c5556ee6ea36714a554bac8ddf59da67b",
+  "tests/fixtures/deployment/prerequisites/check-leaf.py": "b77c88182e67e5788e568ca751efcf07d895b049edf76240394e8e497b0cbec3",
+  "tests/fixtures/deployment/prerequisites/cases.json": "ecb0036e65f8346e21f5ff396d1e4d2f23d999dd59b38d87a41a17c8d2ea2fca"
+}
