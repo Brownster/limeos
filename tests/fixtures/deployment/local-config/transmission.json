@@ -1,0 +1,7 @@
+{
+  "download-dir" : "/downloads",
+  "rpc-enabled": true,
+  "rpc-password" : "LOCAL_CONFIG_PRIVATE_VALUE=fixture-only",
+  "ratio-limit": 1.200e+01,
+  "metadata": { "escaped": "braces { [ , } ] and a quote \"", "path": "/Unrelated/Case" }
+}
