@@ -1,0 +1,7 @@
+{
+  "bundle_id": "media-server",
+  "members": ["vpn", "transmission", "sabnzbd", "prowlarr", "sonarr", "radarr", "lidarr", "jellyfin"],
+  "libraries": ["movies", "tv", "music", "books", "audiobooks", "podcasts"],
+  "download_categories": ["sonarr", "radarr", "lidarr", "readarr", "sabnzbd", "transmission", "rdtclient", "jackett", "get_iplayer"],
+  "workflow": ["review_complete_sources_and_storage", "prepare_directories", "prepare_catalog_files", "configure_quiescent_download_clients", "start_stack", "verify_startup", "seed_service_configuration", "verify_loaded_configuration", "save_profile", "verify_profile"]
+}
