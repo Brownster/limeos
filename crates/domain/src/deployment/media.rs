@@ -234,15 +234,26 @@ fn project_valid(p: &ProjectIdentity) -> bool {
 }
 impl ServiceIdentity {
     pub fn validate(&self) -> Result<()> {
-        check(
-            name(&self.stack, false)
-                && name(&self.service, false)
-                && project_valid(&self.project)
-                && !self.engine_id.is_empty()
-                && self.engine_id.len() <= 128
-                && !self.engine_id.chars().any(char::is_control),
-        )
+        check(scope_valid(
+            &self.stack,
+            &self.engine_id,
+            &self.project,
+            &self.service,
+        ))
     }
+}
+pub(super) fn scope_valid(
+    stack: &str,
+    engine: &str,
+    project: &ProjectIdentity,
+    service: &str,
+) -> bool {
+    name(stack, false)
+        && name(service, false)
+        && project_valid(project)
+        && !engine.is_empty()
+        && engine.len() <= 128
+        && !engine.chars().any(char::is_control)
 }
 impl RootFolder {
     pub fn validate(&self) -> Result<()> {

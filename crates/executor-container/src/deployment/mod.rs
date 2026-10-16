@@ -2,5 +2,6 @@
 pub mod activity;
 pub mod discovery;
 pub mod download_clients;
+pub mod indexer_apps;
 pub mod media;
 pub mod media_settings;

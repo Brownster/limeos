@@ -1,0 +1,5 @@
+[
+  {"id":11,"name":"Sonarr","implementation":"Sonarr","syncLevel":"fullSync","tags":[],"fields":[{"name":"syncCategories","value":[5000,5030,5040]},{"name":"animeSyncCategories","value":[5070]},{"name":"apiKey","value":"INDEXER_PRIVATE_VALUE=fixture-only"},{"name":"baseUrl","value":"PRIVATE_APPLICATION_ENDPOINT"},{"name":"prowlarrUrl","value":"PRIVATE_CALLBACK_ENDPOINT"}]},
+  {"id":12,"name":"Radarr","implementation":"Radarr","syncLevel":"fullSync","tags":[],"fields":[{"name":"syncCategories","value":[2000,2030,2040]},{"name":"apiKey","value":"INDEXER_PRIVATE_VALUE=fixture-only"}]},
+  {"id":13,"name":"Lidarr","implementation":"Lidarr","syncLevel":"fullSync","tags":[],"fields":[{"name":"syncCategories","value":[3000,3030,3040]},{"name":"apiKey","value":"INDEXER_PRIVATE_VALUE=fixture-only"}]}
+]

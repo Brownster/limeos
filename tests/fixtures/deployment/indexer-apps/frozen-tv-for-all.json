@@ -1,0 +1,5 @@
+[
+  {"id":11,"name":"Sonarr","implementation":"Sonarr","syncLevel":"fullSync","tags":[],"fields":[{"name":"baseUrl","value":"http://127.0.0.1:8989"},{"name":"apiKey","value":"INDEXER_PRIVATE_VALUE=fixture-only"},{"name":"syncCategories","value":[5000,5030,5040]},{"name":"animeSyncCategories","value":[5070]}]},
+  {"id":12,"name":"Radarr","implementation":"Radarr","syncLevel":"fullSync","tags":[],"fields":[{"name":"baseUrl","value":"http://127.0.0.1:7878"},{"name":"apiKey","value":"INDEXER_PRIVATE_VALUE=fixture-only"},{"name":"syncCategories","value":[5000,5030,5040]},{"name":"animeSyncCategories","value":[5070]}]},
+  {"id":13,"name":"Lidarr","implementation":"Lidarr","syncLevel":"fullSync","tags":[],"fields":[{"name":"baseUrl","value":"http://127.0.0.1:8686"},{"name":"apiKey","value":"INDEXER_PRIVATE_VALUE=fixture-only"},{"name":"syncCategories","value":[5000,5030,5040]},{"name":"animeSyncCategories","value":[5070]}]}
+]
