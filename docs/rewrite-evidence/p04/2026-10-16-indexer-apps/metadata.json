@@ -1,0 +1,69 @@
+{
+  "source": "3c6669a8aa6a8f7669b3a4ee6654ccf8b6a3600b",
+  "base": "f0fd86c",
+  "product_committed_after_checks_without_intervening_changes": true,
+  "cases": {
+    "domain": {
+      "indexer_apps": 18,
+      "download_clients": 18,
+      "media_settings": 18,
+      "local_config": 24,
+      "catalog_and_namespace": 37,
+      "media_library": 21,
+      "activity": 15,
+      "discovery": 12
+    },
+    "decoders": {
+      "indexer_apps": 10,
+      "download_clients": 9,
+      "media_settings": 10,
+      "media_library": 10
+    }
+  },
+  "total": 202,
+  "input_count": 91,
+  "bounds": {
+    "raw_body_bytes": 32768,
+    "applications": 16,
+    "fields_per_application": 64,
+    "ids_per_set": 16,
+    "selected_string_utf8_bytes": 128,
+    "declared_services": 16,
+    "requests": 3,
+    "selected_input_text_bytes": 32768,
+    "streamed_report_bytes": 65536,
+    "inclusive_max_age_seconds": 90
+  },
+  "desired_category_subset": {
+    "sonarr": [
+      5000,
+      5999
+    ],
+    "radarr": [
+      2000,
+      2999
+    ],
+    "lidarr": [
+      3000,
+      3999
+    ]
+  },
+  "frozen_source": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+  "frozen_input_count": 7,
+  "commands": [
+    "uv run --offline --no-project tests/fixtures/deployment/indexer-apps/check-leaves.py",
+    "cargo test --offline --manifest-path .cache/indexer-apps-leaf/Cargo.toml",
+    "cargo clippy --offline --locked --manifest-path .cache/indexer-apps-leaf/Cargo.toml --all-targets -- -D warnings",
+    "rustfmt --edition 2024 --check crates/domain/src/deployment/indexer_apps.rs crates/domain/src/deployment/indexer_apps/tests.rs crates/domain/src/deployment/media.rs crates/domain/src/deployment/mod.rs crates/executor-container/src/deployment/indexer_apps.rs crates/executor-container/src/deployment/indexer_apps/tests.rs crates/executor-container/src/deployment/mod.rs",
+    "uv run --offline --no-project --with ruff==0.17.0 ruff check tests/fixtures/deployment/indexer-apps/check-leaves.py"
+  ],
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "2",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv"
+  },
+  "limits": "Local selected metadata and pure previews only; no protected acquisition, installed schema/peer/credential checks, writer, shared registration, API/UI, ARM64 or host acceptance"
+}
