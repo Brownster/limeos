@@ -30,6 +30,33 @@ pub struct Ceiling {
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Request {
+    StorageMountCatalog {
+        version: u16,
+    },
+    InspectStorageMount {
+        version: u16,
+        selection: limeos_domain::StorageMountSelection,
+    },
+    ExecuteStorageMount {
+        version: u16,
+        plan: Box<limeos_domain::StorageMountEffectPlan>,
+    },
+    StorageMountReceipt {
+        version: u16,
+        action: String,
+        digest: String,
+    },
+    /// Refine only an existing accepted, reaped effect after fresh verification.
+    /// This request cannot launch an effect or renew execution authority.
+    ReconcileStorageMount {
+        version: u16,
+        action: String,
+        digest: String,
+    },
+    InspectMountedStorage {
+        version: u16,
+        plan: Box<limeos_domain::StorageMountEffectPlan>,
+    },
     ContainerStorageInventory {
         version: u16,
     },
@@ -89,6 +116,14 @@ pub enum Request {
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct Receipt {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage_mount_catalog: Option<limeos_domain::StorageMountCatalog>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage_mount_inspection: Option<limeos_domain::StorageMountInspection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage_mount: Option<limeos_domain::StorageMountReceipt>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mounted_storage: Option<limeos_domain::StorageMountedSnapshot>,
     pub version: u16,
     pub ready: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -110,6 +145,91 @@ pub struct Receipt {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub container_storage: Option<limeos_domain::ContainerStorageInventory>,
 }
+/// Independent, root-owned authority for the one closed nonpersistent mount.
+#[derive(Clone, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct StorageMountCeiling {
+    pub version: u16,
+    pub core_uid: u32,
+    pub allow_mount: bool,
+    pub managed_targets: Vec<ManagedStorageMount>,
+}
+#[derive(Clone, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct ManagedStorageMount {
+    pub target_id: String,
+    pub filesystem_uuid: String,
+    pub mountpoint: String,
+}
+impl StorageMountCeiling {
+    pub fn configuration_valid(&self) -> bool {
+        if self.managed_targets.len() > 32 {
+            return false;
+        }
+        let targets = StorageTargetCeiling {
+            version: self.version,
+            core_uid: self.core_uid,
+            allow_prepare_targets: false,
+            managed_targets: self
+                .managed_targets
+                .iter()
+                .map(|target| ManagedStorageTarget {
+                    filesystem_uuid: target.filesystem_uuid.clone(),
+                    mountpoint: target.mountpoint.clone(),
+                })
+                .collect(),
+        };
+        let mut ids = std::collections::BTreeSet::new();
+        targets.configuration_valid()
+            && self.managed_targets.iter().all(|target| {
+                limeos_domain::StorageMountSelection {
+                    target_id: target.target_id.clone(),
+                }
+                .validate()
+                .is_ok()
+                    && ids.insert(&target.target_id)
+            })
+    }
+    pub fn authorize_peer(&self, uid: u32) -> Result<()> {
+        if !self.configuration_valid() || uid != self.core_uid {
+            return Err(Error(ErrorCode::Forbidden));
+        }
+        Ok(())
+    }
+    pub fn authorize_selection(
+        &self,
+        uid: u32,
+        selection: &limeos_domain::StorageMountSelection,
+    ) -> Result<&ManagedStorageMount> {
+        self.authorize_peer(uid)?;
+        selection.validate()?;
+        self.managed_targets
+            .iter()
+            .find(|target| target.target_id == selection.target_id)
+            .ok_or(Error(ErrorCode::Forbidden))
+    }
+    pub fn authorize_plan(
+        &self,
+        uid: u32,
+        plan: &limeos_domain::StorageMountEffectPlan,
+        at: i64,
+    ) -> Result<()> {
+        let target = self.authorize_selection(
+            uid,
+            &limeos_domain::StorageMountSelection {
+                target_id: plan.device.id.clone(),
+            },
+        )?;
+        if !self.allow_mount
+            || target.filesystem_uuid != plan.device.filesystem_uuid
+            || target.mountpoint != plan.device.mountpoint
+        {
+            return Err(Error(ErrorCode::Forbidden));
+        }
+        plan.validate(at)
+    }
+}
+
 /// A separate root-owned ceiling for the dormant directory-preparation service.
 /// Exact UUID/path pairs constrain the core even if its authority is compromised.
 #[derive(Clone, Serialize, Deserialize, JsonSchema, TS)]
@@ -206,6 +326,10 @@ impl Ceiling {
             }
             Request::Health { version } if *version == VERSION && self.allow_health => {
                 Ok(Receipt {
+                    storage_mount_catalog: None,
+                    storage_mount_inspection: None,
+                    storage_mount: None,
+                    mounted_storage: None,
                     version: VERSION,
                     ready: true,
                     observations: None,
@@ -227,6 +351,10 @@ impl Ceiling {
                         && self.allow_container_read)) =>
             {
                 Ok(Receipt {
+                    storage_mount_catalog: None,
+                    storage_mount_inspection: None,
+                    storage_mount: None,
+                    mounted_storage: None,
                     version: VERSION,
                     ready: true,
                     observations: None,
@@ -333,6 +461,10 @@ impl Ceiling {
 impl Receipt {
     pub fn empty() -> Self {
         Self {
+            storage_mount_catalog: None,
+            storage_mount_inspection: None,
+            storage_mount: None,
+            mounted_storage: None,
             version: VERSION,
             ready: true,
             observations: None,

@@ -59,6 +59,7 @@ async fn observations_and_history_use_current_resource_grants_and_reject_revocat
         container_socket: Arc::new("/unused".into()),
         storage_socket: Arc::new("/unused".into()),
         storage_target_socket: Arc::new("/unused-targets".into()),
+        storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
         compose_catalog: None,
         password_workers: Arc::new(Semaphore::new(2)),
@@ -99,6 +100,7 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
         container_socket: Arc::new("/unused".into()),
         storage_socket: Arc::new("/unused".into()),
         storage_target_socket: Arc::new("/unused-targets".into()),
+        storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
         compose_catalog: None,
     };

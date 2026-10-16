@@ -32,6 +32,13 @@ pub struct QueueStorageTargetsInput {
     pub approval: String,
     pub idempotency_key: String,
 }
+#[derive(Clone, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct QueueStorageMountInput {
+    pub proposal: limeos_domain::PlannedStorageMount,
+    pub approval: String,
+    pub idempotency_key: String,
+}
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct JobProgress {

@@ -63,6 +63,10 @@ pub struct ContainerDependencyEvidence {
     storage: StorageInventoryEvidence,
 }
 impl ContainerDependencyEvidence {
+    pub(crate) fn retained_inventory(&self) -> &StorageInventoryEvidence {
+        &self.storage
+    }
+
     pub(crate) fn sources(&self) -> &ContainerSourceEvidence {
         &self.sources
     }

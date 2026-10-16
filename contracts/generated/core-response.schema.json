@@ -724,6 +724,7 @@
         "expired",
         "overloaded",
         "unavailable",
+        "storage_mount_limit",
         "corrupt_configuration",
         "state_not_durable",
         "not_found"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Installed lifecycle and interruption regression for authority schema 9."""
+"""Installed lifecycle and interruption regression for the candidate schema."""
 
 import hashlib
 import json
@@ -7,11 +7,16 @@ import sys
 from pathlib import Path
 
 import p03_lifecycle_guest as lifecycle
+from current_authority_schema import current_authority_schema
 
 
-def main(package_version="0.4.4"):
+def main(package_version="0.4.4", authority_schema=None):
+    if authority_schema is None:
+        authority_schema = current_authority_schema()
     lifecycle.main(
-        package_version=package_version, authority_schema=9, qualify_upgrade=False
+        package_version=package_version,
+        authority_schema=authority_schema,
+        qualify_upgrade=False,
     )
     output = Path(sys.argv[2])
     result = json.loads(output.read_text())

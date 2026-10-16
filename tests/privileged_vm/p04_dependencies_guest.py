@@ -16,6 +16,7 @@ from pathlib import Path
 
 import p03_guest as fixture
 import p03_lifecycle_guest as lifecycle
+from current_authority_schema import current_authority_schema
 
 BASE = "/api/v1/storage/container-dependencies"
 
@@ -110,11 +111,15 @@ def storage_grant(principal, enabled, database=fixture.CORE_DB):
             )
 
 
-def main(package_version="0.4.6"):
+def main(package_version="0.4.6", authority_schema=None):
+    if authority_schema is None:
+        authority_schema = current_authority_schema()
     if os.getuid() != 0 or socket.gethostname() != "limeos-p01-test":
         raise SystemExit("Disposable guest required")
     lifecycle.main(
-        package_version=package_version, authority_schema=9, qualify_upgrade=False
+        package_version=package_version,
+        authority_schema=authority_schema,
+        qualify_upgrade=False,
     )
     output = Path(sys.argv[2])
     fixture.Proxy.do_GET = dependency_get

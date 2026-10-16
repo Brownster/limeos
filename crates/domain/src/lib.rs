@@ -12,7 +12,9 @@ pub use compose::*;
 pub mod compose_override;
 mod storage;
 pub use storage::*;
+mod storage_operations;
 mod storage_targets;
+pub use storage_operations::*;
 pub use storage_targets::*;
 mod storage_dependencies;
 pub use storage_dependencies::*;
@@ -38,6 +40,7 @@ pub enum ErrorCode {
     Expired,
     Overloaded,
     Unavailable,
+    StorageMountLimit,
     CorruptConfiguration,
     StateNotDurable,
     NotFound,
@@ -55,6 +58,9 @@ impl Error {
             ErrorCode::Expired => "The authority has expired or been revoked.",
             ErrorCode::Overloaded => "The bounded work queue is full. Retry later.",
             ErrorCode::Unavailable => "The service is unavailable.",
+            ErrorCode::StorageMountLimit => {
+                "This mount flow supports at most 4 running containers and 16 destination mounts. This host exceeds those limits."
+            }
             ErrorCode::CorruptConfiguration => {
                 "Configuration is invalid; the original file was preserved. Run limeosctl check-config before restarting."
             }
@@ -200,6 +206,7 @@ pub enum Intent {
     ContainerStart { plan: ContainerPlan },
     ContainerStop { plan: ContainerPlan },
     StoragePrepareTargets { plan: Box<StorageTargetPlan> },
+    StorageMount { plan: Box<StorageMountPlan> },
     BackupPreparePrivate { plan: Box<BackupPreparationJobPlan> },
 }
 impl Intent {
@@ -209,7 +216,9 @@ impl Intent {
             Self::ContainerRestart { plan }
             | Self::ContainerStart { plan }
             | Self::ContainerStop { plan } => &plan.expected.resource,
-            Self::StoragePrepareTargets { .. } => "storage:configuration",
+            Self::StoragePrepareTargets { .. } | Self::StorageMount { .. } => {
+                "storage:configuration"
+            }
             Self::BackupPreparePrivate { .. } => BACKUP_PREPARATION_RESOURCE,
         }
     }

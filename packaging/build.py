@@ -24,13 +24,54 @@ def profile_text(text: str, shadow: bool) -> str:
         text = text.replace(prefix, prefix.replace("limeos", "limeos-shadow"))
     # Account/service names, preserving executable basenames following '/'.
     text = re.sub(
-        r"(?<!/)\blimeos-(core|containerd|storaged|storage-reader|storage-ready|storage-targets|assistant|rpc|host-access|container-access)\b",
+        r"(?<!/)\blimeos-(core|containerd|storaged|storage-reader|storage-ready|storage-targets|storage-mounts|assistant|rpc|host-access|container-access)\b",
         r"limeos-shadow-\1",
         text,
     )
     text = text.replace("dpkg --configure limeos.", "dpkg --configure limeos-shadow.")
     text = text.replace("StateDirectory=limeos/", "StateDirectory=limeos-shadow/")
     return text
+
+
+def exclude_effect_unit(name: str, shadow: bool) -> bool:
+    return shadow and name in {
+        "limeos-storage-targets.service",
+        "limeos-storage-mounts.service",
+    }
+
+
+def check_root_execution_payload(stage: Path, package: str) -> None:
+    """Archive ownership is root; executable assets must also be immutable to peers."""
+    assets = [
+        stage / "usr/lib" / package / name
+        for name in (
+            "limeos-core",
+            "limeos-executor",
+            "limeosctl",
+            "limeos-password-worker",
+        )
+    ]
+    assets.extend((stage / "lib/systemd/system").glob("*.service"))
+    for asset in assets:
+        for path in (asset, *asset.parents):
+            if path == stage:
+                break
+            if path.is_symlink() or path.stat().st_mode & 0o022:
+                raise SystemExit(
+                    f"Root execution path is writable or a symlink: {path}"
+                )
+    unit = stage / "lib/systemd/system/limeos-storage-mounts.service"
+    if unit.exists():
+        expected = (
+            "ExecStart=/usr/lib/limeos/limeos-executor "
+            "/etc/limeos/system-policy/storage-mounts.json "
+            "/run/limeos-storage-mounts/executor.sock storage-mounts"
+        )
+        lines = unit.read_text().splitlines()
+        if [line for line in lines if line.startswith("ExecStart=")] != [expected]:
+            raise SystemExit(
+                "Mount service must execute fixed protected code and paths"
+            )
 
 
 def main() -> None:
@@ -65,7 +106,7 @@ def main() -> None:
         units = stage / "lib/systemd/system"
         units.mkdir(parents=True)
         for unit in (ROOT / "packaging/systemd").glob("*.service"):
-            if shadow and unit.name == "limeos-storage-targets.service":
+            if exclude_effect_unit(unit.name, shadow):
                 continue
             name = (
                 unit.name.replace("limeos-", "limeos-shadow-") if shadow else unit.name
@@ -92,6 +133,7 @@ def main() -> None:
                 container_socket="/run/limeos-shadow-containerd/executor.sock",
                 storage_socket="/run/limeos-shadow-storage-reader/executor.sock",
                 storage_target_socket="/run/limeos-shadow-storage-targets/executor.sock",
+                storage_mount_socket="/run/limeos-shadow-storage-mounts/executor.sock",
             )
         (etc / "core.json").write_text(json.dumps(config, indent=2) + "\n")
         documentation = stage / "usr/share/doc" / package
@@ -128,6 +170,14 @@ def main() -> None:
             ROOT / "docs/p04-storage-targets.md",
             documentation / "p04-storage-targets.md",
         )
+        shutil.copyfile(
+            ROOT / "docs/p04-storage-mounts-profile.md",
+            documentation / "p04-storage-mounts-profile.md",
+        )
+        examples = documentation / "examples"
+        examples.mkdir()
+        for name in ["storage-mounts.example.json", "storage-mounts-core.example.json"]:
+            shutil.copyfile(ROOT / "packaging/config" / name, examples / name)
         control.mkdir()
         (control / "control").write_text(f"""Package: {package}
 Version: {args.version}
@@ -160,6 +210,9 @@ Description: Secure host observations and approved container operations
                 "postrm",
             ]:
                 path.chmod(0o644)
+        # dpkg-deb --root-owner-group below assigns root archive ownership.
+        # Validate code/unit path modes after final normalization, before packing.
+        check_root_execution_payload(stage, package)
         checksums = []
         for path in sorted(stage.rglob("*")):
             relative = path.relative_to(stage)

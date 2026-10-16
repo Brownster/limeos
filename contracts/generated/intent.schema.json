@@ -93,6 +93,23 @@
       "properties": {
         "operation": {
           "type": "string",
+          "const": "storage_mount"
+        },
+        "plan": {
+          "$ref": "#/$defs/StorageMountPlan"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "plan"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
           "const": "backup_prepare_private"
         },
         "plan": {
@@ -592,6 +609,94 @@
       "required": [
         "uid",
         "gid"
+      ]
+    },
+    "StorageMountEffectPlan": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "consumer_digest": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "device": {
+          "$ref": "#/$defs/StorageDevice"
+        },
+        "expected": {
+          "$ref": "#/$defs/StorageInventory"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "physical_devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageBlockDevice"
+          }
+        },
+        "target": {
+          "$ref": "#/$defs/TargetEvidence"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "operation",
+        "action",
+        "device",
+        "expected",
+        "target",
+        "physical_devices",
+        "consumer_digest",
+        "created_at",
+        "expires_at"
+      ]
+    },
+    "StorageMountPlan": {
+      "type": "object",
+      "properties": {
+        "effect": {
+          "$ref": "#/$defs/StorageMountEffectPlan"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "id": {
+          "type": "string"
+        },
+        "principal": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "principal",
+        "grant_revision",
+        "effect"
       ]
     },
     "StorageObservedDevice": {

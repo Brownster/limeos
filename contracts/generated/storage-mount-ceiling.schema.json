@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StorageMountCeiling",
+  "description": "Independent, root-owned authority for the one closed nonpersistent mount.",
+  "type": "object",
+  "properties": {
+    "allow_mount": {
+      "type": "boolean"
+    },
+    "core_uid": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "managed_targets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ManagedStorageMount"
+      }
+    },
+    "version": {
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "core_uid",
+    "allow_mount",
+    "managed_targets"
+  ],
+  "$defs": {
+    "ManagedStorageMount": {
+      "type": "object",
+      "properties": {
+        "filesystem_uuid": {
+          "type": "string"
+        },
+        "mountpoint": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "target_id",
+        "filesystem_uuid",
+        "mountpoint"
+      ]
+    }
+  }
+}

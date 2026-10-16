@@ -453,6 +453,7 @@ impl Core {
         // as mutations, even after their original plan has expired.
         let mut recovery = std::collections::HashMap::<String, Instant>::new();
         let mut target_recovery = std::collections::HashMap::<String, Instant>::new();
+        let mut mount_recovery = std::collections::HashMap::<String, Instant>::new();
         loop {
             tick.tick().await;
             if let Ok(jobs) = self.db.call(|s| s.storage_target_candidates()).await {
@@ -469,6 +470,24 @@ impl Core {
                     }
                     if let Err(e) = self.dispatch_target(principal, job).await {
                         tracing::warn!(code=?e.0,"storage target job remains pending or requires reconciliation");
+                    }
+                }
+            }
+
+            if let Ok(jobs) = self.db.call(|store| store.storage_mount_candidates()).await {
+                mount_recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));
+                for (principal, job) in jobs {
+                    if job.state != JobState::Queued {
+                        if mount_recovery
+                            .get(&job.id)
+                            .is_some_and(|at| at.elapsed() < Duration::from_secs(30))
+                        {
+                            continue;
+                        }
+                        mount_recovery.insert(job.id.clone(), Instant::now());
+                    }
+                    if let Err(error) = self.dispatch_mount(principal, job).await {
+                        tracing::warn!(code=?error.0, "storage mount job remains pending or requires reconciliation");
                     }
                 }
             }

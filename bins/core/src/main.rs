@@ -19,6 +19,7 @@ use tokio::{
 mod compose;
 mod operations;
 mod storage;
+mod storage_mounts;
 mod storage_targets;
 
 fn now() -> i64 {
@@ -39,6 +40,7 @@ struct Core {
     compose_catalog: Option<Arc<limeos_domain::ComposeCatalog>>,
     storage_socket: Arc<PathBuf>,
     storage_target_socket: Arc<PathBuf>,
+    storage_mount_socket: Arc<PathBuf>,
     storage_readers: Arc<Semaphore>,
 }
 impl Core {
@@ -120,6 +122,84 @@ impl Core {
     }
 }
 impl Backend for Core {
+    async fn storage_mount_catalog(
+        &self,
+        token: String,
+    ) -> Result<limeos_domain::StorageMountCatalog> {
+        self.human_mount_catalog(token).await
+    }
+    async fn plan_storage_mount(
+        &self,
+        token: String,
+        csrf: String,
+        selection: limeos_domain::StorageMountSelection,
+    ) -> Result<limeos_domain::PlannedStorageMount> {
+        self.human_plan_mount(token, csrf, selection).await
+    }
+    async fn storage_mount_plan(
+        &self,
+        token: String,
+        id: String,
+    ) -> Result<limeos_domain::PlannedStorageMount> {
+        let principal = self.storage_principal(token, None).await?;
+        self.db
+            .call(move |store| store.storage_mount_plan(&principal, &id))
+            .await
+    }
+    async fn approve_storage_mount(
+        &self,
+        token: String,
+        csrf: String,
+        id: String,
+        digest: String,
+    ) -> Result<limeos_domain::PlanApproval> {
+        self.human_approve_mount(token, csrf, id, digest).await
+    }
+    async fn queue_storage_mount(
+        &self,
+        token: String,
+        csrf: String,
+        input: limeos_contracts::QueueStorageMountInput,
+    ) -> Result<limeos_domain::StorageMountJob> {
+        self.human_queue_mount(token, csrf, input).await
+    }
+    async fn storage_mount_job(
+        &self,
+        token: String,
+        id: String,
+    ) -> Result<limeos_domain::StorageMountJob> {
+        let principal = self.storage_principal(token, None).await?;
+        self.db
+            .call(move |store| store.storage_mount_job(&principal, &id))
+            .await
+    }
+    async fn storage_mount_jobs(
+        &self,
+        token: String,
+    ) -> Result<Vec<limeos_domain::StorageMountJob>> {
+        let principal = self.storage_principal(token, None).await?;
+        self.db
+            .call(move |store| store.storage_mount_jobs(&principal))
+            .await
+    }
+    async fn cancel_storage_mount(&self, token: String, csrf: String, id: String) -> Result<()> {
+        let principal = self.storage_principal(token, Some(csrf)).await?;
+        self.db
+            .call(move |store| store.cancel_storage_mount(&principal, &id, now()))
+            .await
+    }
+    async fn cancel_storage_mount_job(
+        &self,
+        token: String,
+        csrf: String,
+        id: String,
+    ) -> Result<()> {
+        let principal = self.storage_principal(token, Some(csrf)).await?;
+        self.db
+            .call(move |store| store.cancel_storage_mount_job(&principal, &id, now()))
+            .await
+    }
+
     async fn container_storage_inventory(
         &self,
         token: String,
@@ -740,6 +820,7 @@ async fn run() -> Result<()> {
         container_socket: Arc::new(config.container_socket.into()),
         storage_socket: Arc::new(config.storage_socket.into()),
         storage_target_socket: Arc::new(config.storage_target_socket.into()),
+        storage_mount_socket: Arc::new(config.storage_mount_socket.into()),
         storage_readers: Arc::new(Semaphore::new(1)),
         compose_catalog: config::read_compose_catalog(
             &config_path.with_file_name("compose-catalog.json"),

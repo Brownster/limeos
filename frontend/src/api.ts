@@ -35,7 +35,7 @@ function isErrorEnvelope(value: unknown): value is ErrorEnvelope {
     error.audit_id.length <= 128
   );
 }
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/v1${path}`, {
     ...init,
     credentials: "same-origin",

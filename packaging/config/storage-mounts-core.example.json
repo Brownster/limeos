@@ -1,0 +1,3 @@
+{
+  "storage_mount_socket": "/run/limeos-storage-mounts/executor.sock"
+}
