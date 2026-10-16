@@ -1,0 +1,115 @@
+{
+  "source": "e057abda9c3ed06685ecd1291993b88fd2d7f91b",
+  "main_base": "02605383730fb56bc47035cafd34dc1e80cdf982",
+  "merged_heads": {
+    "media_quickstart_lineage": "7fff043f697fef7a785709f97508743d11994ffc",
+    "automation": "485206b0fe5675e438f81e45ca91fbb552349a50",
+    "packages_prerequisites": "a3e05e7ac87343addcd955427b90b38cc616883a",
+    "images_container_updates": "224f12c31517d133c7528b3663111a39081befe4",
+    "networks": "f5fdffa0e53b2e823129183c6480a9480c179a86"
+  },
+  "source_committed_after_checks_without_intervening_product_changes": true,
+  "input_count": 462,
+  "input_scope": "Source and fixture superset, not a claim that every included crate unit suite ran",
+  "rust_cases": {
+    "domain": 281,
+    "adapter_host_policy": 118,
+    "api": 19,
+    "runner": 6,
+    "total": 424
+  },
+  "frontend": {
+    "files": [
+      {
+        "file": "frontend/tests/api.mjs",
+        "tests": 4,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/automation-controller.test.mjs",
+        "tests": 14,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/automation.test.mjs",
+        "tests": 10,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/media-activity-client.test.mjs",
+        "tests": 29,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/media-activity.test.mjs",
+        "tests": 10,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/observations.test.mjs",
+        "tests": 4,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/stack-discovery.test.mjs",
+        "tests": 18,
+        "exit_code": 0
+      }
+    ],
+    "tests": 89
+  },
+  "installed_frontend_dependencies": {
+    "react": {
+      "version": "18.3.1",
+      "package_json_sha256": "d4e68a5c96babb20cad1daafea8b78822eae45b341552cf5418d06a5304fa64c"
+    },
+    "react-dom": {
+      "version": "18.3.1",
+      "package_json_sha256": "d2f29e31bd48b833e48cd7bbf41f192e8ee4ff8da249fdbe10d4ac4114b8b12e"
+    },
+    "@types/react": {
+      "version": "18.3.18",
+      "package_json_sha256": "757f5975d90d245b977f475cf18654d543e5a3019028d934333e68f33b68cd93"
+    },
+    "@types/react-dom": {
+      "version": "18.3.5",
+      "package_json_sha256": "bdecb35ed9f8237d6258e98518ebbfe16057a2be300e313ad1844082a8eaa159"
+    },
+    "typescript": {
+      "version": "5.7.3",
+      "package_json_sha256": "1e03325943793f3bf11667b94fca412fe5ba617c85b84c16f0474933da156baa"
+    },
+    "vite": {
+      "version": "8.3.2",
+      "package_json_sha256": "2b906339263f24e9be4219f93d966b4bcf0d4141adc05939a537c3a8fd6f760a"
+    }
+  },
+  "toolchains": {
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5\n",
+    "cargo": "cargo 1.88.0 (873a06493 2025-05-10)\nrelease: 1.88.0\ncommit-hash: 873a0649350c486caf67be772828a4f36bb4734c\ncommit-date: 2025-05-10\nhost: x86_64-unknown-linux-gnu\nlibgit2: 1.9.0 (sys:0.20.0 vendored)\nlibcurl: 8.12.1-DEV (sys:0.4.80+curl-8.12.1 vendored ssl:OpenSSL/3.4.1)\nssl: OpenSSL 3.4.1 11 Feb 2025\nos: Fedora 43.0.0 [64-bit]\n",
+    "node": "v22.14.0\n",
+    "uv": "uv 0.11.25 (x86_64-unknown-linux-gnu)\n"
+  },
+  "commands": [
+    "uv run --offline --no-project tests/fixtures/stream-b/check-leaves.py",
+    "cargo test --offline --locked --manifest-path .cache/stream-b-leaf/Cargo.toml",
+    "cargo clippy --offline --locked --manifest-path .cache/stream-b-leaf/Cargo.toml --all-targets -- -D warnings",
+    "rustfmt --edition 2024 --check --config skip_children=true crates/domain/src/deployment/mod.rs crates/executor-container/src/deployment/mod.rs",
+    "uv run --offline --no-project --with ruff==0.17.0 ruff check tests/fixtures/stream-b/check-leaves.py",
+    "uv run --offline --no-project .cache/stream-b/verify-harness.py",
+    "npm run check (cwd frontend)",
+    "node --experimental-strip-types --test --test-concurrency=1 tests/*.mjs (cwd frontend)",
+    "uv run --offline --no-project .cache/stream-b/check-frontend-direct.py"
+  ],
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "2",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+    "npm_config_cache": "/home/marc/Documents/github/lime-os/.cache/npm"
+  },
+  "limits": "Local combined leaf checks; B production registrations, Store durability, installed effects/recovery, ARM64, performance, soak and cutover remain unqualified"
+}
