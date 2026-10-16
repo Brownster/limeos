@@ -1,0 +1,18 @@
+[
+  {"name":"plain HTTP address","kind":"http","status":200,"body":"1.1.1.1\n","expected":"address","address":"1.1.1.1"},
+  {"name":"plain exec address","kind":"exec","status":0,"body":"9.9.9.9\n","expected":"address","address":"9.9.9.9"},
+  {"name":"nullable terminal code","kind":"exec","status":null,"body":"9.9.9.9","expected":"missing_terminal_status"},
+  {"name":"nonzero terminal code","kind":"exec","status":1,"body":"9.9.9.9","expected":"failed"},
+  {"name":"missing HTTP status","kind":"http","status":null,"body":"1.1.1.1","expected":"missing_terminal_status"},
+  {"name":"HTTP error with plausible body","kind":"http","status":500,"body":"1.1.1.1","expected":"failed"},
+  {"name":"HTTP redirect with plausible body","kind":"http","status":302,"body":"1.1.1.1","expected":"failed"},
+  {"name":"HTTP no-content with plausible body","kind":"http","status":204,"body":"1.1.1.1","expected":"failed"},
+  {"name":"HTML is not an IP","kind":"http","status":200,"body":"<html>1.1.1.1</html>","expected":"invalid_response"},
+  {"name":"JSON is not plaintext IP","kind":"exec","status":0,"body":"{\"ip\":\"9.9.9.9\",\"secret\":\"fixture-only\"}","expected":"invalid_response"},
+  {"name":"hostname is not an IP","kind":"exec","status":0,"body":"example.invalid","expected":"invalid_response"},
+  {"name":"zone identifier is not an IP","kind":"exec","status":0,"body":"fe80::1%eth0","expected":"invalid_response"},
+  {"name":"IPv4 port is not an IP","kind":"exec","status":0,"body":"1.1.1.1:443","expected":"invalid_response"},
+  {"name":"multiple addresses refused","kind":"exec","status":0,"body":"1.1.1.1\n9.9.9.9","expected":"invalid_response"},
+  {"name":"IPv6 literal","kind":"http","status":200,"body":" 2606:4700:4700::1111\r\n","expected":"address","address":"2606:4700:4700::1111"},
+  {"name":"mapped IPv4 canonicalized","kind":"exec","status":0,"body":"::ffff:1.1.1.1","expected":"address","address":"1.1.1.1"}
+]

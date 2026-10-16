@@ -4,6 +4,7 @@ pub mod catalog;
 pub mod container_updates;
 pub mod discovery;
 pub mod download_clients;
+pub mod egress;
 pub mod indexer_apps;
 pub mod local_config;
 pub mod media;
