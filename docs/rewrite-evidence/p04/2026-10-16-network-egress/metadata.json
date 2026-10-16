@@ -1,0 +1,55 @@
+{
+  "source": "14427af0bb922646b10b73bc3054a69778790766",
+  "base": "7df3f7530865c31b7faefd1f7b12a25aa7655860",
+  "source_committed_after_checks_without_intervening_product_changes": true,
+  "cases": {
+    "domain": 301,
+    "adapter_host_policy": 127,
+    "api": 19,
+    "runner": 6,
+    "total": 453,
+    "new_domain": 20,
+    "new_adapter": 9
+  },
+  "fixtures": {
+    "comparisons": 10,
+    "responses": 16
+  },
+  "input_count": 435,
+  "input_scope": "Source/fixture superset; not every included crate unit suite ran",
+  "frozen_root": "/home/marc/Documents/github/pi-health",
+  "frozen_source": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+  "frozen_input_count": 3,
+  "harness_lock_origin": "docs/rewrite-evidence/p04/2026-10-16-stream-b-integration/harness/Cargo.lock",
+  "harness_lock_sha256": "64fd3fc7338014ba938299772cec4d4779c943b13cf8dc58408f3a2016f15016",
+  "bounds": {
+    "raw_response_bytes": 64,
+    "report_bytes": 4096,
+    "inclusive_original_sample_age_seconds": 90,
+    "inclusive_sample_pair_skew_seconds": 5,
+    "engine_id_bytes": 128
+  },
+  "commands": [
+    "uv run --offline --no-project tests/fixtures/stream-b/check-leaves.py",
+    "cp docs/rewrite-evidence/p04/2026-10-16-stream-b-integration/harness/Cargo.lock .cache/stream-b-leaf/Cargo.lock",
+    "cargo test --offline --locked --manifest-path .cache/stream-b-leaf/Cargo.toml",
+    "cargo clippy --offline --locked --manifest-path .cache/stream-b-leaf/Cargo.toml --all-targets -- -D warnings",
+    "rustfmt --edition 2024 --check --config skip_children=true crates/domain/src/deployment/egress.rs crates/domain/src/deployment/egress/tests.rs crates/domain/src/deployment/mod.rs crates/executor-container/src/deployment/egress.rs crates/executor-container/src/deployment/egress/tests.rs crates/executor-container/src/deployment/mod.rs",
+    "uv run --offline --no-project .cache/egress/verify-harness.py"
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5\n",
+    "cargo": "cargo 1.88.0 (873a06493 2025-05-10)\nrelease: 1.88.0\ncommit-hash: 873a0649350c486caf67be772828a4f36bb4734c\ncommit-date: 2025-05-10\nhost: x86_64-unknown-linux-gnu\nlibgit2: 1.9.0 (sys:0.20.0 vendored)\nlibcurl: 8.12.1-DEV (sys:0.4.80+curl-8.12.1 vendored ssl:OpenSSL/3.4.1)\nssl: OpenSSL 3.4.1 11 Feb 2025\nos: Fedora 43.0.0 [64-bit]\n",
+    "uv": "uv 0.11.25 (x86_64-unknown-linux-gnu)\n"
+  },
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "2",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv"
+  },
+  "limits": "Local pure policy and supplied-byte decoder; no new frontend, live probe, runtime registration, installed/ARM64/performance/soak/Pi acceptance or defect/P04/cutover closure"
+}
