@@ -1,0 +1,4 @@
+[
+  {"id":21,"name":"Transmission","implementation":"Transmission","enable":true,"removeCompletedDownloads":true,"removeFailedDownloads":true,"fields":[{"name":"movieCategory","value":"radarr"},{"name":"password","value":"REGISTRATION_PRIVATE_VALUE=fixture-only"}]},
+  {"id":22,"name":"Sabnzbd","implementation":"Sabnzbd","enable":true,"removeCompletedDownloads":true,"removeFailedDownloads":true,"fields":[{"name":"movieCategory","value":"radarr"},{"name":"apiKey","value":"REGISTRATION_PRIVATE_VALUE=fixture-only"}]}
+]

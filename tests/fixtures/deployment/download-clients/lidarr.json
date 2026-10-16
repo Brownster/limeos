@@ -1,0 +1,4 @@
+[
+  {"id":31,"name":"Transmission","implementation":"Transmission","enable":true,"removeCompletedDownloads":true,"removeFailedDownloads":true,"fields":[{"name":"musicCategory","value":"lidarr"},{"name":"password","value":"REGISTRATION_PRIVATE_VALUE=fixture-only"}]},
+  {"id":32,"name":"Sabnzbd","implementation":"Sabnzbd","enable":true,"removeCompletedDownloads":true,"removeFailedDownloads":true,"fields":[{"name":"musicCategory","value":"lidarr"},{"name":"apiKey","value":"REGISTRATION_PRIVATE_VALUE=fixture-only"}]}
+]

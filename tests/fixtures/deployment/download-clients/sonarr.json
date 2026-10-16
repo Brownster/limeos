@@ -1,0 +1,4 @@
+[
+  {"id":11,"name":"Transmission","implementation":"Transmission","configContract":"TransmissionSettings","enable":true,"removeCompletedDownloads":true,"removeFailedDownloads":true,"category":"ignored-generic","fields":[{"name":"tvCategory","value":"sonarr"},{"name":"password","value":"REGISTRATION_PRIVATE_VALUE=fixture-only"},{"name":"host","value":"PRIVATE_ENDPOINT.invalid"}]},
+  {"id":12,"name":"Sabnzbd","implementation":"Sabnzbd","configContract":"SabnzbdSettings","enable":true,"removeCompletedDownloads":true,"removeFailedDownloads":true,"fields":[{"name":"tvCategory","value":"sonarr"},{"name":"apiKey","value":"REGISTRATION_PRIVATE_VALUE=fixture-only"}]}
+]
