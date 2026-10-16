@@ -20,6 +20,10 @@ Sonarr/Radarr paths use API v3, Lidarr API v1. Closed move/hardlink and
 standard/keep-original choices replace permissive arbitrary strings. Derive
 the recycle bin as `.recycle` below the selected typed library container path;
 actual storage, mounted bindings and numeric identity still require verification.
+Require a known `useScriptImport` boolean. An enabled custom import script blocks
+the draft instead of silently overriding it or claiming the import mode took
+effect. Disabling hardlinks expresses the frozen move preference; it does not
+guarantee a filesystem move, since the service can still copy active downloads.
 
 Only differing selected settings become typed changes. Preserve unknown service
 configuration by leaving it out of the preview, never creating a partial PUT
