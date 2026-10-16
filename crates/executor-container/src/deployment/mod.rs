@@ -2,3 +2,4 @@
 pub mod activity;
 pub mod discovery;
 pub mod media;
+pub mod media_settings;

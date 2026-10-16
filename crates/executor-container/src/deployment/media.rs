@@ -10,7 +10,7 @@ use serde::{
 use std::{fmt, marker::PhantomData};
 
 pub const MAX_RESPONSE_BYTES: usize = 32 * 1024;
-struct Bounded<T, const N: usize>(Vec<T>);
+pub(super) struct Bounded<T, const N: usize>(pub(super) Vec<T>);
 impl<'de, T: Deserialize<'de>, const N: usize> Deserialize<'de> for Bounded<T, N> {
     fn deserialize<D: Deserializer<'de>>(de: D) -> std::result::Result<Self, D::Error> {
         struct Items<T, const N: usize>(PhantomData<T>);
@@ -39,7 +39,7 @@ impl<'de, T: Deserialize<'de>, const N: usize> Deserialize<'de> for Bounded<T, N
         de.deserialize_seq(Items(PhantomData))
     }
 }
-struct Object<T>(T);
+pub(super) struct Object<T>(pub(super) T);
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Object<T> {
     fn deserialize<D: Deserializer<'de>>(de: D) -> std::result::Result<Self, D::Error> {
         struct Map<T>(PhantomData<T>);
@@ -76,7 +76,7 @@ struct LibraryWire {
     #[serde(rename = "Locations", alias = "locations", alias = "paths")]
     paths: Bounded<String, MAX_PATHS>,
 }
-fn decode<T: for<'de> Deserialize<'de>>(bytes: &[u8]) -> Result<T> {
+pub(super) fn decode<T: for<'de> Deserialize<'de>>(bytes: &[u8]) -> Result<T> {
     if bytes.len() > MAX_RESPONSE_BYTES {
         return Err(Error(ErrorCode::Unavailable));
     }

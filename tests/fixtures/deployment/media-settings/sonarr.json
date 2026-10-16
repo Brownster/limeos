@@ -1,0 +1,6 @@
+{
+  "management": {"id": 11, "copyUsingHardlinks": true, "recycleBin": "/Old/Trash", "useScriptImport": false, "useHardlinks": false, "enableCompletedDownloadHandling": true, "apiKey": "SETTINGS_PRIVATE_VALUE=fixture-only", "scriptImportPath": "UNSELECTED_SCRIPT=fixture-only"},
+  "download_handling": {"id": 12, "enableCompletedDownloadHandling": false, "apiKey": "SETTINGS_PRIVATE_VALUE=fixture-only"},
+  "naming": {"id": 13, "renameEpisodes": false, "replaceIllegalCharacters": false, "standardEpisodeFormat": "UNSELECTED_NAMING=fixture-only"},
+  "profiles": [{"id": 7, "name": "HD-1080p", "items": [{"apiKey": "SETTINGS_PRIVATE_VALUE=fixture-only"}]}]
+}

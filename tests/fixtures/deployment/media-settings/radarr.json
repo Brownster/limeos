@@ -1,0 +1,6 @@
+{
+  "management": {"id": 21, "copyUsingHardlinks": true, "recycleBin": "", "useScriptImport": false, "apiKey": "SETTINGS_PRIVATE_VALUE=fixture-only"},
+  "download_handling": {"id": 22, "enableCompletedDownloadHandling": false, "apiKey": "SETTINGS_PRIVATE_VALUE=fixture-only"},
+  "naming": {"id": 23, "renameMovies": false, "replaceIllegalCharacters": false, "standardMovieFormat": "UNSELECTED_NAMING=fixture-only"},
+  "profiles": [{"id": 8, "name": "HD-1080p"}]
+}

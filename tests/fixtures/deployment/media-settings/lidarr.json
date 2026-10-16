@@ -1,0 +1,6 @@
+{
+  "management": {"id": 31, "copyUsingHardlinks": true, "recycleBin": "", "useScriptImport": false, "apiKey": "SETTINGS_PRIVATE_VALUE=fixture-only"},
+  "download_handling": {"id": 32, "enableCompletedDownloadHandling": false},
+  "naming": {"id": 33, "renameTracks": false, "replaceIllegalCharacters": false, "standardTrackFormat": "UNSELECTED_NAMING=fixture-only"},
+  "profiles": [{"id": 9, "name": "Lossless"}, {"id": 10, "name": "Any"}]
+}
