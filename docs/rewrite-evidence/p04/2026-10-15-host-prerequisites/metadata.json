@@ -1,0 +1,109 @@
+{
+  "recorded_at_utc": "2026-10-15T08:08:41.447544+00:00",
+  "source_commit": "92417d02735118f74e26a588625fb471bd73782f",
+  "base_commit": "b37c7187488ff1c9421f88625c66bcf8ad0ae385",
+  "source_hashes_sha256": {
+    "bins/executor/src/updates/mod.rs": "61156c863fee0e49c74e2722778ed8e7fd293f392c47dd56b1aa90fd76ab9901",
+    "bins/executor/src/updates/prerequisites.rs": "cc840c8ddf714fca751ae1b5cf0098c5c418159504105fcfcf60e78966f735a1",
+    "bins/executor/src/updates/prerequisites_tests.rs": "2afe00e07ad440eaf34a8b5017066e9c5556ee6ea36714a554bac8ddf59da67b",
+    "tests/fixtures/deployment/prerequisites/check-leaf.py": "b77c88182e67e5788e568ca751efcf07d895b049edf76240394e8e497b0cbec3",
+    "tests/fixtures/deployment/prerequisites/cases.json": "ecb0036e65f8346e21f5ff396d1e4d2f23d999dd59b38d87a41a17c8d2ea2fca"
+  },
+  "frozen_reference": {
+    "commit": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+    "files_sha256": {
+      "host_prerequisites.py": "48442c1f92b65f897582d17c1e17eda349251c7416fcdac4758240e100b748a1",
+      "pihealth_helper.py": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+      "setup.sh": "355649dd8ad7e4c5ed01d4dbfd93745bf4e43687784f0c5ce83950ba41dafd1c",
+      "scripts/onboarding-preflight.sh": "94e2e903da3d113ba45609f03a060a97a4ccd4470ba8ff74dbd5e61172de464e",
+      "tests/test_host_prerequisites.py": "786cef28e8e4531d1e6015b427bd32cfb1fd61101de4d399352b38d2c29d91c2",
+      "tests/test_host_prerequisites_helper.py": "8a659120cf95528f905c8806f414eadee4ec82f139e551099e70b98b77301ce7"
+    }
+  },
+  "scope": "Unregistered pure HOST-001 planner; local x86_64 focused harness only",
+  "registered_in_executor": false,
+  "host_effects": false,
+  "fixture_scenarios": {
+    "memory": 17,
+    "journal": 25
+  },
+  "rust_test_count": 13,
+  "tool_versions": {
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5",
+    "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+    "rustfmt": "rustfmt 1.8.0-stable (6b00bc3880 2025-06-23)",
+    "clippy": "clippy 0.1.88 (6b00bc3880 2025-06-23)",
+    "uv": "uv 0.11.25 (x86_64-unknown-linux-gnu)",
+    "ruff": "ruff 0.17.0"
+  },
+  "cargo_environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "RUST_TEST_THREADS": "2 (test command only)"
+  },
+  "uv_environment": {
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv"
+  },
+  "checks": [
+    {
+      "command": "cargo test --offline --locked --manifest-path .cache/prerequisites-leaf/Cargo.toml",
+      "exit_code": 0,
+      "log": "test-final.log.gz"
+    },
+    {
+      "command": "cargo clippy --offline --locked --manifest-path .cache/prerequisites-leaf/Cargo.toml --all-targets -- -D warnings",
+      "exit_code": 0,
+      "log": "clippy-final.log.gz"
+    },
+    {
+      "command": "rustfmt --check --edition 2024 bins/executor/src/updates/mod.rs",
+      "exit_code": 0,
+      "log": "fmt-final.log.gz"
+    },
+    {
+      "command": "uv run --offline --no-project --with ruff ruff check tests/fixtures/deployment/prerequisites/check-leaf.py",
+      "exit_code": 0,
+      "log": "ruff.log.gz"
+    },
+    {
+      "command": "uv run --offline --no-project --with ruff ruff format --check tests/fixtures/deployment/prerequisites/check-leaf.py",
+      "exit_code": 0,
+      "log": "python-format.log.gz"
+    }
+  ],
+  "diagnostic_runs": {
+    "kernel-separator-red.log.gz": {
+      "exit_code": 101,
+      "final_source_acceptance": false
+    },
+    "kernel-separator-green.log.gz": {
+      "exit_code": 0,
+      "final_source_acceptance": false
+    },
+    "kernel-alias-red.log.gz": {
+      "exit_code": 101,
+      "final_source_acceptance": false
+    },
+    "kernel-alias-green.log.gz": {
+      "exit_code": 0,
+      "final_source_acceptance": false
+    },
+    "journal-cr-red.log.gz": {
+      "exit_code": 101,
+      "final_source_acceptance": false,
+      "code_commit": "70dfc44f5f41aec63807c482a3a9f28f8f6ff2a8",
+      "fixture_override": {
+        "path": "tests/fixtures/deployment/prerequisites/cases.json",
+        "sha256": "ecb0036e65f8346e21f5ff396d1e4d2f23d999dd59b38d87a41a17c8d2ea2fca"
+      }
+    }
+  },
+  "limits": [
+    "No trusted collection, authority, claims, SQL, runtime or package registration",
+    "No atomic write, crash recovery, journal reload/vacuum or reboot evidence",
+    "No installed API/UI, whole-workspace, ARM64/Pi, footprint or performance qualification",
+    "Diagnostic pre-fix source snapshots are not frozen commits"
+  ]
+}
