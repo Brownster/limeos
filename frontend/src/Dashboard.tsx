@@ -10,6 +10,7 @@ import { api, ApiError } from "./api";
 import { page } from "./model";
 import { ObservationView } from "./ObservationView";
 import { ContainerJobs } from "./ContainerActions";
+import { StorageMounts } from "./storage/StorageMounts";
 const views: [string, ResourceKind | undefined][] = [
   ["All resources", undefined],
   ["Containers", "container"],
@@ -190,6 +191,7 @@ export function Dashboard({
               expired={expired}
             />
           )}
+          {canManage && <StorageMounts csrf={session.csrf_token} expired={expired} />}
           <div className="pager">
             <button
               disabled={safeOffset === 0}

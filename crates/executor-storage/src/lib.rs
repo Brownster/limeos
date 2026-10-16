@@ -2,8 +2,10 @@
 pub mod configuration;
 mod dependencies;
 pub mod destinations;
+pub mod effects;
 mod fstab;
 mod inventory;
+pub mod mount_admission;
 mod mounts;
 mod path;
 pub mod read_admission;

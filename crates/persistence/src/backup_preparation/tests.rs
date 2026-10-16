@@ -531,7 +531,11 @@ fn genuine_compiled_schema8_upgrade_is_additive_and_failures_roll_back() {
         assert_eq!(
             c.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            if failure == "none" { 9 } else { 8 }
+            if failure == "none" {
+                crate::SCHEMA_VERSION
+            } else {
+                8
+            }
         );
         assert_eq!(c.query_row("SELECT json_array(id,principal,idempotency,intent,digest,resource,revision,deadline) FROM jobs WHERE id='legacy'",[],|r|r.get::<_,String>(0)).unwrap(),old_job);
         for (name, before) in retained {

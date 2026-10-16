@@ -59,6 +59,7 @@ async fn fixture(
         container_socket: Arc::new("/unreachable".into()),
         storage_socket: Arc::new("/unreachable".into()),
         storage_target_socket: Arc::new("/unused-targets".into()),
+        storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
         password_workers: Arc::new(Semaphore::new(2)),
         dummy_hash: "unused".into(),

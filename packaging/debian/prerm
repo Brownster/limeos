@@ -3,15 +3,87 @@
 set -Eeuo pipefail
 fct_on_error() { printf '%s\n' 'LimeOS services could not be stopped; package removal has stopped.' >&2; }
 trap fct_on_error ERR
+fct_optional_cgroup_state() {
+    local unit="${1}"
+    [[ -f /sys/fs/cgroup/cgroup.controllers ]] || return 1
+    if [[ -e "/sys/fs/cgroup/system.slice/${unit}" ]]; then
+        printf '%s\n' present
+    else
+        printf '%s\n' absent
+    fi
+}
+fct_stop_optional_service() {
+    local unit="${1}" load_state state cgroup cgroup_state
+    # A manager failure is a checked command error, never an absent unit.
+    load_state="$(systemctl show "${unit}" -p LoadState --value)"
+    case "${load_state}" in
+        loaded)
+            if [[ "${unit}" == limeos-storage-mounts.service ]]; then
+                fct_stop_mount_service "${unit}"
+            else
+                systemctl stop "${unit}"
+            fi
+            ;;
+        not-found)
+            state="$(systemctl show "${unit}" -p ActiveState --value)"
+            cgroup="$(systemctl show "${unit}" -p ControlGroup --value)"
+            cgroup_state="$(fct_optional_cgroup_state "${unit}")"
+            if [[ "${state}" != inactive || -n "${cgroup}" || "${cgroup_state}" != absent ]]; then
+                printf 'Absent optional unit still has active or uncertain work: %s\n' "${unit}" >&2
+                return 1
+            fi
+            ;;
+        *)
+            printf 'Refusing uncertain optional unit state: %s (%s)\n' "${unit}" "${load_state}" >&2
+            return 1
+            ;;
+    esac
+}
+fct_stop_mount_service() {
+    local unit="${1}" kill_mode kill_after state cgroup event value extra populated=''
+    kill_mode="$(systemctl show "${unit}" -p KillMode --value)"
+    kill_after="$(systemctl show "${unit}" -p SendSIGKILL --value)"
+    if [[ "${kill_mode}" != control-group || "${kill_after}" != yes ]]; then
+        printf 'Refusing executor replacement without group-wide stop: %s\n' "${unit}" >&2
+        return 1
+    fi
+    # A stop error, timeout or blocked descendant aborts package replacement.
+    systemctl stop "${unit}"
+    state="$(systemctl show "${unit}" -p ActiveState --value)"
+    if [[ "${state}" != inactive ]]; then
+        printf 'Mount service did not stop: %s (%s)\n' "${unit}" "${state}" >&2
+        return 1
+    fi
+    cgroup="$(systemctl show "${unit}" -p ControlGroup --value)"
+    if [[ -n "${cgroup}" ]]; then
+        if [[ "${cgroup}" != "/system.slice/${unit}" || ! -f "/sys/fs/cgroup${cgroup}/cgroup.events" || -L "/sys/fs/cgroup${cgroup}/cgroup.events" ]]; then
+            printf 'Unsupported mount service cgroup: %s\n' "${unit}" >&2
+            return 1
+        fi
+        while read -r event value extra; do
+            if [[ "${event}" == populated ]]; then
+                if [[ -n "${populated}" || -n "${extra}" || "${value}" != 0 ]]; then
+                    printf 'Mount service descendants remain: %s\n' "${unit}" >&2
+                    return 1
+                fi
+                populated="${value}"
+            fi
+        done <"/sys/fs/cgroup${cgroup}/cgroup.events"
+        [[ "${populated}" == 0 ]] || return 1
+    fi
+    # This controls package teardown only. It never refines a mount receipt,
+    # discards a journal/claim, or treats an absent mount as helper termination.
+}
 fct_main() {
     case "${1:-}" in
         remove|deconfigure|upgrade)
             if [[ -d /run/systemd/system ]]; then systemctl stop limeos-core.service limeos-containerd.service limeos-storaged.service; fi
             if [[ -d /run/systemd/system ]]; then
                 local unit
-                for unit in limeos-storage-reader.service limeos-storage-ready.service limeos-storage-targets.service; do
-                    # Earlier packages do not contain these optional services.
-                    if [[ "$(systemctl show "${unit}" -p LoadState --value)" == loaded ]]; then systemctl stop "${unit}"; fi
+                for unit in limeos-storage-mounts.service limeos-storage-reader.service limeos-storage-ready.service limeos-storage-targets.service; do
+                    # Earlier packages may lack the unit; masked/error/unknown
+                    # states or surviving cgroups must not bypass teardown.
+                    fct_stop_optional_service "${unit}"
                 done
             fi
             ;;

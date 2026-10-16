@@ -43,6 +43,16 @@
         }
       ]
     },
+    "mounted_storage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StorageMountedSnapshot"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "observations": {
       "anyOf": [
         {
@@ -70,6 +80,36 @@
       "anyOf": [
         {
           "$ref": "#/$defs/StorageInventory"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "storage_mount": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StorageMountReceipt"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "storage_mount_catalog": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StorageMountCatalog"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "storage_mount_inspection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StorageMountInspection"
         },
         {
           "type": "null"
@@ -386,6 +426,7 @@
         "expired",
         "overloaded",
         "unavailable",
+        "storage_mount_limit",
         "corrupt_configuration",
         "state_not_durable",
         "not_found"
@@ -484,6 +525,152 @@
         }
       },
       "additionalProperties": false
+    },
+    "MountEffectQuiescence": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "const": "not_launched"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "helper": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MountHelperIdentity"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "state": {
+              "type": "string",
+              "const": "pending"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "helper": {
+              "$ref": "#/$defs/MountHelperIdentity"
+            },
+            "outcome": {
+              "$ref": "#/$defs/MountHelperOutcome"
+            },
+            "state": {
+              "type": "string",
+              "const": "reaped"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "helper",
+            "outcome"
+          ]
+        }
+      ]
+    },
+    "MountExecutionState": {
+      "type": "string",
+      "enum": [
+        "prepared",
+        "effect_accepted",
+        "verified",
+        "precondition_changed",
+        "outcome_unknown"
+      ]
+    },
+    "MountHelperIdentity": {
+      "description": "Authenticated receipt facts only. Construction of their genuine process owner\nand confirmation that no descendant/helper can still run belong to supervision.",
+      "type": "object",
+      "properties": {
+        "cgroup": {
+          "type": "string"
+        },
+        "image_digest": {
+          "type": "string"
+        },
+        "mount_namespace_inode": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "pid": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "start_time_ticks": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "start_time_ticks",
+        "mount_namespace_inode",
+        "cgroup",
+        "image_digest"
+      ]
+    },
+    "MountHelperOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "status": {
+              "type": "string",
+              "const": "exited"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "code"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "signal": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "status": {
+              "type": "string",
+              "const": "signaled"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "signal"
+          ]
+        }
+      ]
     },
     "ObservationBatch": {
       "type": "object",
@@ -877,6 +1064,209 @@
       "required": [
         "uid",
         "gid"
+      ]
+    },
+    "StorageMountCatalog": {
+      "description": "Protected configuration choices, independent of live readiness or authority.",
+      "type": "object",
+      "properties": {
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageDevice"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "targets"
+      ]
+    },
+    "StorageMountEffectPlan": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "consumer_digest": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "device": {
+          "$ref": "#/$defs/StorageDevice"
+        },
+        "expected": {
+          "$ref": "#/$defs/StorageInventory"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "physical_devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageBlockDevice"
+          }
+        },
+        "target": {
+          "$ref": "#/$defs/TargetEvidence"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "operation",
+        "action",
+        "device",
+        "expected",
+        "target",
+        "physical_devices",
+        "consumer_digest",
+        "created_at",
+        "expires_at"
+      ]
+    },
+    "StorageMountInspection": {
+      "description": "A protected reader's past facts. Empty-target/complete-consumer proofs are opaque\nretained owners held by the executor, and cannot be reconstructed from this DTO.",
+      "type": "object",
+      "properties": {
+        "consumer_digest": {
+          "type": "string"
+        },
+        "device": {
+          "$ref": "#/$defs/StorageDevice"
+        },
+        "expected": {
+          "$ref": "#/$defs/StorageInventory"
+        },
+        "observed_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "physical_devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageBlockDevice"
+          }
+        },
+        "target": {
+          "$ref": "#/$defs/TargetEvidence"
+        },
+        "target_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "target_id",
+        "device",
+        "expected",
+        "target",
+        "physical_devices",
+        "consumer_digest",
+        "observed_at"
+      ]
+    },
+    "StorageMountReceipt": {
+      "type": "object",
+      "properties": {
+        "after": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StorageMountedSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "digest": {
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/$defs/StorageMountEffectPlan"
+        },
+        "quiescence": {
+          "$ref": "#/$defs/MountEffectQuiescence"
+        },
+        "state": {
+          "$ref": "#/$defs/MountExecutionState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "plan",
+        "digest",
+        "state",
+        "quiescence"
+      ]
+    },
+    "StorageMountedSnapshot": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "$ref": "#/$defs/StorageBlockDevice"
+        },
+        "filesystem": {
+          "type": "string"
+        },
+        "filesystem_root": {
+          "type": "string"
+        },
+        "filesystem_uuid": {
+          "type": "string"
+        },
+        "host_root_mount_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "mount_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "mountpoint": {
+          "type": "string"
+        },
+        "nodev": {
+          "type": "boolean"
+        },
+        "nosuid": {
+          "type": "boolean"
+        },
+        "target": {
+          "$ref": "#/$defs/DirectoryIdentity"
+        },
+        "writable": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "filesystem_uuid",
+        "device",
+        "mountpoint",
+        "filesystem",
+        "filesystem_root",
+        "writable",
+        "nosuid",
+        "nodev",
+        "mount_id",
+        "host_root_mount_id",
+        "target"
       ]
     },
     "StorageObservedDevice": {

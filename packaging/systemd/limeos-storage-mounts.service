@@ -1,0 +1,58 @@
+[Unit]
+Description=LimeOS approved nonpersistent storage mount
+After=local-fs.target
+ConditionPathExists=/etc/limeos/system-policy/storage-mounts.json
+ConditionPathExists=/etc/limeos/storage-contract.json
+ConditionPathExists=/etc/limeos/pools.json
+ConditionPathExists=/etc/limeos/protection.json
+ConditionPathExists=/etc/limeos/shares.json
+
+[Service]
+Type=exec
+User=root
+Group=limeos-host-access
+ExecStart=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/storage-mounts.json /run/limeos-storage-mounts/executor.sock storage-mounts
+RuntimeDirectory=limeos-storage-mounts
+RuntimeDirectoryMode=0750
+UMask=0077
+LimitCORE=0
+MemorySwapMax=0
+Restart=no
+TimeoutStartSec=15s
+TimeoutStopSec=5s
+KillMode=control-group
+SendSIGKILL=yes
+NoNewPrivileges=yes
+# Host-visible mounts require the actual PID 1 root/mount namespace. These
+# settings apply only to this opt-in effect role; readers retain their profiles.
+# Filesystem namespace sandboxes, path bind rules and hidden proc are excluded.
+PrivateMounts=no
+PrivateTmp=no
+PrivateDevices=no
+PrivateUsers=no
+ProtectSystem=no
+ProtectHome=no
+ProtectKernelTunables=no
+ProtectKernelModules=no
+ProtectControlGroups=no
+ProtectProc=default
+ProcSubset=all
+# RestrictSUIDSGID blocks openat2 in the qualified reader findings. Root code
+# and the dedicated capability/syscall bounds are checked independently.
+RestrictSUIDSGID=no
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE CAP_SYS_ADMIN
+AmbientCapabilities=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE CAP_SYS_ADMIN
+SystemCallArchitectures=native
+# Existing readers need openat2; the fixed helper alone needs mount. Guardian
+# supervision uses pidfds, a subreaper, session creation and sealed exec images.
+SystemCallFilter=@system-service openat2 mount pidfd_open pidfd_send_signal prctl setsid memfd_create
+LimitNOFILE=256
+TasksMax=16
+MemoryMax=64M
+CPUQuota=50%
+# No Install section, socket activation, package start, or default write ceiling.
+# Disposable-guest qualification and explicit root provisioning are required.

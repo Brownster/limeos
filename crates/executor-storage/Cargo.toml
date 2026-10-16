@@ -10,6 +10,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+sha2.workspace = true
 limeos-domain = { path = "../domain", version = "=0.2.0" }
 limeos-identity = { path = "../identity", version = "=0.2.0" }
 rustix = { workspace = true, features = ["event"] }

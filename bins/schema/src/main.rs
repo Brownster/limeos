@@ -77,6 +77,21 @@ fn main() {
     emit!("storage-target-plan", limeos_domain::PlannedStorageTargets);
     emit!("storage-target-job", limeos_domain::StorageTargetJob);
     emit!(
+        "storage-mount-selection",
+        limeos_domain::StorageMountSelection
+    );
+    emit!("storage-mount-catalog", limeos_domain::StorageMountCatalog);
+    emit!("storage-mount-plan", limeos_domain::PlannedStorageMount);
+    emit!("storage-mount-job", limeos_domain::StorageMountJob);
+    emit!(
+        "storage-mount-ceiling",
+        limeos_executor_protocol::StorageMountCeiling
+    );
+    emit!(
+        "queue-storage-mount-input",
+        limeos_contracts::QueueStorageMountInput
+    );
+    emit!(
         "storage-target-ceiling",
         limeos_executor_protocol::StorageTargetCeiling
     );
@@ -180,6 +195,22 @@ fn main() {
     ts!(limeos_executor_protocol::StorageTargetCeiling);
     ts!(limeos_executor_protocol::ManagedStorageTarget);
     ts!(limeos_contracts::QueueStorageTargetsInput);
+    ts!(limeos_domain::StorageMountSelection);
+    ts!(limeos_domain::StorageMountCatalog);
+    ts!(limeos_domain::StorageMountInspection);
+    ts!(limeos_domain::StorageMountEffectPlan);
+    ts!(limeos_domain::StorageMountPlan);
+    ts!(limeos_domain::PlannedStorageMount);
+    ts!(limeos_domain::StorageMountJob);
+    ts!(limeos_domain::MountExecutionState);
+    ts!(limeos_domain::StorageMountedSnapshot);
+    ts!(limeos_domain::MountHelperIdentity);
+    ts!(limeos_domain::MountHelperOutcome);
+    ts!(limeos_domain::MountEffectQuiescence);
+    ts!(limeos_domain::StorageMountReceipt);
+    ts!(limeos_executor_protocol::ManagedStorageMount);
+    ts!(limeos_executor_protocol::StorageMountCeiling);
+    ts!(limeos_contracts::QueueStorageMountInput);
     ts!(limeos_domain::StoragePlanningFindingCode);
     ts!(limeos_domain::StoragePlanningFinding);
     ts!(limeos_domain::PoolCreatePolicy);
@@ -282,6 +313,24 @@ fn main() {
     openapi["paths"]["/api/v1/observations/stream"] = serde_json::json!({"get":{"security":[{"session":[]}],"description":"Full authorized snapshot on connect and reconnect. Maximum eight readers, 25 seconds and 128 KiB per stream. Identity rechecked every five seconds.","parameters":[{"name":"Last-Event-ID","in":"header","schema":{"type":"string","pattern":"^[0-9]{1,20}$"}}],"responses":{"200":{"description":"snapshot events; id is the current revision","content":{"text/event-stream":{"schema":{"type":"string"}}}}}}});
     for (path, input, output, status) in [
         (
+            "/api/v1/storage/mounts/plans",
+            serde_json::to_value(schema_for!(limeos_domain::StorageMountSelection)).unwrap(),
+            serde_json::to_value(schema_for!(limeos_domain::PlannedStorageMount)).unwrap(),
+            "201",
+        ),
+        (
+            "/api/v1/storage/mounts/plans/{id}/approval",
+            serde_json::to_value(schema_for!(limeos_contracts::ApprovalInput)).unwrap(),
+            serde_json::to_value(schema_for!(limeos_domain::PlanApproval)).unwrap(),
+            "200",
+        ),
+        (
+            "/api/v1/storage/mounts/jobs",
+            serde_json::to_value(schema_for!(limeos_contracts::QueueStorageMountInput)).unwrap(),
+            serde_json::to_value(schema_for!(limeos_domain::StorageMountJob)).unwrap(),
+            "202",
+        ),
+        (
             "/api/v1/storage/targets/plans",
             serde_json::to_value(schema_for!(limeos_domain::StorageContract)).unwrap(),
             serde_json::to_value(schema_for!(limeos_domain::PlannedStorageTargets)).unwrap(),
@@ -358,6 +407,8 @@ fn main() {
     for path in [
         "/api/v1/compose/plans/{id}/cancel",
         "/api/v1/storage/targets/plans/{id}/cancel",
+        "/api/v1/storage/mounts/plans/{id}/cancel",
+        "/api/v1/storage/mounts/jobs/{id}/cancel",
         "/api/v1/storage/targets/jobs/{id}/cancel",
         "/api/v1/storage/plans/{id}/cancel",
         "/api/v1/container/restart/plans/{id}/cancel",
@@ -368,6 +419,13 @@ fn main() {
             {"name":"X-CSRF-Token","in":"header","required":true,"schema":{"type":"string","minLength":64,"maxLength":64}}
         ],"responses":{"204":{"description":"Canceled before dispatch; in-flight cancellation conflicts"}}}});
     }
+    openapi["paths"]["/api/v1/storage/mounts/targets"] = serde_json::json!({"get":{"security":[{"session":[]}],"description":"Bounded root-managed ext4 target configuration; current storage authority checked before and after read. This is not live readiness or execution authority.","responses":{"200":{"description":"Managed target choices","content":{"application/json":{"schema":schema_for!(limeos_domain::StorageMountCatalog)}}}}}});
+    openapi["paths"]["/api/v1/storage/mounts/plans"]["post"]["description"] = serde_json::json!(
+        "Create a human-approved nonpersistent ext4 mount proposal by protected managed target ID. Fresh physical/consumer evidence and independent executor policy are required; caller-supplied paths, contracts and options are refused."
+    );
+    openapi["paths"]["/api/v1/storage/mounts/plans/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"responses":{"200":{"description":"Owner-scoped saved proposal; database read only, no hardware or renewed expiry","content":{"application/json":{"schema":schema_for!(limeos_domain::PlannedStorageMount)}}}}}});
+    openapi["paths"]["/api/v1/storage/mounts/jobs"]["get"] = serde_json::json!({"security":[{"session":[]}],"responses":{"200":{"description":"Latest 32 currently authorized owned mount jobs; database only","content":{"application/json":{"schema":schema_for!(Vec<limeos_domain::StorageMountJob>)}}}}});
+    openapi["paths"]["/api/v1/storage/mounts/jobs/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"responses":{"200":{"description":"Owned durable mount status; database only, no dispatch","content":{"application/json":{"schema":schema_for!(limeos_domain::StorageMountJob)}}}}}});
     openapi["paths"]["/api/v1/storage/inventory"] = serde_json::json!({"get":{"security":[{"session":[]}],"description":"Fresh, root-reader evidence under a four-second deadline. Administrator storage grant required; fstab credentials stay private.","responses":{"200":{"description":"Disk/mount/fstab identity and revision","content":{"application/json":{"schema":schema_for!(limeos_domain::StorageInventoryView)}}}}}});
     openapi["paths"]["/api/v1/storage/plans/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"responses":{"200":{"description":"Owner-scoped durable preview; no inspection or expiry refresh","content":{"application/json":{"schema":schema_for!(limeos_domain::PlannedStorageSetup)}}}}}});
     openapi["paths"]["/api/v1/storage/plans"]["post"]["description"] = serde_json::json!(
@@ -528,6 +586,15 @@ fn main() {
             "{}{}",
             std::fs::read_to_string(dir.join("authority-v8.sql")).unwrap(),
             include_str!("../../../crates/persistence/src/migration-v9.sql")
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("authority-v10.sql"),
+        format!(
+            "{}{}",
+            std::fs::read_to_string(dir.join("authority-v9.sql")).unwrap(),
+            include_str!("../../../crates/persistence/src/migration-v10.sql")
         ),
     )
     .unwrap();

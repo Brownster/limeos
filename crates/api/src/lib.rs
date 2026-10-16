@@ -25,12 +25,81 @@ mod operations;
 mod read_tests;
 mod reads;
 mod storage;
+mod storage_mounts;
 
 pub struct IssuedSession {
     pub token: String,
     pub view: SessionView,
 }
 pub trait Backend: Clone + Send + Sync + 'static {
+    fn storage_mount_catalog(
+        &self,
+        _token: String,
+    ) -> impl Future<Output = Result<limeos_domain::StorageMountCatalog>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn plan_storage_mount(
+        &self,
+        _token: String,
+        _csrf: String,
+        _selection: limeos_domain::StorageMountSelection,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageMount>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn storage_mount_plan(
+        &self,
+        _token: String,
+        _id: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageMount>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn approve_storage_mount(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+        _digest: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn queue_storage_mount(
+        &self,
+        _token: String,
+        _csrf: String,
+        _input: limeos_contracts::QueueStorageMountInput,
+    ) -> impl Future<Output = Result<limeos_domain::StorageMountJob>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn storage_mount_job(
+        &self,
+        _token: String,
+        _id: String,
+    ) -> impl Future<Output = Result<limeos_domain::StorageMountJob>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn storage_mount_jobs(
+        &self,
+        _token: String,
+    ) -> impl Future<Output = Result<Vec<limeos_domain::StorageMountJob>>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn cancel_storage_mount(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+    ) -> impl Future<Output = Result<()>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn cancel_storage_mount_job(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+    ) -> impl Future<Output = Result<()>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+
     fn container_storage_inventory(
         &self,
         _token: String,
@@ -291,6 +360,38 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
     Router::new()
         .route("/api/v1/health", get(health::<B>))
         .route(
+            "/api/v1/storage/mounts/targets",
+            get(storage_mounts::catalog::<B>),
+        )
+        .route(
+            "/api/v1/storage/mounts/plans",
+            post(storage_mounts::plan::<B>),
+        )
+        .route(
+            "/api/v1/storage/mounts/plans/{id}",
+            get(storage_mounts::read::<B>),
+        )
+        .route(
+            "/api/v1/storage/mounts/plans/{id}/approval",
+            post(storage_mounts::approve::<B>),
+        )
+        .route(
+            "/api/v1/storage/mounts/plans/{id}/cancel",
+            post(storage_mounts::cancel::<B>),
+        )
+        .route(
+            "/api/v1/storage/mounts/jobs",
+            get(storage_mounts::jobs::<B>).post(storage_mounts::queue::<B>),
+        )
+        .route(
+            "/api/v1/storage/mounts/jobs/{id}",
+            get(storage_mounts::job::<B>),
+        )
+        .route(
+            "/api/v1/storage/mounts/jobs/{id}/cancel",
+            post(storage_mounts::cancel_job::<B>),
+        )
+        .route(
             "/api/v1/storage/targets/plans",
             post(storage::target_plan::<B>),
         )
@@ -416,6 +517,7 @@ fn failure(error: Error) -> Response {
         ErrorCode::Conflict => StatusCode::CONFLICT,
         ErrorCode::NotFound => StatusCode::NOT_FOUND,
         ErrorCode::Overloaded => StatusCode::TOO_MANY_REQUESTS,
+        ErrorCode::StorageMountLimit => StatusCode::CONFLICT,
         _ => StatusCode::SERVICE_UNAVAILABLE,
     };
     // Identifier correlates responses without including private request material.

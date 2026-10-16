@@ -226,6 +226,7 @@ async fn fixture() -> (
         container_socket: Arc::new(path),
         storage_socket: Arc::new("/unused".into()),
         storage_target_socket: Arc::new("/unused-targets".into()),
+        storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
         compose_catalog: None,
     };

@@ -69,8 +69,9 @@ def main():
     if args.output.exists():
         parser.error("output exists; select a new result file")
     build = load_build(args.expected, args.repo)
-    if build["identity"]["authority_schema"] != 9:
-        parser.error("approved-operation fixtures require schema 9")
+    authority_schema = build["identity"]["authority_schema"]
+    if type(authority_schema) is not int or not 9 <= authority_schema <= 0xFFFFFFFF:
+        parser.error("approved-operation fixtures require a verified schema >= 9")
     fixtures = Path(__file__).resolve().parents[3]
     verify_files(fixtures, build["fixtures_sha256"])
     sys.path.insert(0, str(fixtures / "tests/privileged_vm"))
@@ -95,12 +96,16 @@ def main():
             fixture.main(
                 package_version=build["identity"]["package_version"],
                 qualify_upgrade=False,
+                authority_schema=authority_schema,
             )
             result["package_teardown"] = teardown(build["identity"]["package_version"])
         else:
             import p04_approved_container_guest as fixture
 
-            fixture.main(package_version=build["identity"]["package_version"])
+            fixture.main(
+                package_version=build["identity"]["package_version"],
+                authority_schema=authority_schema,
+            )
         result["installed_sha256"] = installed_binaries(build)
         result["fixture_result"] = json.loads(raw.read_text())
         result["summary"] = "pass"

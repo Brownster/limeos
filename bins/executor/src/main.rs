@@ -1,3 +1,4 @@
+use limeos_executor::{storage_mount_admission, storage_mount_supervision};
 use limeos_executor_container::{Engine, ReceiptStore, RestartCeiling, docker::Docker};
 use limeos_executor_protocol::{Ceiling, Request};
 use std::{os::unix::fs::MetadataExt, path::Path, sync::Arc};
@@ -5,13 +6,37 @@ use tokio::{
     net::UnixListener,
     sync::{Mutex, Semaphore},
 };
+mod storage_runtime;
 mod storage_targets;
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
+fn main() {
+    let args: Vec<_> = std::env::args().collect();
+    // The sealed guardian image bootstraps before Tokio or another thread.
+    // It validates its own fixed image, parent, namespace and private transport.
+    if args.len() == 2 && args[1] == "storage-mount-guardian" {
+        if storage_mount_supervision::guardian().is_err() {
+            std::process::exit(1);
+        }
+        return;
+    }
+    let mounts = args.get(3).is_some_and(|role| role == "storage-mounts");
+    let mut builder = tokio::runtime::Builder::new_current_thread();
+    builder.enable_all();
+    if mounts {
+        builder.max_blocking_threads(1);
+    }
+    let runtime = builder.build().expect("executor runtime");
+    runtime.block_on(async {
+        if mounts && tokio::task::spawn_blocking(|| ()).await.is_err() {
+            std::process::exit(1);
+        }
+        async_main().await;
+    });
+}
+async fn async_main() {
     let args: Vec<_> = std::env::args().collect();
     if args.iter().any(|s| matches!(s.as_str(), "--help" | "-h")) {
         println!(
-            "Usage: limeos-executor POLICY SOCKET host|container|storage|storage-targets [RECEIPT_DIRECTORY [read-only]]\n       limeos-executor storage-check|storage-wait --plan ROOT_OWNED_JSON\n       limeos-executor storage-inventory\n       limeos-executor storage-target-plan --contract ROOT_OWNED_JSON\n       limeos-executor storage-prepare-targets --plan ROOT_OWNED_JSON\n       limeos-executor storage-target-receipt|storage-reconcile-targets --action ACTION_ID\n       limeos-executor storage-reconcile-targets --plan ROOT_OWNED_JSON\n\nRoot operator preparation creates empty mount target directories only.\nReconciliation observes targets and updates receipts. Other storage commands inspect.\nStdout is JSON; errors go to stderr.\nExit: 0 verified, 1 unsafe/unavailable/uncertain, 2 invalid plan/usage, 3 deadline expired."
+            "Usage: limeos-executor POLICY SOCKET host|container|storage|storage-targets|storage-mounts [RECEIPT_DIRECTORY [read-only]]\n       limeos-executor storage-check|storage-wait --plan ROOT_OWNED_JSON\n       limeos-executor storage-inventory\n       limeos-executor storage-target-plan --contract ROOT_OWNED_JSON\n       limeos-executor storage-prepare-targets --plan ROOT_OWNED_JSON\n       limeos-executor storage-target-receipt|storage-reconcile-targets --action ACTION_ID\n       limeos-executor storage-reconcile-targets --plan ROOT_OWNED_JSON\n\nRoot operator preparation creates empty mount target directories only.\nThe storage-mounts service executes approved nonpersistent ext4 mounts.\nReconciliation observes targets and updates receipts. Other storage commands inspect.\nStdout is JSON; errors go to stderr.\nExit: 0 verified, 1 unsafe/unavailable/uncertain, 2 invalid plan/usage, 3 deadline expired."
         );
         return;
     }
@@ -148,6 +173,9 @@ async fn storage_cli(args: &[String]) {
 }
 async fn run() -> std::io::Result<()> {
     let args: Vec<_> = std::env::args().collect();
+    if args.get(3).is_some_and(|s| s == "storage-mounts") {
+        return storage_runtime::run(&args).await;
+    }
     if args.get(3).is_some_and(|s| s == "storage-targets") {
         return storage_targets::run(&args).await;
     }

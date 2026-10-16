@@ -7,6 +7,155 @@
       "properties": {
         "operation": {
           "type": "string",
+          "const": "storage_mount_catalog"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "inspect_storage_mount"
+        },
+        "selection": {
+          "$ref": "#/$defs/StorageMountSelection"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version",
+        "selection"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "execute_storage_mount"
+        },
+        "plan": {
+          "$ref": "#/$defs/StorageMountEffectPlan"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version",
+        "plan"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string",
+          "const": "storage_mount_receipt"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version",
+        "action",
+        "digest"
+      ]
+    },
+    {
+      "description": "Refine only an existing accepted, reaped effect after fresh verification.\nThis request cannot launch an effect or renew execution authority.",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string",
+          "const": "reconcile_storage_mount"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version",
+        "action",
+        "digest"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "inspect_mounted_storage"
+        },
+        "plan": {
+          "$ref": "#/$defs/StorageMountEffectPlan"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version",
+        "plan"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
           "const": "container_storage_inventory"
         },
         "version": {
@@ -745,6 +894,74 @@
       "required": [
         "uid",
         "gid"
+      ]
+    },
+    "StorageMountEffectPlan": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "consumer_digest": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "device": {
+          "$ref": "#/$defs/StorageDevice"
+        },
+        "expected": {
+          "$ref": "#/$defs/StorageInventory"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "physical_devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorageBlockDevice"
+          }
+        },
+        "target": {
+          "$ref": "#/$defs/TargetEvidence"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "operation",
+        "action",
+        "device",
+        "expected",
+        "target",
+        "physical_devices",
+        "consumer_digest",
+        "created_at",
+        "expires_at"
+      ]
+    },
+    "StorageMountSelection": {
+      "type": "object",
+      "properties": {
+        "target_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "target_id"
       ]
     },
     "StorageObservedDevice": {

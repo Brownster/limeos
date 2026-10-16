@@ -12,7 +12,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 9;
+pub const SCHEMA_VERSION: u32 = 10;
 pub const QUEUE_CAPACITY: usize = 64;
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
@@ -131,7 +131,7 @@ impl Store {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(durable)?;
         match version {
-            0..=8 => {
+            0..=9 => {
                 if version < 1 {
                     tx.execute_batch(include_str!("schema.sql"))
                         .map_err(durable)?;
@@ -164,7 +164,11 @@ impl Store {
                     tx.execute_batch(include_str!("migration-v8.sql"))
                         .map_err(durable)?;
                 }
-                tx.execute_batch(include_str!("migration-v9.sql"))
+                if version < 9 {
+                    tx.execute_batch(include_str!("migration-v9.sql"))
+                        .map_err(durable)?;
+                }
+                tx.execute_batch(include_str!("migration-v10.sql"))
                     .map_err(durable)?;
             }
             SCHEMA_VERSION => {}
@@ -251,6 +255,7 @@ mod jobs;
 mod plans;
 mod resources;
 mod storage;
+mod storage_mounts;
 mod storage_targets;
 pub use compose::{
     AuthenticatedComposePreview, ComposeAuthorityKind, ComposeAuthorityObservation, compose_scopes,
@@ -258,7 +263,13 @@ pub use compose::{
 pub use storage::storage_scope;
 
 #[cfg(test)]
+fn remove_v10_schema(conn: &Connection) {
+    conn.execute_batch("DROP TRIGGER IF EXISTS storage_mount_terminal_result; DROP TRIGGER IF EXISTS storage_mount_result_identity; DROP TRIGGER IF EXISTS storage_mount_plan_delete; DROP TRIGGER IF EXISTS storage_mount_plan_consumed; DROP TRIGGER IF EXISTS storage_mount_plan_identity; DROP TABLE IF EXISTS storage_mount_results; DROP TABLE IF EXISTS storage_mount_plans;").unwrap();
+}
+
+#[cfg(test)]
 fn remove_v9_schema(conn: &Connection) {
+    remove_v10_schema(conn);
     conn.execute_batch("DROP TRIGGER backup_preparation_plan_immutable; DROP TRIGGER backup_preparation_insert_state; DROP TRIGGER backup_preparation_update_state; DROP TABLE backup_preparation_plans;").unwrap();
 }
 
