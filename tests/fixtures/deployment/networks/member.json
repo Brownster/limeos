@@ -1,0 +1,7 @@
+{
+  "Id": "0000000000000000000000000000000000000000000000000000000000000002",
+  "Name": "/sonarr",
+  "HostConfig": {"NetworkMode": "container:0000000000000000000000000000000000000000000000000000000000000001"},
+  "State": {"Running": true, "Paused": false, "Restarting": false, "Dead": false},
+  "Config": {"Labels": {"com.docker.compose.depends_on": "vpn:service_started:true"}}
+}

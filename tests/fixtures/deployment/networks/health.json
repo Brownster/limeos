@@ -1,0 +1,9 @@
+[
+  {"running": true, "health": "healthy", "group_state": "observed_running"},
+  {"running": true, "health": "unhealthy", "group_state": "provider_unhealthy"},
+  {"running": true, "health": "starting", "group_state": "provider_starting"},
+  {"running": true, "health": "not_configured", "group_state": "observed_running"},
+  {"running": true, "health": "unknown", "group_state": "health_unknown"},
+  {"running": false, "health": "healthy", "group_state": "provider_stopped"},
+  {"running": false, "health": "unhealthy", "group_state": "provider_stopped"}
+]

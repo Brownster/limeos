@@ -6,3 +6,4 @@ pub mod images;
 pub mod indexer_apps;
 pub mod media;
 pub mod media_settings;
+pub mod networks;

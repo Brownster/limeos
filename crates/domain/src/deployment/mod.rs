@@ -8,5 +8,6 @@ pub mod indexer_apps;
 pub mod local_config;
 pub mod media;
 pub mod media_settings;
+pub mod networks;
 pub mod packages;
 pub mod quickstart;
