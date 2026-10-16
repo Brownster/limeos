@@ -20,6 +20,8 @@ not verified installed; duplicates, noncanonical mapping, unowned/operator
 services and unregistered same-name declarations block. Do not interpret a 409
 message as equivalence. Existing stacks remain existing even when VPN is present;
 new-target selection belongs to the whole proposal rather than the first member.
+Count unrelated declared services plus only missing bundle members against the
+existing catalog service ceiling; overflow blocks install/profile candidates.
 
 Emit an ordered workflow proposal: review complete sources/storage, prepare
 directories, prepare catalog files, configure quiescent download clients, start,
