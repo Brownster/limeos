@@ -41,10 +41,9 @@ struct Member {
 
 #[test]
 fn frozen_media_namespace_and_healthy_dependency_fixture_survives_rendering() {
-    let fixture: NamespaceFixture = serde_json::from_str(include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../tests/fixtures/deployment/catalog/namespaces.json"
-    )))
+    let fixture: NamespaceFixture = serde_json::from_str(include_str!(
+        "../../../../../../tests/fixtures/deployment/catalog/namespaces.json"
+    ))
     .unwrap();
     let mut state = stack("media");
     let mut provider = service(&fixture.provider);
