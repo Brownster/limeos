@@ -1,0 +1,1 @@
+{"architecture":"amd64","os":"linux","config":{"Env":["IMAGE_PRIVATE_VALUE=never-log-fixture"],"User":"1234:5678"},"rootfs":{"type":"layers","diff_ids":["sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"]}}

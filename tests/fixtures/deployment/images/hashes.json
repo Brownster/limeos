@@ -1,0 +1,42 @@
+{
+  "oci-arm64-config.json": {
+    "digest": "sha256:5c5079c3e933ca4c72936bc0e32efbac149bb56913dfb5100b6d072cd913d6bf",
+    "size": 319
+  },
+  "oci-arm64-manifest.json": {
+    "digest": "sha256:7430a65589bc5e59969c10cd4adbf1cf74609e48764a4aece7fdfb8708809542",
+    "size": 558
+  },
+  "oci-amd64-config.json": {
+    "digest": "sha256:ae710a21706a7cfda86e2099d92ab2099c44d4fd69ea5ec376bd6f25873baee3",
+    "size": 304
+  },
+  "oci-amd64-manifest.json": {
+    "digest": "sha256:2802526da3cebe3ee5e4ba2fc21a5a2d35694dd627d415d309f26a5473af348b",
+    "size": 558
+  },
+  "oci-index.json": {
+    "digest": "sha256:1a1df03abc210e9814f68a65d3ef8d2f26d6f937bf82f8f54cad89cb5fe6dd58",
+    "size": 780
+  },
+  "docker-arm64-config.json": {
+    "digest": "sha256:5c5079c3e933ca4c72936bc0e32efbac149bb56913dfb5100b6d072cd913d6bf",
+    "size": 319
+  },
+  "docker-arm64-manifest.json": {
+    "digest": "sha256:0c6dae9261263ac8cfc42b1abb5043e728f400acba719297b0c907efdd33a441",
+    "size": 586
+  },
+  "docker-amd64-config.json": {
+    "digest": "sha256:ae710a21706a7cfda86e2099d92ab2099c44d4fd69ea5ec376bd6f25873baee3",
+    "size": 304
+  },
+  "docker-amd64-manifest.json": {
+    "digest": "sha256:a5896ef33283b5d94a73232c41a6b290b100a343e5a09f9bba0d772d074f8d64",
+    "size": 586
+  },
+  "docker-index.json": {
+    "digest": "sha256:a8b4164977bb6de19132122b2e82836702255a34d8f6643398b9414ad00ca681",
+    "size": 828
+  }
+}

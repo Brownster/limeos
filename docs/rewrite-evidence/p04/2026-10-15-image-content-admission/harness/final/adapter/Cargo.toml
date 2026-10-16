@@ -1,0 +1,15 @@
+[package]
+name = "limeos-image-adapter-leaf"
+version = "0.0.0"
+edition = "2024"
+publish = false
+[dependencies]
+limeos-domain = { package = "limeos-image-domain-leaf", path = "../domain" }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+sha2 = "=0.10.9"
+hex = "=0.4.3"
+[lib]
+path = "lib.rs"
+[lints.rust]
+unsafe_code = "forbid"
