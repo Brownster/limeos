@@ -1,0 +1,161 @@
+{
+  "source": "5a8a8cf0959d23ed520f9a99ec922c77d5bbf1a9",
+  "base_main": "b37c718",
+  "scope": "unregistered B1 delivery/controller leaves only",
+  "commands": [
+    {
+      "name": "rust-tests",
+      "cwd": ".",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "--manifest-path",
+        "/home/marc/Documents/github/lime-os/.worktrees/p04-automation/.cache/b1-leaf-harness/Cargo.toml",
+        "automation"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "clippy",
+      "cwd": ".",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "--manifest-path",
+        "/home/marc/Documents/github/lime-os/.worktrees/p04-automation/.cache/b1-leaf-harness/Cargo.toml",
+        "--tests",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "rustfmt",
+      "cwd": ".",
+      "argv": [
+        "rustfmt",
+        "--check",
+        "--edition",
+        "2024",
+        "crates/domain/src/automation/mod.rs",
+        "crates/api/src/automation.rs",
+        "bins/core/src/automation/mod.rs"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "frontend-check",
+      "cwd": "frontend",
+      "argv": [
+        "npm",
+        "run",
+        "check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "frontend-tests",
+      "cwd": "frontend",
+      "argv": [
+        "node",
+        "tests/automation.test.mjs"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "controller-tests",
+      "cwd": "frontend",
+      "argv": [
+        "node",
+        "tests/automation-controller.test.mjs"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "2",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp"
+  },
+  "source_sha256": {
+    "bins/core/src/automation/mod.rs": "debd778e3add1030823a83b4bb2c30649ceaa6b3d5d622620bff845e47669f6b",
+    "bins/core/src/automation/tests.rs": "cd5c551fef5fadbbf3ae550d7d0037d9cb583fdde8f87f2f28567f0f8547f261",
+    "crates/api/src/automation/tests.rs": "07b63cb9ca74588d7055392758062ca55b67adc0d1046292099410b04ddee7e0",
+    "crates/api/src/automation.rs": "fd206aadfcaf48f68ae6030535882e6b2f92cedd90d3e077d53cea7d824a759e",
+    "crates/domain/src/automation/alerts.rs": "1454b89670292eb28661d7ae2a250ecddbd8320c675ac1941af25c2bb1b03f1a",
+    "crates/domain/src/automation/delivery/planning/tests.rs": "7d71fc40b693708eb71ff677c85e7f5d4edd288a15fe98e83f89310adfc5dfea",
+    "crates/domain/src/automation/delivery/planning.rs": "342d4fba0eafc546c17b9656de30d4ff104a1bc57db7aca8b00d0f8ae6ce7c14",
+    "crates/domain/src/automation/delivery.rs": "5c7ac498345ca30f4ec4286aa1247394866100d839687ad596dbdb0317950e7b",
+    "crates/domain/src/automation/mod.rs": "6d74e6405c88bc108404e662d38eb6cc5ec3bf241faca74e9c0e8a122a997feb",
+    "crates/domain/src/automation/schedule.rs": "133b9d941630eb73107626ad36c3226beb688e2305e1197b0855f03287bddb74",
+    "crates/domain/src/automation/signals.rs": "a9a7e2e0df326724cad99a53b49db1cc3fb18fce9bb0359cc46cc045a27d7361",
+    "crates/domain/src/automation/tests.rs": "a6b4a919bcfbdb6af04959d7c7b5bc22ff32dde9fb4486c48abf010cd69e67ff",
+    "crates/domain/src/automation/views.rs": "3f26f9292324f9e9fc61f78f7eb586354821a02c5cdf581e2824738be56d2fe1",
+    "frontend/src/AutomationView.tsx": "20c3325567cf77abdebe19472dc99b1ef58b186c5b2ecf7a95be277d03e11912",
+    "frontend/src/NotificationsView.tsx": "b8d2fa5fa7b12539f76a758e67cd13540fd448c1877ae8b467d8ecb3444758f6",
+    "frontend/src/automation-client.ts": "c6e355574ac402458866754f5fae40d80abe0292ac84bcd98b9f4ce4c5aac179",
+    "frontend/src/automation-controller.ts": "a09b342d9635e83550bc18cef591e113b8e53e2304589938459e693c242c2257",
+    "frontend/tests/automation-controller.test.mjs": "7d6b294d14601f34bab3c305943b6ea8d84d14ad78e8d66ad137fe569b321b73",
+    "frontend/tests/automation.test.mjs": "11a3f37bae07c1d8829f268455443150ef7c00137c3fbd86f792053ee9390060",
+    "frontend/tests/helpers/automation.mjs": "df0c2bf0da734c20b94d75b284f7035008c16443a3b4bab2798aa1d09e54a284",
+    "tests/fixtures/automation/check-leaves.py": "66c482b183c228415eae788bdfd6b0bd6717de52df0f7714588e84f8f08313e8",
+    "tests/fixtures/automation/due-cases.json": "4cf1f6562cddff943173050f55edb634557050956b0d337db4ebad2a53fe7cb7"
+  },
+  "source_unchanged_after": true,
+  "shared_roots_match_main": true,
+  "not_qualified": [
+    "Store/schema durability",
+    "real restart/concurrent tick",
+    "installed API/UI",
+    "browser interaction",
+    "recurring effect authority",
+    "physical ARM64",
+    "whole-service idle writes/performance"
+  ],
+  "tested_bytes_match_commit_blobs": true,
+  "logs": {
+    "clippy.log.gz": {
+      "raw_bytes": 459,
+      "raw_sha256": "e1872e0977de1fdbdf2c4e322aff63c10b6ef9d708ea13f5a64afce61bf3a175",
+      "gzip_sha256": "9b7460212f462568ff2507362ebd01c27e20723aacb5be333e49924ba8262493"
+    },
+    "controller-tests.log.gz": {
+      "raw_bytes": 2877,
+      "raw_sha256": "12f775bee7cff24c095fe2a354961eab9a9ad4c14597edd0b7d864b506c6f0e9",
+      "gzip_sha256": "e07ba887d68caeba6996c08a20d5d293baafd34bc36af85877a394e7cc586852"
+    },
+    "frontend-check.log.gz": {
+      "raw_bytes": 52,
+      "raw_sha256": "dde0b3b336496b0b40dcd055546e64ca04e7f152eb0d9279dd427a6eea708827",
+      "gzip_sha256": "0cc057d6d6f2810b7ef05090c05c4a62a0daaf6b965e6c90aa76a767e99e49f2"
+    },
+    "frontend-tests.log.gz": {
+      "raw_bytes": 1916,
+      "raw_sha256": "ef596489c702e5ade693f7e779aa8b9d1fad3288e56ba783675794f227ccf0a4",
+      "gzip_sha256": "53851f681384a7fc824cea4da4068a96446a49034ec52acc03e33ee978a53374"
+    },
+    "rust-tests.log.gz": {
+      "raw_bytes": 4489,
+      "raw_sha256": "3bfeb0229fbddefabb876b1ef516ce53226e961191e5c8514bc3f1849c966462",
+      "gzip_sha256": "d5db8ed3307ec118a043244bec864ddf7dfd375039a4e0c457da7087ceef14ea"
+    },
+    "rustfmt.log.gz": {
+      "raw_bytes": 0,
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "gzip_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    }
+  },
+  "case_counts": {
+    "rust": 38,
+    "client_views": 10,
+    "controller": 14,
+    "total_focused": 62
+  }
+}

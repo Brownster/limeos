@@ -1,0 +1,12 @@
+[
+  {"name":"before anchor","now":999,"last":null,"paused":false,"missed":"coalesce_latest","expect":"not_due","due":null},
+  {"name":"first occurrence","now":1000,"last":null,"paused":false,"missed":"coalesce_latest","expect":"ready","due":1000},
+  {"name":"restart coalesces","now":1365,"last":1000,"paused":false,"missed":"coalesce_latest","expect":"ready","due":1360},
+  {"name":"duplicate tick","now":1365,"last":1360,"paused":false,"missed":"coalesce_latest","expect":"not_due","due":null},
+  {"name":"rollback","now":1200,"last":1360,"paused":false,"missed":"coalesce_latest","expect":"clock_rollback","due":null},
+  {"name":"grace inclusive","now":1030,"last":null,"paused":false,"missed":"coalesce_latest","expect":"ready","due":1000},
+  {"name":"grace expired","now":1031,"last":null,"paused":false,"missed":"coalesce_latest","expect":"skipped","due":1000},
+  {"name":"skip missed history","now":1365,"last":1000,"paused":false,"missed":"skip","expect":"skipped","due":1360},
+  {"name":"skip next on time","now":1060,"last":1000,"paused":false,"missed":"skip","expect":"ready","due":1060},
+  {"name":"paused","now":1365,"last":1000,"paused":true,"missed":"coalesce_latest","expect":"paused","due":null}
+]
