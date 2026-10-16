@@ -9,11 +9,9 @@ use std::{
     cell::Cell,
     collections::BTreeMap,
     fs,
-    io::BufRead,
     os::unix::fs::{MetadataExt, PermissionsExt},
     path::PathBuf,
     process::{Command, Stdio},
-    sync::mpsc,
     time::Duration,
 };
 
@@ -1043,13 +1041,21 @@ fn pending_cleanup_reports_replaced_and_foreign_objects_and_keeps_them() {
 }
 
 /// Blocks forever at one point after telling the parent it arrived.
-struct Crash(Point);
+struct Crash {
+    point: Point,
+    ready: PathBuf,
+}
 
 impl CustodyIo for Crash {
     fn reached(&mut self, point: Point) {
-        if point == self.0 {
-            println!("{READY}");
-            let _ = io::stdout().flush();
+        if point == self.point {
+            let pending = self.ready.with_extension("pending");
+            let mut marker = File::create_new(&pending).unwrap();
+            marker
+                .write_all(format!("{READY}:{point:?}\n").as_bytes())
+                .unwrap();
+            marker.sync_all().unwrap();
+            fs::rename(pending, &self.ready).unwrap();
             loop {
                 std::thread::sleep(Duration::from_secs(1));
             }
@@ -1095,7 +1101,10 @@ fn crash_child() {
         .unwrap();
     let dir = PathBuf::from(dir);
     let root = CustodyRoot::open(&dir.join("custody")).unwrap();
-    let mut crash = Crash(point);
+    let mut crash = Crash {
+        point,
+        ready: dir.join(READY),
+    };
     let binding = || -> CustodyBinding {
         serde_json::from_slice(&fs::read(dir.join("binding.json")).unwrap()).unwrap()
     };
@@ -1187,24 +1196,30 @@ fn kill_at(scene: &Scene, point: Point) {
             .args(["--exact", "custody::tests::crash_child", "--nocapture"])
             .env("LIMEOS_CUSTODY_CRASH_POINT", format!("{point:?}"))
             .env("LIMEOS_CUSTODY_CRASH_DIR", scene.temp.path())
-            .stdout(Stdio::piped())
+            .stdout(Stdio::null())
             .stderr(Stdio::inherit())
             .spawn()
             .unwrap(),
     );
-    let stdout = child.0.stdout.take().unwrap();
-    let (ready, arrived) = mpsc::channel();
-    std::thread::spawn(move || {
-        for line in io::BufReader::new(stdout).lines() {
-            if line.as_deref().is_ok_and(|l| l == READY) {
-                let _ = ready.send(());
-                return;
+    let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    loop {
+        match fs::read_to_string(scene.path(READY)) {
+            Ok(marker) => {
+                assert_eq!(marker, format!("{READY}:{point:?}\n"));
+                break;
             }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => panic!("cannot read {point:?} checkpoint: {error}"),
         }
-    });
-    arrived
-        .recv_timeout(Duration::from_secs(60))
-        .unwrap_or_else(|_| panic!("child never reached {point:?}"));
+        if let Some(status) = child.0.try_wait().unwrap() {
+            panic!("child exited before {point:?}: {status}");
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "child never reached {point:?}"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
     child.0.kill().unwrap();
     let status = child.0.wait().unwrap();
     assert_eq!(status.signal(), Some(9), "{point:?}");
