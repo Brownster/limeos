@@ -1,5 +1,36 @@
 use super::*;
 
+/// The same current identity/grant check applies inside operation transactions.
+pub(super) fn current_grants(conn: &Connection, principal: &Principal) -> Result<Vec<Scope>> {
+    let identity: Option<(i64, String)> = conn
+        .query_row(
+            "SELECT grant_revision,role FROM users WHERE id=?",
+            [&principal.id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()
+        .map_err(durable)?;
+    if identity != Some((principal.grant_revision, json(&principal.role)?)) {
+        return Err(Error(ErrorCode::Expired));
+    }
+    let mut stmt = conn
+        .prepare("SELECT operation,resource FROM grants WHERE principal=?")
+        .map_err(durable)?;
+    let rows = stmt
+        .query_map([&principal.id], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })
+        .map_err(durable)?;
+    rows.map(|row| {
+        let (operation, resource) = row.map_err(durable)?;
+        Ok(Scope {
+            operation: parse(&operation)?,
+            resource,
+        })
+    })
+    .collect()
+}
+
 impl Store {
     pub fn issue_bootstrap(&mut self, digest: &str, now: i64) -> Result<i64> {
         let expires = now.checked_add(900).ok_or(Error(ErrorCode::InvalidInput))?;
@@ -187,35 +218,7 @@ impl Store {
         })
     }
     pub fn grants(&self, principal: &Principal) -> Result<Vec<Scope>> {
-        let identity: Option<(i64, String)> = self
-            .conn
-            .query_row(
-                "SELECT grant_revision,role FROM users WHERE id=?",
-                [&principal.id],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .optional()
-            .map_err(durable)?;
-        if identity != Some((principal.grant_revision, json(&principal.role)?)) {
-            return Err(Error(ErrorCode::Expired));
-        }
-        let mut stmt = self
-            .conn
-            .prepare("SELECT operation,resource FROM grants WHERE principal=?")
-            .map_err(durable)?;
-        let rows = stmt
-            .query_map([&principal.id], |r| {
-                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
-            })
-            .map_err(durable)?;
-        rows.map(|r| {
-            let (op, resource) = r.map_err(durable)?;
-            Ok(Scope {
-                operation: parse(&op)?,
-                resource,
-            })
-        })
-        .collect()
+        current_grants(&self.conn, principal)
     }
     pub fn revise_grants(
         &mut self,

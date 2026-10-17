@@ -1,4 +1,5 @@
 use schemars::JsonSchema;
+pub mod automation;
 pub mod backup_jobs;
 pub use backup_jobs::*;
 use serde::{Deserialize, Serialize};
@@ -106,6 +107,7 @@ pub enum Operation {
     DeploymentElevated,
     StorageManage,
     IdentityManage,
+    AutomationManage,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
@@ -180,10 +182,33 @@ pub enum EventKind {
     TaskRevoked,
     JobQueued,
     JobRecoveryRequired,
-    JobTransition { state: JobState },
-    PlanCreated { plan: String },
-    PlanApproved { plan: String },
-    PlanCanceled { plan: String },
+    JobTransition {
+        state: JobState,
+    },
+    PlanCreated {
+        plan: String,
+    },
+    PlanApproved {
+        plan: String,
+    },
+    PlanCanceled {
+        plan: String,
+    },
+    AutomationScheduleCreated {
+        schedule: String,
+    },
+    AutomationScheduleChanged {
+        schedule: String,
+        #[ts(type = "number")]
+        revision: i64,
+    },
+    AutomationOccurrenceSettled {
+        schedule: String,
+        #[ts(type = "number")]
+        revision: i64,
+        #[ts(type = "number")]
+        due: i64,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
@@ -201,18 +226,38 @@ pub struct Event {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Intent {
-    HealthProbe { resource: String },
-    ContainerRestart { plan: RestartPlan },
-    ContainerStart { plan: ContainerPlan },
-    ContainerStop { plan: ContainerPlan },
-    StoragePrepareTargets { plan: Box<StorageTargetPlan> },
-    StorageMount { plan: Box<StorageMountPlan> },
-    BackupPreparePrivate { plan: Box<BackupPreparationJobPlan> },
+    HealthProbe {
+        resource: String,
+    },
+    /// Only atomic occurrence reservation may queue this read-only intent.
+    /// It remains undispatchable until protected observation integration exists.
+    AutomationObserveHealth {
+        occurrence: automation::OccurrenceKey,
+    },
+    ContainerRestart {
+        plan: RestartPlan,
+    },
+    ContainerStart {
+        plan: ContainerPlan,
+    },
+    ContainerStop {
+        plan: ContainerPlan,
+    },
+    StoragePrepareTargets {
+        plan: Box<StorageTargetPlan>,
+    },
+    StorageMount {
+        plan: Box<StorageMountPlan>,
+    },
+    BackupPreparePrivate {
+        plan: Box<BackupPreparationJobPlan>,
+    },
 }
 impl Intent {
     pub fn resource(&self) -> &str {
         match self {
             Self::HealthProbe { resource } => resource,
+            Self::AutomationObserveHealth { .. } => "system",
             Self::ContainerRestart { plan }
             | Self::ContainerStart { plan }
             | Self::ContainerStop { plan } => &plan.expected.resource,

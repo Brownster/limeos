@@ -135,6 +135,7 @@ fn main() {
     ts!(limeos_domain::BackupPreparationJobPlan);
     ts!(limeos_domain::PlannedBackupPreparation);
     ts!(limeos_domain::BackupPreparationJob);
+    ts!(limeos_domain::automation::OccurrenceKey);
     ts!(limeos_domain::Intent);
     ts!(limeos_domain::ContainerSnapshot);
     ts!(limeos_domain::ContainerAction);

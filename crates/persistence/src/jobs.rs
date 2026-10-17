@@ -86,6 +86,12 @@ impl Store {
             .ok_or(Error(ErrorCode::NotFound))?;
         if matches!(
             parse::<Intent>(&encoded)?,
+            Intent::AutomationObserveHealth { .. }
+        ) {
+            return Err(Error(ErrorCode::Forbidden));
+        }
+        if matches!(
+            parse::<Intent>(&encoded)?,
             Intent::BackupPreparePrivate { .. }
         ) && (from != JobState::Queued || to != JobState::Canceled)
         {

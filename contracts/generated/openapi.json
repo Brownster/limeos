@@ -906,6 +906,72 @@
               "plan"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "automation_schedule_created",
+                "type": "string"
+              },
+              "schedule": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "schedule"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "automation_schedule_changed",
+                "type": "string"
+              },
+              "revision": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "schedule": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "schedule",
+              "revision"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "due": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "kind": {
+                "const": "automation_occurrence_settled",
+                "type": "string"
+              },
+              "revision": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "schedule": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "schedule",
+              "revision",
+              "due"
+            ],
+            "type": "object"
           }
         ]
       },

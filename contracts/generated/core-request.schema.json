@@ -441,7 +441,8 @@
         "deployment_manage",
         "deployment_elevated",
         "storage_manage",
-        "identity_manage"
+        "identity_manage",
+        "automation_manage"
       ]
     },
     "PlannedContainerAction": {
