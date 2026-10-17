@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type KeyboardEvent } from "react";
 import { StorageMountController } from "./controller";
+// Browser ownership ends during commit, before pending promise continuations.
+// Static server rendering has no owner to start or dispose.
+const useOwnerEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 function containFocus(event: KeyboardEvent<HTMLDialogElement>) {
   if (event.key !== "Tab") return;
   const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
@@ -22,7 +25,7 @@ function SessionStorageMounts({ csrf, expired }: { csrf: string; expired: () => 
   const unavailable = state.expired || state.denied;
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
+  useOwnerEffect(() => {
     void controller.start();
     const timer = window.setInterval(() => { if (!document.hidden) void controller.refreshJobs(); }, 3000);
     return () => { window.clearInterval(timer); controller.dispose(); };
