@@ -6,6 +6,16 @@ use limeos_domain::{
 use limeos_executor_protocol::{Receipt, Request};
 use std::time::Duration;
 
+fn rpc_failure(operation: &'static str, phase: &'static str, error: Error) -> Error {
+    use std::io::Write as _;
+    let _ = writeln!(
+        std::io::stderr().lock(),
+        "{{\"level\":\"WARN\",\"event\":\"storage_mount_rpc_refused\",\"operation\":\"{operation}\",\"phase\":\"{phase}\",\"code\":\"{:?}\"}}",
+        error.0
+    );
+    error
+}
+
 impl Core {
     pub(super) async fn human_mount_catalog(
         &self,
@@ -27,33 +37,59 @@ impl Core {
         Ok(catalog)
     }
     async fn mount_executor(&self, request: Request, deadline: Duration) -> Result<Receipt> {
+        let operation = match &request {
+            Request::StorageMountCatalog { .. } => "catalog",
+            Request::InspectStorageMount { .. } => "inspect",
+            Request::ExecuteStorageMount { .. } => "execute",
+            Request::StorageMountReceipt { .. } => "receipt",
+            Request::ReconcileStorageMount { .. } => "reconcile",
+            _ => "other",
+        };
         tokio::time::timeout(deadline, async {
             let mut stream = UnixStream::connect(self.storage_mount_socket.as_ref())
                 .await
-                .map_err(|_| Error(ErrorCode::Unavailable))?;
+                .map_err(|_| rpc_failure(operation, "connect", Error(ErrorCode::Unavailable)))?;
             if stream
                 .peer_cred()
-                .map_err(|_| Error(ErrorCode::Unavailable))?
+                .map_err(|_| {
+                    rpc_failure(operation, "peer_credentials", Error(ErrorCode::Unavailable))
+                })?
                 .uid()
                 != 0
             {
-                return Err(Error(ErrorCode::Forbidden));
+                return Err(rpc_failure(
+                    operation,
+                    "peer_identity",
+                    Error(ErrorCode::Forbidden),
+                ));
             }
-            limeos_contracts::write_frame(&mut stream, &request).await?;
-            let receipt: Receipt = limeos_contracts::read_frame(&mut stream).await?;
+            limeos_contracts::write_frame(&mut stream, &request)
+                .await
+                .map_err(|error| rpc_failure(operation, "write_frame", error))?;
+            let receipt: Receipt = limeos_contracts::read_frame(&mut stream)
+                .await
+                .map_err(|error| rpc_failure(operation, "read_frame", error))?;
             if receipt.version != VERSION {
-                return Err(Error(ErrorCode::Unavailable));
+                return Err(rpc_failure(
+                    operation,
+                    "reply_version",
+                    Error(ErrorCode::Unavailable),
+                ));
             }
             if let Some(code) = receipt.error {
-                return Err(Error(code));
+                return Err(rpc_failure(operation, "root_reply", Error(code)));
             }
             if !receipt.ready {
-                return Err(Error(ErrorCode::Unavailable));
+                return Err(rpc_failure(
+                    operation,
+                    "reply_ready",
+                    Error(ErrorCode::Unavailable),
+                ));
             }
             Ok(receipt)
         })
         .await
-        .map_err(|_| Error(ErrorCode::Unavailable))?
+        .map_err(|_| rpc_failure(operation, "deadline", Error(ErrorCode::Unavailable)))?
     }
     async fn inspect_mount(
         &self,
@@ -75,12 +111,18 @@ impl Core {
                 limeos_contracts::RPC_DEADLINE,
             )
             .await?;
-        let inspection = value
-            .storage_mount_inspection
-            .ok_or(Error(ErrorCode::Unavailable))?;
-        inspection.validate(now())?;
+        let inspection = value.storage_mount_inspection.ok_or_else(|| {
+            rpc_failure("inspect", "reply_inspection", Error(ErrorCode::Unavailable))
+        })?;
+        inspection
+            .validate(now())
+            .map_err(|error| rpc_failure("inspect", "validate_inspection", error))?;
         if inspection.target_id != expected {
-            return Err(Error(ErrorCode::Conflict));
+            return Err(rpc_failure(
+                "inspect",
+                "reply_target",
+                Error(ErrorCode::Conflict),
+            ));
         }
         Ok(inspection)
     }
@@ -101,6 +143,7 @@ impl Core {
                 store.plan_storage_mount(&principal, &inspection, now())
             })
             .await
+            .map_err(|error| rpc_failure("plan", "store", error))
     }
     pub(super) async fn human_approve_mount(
         &self,

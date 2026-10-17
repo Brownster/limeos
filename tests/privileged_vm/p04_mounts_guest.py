@@ -1664,6 +1664,8 @@ def qualify(repo, output, package_version, authority_schema):
                     "journalctl",
                     "-u",
                     UNIT,
+                    "-u",
+                    "limeos-core",
                     "--no-pager",
                     "-n",
                     "60",

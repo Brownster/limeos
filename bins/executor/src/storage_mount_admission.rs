@@ -46,6 +46,17 @@ static FLIGHT: OnceLock<SingleFlight> = OnceLock::new();
 fn error() -> Error {
     Error(ErrorCode::Unavailable)
 }
+fn diagnosed<T>(phase: &'static str, result: Result<T>) -> Result<T> {
+    if let Err(error) = &result {
+        use std::io::Write as _;
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "{{\"level\":\"WARN\",\"event\":\"storage_mount_admission_refused\",\"phase\":\"{phase}\",\"code\":\"{:?}\"}}",
+            error.0
+        );
+    }
+    result
+}
 fn storage(failure: limeos_executor_storage::Failure) -> Error {
     use limeos_executor_storage::Failure;
     Error(match failure {
@@ -132,21 +143,42 @@ impl MountAdmission {
         result
     }
     async fn check(&self, cancelled: &dyn Fn() -> bool) -> Result<()> {
-        self.window.check(cancelled)?;
-        self.capacity.check()?;
-        self.engine.revalidate().await?;
-        self.processes.revalidate().map_err(storage)?;
-        self.target.revalidate(cancelled).await.map_err(storage)?;
-        self.window.check(cancelled)?;
-        let digest = consumers(&self.target, &self.engine, &self.processes, cancelled).await?;
+        diagnosed("revalidate.window.before", self.window.check(cancelled))?;
+        diagnosed("revalidate.capacity.before", self.capacity.check())?;
+        diagnosed("revalidate.engine.before", self.engine.revalidate().await)?;
+        diagnosed(
+            "revalidate.processes.before",
+            self.processes.revalidate().map_err(storage),
+        )?;
+        diagnosed(
+            "revalidate.target_and_host_consumers.before",
+            self.target.revalidate(cancelled).await.map_err(storage),
+        )?;
+        diagnosed(
+            "revalidate.window.after_target",
+            self.window.check(cancelled),
+        )?;
+        let digest = diagnosed(
+            "revalidate.configured_consumers",
+            consumers(&self.target, &self.engine, &self.processes, cancelled).await,
+        )?;
         if digest != self.inspection.consumer_digest {
-            return Err(Error(ErrorCode::Conflict));
+            return diagnosed(
+                "revalidate.consumer_digest",
+                Err(Error(ErrorCode::Conflict)),
+            );
         }
-        self.engine.revalidate().await?;
-        self.processes.revalidate().map_err(storage)?;
-        self.target.revalidate(cancelled).await.map_err(storage)?;
-        self.capacity.check()?;
-        self.window.check(cancelled)
+        diagnosed("revalidate.engine.after", self.engine.revalidate().await)?;
+        diagnosed(
+            "revalidate.processes.after",
+            self.processes.revalidate().map_err(storage),
+        )?;
+        diagnosed(
+            "revalidate.target_and_host_consumers.after",
+            self.target.revalidate(cancelled).await.map_err(storage),
+        )?;
+        diagnosed("revalidate.capacity.after", self.capacity.check())?;
+        diagnosed("revalidate.window.after", self.window.check(cancelled))
     }
     pub(crate) fn guardian_capacity(&self) -> Result<()> {
         self.capacity.check()
@@ -191,32 +223,49 @@ pub async fn inspect(
     selection: &StorageMountSelection,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<MountAdmission> {
-    selection.validate()?;
-    let flight = FLIGHT
-        .get_or_init(SingleFlight::default)
-        .try_acquire()
-        .map_err(|_| Error(ErrorCode::Conflict))?;
-    let deadline_ticks = uptime_ticks()?.checked_add(399).ok_or_else(error)?;
-    let window = Window::new()?;
-    let mut capacity = Capacity::admit()?;
+    diagnosed("inspect.selection", selection.validate())?;
+    let flight = diagnosed(
+        "inspect.single_flight",
+        FLIGHT
+            .get_or_init(SingleFlight::default)
+            .try_acquire()
+            .map_err(|_| Error(ErrorCode::Conflict)),
+    )?;
+    let deadline_ticks = diagnosed("inspect.uptime", uptime_ticks())?
+        .checked_add(399)
+        .ok_or_else(error)?;
+    let window = diagnosed("inspect.window.start", Window::new())?;
+    let mut capacity = diagnosed("inspect.capacity.admit", Capacity::admit())?;
     let poll = || window.check(cancelled).is_err();
-    window.check(cancelled)?;
-    capacity.enter(0)?;
-    let configuration = inspect_storage_configuration_with_profile(
-        paths(),
-        ConfigurationReadProfile::CombinedV1,
-        &poll,
-    )
-    .map_err(storage)?;
-    window.check(cancelled)?;
-    capacity.enter(1)?;
-    let engine = Docker::new("/run/docker.sock".into())
-        .inspect_storage_processes_with_profile(
-            EnginePeerPolicy::root(),
-            EngineReadProfile::CombinedV1,
+    diagnosed(
+        "inspect.window.before_configuration",
+        window.check(cancelled),
+    )?;
+    diagnosed("inspect.capacity.configuration", capacity.enter(0))?;
+    let configuration = diagnosed(
+        "inspect.configuration",
+        inspect_storage_configuration_with_profile(
+            paths(),
+            ConfigurationReadProfile::CombinedV1,
+            &poll,
         )
-        .await?;
-    window.check(cancelled)?;
+        .map_err(storage),
+    )?;
+    diagnosed(
+        "inspect.window.after_configuration",
+        window.check(cancelled),
+    )?;
+    diagnosed("inspect.capacity.engine", capacity.enter(1))?;
+    let engine = diagnosed(
+        "inspect.engine",
+        Docker::new("/run/docker.sock".into())
+            .inspect_storage_processes_with_profile(
+                EnginePeerPolicy::root(),
+                EngineReadProfile::CombinedV1,
+            )
+            .await,
+    )?;
+    diagnosed("inspect.window.after_engine", window.check(cancelled))?;
     if engine.running().len() > MAX_RUNNING
         || engine
             .declarations()
@@ -226,48 +275,66 @@ pub async fn inspect(
             .sum::<usize>()
             > MAX_DESTINATIONS
     {
-        return Err(Error(ErrorCode::StorageMountLimit));
+        return diagnosed(
+            "inspect.engine_membership_limit",
+            Err(Error(ErrorCode::StorageMountLimit)),
+        );
     }
-    capacity.enter(2)?;
+    diagnosed("inspect.capacity.processes", capacity.enter(2))?;
     let mut bindings = Vec::new();
-    bindings
-        .try_reserve_exact(engine.running().len())
-        .map_err(|_| error())?;
+    diagnosed(
+        "inspect.process_bindings",
+        bindings
+            .try_reserve_exact(engine.running().len())
+            .map_err(|_| error()),
+    )?;
     for process in engine.running() {
         bindings.push(RunningContainerProcessBinding {
             container: process.container().clone(),
             pid: process.pid(),
         });
     }
-    let processes = inspect_running_container_processes_with_profile(
-        engine.declarations(),
-        &bindings,
-        ProcessReadProfile::CombinedV1,
-    )
-    .map_err(storage)?;
-    window.check(cancelled)?;
-    capacity.enter(3)?;
-    let physical = inspect_container_dependencies_with_profile(
-        &configuration.configuration().contract,
-        engine.declarations(),
-        StorageReadProfile::CombinedV1,
-    )
-    .await
-    .map_err(storage)?;
-    window.check(cancelled)?;
+    let processes = diagnosed(
+        "inspect.processes",
+        inspect_running_container_processes_with_profile(
+            engine.declarations(),
+            &bindings,
+            ProcessReadProfile::CombinedV1,
+        )
+        .map_err(storage),
+    )?;
+    diagnosed("inspect.window.after_processes", window.check(cancelled))?;
+    diagnosed("inspect.capacity.physical", capacity.enter(3))?;
+    let physical = diagnosed(
+        "inspect.physical",
+        inspect_container_dependencies_with_profile(
+            &configuration.configuration().contract,
+            engine.declarations(),
+            StorageReadProfile::CombinedV1,
+        )
+        .await
+        .map_err(storage),
+    )?;
+    diagnosed("inspect.window.after_physical", window.check(cancelled))?;
     // Reserve transient destination ownership before any pinning, then all
     // retained target descriptors and the later gated guardian before opening.
-    capacity.enter(4)?;
-    capacity.enter(5)?;
-    capacity.enter(6)?;
-    let target = mount_admission::inspect(configuration, physical, &selection.target_id, &poll)
-        .await
-        .map_err(storage)?;
+    diagnosed("inspect.capacity.destinations", capacity.enter(4))?;
+    diagnosed("inspect.capacity.target", capacity.enter(5))?;
+    diagnosed("inspect.capacity.guardian", capacity.enter(6))?;
+    let target = diagnosed(
+        "inspect.target_and_host_consumers",
+        mount_admission::inspect(configuration, physical, &selection.target_id, &poll)
+            .await
+            .map_err(storage),
+    )?;
     if target.selected().role != StorageRole::Data {
-        return Err(Error(ErrorCode::Forbidden));
+        return diagnosed("inspect.target_role", Err(Error(ErrorCode::Forbidden)));
     }
-    window.check(cancelled)?;
-    let consumer_digest = consumers(&target, &engine, &processes, &poll).await?;
+    diagnosed("inspect.window.after_target", window.check(cancelled))?;
+    let consumer_digest = diagnosed(
+        "inspect.configured_consumers",
+        consumers(&target, &engine, &processes, &poll).await,
+    )?;
     let inspection = StorageMountInspection {
         target_id: selection.target_id.clone(),
         device: target.selected().clone(),
@@ -277,7 +344,7 @@ pub async fn inspect(
         consumer_digest,
         observed_at: now()?,
     };
-    inspection.validate(now()?)?;
+    diagnosed("inspect.result", inspection.validate(now()?))?;
     let admission = MountAdmission {
         target,
         engine,
