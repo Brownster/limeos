@@ -1,0 +1,143 @@
+{
+  "source": "7bdc36b4bd297ce80e4837c72ac96c07e9938ddd",
+  "base": "7df3f7530865c31b7faefd1f7b12a25aa7655860",
+  "source_committed_after_checks_without_intervening_product_changes": true,
+  "frontend": {
+    "files": [
+      {
+        "file": "frontend/tests/api.mjs",
+        "tests": 4,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/automation-controller.test.mjs",
+        "tests": 14,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/automation.test.mjs",
+        "tests": 10,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/media-activity-client.test.mjs",
+        "tests": 29,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/media-activity.test.mjs",
+        "tests": 10,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/observations.test.mjs",
+        "tests": 4,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/stack-discovery.test.mjs",
+        "tests": 18,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/storage-mount-lifecycle.test.mjs",
+        "tests": 40,
+        "exit_code": 0
+      }
+    ],
+    "tests": 129
+  },
+  "new_mount_cases": 40,
+  "input_count": 213,
+  "input_scope": "Frontend source/contracts/fixture superset plus unchanged Rust intent/replay references; no Rust test credit",
+  "unchanged_groups_from_base": [
+    "crates",
+    "bins",
+    "contracts",
+    "tests/frontend",
+    "tests/privileged_vm",
+    "tests/reference",
+    "tests/fixtures",
+    "Cargo.toml",
+    "Cargo.lock",
+    "packaging"
+  ],
+  "protected_frontend_unchanged": [
+    "frontend/src/Dashboard.tsx",
+    "frontend/src/api.ts",
+    "frontend/src/style.css",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/tsconfig.json"
+  ],
+  "baseline_callback_source_sha256": "f4015381546a4a3e7bc3a4ff1416802bbc6971ff7feefb21b8fd43b14542a0c8",
+  "regressions": {
+    "baseline_callbacks": "Two expected failures executing actual extracted original callbacks; no browser/host/API effect",
+    "intermediate_reentrant": "Two expected failures before final lifetime checks and local promise preservation",
+    "final": "40 mount tests passed inside 129 frontend total"
+  },
+  "installed_frontend_dependencies": {
+    "react": {
+      "version": "18.3.1",
+      "package_json_sha256": "d4e68a5c96babb20cad1daafea8b78822eae45b341552cf5418d06a5304fa64c"
+    },
+    "react-dom": {
+      "version": "18.3.1",
+      "package_json_sha256": "d2f29e31bd48b833e48cd7bbf41f192e8ee4ff8da249fdbe10d4ac4114b8b12e"
+    },
+    "@types/react": {
+      "version": "18.3.18",
+      "package_json_sha256": "757f5975d90d245b977f475cf18654d543e5a3019028d934333e68f33b68cd93"
+    },
+    "@types/react-dom": {
+      "version": "18.3.5",
+      "package_json_sha256": "bdecb35ed9f8237d6258e98518ebbfe16057a2be300e313ad1844082a8eaa159"
+    },
+    "typescript": {
+      "version": "5.7.3",
+      "package_json_sha256": "1e03325943793f3bf11667b94fca412fe5ba617c85b84c16f0474933da156baa"
+    },
+    "vite": {
+      "version": "8.3.2",
+      "package_json_sha256": "2b906339263f24e9be4219f93d966b4bcf0d4141adc05939a537c3a8fd6f760a"
+    }
+  },
+  "bounds": {
+    "request_json_bytes": 32768,
+    "catalog_plan_job_bytes": 32768,
+    "approval_error_bytes": 4096,
+    "history_bytes": 1048576,
+    "catalog_history_rows": 32,
+    "per_request_deadline_ms": 12000
+  },
+  "commands": [
+    "node .cache/a1-ui/pre-fix-regressions.mjs (expected red baseline)",
+    "uv run --offline --no-project .cache/a1-ui/check-frontend.py",
+    "npm run build (frontend; includes pinned type check)",
+    "uv run --offline --no-project --with ruff==0.17.0 ruff check .cache/a1-ui/check-frontend.py .cache/a1-ui/package-evidence.py",
+    "git diff --check"
+  ],
+  "toolchain": {
+    "node": "v22.14.0\n",
+    "npm": "11.2.0\n",
+    "uv": "uv 0.11.25 (x86_64-unknown-linux-gnu)\n"
+  },
+  "environment": {
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+    "npm_config_cache": "/home/marc/Documents/github/lime-os/.cache/npm",
+    "frontend_suites": "sequential, one file at a time"
+  },
+  "browser": {
+    "tool": "cua.getState",
+    "result": {
+      "apps": [],
+      "browsers": []
+    },
+    "browser_acceptance": "unavailable",
+    "screenshots": 0,
+    "server_started": false
+  },
+  "bundle_scope": "Actual production Dashboard build with existing registered StorageMounts import/props; not browser execution or performance qualification",
+  "remaining": "Integrator accepts the repair onto the actual A1 candidate. Qualification owner retains browser fixture 8c5b498 and installed mount/admission/receipt/crash/replay/recovery. No shared Store/protocol/executor/package/guest files changed. No browser, Cargo, hardware/Pi, installed, performance/soak, defect/A1/Stream-A/P04 completion or cutover acceptance is claimed."
+}
