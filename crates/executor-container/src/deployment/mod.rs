@@ -8,3 +8,4 @@ pub mod indexer_apps;
 pub mod media;
 pub mod media_settings;
 pub mod networks;
+pub mod tools;

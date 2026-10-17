@@ -1,0 +1,22 @@
+[
+  {"name":"active", "body":"LoadState=loaded\nActiveState=active\n", "expected":{"state":"active"}},
+  {"name":"inactive", "body":"LoadState=loaded\nActiveState=inactive\n", "expected":{"state":"inactive"}},
+  {"name":"failed", "body":"LoadState=loaded\nActiveState=failed\n", "expected":{"state":"failed"}},
+  {"name":"activating", "body":"LoadState=loaded\nActiveState=activating\n", "expected":{"state":"activating"}},
+  {"name":"deactivating", "body":"LoadState=loaded\nActiveState=deactivating\n", "expected":{"state":"deactivating"}},
+  {"name":"reloading", "body":"LoadState=loaded\nActiveState=reloading\n", "expected":{"state":"reloading"}},
+  {"name":"not_found", "body":"LoadState=not-found\nActiveState=inactive\n", "expected":{"state":"not_found"}},
+  {"name":"masked", "body":"LoadState=masked\nActiveState=inactive\n", "expected":{"state":"masked"}},
+  {"name":"load_error", "body":"LoadState=error\nActiveState=failed\n", "expected":{"state":"load_error"}},
+  {"name":"bad_setting", "body":"LoadState=bad-setting\nActiveState=inactive\n", "expected":{"state":"load_error"}},
+  {"name":"crlf_reverse_order", "body":"ActiveState=active\r\nLoadState=loaded\r\n", "expected":{"state":"active"}},
+  {"name":"missing_property", "body":"ActiveState=inactive\n", "expected":{"state":"unknown","reason":"invalid_properties"}},
+  {"name":"duplicate_property", "body":"LoadState=loaded\nActiveState=active\nActiveState=inactive\n", "expected":{"state":"unknown","reason":"invalid_properties"}},
+  {"name":"private_property", "body":"LoadState=loaded\nActiveState=active\nEnvironment=customer-secret\n", "expected":{"state":"unknown","reason":"invalid_properties"}},
+  {"name":"unknown_active", "body":"LoadState=loaded\nActiveState=maintenance\n", "expected":{"state":"unknown","reason":"invalid_properties"}},
+  {"name":"unknown_load", "body":"LoadState=stub\nActiveState=inactive\n", "expected":{"state":"unknown","reason":"invalid_properties"}},
+  {"name":"missing_but_active", "body":"LoadState=not-found\nActiveState=active\n", "expected":{"state":"unknown","reason":"invalid_properties"}},
+  {"name":"masked_but_active", "body":"LoadState=masked\nActiveState=active\n", "expected":{"state":"unknown","reason":"invalid_properties"}},
+  {"name":"blank", "body":"", "expected":{"state":"unknown","reason":"invalid_properties"}},
+  {"name":"blank_line", "body":"LoadState=loaded\n\nActiveState=inactive\n", "expected":{"state":"unknown","reason":"invalid_properties"}}
+]
