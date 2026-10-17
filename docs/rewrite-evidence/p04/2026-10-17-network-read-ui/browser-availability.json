@@ -1,0 +1,7 @@
+{
+  "attempted": "cua.createBrowserTab(iab, http://127.0.0.1:5197/)",
+  "error": "Browser is not available: iab",
+  "cua_list_browsers": [],
+  "visual_inspection": "Unavailable; no browser acceptance claimed",
+  "temporary_loopback_server": "Started for synthetic fixture preview, then stopped"
+}

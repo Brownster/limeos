@@ -11,6 +11,11 @@ from the combined Stream B baseline. It covers part of integration requirement 5
 active protected probes and API/UI acceptance remain pending. This packet's
 54-case qualification retains its original source and scope.
 
+October 17 continuation: the [cached API/UI handoff](p04-network-read-ui-handoff.md)
+adds the proposed authenticated cache read, bounded client/controller and a
+mount-ready network panel. Protected collection, production route/shell mounting
+and installed/browser acceptance remain pending; it supplies no active probe.
+
 ## Delivered behavior
 
 `domain::deployment::networks::observe` produces bounded, deterministic shared-

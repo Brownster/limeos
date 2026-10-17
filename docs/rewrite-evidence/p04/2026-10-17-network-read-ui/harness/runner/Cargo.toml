@@ -1,0 +1,11 @@
+[package]
+name = "limeos-stream-b-runner-leaf"
+version = "0.0.0"
+edition = "2024"
+publish = false
+[dependencies]
+limeos-domain = { package = "limeos-stream-b-domain-leaf", path = "../domain" }
+[lib]
+path = "lib.rs"
+[lints.rust]
+unsafe_code = "forbid"

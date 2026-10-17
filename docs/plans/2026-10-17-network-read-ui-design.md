@@ -20,7 +20,8 @@ wire shape, construct only admitted fields and reject inconsistent source age,
 counts, duplicate/conflicting identities, invalid references and group/member/hint
 associations. Enforce the domain's 16-container, ID/name/path/project bounds and a
 64 KiB streamed response ceiling. Unknown/error observations require null counts
-and no groups or members. Only a fresh complete empty cohort can display zero.
+and no groups or members. Counts require a fresh complete cohort; zero observed
+containers requires an empty cohort.
 
 Use the dashboard's existing utilitarian cards, badges, source rows and table
 styles. Show provider identity, configured health, actual members and one-offs,

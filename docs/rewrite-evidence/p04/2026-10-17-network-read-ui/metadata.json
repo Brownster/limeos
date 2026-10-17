@@ -1,0 +1,150 @@
+{
+  "source": "5e107872595176d0296d157bec445012ba834d15",
+  "base": "31b3b6821eca760c52347a5521c5c84b5dd8f30f",
+  "main_baseline": "7df3f7530865c31b7faefd1f7b12a25aa7655860",
+  "source_committed_after_checks_without_intervening_product_changes": true,
+  "cases": {
+    "domain": 301,
+    "adapter_host_policy": 127,
+    "api": 27,
+    "runner": 6,
+    "rust_total": 461,
+    "new_network_api": 8,
+    "frontend_total": 123,
+    "new_network_frontend": 34
+  },
+  "frontend": {
+    "files": [
+      {
+        "file": "frontend/tests/api.mjs",
+        "tests": 4,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/automation-controller.test.mjs",
+        "tests": 14,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/automation.test.mjs",
+        "tests": 10,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/media-activity-client.test.mjs",
+        "tests": 29,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/media-activity.test.mjs",
+        "tests": 10,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/network-groups.test.mjs",
+        "tests": 34,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/observations.test.mjs",
+        "tests": 4,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/stack-discovery.test.mjs",
+        "tests": 18,
+        "exit_code": 0
+      }
+    ],
+    "tests": 123
+  },
+  "input_count": 477,
+  "input_scope": "Source/fixture superset, not every included crate unit suite ran",
+  "harness_lock_origin": "docs/rewrite-evidence/p04/2026-10-16-network-egress/harness/Cargo.lock",
+  "harness_lock_sha256": "64fd3fc7338014ba938299772cec4d4779c943b13cf8dc58408f3a2016f15016",
+  "protected_paths_unchanged_from_base": [
+    "Cargo.toml",
+    "Cargo.lock",
+    "crates/domain/src/lib.rs",
+    "crates/api/src/lib.rs",
+    "crates/persistence/src/lib.rs",
+    "crates/executor-protocol/src/lib.rs",
+    "crates/contracts/src/lib.rs",
+    "bins/core/src/main.rs",
+    "bins/executor/src/main.rs",
+    "frontend/src/Dashboard.tsx",
+    "frontend/src/api.ts",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "tests/fixtures/stream-b/check-leaves.py"
+  ],
+  "bounds": {
+    "streamed_response_bytes": 65536,
+    "serialized_api_response_bytes": 65536,
+    "observed_containers": 16,
+    "read_deadline_ms": 12000,
+    "inclusive_original_sample_age_seconds": 90
+  },
+  "installed_frontend_dependencies": {
+    "react": {
+      "version": "18.3.1",
+      "package_json_sha256": "d4e68a5c96babb20cad1daafea8b78822eae45b341552cf5418d06a5304fa64c"
+    },
+    "react-dom": {
+      "version": "18.3.1",
+      "package_json_sha256": "d2f29e31bd48b833e48cd7bbf41f192e8ee4ff8da249fdbe10d4ac4114b8b12e"
+    },
+    "@types/react": {
+      "version": "18.3.18",
+      "package_json_sha256": "757f5975d90d245b977f475cf18654d543e5a3019028d934333e68f33b68cd93"
+    },
+    "@types/react-dom": {
+      "version": "18.3.5",
+      "package_json_sha256": "bdecb35ed9f8237d6258e98518ebbfe16057a2be300e313ad1844082a8eaa159"
+    },
+    "typescript": {
+      "version": "5.7.3",
+      "package_json_sha256": "1e03325943793f3bf11667b94fca412fe5ba617c85b84c16f0474933da156baa"
+    },
+    "vite": {
+      "version": "8.3.2",
+      "package_json_sha256": "2b906339263f24e9be4219f93d966b4bcf0d4141adc05939a537c3a8fd6f760a"
+    }
+  },
+  "commands": [
+    "uv run --offline --no-project tests/fixtures/stream-b/check-leaves.py",
+    "cp docs/rewrite-evidence/p04/2026-10-16-network-egress/harness/Cargo.lock .cache/stream-b-leaf/Cargo.lock",
+    "cargo test --offline --locked --manifest-path .cache/stream-b-leaf/Cargo.toml",
+    "cargo clippy --offline --locked --manifest-path .cache/stream-b-leaf/Cargo.toml --all-targets -- -D warnings",
+    "rustfmt --edition 2024 --check --config skip_children=true crates/api/src/deployment.rs crates/api/src/deployment/network_tests.rs",
+    "npm run check (cwd frontend, pinned node_modules symlink removed afterward)",
+    "uv run --offline --no-project .cache/network-ui/check-frontend.py",
+    "node /home/marc/Documents/github/lime-os/frontend/node_modules/vite/bin/vite.js build --config .cache/network-ui/vite.config.mjs",
+    "uv run --offline --no-project .cache/network-ui/verify-harness.py"
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5\n",
+    "cargo": "cargo 1.88.0 (873a06493 2025-05-10)\nrelease: 1.88.0\ncommit-hash: 873a0649350c486caf67be772828a4f36bb4734c\ncommit-date: 2025-05-10\nhost: x86_64-unknown-linux-gnu\nlibgit2: 1.9.0 (sys:0.20.0 vendored)\nlibcurl: 8.12.1-DEV (sys:0.4.80+curl-8.12.1 vendored ssl:OpenSSL/3.4.1)\nssl: OpenSSL 3.4.1 11 Feb 2025\nos: Fedora 43.0.0 [64-bit]\n",
+    "node": "v22.14.0\n",
+    "uv": "uv 0.11.25 (x86_64-unknown-linux-gnu)\n"
+  },
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "2",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+    "npm_config_cache": "/home/marc/Documents/github/lime-os/.cache/npm"
+  },
+  "visual_inspection": {
+    "attempted": "cua.createBrowserTab(iab, http://127.0.0.1:5197/)",
+    "error": "Browser is not available: iab",
+    "cua_list_browsers": [],
+    "visual_inspection": "Unavailable; no browser acceptance claimed",
+    "temporary_loopback_server": "Started for synthetic fixture preview, then stopped"
+  },
+  "preview_scope": "Standalone synthetic view bundle only, not the mounted authenticated panel, production dashboard or a browser render",
+  "limits": "Local cached-handler/wire/controller/markup checks; protected cache/backend, production routes/middleware/contracts/shell, installed/browser lifetime, budgets/recovery/ARM64/performance/soak/Pi and defect/P04/cutover acceptance remain open"
+}
