@@ -1,0 +1,138 @@
+{
+  "source": "1dbcdda81a2d6d119d5b59ba762a389e17c0fc1b",
+  "base": "f8aec4ab4308747f173b6b385ce7a262d73c9791",
+  "source_committed_after_checks_without_intervening_product_changes": true,
+  "frontend": {
+    "files": [
+      {
+        "file": "frontend/tests/api.mjs",
+        "tests": 4,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/automation-controller.test.mjs",
+        "tests": 14,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/automation.test.mjs",
+        "tests": 10,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/media-activity-client.test.mjs",
+        "tests": 29,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/media-activity.test.mjs",
+        "tests": 10,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/network-groups.test.mjs",
+        "tests": 34,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/observations.test.mjs",
+        "tests": 4,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/stack-discovery.test.mjs",
+        "tests": 18,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/tools-status.test.mjs",
+        "tests": 38,
+        "exit_code": 0
+      }
+    ],
+    "tests": 161
+  },
+  "new_tools_cases": 38,
+  "input_count": 228,
+  "input_scope": "Frontend source/contracts/fixture superset, including unchanged Rust wire references; no Rust test rerun",
+  "unchanged_groups_from_base": [
+    "crates",
+    "bins",
+    "tests/fixtures",
+    "contracts",
+    "Cargo.toml",
+    "Cargo.lock"
+  ],
+  "protected_frontend_paths_unchanged": [
+    "frontend/src/Dashboard.tsx",
+    "frontend/src/api.ts",
+    "frontend/src/style.css",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/tsconfig.json"
+  ],
+  "installed_frontend_dependencies": {
+    "react": {
+      "version": "18.3.1",
+      "package_json_sha256": "d4e68a5c96babb20cad1daafea8b78822eae45b341552cf5418d06a5304fa64c"
+    },
+    "react-dom": {
+      "version": "18.3.1",
+      "package_json_sha256": "d2f29e31bd48b833e48cd7bbf41f192e8ee4ff8da249fdbe10d4ac4114b8b12e"
+    },
+    "@types/react": {
+      "version": "18.3.18",
+      "package_json_sha256": "757f5975d90d245b977f475cf18654d543e5a3019028d934333e68f33b68cd93"
+    },
+    "@types/react-dom": {
+      "version": "18.3.5",
+      "package_json_sha256": "bdecb35ed9f8237d6258e98518ebbfe16057a2be300e313ad1844082a8eaa159"
+    },
+    "typescript": {
+      "version": "5.7.3",
+      "package_json_sha256": "1e03325943793f3bf11667b94fca412fe5ba617c85b84c16f0474933da156baa"
+    },
+    "vite": {
+      "version": "8.3.2",
+      "package_json_sha256": "2b906339263f24e9be4219f93d966b4bcf0d4141adc05939a537c3a8fd6f760a"
+    }
+  },
+  "bounds": {
+    "streamed_response_bytes": 8192,
+    "read_deadline_ms": 12000,
+    "inclusive_original_component_age_seconds": 90,
+    "path_bytes": 512,
+    "port_min": 1,
+    "port_max": 65535
+  },
+  "commands": [
+    "npm run check (cwd frontend, temporary pinned node_modules symlink removed afterward)",
+    "uv run --offline --no-project .cache/tools-ui/check-frontend.py",
+    "node /home/marc/Documents/github/lime-os/frontend/node_modules/vite/bin/vite.js build --config .cache/tools-ui/vite.config.mjs",
+    "uv run --offline --no-project --with ruff==0.17.0 ruff check .cache/tools-ui/check-frontend.py .cache/tools-ui/package-evidence.py",
+    "git diff --check"
+  ],
+  "toolchain": {
+    "node": "v22.14.0\n",
+    "npm": "11.2.0\n",
+    "uv": "uv 0.11.25 (x86_64-unknown-linux-gnu)\n"
+  },
+  "environment": {
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv",
+    "npm_config_cache": "/home/marc/Documents/github/lime-os/.cache/npm",
+    "frontend_suites": "sequential, one file at a time"
+  },
+  "visual_qa": {
+    "tool": "cua.getState",
+    "result": {
+      "apps": [],
+      "browsers": []
+    },
+    "visual_qa": "unavailable",
+    "screenshots": 0,
+    "preview_server_started": false
+  },
+  "preview_scope": "Standalone synthetic current/partially-expired/unavailable views; no mounted authenticated panel or browser render; bundle size is not performance qualification",
+  "limits": "Local DTO/transport/controller/static-markup/owner-key checks only. Protected cache/current authority/host lifetime, production contracts/shell/route registration, browser React lifecycle/visual/installed acceptance and effects/recovery/ARM64/Pi/performance/soak/defect/P04/cutover gates remain open."
+}
