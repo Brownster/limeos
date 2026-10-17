@@ -162,6 +162,35 @@ def number(value):
 
 def block_family(device, sysroot=Path("/sys")):
     """Bound partition/whole-device/slave/holder ancestry; unknown evidence fails."""
+    sysroot = sysroot.resolve(strict=True)
+
+    def partition_parent(path, current):
+        require(
+            (sysroot / "dev/block" / current).resolve(strict=True) == path
+            and read(path / "dev", 32).decode().strip() == current,
+            "partition identity changed",
+        )
+        marker = path / "partition"
+        require(stat.S_ISREG(marker.lstat().st_mode), "unsafe partition attribute")
+        require(
+            re.fullmatch(r"[1-9][0-9]*", read(marker, 32).decode().strip()) is not None,
+            "invalid partition index",
+        )
+        parent = path.parent
+        parent_id = read(parent / "dev", 32).decode().strip()
+        require(
+            re.fullmatch(r"(0|[1-9][0-9]*):(0|[1-9][0-9]*)", parent_id) is not None
+            and parent_id != current,
+            "invalid partition parent identity",
+        )
+        require(
+            not (parent / "partition").exists()
+            and not (parent / "partition").is_symlink()
+            and (sysroot / "dev/block" / parent_id).resolve(strict=True) == parent,
+            "ambiguous partition parent",
+        )
+        return parent_id
+
     pending = [device]
     found = set()
     while pending:
@@ -178,10 +207,25 @@ def block_family(device, sysroot=Path("/sys")):
             not path.name.startswith(("loop", "dm-", "md")), "unsupported block stack"
         )
         found.add(current)
-        if (path / "partition").exists():
-            pending.append((path.parent / "dev").read_text().strip())
+        parent_id = None
+        if (path / "partition").exists() or (path / "partition").is_symlink():
+            parent_id = partition_parent(path, current)
+            pending.append(parent_id)
         for relation in ("slaves", "holders"):
-            entries = list((path / relation).iterdir())
+            try:
+                entries = list((path / relation).iterdir())
+            except FileNotFoundError:
+                if (
+                    relation != "slaves"
+                    or parent_id is None
+                    or (path / relation).is_symlink()
+                ):
+                    raise
+                require(
+                    partition_parent(path, current) == parent_id,
+                    "partition ancestry changed",
+                )
+                entries = []
             require(len(entries) <= 8, "ambiguous block relationships")
             for entry in entries:
                 pending.append((entry.resolve(strict=True) / "dev").read_text().strip())
@@ -609,6 +653,205 @@ def expect(status, response):
         f"unexpected API status {response[0]}, expected {status}: {canonical(response[2])[:1000]}",
     )
     return response[2]
+
+
+def refusal(status, code, response):
+    body = expect(status, response)
+    require(
+        isinstance(body, dict)
+        and body.get("code") == code
+        and body.get("retry") is False,
+        "expected exact non-retryable API refusal cause",
+    )
+    return {"status": status, "code": code, "retry": False}
+
+
+def unmounted_source_digest(facts):
+    """Read only the guarded partition, with fixed-size streaming and a hard cap."""
+    size = int(read("/sys/class/block/vde1/size", 32).decode()) * 512
+    require(0 < size <= 128 * 1024 * 1024, "partition exceeds fixture read bound")
+    descriptor = os.open(SOURCE, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    with os.fdopen(descriptor, "rb", buffering=0) as stream:
+        identity = os.fstat(stream.fileno())
+        require(
+            stat.S_ISBLK(identity.st_mode)
+            and number(identity.st_rdev) == facts["source_device"],
+            "pre-effect source identity changed",
+        )
+        checksum = hashlib.sha256()
+        remaining = size
+        while remaining:
+            chunk = stream.read(min(64 * 1024, remaining))
+            require(chunk, "pre-effect source became truncated")
+            checksum.update(chunk)
+            remaining -= len(chunk)
+        require(not stream.read(1), "pre-effect source size changed")
+    return {"bytes": size, "sha256": checksum.hexdigest()}
+
+
+def pre_effect_snapshot(facts):
+    table = mounts()
+    require(
+        not any(
+            row["device"] == facts["source_device"]
+            or row["target"] == str(TARGET)
+            or row["target"].startswith(str(TARGET) + "/")
+            for row in table
+        ),
+        "pre-effect refusal mounted the source or target",
+    )
+    require(not any(TARGET.iterdir()), "pre-effect target is no longer empty")
+    root_counts = [0, 0]
+    if ROOT_DB.exists():
+        root_counts = [
+            query(ROOT_DB, f"SELECT count(*) FROM {name}")[0][0]
+            for name in ("receipts", "locks")
+        ]
+    require(root_counts == [0, 0], "pre-effect root action receipt/claim appeared")
+    return {
+        "authority": authority_snapshot(),
+        "root_receipts_and_claims": root_counts,
+        "mount_table_sha256": text_digest(canonical(table)),
+        "source": unmounted_source_digest(facts),
+        "target": directory(TARGET),
+        "fstab_sha256": digest(Path("/etc/fstab")),
+        "configuration_sha256": {
+            str(path): digest(path) for path in [*CONFIGURATION.values(), POLICY]
+        },
+        "other_data": {
+            name: {
+                "root": directory(Path("/mnt") / name),
+                "sentinel": unchanged_file(Path("/mnt") / name / "sentinel"),
+            }
+            for name in ("data", "data2", "downloads", "parity")
+        },
+    }
+
+
+def pre_effect_unchanged(before, after):
+    preserved_authority(before["authority"], after["authority"])
+    require(
+        {key: value for key, value in before.items() if key != "authority"}
+        == {key: value for key, value in after.items() if key != "authority"},
+        "pre-effect refusal changed mount, fstab, target, configuration or data",
+    )
+
+
+def pre_effect_refusals(facts, device, cookie, csrf, prior_authority):
+    """Use real API authority; leave the cancelled plan intact and create no job."""
+    before = pre_effect_snapshot(facts)
+    preserved_authority(prior_authority, before["authority"])
+    checks = []
+
+    def record(name, responses):
+        pre_effect_unchanged(before, pre_effect_snapshot(facts))
+        checks.append({"case": name, "responses": responses, "no_effect": True})
+
+    record(
+        "extra_path_field",
+        [
+            refusal(
+                400,
+                "invalid_input",
+                api(
+                    BASE + "/plans",
+                    "POST",
+                    {"target_id": device["id"], "mountpoint": "/mnt/unapproved"},
+                    cookie,
+                    csrf,
+                ),
+            )
+        ],
+    )
+    proposal = expect(
+        201, api(BASE + "/plans", "POST", {"target_id": device["id"]}, cookie, csrf)
+    )
+    require(
+        proposal["plan"]["effect"]["device"] == device
+        and proposal["digest"] == text_digest(canonical(proposal["plan"]))
+        and re.fullmatch(r"[0-9a-f]{64}", proposal["digest"]),
+        "negative case requires a genuine reviewed plan",
+    )
+    plan_path = BASE + f"/plans/{proposal['plan']['id']}"
+    changed = ("0" if proposal["digest"][0] != "0" else "1") + proposal["digest"][1:]
+    record(
+        "tampered_approval_digest",
+        [
+            refusal(
+                409,
+                "conflict",
+                api(plan_path + "/approval", "POST", {"digest": changed}, cookie, csrf),
+            )
+        ],
+    )
+    approval = expect(
+        200,
+        api(
+            plan_path + "/approval",
+            "POST",
+            {"digest": proposal["digest"]},
+            cookie,
+            csrf,
+        ),
+    )
+    require(
+        isinstance(approval, dict)
+        and isinstance(approval.get("token"), str)
+        and re.fullmatch(r"[0-9a-f]{64}", approval["token"]),
+        "negative case requires genuine approval authority",
+    )
+    expect(204, api(plan_path + "/cancel", "POST", cookie=cookie, csrf=csrf))
+    record(
+        "cancelled_approved_plan",
+        [
+            refusal(
+                404,
+                "not_found",
+                api(
+                    plan_path + "/approval",
+                    "POST",
+                    {"digest": proposal["digest"]},
+                    cookie,
+                    csrf,
+                ),
+            ),
+            refusal(
+                404,
+                "not_found",
+                api(
+                    BASE + "/jobs",
+                    "POST",
+                    {
+                        "proposal": proposal,
+                        "approval": approval["token"],
+                        "idempotency_key": "a1-cancelled-plan-must-not-queue",
+                    },
+                    cookie,
+                    csrf,
+                ),
+            ),
+        ],
+    )
+    require(
+        query(
+            CORE_DB,
+            "SELECT canceled,job,approval_digest,digest FROM storage_mount_plans WHERE id=?",
+            (proposal["plan"]["id"],),
+        )
+        == [(1, None, None, proposal["digest"])],
+        "cancelled plan was removed, reused or retained approval authority",
+    )
+    # Plan/audit records may grow; jobs, claims, receipts and immutable data may not.
+    return {
+        "cases": checks,
+        "baseline_without_authority": {
+            key: value for key, value in before.items() if key != "authority"
+        },
+        "prior_jobs": len(before["authority"]["jobs"]),
+        "prior_claims": len(before["authority"]["claims"]),
+        "cancelled_plan": proposal["plan"]["id"],
+        "cancelled_plan_preserved": True,
+    }
 
 
 def login():
@@ -1253,6 +1496,10 @@ def qualify(repo, output, package_version, authority_schema):
         require(
             expect(200, api(BASE + "/targets", cookie=cookie)) == {"targets": [device]},
             "catalog differs from exact managed selection",
+        )
+        result["stage"] = "pre_effect_api_refusals"
+        result["pre_effect"] = pre_effect_refusals(
+            facts, device, cookie, csrf, result["authority_before"]
         )
         result["stage"] = "human_plan_approval_queue"
         require(
