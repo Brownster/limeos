@@ -1,6 +1,10 @@
 # A1 registered mount UI lifetime repair
 
-Tested product source: `7bdc36b4bd297ce80e4837c72ac96c07e9938ddd`.
+Initial tested product source: `7bdc36b4bd297ce80e4837c72ac96c07e9938ddd`.
+The cleanup-phase correction is tested at
+`d7b9efbfe609aab26c138b2f19b6f8a1938d3ef1`; its
+[separate packet](rewrite-evidence/p04/2026-10-17-a1-layout-lifetime/README.md)
+retains the same 129-case scope and production build result.
 
 Stream A assistance on `engineer/p04-a1-ui-lifetime`, based on main `7df3f75`.
 This repair is wired through the existing `StorageMounts` component and existing
@@ -82,6 +86,13 @@ visible-page history cadence. Reads coalesce and stop after disposal/access
 loss. Modal close/Escape is disabled during a bounded submission; it is not
 labelled as job cancellation. Loading/error history no longer renders **No recent
 mount jobs** as if a complete empty read succeeded.
+
+Browser lifetime startup/disposal uses layout effect cleanup, so ownership ends
+during the unmount commit before pending promise continuations. Static rendering
+uses the passive hook and starts no owner. The pinned React DOM 18.3.1 source
+distinguishes synchronous layout destruction from the later passive-effects
+flush; this source review exposed the gap in the initial passive cleanup. No
+actual browser lifecycle evidence is claimed by that review or the local tests.
 
 ## Ownership and acceptance handoff
 
