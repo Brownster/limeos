@@ -130,7 +130,7 @@ fn load(conn: &Connection, id: &str) -> Result<Option<Stored>> {
         schedule,
     }))
 }
-fn view(conn: &Connection, row: &Stored) -> Result<ScheduleView> {
+fn view(conn: &Connection, row: &Stored, actor: &Principal) -> Result<ScheduleView> {
     let last: Option<LastOccurrence> = conn.query_row(
         "SELECT o.revision,o.due,o.settlement,o.job,j.state FROM automation_occurrences o LEFT JOIN jobs j ON j.id=o.job WHERE o.schedule=? ORDER BY o.revision DESC,o.due DESC LIMIT 1",
         [&row.schedule.id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?)),
@@ -158,10 +158,25 @@ fn view(conn: &Connection, row: &Stored) -> Result<ScheduleView> {
         .transpose()?;
     let status = if row.schedule.paused {
         ScheduleStatus::Paused
-    } else if row.schedule.definition.operation.observation_only() {
-        ScheduleStatus::Active
-    } else {
+    } else if !row.schedule.definition.operation.observation_only() {
         ScheduleStatus::Blocked
+    } else {
+        let grants = identity_store::current_grants(conn, actor)?;
+        let management = limeos_policy::authorize(
+            actor,
+            &grants,
+            &Scope {
+                operation: Operation::AutomationManage,
+                resource: "automation:observe-health".into(),
+            },
+        );
+        match management {
+            Ok(()) if row.owner_revision == actor.grant_revision => {
+                ScheduleStatus::AwaitingProducer
+            }
+            Ok(()) | Err(Error(ErrorCode::Forbidden)) => ScheduleStatus::AuthoritySuspended,
+            Err(error) => return Err(error),
+        }
     };
     let value = ScheduleView {
         schedule: row.schedule.clone(),
@@ -208,6 +223,195 @@ fn sized<T: serde::Serialize>(value: &T, limit: usize) -> Result<usize> {
     Ok(counter.used)
 }
 
+fn create_schedule(
+    tx: &Transaction<'_>,
+    actor: &Principal,
+    input: &CreateSchedule,
+    now: i64,
+) -> Result<ScheduleView> {
+    time(now)?;
+    input.definition.validate()?;
+    let mut definition = input.definition.clone();
+    definition.anchor = now;
+    let body = json(&definition)?;
+    if body.len() > DEFINITION_BYTES {
+        return Err(Error(ErrorCode::InvalidInput));
+    }
+    let id = limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?;
+    authorize(tx, actor, true)?;
+    let count: i64 = tx
+        .query_row("SELECT count(*) FROM automation_schedules", [], |r| {
+            r.get(0)
+        })
+        .map_err(durable)?;
+    if count >= MAX_SCHEDULES as i64 {
+        return Err(Error(ErrorCode::Overloaded));
+    }
+    audit_capacity(tx, 1)?;
+    tx.execute(
+        "INSERT INTO automation_schedules VALUES(?,?,?,?,1,?,?,0,NULL,?,?)",
+        params![
+            id,
+            actor.id,
+            POLICY,
+            actor.grant_revision,
+            operation(definition.operation),
+            body,
+            now,
+            now
+        ],
+    )
+    .map_err(durable)?;
+    event(
+        tx,
+        Some(&actor.id),
+        None,
+        EventKind::AutomationScheduleCreated {
+            schedule: id.clone(),
+        },
+        now,
+    )?;
+    view(
+        tx,
+        &load(tx, &id)?.ok_or(Error(ErrorCode::StateNotDurable))?,
+        actor,
+    )
+}
+fn pause_schedule(
+    tx: &Transaction<'_>,
+    actor: &Principal,
+    id: &str,
+    input: &PauseSchedule,
+    now: i64,
+) -> Result<ScheduleView> {
+    time(now)?;
+    if !limeos_domain::opaque_id(id) || !(1..=MAX_REVISION).contains(&input.revision) {
+        return Err(Error(ErrorCode::InvalidInput));
+    }
+    authorize(tx, actor, true)?;
+    let row = load(tx, id)?
+        .filter(|r| r.owner == actor.id)
+        .ok_or(Error(ErrorCode::NotFound))?;
+    if row.schedule.revision != input.revision {
+        return Err(Error(ErrorCode::Conflict));
+    }
+    if row.schedule.paused == input.paused && row.owner_revision == actor.grant_revision {
+        return view(tx, &row, actor);
+    }
+    let revision = row
+        .schedule
+        .revision
+        .checked_add(1)
+        .filter(|r| *r <= MAX_REVISION)
+        .ok_or(Error(ErrorCode::StateNotDurable))?;
+    let mut definition = row.schedule.definition.clone();
+    let owner_revision = if input.paused {
+        row.owner_revision
+    } else {
+        definition.anchor = now;
+        actor.grant_revision
+    };
+    let mut stmt=tx.prepare("SELECT j.id FROM automation_occurrences o JOIN jobs j ON j.id=o.job WHERE o.schedule=? AND j.state='queued' ORDER BY j.id LIMIT 65").map_err(durable)?;
+    let jobs = stmt
+        .query_map([id], |r| r.get::<_, String>(0))
+        .map_err(durable)?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(durable)?;
+    if jobs.len() > QUEUE_CAPACITY {
+        return Err(Error(ErrorCode::StateNotDurable));
+    }
+    audit_capacity(tx, jobs.len() + 1)?;
+    for job in jobs {
+        if tx
+            .execute(
+                "UPDATE jobs SET state='canceled' WHERE id=? AND state='queued'",
+                [&job],
+            )
+            .map_err(durable)?
+            != 1
+        {
+            return Err(Error(ErrorCode::Conflict));
+        }
+        event(
+            tx,
+            Some(&actor.id),
+            Some(&job),
+            EventKind::JobTransition {
+                state: JobState::Canceled,
+            },
+            now,
+        )?;
+    }
+    if tx.execute("UPDATE automation_schedules SET revision=?,owner_revision=?,paused=?,definition=?,settled_through=NULL,updated=? WHERE id=? AND revision=?",params![revision,owner_revision,input.paused,json(&definition)?,now,id,input.revision]).map_err(durable)?!=1 { return Err(Error(ErrorCode::Conflict)); }
+    event(
+        tx,
+        Some(&actor.id),
+        None,
+        EventKind::AutomationScheduleChanged {
+            schedule: id.into(),
+            revision,
+        },
+        now,
+    )?;
+    view(
+        tx,
+        &load(tx, id)?.ok_or(Error(ErrorCode::StateNotDurable))?,
+        actor,
+    )
+}
+fn schedule_page(
+    conn: &Connection,
+    actor: &Principal,
+    after: Option<&str>,
+    observe_only: bool,
+) -> Result<AutomationPage<ScheduleView>> {
+    authorize(conn, actor, false)?;
+    if after.is_some_and(|id| !limeos_domain::opaque_id(id)) {
+        return Err(Error(ErrorCode::InvalidInput));
+    }
+    let mut stmt = conn
+            .prepare(
+                if observe_only {
+                    "SELECT id FROM automation_schedules WHERE owner=? AND id>? AND operation='observe_health' ORDER BY id LIMIT 33"
+                } else {
+                    "SELECT id FROM automation_schedules WHERE owner=? AND id>? ORDER BY id LIMIT 33"
+                },
+            )
+            .map_err(durable)?;
+    let ids = stmt
+        .query_map(params![actor.id, after.unwrap_or("")], |r| {
+            r.get::<_, String>(0)
+        })
+        .map_err(durable)?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(durable)?;
+    let mut items = Vec::new();
+    let mut used = 256;
+    for id in ids.iter().take(MAX_TICK_SCHEDULES) {
+        let row = load(conn, id)?.ok_or(Error(ErrorCode::StateNotDurable))?;
+        let value = view(conn, &row, actor)?;
+        if used >= PAGE_BYTES {
+            break;
+        }
+        match sized(&value, PAGE_BYTES - used - 1) {
+            Ok(size) => used += size + 1,
+            Err(_) if !items.is_empty() => break,
+            Err(error) => return Err(error),
+        }
+        items.push(value);
+    }
+    let next = if items.len() < ids.len() {
+        items.last().map(|v| v.schedule.id.clone())
+    } else {
+        None
+    };
+    Ok(AutomationPage {
+        items,
+        next,
+        partial: false,
+    })
+}
+
 impl Store {
     pub fn automation_create(
         &mut self,
@@ -215,54 +419,7 @@ impl Store {
         input: &CreateSchedule,
         now: i64,
     ) -> Result<ScheduleView> {
-        time(now)?;
-        input.definition.validate()?;
-        let mut definition = input.definition.clone();
-        definition.anchor = now;
-        let body = json(&definition)?;
-        if body.len() > DEFINITION_BYTES {
-            return Err(Error(ErrorCode::InvalidInput));
-        }
-        let id = limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?;
-        self.write(|tx| {
-            authorize(tx, actor, true)?;
-            let count: i64 = tx
-                .query_row("SELECT count(*) FROM automation_schedules", [], |r| {
-                    r.get(0)
-                })
-                .map_err(durable)?;
-            if count >= MAX_SCHEDULES as i64 {
-                return Err(Error(ErrorCode::Overloaded));
-            }
-            audit_capacity(tx, 1)?;
-            tx.execute(
-                "INSERT INTO automation_schedules VALUES(?,?,?,?,1,?,?,0,NULL,?,?)",
-                params![
-                    id,
-                    actor.id,
-                    POLICY,
-                    actor.grant_revision,
-                    operation(definition.operation),
-                    body,
-                    now,
-                    now
-                ],
-            )
-            .map_err(durable)?;
-            event(
-                tx,
-                Some(&actor.id),
-                None,
-                EventKind::AutomationScheduleCreated {
-                    schedule: id.clone(),
-                },
-                now,
-            )?;
-            view(
-                tx,
-                &load(tx, &id)?.ok_or(Error(ErrorCode::StateNotDurable))?,
-            )
-        })
+        self.write(|tx| create_schedule(tx, actor, input, now))
     }
     pub fn automation_pause(
         &mut self,
@@ -271,83 +428,14 @@ impl Store {
         input: &PauseSchedule,
         now: i64,
     ) -> Result<ScheduleView> {
-        time(now)?;
-        if !limeos_domain::opaque_id(id) || !(1..=MAX_REVISION).contains(&input.revision) {
-            return Err(Error(ErrorCode::InvalidInput));
-        }
-        self.write(|tx| {
-            authorize(tx,actor,true)?;
-            let row=load(tx,id)?.filter(|r|r.owner==actor.id).ok_or(Error(ErrorCode::NotFound))?;
-            if row.schedule.revision!=input.revision { return Err(Error(ErrorCode::Conflict)); }
-            if row.schedule.paused==input.paused && row.owner_revision==actor.grant_revision { return view(tx,&row); }
-            let revision=row.schedule.revision.checked_add(1).filter(|r|*r<=MAX_REVISION).ok_or(Error(ErrorCode::StateNotDurable))?;
-            let mut definition=row.schedule.definition.clone();
-            let owner_revision=if input.paused { row.owner_revision } else { definition.anchor=now; actor.grant_revision };
-            let mut stmt=tx.prepare("SELECT j.id FROM automation_occurrences o JOIN jobs j ON j.id=o.job WHERE o.schedule=? AND j.state='queued' ORDER BY j.id LIMIT 65").map_err(durable)?;
-            let jobs=stmt.query_map([id],|r|r.get::<_,String>(0)).map_err(durable)?.collect::<std::result::Result<Vec<_>,_>>().map_err(durable)?;
-            if jobs.len()>QUEUE_CAPACITY { return Err(Error(ErrorCode::StateNotDurable)); }
-            audit_capacity(tx,jobs.len()+1)?;
-            for job in jobs {
-                if tx.execute("UPDATE jobs SET state='canceled' WHERE id=? AND state='queued'",[&job]).map_err(durable)?!=1 { return Err(Error(ErrorCode::Conflict)); }
-                event(tx,Some(&actor.id),Some(&job),EventKind::JobTransition { state:JobState::Canceled },now)?;
-            }
-            if tx.execute("UPDATE automation_schedules SET revision=?,owner_revision=?,paused=?,definition=?,settled_through=NULL,updated=? WHERE id=? AND revision=?",params![revision,owner_revision,input.paused,json(&definition)?,now,id,input.revision]).map_err(durable)?!=1 { return Err(Error(ErrorCode::Conflict)); }
-            event(tx,Some(&actor.id),None,EventKind::AutomationScheduleChanged { schedule:id.into(),revision },now)?;
-            view(tx,&load(tx,id)?.ok_or(Error(ErrorCode::StateNotDurable))?)
-        })
+        self.write(|tx| pause_schedule(tx, actor, id, input, now))
     }
     pub fn automation_schedules(
         &self,
         actor: &Principal,
         after: Option<&str>,
     ) -> Result<AutomationPage<ScheduleView>> {
-        authorize(&self.conn, actor, false)?;
-        if after.is_some_and(|id| !limeos_domain::opaque_id(id)) {
-            return Err(Error(ErrorCode::InvalidInput));
-        }
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT id FROM automation_schedules WHERE owner=? AND id>? ORDER BY id LIMIT 33",
-            )
-            .map_err(durable)?;
-        let ids = stmt
-            .query_map(params![actor.id, after.unwrap_or("")], |r| {
-                r.get::<_, String>(0)
-            })
-            .map_err(durable)?
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .map_err(durable)?;
-        let mut items = Vec::new();
-        let mut used = 256;
-        for id in ids.iter().take(MAX_TICK_SCHEDULES) {
-            let row = load(&self.conn, id)?.ok_or(Error(ErrorCode::StateNotDurable))?;
-            // The current wire shape has no authority-blocked status. Never label
-            // an unpaused schedule active after its owner's revision changed.
-            if !row.schedule.paused && row.owner_revision != actor.grant_revision {
-                return Err(Error(ErrorCode::Expired));
-            }
-            let value = view(&self.conn, &row)?;
-            if used >= PAGE_BYTES {
-                break;
-            }
-            match sized(&value, PAGE_BYTES - used - 1) {
-                Ok(size) => used += size + 1,
-                Err(_) if !items.is_empty() => break,
-                Err(error) => return Err(error),
-            }
-            items.push(value);
-        }
-        let next = if items.len() < ids.len() {
-            items.last().map(|v| v.schedule.id.clone())
-        } else {
-            None
-        };
-        Ok(AutomationPage {
-            items,
-            next,
-            partial: false,
-        })
+        schedule_page(&self.conn, actor, after, false)
     }
     /// Internal scheduling hints only; actual reserve reloads current authority.
     pub fn automation_schedule_page(
@@ -548,6 +636,8 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
     }
     Ok(())
 }
+
+mod management;
 
 #[cfg(test)]
 mod tests;

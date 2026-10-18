@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AutomationPage",
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ScheduleView"
+      }
+    },
+    "next": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "partial": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "items",
+    "partial"
+  ],
+  "$defs": {
+    "JobState": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "waiting_approval",
+        "queued",
+        "running",
+        "verifying",
+        "succeeded",
+        "failed",
+        "canceled",
+        "precondition_changed",
+        "outcome_unknown",
+        "needs_intervention"
+      ]
+    },
+    "MaintenanceWindow": {
+      "description": "UTC minutes. Start is inclusive, end exclusive; a crossing window spans midnight.",
+      "type": "object",
+      "properties": {
+        "end_minute": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "start_minute": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "start_minute",
+        "end_minute"
+      ]
+    },
+    "MissedRunPolicy": {
+      "type": "string",
+      "enum": [
+        "coalesce_latest",
+        "skip"
+      ]
+    },
+    "OccurrenceKey": {
+      "type": "object",
+      "properties": {
+        "due": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "schedule": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schedule",
+        "revision",
+        "due"
+      ]
+    },
+    "OccurrenceOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "outcome": {
+              "type": "string",
+              "const": "job"
+            },
+            "state": {
+              "$ref": "#/$defs/JobState"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "outcome",
+            "id",
+            "state"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "blocked"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "outcome"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "skipped"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "outcome"
+          ]
+        }
+      ]
+    },
+    "OccurrenceView": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/OccurrenceKey"
+        },
+        "outcome": {
+          "$ref": "#/$defs/OccurrenceOutcome"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "outcome"
+      ]
+    },
+    "Schedule": {
+      "type": "object",
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/ScheduleDefinition"
+        },
+        "id": {
+          "type": "string"
+        },
+        "paused": {
+          "type": "boolean"
+        },
+        "revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "settled_through": {
+          "description": "Last atomically settled occurrence, including skipped/blocked ones.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "revision",
+        "paused",
+        "definition"
+      ]
+    },
+    "ScheduleDefinition": {
+      "type": "object",
+      "properties": {
+        "anchor": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "grace_seconds": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "interval_seconds": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "missed": {
+          "$ref": "#/$defs/MissedRunPolicy"
+        },
+        "operation": {
+          "$ref": "#/$defs/ScheduledOperation"
+        },
+        "window": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MaintenanceWindow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "anchor",
+        "interval_seconds",
+        "grace_seconds",
+        "missed"
+      ]
+    },
+    "ScheduleStatus": {
+      "type": "string",
+      "enum": [
+        "awaiting_producer",
+        "authority_suspended",
+        "paused",
+        "blocked"
+      ]
+    },
+    "ScheduleView": {
+      "type": "object",
+      "properties": {
+        "last_occurrence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OccurrenceView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schedule": {
+          "$ref": "#/$defs/Schedule"
+        },
+        "status": {
+          "$ref": "#/$defs/ScheduleStatus"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schedule",
+        "status"
+      ]
+    },
+    "ScheduledOperation": {
+      "type": "string",
+      "enum": [
+        "observe_health",
+        "backup",
+        "protection_sync",
+        "protection_scrub",
+        "container_update",
+        "package_reconcile"
+      ]
+    }
+  }
+}

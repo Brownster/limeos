@@ -303,8 +303,8 @@ fn changed_current_grant_revision_cannot_reserve_or_appear_active() {
         Reservation::Stale
     );
     assert_eq!(
-        store.automation_schedules(&current, None),
-        Err(Error(ErrorCode::Expired))
+        store.automation_schedules(&current, None).unwrap().items[0].status,
+        ScheduleStatus::AuthoritySuspended
     );
     let rebound = store
         .automation_pause(
