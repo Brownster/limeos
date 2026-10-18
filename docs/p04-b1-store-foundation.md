@@ -97,9 +97,13 @@ that execution or cleanup occurred.
 
 Registration still requires reviewed solutions for these boundaries:
 
-- Authenticated grant provisioning: the internal `revise_grants` primitive is
-  not an authorizing API. No direct exposure, raw SQL or silent default grant
-  substitutes for that missing seam.
+- Capability provisioning: the subsequent [fixed self-enablement
+  endpoint](p04-observe-health-enablement.md) adds only the caller's literal
+  ObserveHealth management grant after password re-verification and current
+  identity-management/read authorization. Defaults remain unchanged. That
+  endpoint does not expose the internal `revise_grants` primitive or enable
+  observation dispatch; its source and qualification are recorded separately
+  from this foundation.
 - Per-resource read authority: `HealthRead(host:system)` alone cannot authorize
   every container or storage signal a future collector might return.
 - Genuine observation provenance and supervision: batches, job IDs and imported

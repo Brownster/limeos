@@ -48,6 +48,14 @@ fn main() {
         };
     }
     emit!("core-request", limeos_contracts::CoreRequest);
+    emit!(
+        "observe-health-enable",
+        limeos_contracts::ObserveHealthEnable
+    );
+    emit!(
+        "observe-health-enabled",
+        limeos_contracts::ObserveHealthEnabled
+    );
     emit!("core-response", limeos_contracts::CoreResponse);
     emit!("executor-request", limeos_executor_protocol::Request);
     emit!("executor-ceiling", limeos_executor_protocol::Ceiling);
@@ -253,6 +261,8 @@ fn main() {
     ts!(limeos_domain::EventKind);
     ts!(limeos_domain::Event);
     ts!(limeos_contracts::Login);
+    ts!(limeos_contracts::ObserveHealthEnable);
+    ts!(limeos_contracts::ObserveHealthEnabled);
     ts!(limeos_contracts::Enrollment);
     ts!(limeos_contracts::Health);
     ts!(limeos_contracts::SessionView);
@@ -286,6 +296,16 @@ fn main() {
         "/api/v1/auth/login":{"post":{"requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_contracts::Login)}}},"responses":{"200":{"description":"Secure session cookie and CSRF token","content":{"application/json":{"schema":schema_for!(limeos_contracts::SessionView)}}},"401":{"description":"Authentication failed"}}}},
         "/api/v1/auth/session":{"get":{"responses":{"200":{"description":"Current session","content":{"application/json":{"schema":schema_for!(limeos_contracts::SessionView)}}}}}},
         "/api/v1/auth/logout":{"post":{"responses":{"204":{"description":"Session revoked"}}}}
+    }});
+    openapi["paths"]["/api/v1/auth/capabilities/observe-health/enable"] = serde_json::json!({"post":{
+        "security":[{"session":[]}],
+        "description":"Reverify the current user's password (1–1024 UTF-8 bytes) and enable only that user's exact ObserveHealth management grant. Current IdentityManage and host-read grants are required. A changed grant invalidates prior sessions/tasks and requires a new login; an existing exact grant is a write-free no-op. Does not start automation.",
+        "parameters":[
+            {"name":"Origin","in":"header","required":true,"schema":{"type":"string"}},
+            {"name":"X-CSRF-Token","in":"header","required":true,"schema":{"type":"string","minLength":64,"maxLength":64}}
+        ],
+        "requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_contracts::ObserveHealthEnable)}}},
+        "responses":{"200":{"description":"Fixed self-enablement outcome; clear session cookie when reauthenticate is true","content":{"application/json":{"schema":schema_for!(limeos_contracts::ObserveHealthEnabled)}}}}
     }});
     for (path, schema) in [
         (

@@ -255,6 +255,7 @@ mod automation;
 mod backup_preparation;
 mod budgets;
 mod compose;
+mod identity_enablement;
 mod identity_store;
 mod jobs;
 mod plans;

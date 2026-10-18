@@ -20,6 +20,17 @@ pub struct Login {
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
+pub struct ObserveHealthEnable {
+    pub password: String,
+}
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct ObserveHealthEnabled {
+    pub enabled: bool,
+    pub reauthenticate: bool,
+}
+#[derive(Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
 pub struct Enrollment {
     pub token: String,
     pub username: String,

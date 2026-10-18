@@ -31,6 +31,24 @@ pub(super) fn current_grants(conn: &Connection, principal: &Principal) -> Result
     .collect()
 }
 
+pub(super) fn authenticate(
+    conn: &Connection,
+    digest: &str,
+    csrf: Option<&str>,
+    now: i64,
+) -> Result<Principal> {
+    let row: Option<(String,String,i64,String)> = conn.query_row("SELECT u.id,u.role,u.grant_revision,s.csrf_digest FROM sessions s JOIN users u ON u.id=s.principal WHERE s.digest=? AND s.expires>? AND s.revision=u.grant_revision",params![digest,now],|r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(durable)?;
+    let (id, role, grant_revision, csrf_digest) = row.ok_or(Error(ErrorCode::Unauthenticated))?;
+    if csrf.is_some_and(|c| !limeos_identity::constant_eq(c, &csrf_digest)) {
+        return Err(Error(ErrorCode::Forbidden));
+    }
+    Ok(Principal {
+        id,
+        role: parse(&role)?,
+        grant_revision,
+    })
+}
+
 impl Store {
     pub fn issue_bootstrap(&mut self, digest: &str, now: i64) -> Result<i64> {
         let expires = now.checked_add(900).ok_or(Error(ErrorCode::InvalidInput))?;
@@ -187,17 +205,7 @@ impl Store {
         })
     }
     pub fn authenticate(&self, digest: &str, csrf: Option<&str>, now: i64) -> Result<Principal> {
-        let row: Option<(String,String,i64,String)> = self.conn.query_row("SELECT u.id,u.role,u.grant_revision,s.csrf_digest FROM sessions s JOIN users u ON u.id=s.principal WHERE s.digest=? AND s.expires>? AND s.revision=u.grant_revision",params![digest,now],|r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(durable)?;
-        let (id, role, grant_revision, csrf_digest) =
-            row.ok_or(Error(ErrorCode::Unauthenticated))?;
-        if csrf.is_some_and(|c| !limeos_identity::constant_eq(c, &csrf_digest)) {
-            return Err(Error(ErrorCode::Forbidden));
-        }
-        Ok(Principal {
-            id,
-            role: parse(&role)?,
-            grant_revision,
-        })
+        authenticate(&self.conn, digest, csrf, now)
     }
     pub fn session_expiry(&self, digest: &str) -> Result<i64> {
         self.conn

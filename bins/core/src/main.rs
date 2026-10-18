@@ -17,6 +17,7 @@ use tokio::{
     sync::Semaphore,
 };
 mod compose;
+mod identity_enablement;
 mod operations;
 mod storage;
 mod storage_mounts;
@@ -122,6 +123,16 @@ impl Core {
     }
 }
 impl Backend for Core {
+    async fn enable_observe_health(
+        &self,
+        token: String,
+        csrf: String,
+        input: limeos_contracts::ObserveHealthEnable,
+        deadline: std::time::Instant,
+    ) -> Result<limeos_contracts::ObserveHealthEnabled> {
+        self.human_enable_observe_health(token, csrf, input, deadline)
+            .await
+    }
     async fn storage_mount_catalog(
         &self,
         token: String,

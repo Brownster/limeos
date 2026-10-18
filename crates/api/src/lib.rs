@@ -18,6 +18,7 @@ use std::{
 };
 use tokio::{net::TcpListener, sync::Semaphore};
 mod compose;
+mod identity_enablement;
 #[cfg(test)]
 mod operation_tests;
 mod operations;
@@ -32,6 +33,15 @@ pub struct IssuedSession {
     pub view: SessionView,
 }
 pub trait Backend: Clone + Send + Sync + 'static {
+    fn enable_observe_health(
+        &self,
+        _token: String,
+        _csrf: String,
+        _input: limeos_contracts::ObserveHealthEnable,
+        _deadline: Instant,
+    ) -> impl Future<Output = Result<limeos_contracts::ObserveHealthEnabled>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
     fn storage_mount_catalog(
         &self,
         _token: String,
@@ -435,6 +445,10 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
             post(storage::cancel::<B>),
         )
         .route("/api/v1/auth/login", post(login::<B>))
+        .route(
+            "/api/v1/auth/capabilities/observe-health/enable",
+            post(identity_enablement::enable::<B>),
+        )
         .route("/api/v1/auth/session", get(session::<B>))
         .route("/api/v1/auth/logout", post(logout::<B>))
         .route("/api/v1/overview", get(reads::overview::<B>))
