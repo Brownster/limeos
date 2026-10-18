@@ -3,6 +3,23 @@ use super::*;
 use limeos_domain::deployment::discovery::StackInventory;
 
 pub trait DeploymentBackend: Backend {
+    /// Resolve current grants and read fixed-host CopyParty observations only.
+    /// No file lookup, service query, package fetch, configuration or restart.
+    fn tools_status(
+        &self,
+        _token: String,
+    ) -> impl Future<Output = Result<limeos_domain::deployment::tools::ToolsReport>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    /// Resolve current grants and read the shared network observation cache.
+    /// GET must not inspect Engine, enter namespaces, probe the network or write.
+    fn network_inventory(
+        &self,
+        _token: String,
+    ) -> impl Future<Output = Result<limeos_domain::deployment::networks::NetworkInventory>> + Send
+    {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
     /// Current session/grants and cached observations only; never poll services.
     fn media_activity(
         &self,
@@ -25,6 +42,38 @@ pub(super) fn routes<B: DeploymentBackend>() -> Router<App<B>> {
     Router::new()
         .route("/api/v1/deployment/stacks", get(inventory::<B>))
         .route("/api/v1/deployment/activity", get(activity::<B>))
+        .route("/api/v1/deployment/networks", get(networks::<B>))
+        .route("/api/v1/deployment/tools/copyparty", get(tools::<B>))
+}
+
+async fn tools<B: DeploymentBackend>(State(app): State<App<B>>, headers: HeaderMap) -> Response {
+    let result = async {
+        let token = cookie(&headers)?;
+        app.backend.session(token.clone(), None).await?;
+        let report = app.backend.tools_status(token).await?;
+        report.check_size()?;
+        Ok(report)
+    }
+    .await;
+    match result {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => failure(error),
+    }
+}
+
+async fn networks<B: DeploymentBackend>(State(app): State<App<B>>, headers: HeaderMap) -> Response {
+    let result = async {
+        let token = cookie(&headers)?;
+        app.backend.session(token.clone(), None).await?;
+        let report = app.backend.network_inventory(token).await?;
+        report.check_size()?;
+        Ok(report)
+    }
+    .await;
+    match result {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => failure(error),
+    }
 }
 
 async fn activity<B: DeploymentBackend>(State(app): State<App<B>>, headers: HeaderMap) -> Response {
@@ -60,6 +109,12 @@ async fn inventory<B: DeploymentBackend>(
     }
 }
 
+#[cfg(test)]
+#[path = "deployment/network_tests.rs"]
+mod network_tests;
+#[cfg(test)]
+#[path = "deployment/tools_tests.rs"]
+mod tools_tests;
 #[cfg(test)]
 mod tests {
     use super::*;

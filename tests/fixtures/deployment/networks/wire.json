@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "generated_at": 105,
+  "source": "fresh",
+  "sampled_at": 100,
+  "max_age_seconds": 90,
+  "observed_containers": 4,
+  "independent_containers": 1,
+  "unknown_mode_containers": 0,
+  "groups": [
+    {
+      "provider": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "vpn",
+        "running": true,
+        "health": "not_configured",
+        "compose": {
+          "project": {
+            "name": "media",
+            "working_directory": "/opt/stacks/Media",
+            "config_files": [
+              "/opt/stacks/Media/compose.yaml"
+            ]
+          },
+          "service": "vpn",
+          "one_off": false
+        }
+      },
+      "state": "orphan_hints",
+      "member_ids": [
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      ],
+      "hinted_orphan_ids": [
+        "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      ]
+    }
+  ],
+  "members": [
+    {
+      "container": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "sonarr",
+        "running": true,
+        "health": "healthy",
+        "compose": {
+          "project": {
+            "name": "media",
+            "working_directory": "/opt/stacks/Media",
+            "config_files": [
+              "/opt/stacks/Media/compose.yaml"
+            ]
+          },
+          "service": "sonarr",
+          "one_off": false
+        }
+      },
+      "reference_kind": "container",
+      "target": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "state": "resolved",
+      "provider_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "hinted_provider_id": null,
+      "dependency_hint": null
+    },
+    {
+      "container": {
+        "id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "name": "transmission",
+        "running": false,
+        "health": "unknown",
+        "compose": {
+          "project": {
+            "name": "media",
+            "working_directory": "/opt/stacks/Media",
+            "config_files": [
+              "/opt/stacks/Media/compose.yaml"
+            ]
+          },
+          "service": "transmission",
+          "one_off": false
+        }
+      },
+      "reference_kind": "container",
+      "target": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "state": "missing_provider",
+      "provider_id": null,
+      "hinted_provider_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "dependency_hint": "vpn"
+    },
+    {
+      "container": {
+        "id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "name": "sonarr-oneoff",
+        "running": false,
+        "health": "not_configured",
+        "compose": {
+          "project": {
+            "name": "media",
+            "working_directory": "/opt/stacks/Media",
+            "config_files": [
+              "/opt/stacks/Media/compose.yaml"
+            ]
+          },
+          "service": "sonarr",
+          "one_off": true
+        }
+      },
+      "reference_kind": "container",
+      "target": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "state": "resolved",
+      "provider_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "hinted_provider_id": null,
+      "dependency_hint": null
+    }
+  ]
+}

@@ -5,6 +5,17 @@ Engineer B, 15 October 2026. Branch `engineer/p04-network-groups`, based on B2
 This branch contains B2 and this read-only follow-up; catalog, image updates,
 packages and prerequisites retain their separate branches/evidence.
 
+October 16 continuation: the [egress comparison handoff](p04-network-egress-handoff.md)
+adds pure host/provider address comparison and bounded supplied-response decoding
+from the combined Stream B baseline. It covers part of integration requirement 5;
+active protected probes and API/UI acceptance remain pending. This packet's
+54-case qualification retains its original source and scope.
+
+October 17 continuation: the [cached API/UI handoff](p04-network-read-ui-handoff.md)
+adds the proposed authenticated cache read, bounded client/controller and a
+mount-ready network panel. Protected collection, production route/shell mounting
+and installed/browser acceptance remain pending; it supplies no active probe.
+
 ## Delivered behavior
 
 `domain::deployment::networks::observe` produces bounded, deterministic shared-

@@ -1,0 +1,45 @@
+{
+  "files": [
+    {
+      "file": "frontend/tests/api.mjs",
+      "tests": 4,
+      "exit_code": 0
+    },
+    {
+      "file": "frontend/tests/automation-controller.test.mjs",
+      "tests": 14,
+      "exit_code": 0
+    },
+    {
+      "file": "frontend/tests/automation.test.mjs",
+      "tests": 10,
+      "exit_code": 0
+    },
+    {
+      "file": "frontend/tests/media-activity-client.test.mjs",
+      "tests": 29,
+      "exit_code": 0
+    },
+    {
+      "file": "frontend/tests/media-activity.test.mjs",
+      "tests": 10,
+      "exit_code": 0
+    },
+    {
+      "file": "frontend/tests/network-groups.test.mjs",
+      "tests": 34,
+      "exit_code": 0
+    },
+    {
+      "file": "frontend/tests/observations.test.mjs",
+      "tests": 4,
+      "exit_code": 0
+    },
+    {
+      "file": "frontend/tests/stack-discovery.test.mjs",
+      "tests": 18,
+      "exit_code": 0
+    }
+  ],
+  "tests": 123
+}

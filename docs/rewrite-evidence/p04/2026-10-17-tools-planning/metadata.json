@@ -1,0 +1,73 @@
+{
+  "source": "b265690a4b8dc5f112389880fe1048b91122d5f7",
+  "base": "53ec484b3f71d5dab0e62e7df4cb9dc57f7d94be",
+  "main_baseline": "7df3f7530865c31b7faefd1f7b12a25aa7655860",
+  "source_committed_after_checks_without_intervening_product_changes": true,
+  "rust_suite_counts_in_log_order": [
+    137,
+    35,
+    321,
+    6,
+    0,
+    0,
+    0,
+    0
+  ],
+  "rust_total": 499,
+  "baseline_rust_total": 461,
+  "new_rust_tests": 38,
+  "config_fixture_cases": 27,
+  "service_fixture_cases": 20,
+  "input_count": 389,
+  "input_scope": "Source/fixture superset; dependency crate unit suites were not all run",
+  "frozen_source": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+  "frozen_input_count": 5,
+  "harness_lock_origin": "docs/rewrite-evidence/p04/2026-10-16-network-egress/harness/Cargo.lock",
+  "harness_lock_sha256": "64fd3fc7338014ba938299772cec4d4779c943b13cf8dc58408f3a2016f15016",
+  "protected_paths_unchanged_from_base": [
+    "Cargo.toml",
+    "Cargo.lock",
+    "crates/domain/src/lib.rs",
+    "crates/api/src/lib.rs",
+    "crates/persistence/src/lib.rs",
+    "crates/executor-protocol/src/lib.rs",
+    "crates/contracts/src/lib.rs",
+    "bins/core/src/main.rs",
+    "bins/executor/src/main.rs",
+    "frontend/src/Dashboard.tsx",
+    "frontend/src/api.ts",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "tests/fixtures/stream-b/check-leaves.py"
+  ],
+  "bounds": {
+    "config_bytes": 16384,
+    "service_property_bytes": 512,
+    "path_bytes": 512,
+    "report_bytes": 8192,
+    "inclusive_original_sample_age_seconds": 90
+  },
+  "commands": [
+    "uv run --offline --no-project tests/fixtures/stream-b/check-leaves.py",
+    "cp docs/rewrite-evidence/p04/2026-10-16-network-egress/harness/Cargo.lock .cache/stream-b-leaf/Cargo.lock",
+    "cargo test --offline --locked --manifest-path .cache/stream-b-leaf/Cargo.toml",
+    "cargo clippy --offline --locked --manifest-path .cache/stream-b-leaf/Cargo.toml --all-targets -- -D warnings",
+    "rustfmt --edition 2024 --check --config skip_children=true <eight changed Rust files>",
+    "git diff --check",
+    "uv run --offline --no-project .cache/tools-planning/verify-harness.py"
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5\n",
+    "cargo": "cargo 1.88.0 (873a06493 2025-05-10)\nrelease: 1.88.0\ncommit-hash: 873a0649350c486caf67be772828a4f36bb4734c\ncommit-date: 2025-05-10\nhost: x86_64-unknown-linux-gnu\nlibgit2: 1.9.0 (sys:0.20.0 vendored)\nlibcurl: 8.12.1-DEV (sys:0.4.80+curl-8.12.1 vendored ssl:OpenSSL/3.4.1)\nssl: OpenSSL 3.4.1 11 Feb 2025\nos: Fedora 43.0.0 [64-bit]\n",
+    "uv": "uv 0.11.25 (x86_64-unknown-linux-gnu)\n"
+  },
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "2",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache"
+  },
+  "limits": "Local pure planners, supplied-byte decoders and proposed cached API checks only. Production Core/cache/worker/Store/route/contracts/UI/package registration, trusted installation, effects/recovery, actual systemd captures, installed/ARM64/performance/soak/Pi and defect/P04/cutover acceptance remain open. No frontend changes or frontend test credit in this slice."
+}

@@ -1,0 +1,12 @@
+[
+  {"name":"frozen matching addresses","host":"9.9.9.9","provider":"9.9.9.9","expected":"same_address"},
+  {"name":"frozen differing addresses","host":"1.1.1.1","provider":"9.9.9.9","expected":"different_addresses"},
+  {"name":"missing host stays unknown","host":null,"provider":"9.9.9.9","expected":"unknown"},
+  {"name":"missing provider stays unknown","host":"1.1.1.1","provider":null,"expected":"unknown"},
+  {"name":"both missing stays unknown","host":null,"provider":null,"expected":"unknown"},
+  {"name":"equal IPv6 representation","host":"2606:4700:4700::1111","provider":"2606:4700:4700:0000:0000:0000:0000:1111","expected":"same_address"},
+  {"name":"different IPv6 addresses","host":"2606:4700:4700::1111","provider":"2606:4700:4700::1001","expected":"different_addresses"},
+  {"name":"mapped IPv4 equality","host":"1.1.1.1","provider":"::ffff:1.1.1.1","expected":"same_address"},
+  {"name":"mapped IPv4 inequality","host":"::ffff:1.1.1.1","provider":"9.9.9.9","expected":"different_addresses"},
+  {"name":"mixed address families","host":"1.1.1.1","provider":"2606:4700:4700::1111","expected":"unknown"}
+]

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "generated_at": 105,
+  "max_age_seconds": 90,
+  "config": {
+    "sampled_at": 100,
+    "freshness": "fresh",
+    "value": {"state": "stored", "config": {"share_path": "/data/Media Library", "port": 8080}}
+  },
+  "payload": {"sampled_at": 100, "freshness": "fresh", "value": "present"},
+  "service": {"sampled_at": 100, "freshness": "fresh", "value": {"state": "active"}},
+  "applied_configuration": "not_established"
+}
