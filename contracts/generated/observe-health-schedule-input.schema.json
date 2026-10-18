@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ObserveHealthScheduleInput",
+  "description": "Fixed metadata only: owner, operation, anchor and readiness are server-owned.",
+  "type": "object",
+  "properties": {
+    "grace_seconds": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "interval_seconds": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "missed": {
+      "$ref": "#/$defs/MissedRunPolicy"
+    },
+    "window": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MaintenanceWindow"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "interval_seconds",
+    "grace_seconds",
+    "missed"
+  ],
+  "$defs": {
+    "MaintenanceWindow": {
+      "description": "UTC minutes. Start is inclusive, end exclusive; a crossing window spans midnight.",
+      "type": "object",
+      "properties": {
+        "end_minute": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "start_minute": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "start_minute",
+        "end_minute"
+      ]
+    },
+    "MissedRunPolicy": {
+      "type": "string",
+      "enum": [
+        "coalesce_latest",
+        "skip"
+      ]
+    }
+  }
+}

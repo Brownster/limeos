@@ -129,6 +129,22 @@ export type Event = { cursor: number, principal: string | null, job: string | nu
 export type Login = { username: string, password: string, };
 export type ObserveHealthEnable = { password: string, };
 export type ObserveHealthEnabled = { enabled: boolean, reauthenticate: boolean, };
+export type ObserveHealthScheduleInput = { interval_seconds: number, grace_seconds: number, missed: MissedRunPolicy, window: MaintenanceWindow | null, };
+export type ScheduledOperation = "observe_health" | "backup" | "protection_sync" | "protection_scrub" | "container_update" | "package_reconcile";
+export type MissedRunPolicy = "coalesce_latest" | "skip";
+export type MaintenanceWindow = { start_minute: number, end_minute: number, };
+export type ScheduleDefinition = { operation: ScheduledOperation, anchor: number, interval_seconds: number, grace_seconds: number, missed: MissedRunPolicy, window: MaintenanceWindow | null, };
+export type Schedule = { id: string, revision: number, paused: boolean, definition: ScheduleDefinition, 
+/**
+ * Last atomically settled occurrence, including skipped/blocked ones.
+ */
+settled_through: number | null, };
+export type PauseSchedule = { revision: number, paused: boolean, };
+export type ScheduleStatus = "awaiting_producer" | "authority_suspended" | "paused" | "blocked";
+export type OccurrenceOutcome = { "outcome": "job", id: string, state: JobState, } | { "outcome": "blocked" } | { "outcome": "skipped" };
+export type OccurrenceView = { key: OccurrenceKey, outcome: OccurrenceOutcome, };
+export type ScheduleView = { schedule: Schedule, status: ScheduleStatus, last_occurrence: OccurrenceView | null, };
+export type AutomationPage<T> = { items: Array<T>, next: string | null, partial: boolean, };
 export type Enrollment = { token: string, username: string, password: string, };
 export type Health = { version: number, generation: number, schema_version: number, ready: boolean, };
 export type SessionView = { principal: Principal, csrf_token: string, expires_at: number, };
