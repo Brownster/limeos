@@ -169,6 +169,17 @@ def _after_refusal_facts(started_service):
             "errno": getattr(error, "errno", None),
         }
 
+    try:
+        release = os.uname().release
+        require(
+            0 < len(release) <= 128
+            and re.fullmatch(r"[A-Za-z0-9._+-]+", release) is not None,
+            "invalid kernel release sample",
+        )
+        facts["kernel_release"] = release
+    except (OSError, ValueError) as error:
+        facts["kernel_release"] = unavailable(error)
+
     pid = None
     try:
         response = run(

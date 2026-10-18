@@ -640,19 +640,14 @@ fn kernel_thread(process: &OwnedFd) -> Result<bool> {
     Ok(kernel)
 }
 fn kernel_marker(flags: u64, status: &str) -> Result<bool> {
+    let flag = flags & 0x0020_0000 != 0;
     let mut field = status.lines().filter_map(|s| s.strip_prefix("Kthread:"));
     let kernel = match field.next().map(str::trim) {
         Some("1") => true,
         Some("0") => false,
-        None => {
-            return Err(refusal(
-                "kernel.marker.missing",
-                Failure::Unavailable,
-                0,
-                0,
-                0,
-            ));
-        }
+        // Linux 6.1 exposes PF_KTHREAD in stat without a Kthread status field.
+        // A present status field corroborates the required real stat flags.
+        None => flag,
         _ => {
             return Err(refusal(
                 "kernel.marker.invalid",
@@ -663,7 +658,7 @@ fn kernel_marker(flags: u64, status: &str) -> Result<bool> {
             ));
         }
     };
-    if field.next().is_some() || kernel != (flags & 0x0020_0000 != 0) {
+    if field.next().is_some() || kernel != flag {
         return Err(Failure::Conflict);
     }
     Ok(kernel)
@@ -866,12 +861,46 @@ mod tests {
     }
     #[test]
     fn kernel_name_text_cannot_substitute_for_kernel_task_flags() {
-        assert!(kernel_marker(0, "Name:\tkworker\nKthread:\t1\n").is_err());
-        assert!(kernel_marker(0x0020_0000, "Name:\tkworker\nKthread:\t0\n").is_err());
-        assert!(kernel_marker(0x0020_0000, "Name:\tanything\n").is_err());
         assert_eq!(
-            kernel_marker(0x0020_0000, "Name:\tanything\nKthread:\t1\n"),
-            Ok(true)
+            kernel_marker(0, "Name:\tkworker\nKthread:\t1\n"),
+            Err(Failure::Conflict)
         );
+        assert_eq!(
+            kernel_marker(0x0020_0000, "Name:\tkworker\nKthread:\t0\n"),
+            Err(Failure::Conflict)
+        );
+        assert_eq!(kernel_marker(0, "Name:\tkworker\n"), Ok(false));
+        assert_eq!(kernel_marker(0x0020_0000, "Name:\tanything\n"), Ok(true));
+    }
+    #[test]
+    fn kernel_marker_agrees_with_flags_across_status_abis() {
+        for flags in [0, 0x10, 0x0020_0000, 0x0020_0010] {
+            let expected = flags & 0x0020_0000 != 0;
+            assert_eq!(kernel_marker(flags, "Name:\tanything\n"), Ok(expected));
+            let status = if expected {
+                "Name:\tanything\nKthread:\t1\n"
+            } else {
+                "Name:\tanything\nKthread:\t0\n"
+            };
+            assert_eq!(kernel_marker(flags, status), Ok(expected));
+        }
+    }
+    #[test]
+    fn kernel_marker_rejects_malformed_and_duplicate_present_fields() {
+        for flags in [0, 0x0020_0000] {
+            for value in ["", "2", "true", "+1", "01", "1 0"] {
+                let status = format!("Name:\tanything\nKthread:\t{value}\n");
+                assert_eq!(kernel_marker(flags, &status), Err(Failure::Unavailable));
+            }
+            for values in [
+                "0\nKthread:\t0",
+                "1\nKthread:\t1",
+                "0\nKthread:\t1",
+                "1\nKthread:\t0",
+            ] {
+                let status = format!("Name:\tanything\nKthread:\t{values}\n");
+                assert_eq!(kernel_marker(flags, &status), Err(Failure::Conflict));
+            }
+        }
     }
 }
