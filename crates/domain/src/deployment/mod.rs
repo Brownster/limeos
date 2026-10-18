@@ -10,6 +10,7 @@ pub mod local_config;
 pub mod media;
 pub mod media_settings;
 pub mod networks;
+pub mod notifications;
 pub mod packages;
 pub mod quickstart;
 pub mod tools;
