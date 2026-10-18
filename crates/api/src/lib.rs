@@ -17,6 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::{net::TcpListener, sync::Semaphore};
+mod automation_schedules;
 mod compose;
 mod identity_enablement;
 #[cfg(test)]
@@ -33,6 +34,37 @@ pub struct IssuedSession {
     pub view: SessionView,
 }
 pub trait Backend: Clone + Send + Sync + 'static {
+    fn observe_health_schedules(
+        &self,
+        _token: String,
+        _after: Option<String>,
+        _deadline: Instant,
+    ) -> impl Future<
+        Output = Result<
+            limeos_domain::automation::AutomationPage<limeos_domain::automation::ScheduleView>,
+        >,
+    > + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn create_observe_health_schedule(
+        &self,
+        _token: String,
+        _csrf: String,
+        _input: limeos_contracts::ObserveHealthScheduleInput,
+        _deadline: Instant,
+    ) -> impl Future<Output = Result<limeos_domain::automation::ScheduleView>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn pause_observe_health_schedule(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+        _input: limeos_domain::automation::PauseSchedule,
+        _deadline: Instant,
+    ) -> impl Future<Output = Result<limeos_domain::automation::ScheduleView>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
     fn enable_observe_health(
         &self,
         _token: String,
@@ -514,6 +546,7 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
             "/api/v1/container/restart/jobs/{id}/cancel",
             post(operations::cancel_job::<B>),
         )
+        .merge(automation_schedules::routes::<B>())
         .fallback(|| async { failure(Error(ErrorCode::NotFound)) })
         .layer(middleware::from_fn(limits))
         .with_state(App {

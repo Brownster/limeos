@@ -16,6 +16,7 @@ use tokio::{
     net::{TcpListener, UnixListener, UnixStream},
     sync::Semaphore,
 };
+mod automation_schedules;
 mod compose;
 mod identity_enablement;
 mod operations;
@@ -123,6 +124,36 @@ impl Core {
     }
 }
 impl Backend for Core {
+    async fn observe_health_schedules(
+        &self,
+        token: String,
+        after: Option<String>,
+        deadline: std::time::Instant,
+    ) -> Result<limeos_domain::automation::AutomationPage<limeos_domain::automation::ScheduleView>>
+    {
+        self.human_schedule_page(token, after, deadline).await
+    }
+    async fn create_observe_health_schedule(
+        &self,
+        token: String,
+        csrf: String,
+        input: limeos_contracts::ObserveHealthScheduleInput,
+        deadline: std::time::Instant,
+    ) -> Result<limeos_domain::automation::ScheduleView> {
+        self.human_schedule_create(token, csrf, input, deadline)
+            .await
+    }
+    async fn pause_observe_health_schedule(
+        &self,
+        token: String,
+        csrf: String,
+        id: String,
+        input: limeos_domain::automation::PauseSchedule,
+        deadline: std::time::Instant,
+    ) -> Result<limeos_domain::automation::ScheduleView> {
+        self.human_schedule_pause(token, csrf, id, input, deadline)
+            .await
+    }
     async fn enable_observe_health(
         &self,
         token: String,

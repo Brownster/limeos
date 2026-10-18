@@ -26,6 +26,30 @@ fn signal(status: SignalStatus) -> AlertSignal {
         summary: "Required media mount is missing".into(),
     }
 }
+
+#[test]
+fn readiness_validates_shape_without_claiming_current_authority() {
+    let mut view = ScheduleView {
+        schedule: schedule(),
+        status: ScheduleStatus::AwaitingProducer,
+        last_occurrence: None,
+    };
+    assert!(view.validate().is_ok());
+    // Both shapes are valid; only Store can decide which current grant fact holds.
+    view.status = ScheduleStatus::AuthoritySuspended;
+    assert!(view.validate().is_ok());
+    view.schedule.paused = true;
+    assert!(view.validate().is_err());
+    view.status = ScheduleStatus::Paused;
+    assert!(view.validate().is_ok());
+    view.schedule.paused = false;
+    view.schedule.definition.operation = ScheduledOperation::Backup;
+    assert!(view.validate().is_err());
+    view.status = ScheduleStatus::Blocked;
+    assert!(view.validate().is_ok());
+    view.status = ScheduleStatus::AwaitingProducer;
+    assert!(view.validate().is_err());
+}
 fn notification(channel: DeliveryChannel) -> Notification {
     Notification {
         id: "note-1".into(),
