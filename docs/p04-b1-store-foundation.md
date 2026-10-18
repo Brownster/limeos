@@ -1,8 +1,11 @@
 # B1 Store foundation
 
 This bounded increment persists automation schedules and occurrence reservations
-through the existing Store. Observation dispatch remains refused. It registers
-no timer, API route, UI, collector, notification publisher or service.
+through the existing Store. Observation dispatch remains refused. The original foundation registers
+no timer, API route, UI, collector, notification publisher or service. A subsequent
+[fixed schedule-metadata slice](p04-observe-health-schedules.md) adds create,
+owned-list and pause/resume routes; it still starts no observation work. The
+initial-assembly results below remain historical foundation evidence.
 
 At initial assembly on 2026-10-17, this foundation was based on
 `3311f762bbec95d45e1056ad554cf51bfa0281b3`, retaining the published A1 qualification
@@ -64,9 +67,12 @@ uses an expected schedule revision; a revision change cancels old queued
 observation jobs atomically. Resume resets the anchor and watermark and binds
 current owner authority. Reads return owner-scoped metadata after current
 `HealthRead(host:system)` authorization, with at most 32 rows and a 64-KiB page
-bound. Reads do not advance watermarks, prune history or revise grants. An
-unpaused schedule with an obsolete owner grant revision returns an expiry error
-rather than appearing active.
+bound. Reads do not advance watermarks, prune history or revise grants. The subsequent
+fixed metadata routes derive `awaiting_producer` or `authority_suspended` from
+current stored authority. An obsolete owner grant revision is suspended metadata;
+invalid sessions and missing read permission remain refusals. The page helper is
+shared with the original actor-based reads, so neither presents these rows as
+active or silently refreshes their authority.
 
 Reservation validates the stored definition and current authority, then looks
 up the exact occurrence before calculating a new due decision. A retained tuple
@@ -108,11 +114,12 @@ Registration still requires reviewed solutions for these boundaries:
   every container or storage signal a future collector might return.
 - Genuine observation provenance and supervision: batches, job IDs and imported
   facts cannot prove current evidence, original deadlines or helper cleanup.
-- Status contracts: before API/UI registration, represent authority suspension
-  honestly; preserve the current expiry refusal rather than showing it active.
-- Runtime and installed qualification: no timer, API/UI integration, collector,
-  dispatch/completion, notification delivery, acknowledgment or service
-  activation is included in this foundation.
+- Runtime and installed qualification: the subsequent fixed metadata API is
+  qualified separately from this foundation and confers no producer readiness.
+  No timer, UI, collector, dispatch/completion, notification delivery,
+  acknowledgment or service activation is included. Metadata reads and hosted
+  tests do not qualify genuine observation lifetime, resource authority or
+  cleanup.
 
 The bounded foundation estimate is 12 human hours, with scope review at 18 hours.
 The P04 phase estimate and review threshold remain 320 and 480 hours. These are
