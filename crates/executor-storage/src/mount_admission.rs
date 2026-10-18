@@ -28,6 +28,29 @@ const MAX_PHYSICAL: usize = 8;
 const IMAGE: &str = "/usr/bin/mount";
 mod host_consumers;
 
+// Closed static fields only. errno=0 means no retained OS error; limit=0
+// means no observed/limit detail. IO errors never replace the original refusal.
+fn refusal(
+    phase: &'static str,
+    failure: Failure,
+    errno: i32,
+    observed: usize,
+    limit: usize,
+) -> Failure {
+    use std::io::Write as _;
+    let _ = writeln!(
+        std::io::stderr().lock(),
+        "{{\"level\":\"WARN\",\"event\":\"storage_mount_target_refused\",\"phase\":\"{phase}\",\"failure\":\"{failure:?}\",\"errno\":{errno},\"observed\":{observed},\"limit\":{limit}}}"
+    );
+    failure
+}
+fn diagnosed<T>(phase: &'static str, result: Result<T>) -> Result<T> {
+    result.map_err(|failure| refusal(phase, failure, 0, 0, 0))
+}
+fn io_failure(phase: &'static str, error: rustix::io::Errno, failure: Failure) -> Failure {
+    refusal(phase, failure, error.raw_os_error(), 0, 0)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Object {
     device: (u32, u32),
@@ -71,35 +94,63 @@ struct Host {
 impl Host {
     fn capture() -> Result<Self> {
         if !rustix::process::geteuid().is_root() {
-            return Err(Failure::Unavailable);
+            return Err(refusal("host.uid", Failure::Unavailable, 0, 0, 0));
         }
-        let status = crate::bounded_read(Path::new("/proc/self/status"), 16384)?;
+        let status = diagnosed(
+            "host.status",
+            crate::bounded_read(Path::new("/proc/self/status"), 16384),
+        )?;
         let mut capabilities = status.lines().filter_map(|s| s.strip_prefix("CapEff:"));
         let effective = capabilities
             .next()
             .and_then(|s| u64::from_str_radix(s.trim(), 16).ok())
-            .ok_or(Failure::Unavailable)?;
+            .ok_or_else(|| refusal("host.capabilities.parse", Failure::Unavailable, 0, 0, 0))?;
         // CAP_DAC_READ_SEARCH, CAP_SYS_PTRACE and CAP_SYS_ADMIN. Existing
         // readers lack these privileges; they cannot stand in for this role.
         let required = (1_u64 << 2) | (1_u64 << 19) | (1_u64 << 21);
         if capabilities.next().is_some() || effective & required != required {
-            return Err(Failure::Unavailable);
+            return Err(refusal("host.capabilities", Failure::Unavailable, 0, 0, 0));
         }
-        let open = |name, flags| {
+        let open = |name, flags, phase| {
             rustix::fs::open(name, flags | OFlags::CLOEXEC, Mode::empty())
-                .map_err(|_| Failure::WrongNamespace)
+                .map_err(|error| io_failure(phase, error, Failure::WrongNamespace))
         };
-        let current_namespace = open("/proc/self/ns/mnt", OFlags::RDONLY)?;
-        let host_namespace = open("/proc/1/ns/mnt", OFlags::RDONLY)?;
-        let a = rustix::fs::fstat(&current_namespace).map_err(|_| Failure::Unavailable)?;
-        let b = rustix::fs::fstat(&host_namespace).map_err(|_| Failure::Unavailable)?;
+        let current_namespace = open(
+            "/proc/self/ns/mnt",
+            OFlags::RDONLY,
+            "host.namespace.current.open",
+        )?;
+        let host_namespace = open(
+            "/proc/1/ns/mnt",
+            OFlags::RDONLY,
+            "host.namespace.anchor.open",
+        )?;
+        let a = rustix::fs::fstat(&current_namespace).map_err(|error| {
+            io_failure("host.namespace.current.stat", error, Failure::Unavailable)
+        })?;
+        let b = rustix::fs::fstat(&host_namespace).map_err(|error| {
+            io_failure("host.namespace.anchor.stat", error, Failure::Unavailable)
+        })?;
         if (a.st_dev, a.st_ino) != (b.st_dev, b.st_ino) || a.st_ino == 0 {
-            return Err(Failure::WrongNamespace);
+            return Err(refusal(
+                "host.namespace.identity",
+                Failure::WrongNamespace,
+                0,
+                0,
+                0,
+            ));
         }
-        let current_root = path::open(Path::new("/"), true, true)?;
-        let host_root = open("/proc/1/root", OFlags::PATH | OFlags::DIRECTORY)?;
-        let root = path::stat(&current_root)?;
-        let host = path::stat(&host_root)?;
+        let current_root = diagnosed(
+            "host.root.current.open",
+            path::open(Path::new("/"), true, true),
+        )?;
+        let host_root = open(
+            "/proc/1/root",
+            OFlags::PATH | OFlags::DIRECTORY,
+            "host.root.anchor.open",
+        )?;
+        let root = diagnosed("host.root.current.stat", path::stat(&current_root))?;
+        let host = diagnosed("host.root.anchor.stat", path::stat(&host_root))?;
         if (
             root.stx_dev_major,
             root.stx_dev_minor,
@@ -110,9 +161,15 @@ impl Host {
             host.stx_dev_minor,
             host.stx_ino,
             host.stx_mnt_id,
-        ) || namespace()? != root.stx_mnt_id
+        ) || diagnosed("host.root.mount", namespace())? != root.stx_mnt_id
         {
-            return Err(Failure::WrongNamespace);
+            return Err(refusal(
+                "host.root.identity",
+                Failure::WrongNamespace,
+                0,
+                0,
+                0,
+            ));
         }
         Ok(Self {
             current_namespace,
@@ -131,14 +188,30 @@ impl Host {
             (&self.current_root, &fresh.current_root),
             (&self.host_root, &fresh.host_root),
         ] {
-            let a = rustix::fs::fstat(held).map_err(|_| Failure::Unavailable)?;
-            let b = rustix::fs::fstat(new).map_err(|_| Failure::Unavailable)?;
+            let a = rustix::fs::fstat(held).map_err(|error| {
+                io_failure("host.recheck.held.stat", error, Failure::Unavailable)
+            })?;
+            let b = rustix::fs::fstat(new).map_err(|error| {
+                io_failure("host.recheck.fresh.stat", error, Failure::Unavailable)
+            })?;
             if (a.st_dev, a.st_ino) != (b.st_dev, b.st_ino) {
-                return Err(Failure::WrongNamespace);
+                return Err(refusal(
+                    "host.recheck.object",
+                    Failure::WrongNamespace,
+                    0,
+                    0,
+                    0,
+                ));
             }
         }
         if fresh.namespace_inode != self.namespace_inode || fresh.root_mount != self.root_mount {
-            return Err(Failure::WrongNamespace);
+            return Err(refusal(
+                "host.recheck.identity",
+                Failure::WrongNamespace,
+                0,
+                0,
+                0,
+            ));
         }
         Ok(())
     }
@@ -172,36 +245,70 @@ pub async fn inspect(
     cancelled: &dyn Fn() -> bool,
 ) -> Result<MountTarget> {
     let expires = Instant::now() + WINDOW;
-    configuration.revalidate(cancelled)?;
-    physical.revalidate().await?;
-    let host = Host::capture()?;
+    diagnosed(
+        "target.configuration.revalidate",
+        configuration.revalidate(cancelled),
+    )?;
+    diagnosed("target.physical.revalidate", physical.revalidate().await)?;
+    let host = diagnosed("target.host.capture", Host::capture())?;
     let contract = &configuration.configuration().contract;
-    contract.validate().map_err(|_| Failure::InvalidPlan)?;
+    contract
+        .validate()
+        .map_err(|_| refusal("target.contract", Failure::InvalidPlan, 0, 0, 0))?;
     let selected = contract
         .devices
         .iter()
         .find(|d| d.id == target_id)
-        .ok_or(Failure::InvalidPlan)?
+        .ok_or_else(|| refusal("target.selection", Failure::InvalidPlan, 0, 0, 0))?
         .clone();
     if selected.filesystem != StorageFilesystem::Ext4 {
-        return Err(Failure::InvalidPlan);
+        return Err(refusal("target.filesystem", Failure::InvalidPlan, 0, 0, 0));
     }
     let storage = physical.retained_inventory();
-    let (source_number, physical_devices) = selected_disk(storage, &selected)?;
-    no_fstab_consumer(storage.snapshot(), &selected, source_number)?;
+    let (source_number, physical_devices) =
+        diagnosed("target.selected_disk", selected_disk(storage, &selected))?;
+    diagnosed(
+        "target.fstab.consumer",
+        no_fstab_consumer(storage.snapshot(), &selected, source_number),
+    )?;
     limeos_domain::storage_managed_fstab(contract, 10, storage.snapshot())
-        .map_err(|_| Failure::InvalidPlan)?;
-    let source = path::open(&storage.topology.path(source_number)?, false, false)?;
-    source_identity(&source, source_number)?;
-    let (parent, directory, target) = prepared_target(&selected, host.root_mount)?;
-    let program = path::open(Path::new(IMAGE), false, true)?;
-    let program_object = image_object(&program)?;
-    let image_digest = hash_image(&program, &program_object)?;
-    let consumers = host_consumers::HostConsumers::capture(
-        &selected,
-        &physical_devices,
-        target.existing.as_ref().ok_or(Failure::NotReady)?,
-        cancelled,
+        .map_err(|_| refusal("target.fstab.plan", Failure::InvalidPlan, 0, 0, 0))?;
+    let source = diagnosed(
+        "target.source.open",
+        path::open(
+            &diagnosed(
+                "target.source.topology",
+                storage.topology.path(source_number),
+            )?,
+            false,
+            false,
+        ),
+    )?;
+    diagnosed(
+        "target.source.identity",
+        source_identity(&source, source_number),
+    )?;
+    let (parent, directory, target) = diagnosed(
+        "target.prepared",
+        prepared_target(&selected, host.root_mount),
+    )?;
+    let program = diagnosed(
+        "target.image.open",
+        path::open(Path::new(IMAGE), false, true),
+    )?;
+    let program_object = diagnosed("target.image.object", image_object(&program))?;
+    let image_digest = diagnosed("target.image.digest", hash_image(&program, &program_object))?;
+    let consumers = diagnosed(
+        "target.host_consumers.capture",
+        host_consumers::HostConsumers::capture(
+            &selected,
+            &physical_devices,
+            target
+                .existing
+                .as_ref()
+                .ok_or_else(|| refusal("target.underlay", Failure::NotReady, 0, 0, 0))?,
+            cancelled,
+        ),
     )?;
     let owner = MountTarget {
         configuration,
@@ -221,7 +328,7 @@ pub async fn inspect(
         expires,
         poisoned: Cell::new(false),
     };
-    owner.revalidate(cancelled).await?;
+    diagnosed("target.final_recheck", owner.revalidate(cancelled).await)?;
     Ok(owner)
 }
 
@@ -286,47 +393,103 @@ impl MountTarget {
         result
     }
     async fn check(&self, cancelled: &dyn Fn() -> bool) -> Result<()> {
-        self.poll(cancelled)?;
-        self.configuration.revalidate(cancelled)?;
-        self.host.revalidate()?;
-        self.consumers.revalidate(
-            &self.selected,
-            &self.physical_devices,
-            self.target.existing.as_ref().ok_or(Failure::NotReady)?,
-            cancelled,
+        diagnosed("recheck.window.before", self.poll(cancelled))?;
+        diagnosed(
+            "recheck.configuration.before",
+            self.configuration.revalidate(cancelled),
         )?;
-        self.physical.revalidate().await?;
-        self.poll(cancelled)?;
-        let (number, devices) = selected_disk(self.physical.retained_inventory(), &self.selected)?;
-        no_fstab_consumer(self.inventory(), &self.selected, number)?;
+        diagnosed("recheck.host.before", self.host.revalidate())?;
+        diagnosed(
+            "recheck.host_consumers.before",
+            self.consumers.revalidate(
+                &self.selected,
+                &self.physical_devices,
+                self.target.existing.as_ref().ok_or_else(|| {
+                    refusal("recheck.underlay.before", Failure::NotReady, 0, 0, 0)
+                })?,
+                cancelled,
+            ),
+        )?;
+        diagnosed("recheck.physical", self.physical.revalidate().await)?;
+        diagnosed("recheck.window.after_physical", self.poll(cancelled))?;
+        let (number, devices) = diagnosed(
+            "recheck.selected_disk",
+            selected_disk(self.physical.retained_inventory(), &self.selected),
+        )?;
+        diagnosed(
+            "recheck.fstab",
+            no_fstab_consumer(self.inventory(), &self.selected, number),
+        )?;
         if number != self.source_number || devices != self.physical_devices {
-            return Err(Failure::IdentityMismatch);
+            return Err(refusal(
+                "recheck.physical_identity",
+                Failure::IdentityMismatch,
+                0,
+                0,
+                0,
+            ));
         }
-        source_identity(&self.source, number)?;
-        let (_, _, target) = prepared_target(&self.selected, self.host.root_mount)?;
-        if target != self.target
-            || directory_identity(&self.parent)? != self.target.parent
-            || Some(directory_identity(&self.directory)?) != self.target.existing
-            || image_object(&self.program)? != self.program_object
-        {
-            return Err(Failure::IdentityMismatch);
-        }
-        empty(&self.directory)?;
-        let fresh_image = path::open(Path::new(IMAGE), false, true)?;
-        if image_object(&fresh_image)? != self.program_object
-            || hash_image(&self.program, &self.program_object)? != self.image_digest
-        {
-            return Err(Failure::IdentityMismatch);
-        }
-        self.host.revalidate()?;
-        self.consumers.revalidate(
-            &self.selected,
-            &self.physical_devices,
-            self.target.existing.as_ref().ok_or(Failure::NotReady)?,
-            cancelled,
+        diagnosed("recheck.source", source_identity(&self.source, number))?;
+        let (_, _, target) = diagnosed(
+            "recheck.prepared",
+            prepared_target(&self.selected, self.host.root_mount),
         )?;
-        self.configuration.revalidate(cancelled)?;
-        self.poll(cancelled)
+        if target != self.target
+            || diagnosed("recheck.parent.identity", directory_identity(&self.parent))?
+                != self.target.parent
+            || Some(diagnosed(
+                "recheck.directory.identity",
+                directory_identity(&self.directory),
+            )?) != self.target.existing
+            || diagnosed("recheck.image.object", image_object(&self.program))?
+                != self.program_object
+        {
+            return Err(refusal(
+                "recheck.retained_identity",
+                Failure::IdentityMismatch,
+                0,
+                0,
+                0,
+            ));
+        }
+        diagnosed("recheck.directory.empty", empty(&self.directory))?;
+        let fresh_image = diagnosed(
+            "recheck.image.open",
+            path::open(Path::new(IMAGE), false, true),
+        )?;
+        if diagnosed("recheck.image.fresh_object", image_object(&fresh_image))?
+            != self.program_object
+            || diagnosed(
+                "recheck.image.digest",
+                hash_image(&self.program, &self.program_object),
+            )? != self.image_digest
+        {
+            return Err(refusal(
+                "recheck.image.identity",
+                Failure::IdentityMismatch,
+                0,
+                0,
+                0,
+            ));
+        }
+        diagnosed("recheck.host.after", self.host.revalidate())?;
+        diagnosed(
+            "recheck.host_consumers.after",
+            self.consumers.revalidate(
+                &self.selected,
+                &self.physical_devices,
+                self.target
+                    .existing
+                    .as_ref()
+                    .ok_or_else(|| refusal("recheck.underlay.after", Failure::NotReady, 0, 0, 0))?,
+                cancelled,
+            ),
+        )?;
+        diagnosed(
+            "recheck.configuration.after",
+            self.configuration.revalidate(cancelled),
+        )?;
+        diagnosed("recheck.window.after", self.poll(cancelled))
     }
 }
 
@@ -387,7 +550,13 @@ fn backing_chain(
 ) -> Result<BTreeSet<DeviceNumber>> {
     let connected = topology.connected(&BTreeSet::from([number]))?;
     if connected.is_empty() || connected.len() > MAX_PHYSICAL {
-        return Err(Failure::Unavailable);
+        return Err(refusal(
+            "selected.connected.limit",
+            Failure::Unavailable,
+            0,
+            connected.len(),
+            MAX_PHYSICAL,
+        ));
     }
     // A1 admits one independent disk/partition chain. Sibling partitions,
     // holders, RAID/device-mapper and unknown aliases remain unsupported even
@@ -398,7 +567,10 @@ fn backing_chain(
         if !chain.insert(cursor) || chain.len() > MAX_PHYSICAL {
             return Err(Failure::Conflict);
         }
-        let node = topology.0.get(&cursor).ok_or(Failure::Unavailable)?;
+        let node = topology
+            .0
+            .get(&cursor)
+            .ok_or_else(|| refusal("selected.chain.missing", Failure::Unavailable, 0, 0, 0))?;
         if node.parents.len() > 1 || node.name.starts_with("dm-") || node.name.starts_with("md") {
             return Err(Failure::Conflict);
         }
@@ -411,7 +583,10 @@ fn backing_chain(
         return Err(Failure::Conflict);
     }
     for n in &connected {
-        let node = topology.0.get(n).ok_or(Failure::Unavailable)?;
+        let node = topology
+            .0
+            .get(n)
+            .ok_or_else(|| refusal("selected.connected.missing", Failure::Unavailable, 0, 0, 0))?;
         if node.name.starts_with("loop") || node.name.starts_with("zram") {
             return Err(Failure::Conflict);
         }
@@ -473,9 +648,12 @@ fn empty(fd: &OwnedFd) -> Result<()> {
         OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
         Mode::empty(),
     )
-    .map_err(|_| Failure::Unavailable)?;
-    for entry in rustix::fs::Dir::read_from(&readable).map_err(|_| Failure::Unavailable)? {
-        let entry = entry.map_err(|_| Failure::Unavailable)?;
+    .map_err(|error| io_failure("target.empty.open", error, Failure::Unavailable))?;
+    for entry in rustix::fs::Dir::read_from(&readable)
+        .map_err(|error| io_failure("target.empty.list", error, Failure::Unavailable))?
+    {
+        let entry =
+            entry.map_err(|error| io_failure("target.empty.entry", error, Failure::Unavailable))?;
         if !matches!(entry.file_name().to_bytes(), b"." | b"..") {
             return Err(Failure::Conflict);
         }
@@ -487,14 +665,17 @@ fn prepared_target(
     root_mount: u64,
 ) -> Result<(OwnedFd, OwnedFd, TargetEvidence)> {
     let name = Path::new(&selected.mountpoint);
-    let parent = path::open(name.parent().ok_or(Failure::InvalidPlan)?, true, true)?;
-    let directory = path::open(name, true, true)?;
-    let parent_identity = directory_identity(&parent)?;
-    let existing = directory_identity(&directory)?;
+    let parent = diagnosed(
+        "target.parent.open",
+        path::open(name.parent().ok_or(Failure::InvalidPlan)?, true, true),
+    )?;
+    let directory = diagnosed("target.directory.open", path::open(name, true, true))?;
+    let parent_identity = diagnosed("target.parent.identity", directory_identity(&parent))?;
+    let existing = diagnosed("target.directory.identity", directory_identity(&directory))?;
     if parent_identity.mount_id != root_mount || existing.mount_id != root_mount {
         return Err(Failure::WrongNamespace);
     }
-    empty(&directory)?;
+    diagnosed("target.directory.empty", empty(&directory))?;
     Ok((
         parent,
         directory,
@@ -520,26 +701,42 @@ fn image_object(fd: &OwnedFd) -> Result<Object> {
     Ok(s.into())
 }
 fn hash_image(fd: &OwnedFd, expected: &Object) -> Result<String> {
-    let file = File::from(rustix::io::dup(fd).map_err(|_| Failure::Unavailable)?);
+    let file = File::from(
+        rustix::io::dup(fd)
+            .map_err(|error| io_failure("image.dup", error, Failure::Unavailable))?,
+    );
     let mut hash = Sha256::new();
     let mut buffer = [0_u8; 8192];
     let mut offset = 0;
     while offset < expected.size {
         let wanted = usize::try_from((expected.size - offset).min(buffer.len() as u64))
-            .map_err(|_| Failure::Unavailable)?;
+            .map_err(|_| refusal("image.length", Failure::Unavailable, 0, 0, 0))?;
         let n = file
             .read_at(&mut buffer[..wanted], offset)
-            .map_err(|_| Failure::Unavailable)?;
+            .map_err(|error| {
+                refusal(
+                    "image.read",
+                    Failure::Unavailable,
+                    error.raw_os_error().unwrap_or(0),
+                    0,
+                    0,
+                )
+            })?;
         if n == 0 {
             return Err(Failure::IdentityMismatch);
         }
         hash.update(&buffer[..n]);
         offset += n as u64;
     }
-    if file
-        .read_at(&mut buffer[..1], offset)
-        .map_err(|_| Failure::Unavailable)?
-        != 0
+    if file.read_at(&mut buffer[..1], offset).map_err(|error| {
+        refusal(
+            "image.eof",
+            Failure::Unavailable,
+            error.raw_os_error().unwrap_or(0),
+            0,
+            0,
+        )
+    })? != 0
         || image_object(fd)? != *expected
     {
         return Err(Failure::IdentityMismatch);

@@ -156,6 +156,194 @@ def mounts():
     return parse_mounts(read("/proc/self/mountinfo", 256 * 1024).decode())
 
 
+def _after_refusal_facts(started_service):
+    """Bounded later observations; never failed-scan or execution authority."""
+    facts = {
+        "scope": "after refusal, before stop; samples are not failed-scan facts or authority",
+    }
+
+    def unavailable(error):
+        return {
+            "available": False,
+            "error_type": type(error).__name__,
+            "errno": getattr(error, "errno", None),
+        }
+
+    pid = None
+    try:
+        response = run(
+            "systemctl",
+            "show",
+            UNIT,
+            "-p",
+            "MainPID",
+            "-p",
+            "MemoryCurrent",
+            "-p",
+            "TasksCurrent",
+            "-p",
+            "LimitNOFILE",
+            timeout=5,
+            check=False,
+        )
+        require(
+            response.returncode == 0 and len(response.stdout) <= 4096,
+            "unit sample unavailable",
+        )
+        values = pairs_unique(row.split("=", 1) for row in response.stdout.splitlines())
+        current_pid = int(values["MainPID"])
+        require(0 <= current_pid < 2**31, "invalid unit process sample")
+        matches = (
+            isinstance(started_service, dict)
+            and current_pid > 0
+            and current_pid == started_service.get("pid")
+        )
+        facts["unit"] = {
+            "main_process_matches_start": matches,
+            "memory_current_bytes": int(values["MemoryCurrent"]),
+            "tasks_current": int(values["TasksCurrent"]),
+            "descriptor_limit": int(values["LimitNOFILE"]),
+        }
+        if matches:
+            pid = current_pid
+    except (
+        OSError,
+        ValueError,
+        KeyError,
+        RuntimeError,
+        subprocess.TimeoutExpired,
+    ) as error:
+        facts["unit"] = unavailable(error)
+
+    if pid is not None:
+        try:
+            selected = {
+                "Uid",
+                "Gid",
+                "CapEff",
+                "CapBnd",
+                "CapAmb",
+                "NoNewPrivs",
+                "Threads",
+                "VmRSS",
+                "FDSize",
+            }
+            values = pairs_unique(
+                (key, value.strip())
+                for line in read(f"/proc/{pid}/status", 16384).decode().splitlines()
+                if (key := line.partition(":")[0]) in selected
+                for value in [line.partition(":")[2]]
+            )
+            status = {}
+            for key in sorted(selected):
+                value = values[key]
+                if key in {"Uid", "Gid"}:
+                    numbers = [int(item) for item in value.split()]
+                    require(
+                        len(numbers) == 4
+                        and all(0 <= item < 2**32 for item in numbers),
+                        "invalid identity sample",
+                    )
+                    status[key] = numbers
+                elif key.startswith("Cap"):
+                    require(
+                        re.fullmatch(r"[0-9a-fA-F]{1,16}", value) is not None,
+                        "invalid capability sample",
+                    )
+                    status[key] = int(value, 16)
+                elif key == "VmRSS":
+                    fields = value.split()
+                    require(
+                        len(fields) == 2 and fields[1] == "kB",
+                        "invalid resident sample",
+                    )
+                    status["resident_kib"] = int(fields[0])
+                else:
+                    status[key] = int(value)
+            facts["selected_process_status"] = status
+        except (OSError, ValueError, KeyError) as error:
+            facts["selected_process_status"] = unavailable(error)
+        try:
+            count = 0
+            with os.scandir(f"/proc/{pid}/fd") as entries:
+                for entry in entries:
+                    require(
+                        entry.name.isascii() and entry.name.isdecimal(),
+                        "invalid descriptor sample",
+                    )
+                    count += 1
+                    require(count <= 4096, "descriptor sample exceeded bound")
+            facts["selected_process_fd_count"] = count
+        except (OSError, ValueError) as error:
+            facts["selected_process_fd_count"] = unavailable(error)
+        try:
+            process_namespace = os.stat(f"/proc/{pid}/ns/mnt")
+            host_namespace = os.stat("/proc/1/ns/mnt")
+            process_root = os.stat(f"/proc/{pid}/root")
+            host_root = os.stat("/proc/1/root")
+            facts["selected_process_context"] = {
+                "mount_namespace_equals_pid1": (
+                    process_namespace.st_dev,
+                    process_namespace.st_ino,
+                )
+                == (host_namespace.st_dev, host_namespace.st_ino),
+                "root_device_inode_equals_pid1": (
+                    process_root.st_dev,
+                    process_root.st_ino,
+                )
+                == (host_root.st_dev, host_root.st_ino),
+            }
+        except OSError as error:
+            facts["selected_process_context"] = unavailable(error)
+
+    try:
+        rows = mounts()
+        observer_namespace = os.stat("/proc/self/ns/mnt")
+        host_namespace = os.stat("/proc/1/ns/mnt")
+        roots = [row for row in rows if row["target"] == "/"]
+        require(len(roots) == 1, "ambiguous root sample")
+        target = str(TARGET)
+        ancestors = [
+            row
+            for row in rows
+            if target == row["target"]
+            or target.startswith(row["target"].rstrip("/") + "/")
+        ]
+        require(bool(ancestors), "missing covering mount sample")
+        longest = max(len(row["target"]) for row in ancestors)
+        covering = [row for row in ancestors if len(row["target"]) == longest]
+        require(len(covering) == 1, "ambiguous covering mount sample")
+
+        def filesystem(value):
+            if value in {"ext4", "btrfs", "xfs", "tmpfs", "overlay"}:
+                return value
+            return "fuse" if value.startswith("fuse") else "other"
+
+        at_target = covering[0]["target"] == target
+        facts["observer_mount_summary"] = {
+            "observer_namespace_equals_pid1": (
+                observer_namespace.st_dev,
+                observer_namespace.st_ino,
+            )
+            == (host_namespace.st_dev, host_namespace.st_ino),
+            "mount_count": len(rows),
+            "btrfs_count": sum(row["filesystem"] == "btrfs" for row in rows),
+            "fuse_count": sum(row["filesystem"].startswith("fuse") for row in rows),
+            "root_mount_id": roots[0]["mount_id"],
+            "root_device": roots[0]["device"],
+            "root_filesystem": filesystem(roots[0]["filesystem"]),
+            "target_is_mountpoint": at_target,
+            "target_covering_filesystem": filesystem(covering[0]["filesystem"]),
+            "underlay_filesystem": None
+            if at_target
+            else filesystem(covering[0]["filesystem"]),
+            "target_covering_device": covering[0]["device"],
+        }
+    except (OSError, ValueError, KeyError) as error:
+        facts["observer_mount_summary"] = unavailable(error)
+    return facts
+
+
 def number(value):
     return {"major": os.major(value), "minor": os.minor(value)}
 
@@ -1660,6 +1848,9 @@ def qualify(repo, output, package_version, authority_schema):
         result.update(summary="fail", finished=time.time(), error=str(error)[:2000])
         if evidence is not None:
             try:
+                result["after_refusal_facts"] = _after_refusal_facts(
+                    result.get("service")
+                )
                 result["unit_diagnostics"] = run(
                     "journalctl",
                     "-u",
