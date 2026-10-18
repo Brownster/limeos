@@ -19,7 +19,8 @@ as untrusted text. Output carries no source identity, occurrence identity,
 authorization or delivery receipt.
 
 Admit at most 256 KiB before JSON parsing, 4 KiB per selected string and 128
-episodes while retaining only the first. Reject invalid selected field types,
+episodes while retaining only the first, and 32 JSON container levels including
+unknown fields. Reject invalid selected field types,
 duplicate selected keys, invalid UTF-8, extra JSON documents and unsupported
 numbers. Ignore unknown fields without retaining their data. Bound output source
 to 128 characters and detail to 500 Unicode scalar values. Preserve printable

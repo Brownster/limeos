@@ -1,0 +1,65 @@
+{
+  "source": "b72c14cfdf3ca904195ce0403f1f54f5c4cd6b7d",
+  "base": "7df3f7530865c31b7faefd1f7b12a25aa7655860",
+  "branch": "engineer/p04-stack-notifications",
+  "reference": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+  "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5",
+  "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+  "uv": "uv 0.11.25 (x86_64-unknown-linux-gnu)",
+  "product_paths": [
+    "crates/domain/src/deployment/mod.rs",
+    "crates/domain/src/deployment/notifications.rs",
+    "crates/domain/src/deployment/notifications/tests.rs",
+    "crates/executor-container/src/deployment/mod.rs",
+    "crates/executor-container/src/deployment/notifications.rs",
+    "crates/executor-container/src/deployment/notifications/tests.rs",
+    "tests/fixtures/deployment/stack-notifications.json"
+  ],
+  "source_input_count": 418,
+  "reference_input_count": 12,
+  "harness_file_count": 10,
+  "combined_native_tests": 454,
+  "new_native_tests": 30,
+  "fixture_aliases": 16,
+  "fixture_payloads": 8,
+  "test_results": {
+    "clippy-first.log": [],
+    "collector-format-final.log": [],
+    "collector-format.log": [],
+    "collector-ruff-final.log": [],
+    "collector-ruff.log": [],
+    "rustfmt.log": [],
+    "shared-paths.log": [],
+    "test-combined.log": [
+      "ok. 135 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+      "ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s",
+      "ok. 294 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s",
+      "ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+      "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+      "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+      "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+      "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+    ],
+    "test-diagnosis.log": [
+      "FAILED. 13 passed; 3 failed; 0 ignored; 0 measured; 118 filtered out; finished in 0.02s",
+      "FAILED. 12 passed; 1 failed; 0 ignored; 0 measured; 281 filtered out; finished in 0.00s"
+    ],
+    "test-first.log": [
+      "FAILED. 13 passed; 3 failed; 0 ignored; 0 measured; 118 filtered out; finished in 0.02s"
+    ],
+    "test-focused.log": [
+      "ok. 17 passed; 0 failed; 0 ignored; 0 measured; 118 filtered out; finished in 0.02s",
+      "ok. 13 passed; 0 failed; 0 ignored; 0 measured; 281 filtered out; finished in 0.00s"
+    ]
+  },
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "1",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv"
+  },
+  "qualification": "local leaf checks only; no installed/API/UI/hardware or delivery proof"
+}

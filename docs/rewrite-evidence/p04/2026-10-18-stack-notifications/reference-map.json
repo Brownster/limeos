@@ -1,0 +1,31 @@
+{
+  "method": "AST literal extraction only; no frozen module/test execution",
+  "event_map": {
+    "download": "imported",
+    "import": "imported",
+    "upgrade": "upgraded",
+    "healthissue": "health",
+    "health": "health",
+    "healthrestored": "health_restored",
+    "downloadfailure": "failed",
+    "grabfailure": "failed",
+    "importfailure": "failed",
+    "manualinteractionrequired": "manual",
+    "grab": "grabbed",
+    "rename": "renamed",
+    "movieadded": "added",
+    "seriesadd": "added",
+    "applicationupdate": "app_update",
+    "test": "test"
+  },
+  "quiet": [
+    "failed",
+    "health",
+    "health_restored",
+    "imported",
+    "manual",
+    "upgraded"
+  ],
+  "matched_fixture_aliases": 16,
+  "native_test_credit": 0
+}

@@ -1,0 +1,22 @@
+[package]
+name = "limeos-stream-b-api-leaf"
+version = "0.0.0"
+edition = "2024"
+publish = false
+[dependencies]
+futures-util = "=0.3.34"
+axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "query", "tokio"] }
+tokio = { version = "=1.48.0", features = ["io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "test-util", "time"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+subtle = "=2.6.1"
+hyper = { version = "=1.11.1", features = ["server", "client", "http1"] }
+hyper-util = { version = "=0.1.21", features = ["tokio", "service"] }
+tower = { version = "=0.5.3", features = ["util"] }
+http-body-util = "=0.1.3"
+limeos-domain = { package = "limeos-stream-b-domain-leaf", path = "../domain" }
+limeos-contracts = { path = "/home/marc/Documents/github/lime-os/.worktrees/p04-stack-notifications/crates/contracts" }
+[lib]
+path = "lib.rs"
+[lints.rust]
+unsafe_code = "forbid"
