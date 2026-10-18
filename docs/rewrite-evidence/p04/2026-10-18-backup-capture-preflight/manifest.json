@@ -1,0 +1,84 @@
+{
+  "tested_source": "bf9a90959924617b36fe37022f22dde8ef7dad00",
+  "base": "7df3f7530865c31b7faefd1f7b12a25aa7655860",
+  "branch": "engineer/p04-backup-capture-preflight",
+  "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5\n",
+  "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+  "packager_node": "v22.14.0",
+  "input_count": 116,
+  "input_bytes": 1461809,
+  "source_changes": [
+    "M\tcrates/backup-archive/src/before_images.rs",
+    "M\tcrates/backup-archive/src/before_images/tests.rs",
+    "A\tcrates/backup-archive/src/before_images/tests/preflight.rs",
+    "A\tdocs/plans/2026-10-17-backup-capture-preflight-design.md"
+  ],
+  "checks": [
+    {
+      "passed": 87,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    {
+      "passed": 32,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    {
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    {
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    {
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    }
+  ],
+  "passed": 148,
+  "new_unit_cases": 12,
+  "new_compile_fail_cases": 1,
+  "baseline_filter_passed": 18,
+  "descriptor_fixture": {
+    "objects": 256,
+    "logical_bytes": 2048,
+    "planning_added_descriptors": 0,
+    "captured_retained_descriptors": 258,
+    "record_bytes": 152862,
+    "transient_allowance": 1,
+    "transient_allowance_basis": "code-derived, not measured process peak"
+  },
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "1",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache"
+  },
+  "installed_acceptance": "UNRUN",
+  "whole_worker_admission": "Not implemented by this slice",
+  "phase_completion": "Not claimed"
+}

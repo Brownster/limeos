@@ -479,6 +479,138 @@ fn bind<'a>(
     Ok(bound)
 }
 
+/// Component costs only; these values neither reserve resources nor grant work.
+/// Caller source/parent/root handles, other owners and service baseline are extra.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CaptureRequirements {
+    pub objects: u32,
+    pub files: u32,
+    pub directories: u32,
+    pub logical_file_bytes: u64,
+    pub largest_file_bytes: u64,
+    pub retained_descriptors: u32,
+    pub transient_descriptors: u32,
+    pub streaming_buffer_bytes: u64,
+    /// Existing bound-vector and attribute capacities, not allocator/RSS bounds.
+    pub bound_metadata_capacity_bytes: u64,
+    /// Configured output ceiling, not a promise that a record will fit.
+    pub record_byte_limit: u64,
+}
+
+/// Read-only metadata bindings to original borrowed handles and private root.
+/// No content digest, approval, quota reservation or restart reconstruction.
+///
+/// ```compile_fail
+/// use limeos_backup_archive::before_images::CapturePlan;
+/// let forged: CapturePlan<'static> = serde_json::from_str("{}").unwrap();
+/// ```
+pub struct CapturePlan<'a> {
+    root: &'a BeforeImageRoot,
+    root_identity: Stat,
+    sources: Vec<BoundSource<'a>>,
+    limits: CaptureLimits,
+    requirements: CaptureRequirements,
+}
+impl fmt::Debug for CapturePlan<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CapturePlan")
+            .field("requirements", &self.requirements)
+            .field("limits", &self.limits)
+            .finish_non_exhaustive()
+    }
+}
+impl CapturePlan<'_> {
+    pub fn requirements(&self) -> CaptureRequirements {
+        self.requirements
+    }
+
+    pub fn limits(&self) -> CaptureLimits {
+        self.limits
+    }
+
+    /// Recheck metadata/name/attribute bindings; this does not hash source bytes.
+    pub fn revalidate(&self, cancelled: &dyn Fn() -> bool) -> Result<(), CaptureError> {
+        poll(cancelled)?;
+        let root = rustix::fs::fstat(&self.root.directory)
+            .map_err(|e| io_failure("recheck planned capture root", e))?;
+        if !same_inode(&root, &self.root_identity) || !own_directory(&root, 0o700) {
+            return Err(Failure::UnsafeRoot.into());
+        }
+        no_attributes(&self.root.directory)?;
+        for source in &self.sources {
+            poll(cancelled)?;
+            source.check()?;
+        }
+        poll(cancelled)?;
+        Ok(())
+    }
+}
+
+/// Bind/size the complete explicit selection before creating any private name.
+/// The coordinator must reserve its whole request before calling capture_planned.
+/// No source offset changes, data copy, descriptor clone or durable record occurs.
+pub fn plan<'a>(
+    sources: &'a [Source<'a>],
+    root: &'a BeforeImageRoot,
+    limits: CaptureLimits,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<CapturePlan<'a>, CaptureError> {
+    poll(cancelled)?;
+    let sources = bind(sources, root, limits, cancelled)?;
+    let root_identity = rustix::fs::fstat(&root.directory)
+        .map_err(|e| io_failure("bind planned capture root", e))?;
+    let objects = u32::try_from(sources.len()).map_err(|_| Failure::InvalidSelection)?;
+    let mut files = 0u32;
+    let mut logical_file_bytes = 0u64;
+    let mut largest_file_bytes = 0u64;
+    let metadata_bytes = sources
+        .capacity()
+        .checked_mul(std::mem::size_of::<BoundSource<'_>>())
+        .ok_or(Failure::Allocation)?;
+    let mut bound_metadata_capacity_bytes =
+        u64::try_from(metadata_bytes).map_err(|_| Failure::Allocation)?;
+    for source in &sources {
+        poll(cancelled)?;
+        if source.kind == EntryKind::File {
+            files = files.checked_add(1).ok_or(Failure::InvalidSelection)?;
+            let size =
+                u64::try_from(source.stat.st_size).map_err(|_| Failure::UnsupportedSource)?;
+            logical_file_bytes = logical_file_bytes
+                .checked_add(size)
+                .ok_or(Failure::Limit(Limit::TotalBytes))?;
+            largest_file_bytes = largest_file_bytes.max(size);
+        }
+        if let Some(label) = &source.selinux_label {
+            bound_metadata_capacity_bytes = bound_metadata_capacity_bytes
+                .checked_add(u64::try_from(label.capacity()).map_err(|_| Failure::Allocation)?)
+                .ok_or(Failure::Allocation)?;
+        }
+    }
+    let requirements = CaptureRequirements {
+        objects,
+        files,
+        directories: objects
+            .checked_sub(files)
+            .ok_or(Failure::InvalidSelection)?,
+        logical_file_bytes,
+        largest_file_bytes,
+        retained_descriptors: objects.checked_add(2).ok_or(Failure::InvalidSelection)?,
+        transient_descriptors: 1,
+        streaming_buffer_bytes: CHUNK as u64,
+        bound_metadata_capacity_bytes,
+        record_byte_limit: limits.max_record_bytes,
+    };
+    let plan = CapturePlan {
+        root,
+        root_identity,
+        sources,
+        limits,
+        requirements,
+    };
+    plan.revalidate(cancelled)?;
+    Ok(plan)
+}
+
 fn source_hash<I: CaptureIo>(
     source: &BoundSource<'_>,
     mut output: Option<&mut File>,
@@ -592,8 +724,30 @@ fn capture_with_io<I: CaptureIo>(
     cancelled: &dyn Fn() -> bool,
     io: &mut I,
 ) -> Result<BeforeImages, CaptureError> {
-    poll(cancelled)?;
-    let sources = bind(sources, root, limits, cancelled)?;
+    capture_planned_with_io(plan(sources, root, limits, cancelled)?, cancelled, io)
+}
+
+/// Consume the original preflight after caller-owned whole-request admission.
+/// Recheck the entire set before any attempt creation; never silently replan.
+pub fn capture_planned(
+    plan: CapturePlan<'_>,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<BeforeImages, CaptureError> {
+    capture_planned_with_io(plan, cancelled, &mut RealIo)
+}
+
+fn capture_planned_with_io<I: CaptureIo>(
+    plan: CapturePlan<'_>,
+    cancelled: &dyn Fn() -> bool,
+    io: &mut I,
+) -> Result<BeforeImages, CaptureError> {
+    plan.revalidate(cancelled)?;
+    let CapturePlan {
+        root,
+        sources,
+        limits,
+        ..
+    } = plan;
     let mut attempt = Attempt::create(root, sources.len(), io)?;
     let result = (|| {
         for source in &sources {

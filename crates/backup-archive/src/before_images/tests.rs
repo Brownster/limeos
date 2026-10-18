@@ -9,6 +9,9 @@ use std::{
 };
 use tempfile::TempDir;
 
+#[path = "tests/preflight.rs"]
+mod preflight;
+
 struct Fixture {
     tree: TempDir,
     parent: File,
@@ -899,7 +902,7 @@ fn maximum_object_fixture_reports_actual_descriptor_and_record_cost() {
         .collect();
     let descriptors = || fs::read_dir("/proc/self/fd").unwrap().count();
     let before = descriptors();
-    let owner = capture(
+    let planned = plan(
         &sources,
         &f.root,
         CaptureLimits {
@@ -910,8 +913,14 @@ fn maximum_object_fixture_reports_actual_descriptor_and_record_cost() {
         &|| false,
     )
     .unwrap();
+    assert_eq!(descriptors(), before);
+    let requirements = planned.requirements();
+    assert_eq!(requirements.objects, MAX_OBJECTS);
+    assert_eq!(requirements.retained_descriptors, MAX_OBJECTS + 2);
+    assert!(requirements.retained_descriptors + requirements.transient_descriptors > 256);
+    let owner = capture_planned(planned, &|| false).unwrap();
     let additional = descriptors() - before;
-    assert_eq!(additional, MAX_OBJECTS as usize + 2);
+    assert_eq!(additional, requirements.retained_descriptors as usize);
     eprintln!(
         "before-image fixture: objects={}, logical_bytes={}, added_retained_fds={}, record_bytes={}",
         MAX_OBJECTS,
