@@ -134,7 +134,7 @@ export type ScheduledOperation = "observe_health" | "backup" | "protection_sync"
 export type MissedRunPolicy = "coalesce_latest" | "skip";
 export type MaintenanceWindow = { start_minute: number, end_minute: number, };
 export type ScheduleDefinition = { operation: ScheduledOperation, anchor: number, interval_seconds: number, grace_seconds: number, missed: MissedRunPolicy, window: MaintenanceWindow | null, };
-export type Schedule = { id: string, revision: number, paused: boolean, definition: ScheduleDefinition, 
+export type Schedule = { id: string, revision: number, paused: boolean, definition: ScheduleDefinition,
 /**
  * Last atomically settled occurrence, including skipped/blocked ones.
  */
