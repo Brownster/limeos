@@ -395,3 +395,11 @@ async fn bounded_worker_serializes_concurrent_budget_reservations() {
     }
     assert_eq!(success, 10);
 }
+#[test]
+fn symlinked_database_lock_is_refused_on_every_architecture() {
+    let d = tempfile::tempdir().unwrap();
+    let elsewhere = d.path().join("elsewhere.lock");
+    std::os::unix::fs::symlink(&elsewhere, d.path().join("core.lock")).unwrap();
+    assert!(Store::open(&d.path().join("core.sqlite")).is_err());
+    assert!(!elsewhere.exists());
+}
