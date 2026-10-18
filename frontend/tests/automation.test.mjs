@@ -44,26 +44,26 @@ test("oversized and malformed response bodies are refused", async () => {
 });
 test("blocked schedules and partial observations have visible explanations", () => {
   const blocked = { ...row, schedule: { ...row.schedule, definition: { ...definition, operation: "backup" } }, status: "blocked" };
-  const html = render(AutomationView, { schedules: { ...page([blocked]), partial: true }, alerts: page([]), csrf: "csrf", canManage: true, changed() {}, moreSchedules() {}, moreAlerts() {} });
+  const html = render(AutomationView, { schedules: { ...page([blocked]), partial: true }, alerts: page([]), canManage: true, create() {}, pause() {}, moreSchedules() {}, moreAlerts() {} });
   assert.match(html, /Operation adapter is unavailable/); assert.match(html, /Missing observations keep active alerts open/);
   assert.match(html, /Pause health/); assert.match(html, /Create observation schedule/);
 });
 test("read-only UI offers no schedule or acknowledgment mutations", () => {
-  const html = render(AutomationView, { schedules: page([row]), alerts: page([]), csrf: "csrf", canManage: false, changed() {}, moreSchedules() {}, moreAlerts() {} });
+  const html = render(AutomationView, { schedules: page([row]), alerts: page([]), canManage: false, moreSchedules() {}, moreAlerts() {} });
   assert.doesNotMatch(html, /Create observation schedule|Pause health|Resume health/);
-  const notes = render(NotificationsView, { value: page([note]), csrf: "csrf", canAcknowledge: false, changed() {}, more() {} });
+  const notes = render(NotificationsView, { value: page([note]), canAcknowledge: false, more() {} });
   assert.match(notes, /Unacknowledged/); assert.doesNotMatch(notes, /Acknowledge note-1/);
 });
 test("notification UI preserves failed, ambiguous and acknowledgment states", () => {
   assert.match(deliveryLabel(note), /retries exhausted/);
   assert.match(deliveryLabel({ ...note, delivery: { state: "ambiguous", at: 1001 } }), /check receiver/);
-  const html = render(NotificationsView, { value: { ...page([note]), partial: true }, csrf: "csrf", canAcknowledge: true, changed() {}, more() {} });
+  const html = render(NotificationsView, { value: { ...page([note]), partial: true }, canAcknowledge: true, acknowledge() {}, more() {} });
   assert.match(html, /Delivery failed/); assert.match(html, /Acknowledge note-1/); assert.match(html, /Some notification state is unavailable/);
   assert.match(html, /&lt;script&gt;/); assert.doesNotMatch(html, /<script>/);
 });
 test("latest durable occurrence and job state are visible after refresh", () => {
   const current = { ...row, last_occurrence: { key: { schedule: "health", revision: 4, due: 1000 }, outcome: { outcome: "job", id: "job-1", state: "succeeded" } } };
-  const html = render(AutomationView, { schedules: page([current]), alerts: page([]), csrf: "csrf", canManage: false, changed() {}, moreSchedules() {}, moreAlerts() {} });
+  const html = render(AutomationView, { schedules: page([current]), alerts: page([]), canManage: false, moreSchedules() {}, moreAlerts() {} });
   assert.match(html, /Latest occurrence/); assert.match(html, /Job job-1/); assert.match(html, /succeeded/);
 });
 test("read abort signal is forwarded and invalid-body 401 still expires the session", async () => {

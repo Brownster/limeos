@@ -35,7 +35,7 @@ test("failed refresh preserves visibly stale data until a committed read succeed
   assert.equal(state.schedules.page.items[0].schedule.id, "health"); assert.equal(state.schedules.stale, true);
   assert.equal(state.alerts.stale, false);
   assert.match(render(AutomationReadStatus, { state }), /Previously read schedules may be out of date/);
-  const html = render(AutomationView, { schedules: state.schedules.page, alerts: state.alerts.page, csrf: "csrf", canManage: true, disabled: true, changed() {}, moreSchedules() {}, moreAlerts() {} });
+  const html = render(AutomationView, { schedules: state.schedules.page, alerts: state.alerts.page, canManage: true, disabled: true, create() {}, pause() {}, moreSchedules() {}, moreAlerts() {} });
   assert.match(html, /disabled=""[^>]*>Pause health/); assert.match(html, /disabled=""[^>]*>Create observation schedule/);
   broken = false; await controller.refresh(); state = controller.getSnapshot();
   assert.equal(state.schedules.stale, false); assert.equal(state.schedules.error, null); controller.dispose();
@@ -45,10 +45,10 @@ test("initial unavailable data is distinct from an empty successful page", async
   const controller = new AutomationController(() => {}, reader(async () => { throw failure("unavailable"); }));
   await controller.start(); const state = controller.getSnapshot();
   assert.equal(state.schedules.page, null);
-  const html = render(AutomationView, { schedules: null, alerts: null, csrf: "csrf", canManage: false, changed() {}, moreSchedules() {}, moreAlerts() {} });
+  const html = render(AutomationView, { schedules: null, alerts: null, canManage: false, moreSchedules() {}, moreAlerts() {} });
   assert.match(html, /Schedule data is unavailable/); assert.match(html, /Alert data is unavailable/);
   assert.doesNotMatch(html, /No schedules|No active alerts/);
-  const notes = render(NotificationsView, { value: null, csrf: "csrf", canAcknowledge: false, changed() {}, more() {} });
+  const notes = render(NotificationsView, { value: null, canAcknowledge: false, more() {} });
   assert.match(notes, /Notification data is unavailable/); assert.doesNotMatch(notes, /No notifications/);
   controller.dispose();
 });
