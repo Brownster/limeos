@@ -12,7 +12,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 10;
+pub const SCHEMA_VERSION: u32 = 11;
 pub const QUEUE_CAPACITY: usize = 64;
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
@@ -131,7 +131,7 @@ impl Store {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(durable)?;
         match version {
-            0..=9 => {
+            0..=10 => {
                 if version < 1 {
                     tx.execute_batch(include_str!("schema.sql"))
                         .map_err(durable)?;
@@ -168,7 +168,11 @@ impl Store {
                     tx.execute_batch(include_str!("migration-v9.sql"))
                         .map_err(durable)?;
                 }
-                tx.execute_batch(include_str!("migration-v10.sql"))
+                if version < 10 {
+                    tx.execute_batch(include_str!("migration-v10.sql"))
+                        .map_err(durable)?;
+                }
+                tx.execute_batch(include_str!("migration-v11.sql"))
                     .map_err(durable)?;
             }
             SCHEMA_VERSION => {}
@@ -247,9 +251,11 @@ impl Store {
     }
 }
 
+mod automation;
 mod backup_preparation;
 mod budgets;
 mod compose;
+mod identity_enablement;
 mod identity_store;
 mod jobs;
 mod plans;
@@ -264,7 +270,13 @@ pub use storage::storage_scope;
 
 #[cfg(test)]
 fn remove_v10_schema(conn: &Connection) {
+    remove_v11_schema(conn);
     conn.execute_batch("DROP TRIGGER IF EXISTS storage_mount_terminal_result; DROP TRIGGER IF EXISTS storage_mount_result_identity; DROP TRIGGER IF EXISTS storage_mount_plan_delete; DROP TRIGGER IF EXISTS storage_mount_plan_consumed; DROP TRIGGER IF EXISTS storage_mount_plan_identity; DROP TABLE IF EXISTS storage_mount_results; DROP TABLE IF EXISTS storage_mount_plans;").unwrap();
+}
+
+#[cfg(test)]
+fn remove_v11_schema(conn: &Connection) {
+    conn.execute_batch("DROP TRIGGER IF EXISTS automation_job_update_state; DROP TRIGGER IF EXISTS automation_job_insert_state; DROP TRIGGER IF EXISTS automation_occurrence_delete; DROP TRIGGER IF EXISTS automation_occurrence_identity; DROP TRIGGER IF EXISTS automation_schedule_delete; DROP TRIGGER IF EXISTS automation_schedule_identity; DROP TABLE IF EXISTS automation_occurrences; DROP TABLE IF EXISTS automation_schedules;").unwrap();
 }
 
 #[cfg(test)]

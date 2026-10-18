@@ -48,6 +48,30 @@ fn main() {
         };
     }
     emit!("core-request", limeos_contracts::CoreRequest);
+    emit!(
+        "observe-health-enable",
+        limeos_contracts::ObserveHealthEnable
+    );
+    emit!(
+        "observe-health-enabled",
+        limeos_contracts::ObserveHealthEnabled
+    );
+    emit!(
+        "observe-health-schedule-input",
+        limeos_contracts::ObserveHealthScheduleInput
+    );
+    emit!(
+        "schedule-pause-input",
+        limeos_domain::automation::PauseSchedule
+    );
+    emit!(
+        "automation-schedule",
+        limeos_domain::automation::ScheduleView
+    );
+    emit!(
+        "automation-schedule-page",
+        limeos_domain::automation::AutomationPage<limeos_domain::automation::ScheduleView>
+    );
     emit!("core-response", limeos_contracts::CoreResponse);
     emit!("executor-request", limeos_executor_protocol::Request);
     emit!("executor-ceiling", limeos_executor_protocol::Ceiling);
@@ -135,6 +159,7 @@ fn main() {
     ts!(limeos_domain::BackupPreparationJobPlan);
     ts!(limeos_domain::PlannedBackupPreparation);
     ts!(limeos_domain::BackupPreparationJob);
+    ts!(limeos_domain::automation::OccurrenceKey);
     ts!(limeos_domain::Intent);
     ts!(limeos_domain::ContainerSnapshot);
     ts!(limeos_domain::ContainerAction);
@@ -252,6 +277,20 @@ fn main() {
     ts!(limeos_domain::EventKind);
     ts!(limeos_domain::Event);
     ts!(limeos_contracts::Login);
+    ts!(limeos_contracts::ObserveHealthEnable);
+    ts!(limeos_contracts::ObserveHealthEnabled);
+    ts!(limeos_contracts::ObserveHealthScheduleInput);
+    ts!(limeos_domain::automation::ScheduledOperation);
+    ts!(limeos_domain::automation::MissedRunPolicy);
+    ts!(limeos_domain::automation::MaintenanceWindow);
+    ts!(limeos_domain::automation::ScheduleDefinition);
+    ts!(limeos_domain::automation::Schedule);
+    ts!(limeos_domain::automation::PauseSchedule);
+    ts!(limeos_domain::automation::ScheduleStatus);
+    ts!(limeos_domain::automation::OccurrenceOutcome);
+    ts!(limeos_domain::automation::OccurrenceView);
+    ts!(limeos_domain::automation::ScheduleView);
+    ts!(limeos_domain::automation::AutomationPage<limeos_domain::automation::ScheduleView>);
     ts!(limeos_contracts::Enrollment);
     ts!(limeos_contracts::Health);
     ts!(limeos_contracts::SessionView);
@@ -285,6 +324,44 @@ fn main() {
         "/api/v1/auth/login":{"post":{"requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_contracts::Login)}}},"responses":{"200":{"description":"Secure session cookie and CSRF token","content":{"application/json":{"schema":schema_for!(limeos_contracts::SessionView)}}},"401":{"description":"Authentication failed"}}}},
         "/api/v1/auth/session":{"get":{"responses":{"200":{"description":"Current session","content":{"application/json":{"schema":schema_for!(limeos_contracts::SessionView)}}}}}},
         "/api/v1/auth/logout":{"post":{"responses":{"204":{"description":"Session revoked"}}}}
+    }});
+    openapi["paths"]["/api/v1/auth/capabilities/observe-health/enable"] = serde_json::json!({"post":{
+        "security":[{"session":[]}],
+        "description":"Reverify the current user's password (1–1024 UTF-8 bytes) and enable only that user's exact ObserveHealth management grant. Current IdentityManage and host-read grants are required. A changed grant invalidates prior sessions/tasks and requires a new login; an existing exact grant is a write-free no-op. Does not start automation.",
+        "parameters":[
+            {"name":"Origin","in":"header","required":true,"schema":{"type":"string"}},
+            {"name":"X-CSRF-Token","in":"header","required":true,"schema":{"type":"string","minLength":64,"maxLength":64}}
+        ],
+        "requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_contracts::ObserveHealthEnable)}}},
+        "responses":{"200":{"description":"Fixed self-enablement outcome; clear session cookie when reauthenticate is true","content":{"application/json":{"schema":schema_for!(limeos_contracts::ObserveHealthEnabled)}}}}
+    }});
+    openapi["paths"]["/api/v1/automation/schedules"] = serde_json::json!({
+        "get": {
+            "security":[{"session":[]}],
+            "description":"Read at most 32 owned ObserveHealth schedules within 64 KiB. Metadata only: AwaitingProducer is not running; AuthoritySuspended requires explicit current-authority resume. Reads do not revise authority, advance watermarks or invoke a collector.",
+            "parameters":[{"name":"after","in":"query","schema":{"type":"string","pattern":"^[a-f0-9]{64}$"}}],
+            "responses":{"200":{"description":"Owned schedule metadata and current readiness","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::AutomationPage<limeos_domain::automation::ScheduleView>)}}}}
+        },
+        "post": {
+            "security":[{"session":[]}],
+            "description":"Create fixed ObserveHealth metadata with current literal management and host-read grants. Owner, operation and anchor are server-owned. No timer, job, producer or effect is started. A lost create response must be reconciled through the owned list; do not automatically retry.",
+            "parameters":[
+                {"name":"Origin","in":"header","required":true,"schema":{"type":"string"}},
+                {"name":"X-CSRF-Token","in":"header","required":true,"schema":{"type":"string","minLength":64,"maxLength":64}}
+            ],
+            "requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_contracts::ObserveHealthScheduleInput)}}},
+            "responses":{"201":{"description":"Durable schedule metadata, awaiting a genuine producer","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::ScheduleView)}}}}
+        }
+    });
+    openapi["paths"]["/api/v1/automation/schedules/{id}/pause"] = serde_json::json!({"post":{
+        "security":[{"session":[]}],
+        "description":"Current-owner revision CAS. paused=false explicitly resumes/rebinds current authority and resets the server anchor only for an actual management change. Cancel only queued observation jobs atomically; no dispatch or effect. Stale retries conflict.",
+        "parameters":[
+            {"name":"Origin","in":"header","required":true,"schema":{"type":"string"}},
+            {"name":"X-CSRF-Token","in":"header","required":true,"schema":{"type":"string","minLength":64,"maxLength":64}}
+        ],
+        "requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_domain::automation::PauseSchedule)}}},
+        "responses":{"200":{"description":"Committed schedule metadata","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::ScheduleView)}}}}
     }});
     for (path, schema) in [
         (

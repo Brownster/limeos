@@ -1,0 +1,148 @@
+name: ObserveHealth schedule metadata bootstrap
+on:
+  push:
+    branches: [qualification/p04-observe-health-schedules-bootstrap]
+permissions:
+  contents: read
+concurrency:
+  group: schedule-metadata-bootstrap-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  generate-and-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      RUSTUP_TOOLCHAIN: '1.88.0'
+      CARGO_BUILD_JOBS: '1'
+      CARGO_INCREMENTAL: '0'
+      RUST_TEST_THREADS: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # same v6 pin as ci.yml
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Generate actual contracts then validate unchanged pinned Rust source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import datetime
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+
+          root = Path.cwd()
+          state = root / '.cache/schedule-metadata-bootstrap'
+          output = state / 'artifact'
+          output.mkdir(parents=True, exist_ok=False)
+          (state / 'tmp').mkdir()
+          environment = os.environ.copy()
+          environment.update(TMPDIR=str(state / 'tmp'), CARGO_TARGET_DIR=str(state / 'target'))
+          source_paths = [
+              'bins/core/src/automation_schedules.rs',
+              'bins/core/src/automation_schedules/tests.rs',
+              'bins/core/src/main.rs',
+              'bins/schema/src/main.rs',
+              'crates/api/src/automation_schedules.rs',
+              'crates/api/src/automation_schedules/tests.rs',
+              'crates/api/src/lib.rs',
+              'crates/contracts/src/lib.rs',
+              'crates/domain/src/automation/schedule.rs',
+              'crates/domain/src/automation/tests.rs',
+              'crates/domain/src/automation/views.rs',
+              'crates/persistence/src/automation.rs',
+              'crates/persistence/src/automation/management.rs',
+              'crates/persistence/src/automation/management/tests.rs',
+              'crates/persistence/src/automation/tests.rs',
+          ]
+          extra_inputs = ['Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml',
+              '.github/workflows/qualification-schedule-metadata.yml']
+          commands = [
+              ('toolchain', ['rustup', 'toolchain', 'install', '1.88.0', '--profile', 'minimal', '--component', 'clippy,rustfmt']),
+              ('generate', ['cargo', 'run', '--locked', '-p', 'limeos-schema', '--', str(output / 'contracts')]),
+              ('password-worker', ['cargo', 'build', '--locked', '-p', 'limeos-core', '--bin', 'limeos-password-worker']),
+              ('affected-tests', ['cargo', 'test', '--locked', '-p', 'limeos-domain', '-p', 'limeos-persistence', '-p', 'limeos-api', '-p', 'limeos-core', '--lib', '--bins', '--', '--test-threads=1']),
+              ('strict-clippy', ['cargo', 'clippy', '--locked', '-p', 'limeos-domain', '-p', 'limeos-contracts', '-p', 'limeos-persistence', '-p', 'limeos-api', '-p', 'limeos-core', '-p', 'limeos-schema', '--all-targets', '--', '-D', 'warnings']),
+              ('format', ['cargo', 'fmt', '--all', '--', '--check']),
+              ('repository', ['python3', 'scripts/check_repository.py']),
+          ]
+          def save(name, value):
+              (output / name).write_text(json.dumps(value, indent=2, sort_keys=True) + '\n')
+          def inputs():
+              result = {}
+              for name in source_paths + extra_inputs:
+                  actual = (root / name).read_bytes()
+                  committed = subprocess.check_output(['git', 'show', f'HEAD:{name}'])
+                  result[name] = {'sha256': hashlib.sha256(actual).hexdigest(), 'bytes': len(actual),
+                      'git_blob': subprocess.check_output(['git', 'rev-parse', f'HEAD:{name}'], text=True).strip(),
+                      'matches_git': actual == committed}
+              return result
+          record = {'source': os.environ['GITHUB_SHA'], 'run_id': os.environ['GITHUB_RUN_ID'],
+              'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'], 'event': os.environ['GITHUB_EVENT_NAME'],
+              'job': os.environ['GITHUB_JOB'], 'started': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              'commands': [{'name': name, 'argv': argv, 'state': 'not_run', 'exit_code': None} for name, argv in commands],
+              'status': 'incomplete', 'schema_check': 'generated artifact only; checkout contracts intentionally remain unchanged',
+              'limits': ['not installed qualification', 'not ARM64 qualification', 'not producer/dispatch/effect acceptance']}
+          exit_code = 1
+          before = None
+          try:
+              actual_head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+              if actual_head != record['source']:
+                  raise RuntimeError('Checkout does not match workflow source SHA')
+              before = inputs()
+              save('source-inputs-before.json', before)
+              if not all(item['matches_git'] for item in before.values()):
+                  raise RuntimeError('Initial source bytes differ from committed input')
+              save('qualification.json', record)
+              for entry in record['commands']:
+                  entry.update(state='running', started=datetime.datetime.now(datetime.timezone.utc).isoformat())
+                  save('qualification.json', record)
+                  with (output / f"{entry['name']}.log").open('wb') as log:
+                      result = subprocess.run(entry['argv'], cwd=root, env=environment, stdout=log, stderr=subprocess.STDOUT, check=False)
+                  entry.update(exit_code=result.returncode, state='passed' if result.returncode == 0 else 'failed', ended=datetime.datetime.now(datetime.timezone.utc).isoformat())
+                  save('qualification.json', record)
+                  if result.returncode != 0:
+                      raise RuntimeError(f"{entry['name']} exited {result.returncode}")
+                  if entry['name'] == 'toolchain':
+                      for name, argv in [('rustc', ['rustc', '-Vv']), ('cargo', ['cargo', '-V'])]:
+                          with (output / f'{name}-version.log').open('wb') as log:
+                              subprocess.run(argv, cwd=root, env=environment, stdout=log, stderr=subprocess.STDOUT, check=True)
+              record['status'] = 'passed'
+              exit_code = 0
+          except Exception as error:
+              record.update(status='failed', error=str(error))
+          finally:
+              try:
+                  after = inputs()
+                  save('source-inputs-after.json', after)
+                  record['inputs_unchanged'] = before == after and all(item['matches_git'] for item in after.values())
+                  with (output / 'tracked-diff.log').open('wb') as log:
+                      diff = subprocess.run(['git', 'diff', '--exit-code', '--'], cwd=root, stdout=log, stderr=subprocess.STDOUT, check=False)
+                  record['tracked_diff_exit'] = diff.returncode
+                  if not record['inputs_unchanged'] or diff.returncode != 0:
+                      raise RuntimeError('Tracked source inputs changed during checks')
+              except Exception as error:
+                  record.update(status='failed', source_after_error=str(error))
+                  exit_code = 1
+              record['ended'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+              save('qualification.json', record)
+              contracts = output / 'contracts'
+              save('generated-files.json', {
+                  path.name: {'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'bytes': path.stat().st_size}
+                  for path in sorted(contracts.glob('*')) if path.is_file()
+              })
+              files = sorted(path for path in output.rglob('*') if path.is_file() and path.name != 'SHA256SUMS')
+              (output / 'SHA256SUMS').write_text(''.join(f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(output)}\n' for path in files))
+          raise SystemExit(exit_code)
+          PY
+      - name: Preserve contracts and raw source-bound outcomes
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # same v7 pin as ci.yml
+        with:
+          name: schedule-metadata-bootstrap-${{ github.sha }}-${{ github.run_attempt }}
+          path: .cache/schedule-metadata-bootstrap/artifact/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

@@ -1,33 +1,7 @@
 //! Observation-only runner. The integrator implements this boundary on the existing Store.
 use limeos_domain::automation::*;
+pub use limeos_domain::automation::{ObservationBatch, ObservationJob, Reservation, Settlement};
 use limeos_domain::{Error, ErrorCode, Result, identifier};
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Settlement {
-    Observation(OccurrenceKey),
-    Skipped(OccurrenceKey),
-    AdapterUnavailable(OccurrenceKey),
-}
-impl Settlement {
-    pub fn key(&self) -> &OccurrenceKey {
-        match self {
-            Self::Observation(key) | Self::Skipped(key) | Self::AdapterUnavailable(key) => key,
-        }
-    }
-}
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ObservationJob {
-    pub id: String,
-    pub occurrence: OccurrenceKey,
-}
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Reservation {
-    Queued(ObservationJob),
-    Existing,
-    Skipped,
-    Blocked,
-    Stale,
-}
 
 /// Proposed adapter to the sole central writer. Implementations must not use a
 /// separate database, queue or recovery ledger. No method here grants effect authority.
@@ -66,28 +40,6 @@ pub trait ObservationStore {
     fn publish_in_app(&mut self, limit: usize, now: i64) -> Result<usize>;
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ObservationBatch {
-    pub signals: Vec<AlertSignal>,
-    pub complete: bool,
-}
-impl ObservationBatch {
-    pub fn validate(&self) -> Result<()> {
-        if self.signals.len() > MAX_ALERTS {
-            return Err(Error(ErrorCode::Overloaded));
-        }
-        for (i, signal) in self.signals.iter().enumerate() {
-            signal.validate()?;
-            if self.signals[..i]
-                .iter()
-                .any(|other| other.key == signal.key)
-            {
-                return Err(Error(ErrorCode::InvalidInput));
-            }
-        }
-        Ok(())
-    }
-}
 pub trait HealthReader {
     /// The registered protected read-worker supplies observation facts and partial
     /// collection status. Missing data must not be represented as healthy.

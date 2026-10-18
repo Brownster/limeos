@@ -20,6 +20,38 @@ pub struct Login {
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
+pub struct ObserveHealthEnable {
+    pub password: String,
+}
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct ObserveHealthEnabled {
+    pub enabled: bool,
+    pub reauthenticate: bool,
+}
+/// Fixed metadata only: owner, operation, anchor and readiness are server-owned.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct ObserveHealthScheduleInput {
+    pub interval_seconds: u32,
+    pub grace_seconds: u32,
+    pub missed: limeos_domain::automation::MissedRunPolicy,
+    pub window: Option<limeos_domain::automation::MaintenanceWindow>,
+}
+impl ObserveHealthScheduleInput {
+    pub fn definition(&self) -> limeos_domain::automation::ScheduleDefinition {
+        limeos_domain::automation::ScheduleDefinition {
+            operation: limeos_domain::automation::ScheduledOperation::ObserveHealth,
+            anchor: 0,
+            interval_seconds: self.interval_seconds,
+            grace_seconds: self.grace_seconds,
+            missed: self.missed,
+            window: self.window,
+        }
+    }
+}
+#[derive(Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
 pub struct Enrollment {
     pub token: String,
     pub username: String,

@@ -17,7 +17,8 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             include_str!("migration-v7.sql"),
             include_str!("migration-v8.sql"),
             include_str!("migration-v9.sql"),
-            include_str!("migration-v10.sql")
+            include_str!("migration-v10.sql"),
+            include_str!("migration-v11.sql")
         ))
         .map_err(durable)?;
     let mut stmt = reference
@@ -46,6 +47,8 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         "backup_preparation_plans",
         "storage_mount_plans",
         "storage_mount_results",
+        "automation_schedules",
+        "automation_occurrences",
     ] {
         let expected: String = reference
             .query_row(
@@ -133,7 +136,8 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         }
     }
     super::storage_mounts::check(conn)?;
-    super::backup_preparation::check(conn)
+    super::backup_preparation::check(conn)?;
+    super::automation::check(conn)
 }
 
 #[cfg(test)]

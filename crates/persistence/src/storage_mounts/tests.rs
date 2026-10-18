@@ -364,7 +364,94 @@ fn schema9_upgrade_is_atomic_with_startup_audit_and_preserves_users() {
             .conn
             .pragma_query_value::<u32, _>(None, "user_version", |row| row.get(0))
             .unwrap(),
-        10
+        SCHEMA_VERSION
+    );
+}
+
+#[test]
+fn schema10_upgrade_preserves_mount_plans_results_and_uncertain_resource_claims() {
+    let (dir, mut store, principal, current) = setup();
+    let (proposal, _, job) = queued(&mut store, &principal, &current);
+    let running = store
+        .claim_storage_mount(&principal, &job.id, &current, 203)
+        .unwrap();
+    let (receipt, after) = verified(&running);
+    store
+        .record_storage_mount_result(&running, &receipt, Some(&after), None, 204)
+        .unwrap();
+    let receipt_before: String = store
+        .conn
+        .query_row(
+            "SELECT receipt FROM storage_mount_results WHERE job=?",
+            [&job.id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let unknown = store
+        .queue_job(
+            &principal,
+            "uncertain-health",
+            &Intent::HealthProbe {
+                resource: "system".into(),
+            },
+            300,
+            205,
+        )
+        .unwrap();
+    store
+        .transition(&unknown, JobState::Queued, JobState::Running, 206)
+        .unwrap();
+    store
+        .transition(&unknown, JobState::Running, JobState::OutcomeUnknown, 207)
+        .unwrap();
+    super::super::remove_v11_schema(&store.conn);
+    store.conn.pragma_update(None, "user_version", 10).unwrap();
+    drop(store);
+    let reopened = Store::open(&dir.path().join("core.sqlite")).unwrap();
+    assert_eq!(
+        reopened
+            .storage_mount_plan(&principal, &proposal.plan.id)
+            .unwrap(),
+        proposal
+    );
+    assert_eq!(
+        reopened
+            .storage_mount_job(&principal, &job.id)
+            .unwrap()
+            .state,
+        JobState::Succeeded
+    );
+    assert_eq!(
+        reopened
+            .conn
+            .query_row(
+                "SELECT receipt FROM storage_mount_results WHERE job=?",
+                [&job.id],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
+        receipt_before
+    );
+    assert_eq!(reopened.job_state(&unknown).unwrap(), "outcome_unknown");
+    assert_eq!(locks(&reopened, &unknown), 1);
+    assert_eq!(
+        reopened
+            .conn
+            .query_row(
+                "SELECT resource FROM job_resources WHERE job=?",
+                [&unknown],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
+        "system"
+    );
+    assert_eq!(
+        reopened
+            .conn
+            .query_row("SELECT count(*) FROM automation_schedules", [], |r| r
+                .get::<_, i64>(0))
+            .unwrap(),
+        0
     );
 }
 

@@ -97,6 +97,12 @@ def main():
                     }
                 elif path.endswith("/observations/stream"):
                     status = 503
+                elif path.startswith("/api/v1/storage/mounts/"):
+                    assert request.method == "GET" and path in (
+                        "/api/v1/storage/mounts/targets",
+                        "/api/v1/storage/mounts/jobs",
+                    )
+                    data = {"targets": []} if path.endswith("/targets") else []
                 elif path.endswith("/plans"):
                     assert (
                         request.method == "POST"

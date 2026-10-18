@@ -21,6 +21,24 @@
       ]
     },
     {
+      "description": "Only atomic occurrence reservation may queue this read-only intent.\nIt remains undispatchable until protected observation integration exists.",
+      "type": "object",
+      "properties": {
+        "occurrence": {
+          "$ref": "#/$defs/OccurrenceKey"
+        },
+        "operation": {
+          "type": "string",
+          "const": "automation_observe_health"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "occurrence"
+      ]
+    },
+    {
       "type": "object",
       "properties": {
         "operation": {
@@ -362,6 +380,28 @@
         "mode",
         "uid",
         "gid"
+      ]
+    },
+    "OccurrenceKey": {
+      "type": "object",
+      "properties": {
+        "due": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "schedule": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schedule",
+        "revision",
+        "due"
       ]
     },
     "StorageBlockDevice": {

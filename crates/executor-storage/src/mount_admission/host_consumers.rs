@@ -39,16 +39,24 @@ impl HostConsumers {
             OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
             Mode::empty(),
         )
-        .map_err(|_| Failure::Unavailable)?;
+        .map_err(|error| io_failure("scan.proc.open", error, Failure::Unavailable))?;
         if rustix::fs::fstatfs(&proc)
-            .map_err(|_| Failure::Unavailable)?
+            .map_err(|error| io_failure("scan.proc.filesystem", error, Failure::Unavailable))?
             .f_type
             != rustix::fs::PROC_SUPER_MAGIC
         {
-            return Err(Failure::Unavailable);
+            return Err(refusal(
+                "scan.proc.not_procfs",
+                Failure::Unavailable,
+                0,
+                0,
+                0,
+            ));
         }
-        let (tasks, namespaces, digest) =
-            collect(&proc, selected, physical, underlay, expires, cancelled)?;
+        let (tasks, namespaces, digest) = diagnosed(
+            "scan.initial_collection",
+            collect(&proc, selected, physical, underlay, expires, cancelled),
+        )?;
         let owner = Self {
             proc,
             tasks,
@@ -57,7 +65,10 @@ impl HostConsumers {
             expires,
             poisoned: Cell::new(false),
         };
-        owner.revalidate(selected, physical, underlay, cancelled)?;
+        diagnosed(
+            "scan.initial_recheck",
+            owner.revalidate(selected, physical, underlay, cancelled),
+        )?;
         Ok(owner)
     }
     pub(super) fn digest(&self) -> &str {
@@ -74,13 +85,16 @@ impl HostConsumers {
             return Err(Failure::Conflict);
         }
         let result = (|| {
-            let (tasks, namespaces, digest) = collect(
-                &self.proc,
-                selected,
-                physical,
-                underlay,
-                self.expires,
-                cancelled,
+            let (tasks, namespaces, digest) = diagnosed(
+                "scan.recheck.collection",
+                collect(
+                    &self.proc,
+                    selected,
+                    physical,
+                    underlay,
+                    self.expires,
+                    cancelled,
+                ),
             )?;
             if tasks != self.tasks
                 || digest != self.digest
@@ -90,7 +104,9 @@ impl HostConsumers {
             }
             for (key, held) in &self.namespaces {
                 let fresh = namespaces.get(key).ok_or(Failure::Conflict)?;
-                let stat = rustix::fs::fstat(&held.fd).map_err(|_| Failure::Unavailable)?;
+                let stat = rustix::fs::fstat(&held.fd).map_err(|error| {
+                    io_failure("scan.recheck.namespace.stat", error, Failure::Unavailable)
+                })?;
                 if (stat.st_dev, stat.st_ino) != *key || fresh.digest != held.digest {
                     return Err(Failure::Conflict);
                 }
@@ -113,25 +129,40 @@ fn poll(expires: Instant, cancelled: &dyn Fn() -> bool) -> Result<()> {
 fn numeric(fd: &OwnedFd, maximum: usize) -> Result<Vec<u32>> {
     let mut ids = Vec::new();
     ids.try_reserve_exact(maximum)
-        .map_err(|_| Failure::Unavailable)?;
-    for entry in rustix::fs::Dir::read_from(fd).map_err(|_| Failure::Unavailable)? {
-        let entry = entry.map_err(|_| Failure::Unavailable)?;
+        .map_err(|_| refusal("proc.list.reserve", Failure::Unavailable, 0, 0, 0))?;
+    for entry in rustix::fs::Dir::read_from(fd)
+        .map_err(|error| io_failure("proc.list.open", error, Failure::Unavailable))?
+    {
+        let entry =
+            entry.map_err(|error| io_failure("proc.list.next", error, Failure::Unavailable))?;
         let name = entry.file_name().to_bytes();
         if name.is_empty() || !name.iter().all(u8::is_ascii_digit) {
             continue;
         }
         if ids.len() == maximum {
-            return Err(Failure::Unavailable);
+            return Err(refusal(
+                "proc.list.limit",
+                Failure::Unavailable,
+                0,
+                ids.len() + 1,
+                maximum,
+            ));
         }
         let id = std::str::from_utf8(name)
             .ok()
             .and_then(|s| s.parse::<u32>().ok())
-            .ok_or(Failure::Unavailable)?;
+            .ok_or_else(|| refusal("proc.list.numeric", Failure::Unavailable, 0, 0, 0))?;
         ids.push(id);
     }
     ids.sort_unstable();
     if ids.windows(2).any(|p| p[0] == p[1]) {
-        return Err(Failure::Unavailable);
+        return Err(refusal(
+            "proc.list.duplicate",
+            Failure::Unavailable,
+            0,
+            0,
+            0,
+        ));
     }
     Ok(ids)
 }
@@ -142,42 +173,66 @@ fn openat(fd: &OwnedFd, name: &str, flags: OFlags) -> Result<OwnedFd> {
         flags | OFlags::CLOEXEC | OFlags::NOFOLLOW,
         Mode::empty(),
     )
-    .map_err(|_| Failure::Unavailable)
+    .map_err(|error| io_failure("proc.openat", error, Failure::Unavailable))
 }
 fn read(fd: &OwnedFd, name: &str, limit: usize) -> Result<String> {
-    let file = openat(fd, name, OFlags::RDONLY)?;
+    let file = diagnosed("proc.read.open", openat(fd, name, OFlags::RDONLY))?;
     if rustix::fs::fstatfs(&file)
-        .map_err(|_| Failure::Unavailable)?
+        .map_err(|error| io_failure("proc.read.filesystem", error, Failure::Unavailable))?
         .f_type
         != rustix::fs::PROC_SUPER_MAGIC
     {
-        return Err(Failure::Unavailable);
+        return Err(refusal(
+            "proc.read.not_procfs",
+            Failure::Unavailable,
+            0,
+            0,
+            0,
+        ));
     }
     let mut text = String::new();
     text.try_reserve_exact(limit + 1)
-        .map_err(|_| Failure::Unavailable)?;
+        .map_err(|_| refusal("proc.read.reserve", Failure::Unavailable, 0, 0, 0))?;
     File::from(file)
         .take(limit as u64 + 1)
         .read_to_string(&mut text)
-        .map_err(|_| Failure::Unavailable)?;
+        .map_err(|error| {
+            refusal(
+                "proc.read.bytes",
+                Failure::Unavailable,
+                error.raw_os_error().unwrap_or(0),
+                text.len(),
+                limit,
+            )
+        })?;
     if text.len() > limit {
-        return Err(Failure::Unavailable);
+        return Err(refusal(
+            "proc.read.limit",
+            Failure::Unavailable,
+            0,
+            text.len(),
+            limit,
+        ));
     }
     Ok(text)
 }
 fn start(fd: &OwnedFd, tid: u32) -> Result<u64> {
-    let text = read(fd, "stat", 4096)?;
-    let (pid, _) = text.split_once(' ').ok_or(Failure::Unavailable)?;
+    let text = diagnosed("task.stat.read", read(fd, "stat", 4096))?;
+    let (pid, _) = text
+        .split_once(' ')
+        .ok_or_else(|| refusal("task.stat.pid_field", Failure::Unavailable, 0, 0, 0))?;
     if pid.parse::<u32>().ok() != Some(tid) {
         return Err(Failure::IdentityMismatch);
     }
-    let end = text.rfind(')').ok_or(Failure::Unavailable)?;
+    let end = text
+        .rfind(')')
+        .ok_or_else(|| refusal("task.stat.framing", Failure::Unavailable, 0, 0, 0))?;
     text[end + 1..]
         .split_ascii_whitespace()
         .nth(19)
         .and_then(|s| s.parse().ok())
         .filter(|n| *n > 0)
-        .ok_or(Failure::Unavailable)
+        .ok_or_else(|| refusal("task.stat.start_field", Failure::Unavailable, 0, 0, 0))
 }
 type Collection = (Vec<Task>, BTreeMap<(u64, u64), Namespace>, String);
 fn collect(
@@ -188,71 +243,106 @@ fn collect(
     expires: Instant,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<Collection> {
-    poll(expires, cancelled)?;
-    let pids = numeric(proc, TASKS)?;
+    diagnosed("scan.window.before", poll(expires, cancelled))?;
+    let pids = diagnosed("scan.process_ids.before", numeric(proc, TASKS))?;
     let mut tasks = Vec::new();
     tasks
         .try_reserve_exact(TASKS)
-        .map_err(|_| Failure::Unavailable)?;
+        .map_err(|_| refusal("scan.tasks.reserve", Failure::Unavailable, 0, 0, 0))?;
     let mut namespaces = BTreeMap::new();
     for pid in &pids {
-        poll(expires, cancelled)?;
-        let process = openat(proc, &pid.to_string(), OFlags::RDONLY | OFlags::DIRECTORY)?;
+        diagnosed("scan.window.process", poll(expires, cancelled))?;
+        let process = diagnosed(
+            "scan.process.open",
+            openat(proc, &pid.to_string(), OFlags::RDONLY | OFlags::DIRECTORY),
+        )?;
         let pidfd = rustix::process::pidfd_open(
-            Pid::from_raw(*pid as i32).ok_or(Failure::Unavailable)?,
+            Pid::from_raw(*pid as i32)
+                .ok_or_else(|| refusal("scan.pid_input", Failure::Unavailable, 0, 0, 0))?,
             PidfdFlags::empty(),
         )
-        .map_err(|_| Failure::Unavailable)?;
-        let leader_start = start(&process, *pid)?;
-        if kernel_thread(&process)? {
+        .map_err(|error| io_failure("scan.pidfd_open", error, Failure::Unavailable))?;
+        let leader_start = diagnosed("scan.leader_start.before", start(&process, *pid))?;
+        if diagnosed("scan.kernel_classification", kernel_thread(&process))? {
             // Kernel tasks have no userspace mm, descriptor table, or process
             // mount namespace. Topology/swap/boot and helper-pending barriers
             // remain independent checks; no general kernel-consumer claim.
-            let taskdir = openat(&process, "task", OFlags::RDONLY | OFlags::DIRECTORY)?;
-            let tids = numeric(&taskdir, TASKS)?;
+            let taskdir = diagnosed(
+                "scan.kernel.task_directory",
+                openat(&process, "task", OFlags::RDONLY | OFlags::DIRECTORY),
+            )?;
+            let tids = diagnosed("scan.kernel.tids.before", numeric(&taskdir, TASKS))?;
             for tid in &tids {
                 if tasks.len() == TASKS {
-                    return Err(Failure::Unavailable);
+                    return Err(refusal(
+                        "scan.kernel.task_limit",
+                        Failure::Unavailable,
+                        0,
+                        tasks.len() + 1,
+                        TASKS,
+                    ));
                 }
-                let task = openat(
-                    &taskdir,
-                    &tid.to_string(),
-                    OFlags::RDONLY | OFlags::DIRECTORY,
+                let task = diagnosed(
+                    "scan.kernel.task.open",
+                    openat(
+                        &taskdir,
+                        &tid.to_string(),
+                        OFlags::RDONLY | OFlags::DIRECTORY,
+                    ),
                 )?;
                 tasks.push(Task {
                     pid: *pid,
                     tid: *tid,
-                    start: start(&task, *tid)?,
+                    start: diagnosed("scan.kernel.task.start", start(&task, *tid))?,
                     namespace: (0, 0),
                 });
             }
-            if numeric(&taskdir, TASKS)? != tids
-                || start(&process, *pid)? != leader_start
-                || !kernel_thread(&process)?
+            if diagnosed("scan.kernel.tids.after", numeric(&taskdir, TASKS))? != tids
+                || diagnosed("scan.kernel.leader_start.after", start(&process, *pid))?
+                    != leader_start
+                || !diagnosed("scan.kernel.classification.after", kernel_thread(&process))?
             {
                 return Err(Failure::Conflict);
             }
-            live_pidfd(&pidfd, *pid)?;
+            diagnosed("scan.kernel.pidfd", live_pidfd(&pidfd, *pid))?;
             continue;
         }
-        if fixed_guardian(&process, *pid)? {
-            live_pidfd(&pidfd, *pid)?;
+        if diagnosed(
+            "scan.guardian_classification",
+            fixed_guardian(&process, *pid),
+        )? {
+            diagnosed("scan.guardian.pidfd", live_pidfd(&pidfd, *pid))?;
             continue;
         }
-        let taskdir = openat(&process, "task", OFlags::RDONLY | OFlags::DIRECTORY)?;
-        let tids = numeric(&taskdir, TASKS)?;
+        let taskdir = diagnosed(
+            "scan.task_directory",
+            openat(&process, "task", OFlags::RDONLY | OFlags::DIRECTORY),
+        )?;
+        let tids = diagnosed("scan.tids.before", numeric(&taskdir, TASKS))?;
         if tids.is_empty() || tasks.len() + tids.len() > TASKS {
-            return Err(Failure::Unavailable);
+            return Err(refusal(
+                "scan.task_membership",
+                Failure::Unavailable,
+                0,
+                tasks.len() + tids.len(),
+                TASKS,
+            ));
         }
         for tid in &tids {
-            poll(expires, cancelled)?;
-            let task = openat(
-                &taskdir,
-                &tid.to_string(),
-                OFlags::RDONLY | OFlags::DIRECTORY,
+            diagnosed("scan.window.task", poll(expires, cancelled))?;
+            let task = diagnosed(
+                "scan.task.open",
+                openat(
+                    &taskdir,
+                    &tid.to_string(),
+                    OFlags::RDONLY | OFlags::DIRECTORY,
+                ),
             )?;
-            let ticks = start(&task, *tid)?;
-            let nsdir = openat(&task, "ns", OFlags::RDONLY | OFlags::DIRECTORY)?;
+            let ticks = diagnosed("scan.task.start.before", start(&task, *tid))?;
+            let nsdir = diagnosed(
+                "scan.namespace.directory",
+                openat(&task, "ns", OFlags::RDONLY | OFlags::DIRECTORY),
+            )?;
             // Proc namespace magic links are intentionally followed only from
             // the already-open genuine proc task directory, never caller paths.
             let namespace = rustix::fs::openat(
@@ -261,19 +351,33 @@ fn collect(
                 OFlags::RDONLY | OFlags::CLOEXEC,
                 Mode::empty(),
             )
-            .map_err(|_| Failure::Unavailable)?;
-            let stat = rustix::fs::fstat(&namespace).map_err(|_| Failure::Unavailable)?;
+            .map_err(|error| io_failure("scan.namespace.open", error, Failure::Unavailable))?;
+            let stat = rustix::fs::fstat(&namespace)
+                .map_err(|error| io_failure("scan.namespace.stat", error, Failure::Unavailable))?;
             let key = (stat.st_dev, stat.st_ino);
             if !namespaces.contains_key(&key) {
                 if namespaces.len() == NAMESPACES {
-                    return Err(Failure::Unavailable);
+                    return Err(refusal(
+                        "scan.namespace.limit",
+                        Failure::Unavailable,
+                        0,
+                        namespaces.len() + 1,
+                        NAMESPACES,
+                    ));
                 }
-                let table = read(&task, "mountinfo", 64 * 1024)?;
-                let rows = crate::mounts::parse_with_profile(
-                    &table,
-                    crate::StorageReadProfile::CombinedV1,
+                let table =
+                    diagnosed("scan.mount_table.read", read(&task, "mountinfo", 64 * 1024))?;
+                let rows = diagnosed(
+                    "scan.mount_table.parse",
+                    crate::mounts::parse_with_profile(
+                        &table,
+                        crate::StorageReadProfile::CombinedV1,
+                    ),
                 )?;
-                check_mounts(&rows, selected, physical, underlay)?;
+                diagnosed(
+                    "scan.mount_table.consumers",
+                    check_mounts(&rows, selected, physical, underlay),
+                )?;
                 let digest = limeos_identity::digest(&table);
                 namespaces.insert(
                     key,
@@ -284,22 +388,40 @@ fn collect(
                 );
             }
             if *pid != std::process::id() {
-                check_link(&task, "cwd", selected, physical, underlay)?;
-                check_link(&task, "root", selected, physical, underlay)?;
+                diagnosed(
+                    "scan.cwd",
+                    check_link(&task, "cwd", selected, physical, underlay),
+                )?;
+                diagnosed(
+                    "scan.root",
+                    check_link(&task, "root", selected, physical, underlay),
+                )?;
                 // Individual tasks may unshare CLONE_FILES. Inspect their
                 // actual tables, not only the process leader's table.
-                check_fds(&task, selected, physical, underlay, expires, cancelled)?;
-                check_maps(&read(&task, "maps", 256 * 1024)?, selected, physical)?;
+                diagnosed(
+                    "scan.fds",
+                    check_fds(&task, selected, physical, underlay, expires, cancelled),
+                )?;
+                diagnosed(
+                    "scan.maps",
+                    check_maps(
+                        &diagnosed("scan.maps.read", read(&task, "maps", 256 * 1024))?,
+                        selected,
+                        physical,
+                    ),
+                )?;
             }
-            let after = start(&task, *tid)?;
+            let after = diagnosed("scan.task.start.after", start(&task, *tid))?;
             let fresh = rustix::fs::openat(
                 &nsdir,
                 "mnt",
                 OFlags::RDONLY | OFlags::CLOEXEC,
                 Mode::empty(),
             )
-            .map_err(|_| Failure::Unavailable)?;
-            let fresh = rustix::fs::fstat(&fresh).map_err(|_| Failure::Unavailable)?;
+            .map_err(|error| io_failure("scan.namespace.reopen", error, Failure::Unavailable))?;
+            let fresh = rustix::fs::fstat(&fresh).map_err(|error| {
+                io_failure("scan.namespace.restat", error, Failure::Unavailable)
+            })?;
             if after != ticks || (fresh.st_dev, fresh.st_ino) != key {
                 return Err(Failure::Conflict);
             }
@@ -310,21 +432,23 @@ fn collect(
                 namespace: key,
             });
         }
-        if start(&process, *pid)? != leader_start || numeric(&taskdir, TASKS)? != tids {
+        if diagnosed("scan.leader_start.after", start(&process, *pid))? != leader_start
+            || diagnosed("scan.tids.after", numeric(&taskdir, TASKS))? != tids
+        {
             return Err(Failure::Conflict);
         }
         // Holding a pidfd prevents interpreting a recycled PID as this owner.
-        live_pidfd(&pidfd, *pid)?;
+        diagnosed("scan.pidfd", live_pidfd(&pidfd, *pid))?;
     }
-    if numeric(proc, TASKS)? != pids {
+    if diagnosed("scan.process_ids.after", numeric(proc, TASKS))? != pids {
         return Err(Failure::Conflict);
     }
-    poll(expires, cancelled)?;
+    diagnosed("scan.window.after", poll(expires, cancelled))?;
     let ns: Vec<_> = namespaces
         .iter()
         .map(|(key, n)| (*key, &n.digest))
         .collect();
-    let digest = inventory::digest(&(&tasks, ns))?;
+    let digest = diagnosed("scan.digest", inventory::digest(&(&tasks, ns)))?;
     Ok((tasks, namespaces, digest))
 }
 fn relevant(device: (u32, u32), physical: &[StorageBlockDevice]) -> bool {
@@ -358,8 +482,9 @@ fn check_link(
     underlay: &DirectoryIdentity,
 ) -> Result<()> {
     let fd = rustix::fs::openat(task, name, OFlags::PATH | OFlags::CLOEXEC, Mode::empty())
-        .map_err(|_| Failure::Unavailable)?;
-    let stat = rustix::fs::fstat(&fd).map_err(|_| Failure::Unavailable)?;
+        .map_err(|error| io_failure("link.open", error, Failure::Unavailable))?;
+    let stat = rustix::fs::fstat(&fd)
+        .map_err(|error| io_failure("link.stat", error, Failure::Unavailable))?;
     let device = (
         rustix::fs::major(stat.st_dev),
         rustix::fs::minor(stat.st_dev),
@@ -377,8 +502,11 @@ fn check_link(
     {
         return Err(Failure::Conflict);
     }
-    let link = rustix::fs::readlinkat(task, name, Vec::new()).map_err(|_| Failure::Unavailable)?;
-    let link = link.to_str().map_err(|_| Failure::Unavailable)?;
+    let link = rustix::fs::readlinkat(task, name, Vec::new())
+        .map_err(|error| io_failure("link.readlink", error, Failure::Unavailable))?;
+    let link = link
+        .to_str()
+        .map_err(|_| refusal("link.utf8", Failure::Unavailable, 0, 0, 0))?;
     if link.len() > 4096 || beneath(link, &selected.mountpoint) {
         return Err(Failure::Conflict);
     }
@@ -392,33 +520,57 @@ fn check_fds(
     expires: Instant,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<()> {
-    let fds = openat(process, "fd", OFlags::RDONLY | OFlags::DIRECTORY)?;
-    let ids = numeric(&fds, FDS_PER_PROCESS)?;
+    let fds = diagnosed(
+        "fds.directory",
+        openat(process, "fd", OFlags::RDONLY | OFlags::DIRECTORY),
+    )?;
+    let ids = diagnosed("fds.ids.before", numeric(&fds, FDS_PER_PROCESS))?;
     for fd in &ids {
-        poll(expires, cancelled)?;
-        check_link(&fds, &fd.to_string(), selected, physical, underlay)?;
+        diagnosed("fds.window", poll(expires, cancelled))?;
+        diagnosed(
+            "fds.link",
+            check_link(&fds, &fd.to_string(), selected, physical, underlay),
+        )?;
     }
-    if numeric(&fds, FDS_PER_PROCESS)? != ids {
+    if diagnosed("fds.ids.after", numeric(&fds, FDS_PER_PROCESS))? != ids {
         return Err(Failure::Conflict);
     }
     Ok(())
 }
 fn check_maps(text: &str, selected: &StorageDevice, physical: &[StorageBlockDevice]) -> Result<()> {
-    if !text.is_empty() && !text.ends_with('\n') || text.lines().count() > 4096 {
-        return Err(Failure::Unavailable);
+    if !text.is_empty() && !text.ends_with('\n') {
+        return Err(refusal("maps.truncated", Failure::Unavailable, 0, 0, 0));
+    }
+    let lines = text.lines().count();
+    if lines > 4096 {
+        return Err(refusal(
+            "maps.line_limit",
+            Failure::Unavailable,
+            0,
+            lines,
+            4096,
+        ));
     }
     for line in text.lines() {
         let mut fields = line.split_ascii_whitespace();
-        let _address = fields.next().ok_or(Failure::Unavailable)?;
-        let _permissions = fields.next().ok_or(Failure::Unavailable)?;
-        let _offset = fields.next().ok_or(Failure::Unavailable)?;
+        let _address = fields
+            .next()
+            .ok_or_else(|| refusal("maps.address_field", Failure::Unavailable, 0, 0, 0))?;
+        let _permissions = fields
+            .next()
+            .ok_or_else(|| refusal("maps.permissions_field", Failure::Unavailable, 0, 0, 0))?;
+        let _offset = fields
+            .next()
+            .ok_or_else(|| refusal("maps.offset_field", Failure::Unavailable, 0, 0, 0))?;
         let device = fields
             .next()
             .and_then(|s| s.split_once(':'))
-            .ok_or(Failure::Unavailable)?;
+            .ok_or_else(|| refusal("maps.device_field", Failure::Unavailable, 0, 0, 0))?;
         let device = (
-            u32::from_str_radix(device.0, 16).map_err(|_| Failure::Unavailable)?,
-            u32::from_str_radix(device.1, 16).map_err(|_| Failure::Unavailable)?,
+            u32::from_str_radix(device.0, 16)
+                .map_err(|_| refusal("maps.device_major", Failure::Unavailable, 0, 0, 0))?,
+            u32::from_str_radix(device.1, 16)
+                .map_err(|_| refusal("maps.device_minor", Failure::Unavailable, 0, 0, 0))?,
         );
         let mut remaining = line;
         for _ in 0..5 {
@@ -441,8 +593,11 @@ fn live_pidfd(fd: &OwnedFd, pid: u32) -> Result<()> {
         OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
         Mode::empty(),
     )
-    .map_err(|_| Failure::Unavailable)?;
-    let text = read(&info, &fd.as_raw_fd().to_string(), 4096)?;
+    .map_err(|error| io_failure("pidfd.fdinfo.open", error, Failure::Unavailable))?;
+    let text = diagnosed(
+        "pidfd.fdinfo.read",
+        read(&info, &fd.as_raw_fd().to_string(), 4096),
+    )?;
     let mut ids = text.lines().filter_map(|s| s.strip_prefix("Pid:"));
     if ids.next().and_then(|s| s.trim().parse::<u32>().ok()) != Some(pid) || ids.next().is_some() {
         return Err(Failure::Conflict);
@@ -455,22 +610,30 @@ fn live_pidfd(fd: &OwnedFd, pid: u32) -> Result<()> {
     };
     match rustix::event::poll(&mut fds, Some(&zero)) {
         Ok(0) if fds[0].revents().is_empty() => Ok(()),
-        _ => Err(Failure::Conflict),
+        Err(error) => Err(io_failure("pidfd.poll", error, Failure::Conflict)),
+        _ => Err(refusal("pidfd.readiness", Failure::Conflict, 0, 0, 0)),
     }
 }
 fn kernel_thread(process: &OwnedFd) -> Result<bool> {
-    let stat = read(process, "stat", 4096)?;
-    let end = stat.rfind(')').ok_or(Failure::Unavailable)?;
+    let stat = diagnosed("kernel.stat.read", read(process, "stat", 4096))?;
+    let end = stat
+        .rfind(')')
+        .ok_or_else(|| refusal("kernel.stat.framing", Failure::Unavailable, 0, 0, 0))?;
     let flags = stat[end + 1..]
         .split_ascii_whitespace()
         .nth(6)
         .and_then(|s| s.parse::<u64>().ok())
-        .ok_or(Failure::Unavailable)?;
-    let status = read(process, "status", 16384)?;
-    let kernel = kernel_marker(flags, &status)?;
+        .ok_or_else(|| refusal("kernel.flags", Failure::Unavailable, 0, 0, 0))?;
+    let status = diagnosed("kernel.status.read", read(process, "status", 16384))?;
+    let kernel = diagnosed("kernel.marker", kernel_marker(flags, &status))?;
     if kernel {
-        let fds = openat(process, "fd", OFlags::RDONLY | OFlags::DIRECTORY)?;
-        if !numeric(&fds, FDS_PER_PROCESS)?.is_empty() || !read(process, "maps", 1)?.is_empty() {
+        let fds = diagnosed(
+            "kernel.fds.directory",
+            openat(process, "fd", OFlags::RDONLY | OFlags::DIRECTORY),
+        )?;
+        if !diagnosed("kernel.fds", numeric(&fds, FDS_PER_PROCESS))?.is_empty()
+            || !diagnosed("kernel.maps", read(process, "maps", 1))?.is_empty()
+        {
             return Err(Failure::Conflict);
         }
     }
@@ -481,8 +644,24 @@ fn kernel_marker(flags: u64, status: &str) -> Result<bool> {
     let kernel = match field.next().map(str::trim) {
         Some("1") => true,
         Some("0") => false,
-        None => return Err(Failure::Unavailable),
-        _ => return Err(Failure::Unavailable),
+        None => {
+            return Err(refusal(
+                "kernel.marker.missing",
+                Failure::Unavailable,
+                0,
+                0,
+                0,
+            ));
+        }
+        _ => {
+            return Err(refusal(
+                "kernel.marker.invalid",
+                Failure::Unavailable,
+                0,
+                0,
+                0,
+            ));
+        }
     };
     if field.next().is_some() || kernel != (flags & 0x0020_0000 != 0) {
         return Err(Failure::Conflict);
@@ -490,17 +669,19 @@ fn kernel_marker(flags: u64, status: &str) -> Result<bool> {
     Ok(kernel)
 }
 fn fixed_guardian(process: &OwnedFd, pid: u32) -> Result<bool> {
-    let stat = read(process, "stat", 4096)?;
-    let end = stat.rfind(')').ok_or(Failure::Unavailable)?;
+    let stat = diagnosed("guardian.stat.read", read(process, "stat", 4096))?;
+    let end = stat
+        .rfind(')')
+        .ok_or_else(|| refusal("guardian.stat.framing", Failure::Unavailable, 0, 0, 0))?;
     let parent = stat[end + 1..]
         .split_ascii_whitespace()
         .nth(1)
         .and_then(|s| s.parse::<u32>().ok())
-        .ok_or(Failure::Unavailable)?;
+        .ok_or_else(|| refusal("guardian.parent_field", Failure::Unavailable, 0, 0, 0))?;
     if parent != std::process::id() {
         return Ok(false);
     }
-    let command = read(process, "cmdline", 1024)?;
+    let command = diagnosed("guardian.command.read", read(process, "cmdline", 1024))?;
     if command != "/usr/lib/limeos/limeos-executor\0storage-mount-guardian\0" {
         return Ok(false);
     }
@@ -512,51 +693,61 @@ fn fixed_guardian(process: &OwnedFd, pid: u32) -> Result<bool> {
         OFlags::RDONLY | OFlags::CLOEXEC,
         Mode::empty(),
     )
-    .map_err(|_| Failure::Unavailable)?;
+    .map_err(|error| io_failure("guardian.image.open", error, Failure::Unavailable))?;
     let current = rustix::fs::open(
         "/proc/self/exe",
         OFlags::RDONLY | OFlags::CLOEXEC,
         Mode::empty(),
     )
-    .map_err(|_| Failure::Unavailable)?;
-    if code_digest(&image)? != code_digest(&current)? {
+    .map_err(|error| io_failure("guardian.current_image.open", error, Failure::Unavailable))?;
+    if diagnosed("guardian.image.digest", code_digest(&image))?
+        != diagnosed("guardian.current_image.digest", code_digest(&current))?
+    {
         return Err(Failure::IdentityMismatch);
     }
-    let nsdir = openat(process, "ns", OFlags::RDONLY | OFlags::DIRECTORY)?;
+    let nsdir = diagnosed(
+        "guardian.namespace.directory",
+        openat(process, "ns", OFlags::RDONLY | OFlags::DIRECTORY),
+    )?;
     let ns = rustix::fs::openat(
         &nsdir,
         "mnt",
         OFlags::RDONLY | OFlags::CLOEXEC,
         Mode::empty(),
     )
-    .map_err(|_| Failure::Unavailable)?;
+    .map_err(|error| io_failure("guardian.namespace.open", error, Failure::Unavailable))?;
     let host = rustix::fs::open(
         "/proc/1/ns/mnt",
         OFlags::RDONLY | OFlags::CLOEXEC,
         Mode::empty(),
     )
-    .map_err(|_| Failure::Unavailable)?;
-    let ns = rustix::fs::fstat(&ns).map_err(|_| Failure::Unavailable)?;
-    let host = rustix::fs::fstat(&host).map_err(|_| Failure::Unavailable)?;
+    .map_err(|error| io_failure("guardian.host_namespace.open", error, Failure::Unavailable))?;
+    let ns = rustix::fs::fstat(&ns)
+        .map_err(|error| io_failure("guardian.namespace.stat", error, Failure::Unavailable))?;
+    let host = rustix::fs::fstat(&host)
+        .map_err(|error| io_failure("guardian.host_namespace.stat", error, Failure::Unavailable))?;
     if (ns.st_dev, ns.st_ino) != (host.st_dev, host.st_ino)
-        || read(process, "cgroup", 1024)?
-            != crate::bounded_read(Path::new("/proc/self/cgroup"), 1024)?
+        || diagnosed("guardian.cgroup.read", read(process, "cgroup", 1024))?
+            != diagnosed(
+                "guardian.current_cgroup.read",
+                crate::bounded_read(Path::new("/proc/self/cgroup"), 1024),
+            )?
     {
         return Err(Failure::WrongNamespace);
     }
-    let status = read(process, "status", 16384)?;
+    let status = diagnosed("guardian.status.read", read(process, "status", 16384))?;
     let mut uid = status.lines().filter_map(|s| s.strip_prefix("Uid:"));
     let ids: Vec<_> = uid
         .next()
-        .ok_or(Failure::Unavailable)?
+        .ok_or_else(|| refusal("guardian.uid_field", Failure::Unavailable, 0, 0, 0))?
         .split_ascii_whitespace()
         .collect();
     if ids != ["0", "0", "0", "0"] || uid.next().is_some() {
-        return Err(Failure::Unavailable);
+        return Err(refusal("guardian.uid", Failure::Unavailable, 0, 0, 0));
     }
     // The outer collector owns this PID's pidfd and verifies it remains live.
     if pid <= 1 {
-        return Err(Failure::Unavailable);
+        return Err(refusal("guardian.pid_range", Failure::Unavailable, 0, 0, 0));
     }
     Ok(true)
 }
@@ -570,14 +761,25 @@ fn code_digest(fd: &OwnedFd) -> Result<String> {
     {
         return Err(Failure::UnsafePath);
     }
-    let file = File::from(rustix::io::dup(fd).map_err(|_| Failure::Unavailable)?);
+    let file = File::from(
+        rustix::io::dup(fd)
+            .map_err(|error| io_failure("guardian.image.dup", error, Failure::Unavailable))?,
+    );
     let mut digest = Sha256::new();
     let mut buffer = [0; 8192];
     let mut offset = 0;
     while offset < s.stx_size {
         let n = (s.stx_size - offset).min(buffer.len() as u64) as usize;
         file.read_exact_at(&mut buffer[..n], offset)
-            .map_err(|_| Failure::Unavailable)?;
+            .map_err(|error| {
+                refusal(
+                    "guardian.image.read",
+                    Failure::Unavailable,
+                    error.raw_os_error().unwrap_or(0),
+                    0,
+                    0,
+                )
+            })?;
         digest.update(&buffer[..n]);
         offset += n as u64;
     }

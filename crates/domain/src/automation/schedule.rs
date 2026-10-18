@@ -2,7 +2,9 @@ use super::{MAX_REVISION, valid_time};
 use crate::{Error, ErrorCode, Result, identifier};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ScheduledOperation {
     ObserveHealth,
@@ -18,7 +20,9 @@ impl ScheduledOperation {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum MissedRunPolicy {
     CoalesceLatest,
@@ -26,7 +30,9 @@ pub enum MissedRunPolicy {
 }
 
 /// UTC minutes. Start is inclusive, end exclusive; a crossing window spans midnight.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS,
+)]
 #[serde(deny_unknown_fields)]
 pub struct MaintenanceWindow {
     pub start_minute: u16,
@@ -66,10 +72,11 @@ impl MaintenanceWindow {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct ScheduleDefinition {
     pub operation: ScheduledOperation,
+    #[ts(type = "number")]
     pub anchor: i64,
     pub interval_seconds: u32,
     pub grace_seconds: u32,
@@ -92,14 +99,16 @@ impl ScheduleDefinition {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct Schedule {
     pub id: String,
+    #[ts(type = "number")]
     pub revision: i64,
     pub paused: bool,
     pub definition: ScheduleDefinition,
     /// Last atomically settled occurrence, including skipped/blocked ones.
+    #[ts(type = "number | null")]
     pub settled_through: Option<i64>,
 }
 impl Schedule {
@@ -174,11 +183,13 @@ impl Schedule {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct OccurrenceKey {
     pub schedule: String,
+    #[ts(type = "number")]
     pub revision: i64,
+    #[ts(type = "number")]
     pub due: i64,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -195,9 +206,10 @@ pub enum DueDecision {
 pub struct CreateSchedule {
     pub definition: ScheduleDefinition,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct PauseSchedule {
+    #[ts(type = "number")]
     pub revision: i64,
     pub paused: bool,
 }
