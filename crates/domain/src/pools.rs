@@ -3,7 +3,10 @@ use crate::{StorageContract, StorageDevice, StorageMediaIdentity, StorageRole};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
+use std::fmt::Write;
 use ts_rs::TS;
+
+pub mod document;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "snake_case")]
@@ -252,7 +255,20 @@ impl PoolsConfig {
     /// Render an owned preview section. The executor must render again from types.
     pub fn render_fstab(&self) -> StoragePlanningResult<String> {
         self.validate()?;
-        let mut lines = vec!["# BEGIN LIMEOS MERGERFS V1".into()];
+        let mut text = String::new();
+        self.write_fstab(&mut text).map_err(|_| {
+            vec![finding(
+                "pools.fstab",
+                StoragePlanningFindingCode::ThresholdExceeded,
+            )]
+        })?;
+        Ok(text)
+    }
+
+    // Callers validate first. Sharing this formatter keeps bounded document edits
+    // byte-identical to the public renderer without constructing unbounded text.
+    fn write_fstab(&self, output: &mut impl Write) -> std::fmt::Result {
+        writeln!(output, "# BEGIN LIMEOS MERGERFS V1")?;
         for pool in self.pools.iter().filter(|p| p.enabled) {
             let (cache, drop) = match pool.preset {
                 PoolPreset::Linux65Mmap => (PoolFileCache::AutoFull, true),
@@ -273,11 +289,20 @@ impl PoolsConfig {
                 .min_free_space
                 .as_ref()
                 .unwrap_or(&pool.min_free_space);
-            lines.push(format!("# mergerfs pool: {}", pool.name));
-            lines.push(format!("{} {} fuse.mergerfs defaults,allow_other,use_ino,fsname=mergerfs,cache.files={cache},category.create={policy},func.getattr=newest,dropcacheonclose={drop},minfreespace={min} 0 0", pool.branches.join(":"), pool.mount_point));
+            writeln!(output, "# mergerfs pool: {}", pool.name)?;
+            for (index, branch) in pool.branches.iter().enumerate() {
+                if index != 0 {
+                    output.write_char(':')?;
+                }
+                output.write_str(branch)?;
+            }
+            writeln!(
+                output,
+                " {} fuse.mergerfs defaults,allow_other,use_ino,fsname=mergerfs,cache.files={cache},category.create={policy},func.getattr=newest,dropcacheonclose={drop},minfreespace={min} 0 0",
+                pool.mount_point
+            )?;
         }
-        lines.push("# END LIMEOS MERGERFS V1".into());
-        Ok(lines.join("\n") + "\n")
+        writeln!(output, "# END LIMEOS MERGERFS V1")
     }
 
     pub fn plan(&self, contract: &StorageContract) -> StoragePlanningResult<PoolPreview> {

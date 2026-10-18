@@ -1,0 +1,28 @@
+diff --git a/crates/domain/src/pools/document/tests.rs b/crates/domain/src/pools/document/tests.rs
+index 69de4a3..9b1582e 100644
+--- a/crates/domain/src/pools/document/tests.rs
++++ b/crates/domain/src/pools/document/tests.rs
+@@ -555,3 +555,23 @@ fn configuration_shape_and_strings_refuse_before_unbounded_validation_work() {
+         );
+     }
+ }
++
++#[test]
++fn typed_owned_targets_cannot_bypass_external_ambiguity_checks() {
++    for path in ["/mnt/\"storage\"", "/mnt/operator's-storage"] {
++        let mut desired = config();
++        desired.pools[0].mount_point = path.into();
++        // Existing configuration/rendering is deliberately unchanged. This
++        // document profile must still refuse syntax it cannot compare safely.
++        assert!(desired.validate().is_ok());
++        assert_eq!(
++            error(b"", None, &desired),
++            StoragePlanningFindingCode::Unsupported
++        );
++        let source = desired.render_fstab().unwrap();
++        assert_eq!(
++            error(source.as_bytes(), Some(&desired), &PoolsConfig::default()),
++            StoragePlanningFindingCode::Unsupported
++        );
++    }
++}

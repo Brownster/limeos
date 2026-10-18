@@ -1,0 +1,61 @@
+{
+  "source": "d7b9efbfe609aab26c138b2f19b6f8a1938d3ef1",
+  "previous_product": "7bdc36b4bd297ce80e4837c72ac96c07e9938ddd",
+  "input_count": 213,
+  "changed_inputs": [
+    "frontend/src/storage/StorageMounts.tsx"
+  ],
+  "frontend": {
+    "files": [
+      {
+        "file": "frontend/tests/api.mjs",
+        "tests": 4,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/automation-controller.test.mjs",
+        "tests": 14,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/automation.test.mjs",
+        "tests": 10,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/media-activity-client.test.mjs",
+        "tests": 29,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/media-activity.test.mjs",
+        "tests": 10,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/observations.test.mjs",
+        "tests": 4,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/stack-discovery.test.mjs",
+        "tests": 18,
+        "exit_code": 0
+      },
+      {
+        "file": "frontend/tests/storage-mount-lifecycle.test.mjs",
+        "tests": 40,
+        "exit_code": 0
+      }
+    ],
+    "tests": 129
+  },
+  "new_cases": 0,
+  "source_review": "Pinned React DOM 18.3.1 layout destruction versus passive flush",
+  "commands": [
+    "uv run --offline --no-project .cache/a1-ui/check-frontend.py",
+    "npm run build (frontend)"
+  ],
+  "browser_tests": "unrun; prior packet records unavailable browser surface",
+  "limitations": "No new runtime, browser, installed, physical mount or recovery acceptance"
+}

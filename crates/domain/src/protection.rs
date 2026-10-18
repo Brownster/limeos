@@ -1,4 +1,4 @@
-//! Pure SnapRAID configuration and sync eligibility. These previews cannot execute.
+//! Pure SnapRAID configuration and operation eligibility. These previews cannot execute.
 use crate::pools::{beneath, finding, finish, mount_path, name, overlap, require};
 use crate::{
     PoolsConfig, StorageBlockDevice, StorageContract, StorageDevice, StorageInventory,
@@ -8,6 +8,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use ts_rs::TS;
+
+pub mod scrub;
 
 pub const PROTECTION_EVIDENCE_MAX_AGE_SECONDS: i64 = 5;
 pub const SNAPRAID_DEFAULT_EXCLUDES: &[&str] = &[

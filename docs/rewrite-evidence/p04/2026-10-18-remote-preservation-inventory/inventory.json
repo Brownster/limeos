@@ -1,0 +1,248 @@
+{
+  "version": 1,
+  "purpose": "A3b preservation and contract input; no registered Rust remote operation or installed acceptance",
+  "frozen_source": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+  "retirements_accepted": [],
+  "rows": [
+    {
+      "id": "RM-001", "family": "shared", "intent": "Provider discovery, enablement and prerequisites",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "SSHFS is enabled by default; rclone is disabled. The generic registry loads their Python classes. The separate capability adapter enumerates MergerFS and SnapRAID only.",
+      "rewrite": "Use approved static providers and explicit current capability state; disabled/unavailable is not an empty inventory. Do not load arbitrary Python or executable manifests.",
+      "sources": ["manager:list_plugins", "manager:is_enabled", "registry:get_registry", "registry:init_plugins", "adapter:LegacyStorageCapabilityAdapter.candidates", "base:RemoteMountPlugin.is_installed", "base:RemoteMountPlugin.get_install_instructions"],
+      "acceptance": "Disabled, missing package, unavailable provider and supported empty provider remain distinct through API/UI. No default grant or activation is inferred.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-002", "family": "sshfs", "intent": "Read saved multi-mount configuration",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Plugin sshfs_mounts.json and root /etc/sshfs/mounts.json are separate. Load failures fall back to empty lists. Root metadata omits auth_type and ssh_key_path.",
+      "rewrite": "Collect both protected source identities with explicit coverage and reconcile differences; preserve disabled configurations and unresolved credentials as visible consumers.",
+      "sources": ["base:RemoteMountPlugin.__init__", "base:RemoteMountPlugin.load_mounts", "base:RemoteMountPlugin.get_mount", "helper:_load_sshfs_mounts", "helper:cmd_sshfs_list"],
+      "acceptance": "Missing, denied, malformed, stale and conflicting sources never produce a successful empty or execution-ready view.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-003", "family": "sshfs", "intent": "Create SSHFS configuration",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Plugin validates id/name/host/user/paths/port/auth fields, then helper writes password and two units before persisting metadata. Plugin saves a second record without password.",
+      "rewrite": "Use a closed approved plan over complete parameters and selected credential references, protected before-images and atomic multi-file recovery; never accept caller unit text or commands.",
+      "sources": ["sshfs:SSHFSPlugin.get_schema", "sshfs:SSHFSPlugin.validate_mount_config", "sshfs:SSHFSPlugin.add_mount", "base:RemoteMountPlugin.add_mount", "helper:cmd_sshfs_configure"],
+      "acceptance": "Create through API/UI, verify all intended settings and actual unit/mount state; interruption and metadata publication failure retain a recoverable result.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-004", "family": "sshfs", "intent": "Update configuration and reuse credentials",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Update merges plugin fields, forces the original id and uses a placeholder during password validation. Helper may reuse an existing password file and persists a smaller root record.",
+      "rewrite": "Keep omitted, unchanged, replaced and explicitly removed credentials distinct under revision checks. Reconcile saved preferences, root files and units before showing the effective diff.",
+      "sources": ["sshfs:SSHFSPlugin.update_mount", "base:RemoteMountPlugin.update_mount", "helper:cmd_sshfs_configure"],
+      "acceptance": "Stale updates fail, omitted credentials are not erased, replacement is explicit, and failed apply preserves the previous usable configuration.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-005", "family": "sshfs", "intent": "Password and advertised key authentication",
+      "disposition": "advertised_intent_requires_resolution",
+      "frozen": "Plugin advertises password/key and ssh_key_path. The helper ignores those selectors and always emits sshpass with a password file; first creation can therefore reject key-only input.",
+      "rewrite": "Retain the advertised key intent as unresolved until an approved key/host-trust credential contract exists. Do not silently relabel it password auth or infer a usable key from a mounted source.",
+      "sources": ["sshfs:SSHFSPlugin.get_schema", "sshfs:SSHFSPlugin.validate_mount_config", "helper:cmd_sshfs_configure"],
+      "acceptance": "Password and accepted key mode each have real credential/host refusal and restart cases; unsupported imported key state remains explicit. No retirement is accepted here.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-006", "family": "sshfs", "intent": "Manual mount",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Mount sends an id to systemctl start of a generated mount unit. A zero manager return is reported as mounted without independent source/mount verification.",
+      "rewrite": "Queue one authorized job under shared claims, supervise the actual mount/helper and independently verify the expected FUSE identity and target before success.",
+      "sources": ["sshfs:SSHFSPlugin.mount", "helper:cmd_sshfs_mount", "api:mount_filesystem"],
+      "acceptance": "A successful start reply with wrong/absent/stale mount fails verification; lost replies and restart do not repeat unknown effects.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-007", "family": "sshfs", "intent": "Manual unmount",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Unmount stops the generated mount unit and uses the manager return as success.",
+      "rewrite": "Resolve all container/share/pool/backup and namespace consumers, require verified dependent stop and actual disappearance, and retain uncertainty barriers on incomplete cleanup.",
+      "sources": ["sshfs:SSHFSPlugin.unmount", "helper:cmd_sshfs_unmount", "api:unmount_filesystem"],
+      "acceptance": "A live dependent, replaced mount, busy/failed stop, helper death or surviving descendant never exposes the bare directory as ready.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-008", "family": "sshfs", "intent": "Enable automount",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "The plugin sends id plus enable=True; helper configure instead requires full host/path fields and consumes enabled, so this shortcut cannot supply the required request.",
+      "rewrite": "Use a typed desired enable transition over the current complete configuration and accepted activation authority, without reconstructing settings from defaults.",
+      "sources": ["sshfs:SSHFSPlugin.enable_automount", "helper:cmd_sshfs_configure"],
+      "acceptance": "Enable the existing configuration without resetting endpoint/options or credentials; verify unit and on-demand state and refuse changed authority.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-009", "family": "sshfs", "intent": "Disable automount",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "The plugin invokes sshfs_remove, which removes units, root metadata and the password file, while the plugin saved configuration remains.",
+      "rewrite": "Freeze disable versus delete semantics explicitly. Proposed disable preserves reviewed configuration/credential references while verifying deactivation; it must not silently perform destructive removal.",
+      "sources": ["sshfs:SSHFSPlugin.disable_automount", "helper:cmd_sshfs_remove"],
+      "acceptance": "Disable, restart and re-enable preserve accepted settings; stop/cleanup failure remains visible and keeps claims. Final semantics require contract acceptance.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-010", "family": "sshfs", "intent": "Remove configuration",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Plugin ignores helper result/errors then deletes its saved row. Helper ignores stop/reload results before deleting units, password and root metadata.",
+      "rewrite": "Remove only accepted owned objects after verified dependent stop and cleanup. Failed or ambiguous removal retains configuration/recovery state and every referenced credential claim.",
+      "sources": ["sshfs:SSHFSPlugin.remove_mount", "base:RemoteMountPlugin.remove_mount", "helper:cmd_sshfs_remove", "api:delete_mount"],
+      "acceptance": "Failed stop or root-file cleanup cannot be success-shaped deletion; foreign/shared credentials and unit files are never removed.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-011", "family": "sshfs", "intent": "Detect/import existing mounts",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Plugin scans /proc/mounts, splits user/host/path and optional port, generates ids from mountpoints, assumes key auth, and suppresses read/parse failures. Detection persists new plugin rows.",
+      "rewrite": "Separate read-only discovery from approved import. Bind genuine host-namespace/mount evidence; preserve escapes, IPv6, colons, ids and conflicts as findings, without inferring credentials or safe ownership.",
+      "sources": ["sshfs:SSHFSPlugin.import_existing_mounts", "sshfs:SSHFSPlugin._detect_sshfs_mounts", "sshfs:SSHFSPlugin._parse_sshfs_source", "api:detect_mounts", "api:toggle_plugin"],
+      "acceptance": "Escaped spaces, IPv6, colon-containing paths, duplicate ids/targets, failed proc read and imported unknown authentication remain exact or explicitly unresolved; GET never imports.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-012", "family": "sshfs", "intent": "Read mount and connection status",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Status checks mountpoint then performs unbounded listdir; permission denial is connected and other I/O errors are stale/error. Root list separately reads automount enablement.",
+      "rewrite": "Keep configured/enabled, unit state, verified mount membership and access health separate. Read-only status must not trigger automount; any active access probe needs its own bounded accepted operation.",
+      "sources": ["sshfs:SSHFSPlugin.get_mount_status", "helper:cmd_sshfs_list", "base:RemoteMountPlugin.list_mounts_with_status", "api:get_mount_status"],
+      "acceptance": "Unreachable/stale/denied/timeout/unknown are visible; repeated GET causes no mount, helper or durable write and cannot hang on remote access.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-013", "family": "rclone", "intent": "Read saved S3 mount configuration",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Plugin rclone_mounts.json retains options/access key id; root mounts.json omits both. Separate rclone.conf holds credentials/provider settings and the unit holds effective mount/cache flags.",
+      "rewrite": "Reconcile all source identities with explicit missing/partial states. Do not turn omitted root fields into defaults or treat stored credentials as current executable authority.",
+      "sources": ["base:RemoteMountPlugin.load_mounts", "helper:_load_rclone_mounts", "helper:_read_rclone_remote", "helper:cmd_rclone_list"],
+      "acceptance": "Conflicting sources, missing credential section, inaccessible file and unit drift block readiness while retaining the complete non-secret review.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-014", "family": "rclone", "intent": "Create S3 or S3-compatible mount",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Only s3 and s3-compatible are accepted; the remote type is s3. Provider, region, endpoint, bucket and credential pair feed root config and a service. UI mocks mentioning gdrive/dropbox do not establish other backend support.",
+      "rewrite": "Preserve these two backend intents through closed parameters and selected credentials. Keep other imported/operator backend types visible and unresolved rather than claiming support from mocks or silently dropping them.",
+      "sources": ["rclone:RclonePlugin.get_schema", "rclone:RclonePlugin.validate_mount_config", "rclone:RclonePlugin.add_mount", "helper:_write_rclone_remote", "helper:cmd_rclone_configure"],
+      "acceptance": "Both accepted S3 variants, endpoint/credential refusal and literal path/name cases run on disposable hosts with no free-form unit/command input.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-015", "family": "rclone", "intent": "Update and reuse S3 credentials",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Plugin merges fields using credential placeholders; helper fills omitted keys from its INI section, rewrites that section and replaces root metadata. Root writer does not explicitly set credential-file mode.",
+      "rewrite": "Keep explicit credential transitions/version binding, preserve unrelated operator sections, require protected ownership/modes and journal the config/unit/metadata transaction before publication.",
+      "sources": ["rclone:RclonePlugin.update_mount", "helper:_read_rclone_remote", "helper:_write_rclone_remote", "helper:cmd_rclone_configure"],
+      "acceptance": "Partial credential changes cannot erase the other value, leak material, overwrite foreign sections or leave a success result after failed publication/reload.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-016", "family": "rclone", "intent": "Manual mount and unmount",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Mount/unmount start/stop rclone-id.service and report the manager return. The generated service uses Restart=on-failure and a fixed fusermount stop path.",
+      "rewrite": "Supervise real process ownership and FUSE state, verify effect and cleanup independently, and prevent restart/lost-response duplicate runs under shared claims.",
+      "sources": ["rclone:RclonePlugin.mount", "rclone:RclonePlugin.unmount", "helper:cmd_rclone_mount", "helper:cmd_rclone_unmount"],
+      "acceptance": "Active service without the expected mount is not success; failed stop, helper descendants, disconnected endpoint and restart policy races retain uncertainty.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-017", "family": "rclone", "intent": "Enable/disable persistent service",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Plugin sends id plus enable=True/False; configure requires name/bucket/mount_point and reads enabled, not enable. Enablement cannot be recovered from this shortcut alone.",
+      "rewrite": "Use an explicit revision-bound transition over complete reviewed settings and current activation authority; disabling must verify actual stop and retain intended configuration.",
+      "sources": ["rclone:RclonePlugin.enable_automount", "rclone:RclonePlugin.disable_automount", "helper:cmd_rclone_configure"],
+      "acceptance": "Enable/disable/restart never reset options, bucket or credentials; failures and changed grants are visible without accidental activation.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-018", "family": "rclone", "intent": "Remove mount configuration",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Rclone inherits base removal, deleting only plugin JSON. The helper has a separate remove command, ignores stop/reload results and leaves its INI credential section.",
+      "rewrite": "Freeze owned removal/retention semantics, stop and verify dependencies first, retain unresolved work, and remove or retain credentials only through explicit reference-aware recovery policy.",
+      "sources": ["base:RemoteMountPlugin.remove_mount", "helper:cmd_rclone_remove", "api:delete_mount"],
+      "acceptance": "No live service is hidden by removing its display row; shared/operator credentials and foreign sections survive, and failed cleanup remains actionable.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-019", "family": "rclone", "intent": "VFS, cache, access and status settings",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Plugin exposes cache mode, read_only and allow_other; helper emits defaults writes/false/true plus 5m directory cache, 1m polling and 5s restart, but omits options from root saved metadata. Status uses mountpoint only.",
+      "rewrite": "Preserve requested versus effective options, bind an accepted cache/resource profile and report unit, mount and access states independently. Missing options are unknown until reconciled.",
+      "sources": ["rclone:RclonePlugin.get_schema", "rclone:RclonePlugin.get_mount_status", "helper:cmd_rclone_configure", "helper:cmd_rclone_list"],
+      "acceptance": "Read-only/allow-other/cache cases, quota exhaustion, cache persistence, stale mount and service-only state have API/UI and recovery evidence at measured complete bounds.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-020", "family": "seedbox", "intent": "Separate seedbox settings/status read",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "A dedicated seedbox_mount.json and fixed /mnt/seedbox bypass the generic plugin store. Repository/read failures fall back to disabled defaults or mounted=False.",
+      "rewrite": "Keep this flow separately identifiable, distinguish absent/disabled from unavailable state, and reconcile saved preferences with the fixed unit/credential identities without generic auto-adoption.",
+      "sources": ["seed:SeedboxService.config", "seed:SeedboxService._default_config", "seed:SeedboxService.state", "seed:SeedboxService.is_mounted", "disk:default_seedbox_service", "disk:api_seedbox_get", "paths:@file"],
+      "acceptance": "Default, disabled, configured, failed read and partial runtime state remain distinct through native status/UI; no GET activates an automount.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-021", "family": "seedbox", "intent": "Configure/enable fixed seedbox mount",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Service validates host/user/absolute remote path, password and port, then helper writes seedbox.pass and fixed units before application metadata is saved.",
+      "rewrite": "Retain password submission intent via protected credential selection, bind fixed target and numeric identity, and journal effect/configuration commits and recovery before activation.",
+      "sources": ["seed:SeedboxService.configure", "seed:SeedboxService.save", "seed:SeedboxService._validate_enabled", "helper:cmd_seedbox_configure", "disk:api_seedbox_set"],
+      "acceptance": "Helper failure writes no success metadata; a later repository/commit failure after an accepted effect reconciles without blind reapply or credential exposure.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-022", "family": "seedbox", "intent": "Disable fixed seedbox mount",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Helper ignores disable/stop/reload returns and reports success. It retains unit/password files; the service persists fields supplied by the disabling request, which may be empty.",
+      "rewrite": "Freeze explicit disable versus deletion/credential-retention semantics and verify deactivation. Preserve unresolved configuration and claims rather than inferring rollback from response loss.",
+      "sources": ["helper:cmd_seedbox_disable", "seed:SeedboxService.configure", "disk:api_seedbox_set"],
+      "acceptance": "Failed stop, retry after lost response and restart preserve recovery state; retained settings/credentials follow the accepted policy rather than implicit field defaults.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-023", "family": "shared", "intent": "Remote mount, unit and credential identity collisions",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "SSHFS helper accepts uppercase/underscore ids then replaces punctuation in unit names. Generic id seedbox and dedicated seedbox share /etc/sshfs/seedbox.pass. Different providers can select the same mountpoint.",
+      "rewrite": "Detect aliases across all sources and families, retain exact identity/migration mappings and every credential consumer. Do not derive effect authority from a display id or merge/delete collisions silently.",
+      "sources": ["helper:_get_sshfs_unit_names", "helper:_get_rclone_unit_name", "helper:cmd_sshfs_configure", "helper:cmd_seedbox_configure"],
+      "acceptance": "nas_one/nas-one, generic seedbox versus dedicated seedbox and shared/nested mountpoint fixtures fail safely with complete conflict findings and no lost credential references.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-024", "family": "shared", "intent": "Native management API/UI and partial data",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Generic routes offer list/status/detect/create/update/delete/mount/unmount. The UI normalizer reads mountpoint/target while providers emit mount_point, and any HTTP 400 is treated as unsupported. Edit starts from limited non-secret fields.",
+      "rewrite": "Freeze one typed field contract and current permissions/CSRF; mutations become durable POST jobs with revision and reconnect behavior. Preserve literal paths, explicit partial errors and uncertain outcomes without automatic mutation retry.",
+      "sources": ["api:list_mounts", "api:add_mount", "api:update_mount", "api:delete_mount", "api:mount_filesystem", "api:unmount_filesystem", "api:get_mount_status", "api:detect_mounts", "ui:@file", "page:@file"],
+      "acceptance": "Literal mount_point appears correctly, provider errors do not disappear as empty/unsupported, and stale/revoked/lost-response/owner-change UI cases cannot send duplicate writes.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-025", "family": "shared", "intent": "Systemd publication, naming and real results",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Helpers interpolate values into units, write multiple files without the shared journal, and ignore some reload/disable/stop results. Generic SSHFS unit names are based on ids, not the configured Where path.",
+      "rewrite": "Use validated fixed templates and path-correct reviewed unit identities, protected atomic publication/before-images and actual manager/helper/verification results. Keep unknown outcomes and cleanup barriers durable.",
+      "sources": ["helper:cmd_sshfs_configure", "helper:cmd_sshfs_remove", "helper:cmd_rclone_configure", "helper:cmd_rclone_remove", "helper:cmd_seedbox_configure", "helper:cmd_seedbox_disable"],
+      "acceptance": "Literal space/percent/escape/injection cases, actual unit validation, failed reload/enable/stop and death at each publication barrier never produce false success.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-026", "family": "shared", "intent": "Approved package/helper prerequisite lifecycle",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "SSHFS declares sshfs/sshpass. Rclone plugin requires fusermount while helper dependency checks accept fusermount or fusermount3; its unit still selects /bin/fusermount. Helpers can install packages during configuration.",
+      "rewrite": "Use B's accepted signed APT/prerequisite path and separately reviewed capability activation; bind the actual selected helper image and package version rather than copying executable-path assumptions.",
+      "sources": ["base:RemoteMountPlugin.is_installed", "base:RemoteMountPlugin.get_install_instructions", "helper:_ensure_dependencies", "helper:_install_packages", "helper:cmd_rclone_configure", "helper:cmd_sshfs_configure"],
+      "acceptance": "Missing/mismatched helper, failed installation, incompatible package and process teardown are qualified once on supported installed hosts; configure cannot hide package mutations.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-027", "family": "shared", "intent": "Read-only discovery and capability lifecycle boundaries",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Plugin enablement may import existing mounts. Generic plugin reads call load_plugins_config, which saves merged defaults. Only pooling/protection enter the separate built-in capability adapter.",
+      "rewrite": "Reads never normalize/write/import, and discovery does not grant activation or credential authority. Provider lifecycle is a separate authorized operation with explicit availability and complete inventory coverage.",
+      "sources": ["api:list_plugins", "api:toggle_plugin", "manager:load_plugins_config", "manager:list_plugins", "adapter:LegacyStorageCapabilityAdapter.candidates", "base:RemoteMountPlugin.save_mounts"],
+      "acceptance": "Read-only DB/files and provider-disabled tests pass without writes or effects; enable/import actions keep real failures and never conceal existing remote consumers.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-028", "family": "shared", "intent": "Access, numeric ownership and SSHFS option preservation",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "SSHFS exposes allow_other and keepalive values but helper always emits allow_other and fixed 15/3 when reconnecting. Remote helpers do not establish the rewrite's numeric media identity contract.",
+      "rewrite": "Keep requested versus effective access settings visible, bind accepted numeric UID/GID behavior and host-trust/credential policy, and qualify unsupported ACL/FUSE identity cases explicitly.",
+      "sources": ["sshfs:SSHFSPlugin.get_schema", "helper:cmd_sshfs_configure", "helper:cmd_seedbox_configure", "helper:cmd_rclone_configure"],
+      "acceptance": "allow_other=false, keepalive overrides, mapped UID/GID, read-only state and denied access do not silently widen privileges or get reported healthy.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-029", "family": "adjacent", "intent": "Mount page media-path/startup neighbors",
+      "disposition": "preserve_as_joint_scope",
+      "frozen": "The mounts page also edits media paths and previews/applies startup files; these adjacent controls are not remote provider inventory or proof of SSHFS/rclone parity.",
+      "rewrite": "Retain their A2/B/central handoffs and acceptance separately; preserve exact media paths and startup failure propagation without counting these controls as remote effect completion.",
+      "sources": ["ui:@file", "page:@file"],
+      "acceptance": "Existing media path and bounded startup/readiness scenarios remain mapped to their actual registered owner and do not mask remote provider partial state.", "status": "unimplemented_unqualified"
+    },
+    {
+      "id": "RM-030", "family": "shared", "intent": "FUSE dependencies, recovery and backup serialization",
+      "disposition": "preserve_intent_replace_mechanism",
+      "frozen": "Remote status/configuration has no complete physical/namespace consumer, stack-quiescence, durable job or recovery binding. The initial Rust A1 contract admits ext4, not these FUSE identities.",
+      "rewrite": "Agree a separate genuine FUSE/process/config/credential/claim contract and complete resource admission; serialize edit/mount/unmount with stacks, backup and A2 loss supervision. Do not weaken ext4 admission or infer absence from empty lists.",
+      "sources": ["base:RemoteMountPlugin.list_mounts_with_status", "helper:cmd_sshfs_mount", "helper:cmd_rclone_mount", "helper:cmd_seedbox_configure"],
+      "acceptance": "Disconnected endpoint, lost mount, dependent writers, credential revocation, concurrent edit/backup, D-state/descendant uncertainty and process loss retain verified or explicit intervention outcomes.", "status": "unimplemented_unqualified"
+    }
+  ]
+}

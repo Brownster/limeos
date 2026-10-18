@@ -1,0 +1,11 @@
+{
+  "frozen_source": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+  "functional_tests": 0,
+  "inventory_capture_head": "59f39873ca8e127a644e73e123829c9846a98095",
+  "python": "3.14.6 (main, Jun 11 2026, 00:00:00) [GCC 15.2.1 20260123 (Red Hat 15.2.1-7)]",
+  "reference_input_count": 18,
+  "scope": "A3b inventory/contract input only; no registered remote implementation or installed acceptance",
+  "structural_checks": "30 unique rows; all anchors resolved; complete selected public methods/commands/routes; 12 dispatch entries; saved-field omissions; 10 declared routes; 7 synthetic example references",
+  "tested_product_source": "8b31f990103bdc7ce959048abba1b6c051fc847b",
+  "uv": "uv 0.11.25 (x86_64-unknown-linux-gnu)"
+}

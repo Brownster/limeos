@@ -1,0 +1,558 @@
+{
+  "helper_constants": {
+    "RCLONE_CONFIG_DIR": "/etc/rclone",
+    "RCLONE_CONFIG_FILE": "/etc/rclone/rclone.conf",
+    "RCLONE_MOUNTS_CONFIG": "/etc/rclone/mounts.json",
+    "SEEDBOX_AUTOMOUNT_UNIT": "mnt-seedbox.automount",
+    "SEEDBOX_MOUNT_POINT": "/mnt/seedbox",
+    "SEEDBOX_MOUNT_UNIT": "mnt-seedbox.mount",
+    "SEEDBOX_PASSFILE": "/etc/sshfs/seedbox.pass",
+    "SSHFS_CONFIG_DIR": "/etc/sshfs",
+    "SSHFS_MOUNTS_CONFIG": "/etc/sshfs/mounts.json"
+  },
+  "helper_dispatch_declarations": {
+    "rclone_configure": "cmd_rclone_configure",
+    "rclone_list": "cmd_rclone_list",
+    "rclone_mount": "cmd_rclone_mount",
+    "rclone_remove": "cmd_rclone_remove",
+    "rclone_unmount": "cmd_rclone_unmount",
+    "seedbox_configure": "cmd_seedbox_configure",
+    "seedbox_disable": "cmd_seedbox_disable",
+    "sshfs_configure": "cmd_sshfs_configure",
+    "sshfs_list": "cmd_sshfs_list",
+    "sshfs_mount": "cmd_sshfs_mount",
+    "sshfs_remove": "cmd_sshfs_remove",
+    "sshfs_unmount": "cmd_sshfs_unmount"
+  },
+  "helper_get_calls": {
+    "rclone": {
+      "options": [
+        {
+          "default_expression": "'writes'",
+          "key": "vfs_cache_mode"
+        },
+        {
+          "default_expression": "False",
+          "key": "read_only"
+        },
+        {
+          "default_expression": "True",
+          "key": "allow_other"
+        }
+      ],
+      "params": [
+        {
+          "default_expression": "'s3'",
+          "key": "backend"
+        },
+        {
+          "default_expression": "''",
+          "key": "access_key_id"
+        },
+        {
+          "default_expression": "''",
+          "key": "secret_access_key"
+        },
+        {
+          "default_expression": "False",
+          "key": "enabled"
+        },
+        {
+          "default_expression": "{}",
+          "key": "options"
+        },
+        {
+          "default_expression": "True",
+          "key": "auto_install"
+        },
+        {
+          "default_expression": "''",
+          "key": "id"
+        },
+        {
+          "default_expression": "''",
+          "key": "name"
+        },
+        {
+          "default_expression": "''",
+          "key": "bucket"
+        },
+        {
+          "default_expression": "''",
+          "key": "mount_point"
+        },
+        {
+          "default_expression": "None",
+          "key": "endpoint"
+        },
+        {
+          "default_expression": "'AWS'",
+          "key": "provider"
+        },
+        {
+          "default_expression": "'us-east-1'",
+          "key": "region"
+        },
+        {
+          "default_expression": "''",
+          "key": "endpoint"
+        }
+      ]
+    },
+    "seedbox": {
+      "options": [],
+      "params": [
+        {
+          "default_expression": "''",
+          "key": "password"
+        },
+        {
+          "default_expression": "''",
+          "key": "host"
+        },
+        {
+          "default_expression": "''",
+          "key": "username"
+        },
+        {
+          "default_expression": "''",
+          "key": "remote_path"
+        },
+        {
+          "default_expression": "'22'",
+          "key": "port"
+        }
+      ]
+    },
+    "sshfs": {
+      "options": [
+        {
+          "default_expression": "True",
+          "key": "reconnect"
+        },
+        {
+          "default_expression": "False",
+          "key": "compression"
+        }
+      ],
+      "params": [
+        {
+          "default_expression": "''",
+          "key": "password"
+        },
+        {
+          "default_expression": "{}",
+          "key": "options"
+        },
+        {
+          "default_expression": "True",
+          "key": "enabled"
+        },
+        {
+          "default_expression": "True",
+          "key": "enabled"
+        },
+        {
+          "default_expression": "True",
+          "key": "auto_install"
+        },
+        {
+          "default_expression": "''",
+          "key": "id"
+        },
+        {
+          "default_expression": "''",
+          "key": "name"
+        },
+        {
+          "default_expression": "''",
+          "key": "host"
+        },
+        {
+          "default_expression": "''",
+          "key": "username"
+        },
+        {
+          "default_expression": "''",
+          "key": "remote_path"
+        },
+        {
+          "default_expression": "''",
+          "key": "mount_point"
+        },
+        {
+          "default_expression": "True",
+          "key": "enabled"
+        },
+        {
+          "default_expression": "'22'",
+          "key": "port"
+        }
+      ]
+    }
+  },
+  "helper_saved_fields_and_expressions": {
+    "rclone": {
+      "backend": "backend",
+      "bucket": "bucket",
+      "enabled": "enabled",
+      "endpoint": "params.get('endpoint', '')",
+      "id": "mount_id",
+      "mount_point": "mount_point",
+      "name": "name",
+      "provider": "params.get('provider', 'AWS')",
+      "region": "params.get('region', 'us-east-1')"
+    },
+    "sshfs": {
+      "enabled": "bool(params.get('enabled', True))",
+      "host": "host",
+      "id": "mount_id",
+      "mount_point": "mount_point",
+      "name": "name or mount_id",
+      "options": "options",
+      "port": "int(port)",
+      "remote_path": "remote_path",
+      "username": "username"
+    }
+  },
+  "method": "AST/literal data only; no frozen imports, helpers or tests executed",
+  "provider_defaults": [
+    {
+      "category": "storage",
+      "enabled": true,
+      "id": "snapraid",
+      "name": "SnapRAID",
+      "type": "builtin"
+    },
+    {
+      "category": "storage",
+      "enabled": true,
+      "id": "mergerfs",
+      "name": "MergerFS",
+      "type": "builtin"
+    },
+    {
+      "category": "mount",
+      "enabled": true,
+      "id": "sshfs",
+      "name": "SSHFS",
+      "type": "builtin"
+    },
+    {
+      "category": "mount",
+      "enabled": false,
+      "id": "rclone",
+      "name": "Rclone",
+      "type": "builtin"
+    },
+    {
+      "category": "share",
+      "enabled": false,
+      "id": "samba",
+      "name": "Samba",
+      "type": "builtin"
+    }
+  ],
+  "routes": [
+    {
+      "declared_decorators": [
+        "storage_bp.route('/api/storage/mounts/<plugin_id>/detect', methods=['POST'])",
+        "login_required"
+      ],
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/storage/mounts/<plugin_id>/detect",
+      "proof": "declarations only; no authentication or installed route proof",
+      "source": "api:detect_mounts"
+    },
+    {
+      "declared_decorators": [
+        "storage_bp.route('/api/storage/mounts/<plugin_id>', methods=['GET'])",
+        "login_required"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/storage/mounts/<plugin_id>",
+      "proof": "declarations only; no authentication or installed route proof",
+      "source": "api:list_mounts"
+    },
+    {
+      "declared_decorators": [
+        "storage_bp.route('/api/storage/mounts/<plugin_id>', methods=['POST'])",
+        "login_required"
+      ],
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/storage/mounts/<plugin_id>",
+      "proof": "declarations only; no authentication or installed route proof",
+      "source": "api:add_mount"
+    },
+    {
+      "declared_decorators": [
+        "storage_bp.route('/api/storage/mounts/<plugin_id>/<mount_id>', methods=['PUT'])",
+        "login_required"
+      ],
+      "methods": [
+        "PUT"
+      ],
+      "path": "/api/storage/mounts/<plugin_id>/<mount_id>",
+      "proof": "declarations only; no authentication or installed route proof",
+      "source": "api:update_mount"
+    },
+    {
+      "declared_decorators": [
+        "storage_bp.route('/api/storage/mounts/<plugin_id>/<mount_id>', methods=['DELETE'])",
+        "login_required"
+      ],
+      "methods": [
+        "DELETE"
+      ],
+      "path": "/api/storage/mounts/<plugin_id>/<mount_id>",
+      "proof": "declarations only; no authentication or installed route proof",
+      "source": "api:delete_mount"
+    },
+    {
+      "declared_decorators": [
+        "storage_bp.route('/api/storage/mounts/<plugin_id>/<mount_id>/mount', methods=['POST'])",
+        "login_required"
+      ],
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/storage/mounts/<plugin_id>/<mount_id>/mount",
+      "proof": "declarations only; no authentication or installed route proof",
+      "source": "api:mount_filesystem"
+    },
+    {
+      "declared_decorators": [
+        "storage_bp.route('/api/storage/mounts/<plugin_id>/<mount_id>/unmount', methods=['POST'])",
+        "login_required"
+      ],
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/storage/mounts/<plugin_id>/<mount_id>/unmount",
+      "proof": "declarations only; no authentication or installed route proof",
+      "source": "api:unmount_filesystem"
+    },
+    {
+      "declared_decorators": [
+        "storage_bp.route('/api/storage/mounts/<plugin_id>/<mount_id>/status', methods=['GET'])",
+        "login_required"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/storage/mounts/<plugin_id>/<mount_id>/status",
+      "proof": "declarations only; no authentication or installed route proof",
+      "source": "api:get_mount_status"
+    },
+    {
+      "declared_decorators": [
+        "disk_manager.route('/api/disks/seedbox', methods=['GET'])",
+        "login_required"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/disks/seedbox",
+      "proof": "declarations only; no authentication or installed route proof",
+      "source": "disk:api_seedbox_get"
+    },
+    {
+      "declared_decorators": [
+        "disk_manager.route('/api/disks/seedbox', methods=['POST'])",
+        "login_required"
+      ],
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/disks/seedbox",
+      "proof": "declarations only; no authentication or installed route proof",
+      "source": "disk:api_seedbox_set"
+    }
+  ],
+  "schemas": {
+    "rclone": {
+      "properties": {
+        "access_key_id": {
+          "description": "Access key",
+          "type": "string"
+        },
+        "backend": {
+          "default": "s3",
+          "description": "Rclone backend",
+          "enum": [
+            "s3",
+            "s3-compatible"
+          ],
+          "type": "string"
+        },
+        "bucket": {
+          "description": "Bucket name",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "endpoint": {
+          "description": "Custom endpoint for S3-compatible",
+          "type": "string"
+        },
+        "id": {
+          "description": "Unique identifier (lowercase, no spaces)",
+          "pattern": "^[a-z0-9-]+$",
+          "type": "string"
+        },
+        "mount_point": {
+          "description": "Local mount point",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name",
+          "type": "string"
+        },
+        "options": {
+          "properties": {
+            "allow_other": {
+              "default": true,
+              "type": "boolean"
+            },
+            "read_only": {
+              "default": false,
+              "type": "boolean"
+            },
+            "vfs_cache_mode": {
+              "default": "writes",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "provider": {
+          "default": "AWS",
+          "description": "S3 provider",
+          "type": "string"
+        },
+        "region": {
+          "default": "us-east-1",
+          "type": "string"
+        },
+        "secret_access_key": {
+          "description": "Secret key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "backend",
+        "bucket",
+        "mount_point"
+      ],
+      "type": "object"
+    },
+    "sshfs": {
+      "properties": {
+        "auth_type": {
+          "default": "password",
+          "description": "Authentication method",
+          "enum": [
+            "password",
+            "key"
+          ],
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "description": "Auto-mount on boot",
+          "type": "boolean"
+        },
+        "host": {
+          "description": "Remote hostname or IP",
+          "type": "string"
+        },
+        "id": {
+          "description": "Unique identifier (lowercase, no spaces)",
+          "pattern": "^[a-z0-9-]+$",
+          "type": "string"
+        },
+        "mount_point": {
+          "description": "Local mount point",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name",
+          "type": "string"
+        },
+        "options": {
+          "properties": {
+            "allow_other": {
+              "default": true,
+              "type": "boolean"
+            },
+            "compression": {
+              "default": false,
+              "type": "boolean"
+            },
+            "reconnect": {
+              "default": true,
+              "type": "boolean"
+            },
+            "server_alive_count_max": {
+              "default": 3,
+              "type": "integer"
+            },
+            "server_alive_interval": {
+              "default": 15,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "password": {
+          "description": "SSH password (stored securely)",
+          "type": "string"
+        },
+        "port": {
+          "default": 22,
+          "description": "SSH port",
+          "type": "integer"
+        },
+        "remote_path": {
+          "description": "Remote directory path",
+          "type": "string"
+        },
+        "ssh_key_path": {
+          "description": "Path to SSH private key",
+          "type": "string"
+        },
+        "username": {
+          "description": "SSH username",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "host",
+        "username",
+        "remote_path",
+        "mount_point"
+      ],
+      "type": "object"
+    }
+  },
+  "seedbox_default_field_expressions": {
+    "enabled": "False",
+    "host": "''",
+    "mount_point": "self._mount_point_provider()",
+    "port": "22",
+    "remote_path": "''",
+    "username": "''"
+  }
+}

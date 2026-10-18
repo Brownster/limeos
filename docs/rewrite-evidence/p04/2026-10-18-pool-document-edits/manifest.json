@@ -1,0 +1,67 @@
+{
+  "source": "e43ac89560faadfb149d036ce5a6e636acb84cb5",
+  "base": "6eb3b37ffc3c6d87cd7a23942009e7e63bd59af1",
+  "branch": "engineer/p04-pool-document-edits",
+  "product_paths": [
+    "crates/domain/src/pools.rs",
+    "crates/domain/src/pools/document.rs",
+    "crates/domain/src/pools/document/tests.rs"
+  ],
+  "inputs": 195,
+  "reference_source": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+  "reference_inputs": 2,
+  "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5",
+  "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+  "python": "3.14.6 (main, Jun 11 2026, 00:00:00) [GCC 15.2.1 20260123 (Red Hat 15.2.1-7)]",
+  "uv": "uv 0.11.25 (x86_64-unknown-linux-gnu)",
+  "checks": {
+    "domain_unit": 207,
+    "compile_fail_doctests": 7,
+    "new_unit": 29,
+    "new_compile_fail_doctests": 2,
+    "all_target_clippy": "-D warnings; passed",
+    "changed_path_format": "passed",
+    "raw_summaries": {
+      "baseline.log": [
+        "ok. 8 passed; 0 failed; 0 ignored; 0 measured; 170 filtered out; finished in 0.03s"
+      ],
+      "clippy-final.log": [],
+      "clippy-verified.log": [],
+      "clippy.log": [],
+      "collector-format.log": [],
+      "collector-ruff.log": [],
+      "quoted-target-red.log": [
+        "FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 206 filtered out; finished in 0.00s"
+      ],
+      "rustfmt-final.log": [],
+      "rustfmt-verified.log": [],
+      "rustfmt.log": [],
+      "test-final.log": [
+        "ok. 206 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.29s",
+        "ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s"
+      ],
+      "test-first.log": [
+        "ok. 205 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.25s",
+        "ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s"
+      ],
+      "test-verified.log": [
+        "ok. 207 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.26s",
+        "ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s"
+      ]
+    }
+  },
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "1",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+    "UV_CACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/uv"
+  },
+  "primary_references": [
+    "https://man7.org/linux/man-pages/man5/fstab.5.html",
+    "https://github.com/util-linux/util-linux/blob/master/lib/mangle.c"
+  ],
+  "acceptance": "local domain only; no installed, API/UI, runtime, package, hardware, performance or recovery acceptance"
+}

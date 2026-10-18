@@ -9,6 +9,8 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+pub mod document;
+
 pub const SAMBA_MAX_SHARES: usize = 64;
 pub const SAMBA_MAX_DEVICE_REQUIREMENTS: usize = 512;
 

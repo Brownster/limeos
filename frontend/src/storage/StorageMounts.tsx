@@ -1,13 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
-import type { PlannedStorageMount, StorageMountJob, StorageDevice } from "../../../contracts/generated/types";
-import { ApiError } from "../api";
-import { mountApi } from "./client";
-
-function message(error: unknown): string {
-  return error instanceof ApiError
-    ? `${error.message} · reference ${error.detail.audit_id}`
-    : "Mount operations are unavailable. Check recent jobs before retrying.";
-}
+import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type KeyboardEvent } from "react";
+import { StorageMountController } from "./controller";
+// Browser ownership ends during commit, before pending promise continuations.
+// Static server rendering has no owner to start or dispose.
+const useOwnerEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 function containFocus(event: KeyboardEvent<HTMLDialogElement>) {
   if (event.key !== "Tab") return;
   const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
@@ -20,108 +15,48 @@ function containFocus(event: KeyboardEvent<HTMLDialogElement>) {
 }
 
 export function StorageMounts({ csrf, expired }: { csrf: string; expired: () => void }) {
-  const [target, setTarget] = useState("");
-  const [targets, setTargets] = useState<StorageDevice[]>([]);
-  const [catalogError, setCatalogError] = useState("");
-  const [catalogLoading, setCatalogLoading] = useState(true);
-  const [proposal, setProposal] = useState<PlannedStorageMount | null>(null);
-  const [jobs, setJobs] = useState<StorageMountJob[]>([]);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
-  const [historyError, setHistoryError] = useState("");
-  const [canceling, setCanceling] = useState<string | null>(null);
+  return <SessionStorageMounts key={csrf} csrf={csrf} expired={expired} />;
+}
+function SessionStorageMounts({ csrf, expired }: { csrf: string; expired: () => void }) {
+  const callback = useRef(expired); callback.current = expired;
+  const controller = useMemo(() => new StorageMountController(csrf, () => callback.current()), [csrf]);
+  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
+  const { target, targets, catalogError, catalogLoading, proposal, jobs, pending, error, historyError, historyLoading, canceling, retryAvailable } = state;
+  const unavailable = state.expired || state.denied;
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const alive = useRef(true);
-  const submission = useRef<{ proposal: PlannedStorageMount; approval: string; key: string } | null>(null);
-  const refresh = useCallback(async () => {
-    try {
-      const current = await mountApi.jobs();
-      if (alive.current) { setJobs(current); setHistoryError(""); }
-    } catch (failure) {
-      if (!alive.current) return;
-      setJobs([]);
-      if (failure instanceof ApiError && failure.detail.code === "unauthenticated") { expired(); return; }
-      setHistoryError(message(failure));
-    }
-  }, [expired]);
-  const refreshTargets = useCallback(async () => {
-    setCatalogLoading(true); setCatalogError("");
-    try {
-      const catalog = await mountApi.targets();
-      if (!alive.current) return;
-      setTargets(catalog.targets);
-      setTarget((previous) => catalog.targets.some((item) => item.id === previous) ? previous : (catalog.targets[0]?.id ?? ""));
-    } catch (failure) {
-      if (!alive.current) return;
-      setTargets([]); setTarget(""); setCatalogError(message(failure));
-      if (failure instanceof ApiError && failure.detail.code === "unauthenticated") expired();
-    } finally { if (alive.current) setCatalogLoading(false); }
-  }, [expired]);
-  useEffect(() => { void refreshTargets(); }, [refreshTargets]);
+  useOwnerEffect(() => {
+    void controller.start();
+    const timer = window.setInterval(() => { if (!document.hidden) void controller.refreshJobs(); }, 3000);
+    return () => { window.clearInterval(timer); controller.dispose(); };
+  }, [controller]);
   useEffect(() => {
-    alive.current = true;
-    void refresh();
-    const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 3000);
-    return () => { alive.current = false; window.clearInterval(timer); };
-  }, [refresh]);
-  async function preview() {
-    if (pending) return;
-    setPending(true); setError(""); setProposal(null); submission.current = null;
-    dialog.current?.showModal();
-    try {
-      const current = await mountApi.plan(target, csrf);
-      if (current.plan.effect.device.id !== target || current.plan.effect.operation !== "storage.mount") {
-        throw new Error("Mount plan identity mismatch");
-      }
-      if (alive.current) setProposal(current);
-    } catch (failure) { if (alive.current) setError(message(failure)); }
-    finally { if (alive.current) setPending(false); }
-  }
-  async function confirm() {
-    if (!proposal || pending) return;
-    setPending(true); setError("");
-    try {
-      if (!submission.current) {
-        const approval = await mountApi.approve(proposal, csrf);
-        submission.current = { proposal, approval: approval.token, key: crypto.randomUUID() };
-      }
-      const saved = submission.current;
-      await mountApi.queue(saved.proposal, saved.approval, saved.key, csrf);
-      submission.current = null;
-      if (alive.current) dialog.current?.close();
-      await refresh();
-    } catch (failure) { if (alive.current) setError(message(failure)); await refresh(); }
-    finally { if (alive.current) setPending(false); }
-  }
-  async function cancel(id: string) {
-    if (canceling) return;
-    setCanceling(id); setHistoryError("");
-    try { await mountApi.cancel(id, csrf); await refresh(); }
-    catch (failure) { if (alive.current) setHistoryError(message(failure)); }
-    finally { if (alive.current) setCanceling(null); }
-  }
+    if (state.reviewOpen && !dialog.current?.open) dialog.current?.showModal();
+    if (!state.reviewOpen && dialog.current?.open) dialog.current.close();
+  }, [state.reviewOpen]);
   return (
     <section className="operations" aria-labelledby="mount-heading">
       <h2 id="mount-heading">Mount a managed disk</h2>
       <p>This mounts an approved ext4 data disk until restart. Review its identity and destination before approving.</p>
-      <form onSubmit={(event) => { event.preventDefault(); void preview(); }}>
+      <form onSubmit={(event) => { event.preventDefault(); void controller.preview(); }}>
         <label>Managed disk
-          <select value={target} onChange={(event) => setTarget(event.target.value)} required disabled={pending || catalogLoading || targets.length === 0}>
+          <select value={target} onChange={(event) => controller.setTarget(event.target.value)} required disabled={unavailable || pending || catalogLoading || targets.length === 0}>
             {targets.length === 0 && <option value="">{catalogLoading ? "Loading managed disks…" : "No managed ext4 data disks"}</option>}
             {targets.map((item) => <option key={item.id} value={item.id}>{item.id} · {item.mountpoint}</option>)}
           </select>
         </label>
         {targets.filter((item) => item.id === target).map((item) => <p key={item.id}>UUID: {item.filesystem_uuid} · {item.mountpoint}</p>)}
-        <button ref={trigger} type="submit" disabled={pending || catalogLoading || !target}>Review mount</button>
-        <button type="button" className="quiet" disabled={pending || catalogLoading} onClick={() => void refreshTargets()}>Refresh managed disks</button>
+        <button ref={trigger} type="submit" disabled={unavailable || pending || catalogLoading || !target}>Review mount</button>
+        <button type="button" className="quiet" disabled={unavailable || pending || catalogLoading} onClick={() => void controller.refreshTargets()}>Refresh managed disks</button>
       </form>
+      {retryAvailable && !state.reviewOpen && <button className="quiet" onClick={() => controller.reopenReview()}>Return to pending mount request</button>}
       {catalogError && <p className="error" role="alert">{catalogError}</p>}
+      {unavailable && <p className="error" role="alert">{error}</p>}
       <dialog ref={dialog} className="operation-dialog" aria-labelledby="mount-review-heading"
-        onKeyDown={containFocus} onClose={() => trigger.current?.focus()}>
+        onKeyDown={containFocus} onCancel={(event) => { if (pending) event.preventDefault(); else controller.closeReview(); }} onClose={() => { controller.closeReview(); trigger.current?.focus(); }}>
         <header className="page-heading">
           <h2 id="mount-review-heading">Review nonpersistent mount</h2>
-          <button className="quiet" autoFocus onClick={() => dialog.current?.close()}>Close</button>
+          <button className="quiet" autoFocus disabled={pending} onClick={() => controller.closeReview()}>Close</button>
         </header>
         {pending && !proposal && <p role="status">Checking the managed disk and its dependencies…</p>}
         {proposal && <>
@@ -135,20 +70,21 @@ export function StorageMounts({ csrf, expired }: { csrf: string; expired: () => 
           <p className="notice">This mount ends at restart. Approval applies to this disk and destination.</p>
         </>}
         {error && <p className="error" role="alert">{error}</p>}
-        <button onClick={() => void confirm()} disabled={!proposal || pending}>
-          {pending ? "Submitting…" : submission.current ? "Retry the same request" : "Approve and mount"}
+        <button onClick={() => void controller.confirm()} disabled={unavailable || !proposal || pending}>
+          {pending ? "Submitting…" : retryAvailable ? "Retry the same request" : "Approve and mount"}
         </button>
       </dialog>
       <h3>Recent mount jobs</h3>
       {historyError && <p className="error" role="alert">{historyError}</p>}
-      {!historyError && jobs.length === 0 && <p>No recent mount jobs.</p>}
+      {historyLoading && <p role="status">Reading recent mount jobs…</p>}
+      {!historyError && !historyLoading && !unavailable && jobs.length === 0 && <p>No recent mount jobs.</p>}
       {jobs.map((job) => <article className="job-row" key={job.id}>
         <div><strong>{job.plan.effect.device.id}</strong><p>{job.plan.effect.device.mountpoint}</p>
           <span className="badge">{job.state.replaceAll("_", " ")}</span>
           {job.state === "needs_intervention" && <p className="notice">The outcome needs reconciliation. Its resource claims remain held.</p>}
         </div>
-        {job.state === "queued" && <button className="quiet" disabled={canceling !== null}
-          onClick={() => void cancel(job.id)}>{canceling === job.id ? "Canceling…" : "Cancel before dispatch"}</button>}
+        {job.state === "queued" && <button className="quiet" disabled={pending || canceling !== null}
+          onClick={() => void controller.cancel(job.id)}>{canceling === job.id ? "Canceling…" : "Cancel before dispatch"}</button>}
       </article>)}
     </section>
   );

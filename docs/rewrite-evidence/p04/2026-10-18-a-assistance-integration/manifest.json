@@ -1,0 +1,166 @@
+{
+  "tested_source": "8b31f990103bdc7ce959048abba1b6c051fc847b",
+  "base": "7df3f7530865c31b7faefd1f7b12a25aa7655860",
+  "branch": "engineer/p04-a-assistance",
+  "source_heads": [
+    "5dd0a2a97f2bf19417443fc442b2a2febc93fd98",
+    "0f7483c05fff7d36adbfdda5c436ff28f7adaf8c",
+    "159556ecefb50a6414a907dd1748a9f3a0736781",
+    "61965d17dde51d0541e1f55ca4563d6fd6ef06a1"
+  ],
+  "product_paths": [
+    "crates/backup-archive/src/before_images.rs",
+    "crates/backup-archive/src/before_images/tests.rs",
+    "crates/backup-archive/src/before_images/tests/preflight.rs",
+    "crates/domain/src/protection.rs",
+    "crates/domain/src/protection/scrub.rs",
+    "crates/domain/src/protection/scrub/tests.rs",
+    "crates/domain/src/shares.rs",
+    "crates/domain/src/shares/document.rs",
+    "crates/domain/src/shares/document/tests.rs",
+    "frontend/src/storage/StorageMounts.tsx",
+    "frontend/src/storage/client.ts",
+    "frontend/src/storage/controller.ts",
+    "frontend/tests/helpers/storage-mounts.mjs",
+    "frontend/tests/storage-mount-lifecycle.test.mjs"
+  ],
+  "input_count": 313,
+  "rust_summaries": [
+    [
+      87,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      32,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      2,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      11,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      11,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      178,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      5,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      5,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "rust_passed": 331,
+  "frontend_cases": [
+    {
+      "file": "api.mjs",
+      "passed": 4
+    },
+    {
+      "file": "automation-controller.test.mjs",
+      "passed": 14
+    },
+    {
+      "file": "automation.test.mjs",
+      "passed": 10
+    },
+    {
+      "file": "media-activity-client.test.mjs",
+      "passed": 29
+    },
+    {
+      "file": "media-activity.test.mjs",
+      "passed": 10
+    },
+    {
+      "file": "observations.test.mjs",
+      "passed": 4
+    },
+    {
+      "file": "stack-discovery.test.mjs",
+      "passed": 18
+    },
+    {
+      "file": "storage-mount-lifecycle.test.mjs",
+      "passed": 40
+    }
+  ],
+  "frontend_passed": 129,
+  "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5\n",
+  "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+  "node": "v22.14.0",
+  "dependencies": [
+    {
+      "name": "react",
+      "version": "18.3.1",
+      "package_json_sha256": "d4e68a5c96babb20cad1daafea8b78822eae45b341552cf5418d06a5304fa64c"
+    },
+    {
+      "name": "react-dom",
+      "version": "18.3.1",
+      "package_json_sha256": "d2f29e31bd48b833e48cd7bbf41f192e8ee4ff8da249fdbe10d4ac4114b8b12e"
+    },
+    {
+      "name": "typescript",
+      "version": "5.7.3",
+      "package_json_sha256": "1e03325943793f3bf11667b94fca412fe5ba617c85b84c16f0474933da156baa"
+    },
+    {
+      "name": "vite",
+      "version": "8.3.2",
+      "package_json_sha256": "2b906339263f24e9be4219f93d966b4bcf0d4141adc05939a537c3a8fd6f760a"
+    }
+  ],
+  "api_fixture": {
+    "typescript": "5.7.3",
+    "api_source_sha256": "c649e990d3ef4afeddf879d5591ab14f8f376715e501af63afa81fdc5d681a23",
+    "original_test_sha256": "209edd7f8e88dadd62d495a9a93a6a726df2b71817f75b7e5ab4a1425a4bdef2",
+    "generated_test_sha256": "98329aed408723cfe5a7b38e543597975ba037b5c726292e01ee9d34697a5688",
+    "change": "Replace only the native TypeScript API import with pinned-compiler output; preserve all four original assertions"
+  },
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "1",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache",
+    "npm_config_cache": "/home/marc/Documents/github/lime-os/.cache/npm"
+  },
+  "browser_installed_qualification": "UNRUN",
+  "shared_runtime_changes": "None",
+  "phase_completion": "Not claimed"
+}
