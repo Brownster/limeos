@@ -1,0 +1,55 @@
+{
+  "reference": "pi-health 80593b29443ea9b81eb60ed4e5c3c3ac7a236204 stack_notifications_service.py and tests/test_stack_notifications.py; hand-transcribed, never executed",
+  "aliases": [
+    ["Download", "imported", true], ["Import", "imported", true],
+    ["Upgrade", "upgraded", true], ["HealthIssue", "health", true],
+    ["Health", "health", true], ["HealthRestored", "health_restored", true],
+    ["DownloadFailure", "failed", true], ["GrabFailure", "failed", true],
+    ["ImportFailure", "failed", true], ["ManualInteractionRequired", "manual", true],
+    ["Grab", "grabbed", false], ["Rename", "renamed", false],
+    ["MovieAdded", "added", false], ["SeriesAdd", "added", false],
+    ["ApplicationUpdate", "app_update", false], ["Test", null, false]
+  ],
+  "cases": [
+    {
+      "name": "radarr import",
+      "body": {"eventType":"Download","instanceName":"Radarr","movie":{"title":"The Matrix","year":1999},"movieFile":{"quality":{"quality":{"name":"Bluray-1080p"}}}},
+      "expected": {"source":"radarr","event":"imported","severity":"info","title":"Imported","detail":"The Matrix (1999) — Bluray-1080p"}
+    },
+    {
+      "name": "radarr import upgrade",
+      "body": {"eventType":"Download","isUpgrade":true,"movie":{"title":"Dune","year":2021}},
+      "expected": {"source":"stack","event":"upgraded","severity":"info","title":"Upgraded","detail":"Dune (2021)"}
+    },
+    {
+      "name": "sonarr first episode",
+      "body": {"eventType":"Download","instanceName":"Sonarr","series":{"title":"Severance"},"episodes":[{"seasonNumber":2,"episodeNumber":3},{"seasonNumber":2,"episodeNumber":4}],"episodeFile":{"quality":{"quality":{"name":"WEBDL-1080p"}}}},
+      "expected": {"source":"sonarr","event":"imported","severity":"info","title":"Imported","detail":"Severance S02E03 — WEBDL-1080p"}
+    },
+    {
+      "name": "critical health",
+      "body": {"eventType":"HealthIssue","level":" ERROR ","message":"  Download client down  "},
+      "expected": {"source":"stack","event":"health","severity":"critical","title":"Health issue","detail":"Download client down"}
+    },
+    {
+      "name": "health restored",
+      "body": {"eventType":"HealthRestored","message":"Indexer restored"},
+      "expected": {"source":"stack","event":"health_restored","severity":"info","title":"Health restored","detail":"Indexer restored"}
+    },
+    {
+      "name": "failed download",
+      "body": {"eventType":"DownloadFailure","movie":{"title":"Dune"},"release":{"quality":"HDTV"}},
+      "expected": {"source":"stack","event":"failed","severity":"warning","title":"Download failed","detail":"Dune — HDTV"}
+    },
+    {
+      "name": "manual action",
+      "body": {"eventType":"ManualInteractionRequired"},
+      "expected": {"source":"stack","event":"manual","severity":"warning","title":"Manual interaction required","detail":"(no details)"}
+    },
+    {
+      "name": "file precedence",
+      "body": {"eventType":"Download","movieFile":{"quality":{"name":"first"}},"episodeFile":{"quality":{"name":"second"}},"trackFile":{"quality":{"name":"third"}},"bookFile":{"quality":{"name":"fourth"}},"release":{"quality":"last"}},
+      "expected": {"source":"stack","event":"imported","severity":"info","title":"Imported","detail":"first"}
+    }
+  ]
+}
