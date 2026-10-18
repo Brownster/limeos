@@ -111,8 +111,8 @@ async function page<T>(path: string, guard: (value: unknown) => value is T, afte
   if (!Array.isArray(value.items) || value.items.length > 32 || !value.items.every(guard) || typeof value.partial !== "boolean" || !(value.next === null || text(value.next, 256))) throw unavailable(200);
   return value;
 }
-function post<T>(path: string, body: unknown, csrf: string): Promise<T> {
-  return request<T>(path, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body) });
+function post<T>(path: string, body: unknown, csrf: string, signal?: AbortSignal): Promise<T> {
+  return request<T>(path, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body), signal });
 }
 async function checked<T>(value: Promise<T>, guard: (value: unknown) => value is T): Promise<T> {
   const result = await value;
@@ -123,9 +123,9 @@ export const automationClient = {
   schedules: (after?: string, signal?: AbortSignal) => page<ScheduleView>("/schedules", schedule, after, signal),
   alerts: (after?: string, signal?: AbortSignal) => page<AlertState>("/alerts", alert, after, signal),
   notifications: (after?: string, signal?: AbortSignal) => page<Notification>("/notifications", notification, after, signal),
-  create: (definition: ScheduleDefinition, csrf: string) => checked(post<ScheduleView>("/schedules", { definition }, csrf), schedule),
-  pause: (row: ScheduleView, csrf: string) => checked(post<ScheduleView>(`/schedules/${encodeURIComponent(row.schedule.id)}/pause`, { revision: row.schedule.revision, paused: !row.schedule.paused }, csrf), schedule),
-  acknowledge: (row: Notification, csrf: string) => checked(post<Notification>(`/notifications/${encodeURIComponent(row.id)}/acknowledgment`, { revision: row.revision }, csrf), notification),
+  create: (definition: ScheduleDefinition, csrf: string, signal?: AbortSignal) => checked(post<ScheduleView>("/schedules", { definition }, csrf, signal), schedule),
+  pause: (row: ScheduleView, csrf: string, signal?: AbortSignal) => checked(post<ScheduleView>(`/schedules/${encodeURIComponent(row.schedule.id)}/pause`, { revision: row.schedule.revision, paused: !row.schedule.paused }, csrf, signal), schedule),
+  acknowledge: (row: Notification, csrf: string, signal?: AbortSignal) => checked(post<Notification>(`/notifications/${encodeURIComponent(row.id)}/acknowledgment`, { revision: row.revision }, csrf, signal), notification),
 };
 
 export function deliveryLabel(row: Notification): string {

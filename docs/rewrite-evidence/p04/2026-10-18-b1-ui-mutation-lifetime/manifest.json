@@ -1,0 +1,98 @@
+{
+  "tested_source": "e9cb979442a03c6ba978654bfa3193f78a348804",
+  "base": "7df3f7530865c31b7faefd1f7b12a25aa7655860",
+  "branch": "engineer/p04-automation-ui-lifetime",
+  "node": "v22.14.0",
+  "platform": "linux",
+  "architecture": "x64",
+  "dependencies": [
+    {
+      "name": "react",
+      "version": "18.3.1",
+      "package_json_sha256": "d4e68a5c96babb20cad1daafea8b78822eae45b341552cf5418d06a5304fa64c"
+    },
+    {
+      "name": "react-dom",
+      "version": "18.3.1",
+      "package_json_sha256": "d2f29e31bd48b833e48cd7bbf41f192e8ee4ff8da249fdbe10d4ac4114b8b12e"
+    },
+    {
+      "name": "typescript",
+      "version": "5.7.3",
+      "package_json_sha256": "1e03325943793f3bf11667b94fca412fe5ba617c85b84c16f0474933da156baa"
+    },
+    {
+      "name": "vite",
+      "version": "8.3.2",
+      "package_json_sha256": "2b906339263f24e9be4219f93d966b4bcf0d4141adc05939a537c3a8fd6f760a"
+    }
+  ],
+  "react_dom_development_sha256": "1459b808bc6991de5a1ec3a86d8beee32dbb6c14282cf13f84e00dfebfbdc025",
+  "input_count": 37,
+  "changed_paths": [
+    "docs/plans/2026-10-18-b1-ui-mutation-lifetime-design.md",
+    "frontend/src/AutomationView.tsx",
+    "frontend/src/NotificationsView.tsx",
+    "frontend/src/automation-client.ts",
+    "frontend/src/automation-controller.ts",
+    "frontend/tests/automation-controller.test.mjs",
+    "frontend/tests/automation-mutations.test.mjs",
+    "frontend/tests/automation.test.mjs"
+  ],
+  "checks": [
+    {
+      "file": "api.mjs",
+      "log": "api-transpiled-direct.log",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "file": "automation-controller.test.mjs",
+      "log": "frontend-automation-controller.test.mjs.log",
+      "passed": 14,
+      "failed": 0
+    },
+    {
+      "file": "automation.test.mjs",
+      "log": "frontend-automation.test.mjs.log",
+      "passed": 10,
+      "failed": 0
+    },
+    {
+      "file": "automation-mutations.test.mjs",
+      "log": "frontend-automation-mutations.test.mjs.log",
+      "passed": 15,
+      "failed": 0
+    },
+    {
+      "file": "media-activity-client.test.mjs",
+      "log": "frontend-media-activity-client.test.mjs.log",
+      "passed": 29,
+      "failed": 0
+    },
+    {
+      "file": "media-activity.test.mjs",
+      "log": "frontend-media-activity.test.mjs.log",
+      "passed": 10,
+      "failed": 0
+    },
+    {
+      "file": "observations.test.mjs",
+      "log": "frontend-observations.test.mjs.log",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "file": "stack-discovery.test.mjs",
+      "log": "frontend-stack-discovery.test.mjs.log",
+      "passed": 18,
+      "failed": 0
+    }
+  ],
+  "passed_cases": 104,
+  "new_cases": 15,
+  "browser_execution": "UNRUN",
+  "installed_qualification": "UNRUN",
+  "rust_checks": "UNRUN: no Rust changes",
+  "central_schedule_registration": "Separate owner worktree; not included"
+}

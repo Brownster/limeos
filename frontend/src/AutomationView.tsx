@@ -1,54 +1,50 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { automationClient } from "./automation-client";
 import { AutomationController } from "./automation-controller";
 import { NotificationsView } from "./NotificationsView";
 import type { AutomationState, PageKind } from "./automation-controller";
 import type { AlertState, Page, ScheduleDefinition, ScheduleView } from "./automation-client";
 
-export function AutomationView({ schedules, alerts, csrf, canManage, changed, moreSchedules, moreAlerts, failed, disabled = false }: {
-  schedules: Page<ScheduleView> | null; alerts: Page<AlertState> | null; csrf: string; canManage: boolean;
-  changed: () => void; moreSchedules: () => void; moreAlerts: () => void;
-  failed?: (error: unknown) => void;
-  disabled?: boolean;
+export function AutomationView({ schedules, alerts, canManage, create, pause, moreSchedules, moreAlerts, error, busy = false, disabled = false }: {
+  schedules: Page<ScheduleView> | null; alerts: Page<AlertState> | null; canManage: boolean;
+  create?: (definition: ScheduleDefinition) => void; pause?: (row: ScheduleView) => void;
+  moreSchedules: () => void; moreAlerts: () => void;
+  error?: string | null; busy?: boolean; disabled?: boolean;
 }) {
-  const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
   const [minutes, setMinutes] = useState(10); const [start, setStart] = useState(0); const [end, setEnd] = useState(0);
   const [windowEnabled, setWindowEnabled] = useState(false);
   const [missed, setMissed] = useState<ScheduleDefinition["missed"]>("coalesce_latest");
   const blocked = busy || disabled;
-  const mutate = async (action: () => Promise<unknown>) => {
-    if (blocked) return;
-    setBusy(true); setError("");
-    try { await action(); changed(); }
-    catch (failure) { setError(failure instanceof Error ? failure.message : "Unable to save. Refresh to check the outcome."); failed?.(failure); }
-    finally { setBusy(false); }
-  };
   return <section aria-labelledby="automation-heading">
     <p className="eyebrow">AUTOMATION</p><h2 id="automation-heading">Schedules and alerts</h2>
     {(schedules?.partial || alerts?.partial) && <p className="notice" role="status">Some observations are unavailable. Missing observations keep active alerts open.</p>}
     {error && <p className="error" role="alert">{error}</p>}
+    {formError && <p className="error" role="alert">{formError}</p>}
+    {busy && <p role="status">Saving schedule change…</p>}
     <div className="table-wrap"><table><caption>Observation schedules</caption><thead><tr><th scope="col">Schedule</th><th scope="col">Timing</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
       <tbody>{schedules?.items.map(row => <tr key={row.schedule.id}><th scope="row">{row.schedule.id}<small>{row.schedule.definition.operation.replaceAll("_", " ")}</small></th>
         <td>Every {row.schedule.definition.interval_seconds / 60} minutes<small>{row.schedule.definition.window ? `UTC ${clock(row.schedule.definition.window.start_minute)}–${clock(row.schedule.definition.window.end_minute)}` : "Any time · UTC"}</small></td>
         <td><span className={`badge ${row.status === "blocked" ? "warning" : ""}`}>{row.status}</span>{row.status === "blocked" && <small>Operation adapter is unavailable.</small>}
           {row.last_occurrence && <small>Latest occurrence · {new Date(row.last_occurrence.key.due * 1000).toISOString()}<br />{row.last_occurrence.outcome.outcome === "job" ? `Job ${row.last_occurrence.outcome.id} · ${row.last_occurrence.outcome.state.replaceAll("_", " ")}` : row.last_occurrence.outcome.outcome}</small>}</td>
-        <td>{canManage && <button disabled={blocked} onClick={() => void mutate(() => automationClient.pause(row, csrf))}>{row.schedule.paused ? "Resume" : "Pause"} {row.schedule.id}</button>}</td>
+        <td>{canManage && <button disabled={blocked || !pause} onClick={() => { if (!blocked) pause?.(row); }}>{row.schedule.paused ? "Resume" : "Pause"} {row.schedule.id}</button>}</td>
       </tr>)}{schedules?.items.length === 0 && <tr><td colSpan={4}>No schedules on this page.</td></tr>}{!schedules && <tr><td colSpan={4}>Schedule data is unavailable.</td></tr>}</tbody></table></div>
     {schedules?.next && <button onClick={moreSchedules} disabled={busy}>Next schedules</button>}
     {canManage && <form onSubmit={event => {
       event.preventDefault();
       if (blocked) return;
-      if (windowEnabled && start === end) { setError("Choose different window start and end times."); return; }
+      if (windowEnabled && start === end) { setFormError("Choose different window start and end times."); return; }
+      setFormError("");
       const definition: ScheduleDefinition = { operation: "observe_health", anchor: Math.floor(Date.now() / 1000), interval_seconds: minutes * 60,
         grace_seconds: 30, missed, window: windowEnabled ? { start_minute: start, end_minute: end } : null };
-      void mutate(() => automationClient.create(definition, csrf));
+      create?.(definition);
     }}><h3>Create a health observation schedule</h3>
       <label htmlFor="observation-interval">Interval in minutes</label><input id="observation-interval" type="number" required min={1} max={44640} step={1} value={minutes} disabled={blocked} onChange={event => setMinutes(Number(event.target.value))} />
       <label htmlFor="missed-observations">Missed observations</label><select id="missed-observations" value={missed} disabled={blocked} onChange={event => setMissed(event.target.value as ScheduleDefinition["missed"])}><option value="coalesce_latest">Use the most recent due occurrence</option><option value="skip">Skip missed occurrences</option></select>
       <label style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}><input style={{ width: "auto" }} type="checkbox" checked={windowEnabled} disabled={blocked} onChange={event => setWindowEnabled(event.target.checked)} /> Use a daily UTC maintenance window</label>
       {windowEnabled && <><label htmlFor="window-start">Window start (UTC)</label><input id="window-start" type="time" required value={clock(start)} disabled={blocked} onChange={event => setStart(minute(event.target.value))} />
         <label htmlFor="window-end">Window end (UTC)</label><input id="window-end" type="time" required value={clock(end)} disabled={blocked} onChange={event => setEnd(minute(event.target.value))} /></>}
-      <button disabled={blocked}>Create observation schedule</button>
+      <button disabled={blocked || !create}>Create observation schedule</button>
     </form>}
     <h3>Active alerts</h3><ul>{alerts?.items.filter(row => row.incident.phase === "open").map(row => <li key={row.key}><strong>{row.key}</strong>{row.incident.phase === "open" && <p>{row.incident.summary} <span className="badge warning">{row.incident.severity}</span></p>}</li>)}</ul>
     {!alerts && <p>Alert data is unavailable.</p>}
@@ -63,10 +59,19 @@ function minute(value: string): number { const [hours, minutes] = value.split(":
 export function AutomationPanel({ principal, grantRevision, csrf, canManage, canAcknowledge, expired }: {
   principal: string; grantRevision: number; csrf: string; canManage: boolean; canAcknowledge: boolean; expired: () => void;
 }) {
+  const owner = JSON.stringify([principal, grantRevision, csrf, canManage, canAcknowledge]);
+  return <OwnedAutomationPanel key={owner} csrf={csrf} canManage={canManage} canAcknowledge={canAcknowledge} expired={expired} />;
+}
+// Dispose in the browser's unmount commit, before ready async continuations can
+// run during the gap before passive cleanup. SSR owns no active requests.
+const useOwnerEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+function OwnedAutomationPanel({ csrf, canManage, canAcknowledge, expired }: {
+  csrf: string; canManage: boolean; canAcknowledge: boolean; expired: () => void;
+}) {
   const expiry = useRef(expired); expiry.current = expired;
-  const controller = useMemo(() => new AutomationController(() => expiry.current()), [principal, grantRevision, csrf]);
+  const controller = useMemo(() => new AutomationController(() => expiry.current()), []);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
-  useEffect(() => {
+  useOwnerEffect(() => {
     void controller.start();
     const refresh = () => { void controller.refresh(); };
     window.addEventListener("focus", refresh); window.addEventListener("online", refresh);
@@ -78,12 +83,17 @@ export function AutomationPanel({ principal, grantRevision, csrf, canManage, can
   return <>
     <button onClick={changed} disabled={state.schedules.loading && state.alerts.loading && state.notifications.loading}>Refresh automation</button>
     <AutomationReadStatus state={state} />
-    <AutomationView schedules={state.schedules.page} alerts={state.alerts.page} csrf={csrf} canManage={canManage} disabled={!fresh("schedules")} changed={() => { void controller.committed("schedules"); }}
-      moreSchedules={() => { void controller.next("schedules"); }} moreAlerts={() => { void controller.next("alerts"); }} failed={error => controller.mutationFailed("schedules", error)} />
+    <AutomationView schedules={state.schedules.page} alerts={state.alerts.page} canManage={canManage} disabled={!fresh("schedules") || state.mutations.schedules.denied}
+      busy={state.mutations.schedules.pending} error={state.mutations.schedules.error}
+      create={definition => { if (canManage) void controller.mutate("schedules", signal => automationClient.create(definition, csrf, signal)); }}
+      pause={row => { if (canManage) void controller.mutate("schedules", signal => automationClient.pause(row, csrf, signal)); }}
+      moreSchedules={() => { void controller.next("schedules"); }} moreAlerts={() => { void controller.next("alerts"); }} />
     {state.schedules.after && <button disabled={state.schedules.loading} onClick={() => { void controller.first("schedules"); }}>First schedules</button>}
     {state.alerts.after && <button disabled={state.alerts.loading} onClick={() => { void controller.first("alerts"); }}>First alerts</button>}
-    <NotificationsView value={state.notifications.page} csrf={csrf} canAcknowledge={canAcknowledge} disabled={!fresh("notifications")} changed={() => { void controller.committed("notifications"); }}
-      more={() => { void controller.next("notifications"); }} failed={error => controller.mutationFailed("notifications", error)} />
+    <NotificationsView value={state.notifications.page} canAcknowledge={canAcknowledge} disabled={!fresh("notifications") || state.mutations.notifications.denied}
+      busy={state.mutations.notifications.pending} error={state.mutations.notifications.error}
+      acknowledge={row => { if (canAcknowledge) void controller.mutate("notifications", signal => automationClient.acknowledge(row, csrf, signal)); }}
+      more={() => { void controller.next("notifications"); }} />
     {state.notifications.after && <button disabled={state.notifications.loading} onClick={() => { void controller.first("notifications"); }}>First notifications</button>}
   </>;
 }
