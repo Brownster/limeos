@@ -93,7 +93,13 @@ fn bounded_config(config: &PoolsConfig) -> StoragePlanningResult<()> {
             StoragePlanningFindingCode::ThresholdExceeded,
         ));
     }
-    config.validate()
+    config.validate()?;
+    for pool in &config.pools {
+        // Apply the same closed spelling profile to owned and external targets.
+        // The public configuration renderer retains its existing broader rules.
+        target(&pool.mount_point, "fuse.mergerfs")?;
+    }
+    Ok(())
 }
 fn body(line: &str) -> &str {
     match line.strip_suffix('\n') {
