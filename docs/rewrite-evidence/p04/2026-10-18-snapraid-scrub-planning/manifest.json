@@ -1,0 +1,55 @@
+{
+  "tested_source": "808a6fe9118ee1b959daf14c87b7ceaf34fb941a",
+  "base": "7df3f7530865c31b7faefd1f7b12a25aa7655860",
+  "branch": "engineer/p04-snapraid-scrub-planning",
+  "reference_source": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+  "reference_paths": [
+    "storage_plugins/snapraid_plugin.py",
+    "pihealth_helper.py",
+    "config/schemas/snapraid.schema.json",
+    "config/capability_providers/snapraid.manifest.json",
+    "Docs/snapraid-manual.txt"
+  ],
+  "reference_manual": "https://www.snapraid.it/manual",
+  "reference_manual_inspected_on": "2026-10-18",
+  "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5\n",
+  "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+  "packager_node": "v22.14.0",
+  "input_count": 81,
+  "changed_paths": [
+    "M\tcrates/domain/src/protection.rs",
+    "A\tcrates/domain/src/protection/scrub.rs",
+    "A\tcrates/domain/src/protection/scrub/tests.rs",
+    "A\tdocs/plans/2026-10-18-snapraid-scrub-planning-design.md"
+  ],
+  "domain_unit_passed": 157,
+  "compile_fail_passed": 3,
+  "new_cases": [
+    "all_drive_roles_and_generated_leaves_refuse_pool_roots_even_when_disabled",
+    "configured_and_manual_percent_limits_and_defaults_remain_distinct",
+    "each_device_refuses_bare_replaced_duplicate_boot_swap_readonly_bind_or_wrong_mount",
+    "every_path_role_refuses_missing_unsafe_or_incorrect_object_types",
+    "explicit_manual_request_does_not_enable_or_depend_on_recurring_policy",
+    "frozen_layouts_retain_rendering_order_complete_sources_and_original_age",
+    "hidden_leaf_nested_data_and_ambiguous_mounts_refuse",
+    "incomplete_extra_reordered_and_rebound_path_evidence_refuses",
+    "manual_numeric_schema_refuses_overflow_fraction_strings_and_free_options",
+    "manual_options_preserve_omission_zero_and_supported_numeric_boundaries",
+    "original_five_second_deadline_refuses_future_expired_and_invalid_times",
+    "qualified_filesystems_reuse_the_current_protection_support_boundary",
+    "scrub_never_inherits_sync_threshold_admission_or_synthesizes_a_diff",
+    "sync_may_create_absent_files_while_scrub_refuses_each_absent_input"
+  ],
+  "baseline_filter_passed": 11,
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "RUST_TEST_THREADS": "1",
+    "CARGO_TARGET_DIR": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target",
+    "TMPDIR": "/home/marc/Documents/github/lime-os/.cache/tmp",
+    "CCACHE_DIR": "/home/marc/Documents/github/lime-os/.cache/ccache"
+  },
+  "installed_effects": "UNRUN",
+  "binary_defaults": "Not qualified",
+  "phase_completion": "Not claimed"
+}
