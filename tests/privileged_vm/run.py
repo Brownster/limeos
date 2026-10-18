@@ -21,6 +21,8 @@ import tempfile
 import time
 from pathlib import Path
 
+from current_authority_schema import SOURCE_NAME
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -256,6 +258,16 @@ def main():
                     *map(str, scripts),
                     "root@127.0.0.1:/root/",
                 )
+                # Current expectations come from the same checked-out source
+                # as CI's packages, never the installed database or a label.
+                run(
+                    "scp",
+                    *common,
+                    "-P",
+                    str(port),
+                    str(ROOT / "crates/persistence/src/lib.rs"),
+                    "root@127.0.0.1:/root/" + SOURCE_NAME,
+                )
                 for source, destination in [
                     ("werkzeug-hashes.json", "werkzeug-hashes.json"),
                     ("compose-catalog.json", "compose-catalog-fixture.json"),
@@ -284,6 +296,13 @@ def main():
                         *ssh,
                         "mkdir /root/build && tar -xzf /root/build.tar.gz -C /root/build && python3 /root/build/source/tests/privileged_vm/build_guest.py --version "
                         + shlex.quote(args.package_version),
+                    )
+                    # A supplied bundle may differ from the runner checkout.
+                    # Deliver the source that was actually built, explicitly.
+                    run(
+                        *ssh,
+                        "install -m 0644 /root/build/source/crates/persistence/src/lib.rs /root/"
+                        + SOURCE_NAME,
                     )
                     if args.build_output:
                         args.build_output.mkdir(parents=True, exist_ok=True)

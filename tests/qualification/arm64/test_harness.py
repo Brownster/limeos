@@ -19,6 +19,7 @@ from unittest.mock import Mock, patch
 
 import guest_supervisor
 import native_vm
+import approved_guest
 import qualification as q
 import record_run
 import upgrade_guest
@@ -394,10 +395,18 @@ class UpgradeArtifactTests(unittest.TestCase):
                     upgrade_guest.verify_previous_package(repo, original)
 
     def test_schema8_wrapper_dispatches_exact_preservation_inputs(self):
+        self.check_upgrade_destination(9)
+
+    def test_schema8_wrapper_dispatches_schema10_without_relabeling_previous(self):
+        self.check_upgrade_destination(10)
+
+    def check_upgrade_destination(self, authority_schema):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             build = build_fixture()
-            build["identity"].update(source_commit="d" * 40, authority_schema=9)
+            build["identity"].update(
+                source_commit="d" * 40, authority_schema=authority_schema
+            )
             build["fixtures_sha256"] = {"tests/fixture.py": "e" * 64}
             expected = root / "build.json"
             expected.write_text(json.dumps(build))
@@ -444,7 +453,7 @@ class UpgradeArtifactTests(unittest.TestCase):
                 repo,
                 previous_version=original["package_version"],
                 previous_schema=8,
-                authority_schema=9,
+                authority_schema=authority_schema,
                 previous_package_sha256=original["package_sha256"],
                 previous_core_sha256=original["core_sha256"],
             )
@@ -452,6 +461,63 @@ class UpgradeArtifactTests(unittest.TestCase):
             self.assertEqual(result["previous"], original)
             self.assertEqual(result["previous_provenance_sha256"], q.sha(provenance))
             self.assertEqual(result["summary"], "pass")
+
+    def test_approved_suites_pass_verified_manifest_schema9_and10(self):
+        cache = HERE.parents[2] / ".cache"
+        cache.mkdir(exist_ok=True)
+        for suite in ("storage", "container"):
+            for authority_schema in (9, 10):
+                with (
+                    self.subTest(suite=suite, authority_schema=authority_schema),
+                    tempfile.TemporaryDirectory(dir=cache) as directory,
+                ):
+                    root = Path(directory)
+                    build = build_fixture()
+                    build["identity"]["authority_schema"] = authority_schema
+                    build["fixtures_sha256"] = {"fixture.py": "e" * 64}
+                    output = root / "result.json"
+                    raw = root / "result-fixture.json"
+                    operation = Mock(side_effect=lambda **_: raw.write_text("{}"))
+                    argv = [
+                        "approved_guest.py",
+                        "--suite",
+                        suite,
+                        "--repo",
+                        str(root),
+                        "--expected",
+                        str(root / "build.json"),
+                        "--hashes",
+                        "/root/werkzeug-hashes.json",
+                        "--output",
+                        str(output),
+                    ]
+                    with (
+                        patch.object(sys, "argv", argv),
+                        patch.object(sys, "path", list(sys.path)),
+                        patch("approved_guest.guest_guard"),
+                        patch("approved_guest.load_build", return_value=build),
+                        patch("approved_guest.verify_files"),
+                        patch("approved_guest.installed_binaries", return_value={}),
+                        patch("approved_guest.teardown", return_value={}),
+                        patch.dict(
+                            sys.modules,
+                            {
+                                "p04_approved_guest": SimpleNamespace(main=operation),
+                                "p04_approved_container_guest": SimpleNamespace(
+                                    main=operation
+                                ),
+                            },
+                        ),
+                    ):
+                        approved_guest.main()
+                    expected = {
+                        "package_version": build["identity"]["package_version"],
+                        "authority_schema": authority_schema,
+                    }
+                    if suite == "storage":
+                        expected["qualify_upgrade"] = False
+                    operation.assert_called_once_with(**expected)
+                    self.assertEqual(json.loads(output.read_text())["summary"], "pass")
 
     def test_invalid_schema8_provenance_never_dispatches_or_publishes_result(self):
         with tempfile.TemporaryDirectory() as directory:
