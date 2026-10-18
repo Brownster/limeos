@@ -1,0 +1,861 @@
+{
+  "adapter:LegacyStorageCapabilityAdapter.candidates": {
+    "end_line": 118,
+    "file": "storage_capability_adapters.py",
+    "file_sha256": "274d6cec2590736bfc0e49a3fa54d7494d3718ce755e7f2b6486a7a6b4587aa1",
+    "line": 116,
+    "rows": [
+      "RM-001",
+      "RM-027"
+    ],
+    "source_sha256": "0ffb5dfe6c1a690aa858b08bc99c02a91782357c596334c9b6ff513cc9656916"
+  },
+  "api:add_mount": {
+    "end_line": 367,
+    "file": "storage_plugins/__init__.py",
+    "file_sha256": "e41b3cb4d22d38bc1f87a083702846a05b4970d1f3cf93b000a59898786a7e88",
+    "line": 352,
+    "rows": [
+      "RM-024"
+    ],
+    "source_sha256": "e58d15c58813ecfa01d9f672607f52624c58ac6437bd43bd3c8c79f96b6231a8"
+  },
+  "api:delete_mount": {
+    "end_line": 402,
+    "file": "storage_plugins/__init__.py",
+    "file_sha256": "e41b3cb4d22d38bc1f87a083702846a05b4970d1f3cf93b000a59898786a7e88",
+    "line": 388,
+    "rows": [
+      "RM-010",
+      "RM-018",
+      "RM-024"
+    ],
+    "source_sha256": "badf1cbe524edc8e25580b1091e108cdeca0a971aba98ee58808012118cc031f"
+  },
+  "api:detect_mounts": {
+    "end_line": 333,
+    "file": "storage_plugins/__init__.py",
+    "file_sha256": "e41b3cb4d22d38bc1f87a083702846a05b4970d1f3cf93b000a59898786a7e88",
+    "line": 312,
+    "rows": [
+      "RM-011",
+      "RM-024"
+    ],
+    "source_sha256": "38129ade06d89c7460cd2c52c419072a69ffc4ba138da77c511ce4289b7ff0b5"
+  },
+  "api:get_mount_status": {
+    "end_line": 449,
+    "file": "storage_plugins/__init__.py",
+    "file_sha256": "e41b3cb4d22d38bc1f87a083702846a05b4970d1f3cf93b000a59898786a7e88",
+    "line": 439,
+    "rows": [
+      "RM-012",
+      "RM-024"
+    ],
+    "source_sha256": "546baae16702470d13506b5e8325549806ab9ab2bee08f722030e52b491e9879"
+  },
+  "api:list_mounts": {
+    "end_line": 349,
+    "file": "storage_plugins/__init__.py",
+    "file_sha256": "e41b3cb4d22d38bc1f87a083702846a05b4970d1f3cf93b000a59898786a7e88",
+    "line": 336,
+    "rows": [
+      "RM-024"
+    ],
+    "source_sha256": "457a4a7e99b0bd4eb9d88f0b428df95ef4e8a4011cd41a92b6c4c600373ff7ae"
+  },
+  "api:list_plugins": {
+    "end_line": 40,
+    "file": "storage_plugins/__init__.py",
+    "file_sha256": "e41b3cb4d22d38bc1f87a083702846a05b4970d1f3cf93b000a59898786a7e88",
+    "line": 37,
+    "rows": [
+      "RM-027"
+    ],
+    "source_sha256": "eb1a8acbaa8c53027db82b283178b098d863c3baed753c0964f69ea28cbc4357"
+  },
+  "api:mount_filesystem": {
+    "end_line": 419,
+    "file": "storage_plugins/__init__.py",
+    "file_sha256": "e41b3cb4d22d38bc1f87a083702846a05b4970d1f3cf93b000a59898786a7e88",
+    "line": 405,
+    "rows": [
+      "RM-006",
+      "RM-024"
+    ],
+    "source_sha256": "756ccd27e25601e57183c2be5a659439e612d91fc60e0a8b2196c22219a127e5"
+  },
+  "api:toggle_plugin": {
+    "end_line": 78,
+    "file": "storage_plugins/__init__.py",
+    "file_sha256": "e41b3cb4d22d38bc1f87a083702846a05b4970d1f3cf93b000a59898786a7e88",
+    "line": 43,
+    "rows": [
+      "RM-011",
+      "RM-027"
+    ],
+    "source_sha256": "6662e3c452968b0c1f484c9430b437fd01db4b6465964544e87f9078c139228d"
+  },
+  "api:unmount_filesystem": {
+    "end_line": 436,
+    "file": "storage_plugins/__init__.py",
+    "file_sha256": "e41b3cb4d22d38bc1f87a083702846a05b4970d1f3cf93b000a59898786a7e88",
+    "line": 422,
+    "rows": [
+      "RM-007",
+      "RM-024"
+    ],
+    "source_sha256": "32fcd3f1a0f1068d0b770b81aec09439a826105f108f7ec5c3efd5e2d5d37b22"
+  },
+  "api:update_mount": {
+    "end_line": 385,
+    "file": "storage_plugins/__init__.py",
+    "file_sha256": "e41b3cb4d22d38bc1f87a083702846a05b4970d1f3cf93b000a59898786a7e88",
+    "line": 370,
+    "rows": [
+      "RM-024"
+    ],
+    "source_sha256": "87d82123f9045d8961bf9b47f4f1d4830ee70573d729e53bcd188751ea3f0b54"
+  },
+  "base:RemoteMountPlugin.__init__": {
+    "end_line": 55,
+    "file": "storage_plugins/remote_base.py",
+    "file_sha256": "3bccc6a43b2f5499d97fdef2200141aa5b182a1842fb6e9d5525f8badda3a3a6",
+    "line": 53,
+    "rows": [
+      "RM-002"
+    ],
+    "source_sha256": "21d3cb89b46ef93b0041fa9f24ee220b14317726dd53e52093041bdc81b85eb1"
+  },
+  "base:RemoteMountPlugin.add_mount": {
+    "end_line": 92,
+    "file": "storage_plugins/remote_base.py",
+    "file_sha256": "3bccc6a43b2f5499d97fdef2200141aa5b182a1842fb6e9d5525f8badda3a3a6",
+    "line": 80,
+    "rows": [
+      "RM-003"
+    ],
+    "source_sha256": "33e582ed91d7d741214be2ef44c96d8008d6f27866cb76ee389110bf32c7572c"
+  },
+  "base:RemoteMountPlugin.get_install_instructions": {
+    "end_line": 163,
+    "file": "storage_plugins/remote_base.py",
+    "file_sha256": "3bccc6a43b2f5499d97fdef2200141aa5b182a1842fb6e9d5525f8badda3a3a6",
+    "line": 158,
+    "rows": [
+      "RM-001",
+      "RM-026"
+    ],
+    "source_sha256": "e4ace66ddb6235394deec3a546f74dbad2abacf3c9215ad3259c4b3b516ff694"
+  },
+  "base:RemoteMountPlugin.get_mount": {
+    "end_line": 78,
+    "file": "storage_plugins/remote_base.py",
+    "file_sha256": "3bccc6a43b2f5499d97fdef2200141aa5b182a1842fb6e9d5525f8badda3a3a6",
+    "line": 73,
+    "rows": [
+      "RM-002"
+    ],
+    "source_sha256": "38fe26007436dd08de3c26ef5bd9d9d9833650571acd847eb62558d04f8b496e"
+  },
+  "base:RemoteMountPlugin.is_installed": {
+    "end_line": 156,
+    "file": "storage_plugins/remote_base.py",
+    "file_sha256": "3bccc6a43b2f5499d97fdef2200141aa5b182a1842fb6e9d5525f8badda3a3a6",
+    "line": 150,
+    "rows": [
+      "RM-001",
+      "RM-026"
+    ],
+    "source_sha256": "e970dcdeadf65121d1375324291647d98bf8281caa3f0b87743e34592c1c530b"
+  },
+  "base:RemoteMountPlugin.list_mounts_with_status": {
+    "end_line": 177,
+    "file": "storage_plugins/remote_base.py",
+    "file_sha256": "3bccc6a43b2f5499d97fdef2200141aa5b182a1842fb6e9d5525f8badda3a3a6",
+    "line": 165,
+    "rows": [
+      "RM-012",
+      "RM-030"
+    ],
+    "source_sha256": "3d31b34d8f107469876f1ebe27acdc77bf0b918484655c39938f4556cc158e98"
+  },
+  "base:RemoteMountPlugin.load_mounts": {
+    "end_line": 65,
+    "file": "storage_plugins/remote_base.py",
+    "file_sha256": "3bccc6a43b2f5499d97fdef2200141aa5b182a1842fb6e9d5525f8badda3a3a6",
+    "line": 57,
+    "rows": [
+      "RM-002",
+      "RM-013"
+    ],
+    "source_sha256": "228625cef163ea2b65be2a151e1b9f28d2a7ee3a75735673e27b2bfebbebd2df"
+  },
+  "base:RemoteMountPlugin.remove_mount": {
+    "end_line": 120,
+    "file": "storage_plugins/remote_base.py",
+    "file_sha256": "3bccc6a43b2f5499d97fdef2200141aa5b182a1842fb6e9d5525f8badda3a3a6",
+    "line": 110,
+    "rows": [
+      "RM-010",
+      "RM-018"
+    ],
+    "source_sha256": "036a1684dd6cca56d6051957a5ed502e8dda50f97d12191254405c1d90504de7"
+  },
+  "base:RemoteMountPlugin.save_mounts": {
+    "end_line": 71,
+    "file": "storage_plugins/remote_base.py",
+    "file_sha256": "3bccc6a43b2f5499d97fdef2200141aa5b182a1842fb6e9d5525f8badda3a3a6",
+    "line": 67,
+    "rows": [
+      "RM-027"
+    ],
+    "source_sha256": "c663d9125b9508005d5e62b7343d5891bcc6f0257891fa1d1bfb881854b8d2fb"
+  },
+  "base:RemoteMountPlugin.update_mount": {
+    "end_line": 108,
+    "file": "storage_plugins/remote_base.py",
+    "file_sha256": "3bccc6a43b2f5499d97fdef2200141aa5b182a1842fb6e9d5525f8badda3a3a6",
+    "line": 94,
+    "rows": [
+      "RM-004"
+    ],
+    "source_sha256": "eba0ce4f73ef2851536634c6350aae0ac42af727b94b15a8030445924bfd3d58"
+  },
+  "disk:api_seedbox_get": {
+    "end_line": 242,
+    "file": "disk_manager.py",
+    "file_sha256": "7da6be0dc07f74ac8903de9dca4820b3d7b61b55bec36d3ce9d09c5e62b5bc39",
+    "line": 239,
+    "rows": [
+      "RM-020"
+    ],
+    "source_sha256": "a7fb04d171dda54d25da5bcc8b5541ac691819c1d22a45a8e5afc1bcf872948b"
+  },
+  "disk:api_seedbox_set": {
+    "end_line": 258,
+    "file": "disk_manager.py",
+    "file_sha256": "7da6be0dc07f74ac8903de9dca4820b3d7b61b55bec36d3ce9d09c5e62b5bc39",
+    "line": 245,
+    "rows": [
+      "RM-021",
+      "RM-022"
+    ],
+    "source_sha256": "cf73fffae7d38caff7b7188785bc057a76482f0cbd34ec56201927699b042c5a"
+  },
+  "disk:default_seedbox_service": {
+    "end_line": 142,
+    "file": "disk_manager.py",
+    "file_sha256": "7da6be0dc07f74ac8903de9dca4820b3d7b61b55bec36d3ce9d09c5e62b5bc39",
+    "line": 135,
+    "rows": [
+      "RM-020"
+    ],
+    "source_sha256": "c8bbdc4d9c9267f569031603a6081656d0ca58e15f61a708dae2698efda045aa"
+  },
+  "helper:_ensure_dependencies": {
+    "end_line": 530,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 510,
+    "rows": [
+      "RM-026"
+    ],
+    "source_sha256": "da4506826c366b85bb22401648087bbc7f0e4d319e1cfcf3434c7a785c2ff88e"
+  },
+  "helper:_get_rclone_unit_name": {
+    "end_line": 1779,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 1777,
+    "rows": [
+      "RM-023"
+    ],
+    "source_sha256": "2df7350f38863ae1a1cfde4404da187b705f49c9e11453b6a0847d522bd6d915"
+  },
+  "helper:_get_sshfs_unit_names": {
+    "end_line": 2077,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 2070,
+    "rows": [
+      "RM-023"
+    ],
+    "source_sha256": "57965643a5462c8e3990d437e22cba914c4e83ba5fd1615be630f0a23eacfd58"
+  },
+  "helper:_install_packages": {
+    "end_line": 507,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 489,
+    "rows": [
+      "RM-026"
+    ],
+    "source_sha256": "56fe96ec9f5dd5c027e7bd8ccb58f86d1657e9f9fe17ebc4b3edd90c2ef7dadd"
+  },
+  "helper:_load_rclone_mounts": {
+    "end_line": 1789,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 1782,
+    "rows": [
+      "RM-013"
+    ],
+    "source_sha256": "ac7635a52ab674247df0d1bb8292f678f2dda8003f808088527363631b083e8f"
+  },
+  "helper:_load_sshfs_mounts": {
+    "end_line": 2059,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 2051,
+    "rows": [
+      "RM-002"
+    ],
+    "source_sha256": "312cd71d7adfb21b29f8eeccc75e9b8c93bc918c405c2274d0cd02224e6dc2e3"
+  },
+  "helper:_read_rclone_remote": {
+    "end_line": 1860,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 1838,
+    "rows": [
+      "RM-013",
+      "RM-015"
+    ],
+    "source_sha256": "97edac678b133bed6a583d60320209a15dd7a0f0e18231edbc0a657a77ba8dfa"
+  },
+  "helper:_write_rclone_remote": {
+    "end_line": 1835,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 1798,
+    "rows": [
+      "RM-014",
+      "RM-015"
+    ],
+    "source_sha256": "e45d9ba484c825a817fc0a3d1ed9225cc2016935b9040edd9a2ed19b31302950"
+  },
+  "helper:cmd_rclone_configure": {
+    "end_line": 1998,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 1880,
+    "rows": [
+      "RM-014",
+      "RM-015",
+      "RM-017",
+      "RM-019",
+      "RM-025",
+      "RM-026",
+      "RM-028"
+    ],
+    "source_sha256": "6bcff12c48d3cf05a6c9a57023abd1b25502c33bf6c2cf8ff2ace12ad6de8579"
+  },
+  "helper:cmd_rclone_list": {
+    "end_line": 1877,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 1863,
+    "rows": [
+      "RM-013",
+      "RM-019"
+    ],
+    "source_sha256": "615620db45bb9cf7af28a659b02c4fb050e0c0b56339a38ea63cdcab0a02f3e4"
+  },
+  "helper:cmd_rclone_mount": {
+    "end_line": 2025,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 2017,
+    "rows": [
+      "RM-016",
+      "RM-030"
+    ],
+    "source_sha256": "f181faf637d4792a00c5dd90d81c65d5af33fc3499df6d16813406dd9c818900"
+  },
+  "helper:cmd_rclone_remove": {
+    "end_line": 2014,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 2001,
+    "rows": [
+      "RM-018",
+      "RM-025"
+    ],
+    "source_sha256": "f5ff60053db5569991173ed9807958ca77af62b66f8655bfa196d1c54b2ed929"
+  },
+  "helper:cmd_rclone_unmount": {
+    "end_line": 2036,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 2028,
+    "rows": [
+      "RM-016"
+    ],
+    "source_sha256": "ad3a3d4bc421f153cb864698ca918f24aed3d91b5eb9dbc50bf17b087223da3d"
+  },
+  "helper:cmd_seedbox_configure": {
+    "end_line": 1762,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 1695,
+    "rows": [
+      "RM-021",
+      "RM-023",
+      "RM-025",
+      "RM-028",
+      "RM-030"
+    ],
+    "source_sha256": "13dd3e78021a6bc6d8ea7e189fbc02d2111a617a13ca2458cf9ee7154774edab"
+  },
+  "helper:cmd_seedbox_disable": {
+    "end_line": 1770,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 1765,
+    "rows": [
+      "RM-022",
+      "RM-025"
+    ],
+    "source_sha256": "4cfa4e0f47b086b2e6f0bd2243ef70fdadbcc89d4bf03065ee732584d1b3c0f5"
+  },
+  "helper:cmd_sshfs_configure": {
+    "end_line": 2268,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 2121,
+    "rows": [
+      "RM-003",
+      "RM-004",
+      "RM-005",
+      "RM-008",
+      "RM-023",
+      "RM-025",
+      "RM-026",
+      "RM-028"
+    ],
+    "source_sha256": "b93865f95a1ded1bc91f6cdba69de36420fdbee5c312347150909db4392d8283"
+  },
+  "helper:cmd_sshfs_list": {
+    "end_line": 2118,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 2089,
+    "rows": [
+      "RM-002",
+      "RM-012"
+    ],
+    "source_sha256": "50adb73911b01faf0329e0cc28b3199b5bfed731ae0ac03d7257d503aa37476d"
+  },
+  "helper:cmd_sshfs_mount": {
+    "end_line": 2330,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 2311,
+    "rows": [
+      "RM-006",
+      "RM-030"
+    ],
+    "source_sha256": "ccb7e7a715cb18e346412ed67ffeadc019b67833032a53634bcf7c21deff6c73"
+  },
+  "helper:cmd_sshfs_remove": {
+    "end_line": 2308,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 2271,
+    "rows": [
+      "RM-009",
+      "RM-010",
+      "RM-025"
+    ],
+    "source_sha256": "186c608bbc712080ae9bea174bf71e5564a2998166679cf516a6a6bae3bdae47"
+  },
+  "helper:cmd_sshfs_unmount": {
+    "end_line": 2352,
+    "file": "pihealth_helper.py",
+    "file_sha256": "d9f8cd65ad7bad5af2bf2975b0017df72729f82458af37462cd957dbd4f11665",
+    "line": 2333,
+    "rows": [
+      "RM-007"
+    ],
+    "source_sha256": "676aa1ab81b005621771a916a52506d19966ad8edd65a662c55882ce8aaaa1cb"
+  },
+  "manager:is_enabled": {
+    "end_line": 106,
+    "file": "plugin_manager.py",
+    "file_sha256": "47e7ce75eed3cf251fed5272ead9df49cad72adc833c113140c8bcf132d5d282",
+    "line": 102,
+    "rows": [
+      "RM-001"
+    ],
+    "source_sha256": "0eb1a38296fc50da9fe4eae13ac030679acd0d6457a37a736d617c3eb66938eb"
+  },
+  "manager:list_plugins": {
+    "end_line": 164,
+    "file": "plugin_manager.py",
+    "file_sha256": "47e7ce75eed3cf251fed5272ead9df49cad72adc833c113140c8bcf132d5d282",
+    "line": 124,
+    "rows": [
+      "RM-001",
+      "RM-027"
+    ],
+    "source_sha256": "b5d95e820f9ecb25a31c4580de51f4ba721a54096d5da8870423e0ce9950ee62"
+  },
+  "manager:load_plugins_config": {
+    "end_line": 91,
+    "file": "plugin_manager.py",
+    "file_sha256": "47e7ce75eed3cf251fed5272ead9df49cad72adc833c113140c8bcf132d5d282",
+    "line": 88,
+    "rows": [
+      "RM-027"
+    ],
+    "source_sha256": "c15bf241d2cf27f638cdc661a077c3c4305227d634653f9f12ec05b4a2173dac"
+  },
+  "page:@file": {
+    "end_line": 663,
+    "file": "frontend/src/pages/mounts-page.tsx",
+    "file_sha256": "ab04725c8c427d217411a8e2613d79c04468141684f87b9be040ee7737360e67",
+    "line": 1,
+    "rows": [
+      "RM-024",
+      "RM-029"
+    ],
+    "source_sha256": "ab04725c8c427d217411a8e2613d79c04468141684f87b9be040ee7737360e67"
+  },
+  "paths:@file": {
+    "end_line": 178,
+    "file": "runtime_paths.py",
+    "file_sha256": "1bbca480504b89036386080089f5e998f1f37e47459bc22108ea512defd13dac",
+    "line": 1,
+    "rows": [
+      "RM-020"
+    ],
+    "source_sha256": "1bbca480504b89036386080089f5e998f1f37e47459bc22108ea512defd13dac"
+  },
+  "rclone:RclonePlugin.add_mount": {
+    "end_line": 176,
+    "file": "storage_plugins/rclone_plugin.py",
+    "file_sha256": "7b3e2e8fd5eba2d556a3a02d35de0add5226f5fd3e2903db99d92078d6661fb2",
+    "line": 156,
+    "rows": [
+      "RM-014"
+    ],
+    "source_sha256": "d691ed412f1b08f7b8d319806e10b8df3b8cad2990b1427d8d12ad90ec9506ae"
+  },
+  "rclone:RclonePlugin.disable_automount": {
+    "end_line": 154,
+    "file": "storage_plugins/rclone_plugin.py",
+    "file_sha256": "7b3e2e8fd5eba2d556a3a02d35de0add5226f5fd3e2903db99d92078d6661fb2",
+    "line": 144,
+    "rows": [
+      "RM-017"
+    ],
+    "source_sha256": "603b49b11e73a70a0f90a6b4bf87ccc93d5437e82cbb1f247a425983f15b67ad"
+  },
+  "rclone:RclonePlugin.enable_automount": {
+    "end_line": 142,
+    "file": "storage_plugins/rclone_plugin.py",
+    "file_sha256": "7b3e2e8fd5eba2d556a3a02d35de0add5226f5fd3e2903db99d92078d6661fb2",
+    "line": 132,
+    "rows": [
+      "RM-017"
+    ],
+    "source_sha256": "d0ddf7ca68b495d9db57ed6b0a08b7bdabf7b38036e5806c528c2fa4bc2329f4"
+  },
+  "rclone:RclonePlugin.get_mount_status": {
+    "end_line": 130,
+    "file": "storage_plugins/rclone_plugin.py",
+    "file_sha256": "7b3e2e8fd5eba2d556a3a02d35de0add5226f5fd3e2903db99d92078d6661fb2",
+    "line": 112,
+    "rows": [
+      "RM-019"
+    ],
+    "source_sha256": "574dbcd2901143b06926b6ed0ab05d2ce05ded555de69a46f4cce9a8af6eed58"
+  },
+  "rclone:RclonePlugin.get_schema": {
+    "end_line": 57,
+    "file": "storage_plugins/rclone_plugin.py",
+    "file_sha256": "7b3e2e8fd5eba2d556a3a02d35de0add5226f5fd3e2903db99d92078d6661fb2",
+    "line": 23,
+    "rows": [
+      "RM-014",
+      "RM-019"
+    ],
+    "source_sha256": "846ba75bdf396ac6076f98d406a03564c094c39acf4f91c3a25f47b4e955d1ba"
+  },
+  "rclone:RclonePlugin.mount": {
+    "end_line": 101,
+    "file": "storage_plugins/rclone_plugin.py",
+    "file_sha256": "7b3e2e8fd5eba2d556a3a02d35de0add5226f5fd3e2903db99d92078d6661fb2",
+    "line": 94,
+    "rows": [
+      "RM-016"
+    ],
+    "source_sha256": "be2753b30dff27597718b38ef9ca54c682c5beceeffc90d33739eea21bc0dfad"
+  },
+  "rclone:RclonePlugin.unmount": {
+    "end_line": 110,
+    "file": "storage_plugins/rclone_plugin.py",
+    "file_sha256": "7b3e2e8fd5eba2d556a3a02d35de0add5226f5fd3e2903db99d92078d6661fb2",
+    "line": 103,
+    "rows": [
+      "RM-016"
+    ],
+    "source_sha256": "effe137777d95e4afcf2ffe351456c0e6f8783cc982849ced6557f08246b2964"
+  },
+  "rclone:RclonePlugin.update_mount": {
+    "end_line": 207,
+    "file": "storage_plugins/rclone_plugin.py",
+    "file_sha256": "7b3e2e8fd5eba2d556a3a02d35de0add5226f5fd3e2903db99d92078d6661fb2",
+    "line": 178,
+    "rows": [
+      "RM-015"
+    ],
+    "source_sha256": "1d8a8ab00a756d45afe2c8e55f18b3d8657b2ffe256449c76f189a199daa8bcc"
+  },
+  "rclone:RclonePlugin.validate_mount_config": {
+    "end_line": 92,
+    "file": "storage_plugins/rclone_plugin.py",
+    "file_sha256": "7b3e2e8fd5eba2d556a3a02d35de0add5226f5fd3e2903db99d92078d6661fb2",
+    "line": 59,
+    "rows": [
+      "RM-014"
+    ],
+    "source_sha256": "5faab85a49a7b61ccf873f8509f98dfa38d477a1333e3a07d70090d790742b65"
+  },
+  "registry:get_registry": {
+    "end_line": 125,
+    "file": "storage_plugins/registry.py",
+    "file_sha256": "94fa07c299a3fc5905a08875ef9e93725520482a6f02aa6d5241b1c292c356c8",
+    "line": 119,
+    "rows": [
+      "RM-001"
+    ],
+    "source_sha256": "0a12ef38b5b9e54a287b21a2d5a8e849491ddb1812681c25f943c3a0b1df69d1"
+  },
+  "registry:init_plugins": {
+    "end_line": 178,
+    "file": "storage_plugins/registry.py",
+    "file_sha256": "94fa07c299a3fc5905a08875ef9e93725520482a6f02aa6d5241b1c292c356c8",
+    "line": 128,
+    "rows": [
+      "RM-001"
+    ],
+    "source_sha256": "6bcdfe7241bd629af0d5449e860968a04e0701ac39992f5c90ef3775cf420f53"
+  },
+  "seed:SeedboxService._default_config": {
+    "end_line": 126,
+    "file": "seedbox_service.py",
+    "file_sha256": "dd896a19345fd272dda52eb3af859a8c3026265b9cbe38eb833927336d9917de",
+    "line": 118,
+    "rows": [
+      "RM-020"
+    ],
+    "source_sha256": "e1de0fd83f5458d9e1fad4a9cd522572b5a9f3467c81a63081431379bcf67001"
+  },
+  "seed:SeedboxService._validate_enabled": {
+    "end_line": 137,
+    "file": "seedbox_service.py",
+    "file_sha256": "dd896a19345fd272dda52eb3af859a8c3026265b9cbe38eb833927336d9917de",
+    "line": 128,
+    "rows": [
+      "RM-021"
+    ],
+    "source_sha256": "73c66214a33622e42edda0721a628fbb201bc578f31ec3c04a46b097b17c468a"
+  },
+  "seed:SeedboxService.config": {
+    "end_line": 50,
+    "file": "seedbox_service.py",
+    "file_sha256": "dd896a19345fd272dda52eb3af859a8c3026265b9cbe38eb833927336d9917de",
+    "line": 41,
+    "rows": [
+      "RM-020"
+    ],
+    "source_sha256": "f274f79d62a3943debe1076ea071a3e952bf0e94ca8736bb1953c6099d14d492"
+  },
+  "seed:SeedboxService.configure": {
+    "end_line": 116,
+    "file": "seedbox_service.py",
+    "file_sha256": "dd896a19345fd272dda52eb3af859a8c3026265b9cbe38eb833927336d9917de",
+    "line": 66,
+    "rows": [
+      "RM-021",
+      "RM-022"
+    ],
+    "source_sha256": "44134710ec6b80bae6fa4f2212543a55c1886fd005d2e61d269151a911371c18"
+  },
+  "seed:SeedboxService.is_mounted": {
+    "end_line": 64,
+    "file": "seedbox_service.py",
+    "file_sha256": "dd896a19345fd272dda52eb3af859a8c3026265b9cbe38eb833927336d9917de",
+    "line": 60,
+    "rows": [
+      "RM-020"
+    ],
+    "source_sha256": "709eafe860ef5cec63da976e086ee09e02e23e82e9d2f0bf8b8f0633adfc4cc5"
+  },
+  "seed:SeedboxService.save": {
+    "end_line": 54,
+    "file": "seedbox_service.py",
+    "file_sha256": "dd896a19345fd272dda52eb3af859a8c3026265b9cbe38eb833927336d9917de",
+    "line": 52,
+    "rows": [
+      "RM-021"
+    ],
+    "source_sha256": "473501d8c00205c5db66933bdbd56abdf4b537e89ead8f463b417c617d350ff4"
+  },
+  "seed:SeedboxService.state": {
+    "end_line": 58,
+    "file": "seedbox_service.py",
+    "file_sha256": "dd896a19345fd272dda52eb3af859a8c3026265b9cbe38eb833927336d9917de",
+    "line": 56,
+    "rows": [
+      "RM-020"
+    ],
+    "source_sha256": "bd9ab2c4d3ae82cccf5e5e3bee613beefe5eba7f32e348c73622f1e9139313ac"
+  },
+  "sshfs:SSHFSPlugin._detect_sshfs_mounts": {
+    "end_line": 287,
+    "file": "storage_plugins/sshfs_plugin.py",
+    "file_sha256": "12305925abae1c62c6a7b36a380d403d102e4e07149014f22a97e0118b506afe",
+    "line": 260,
+    "rows": [
+      "RM-011"
+    ],
+    "source_sha256": "5c0a3570e646ca0d9806ecac68d8bce8260a5e0d59efcfb04b4bc52c24e02527"
+  },
+  "sshfs:SSHFSPlugin._parse_sshfs_source": {
+    "end_line": 336,
+    "file": "storage_plugins/sshfs_plugin.py",
+    "file_sha256": "12305925abae1c62c6a7b36a380d403d102e4e07149014f22a97e0118b506afe",
+    "line": 289,
+    "rows": [
+      "RM-011"
+    ],
+    "source_sha256": "1e9ca9eeb92b67b872d5ebcd7098f35fa420386f8f2080d1ca5a3393f84177a7"
+  },
+  "sshfs:SSHFSPlugin.add_mount": {
+    "end_line": 200,
+    "file": "storage_plugins/sshfs_plugin.py",
+    "file_sha256": "12305925abae1c62c6a7b36a380d403d102e4e07149014f22a97e0118b506afe",
+    "line": 180,
+    "rows": [
+      "RM-003"
+    ],
+    "source_sha256": "ebf741f30b9fa41cc742f2c2d4c6b26f79d9fd21b8bf072b8af5d0071e3832fe"
+  },
+  "sshfs:SSHFSPlugin.disable_automount": {
+    "end_line": 178,
+    "file": "storage_plugins/sshfs_plugin.py",
+    "file_sha256": "12305925abae1c62c6a7b36a380d403d102e4e07149014f22a97e0118b506afe",
+    "line": 171,
+    "rows": [
+      "RM-009"
+    ],
+    "source_sha256": "635e60b21fea770248f0d610af427f9b8f8b04c13ca6d00e5f64ca8354e855a7"
+  },
+  "sshfs:SSHFSPlugin.enable_automount": {
+    "end_line": 169,
+    "file": "storage_plugins/sshfs_plugin.py",
+    "file_sha256": "12305925abae1c62c6a7b36a380d403d102e4e07149014f22a97e0118b506afe",
+    "line": 159,
+    "rows": [
+      "RM-008"
+    ],
+    "source_sha256": "2956b77e4cc0873cce57886d524fe61b65dcf313d342775cd6cf3bb0e9a0998c"
+  },
+  "sshfs:SSHFSPlugin.get_mount_status": {
+    "end_line": 157,
+    "file": "storage_plugins/sshfs_plugin.py",
+    "file_sha256": "12305925abae1c62c6a7b36a380d403d102e4e07149014f22a97e0118b506afe",
+    "line": 117,
+    "rows": [
+      "RM-012"
+    ],
+    "source_sha256": "929d993c238d0415c574d0ef06a592c192f24ba26e9075809c8d255e4cbb9fd9"
+  },
+  "sshfs:SSHFSPlugin.get_schema": {
+    "end_line": 62,
+    "file": "storage_plugins/sshfs_plugin.py",
+    "file_sha256": "12305925abae1c62c6a7b36a380d403d102e4e07149014f22a97e0118b506afe",
+    "line": 26,
+    "rows": [
+      "RM-003",
+      "RM-005",
+      "RM-028"
+    ],
+    "source_sha256": "5534840304ed1c230f27d548950113855d49dffe9895ed49edcc13a9980d24b5"
+  },
+  "sshfs:SSHFSPlugin.import_existing_mounts": {
+    "end_line": 258,
+    "file": "storage_plugins/sshfs_plugin.py",
+    "file_sha256": "12305925abae1c62c6a7b36a380d403d102e4e07149014f22a97e0118b506afe",
+    "line": 237,
+    "rows": [
+      "RM-011"
+    ],
+    "source_sha256": "101c6e596182f29ec9976c559f0cd3777df2cbde140319d4a4964ec09cbf65eb"
+  },
+  "sshfs:SSHFSPlugin.mount": {
+    "end_line": 106,
+    "file": "storage_plugins/sshfs_plugin.py",
+    "file_sha256": "12305925abae1c62c6a7b36a380d403d102e4e07149014f22a97e0118b506afe",
+    "line": 99,
+    "rows": [
+      "RM-006"
+    ],
+    "source_sha256": "07a3fa574ee1fb43bbefbe43890f3ad8d49e4896f7a704e6ec3972d355bee210"
+  },
+  "sshfs:SSHFSPlugin.remove_mount": {
+    "end_line": 235,
+    "file": "storage_plugins/sshfs_plugin.py",
+    "file_sha256": "12305925abae1c62c6a7b36a380d403d102e4e07149014f22a97e0118b506afe",
+    "line": 230,
+    "rows": [
+      "RM-010"
+    ],
+    "source_sha256": "40f2f2307ff89597823e68b3f55e5e43afc552e55e50a52c27181a81e28d81cf"
+  },
+  "sshfs:SSHFSPlugin.unmount": {
+    "end_line": 115,
+    "file": "storage_plugins/sshfs_plugin.py",
+    "file_sha256": "12305925abae1c62c6a7b36a380d403d102e4e07149014f22a97e0118b506afe",
+    "line": 108,
+    "rows": [
+      "RM-007"
+    ],
+    "source_sha256": "5129f1dd79a69409dc752001f8c20526818f0f5f06dc94faacb2370a98296400"
+  },
+  "sshfs:SSHFSPlugin.update_mount": {
+    "end_line": 228,
+    "file": "storage_plugins/sshfs_plugin.py",
+    "file_sha256": "12305925abae1c62c6a7b36a380d403d102e4e07149014f22a97e0118b506afe",
+    "line": 202,
+    "rows": [
+      "RM-004"
+    ],
+    "source_sha256": "9e5562939d606ef8045f4be2e8e9008894ac785b1528233f49bd2694c57d6d83"
+  },
+  "sshfs:SSHFSPlugin.validate_mount_config": {
+    "end_line": 97,
+    "file": "storage_plugins/sshfs_plugin.py",
+    "file_sha256": "12305925abae1c62c6a7b36a380d403d102e4e07149014f22a97e0118b506afe",
+    "line": 64,
+    "rows": [
+      "RM-003",
+      "RM-005"
+    ],
+    "source_sha256": "2772cfeb0e37b00b19737a5e5c2fdb5250950b4f8573157c597cab003004baed"
+  },
+  "ui:@file": {
+    "end_line": 196,
+    "file": "frontend/src/lib/mounts.ts",
+    "file_sha256": "ba40f607f613d536c6dcb240840591a4eb27bbdc9132c18bfc1845398b1e739d",
+    "line": 1,
+    "rows": [
+      "RM-024",
+      "RM-029"
+    ],
+    "source_sha256": "ba40f607f613d536c6dcb240840591a4eb27bbdc9132c18bfc1845398b1e739d"
+  }
+}

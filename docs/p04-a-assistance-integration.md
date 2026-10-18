@@ -78,3 +78,9 @@ A1 installed acceptance, A2 lifecycle/loss handling, complete A3/A3b parity and
 A4/A5 remain open. No defect, P04 or cutover gate closes. The historical inventory
 61.401 ms p95 against 20 ms remains failed. No production Pi, service activation,
 host effect, release publication or broad qualification suite ran here.
+
+The subsequent [A3b preservation inventory](p04-remote-mount-preservation-inventory.md)
+maps 30 remote-capability rows, 56 public symbols and seven synthetic
+reconciliation cases. Its separate source-bound packet supplies contract input
+for SSHFS, rclone S3 and the dedicated seedbox flow. It is documentation only;
+the combined tested product and its local results above remain unchanged.

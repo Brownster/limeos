@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "purpose": "Synthetic contract/acceptance examples, not an implemented importer or executed runtime tests; no deployed credentials/configuration",
+  "cases": [
+    {
+      "id": "RC-001", "rows": ["RM-002", "RM-005", "RM-028"],
+      "plugin": {"id":"remote","auth_type":"key","ssh_key_path":"/etc/example/private-key","options":{"allow_other":false,"server_alive_interval":45,"server_alive_count_max":5}},
+      "helper_record": {"id":"remote","options":{"allow_other":false,"server_alive_interval":45,"server_alive_count_max":5}},
+      "unit_decoded_facts": {"authentication_mechanism":"sshpass_file","allow_other":true,"server_alive_interval":15,"server_alive_count_max":3},
+      "required_findings": ["advertised_authentication_not_effective", "key_reference_not_verified", "requested_access_and_keepalive_differ_from_effective"],
+      "expected_readiness": "blocked_pending_reconciliation"
+    },
+    {
+      "id": "RC-002", "rows": ["RM-013", "RM-015", "RM-019"],
+      "plugin": {"id":"bucket","backend":"s3-compatible","provider":"Other","endpoint":"https://s3.example.invalid","region":"example-region","bucket":"photos","mount_point":"/mnt/Remote Photos","access_key_id_present":true,"options":{"read_only":true,"allow_other":false,"vfs_cache_mode":"off"}},
+      "helper_record": {"id":"bucket","backend":"s3-compatible","provider":"Other","endpoint":"https://s3.example.invalid","region":"example-region","bucket":"photos","mount_point":"/mnt/Remote Photos","enabled":false},
+      "credential_section": {"name":"rclone-bucket","access_key_present":true,"secret_key_present":true},
+      "unit_decoded_facts": {"read_only":false,"allow_other":true,"vfs_cache_mode":"writes"},
+      "required_findings": ["root_record_does_not_cover_options_or_credentials", "requested_and_effective_options_conflict", "credential_material_is_not_current_authority"],
+      "expected_readiness": "blocked_pending_reconciliation"
+    },
+    {
+      "id": "RC-003", "rows": ["RM-023", "RM-025"],
+      "records": [
+        {"id":"nas_one","mount_point":"/mnt/nas_one","frozen_unit":"sshfs-nas-one.mount","credential_file":"/etc/sshfs/nas_one.pass"},
+        {"id":"nas-one","mount_point":"/mnt/nas-one","frozen_unit":"sshfs-nas-one.mount","credential_file":"/etc/sshfs/nas-one.pass"}
+      ],
+      "required_findings": ["distinct_ids_alias_one_unit", "id_based_unit_names_not_bound_to_where_paths"],
+      "expected_readiness": "blocked_identity_collision_no_merge_or_delete"
+    },
+    {
+      "id": "RC-004", "rows": ["RM-020", "RM-022", "RM-023"],
+      "records": [
+        {"family":"sshfs","id":"seedbox","mount_point":"/mnt/remote-seedbox","credential_file":"/etc/sshfs/seedbox.pass","unit":"sshfs-seedbox.mount"},
+        {"family":"seedbox","mount_point":"/mnt/seedbox","credential_file":"/etc/sshfs/seedbox.pass","unit":"mnt-seedbox.mount"}
+      ],
+      "required_findings": ["two_configuration_consumers_share_one_credential_object", "disable_remove_semantics_require_explicit_policy"],
+      "expected_readiness": "blocked_pending_complete_claim_and_recovery_contract"
+    },
+    {
+      "id": "RC-005", "rows": ["RM-002", "RM-013", "RM-024", "RM-027"],
+      "sources": [
+        {"name":"plugin_records","state":"unavailable","records":null},
+        {"name":"root_records","state":"fresh","records":[]}
+      ],
+      "required_findings": ["source_coverage_incomplete", "empty_root_records_do_not_prove_empty_inventory"],
+      "expected_readiness": "unknown_no_get_write_import_or_activation"
+    },
+    {
+      "id": "RC-006", "rows": ["RM-011", "RM-024"],
+      "provider_record": {"id":"tv","mount_point":"/mnt/TV Series","remote_path":"/downloads/TV: Series"},
+      "required_findings": ["mount_point_field_must_survive_typed_ui_projection", "literal_spaces_and_colons_must_survive_without_source_split_guessing"],
+      "expected_readiness": "unresolved_until_source_identity_and_credentials_verified"
+    },
+    {
+      "id": "RC-007", "rows": ["RM-007", "RM-012", "RM-016", "RM-030"],
+      "runtime": {"unit_state":"active","mount_identity":"unknown","access_health":"unavailable","known_dependents":[],"dependent_coverage_complete":false},
+      "required_findings": ["active_unit_does_not_prove_expected_mount", "empty_partial_dependents_do_not_authorize_unmount", "status_must_not_access_automount_target"],
+      "expected_readiness": "blocked_no_success_receipt_or_automatic_cleanup"
+    }
+  ]
+}
