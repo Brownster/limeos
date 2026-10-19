@@ -48,3 +48,9 @@ Actual protected-cache integration, permission snapshots, production routes and
 middleware, generated contracts, authenticated shell mounting, installed/browser
 lifetime cases, worker budgets, recovery, ARM64/performance/soak and Pi acceptance
 remain open. It closes no defect-register row, P04 phase or cutover gate.
+
+Integration relocation, 19 October 2026: published preview assets now live in
+`preview/production-ui/` to satisfy repository hygiene. All three payload hashes
+are unchanged. `relocation.json` records the mapping; the original README and
+artifact manifest remain compressed alongside this record. Reproduction still
+uses the original archived build configuration and a scratch output directory.

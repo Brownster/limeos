@@ -53,3 +53,9 @@ browser lifecycle/visual and installed acceptance remain pending. This packet
 adds no service mutation, recovery, ARM64/Pi, performance/soak, durable scheduling,
 defect closure, P04 completion or cutover acceptance. No production host was
 contacted.
+
+Integration relocation, 19 October 2026: published preview assets now live in
+`preview/production-ui/` to satisfy repository hygiene. All three payload hashes
+are unchanged. `relocation.json` records the mapping; the original README and
+artifact manifest remain compressed alongside this record. Reproduction still
+uses the original archived build configuration and a scratch output directory.

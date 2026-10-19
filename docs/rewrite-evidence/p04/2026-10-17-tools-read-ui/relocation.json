@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-19",
+  "original_manifest_sha256": "cf63bdded06f3d6b3ea24ba865f6fd921f472be4877a6adcd7a05e42ae3df8aa",
+  "original_readme_sha256": "1e98df0b49a8c43c724f08e085e44b35c14fa099bd9238b0ea75ebce47b46529",
+  "mappings": [
+    {
+      "before": "preview/dist/assets/index-B76BH8f-.js",
+      "after": "preview/production-ui/assets/index-B76BH8f-.js",
+      "sha256": "33b7a8287d87008183a5fb968e92999111759e00a2a0b1f83a326cc61d6c3365"
+    },
+    {
+      "before": "preview/dist/assets/index-C3RxCNyi.css",
+      "after": "preview/production-ui/assets/index-C3RxCNyi.css",
+      "sha256": "64c20446c003aed19c6bed2fede7316b50f9e1d9ac8e17633b1fff8cd5e37df8"
+    },
+    {
+      "before": "preview/dist/index.html",
+      "after": "preview/production-ui/index.html",
+      "sha256": "491d3b49e5b03a8331d1c41aa709a2c2787ee60ca52683fa54dd458464a3d4fd"
+    }
+  ],
+  "payload_bytes_changed": false
+}
