@@ -1,0 +1,314 @@
+{
+  "source": "b587621a2cde11442ce318728f57faad6fc384e7",
+  "base": "7df3f7530865c31b7faefd1f7b12a25aa7655860",
+  "input_files": 669,
+  "frontend": [
+    {
+      "name": "typescript",
+      "argv": [
+        "node",
+        "--max-old-space-size=256",
+        "/home/marc/Documents/github/lime-os/.worktrees/local-main-consolidation/frontend/node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "-p",
+        "/home/marc/Documents/github/lime-os/.worktrees/local-main-consolidation/frontend/tsconfig.json"
+      ],
+      "exit_code": 0,
+      "counts": {}
+    },
+    {
+      "name": "api.mjs",
+      "argv": [
+        "node",
+        "--max-old-space-size=256",
+        "--experimental-strip-types",
+        "/home/marc/Documents/github/lime-os/.worktrees/local-main-consolidation/frontend/tests/api.mjs"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "tests": 4,
+        "pass": 4,
+        "fail": 0
+      }
+    },
+    {
+      "name": "automation-controller.test.mjs",
+      "argv": [
+        "node",
+        "--max-old-space-size=256",
+        "--experimental-strip-types",
+        "/home/marc/Documents/github/lime-os/.worktrees/local-main-consolidation/frontend/tests/automation-controller.test.mjs"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "tests": 14,
+        "pass": 14,
+        "fail": 0
+      }
+    },
+    {
+      "name": "automation-mutations.test.mjs",
+      "argv": [
+        "node",
+        "--max-old-space-size=256",
+        "--experimental-strip-types",
+        "/home/marc/Documents/github/lime-os/.worktrees/local-main-consolidation/frontend/tests/automation-mutations.test.mjs"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "tests": 15,
+        "pass": 15,
+        "fail": 0
+      }
+    },
+    {
+      "name": "automation.test.mjs",
+      "argv": [
+        "node",
+        "--max-old-space-size=256",
+        "--experimental-strip-types",
+        "/home/marc/Documents/github/lime-os/.worktrees/local-main-consolidation/frontend/tests/automation.test.mjs"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "tests": 13,
+        "pass": 13,
+        "fail": 0
+      }
+    },
+    {
+      "name": "media-activity-client.test.mjs",
+      "argv": [
+        "node",
+        "--max-old-space-size=256",
+        "--experimental-strip-types",
+        "/home/marc/Documents/github/lime-os/.worktrees/local-main-consolidation/frontend/tests/media-activity-client.test.mjs"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "tests": 29,
+        "pass": 29,
+        "fail": 0
+      }
+    },
+    {
+      "name": "media-activity.test.mjs",
+      "argv": [
+        "node",
+        "--max-old-space-size=256",
+        "--experimental-strip-types",
+        "/home/marc/Documents/github/lime-os/.worktrees/local-main-consolidation/frontend/tests/media-activity.test.mjs"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "tests": 10,
+        "pass": 10,
+        "fail": 0
+      }
+    },
+    {
+      "name": "network-groups.test.mjs",
+      "argv": [
+        "node",
+        "--max-old-space-size=256",
+        "--experimental-strip-types",
+        "/home/marc/Documents/github/lime-os/.worktrees/local-main-consolidation/frontend/tests/network-groups.test.mjs"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "tests": 34,
+        "pass": 34,
+        "fail": 0
+      }
+    },
+    {
+      "name": "observations.test.mjs",
+      "argv": [
+        "node",
+        "--max-old-space-size=256",
+        "--experimental-strip-types",
+        "/home/marc/Documents/github/lime-os/.worktrees/local-main-consolidation/frontend/tests/observations.test.mjs"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "tests": 4,
+        "pass": 4,
+        "fail": 0
+      }
+    },
+    {
+      "name": "stack-discovery.test.mjs",
+      "argv": [
+        "node",
+        "--max-old-space-size=256",
+        "--experimental-strip-types",
+        "/home/marc/Documents/github/lime-os/.worktrees/local-main-consolidation/frontend/tests/stack-discovery.test.mjs"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "tests": 18,
+        "pass": 18,
+        "fail": 0
+      }
+    },
+    {
+      "name": "storage-mount-lifecycle.test.mjs",
+      "argv": [
+        "node",
+        "--max-old-space-size=256",
+        "--experimental-strip-types",
+        "/home/marc/Documents/github/lime-os/.worktrees/local-main-consolidation/frontend/tests/storage-mount-lifecycle.test.mjs"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "tests": 40,
+        "pass": 40,
+        "fail": 0
+      }
+    },
+    {
+      "name": "tools-status.test.mjs",
+      "argv": [
+        "node",
+        "--max-old-space-size=256",
+        "--experimental-strip-types",
+        "/home/marc/Documents/github/lime-os/.worktrees/local-main-consolidation/frontend/tests/tools-status.test.mjs"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "tests": 38,
+        "pass": 38,
+        "fail": 0
+      }
+    }
+  ],
+  "attempts": {
+    "arm64-harness": {
+      "head": "6759e62e9e378d74b8584ed3f53eac4c2cc69ff6",
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/qualification/arm64",
+        "-p",
+        "test_*.py"
+      ],
+      "exit_code": 0,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3867877376,
+      "inputs_unchanged": true
+    },
+    "password-worker": {
+      "head": "6759e62e9e378d74b8584ed3f53eac4c2cc69ff6",
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-core",
+        "--bin",
+        "limeos-password-worker"
+      ],
+      "exit_code": 0,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3574738944,
+      "inputs_unchanged": true
+    },
+    "reference-tests": {
+      "head": "6759e62e9e378d74b8584ed3f53eac4c2cc69ff6",
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/reference",
+        "-p",
+        "test_*.py"
+      ],
+      "exit_code": 1,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3849682944,
+      "inputs_unchanged": true
+    },
+    "reference-tests-host": {
+      "head": "6759e62e9e378d74b8584ed3f53eac4c2cc69ff6",
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/reference",
+        "-p",
+        "test_*.py"
+      ],
+      "exit_code": 0,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3998351360,
+      "inputs_unchanged": true
+    },
+    "schema-test": {
+      "head": "bcb92477b4f339e89f9f605dd324372d9100962a",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-schema"
+      ],
+      "exit_code": 0,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3897331712,
+      "inputs_unchanged": true
+    },
+    "workspace-tests": {
+      "head": "6759e62e9e378d74b8584ed3f53eac4c2cc69ff6",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": 101,
+      "guard_triggered": false,
+      "minimum_available_bytes": 4184158208,
+      "inputs_unchanged": true
+    },
+    "workspace-tests-cached": {
+      "head": "6759e62e9e378d74b8584ed3f53eac4c2cc69ff6",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": -15,
+      "guard_triggered": true,
+      "minimum_available_bytes": 3146997760,
+      "inputs_unchanged": true
+    }
+  },
+  "full_native_rust": "UNQUALIFIED: missing default offline dependency; existing-cache attempt guard-terminated during compilation",
+  "fresh_workspace_clippy": "UNRUN",
+  "hosted_final_ci": "UNRUN: publication permission pending",
+  "installed_vm_hardware_performance": "UNRUN",
+  "phase_or_defect_closure": false,
+  "original_refs_bundle": "/home/marc/Documents/github/lime-os/.cache/main-consolidation/refs-before.bundle",
+  "original_bundle_sha256": "d59443ad6fa95069dcbb76ee1d158966d2e246f445105259b13e26729f65e006"
+}
