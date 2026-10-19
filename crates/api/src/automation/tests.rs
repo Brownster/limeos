@@ -53,7 +53,7 @@ fn view() -> ScheduleView {
                 window: None,
             },
         },
-        status: ScheduleStatus::Active,
+        status: ScheduleStatus::AwaitingProducer,
         last_occurrence: None,
     }
 }

@@ -28,7 +28,6 @@ packages = {
     "domain": (
         ["serde", "serde_json"],
         "pub use original_domain::*;\n"
-        + module("automation", "crates/domain/src/automation/mod.rs")
         + module("deployment", "crates/domain/src/deployment/mod.rs"),
     ),
     "adapter": (
