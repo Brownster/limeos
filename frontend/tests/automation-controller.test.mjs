@@ -6,7 +6,7 @@ import { ApiError, AutomationController, AutomationReadStatus, AutomationView, A
 
 const page = (items = [], next = null, partial = false) => ({ items, next, partial });
 const row = id => ({ schedule: { id, revision: 1, paused: false, settled_through: null,
-  definition: { operation: "observe_health", anchor: 1000, interval_seconds: 60, grace_seconds: 30, missed: "coalesce_latest", window: null } }, status: "active", last_occurrence: null });
+  definition: { operation: "observe_health", anchor: 1000, interval_seconds: 60, grace_seconds: 30, missed: "coalesce_latest", window: null } }, status: "awaiting_producer", last_occurrence: null });
 const failure = code => new ApiError({ code, message: `Read failed: ${code}`, retry: false, audit_id: "case-1" });
 function deferred() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 function reader(handler) { return Object.fromEntries(["schedules", "alerts", "notifications"].map(kind => [kind, (after, signal) => handler(kind, after, signal)])); }

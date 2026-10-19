@@ -3,18 +3,18 @@ import { automationClient } from "./automation-client";
 import { AutomationController } from "./automation-controller";
 import { NotificationsView } from "./NotificationsView";
 import type { AutomationState, PageKind } from "./automation-controller";
-import type { AlertState, Page, ScheduleDefinition, ScheduleView } from "./automation-client";
+import type { AlertState, Page, ObserveHealthScheduleInput, ScheduleView } from "./automation-client";
 
 export function AutomationView({ schedules, alerts, canManage, create, pause, moreSchedules, moreAlerts, error, busy = false, disabled = false }: {
   schedules: Page<ScheduleView> | null; alerts: Page<AlertState> | null; canManage: boolean;
-  create?: (definition: ScheduleDefinition) => void; pause?: (row: ScheduleView) => void;
+  create?: (input: ObserveHealthScheduleInput) => void; pause?: (row: ScheduleView) => void;
   moreSchedules: () => void; moreAlerts: () => void;
   error?: string | null; busy?: boolean; disabled?: boolean;
 }) {
   const [formError, setFormError] = useState("");
   const [minutes, setMinutes] = useState(10); const [start, setStart] = useState(0); const [end, setEnd] = useState(0);
   const [windowEnabled, setWindowEnabled] = useState(false);
-  const [missed, setMissed] = useState<ScheduleDefinition["missed"]>("coalesce_latest");
+  const [missed, setMissed] = useState<ObserveHealthScheduleInput["missed"]>("coalesce_latest");
   const blocked = busy || disabled;
   return <section aria-labelledby="automation-heading">
     <p className="eyebrow">AUTOMATION</p><h2 id="automation-heading">Schedules and alerts</h2>
@@ -25,7 +25,9 @@ export function AutomationView({ schedules, alerts, canManage, create, pause, mo
     <div className="table-wrap"><table><caption>Observation schedules</caption><thead><tr><th scope="col">Schedule</th><th scope="col">Timing</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
       <tbody>{schedules?.items.map(row => <tr key={row.schedule.id}><th scope="row">{row.schedule.id}<small>{row.schedule.definition.operation.replaceAll("_", " ")}</small></th>
         <td>Every {row.schedule.definition.interval_seconds / 60} minutes<small>{row.schedule.definition.window ? `UTC ${clock(row.schedule.definition.window.start_minute)}–${clock(row.schedule.definition.window.end_minute)}` : "Any time · UTC"}</small></td>
-        <td><span className={`badge ${row.status === "blocked" ? "warning" : ""}`}>{row.status}</span>{row.status === "blocked" && <small>Operation adapter is unavailable.</small>}
+        <td><span className={`badge ${row.status === "blocked" || row.status === "authority_suspended" ? "warning" : ""}`}>{scheduleLabel(row)}</span>{row.status === "blocked" && <small>Operation adapter is unavailable.</small>}
+          {row.status === "awaiting_producer" && <small>Schedule saved. Automatic observations are not available yet.</small>}
+          {row.status === "authority_suspended" && <small>Scheduling permission needs renewal before this schedule can resume.</small>}
           {row.last_occurrence && <small>Latest occurrence · {new Date(row.last_occurrence.key.due * 1000).toISOString()}<br />{row.last_occurrence.outcome.outcome === "job" ? `Job ${row.last_occurrence.outcome.id} · ${row.last_occurrence.outcome.state.replaceAll("_", " ")}` : row.last_occurrence.outcome.outcome}</small>}</td>
         <td>{canManage && <button disabled={blocked || !pause} onClick={() => { if (!blocked) pause?.(row); }}>{row.schedule.paused ? "Resume" : "Pause"} {row.schedule.id}</button>}</td>
       </tr>)}{schedules?.items.length === 0 && <tr><td colSpan={4}>No schedules on this page.</td></tr>}{!schedules && <tr><td colSpan={4}>Schedule data is unavailable.</td></tr>}</tbody></table></div>
@@ -35,12 +37,12 @@ export function AutomationView({ schedules, alerts, canManage, create, pause, mo
       if (blocked) return;
       if (windowEnabled && start === end) { setFormError("Choose different window start and end times."); return; }
       setFormError("");
-      const definition: ScheduleDefinition = { operation: "observe_health", anchor: Math.floor(Date.now() / 1000), interval_seconds: minutes * 60,
+      const definition: ObserveHealthScheduleInput = { interval_seconds: minutes * 60,
         grace_seconds: 30, missed, window: windowEnabled ? { start_minute: start, end_minute: end } : null };
       create?.(definition);
     }}><h3>Create a health observation schedule</h3>
       <label htmlFor="observation-interval">Interval in minutes</label><input id="observation-interval" type="number" required min={1} max={44640} step={1} value={minutes} disabled={blocked} onChange={event => setMinutes(Number(event.target.value))} />
-      <label htmlFor="missed-observations">Missed observations</label><select id="missed-observations" value={missed} disabled={blocked} onChange={event => setMissed(event.target.value as ScheduleDefinition["missed"])}><option value="coalesce_latest">Use the most recent due occurrence</option><option value="skip">Skip missed occurrences</option></select>
+      <label htmlFor="missed-observations">Missed observations</label><select id="missed-observations" value={missed} disabled={blocked} onChange={event => setMissed(event.target.value as ObserveHealthScheduleInput["missed"])}><option value="coalesce_latest">Use the most recent due occurrence</option><option value="skip">Skip missed occurrences</option></select>
       <label style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}><input style={{ width: "auto" }} type="checkbox" checked={windowEnabled} disabled={blocked} onChange={event => setWindowEnabled(event.target.checked)} /> Use a daily UTC maintenance window</label>
       {windowEnabled && <><label htmlFor="window-start">Window start (UTC)</label><input id="window-start" type="time" required value={clock(start)} disabled={blocked} onChange={event => setStart(minute(event.target.value))} />
         <label htmlFor="window-end">Window end (UTC)</label><input id="window-end" type="time" required value={clock(end)} disabled={blocked} onChange={event => setEnd(minute(event.target.value))} /></>}
@@ -54,6 +56,14 @@ export function AutomationView({ schedules, alerts, canManage, create, pause, mo
 }
 function clock(value: number): string { return `${Math.floor(value / 60).toString().padStart(2, "0")}:${(value % 60).toString().padStart(2, "0")}`; }
 function minute(value: string): number { const [hours, minutes] = value.split(":").map(Number); return hours * 60 + minutes; }
+function scheduleLabel(row: ScheduleView): string {
+  switch (row.status) {
+    case "awaiting_producer": return "Waiting for observations";
+    case "authority_suspended": return "Permission needs renewal";
+    case "paused": return "Paused";
+    case "blocked": return "Blocked";
+  }
+}
 
 /** Integrator mounts this with the existing authenticated session and current permissions. */
 export function AutomationPanel({ principal, grantRevision, csrf, canManage, canAcknowledge, expired }: {

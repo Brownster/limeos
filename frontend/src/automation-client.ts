@@ -1,17 +1,8 @@
 import { ApiError } from "./api";
+import type { ObserveHealthScheduleInput, ScheduleView } from "../../contracts/generated/types";
+export type { ObserveHealthScheduleInput, ScheduleDefinition, ScheduleView } from "../../contracts/generated/types";
 
-// Proposed B1 wire shapes. Integrator replaces these with generated contract imports.
-export type ScheduledOperation = "observe_health" | "backup" | "protection_sync" | "protection_scrub" | "container_update" | "package_reconcile";
-export type ScheduleDefinition = {
-  operation: ScheduledOperation; anchor: number; interval_seconds: number;
-  grace_seconds: number; missed: "coalesce_latest" | "skip";
-  window: { start_minute: number; end_minute: number } | null;
-};
-export type ScheduleView = {
-  schedule: { id: string; revision: number; paused: boolean; definition: ScheduleDefinition; settled_through: number | null };
-  status: "active" | "paused" | "blocked";
-  last_occurrence: { key: { schedule: string; revision: number; due: number }; outcome: { outcome: "blocked" | "skipped" } | { outcome: "job"; id: string; state: string } } | null;
-};
+// Alert and notification routes remain proposed B1 wire shapes.
 export type AlertState = {
   key: string; kind: "container" | "smart" | "mount" | "snapraid" | "host"; last_sequence: number;
   incident: { phase: "clear"; failures: number } | { phase: "open"; generation: number; severity: "warning" | "critical"; summary: string; announced: boolean };
@@ -67,7 +58,7 @@ function schedule(value: unknown): value is ScheduleView {
   if (!(window === null || (object(window) && integer(window.start_minute, 0, 1439) && integer(window.end_minute, 0, 1439) && window.start_minute !== window.end_minute))) return false;
   return text(row.id, 128) && integer(row.revision, 1) && typeof row.paused === "boolean" && (row.settled_through === null || time(row.settled_through)) &&
     operations.includes(String(definition.operation)) && time(definition.anchor) && integer(definition.interval_seconds, 30, 2_678_400) && integer(definition.grace_seconds, 0, 86400) && definition.grace_seconds < definition.interval_seconds && ["coalesce_latest", "skip"].includes(String(definition.missed)) &&
-    ["active", "paused", "blocked"].includes(String(value.status));
+    ["awaiting_producer", "authority_suspended", "paused", "blocked"].includes(String(value.status));
 }
 function alert(value: unknown): value is AlertState {
   if (!object(value) || !object(value.incident) || !text(value.key, 256) || !kinds.includes(String(value.kind)) || !integer(value.last_sequence)) return false;
@@ -123,7 +114,7 @@ export const automationClient = {
   schedules: (after?: string, signal?: AbortSignal) => page<ScheduleView>("/schedules", schedule, after, signal),
   alerts: (after?: string, signal?: AbortSignal) => page<AlertState>("/alerts", alert, after, signal),
   notifications: (after?: string, signal?: AbortSignal) => page<Notification>("/notifications", notification, after, signal),
-  create: (definition: ScheduleDefinition, csrf: string, signal?: AbortSignal) => checked(post<ScheduleView>("/schedules", { definition }, csrf, signal), schedule),
+  create: (input: ObserveHealthScheduleInput, csrf: string, signal?: AbortSignal) => checked(post<ScheduleView>("/schedules", input, csrf, signal), schedule),
   pause: (row: ScheduleView, csrf: string, signal?: AbortSignal) => checked(post<ScheduleView>(`/schedules/${encodeURIComponent(row.schedule.id)}/pause`, { revision: row.schedule.revision, paused: !row.schedule.paused }, csrf, signal), schedule),
   acknowledge: (row: Notification, csrf: string, signal?: AbortSignal) => checked(post<Notification>(`/notifications/${encodeURIComponent(row.id)}/acknowledgment`, { revision: row.revision }, csrf, signal), notification),
 };

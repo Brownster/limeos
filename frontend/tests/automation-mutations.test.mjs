@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ApiError, AutomationController, AutomationPanel, AutomationView, NotificationsView, automationClient } from "./helpers/automation.mjs";
 
 const definition = { operation: "observe_health", anchor: 1000, interval_seconds: 60, grace_seconds: 30, missed: "coalesce_latest", window: null };
-const row = { schedule: { id: "health", revision: 4, paused: false, settled_through: null, definition }, status: "active", last_occurrence: null };
+const row = { schedule: { id: "health", revision: 4, paused: false, settled_through: null, definition }, status: "awaiting_producer", last_occurrence: null };
 const note = { id: "note-1", revision: 2, event: { key: "host:system", generation: 1, event: "incident", kind: "host", severity: "warning", summary: "Host alert", at: 1000 }, channel: "in_app", delivery: { state: "delivered", at: 1001 }, attempts: 1, acknowledged_at: null };
 const page = (items = []) => ({ items, next: null, partial: false });
 const failure = code => new ApiError({ code, message: `Mutation failed: ${code}`, retry: false, audit_id: "mutation-1" });
