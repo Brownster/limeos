@@ -12,6 +12,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import guest as foundation
 import p03_guest as containers
 import p04_locks_guest as locks
 import p04_planning_guest as planning
@@ -28,6 +29,40 @@ EXECUTOR = targets.EXECUTOR
 run = planning.run
 http = planning.http
 eventually = containers.eventually
+
+
+def check_target_peer_uids(contract):
+    endpoint = "/run/limeos-storage-targets/executor.sock"
+    request = json.dumps(
+        {"operation": "inspect_storage_targets", "version": 1, "contract": contract}
+    )
+    probe = foundation.executor_probe_code()
+
+    def observe(account):
+        return run(
+            "runuser",
+            "-u",
+            account,
+            "-g",
+            "limeos-host-access",
+            "--",
+            "python3",
+            "-c",
+            probe,
+            endpoint,
+            request,
+        ).stdout
+
+    def authorized():
+        reply = json.loads(observe("limeos-core"))
+        assert reply["version"] == 1 and reply["ready"] is True
+        assert reply.get("storage_targets") is not None and reply.get("error") is None
+
+    # Exercise the same allowed read on both UIDs. Health is outside this closed
+    # role even for Core, so its rejection cannot establish a peer-UID boundary.
+    authorized()
+    assert foundation.refused_executor_reply(observe("nobody"), "forbidden")
+    authorized()
 
 
 def main(package_version="0.4.4", qualify_upgrade=True, authority_schema=None):
@@ -181,22 +216,7 @@ def main(package_version="0.4.4", qualify_upgrade=True, authority_schema=None):
     )
     for name in ["Unlisted", "data"]:
         assert http(BASE + "/plans", "POST", selection(name), cookie, csrf)[0] == 403
-    denied = run(
-        "runuser",
-        "-u",
-        "nobody",
-        "-g",
-        "limeos-host-access",
-        "--",
-        "python3",
-        "-c",
-        "import socket,struct,json;s=socket.socket(socket.AF_UNIX);s.connect('/run/limeos-storage-targets/executor.sock');b=b'{\"operation\":\"health\",\"version\":1}';s.sendall(struct.pack('!I',len(b))+b);n=struct.unpack('!I',s.recv(4))[0];print(s.recv(n).decode())",
-    )
-    assert json.loads(denied.stdout) == {
-        "version": 1,
-        "ready": False,
-        "error": "forbidden",
-    }
+    check_target_peer_uids(selection("Data"))
     passed(
         "dormant standard-only target service requires an explicit exact UUID/path ceiling and kernel core UID; only CAP_CHOWN is effective and no mount capability exists"
     )

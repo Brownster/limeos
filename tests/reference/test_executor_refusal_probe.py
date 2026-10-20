@@ -10,6 +10,7 @@ import sys
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 SOURCE = Path(__file__).resolve().parents[1] / "privileged_vm/guest.py"
@@ -138,3 +139,71 @@ class ExecutorRefusalProbeTests(unittest.TestCase):
         ]:
             with self.subTest(kwargs=kwargs), self.assertRaises(expected):
                 self.execute(close_peer=False, **kwargs)
+
+
+class TargetPeerUidProbeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        path = SOURCE.with_name("p04_approved_guest.py")
+        spec = importlib.util.spec_from_file_location("target_uid_fixture", path)
+        cls.fixture = importlib.util.module_from_spec(spec)
+        with patch.object(sys, "path", [str(SOURCE.parent), *sys.path]):
+            spec.loader.exec_module(cls.fixture)
+
+    def exercise(self, denied, before=None, after=None):
+        ready = {"version": 1, "ready": True, "storage_targets": {"targets": []}}
+        replies = [
+            before if before is not None else ready,
+            denied,
+            after if after is not None else ready,
+        ]
+        responses = [
+            SimpleNamespace(
+                stdout=value if isinstance(value, str) else json.dumps(value)
+            )
+            for value in replies
+        ]
+        command = patch.object(self.fixture, "run", side_effect=responses)
+        contract = {"fixture": "exact protected selection"}
+        with command as observed:
+            self.fixture.check_target_peer_uids(contract)
+        return observed.call_args_list, contract
+
+    def test_early_close_and_explicit_denial_use_same_allowed_read_as_core(self):
+        for denied in [
+            "denied\n",
+            {"version": 1, "ready": False, "error": "forbidden"},
+        ]:
+            calls, contract = self.exercise(denied)
+            self.assertEqual(
+                [call.args[2] for call in calls],
+                ["limeos-core", "nobody", "limeos-core"],
+            )
+            for call in calls:
+                self.assertEqual(call.args[-3], FIXTURE.executor_probe_code())
+                self.assertEqual(
+                    json.loads(call.args[-1]),
+                    {
+                        "operation": "inspect_storage_targets",
+                        "version": 1,
+                        "contract": contract,
+                    },
+                )
+
+    def test_success_or_wrong_error_from_nobody_cannot_qualify_as_denial(self):
+        for reply in [
+            {"version": 1, "ready": True, "storage_targets": {"targets": []}},
+            {"version": 1, "ready": False, "error": "invalid_input"},
+        ]:
+            with self.subTest(reply=reply), self.assertRaises(AssertionError):
+                self.exercise(reply)
+
+    def test_authorized_read_must_succeed_on_both_sides_of_denial(self):
+        unavailable = {"version": 1, "ready": False, "error": "unavailable"}
+        for side in ["before", "after"]:
+            with self.subTest(side=side), self.assertRaises(AssertionError):
+                self.exercise("denied\n", **{side: unavailable})
+
+    def test_authorized_success_requires_actual_inspection_data(self):
+        with self.assertRaises(AssertionError):
+            self.exercise("denied\n", before={"version": 1, "ready": True})

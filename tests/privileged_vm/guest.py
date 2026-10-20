@@ -76,6 +76,33 @@ def refused_executor_reply(body, error):
     return value == {"version": 1, "ready": False, "error": error}
 
 
+def executor_probe_code():
+    """Fixed client code for UID-separated guest processes, including early EOF."""
+    probe = r"""import socket, struct, json, sys
+s=socket.socket(socket.AF_UNIX); s.settimeout(6); s.connect(sys.argv[1])
+request=json.loads(sys.argv[2]); body=json.dumps(request).encode()
+try:
+    s.sendall(struct.pack('!I',len(body))+body)
+except (BrokenPipeError, ConnectionResetError):
+    # Kernel UID rejection may close before our first write. Read any buffered
+    # refusal instead of discarding it; callers still validate the exact reply.
+    pass
+try:
+    header=s.recv(4)
+except (BrokenPipeError, ConnectionResetError):
+    header=b''
+if not header:
+    print('denied'); sys.exit(0)
+size=struct.unpack('!I',header)[0]; body=b''
+while len(body)<size:
+    chunk=s.recv(size-len(body))
+    if not chunk: raise RuntimeError('truncated response')
+    body+=chunk
+print(body.decode())
+"""
+    return probe
+
+
 def main(package_version="0.1.0", upgrade_version="0.1.1"):
     if (
         os.geteuid() != 0
@@ -258,28 +285,7 @@ def main(package_version="0.1.0", upgrade_version="0.1.1"):
                 != 0
             )
     # Group membership only admits the connection: the daemon checks kernel UID.
-    probe = r"""import socket, struct, json, sys
-s=socket.socket(socket.AF_UNIX); s.settimeout(6); s.connect(sys.argv[1])
-request=json.loads(sys.argv[2]); body=json.dumps(request).encode()
-try:
-    s.sendall(struct.pack('!I',len(body))+body)
-except (BrokenPipeError, ConnectionResetError):
-    # Kernel UID rejection may close before our first write. Read any buffered
-    # refusal instead of discarding it; callers still validate the exact reply.
-    pass
-try:
-    header=s.recv(4)
-except (BrokenPipeError, ConnectionResetError):
-    header=b''
-if not header:
-    print('denied'); sys.exit(0)
-size=struct.unpack('!I',header)[0]; body=b''
-while len(body)<size:
-    chunk=s.recv(size-len(body))
-    if not chunk: raise RuntimeError('truncated response')
-    body+=chunk
-print(body.decode())
-"""
+    probe = executor_probe_code()
     for executor, group in [
         ("limeos-storaged", "limeos-host-access"),
         ("limeos-containerd", "limeos-container-access"),
