@@ -63,6 +63,21 @@ retains the earlier attempts and their original limits.
 | Strict all-target workspace and B Clippy | Both passed with `-D warnings` |
 | Fresh native ARM64 and installed/package/VM checks | Not run for the combined source |
 
+The subsequent [hosted qualification packet](rewrite-evidence/p04/2026-10-20-local-main-hosted/README.md)
+records the completed main CI run on `477b81f`. Both native ARM64 and AMD64 jobs
+passed: 1,130 Rust checks and 219 frontend cases per architecture, actual contract
+drift, strict Clippy, dependency/advisory gates and Debian package builds. AMD64
+also passed the browser lifecycle, logs and keyboard-focus regressions.
+
+The full run failed in the Debian VM's A1 plan creation. The genuine host-consumer
+scan encountered a ninth mount namespace against the documented limit of eight,
+returning HTTP 503 before effect admission. This is distinct from the corrected
+ABI and contract failures. The evidence does not identify the excess namespace's
+owner or total namespace count. The descriptor reservation is already 225 of
+226, so no production limit or safety check was relaxed. P01/P02/P03 VM wrappers
+completed; the subsequent dependency VM wrapper was not reached. Full installed
+acceptance, installed ARM64 and Pi qualification remain open.
+
 The reference/harness and schema records retain their earlier input snapshots;
 later UI, leaf-harness and documentation corrections are identified separately.
 Old source-bound leaf packets keep their original source/test claims. Counts
@@ -83,9 +98,11 @@ qualified the schedule Rust inputs and generated real contracts. The separate
 [ordinary bootstrap CI](https://github.com/Brownster/limeos/actions/runs/39155342585)
 failed at the expected tracked-contract drift check on both architectures. Those
 runs predate this combined candidate and its ABI correction. The final local
-checks qualify the assembled source independently. A fresh hosted ARM64/matrix
-run requires publishing a qualification branch, which remains subject to the
-user's optional pending permission. No push occurred during local consolidation.
+checks qualify the assembled source independently. The later main run
+[39429582703](https://github.com/Brownster/limeos/actions/runs/39429582703)
+supplies fresh native qualification with the installed failure described above.
+No push occurred during local consolidation. The previously proposed temporary
+qualification branch was not published.
 
 The supplemental `qualification-stream-b-leaves.yml` workflow checks the existing
 combined B harness on native AMD64 and ARM64. It supports explicit dispatch or
@@ -98,9 +115,14 @@ output and strict Clippy output are archived by that workflow.
 Remove a worktree only after its HEAD is an ancestor of actual local main and its
 tracked/untracked status is empty. Preserve ignored evidence caches separately;
 delete only local branches with merged ancestry and no remaining worktree.
-Cleanup removed **78 worktrees and 87 local branches** after these checks. The
-machine-readable outcome is `.cache/main-consolidation/cleanup-result.json` and
-is also archived in the final packet.
+Cleanup removed **78 worktrees and 88 local branches** after these checks. The
+original 78/87 machine-readable outcome is
+`.cache/main-consolidation/cleanup-result.json` and is archived in the local
+validation packet. One later committed design branch was fast-forwarded to main
+and deleted; its unfinished code draft was preserved under
+`.cache/main-consolidation/recovery/stack-inventory-start/`. No draft code was
+merged or credited as stack runtime acceptance. The hosted packet records this
+additional branch deletion.
 
 Eight worktrees contain uncommitted drafts and are retained, with recovery copies:
 
@@ -115,6 +137,10 @@ Eight worktrees contain uncommitted drafts and are retained, with recovery copie
 
 Their committed HEADs are included in the integration. Their uncommitted content
 is not silently committed, discarded or credited as runtime acceptance.
+The final audit confirms all local branch tips and live remote branch tips are
+included in actual local main. The root checkout is clean on `main`. Fresh dirty
+recovery copies are under `.cache/main-consolidation/final-audit/recovery/`, with
+complete history in the verified `refs-final.bundle` alongside earlier bundles.
 Remote branches are unchanged. Full storage runtime, genuine automation
 production, installed recovery, the failed inventory latency budget and P05/P06
 migration/return qualification remain open.

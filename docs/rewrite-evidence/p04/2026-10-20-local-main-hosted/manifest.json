@@ -1,0 +1,43 @@
+{
+  "source": "477b81f2ba78c9d100a6857950f50467079b406e",
+  "run": "https://github.com/Brownster/limeos/actions/runs/39429582703",
+  "conclusion": "failure",
+  "native": {
+    "arm64": {
+      "workspace_checks": 1130,
+      "frontend_cases": 219,
+      "job_conclusion": "success"
+    },
+    "amd64": {
+      "workspace_checks": 1130,
+      "frontend_cases": 219,
+      "job_conclusion": "success"
+    }
+  },
+  "vm_failure": {
+    "stage": "A1 plan creation before effect admission",
+    "phase": "scan.namespace.limit",
+    "observed": 9,
+    "limit": 8,
+    "http_status": 503,
+    "production_limit_changed": false,
+    "namespace_owners_not_recorded": true,
+    "scope": "The first excess namespace is observed; total namespaces and ownership are unknown"
+  },
+  "later_committed_changes": [
+    "docs/plans/2026-10-20-stack-inventory-runtime-design.md"
+  ],
+  "later_product_source_changes": [],
+  "removed_worktrees": 78,
+  "removed_local_branches_original_cleanup": 87,
+  "removed_local_branches_followup": [
+    {
+      "branch": "engineer/p04-stack-inventory-runtime",
+      "head": "85d708f3092d0fca971a507c1876292ffe9f2393",
+      "merged_to_main": true
+    }
+  ],
+  "retained_dirty_worktrees": 8,
+  "draft_recovery": ".cache/main-consolidation/recovery/stack-inventory-start",
+  "final_recovery_bundle": ".cache/main-consolidation/refs-final.bundle"
+}
