@@ -42,7 +42,7 @@ group/other writes. Missing files never imply empty configuration. The selected
 Data/ext4 device must be absent from configured consumers, and its current
 physical, process, namespace, target and consumer evidence must pass the genuine
 producer. The initial profile supports at most four running containers, sixteen
-declared destination mounts, 256 host tasks and eight mount namespaces. This is
+declared destination mounts, 256 host tasks and sixteen mount namespaces. This is
 not wider-host parity; inaccessible, changing or excess proc evidence refuses.
 
 `/usr/share/doc/limeos/examples/storage-mounts.example.json` is a disabled example
@@ -97,9 +97,18 @@ permit precede GO. The helper uses fixed ext4/rw/nosuid/nodev arguments with
 are not added speculatively; unsupported helper behavior must fail in the guest.
 
 The process keeps the existing `LimitNOFILE=256`, `TasksMax=16`, `MemoryMax=64M`
-and `MemorySwapMax=0`. The source's conservative reservation is 225 FDs within
+and `MemorySwapMax=0`. The source's conservative reservation is 213 FDs within
 the existing 226 worker model, with baseline, transient and guardian ownership
-charged before acquisition. Actual peak descriptors, RSS, task count and latency
+charged before acquisition. A1 selects `InstalledMountV1` configuration admission:
+one shared root plus the four fixed three-component `/etc/limeos/<file>` paths
+retain thirteen descriptors. Deeper aggregate path requirements refuse before
+host/configuration acquisition. The general combined reader retains its 33-FD
+profile; byte/report limits and protected reads remain identical. The host scan
+retains one proc root and at most sixteen namespace anchors, with revalidation
+and per-task traversal charged to the existing transient allowance. This
+[budget correction](plans/2026-10-20-a1-namespace-budget-design.md) admits the
+ordinary installed service namespaces without changing service ceilings or
+removing sandboxes. Actual peak descriptors, RSS, task count and latency
 remain unqualified. The historical storage-inventory latency budget remains
 failed. Socket-activated Docker peer identity, openat2/proc access and capability
 persistence across guardian/helper exec must be observed in the actual guest.
