@@ -129,6 +129,7 @@ class CurrentAuthoritySchemaTests(unittest.TestCase):
         current = Mock(return_value=10)
         upgrade = Mock(side_effect=InterruptedError("stop before guest effects"))
         modules = {
+            "guest": SimpleNamespace(),
             "current_authority_schema": SimpleNamespace(
                 current_authority_schema=current
             ),
