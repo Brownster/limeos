@@ -36,11 +36,14 @@ const MAX_RUNNING: usize = 4;
 const MAX_DESTINATIONS: usize = 16;
 const FDS: usize = 226;
 const TRANSIENT: usize = 32;
+const CONFIGURATION_PROFILE: ConfigurationReadProfile = ConfigurationReadProfile::InstalledMountV1;
+const CONFIGURATION_FDS: usize = CONFIGURATION_PROFILE.limits().max_retained_fds as usize;
+const HOST_CONSUMER_FDS: usize = 1 + mount_admission::HOST_CONSUMER_NAMESPACE_LIMIT;
 // Initial A1 limits, not full-host parity. Reservations include every owner live
 // during revalidation. No service or worker ceiling is increased.
-// baseline16 + configuration33 + Engine1 + processes21 + physical75 +
-// destinations16 + target8 + guardian14 + host-consumers9 + transient32 = 225.
-const RESERVATIONS: [usize; 7] = [33, 1, 21, 75, 16, 17, 14];
+// baseline16 + configuration13 + Engine1 + processes21 + physical75 +
+// destinations16 + target8 + guardian14 + host-consumers17 + transient32 = 213.
+const RESERVATIONS: [usize; 7] = [CONFIGURATION_FDS, 1, 21, 75, 16, 8 + HOST_CONSUMER_FDS, 14];
 static FLIGHT: OnceLock<SingleFlight> = OnceLock::new();
 
 fn error() -> Error {
@@ -197,12 +200,9 @@ impl MountAdmission {
 pub async fn catalog(cancelled: &dyn Fn() -> bool) -> Result<StorageMountCatalog> {
     let window = Window::new()?;
     window.check(cancelled)?;
-    let configuration = inspect_storage_configuration_with_profile(
-        paths(),
-        ConfigurationReadProfile::CombinedV1,
-        cancelled,
-    )
-    .map_err(storage)?;
+    let configuration =
+        inspect_storage_configuration_with_profile(paths(), CONFIGURATION_PROFILE, cancelled)
+            .map_err(storage)?;
     let mut targets = Vec::new();
     targets
         .try_reserve_exact(configuration.configuration().contract.devices.len())
@@ -244,12 +244,8 @@ pub async fn inspect(
     diagnosed("inspect.capacity.configuration", capacity.enter(0))?;
     let configuration = diagnosed(
         "inspect.configuration",
-        inspect_storage_configuration_with_profile(
-            paths(),
-            ConfigurationReadProfile::CombinedV1,
-            &poll,
-        )
-        .map_err(storage),
+        inspect_storage_configuration_with_profile(paths(), CONFIGURATION_PROFILE, &poll)
+            .map_err(storage),
     )?;
     diagnosed(
         "inspect.window.after_configuration",
@@ -625,12 +621,9 @@ pub async fn inspect_mounted(
     cancelled: &dyn Fn() -> bool,
 ) -> Result<StorageMountedSnapshot> {
     plan.validate(plan.created_at)?;
-    let configuration = inspect_storage_configuration_with_profile(
-        paths(),
-        ConfigurationReadProfile::CombinedV1,
-        cancelled,
-    )
-    .map_err(storage)?;
+    let configuration =
+        inspect_storage_configuration_with_profile(paths(), CONFIGURATION_PROFILE, cancelled)
+            .map_err(storage)?;
     mount_admission::inspect_mounted(configuration, plan, cancelled)
         .await
         .map_err(storage)
@@ -654,6 +647,31 @@ pub async fn inspect_unmounted(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn installed_selection_fits_reserved_configuration_and_namespace_capacity() {
+        let paths = paths();
+        let fixed = [paths.contract, paths.pools, paths.protection, paths.shares];
+        let actual = 1 + fixed
+            .iter()
+            .map(|path| path.components().count() - 1)
+            .sum::<usize>();
+        assert_eq!(actual, CONFIGURATION_FDS);
+        assert_eq!(actual, 13);
+        assert_eq!(HOST_CONSUMER_FDS, 17);
+        let reservation = 16 + RESERVATIONS.iter().sum::<usize>() + TRANSIENT;
+        assert_eq!(reservation, 213);
+        assert!(reservation <= FDS);
+        // Retaining the generic configuration reservation would exceed the
+        // unchanged model after admitting the installed service namespaces.
+        assert!(
+            reservation - CONFIGURATION_FDS
+                + ConfigurationReadProfile::CombinedV1
+                    .limits()
+                    .max_retained_fds as usize
+                > FDS
+        );
+    }
+
     fn window() -> Window {
         Window {
             start: Instant::now(),

@@ -10,13 +10,19 @@ use std::fmt;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConfigurationReadProfile {
     CombinedV1,
+    /// Fixed installed A1 selections need one root plus four three-component
+    /// paths. The same preflight enforces this smaller descriptor ceiling.
+    InstalledMountV1,
 }
 impl ConfigurationReadProfile {
-    pub fn limits(self) -> ConfigurationLimits {
+    pub const fn limits(self) -> ConfigurationLimits {
         ConfigurationLimits {
             max_file_bytes: 16 * 1024,
             max_total_bytes: 32 * 1024,
-            max_retained_fds: 33,
+            max_retained_fds: match self {
+                Self::CombinedV1 => 33,
+                Self::InstalledMountV1 => 13,
+            },
             max_report_bytes: 12 * 1024,
         }
     }

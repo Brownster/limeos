@@ -73,6 +73,90 @@ fn combined_profile_preflights_total_descriptors_before_host_collection() {
     );
 }
 
+#[test]
+fn installed_mount_profile_retains_exact_fixed_path_cost_for_each_layout() {
+    let profile = ConfigurationReadProfile::InstalledMountV1;
+    let limits = profile.limits();
+    assert_eq!(limits.max_retained_fds, 13);
+    let general = ConfigurationReadProfile::CombinedV1.limits();
+    assert_eq!(general.max_retained_fds, 33);
+    assert_eq!(limits.max_file_bytes, general.max_file_bytes);
+    assert_eq!(limits.max_total_bytes, general.max_total_bytes);
+    assert_eq!(limits.max_report_bytes, general.max_report_bytes);
+    for case in cases() {
+        let mut fixture = Fixture::from_case(&case);
+        let names = ["storage-contract", "pools", "protection", "shares"]
+            .map(|name| PathBuf::from(format!("/etc/limeos/{name}.json")));
+        fs::create_dir_all(fixture.tree.path().join("etc/limeos")).unwrap();
+        for (i, name) in names.iter().enumerate() {
+            fs::rename(
+                fixture.path(i),
+                fixture.tree.path().join(name.strip_prefix("/").unwrap()),
+            )
+            .unwrap();
+        }
+        fixture.names = names;
+        let paths = fixture.paths();
+        let owner = collect(
+            fixture.root(),
+            &paths,
+            admit(&paths, limits).unwrap(),
+            CollectionBudget {
+                owner: rustix::process::geteuid().as_raw(),
+                limits,
+                at: 100,
+                expires: Instant::now() + LIFETIME,
+                deadline: Instant::now() + WORK,
+                profile: Some(profile),
+            },
+            &|| false,
+        )
+        .unwrap();
+        assert_eq!(owner.retained_descriptor_count(), 13);
+        assert_eq!(owner.snapshot.limits, limits);
+        let expires = owner.expires;
+        fixture.revalidate(&owner, 101, &|| false).unwrap();
+        assert_eq!(owner.expires, expires);
+        assert_eq!(
+            serde_json::to_value(&owner.configuration.contract).unwrap(),
+            case["contract"]
+        );
+    }
+}
+
+#[test]
+fn installed_mount_profile_refuses_extra_ancestor_before_configuration_io() {
+    let names = ["storage-contract", "pools", "protection", "shares"]
+        .map(|name| PathBuf::from(format!("/etc/limeos/{name}.json")));
+    let paths = ConfigurationPaths {
+        contract: &names[0],
+        pools: &names[1],
+        protection: &names[2],
+        shares: &names[3],
+    };
+    assert!(admit(&paths, ConfigurationReadProfile::InstalledMountV1.limits()).is_ok());
+    let extra = PathBuf::from("/etc/limeos/extra/shares.json");
+    let paths = ConfigurationPaths {
+        shares: &extra,
+        ..paths
+    };
+    assert_eq!(
+        admit(&paths, ConfigurationReadProfile::InstalledMountV1.limits()),
+        Err(Failure::Unavailable)
+    );
+    // The generic reader still supports these paths; only A1 chooses the
+    // installed-path ceiling. The public constructor preflights before UID/root.
+    assert!(admit(&paths, ConfigurationReadProfile::CombinedV1.limits()).is_ok());
+    refusal(
+        inspect_storage_configuration_with_profile(
+            paths,
+            ConfigurationReadProfile::InstalledMountV1,
+            &|| false,
+        ),
+        Failure::Unavailable,
+    );
+}
+
 fn limits() -> ConfigurationLimits {
     ConfigurationLimits {
         max_file_bytes: MAX_FILE_BYTES,

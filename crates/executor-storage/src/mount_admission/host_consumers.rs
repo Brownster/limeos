@@ -5,7 +5,7 @@ use rustix::process::{Pid, PidfdFlags};
 use std::{collections::BTreeMap, io::Read, os::fd::AsRawFd};
 
 const TASKS: usize = 256;
-const NAMESPACES: usize = 8;
+const NAMESPACES: usize = HOST_CONSUMER_NAMESPACE_LIMIT;
 const FDS_PER_PROCESS: usize = 256;
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub(super) struct Task {
@@ -17,6 +17,29 @@ pub(super) struct Task {
 struct Namespace {
     fd: OwnedFd,
     digest: String,
+}
+
+fn retain_namespace(
+    namespaces: &mut BTreeMap<(u64, u64), Namespace>,
+    key: (u64, u64),
+    fd: OwnedFd,
+    table_digest: impl FnOnce() -> Result<String>,
+) -> Result<()> {
+    if namespaces.contains_key(&key) {
+        return Ok(());
+    }
+    if namespaces.len() == NAMESPACES {
+        return Err(refusal(
+            "scan.namespace.limit",
+            Failure::Unavailable,
+            0,
+            namespaces.len() + 1,
+            NAMESPACES,
+        ));
+    }
+    let digest = table_digest()?;
+    namespaces.insert(key, Namespace { fd, digest });
+    Ok(())
 }
 pub(super) struct HostConsumers {
     proc: OwnedFd,
@@ -355,16 +378,7 @@ fn collect(
             let stat = rustix::fs::fstat(&namespace)
                 .map_err(|error| io_failure("scan.namespace.stat", error, Failure::Unavailable))?;
             let key = (stat.st_dev, stat.st_ino);
-            if !namespaces.contains_key(&key) {
-                if namespaces.len() == NAMESPACES {
-                    return Err(refusal(
-                        "scan.namespace.limit",
-                        Failure::Unavailable,
-                        0,
-                        namespaces.len() + 1,
-                        NAMESPACES,
-                    ));
-                }
+            retain_namespace(&mut namespaces, key, namespace, || {
                 let table =
                     diagnosed("scan.mount_table.read", read(&task, "mountinfo", 64 * 1024))?;
                 let rows = diagnosed(
@@ -378,15 +392,8 @@ fn collect(
                     "scan.mount_table.consumers",
                     check_mounts(&rows, selected, physical, underlay),
                 )?;
-                let digest = limeos_identity::digest(&table);
-                namespaces.insert(
-                    key,
-                    Namespace {
-                        fd: namespace,
-                        digest,
-                    },
-                );
-            }
+                Ok(limeos_identity::digest(&table))
+            })?;
             if *pid != std::process::id() {
                 diagnosed(
                     "scan.cwd",
@@ -792,6 +799,57 @@ fn code_digest(fd: &OwnedFd) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn namespace_capacity_retains_anchors_and_refuses_before_excess_table_read() {
+        let mut retained = BTreeMap::new();
+        for i in 0..NAMESPACES {
+            let fd = rustix::fs::memfd_create("a1-namespace-slot", rustix::fs::MemfdFlags::CLOEXEC)
+                .unwrap();
+            let stat = rustix::fs::fstat(&fd).unwrap();
+            let key = (stat.st_dev, stat.st_ino);
+            retain_namespace(&mut retained, key, fd, || Ok(format!("table-{i}"))).unwrap();
+        }
+        assert_eq!(retained.len(), 16);
+        for (key, namespace) in &retained {
+            let stat = rustix::fs::fstat(&namespace.fd).unwrap();
+            assert_eq!((stat.st_dev, stat.st_ino), *key);
+        }
+        let (&key, first) = retained.first_key_value().unwrap();
+        let original = first.fd.as_raw_fd();
+        let duplicate = rustix::io::dup(&first.fd).unwrap();
+        retain_namespace(&mut retained, key, duplicate, || {
+            panic!("duplicate namespace must reuse its retained table")
+        })
+        .unwrap();
+        assert_eq!(retained[&key].fd.as_raw_fd(), original);
+        let excess =
+            rustix::fs::memfd_create("a1-namespace-excess", rustix::fs::MemfdFlags::CLOEXEC)
+                .unwrap();
+        let stat = rustix::fs::fstat(&excess).unwrap();
+        assert_eq!(
+            retain_namespace(&mut retained, (stat.st_dev, stat.st_ino), excess, || {
+                panic!("excess namespace must refuse before reading its mount table")
+            }),
+            Err(Failure::Unavailable)
+        );
+        assert_eq!(retained.len(), 16);
+    }
+
+    #[test]
+    fn refused_mount_table_cannot_publish_or_replace_a_namespace_anchor() {
+        let mut retained = BTreeMap::new();
+        let fd = rustix::fs::memfd_create("a1-namespace-refused", rustix::fs::MemfdFlags::CLOEXEC)
+            .unwrap();
+        let stat = rustix::fs::fstat(&fd).unwrap();
+        assert_eq!(
+            retain_namespace(&mut retained, (stat.st_dev, stat.st_ino), fd, || {
+                Err(Failure::Conflict)
+            }),
+            Err(Failure::Conflict)
+        );
+        assert!(retained.is_empty());
+    }
+
     fn selected() -> StorageDevice {
         StorageDevice {
             id: "data".into(),

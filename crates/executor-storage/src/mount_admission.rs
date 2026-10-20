@@ -28,6 +28,10 @@ const MAX_PHYSICAL: usize = 8;
 const IMAGE: &str = "/usr/bin/mount";
 mod host_consumers;
 
+/// Complete namespace capacity for the installed A1 host-consumer scan. Central
+/// resource admission must reserve one proc-root FD plus this many anchors.
+pub const HOST_CONSUMER_NAMESPACE_LIMIT: usize = 16;
+
 // Closed static fields only. errno=0 means no retained OS error; limit=0
 // means no observed/limit detail. IO errors never replace the original refusal.
 fn refusal(
