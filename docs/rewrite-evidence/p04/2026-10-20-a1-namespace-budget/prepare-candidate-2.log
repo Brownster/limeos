@@ -1,0 +1,9 @@
+permission denied while trying to connect to the docker API at unix:///home/marc/.docker/desktop/docker.sock
+Traceback (most recent call last):
+  File "/home/marc/Documents/github/lime-os/.cache/a1-namespace-review/prepare-candidate.py", line 61, in <module>
+    subprocess.run([*container, "dpkg-deb", "--raw-extract", inside(original), inside(stage)], check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib64/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['docker', 'run', '--rm', '--network=none', '--memory=128m', '--pids-limit=32', '--cap-drop=ALL', '--security-opt=no-new-privileges', '--security-opt=label=disable', '--read-only', '--user', '1000:1000', '--env', 'GNUPGHOME=/build/.cache/a1-namespace-review/gnupg', '--env', 'TMPDIR=/build/.cache/a1-namespace-review/tmp', '--volume', '/home/marc/Documents/github/lime-os:/build', '--workdir', '/build', 'sha256:e0df67a00f0f3080a0d01274c4c492c1173c6e39853913864d2cf596ad726fab', 'dpkg-deb', '--raw-extract', '/build/.cache/a1-namespace-review/packages/limeos_0.4.4_amd64.deb', '/build/.cache/a1-namespace-review/candidate/limeos-stage']' returned non-zero exit status 1.

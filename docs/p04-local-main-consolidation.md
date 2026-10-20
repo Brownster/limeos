@@ -78,6 +78,13 @@ owner or total namespace count. The descriptor reservation is already 225 of
 completed; the subsequent dependency VM wrapper was not reached. Full installed
 acceptance, installed ARM64 and Pi qualification remain open.
 
+The subsequent [A1 namespace-budget work](p04-a1-namespace-budget-handoff.md)
+specializes fixed-path configuration admission and fits sixteen namespace
+anchors within unchanged service limits. Its new executor passes the old
+overflow but reaches a distinct userspace-task revalidation conflict. Native
+checks pass; installed A1 remains open, with process-witness attempts and host
+memory stops preserved separately from this consolidation's original CI result.
+
 The reference/harness and schema records retain their earlier input snapshots;
 later UI, leaf-harness and documentation corrections are identified separately.
 Old source-bound leaf packets keep their original source/test claims. Counts

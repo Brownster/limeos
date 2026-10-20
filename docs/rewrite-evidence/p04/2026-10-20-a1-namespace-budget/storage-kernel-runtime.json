@@ -1,0 +1,12 @@
+{
+  "executable": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target/debug/deps/limeos_executor_storage-1b92f2a31d62eb89",
+  "sha256": "91d6d64ea99da80a6229b10e0fae26a523150f2541e1c92306506745cc43e1c5",
+  "exit_code": 0,
+  "tmpfs_fixture_sampled_peak_bytes": 57496,
+  "sampling_threshold_bytes": 16777216,
+  "per_file_limit_bytes": 16777216,
+  "scratch_removed": true,
+  "compile_record": ".cache/main-consolidation/attempts/a1-namespace-storage-compile/record.json",
+  "runtime_tmpdir": "/run/user/1000/limeos-storage-fixtures-pxpll96f",
+  "cargo_or_compilation_on_tmpfs": false
+}

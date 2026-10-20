@@ -1,0 +1,42 @@
+{
+  "final_code_and_fixture_source": "187b2489e7c443431a952eaa9b6e0d3fe340fb63",
+  "latest_executor_build_source": "0934eb421d5f4d91f20484d9e543d02cf800059b",
+  "namespace_fix_source": "509c05a59fcfac28a6ab32bb9783610c134bf4ad",
+  "baseline_source": "477b81f2ba78c9d100a6857950f50467079b406e",
+  "baseline_ci_run": 39429582703,
+  "native": {
+    "storage_unit": 216,
+    "executor_library": 44,
+    "storage_compile_fail_doctests": 13,
+    "reference": 61,
+    "strict_clippy": "affected storage/executor crates, all targets"
+  },
+  "model": {
+    "installed_configuration_fds": 13,
+    "namespace_anchors": 16,
+    "aggregate_fds": 213,
+    "admission_ceiling": 226,
+    "service_nofile": 256,
+    "service_memory_bytes": 67108864,
+    "service_tasks": 16
+  },
+  "installed_a1_accepted": false,
+  "latest_completed_a1_failure": {
+    "source": "0934eb421d5f4d91f20484d9e543d02cf800059b",
+    "phase": "scan.recheck.user_tasks",
+    "observed_tasks": 116,
+    "prior_tasks": 118,
+    "http_status": 409,
+    "before_plan_creation": true
+  },
+  "task_change_identity_proven": false,
+  "proc_witness_complete": false,
+  "followup_limits": [
+    "host memory stop threshold reached in both 1024 and 768 MiB guest attempts",
+    "one tune2fs fixture failure lacked exit/stdout and did not recur with diagnostics",
+    "no installed ARM64/Pi, whole-service peak resource, performance, crash or cutover acceptance"
+  ],
+  "packaging": "derived fixture packages: unchanged CI Core/ctl/password-worker/UI/contracts/units plus source-bound rebuilt executor and profile documentation",
+  "production_pi_accessed": false,
+  "remote_push": false
+}

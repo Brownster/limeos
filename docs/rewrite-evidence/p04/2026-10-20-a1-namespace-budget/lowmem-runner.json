@@ -1,0 +1,13 @@
+{
+  "original_runner": "tests/privileged_vm/run.py",
+  "original_sha256": "8eeee69a14a8f73142ef023b9c456ba004951fc4f7093446f81d8be94f560708",
+  "runner": ".cache/a1-namespace-review/run_768.py",
+  "runner_sha256": "9b6f6f3e24af7587f72fe6237efe19ab64e902d7ff5d6d8f6ea2f14938baae4f",
+  "sole_change": {
+    "from": "\"2048\" if args.build_bundle else \"1024\"",
+    "to": "\"2048\" if args.build_bundle else \"768\""
+  },
+  "guest_memory_mib": 768,
+  "host_memory_floor_bytes": 3221225472,
+  "service_ceilings_or_fixture_assertions_changed": false
+}

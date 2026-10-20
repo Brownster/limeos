@@ -1,0 +1,78 @@
+{
+  "executor_source": "509c05a59fcfac28a6ab32bb9783610c134bf4ad",
+  "baseline_source": "477b81f2ba78c9d100a6857950f50467079b406e",
+  "baseline_run": 39429582703,
+  "scope": "derived disposable fixture packages; unchanged Core/ctl/password-worker/UI/contracts/units from CI, newly built executor plus updated profile documentation",
+  "package_version": "0.4.4+namespace.1",
+  "packaging_head": "5bd691ba1af6751fe0c7acef6e224f59931a0d4a",
+  "packages": [
+    {
+      "package": "limeos_0.4.4+namespace.1_amd64.deb",
+      "sha256": "d02c4bf23b7c7e40c4ba2cd705d2cfef69232e94c31bf0169dbe420ebb8a8d21",
+      "baseline_package": "limeos_0.4.4_amd64.deb",
+      "baseline_sha256": "cfb14b5d3f3f045759207c16f6f8bfe6023e337b85068b846ece92db62bb2c3c",
+      "before_binaries": {
+        "limeos-core": "d7b1a3efdb1d7a4fc88f394b1b3c0835ef04e165f5a7e869dfb75d92d0c15cbb",
+        "limeos-executor": "6757b6117e20d6edd8e4723d10f2370edca8df9ac5e4145d5efc1e5fe3928ccf",
+        "limeos-password-worker": "141ae01d41fa7fc32c785da4d700ba19a873c01ec1fc31c916f44bd39378bac6",
+        "limeosctl": "fa507a53dcbe442b288f258a83a987a23c14799fef32e63f7ab2740a75f9581f"
+      },
+      "after_binaries": {
+        "limeos-core": "d7b1a3efdb1d7a4fc88f394b1b3c0835ef04e165f5a7e869dfb75d92d0c15cbb",
+        "limeos-password-worker": "141ae01d41fa7fc32c785da4d700ba19a873c01ec1fc31c916f44bd39378bac6",
+        "limeosctl": "fa507a53dcbe442b288f258a83a987a23c14799fef32e63f7ab2740a75f9581f",
+        "limeos-executor": "70ad5134691979b2aa339fbdb8e2942c85b5e148bd56222ef288c4a9688e99d6"
+      }
+    },
+    {
+      "package": "limeos-shadow_0.4.4+namespace.1_amd64.deb",
+      "sha256": "8f5f28727bb1b0f3043dcd59d498d8a238801baeb4148830ddbf03b052ef5282",
+      "baseline_package": "limeos-shadow_0.4.4_amd64.deb",
+      "baseline_sha256": "e04fac8b3dd478cf0189040c5dad8d7f44fdd6dd95261263a25967d4b4da151b",
+      "before_binaries": {
+        "limeos-core": "d7b1a3efdb1d7a4fc88f394b1b3c0835ef04e165f5a7e869dfb75d92d0c15cbb",
+        "limeos-executor": "6757b6117e20d6edd8e4723d10f2370edca8df9ac5e4145d5efc1e5fe3928ccf",
+        "limeos-password-worker": "141ae01d41fa7fc32c785da4d700ba19a873c01ec1fc31c916f44bd39378bac6",
+        "limeosctl": "fa507a53dcbe442b288f258a83a987a23c14799fef32e63f7ab2740a75f9581f"
+      },
+      "after_binaries": {
+        "limeos-core": "d7b1a3efdb1d7a4fc88f394b1b3c0835ef04e165f5a7e869dfb75d92d0c15cbb",
+        "limeos-password-worker": "141ae01d41fa7fc32c785da4d700ba19a873c01ec1fc31c916f44bd39378bac6",
+        "limeosctl": "fa507a53dcbe442b288f258a83a987a23c14799fef32e63f7ab2740a75f9581f",
+        "limeos-executor": "70ad5134691979b2aa339fbdb8e2942c85b5e148bd56222ef288c4a9688e99d6"
+      }
+    }
+  ],
+  "guest": {
+    "build_bundle.py": "cc865908b75ca864735687aa0e02f94412bd954156b958f4485121f0f3cd2a93",
+    "build_guest.py": "32bb5ce9b3897f821a5aba5b43c819884f87864cb4045e39e71e62af7c526121",
+    "ci_dependencies_guest.py": "24e7d70360895d2fd403d18f95378fcc59f04e786a0172d6100852e79e8dae83",
+    "ci_foundation_guest.py": "d42ae0a8e5f93c8070a169688c1805b07391fd95c78b9749427eca0493f5d19b",
+    "ci_observations_guest.py": "9a19a9c8e53e952493ff2521b57f04f1403952005ad92e3ee7540e1f74d3706d",
+    "ci_reference_guest.py": "04d0a576423f47940689ebf4d42e534ccfab4fb2fc843af909aaf1b2bfefe390",
+    "current_authority_schema.py": "cf88c8fe44eb175847339e19922da617d24f1810313acf81ed8f357e2548f4ce",
+    "guest.py": "70c4fc420bdc6e083b8ee4a10dbb99ccb15c00604276bf1b984b2101f66fa201",
+    "namespace_census.py": "86d373bc844f13ae79755fb669eeb1c78cbd155cacc635b6376b1e8855e5a8d6",
+    "namespace_review_guest.py": "da4d79a0a8cb914febf4b7c2cd814b008a2b1bcae09455b665d10ace5eb8bd5b",
+    "p02_guest.py": "0372bcbe1d5f4fb963160a7344cc446ed440dc11a0d3a1cc4906ab1b1af71102",
+    "p03_compose_guest.py": "fe4c893258459d5f237502beca23f21d0b0412a405381bd7fae8f0ea085551a0",
+    "p03_guest.py": "9f411bfb46aef1b7356f846c1df899a86f4e83d3f1669780973ca0f45805bda4",
+    "p03_lifecycle_guest.py": "47d03c239ac7d40fedea6ad04948c75fafa0e7e3181f6c8541928ef52de4c2c1",
+    "p03_reference_guest.py": "93442f0c11ea1615032ce93bcda0a4b22bf92b33f1ad126cc2c5a1aa604278b9",
+    "p04_approved_container_guest.py": "7a1ca0bff91b9d94b589d39465cb1b2b2f99944502373ffdd4cedfd87f3dbcb5",
+    "p04_approved_guest.py": "7e6ff14239e2be7f829c0fa749760b5a3d81ced6e5cdf4ffc77defae9a37260a",
+    "p04_dependencies_guest.py": "fc7ed87895f954b6d0524f5275407c981a9e3df830fa69b09aaf29bb23f48594",
+    "p04_locks_container_guest.py": "8a7a4f3ae68b4325e56235329134d27b9ea9de7563970b6d4d793fe42cc33289",
+    "p04_locks_guest.py": "016ff3c25119f79b4eba3c95651ca63d56aa7f96c69a90bd57523fcc739d6893",
+    "p04_mounts_guest.py": "937e887dc5020a5f8d6d0edd0b05454a130726e21ed4bd47d03d5fd539b7fc4c",
+    "p04_planning_guest.py": "fb507c8b2ad85fd382e5902b5a9c5aa1bc9d94170778958eff33585163bdced6",
+    "p04_storage_guest.py": "2d8f6f07fa42d6a1a61e3711090fb0e9a122a30718f1c04dce8d3918dae3a9fa",
+    "p04_targets_guest.py": "332bf5b6062b381b20ec24067735b96478b5b4ff30b5b94e7a46f340b6c430a5",
+    "p04_targets_package_guest.py": "c14fb8e4909a4d168b1b80b5ec005f9be89b777069533414f0c837619ef57194",
+    "record_compose_evidence.py": "7787b696b4c25ef6c39b1027812fea40aed13e60cfd3f57f6863f284a911d9ce",
+    "record_dependencies_evidence.py": "0d163a40096ea89a32777ff254b49e1b9aa39f4e9d270bbbeb6366792b4108cd",
+    "record_p03_evidence.py": "ab95bae039059394f2d606cc8ac8138434a54c2061d8d5efaf767ce14fc26759",
+    "record_storage_evidence.py": "1aab175d872bfc0490c9a9b0e67c58b3d82938b2e78b812119673b85a78163f4",
+    "run.py": "8eeee69a14a8f73142ef023b9c456ba004951fc4f7093446f81d8be94f560708"
+  }
+}

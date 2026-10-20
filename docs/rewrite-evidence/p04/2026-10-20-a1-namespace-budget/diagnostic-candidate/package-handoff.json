@@ -1,0 +1,10 @@
+{
+  "container": [
+    "7cceaec2ad95989fdc8ece8df5c165d1794acb09b836563aa205a3cdce246e2b  /build/.cache/a1-namespace-review/diagnostic-candidate/packages/limeos-shadow_0.4.4+namespace.2_amd64.deb",
+    "a5beb74d0e75f0ea3c6d0bd600b81d78a42211b1cd8da3aa0f84936ccfe44990  /build/.cache/a1-namespace-review/diagnostic-candidate/packages/limeos_0.4.4+namespace.2_amd64.deb"
+  ],
+  "host": [
+    "7cceaec2ad95989fdc8ece8df5c165d1794acb09b836563aa205a3cdce246e2b",
+    "a5beb74d0e75f0ea3c6d0bd600b81d78a42211b1cd8da3aa0f84936ccfe44990"
+  ]
+}

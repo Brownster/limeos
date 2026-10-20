@@ -1,0 +1,178 @@
+[
+  {
+    "attempt": "a1-namespace-baseline",
+    "terminal": true,
+    "exit_code": 1,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-native-storage",
+    "terminal": true,
+    "exit_code": 0,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-native-anchors",
+    "terminal": true,
+    "exit_code": 0,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-native-admission",
+    "terminal": true,
+    "exit_code": 0,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": true
+  },
+  {
+    "attempt": "a1-namespace-native-library",
+    "terminal": true,
+    "exit_code": 0,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-native-clippy",
+    "terminal": true,
+    "exit_code": 0,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-candidate",
+    "terminal": true,
+    "exit_code": 1,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-candidate-verified",
+    "terminal": true,
+    "exit_code": 1,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-native-diagnostics",
+    "terminal": true,
+    "exit_code": 0,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-diagnostics-clippy",
+    "terminal": true,
+    "exit_code": 0,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-diagnostic-vm",
+    "terminal": true,
+    "exit_code": 1,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-proc-witness",
+    "terminal": true,
+    "exit_code": 1,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-target-uid-probe-tests",
+    "terminal": true,
+    "exit_code": 0,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-proc-witness-v2",
+    "terminal": true,
+    "exit_code": 143,
+    "guard_triggered": true,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-proc-witness-768",
+    "terminal": true,
+    "exit_code": 1,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-proc-witness-768-diagnostics",
+    "terminal": true,
+    "exit_code": 143,
+    "guard_triggered": true,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-storage-compile",
+    "terminal": true,
+    "exit_code": 0,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-storage-runtime",
+    "terminal": true,
+    "exit_code": 0,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-final-executor",
+    "terminal": true,
+    "exit_code": 0,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-final-storage-docs",
+    "terminal": true,
+    "exit_code": 0,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-final-reference",
+    "terminal": true,
+    "exit_code": 1,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  },
+  {
+    "attempt": "a1-namespace-final-reference-fixed",
+    "terminal": true,
+    "exit_code": 0,
+    "guard_triggered": false,
+    "inputs_unchanged": true,
+    "zero_tests_not_qualification": false
+  }
+]

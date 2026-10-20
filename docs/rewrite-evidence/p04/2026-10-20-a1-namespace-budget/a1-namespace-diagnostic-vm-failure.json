@@ -1,0 +1,555 @@
+{
+  "summary": "fail",
+  "stage": "pre_effect_api_refusals",
+  "started": 1792523673.7771142,
+  "source_commit": null,
+  "source_identity": "whole-source SHA not supplied; join exact package/binary hashes to external CI provenance",
+  "authority_schema": 11,
+  "package_version": "0.4.4+namespace.2",
+  "fixture_sha256": "937e887dc5020a5f8d6d0edd0b05454a130726e21ed4bd47d03d5fd539b7fc4c",
+  "limitations": [
+    "One disposable AMD64 KVM API/Core/root-service success and replay scenario only; no Pi or ARM64 installed claim.",
+    "Real Engine must report zero declared containers; live consumer and full namespace/refusal matrices remain open.",
+    "Guardian death, D-state/descendant cleanup, crash inside the effect, real browser UI and pressure/peak-resource qualification remain open.",
+    "Core restart after verified completion is tested; acceptance-before-Verified and pending/unknown reconciliation are not simulated.",
+    "CI source/run/package provenance must be joined by the qualification owner; hashes and successful fixture execution do not alone identify a source commit.",
+    "The real packaged dockerd must own its Unix listener. A transient guest-only service replaces PID1 socket activation when needed; socket-activated peer-PID support is not qualified.",
+    "The same Core authority database is retained. Existing jobs, claims and target receipts are never cleared to admit this fixture.",
+    "The prepared underlay is recorded before mounting, but is not held open or re-inspected beneath the resulting mount; holding it would itself be a genuine host consumer."
+  ],
+  "prior_result_sha256": "547d07fb5d9b294f64aa5421c72222fc5263434b81865949e22d00730fdd33a4",
+  "fixture": {
+    "source_device": {
+      "major": 254,
+      "minor": 65
+    },
+    "physical_devices": [
+      "254:64",
+      "254:65"
+    ],
+    "host_root_mount_id": 27,
+    "prepared_target": {
+      "major": 254,
+      "minor": 1,
+      "inode": 131394,
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0
+    },
+    "previous_mount": {
+      "mount_id": 616,
+      "parent": 27,
+      "device": {
+        "major": 254,
+        "minor": 65
+      },
+      "root": "/",
+      "target": "/mnt/backup",
+      "options": [
+        "rw",
+        "relatime"
+      ],
+      "filesystem": "ext4",
+      "source": "/dev/vde1",
+      "super_options": [
+        "rw"
+      ]
+    }
+  },
+  "schema_source_sha256": "93e8a4799edb601cefa2e641b62e8b9592378ce1ad4eb84a0cb0d26e19d25773",
+  "authority_before": {
+    "jobs": [
+      [
+        "0f4b416a0893b63b88495b48ad0ce0ab0a359b979d2c0d7fa1ea22d495b094aa",
+        "canceled",
+        "401c698942945cac0bb29996cebb151d24bd9f8303116e6ec99f3a32b8fdc90e",
+        "fixture:claim-independent",
+        1,
+        1792523884
+      ],
+      [
+        "400d9ff1a953634e11aaabac65678fd856106f601bd94e5bc92b1e8acedbb0d7",
+        "precondition_changed",
+        "86f508d78e59ed61853d97af402ec378523dc3af1b2a10d85f4dab0a9e4a69f3",
+        "storage:configuration",
+        1,
+        1792523936
+      ],
+      [
+        "41d0b10f17e6731daa64eb15779f3d9e1fa4fc2dcc5f049fdea2a235fd23e87c",
+        "succeeded",
+        "815c665e66423a2e814b6fc58afd81fbac9e8dce2470982a649ee900cb90359b",
+        "storage:configuration",
+        1,
+        1792523903
+      ],
+      [
+        "8294c7528867373f143bf3acb88f0d601d0d80f2796d0cc32095c918054d3480",
+        "succeeded",
+        "885e3671bc932dc3ae393f94b9592622ccbe00dd203a606e66e5d81ac6c055b8",
+        "storage:configuration",
+        1,
+        1792523888
+      ],
+      [
+        "b8eccd74fe344c3e91654493ed1cc69e9b637cf8dd0ed2d2884f2375bd15c4f2",
+        "canceled",
+        "e3a52092df45fd9ec80bcd9c7b3313b6e1efb1d8b0c23a075870c70cc76084b9",
+        "fixture:claim-a",
+        1,
+        1792523884
+      ],
+      [
+        "b9d9cf51520bfc3033b6003280de007829d973a9bc04db4088948cab85ecaa3a",
+        "precondition_changed",
+        "cda940c4b6d9e1e71dc9f0892102dc54db65513062e632f21bf35fa7884b20b2",
+        "storage:configuration",
+        1,
+        1792523892
+      ],
+      [
+        "dd9ec5bc1ee2b6bc57d0e6a12132d5f81f2e881c310e778bb0f49deb5f5a842a",
+        "canceled",
+        "80df4f906604c8f2abb7d1b1d4a10c6620ac61bdfd50b91da0256cafd20a8d94",
+        "fixture:claim-b",
+        1,
+        1792523884
+      ]
+    ],
+    "claims": [],
+    "target_receipts": [
+      [
+        "400d9ff1a953634e11aaabac65678fd856106f601bd94e5bc92b1e8acedbb0d7",
+        "cb16dfee112796a2151f6b65aefa6b66351efb0241002d6f04f62805be989033",
+        "precondition_changed",
+        "d322c3707ac834134e0503c418c9d3be5da8a01644913245ae1c3847a223cab9"
+      ],
+      [
+        "41d0b10f17e6731daa64eb15779f3d9e1fa4fc2dcc5f049fdea2a235fd23e87c",
+        "9325f35f345a953f1f2ce387b749d7fa38165abdd40526c98257234334504d6f",
+        "verified",
+        "528178d84a0243e583ecd754caf121607f3aa7fb553c7b3045131d6bab7e3df4"
+      ],
+      [
+        "498d20e20d4d30bae05e837947d1929663b1b0c54ada72104c018a823965e0bf",
+        "ce18541bf68a6b37090a895989647a3df7b5dccda7d6546ac135497e6679e641",
+        "verified",
+        "c80455abd9321876ac80f33f92e31cb12c09720210192f1d160bf89ae568b4c6"
+      ],
+      [
+        "6e11ad5a9433e7fa5b73a1487cee90c9934c3da36056f33973e546209aded64f",
+        "fec228095db42cb2f9cceb96917b564a0cc8b9ba31ea809e26cee40bf7f6d42a",
+        "precondition_changed",
+        "c52ba556b5499d463296884a743f0acf0570b2e7c02b602143b1750ece3d0811"
+      ],
+      [
+        "8294c7528867373f143bf3acb88f0d601d0d80f2796d0cc32095c918054d3480",
+        "8e69c559380a196d5d7b67b2db11e1b1cef61210d3513542c3d9aba6b600a4a9",
+        "verified",
+        "300ac39eb26398d39d5bdae0a495293a73c3b56faf9468a96f4e50ad8a9a1e71"
+      ],
+      [
+        "a62b202e88291e4f052c7f5fddc5a6409e05968b87611afa469edc3e0017a0a5",
+        "d838a542bd39c3e5591ad72c86367f19d7cb815bde1a05d4a78dec8d7734c703",
+        "verified",
+        "6e2551f316f329e0847810e333fe09f56d544ae4398e9dfadee4cdfd868a8b4f"
+      ],
+      [
+        "b1fa1e76fc5a82f2b6537eb3a84b1e9f53756b50172780d1bb3ede6374233835",
+        "4a7a7d303c08572a561f383df84ad1d52c9daba1b14e4ea6b8e8a67909a812e6",
+        "verified",
+        "75652567070a578ee141223703665468b73c1b532cd9e8db44649ecf4b534ebd"
+      ],
+      [
+        "b9d9cf51520bfc3033b6003280de007829d973a9bc04db4088948cab85ecaa3a",
+        "c90650d749bfa8c503febd0c46680eabae0208d087683a773e36c3b9789c955e",
+        "precondition_changed",
+        "977d14e8007d00d400d9ad5784edbc7598f43e11a9aae76e969a2df3153decf9"
+      ],
+      [
+        "ecbbd36386601004b9304f677791f2f9b70b5d0b5d7b8e9ca330783759e1ca5c",
+        "6c6e3eb2865db14ab3c945f46b82941fc675727d252488b13cf737fe2a0a499c",
+        "verified",
+        "b7f55eaa6c5687dd0cf8b2bbabc25772ad7d31ee96b5ee2e5272537abd4409bb"
+      ],
+      [
+        "f0c8a4f91e26a1d6db2bbd94bc913a260abc0034f090d682678a612b221d3c8c",
+        "6571ed166fd37c641c6d02292ff76e89375f053fc666967e71f82e6a01604ea6",
+        "verified",
+        "ff4b390bc70f1b3c0457cb4e10105e84557b5b5d24cd5520b4e1518bccfcdb7b"
+      ]
+    ],
+    "target_locks": [],
+    "authority_database": "/var/lib/limeos/core/core.sqlite",
+    "database_separation": false
+  },
+  "fstab_before": "c4d9008eb3402309c5aebb13b328943548b9a8caae6c24ef66efe1145260e780",
+  "data_before": {
+    "data": {
+      "sha256": "d8af59f2bbda6b7a01073609e1a9d175db383e6b0832a0f60454984c4ca356f1",
+      "uid": 0,
+      "gid": 0,
+      "mode": 33188
+    },
+    "data2": {
+      "sha256": "d8af59f2bbda6b7a01073609e1a9d175db383e6b0832a0f60454984c4ca356f1",
+      "uid": 0,
+      "gid": 0,
+      "mode": 33188
+    },
+    "downloads": {
+      "sha256": "d8af59f2bbda6b7a01073609e1a9d175db383e6b0832a0f60454984c4ca356f1",
+      "uid": 0,
+      "gid": 0,
+      "mode": 33188
+    },
+    "parity": {
+      "sha256": "d8af59f2bbda6b7a01073609e1a9d175db383e6b0832a0f60454984c4ca356f1",
+      "uid": 0,
+      "gid": 0,
+      "mode": 33188
+    },
+    "backup": {
+      "sha256": "d8af59f2bbda6b7a01073609e1a9d175db383e6b0832a0f60454984c4ca356f1",
+      "uid": 0,
+      "gid": 0,
+      "mode": 33188
+    }
+  },
+  "docker": {
+    "peer": {
+      "pid": 6959,
+      "uid": 0,
+      "gid": 0
+    },
+    "initial_peer": {
+      "pid": 1,
+      "uid": 0,
+      "gid": 0
+    },
+    "unit": "limeos-a1-real-docker",
+    "dockerd_sha256": "39ad7936d1af38671d2c4401df15e8c6610dadf38d7595bcb596b27ba30e74cc",
+    "docker_package_version": "20.10.24+dfsg1-1+deb12u1+b6",
+    "listener_fixture": "real packaged dockerd-owned Unix socket; socket activation excluded",
+    "id": "3DNA:MRTP:IBNP:VU4C:APTE:SKS4:7D7Q:FDOO:JC6F:LTX6:4FOX:PLQB",
+    "root": "/var/lib/docker",
+    "server_version": "20.10.24+dfsg1",
+    "declared_containers": []
+  },
+  "images_sha256": {
+    "/usr/lib/limeos/limeos-executor": "debcdc6c26e571ae251a16a14a6b9b90e164821e3eda429b67bd674d088e93cc",
+    "/usr/bin/mount": "18ca60a1e1c93f58fca00607ad32bf192fea00157eac73a5341f8bd1c2201403",
+    "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1": "2bd1552c47799ef67e701e81d4383061fd76059868e446e63560f0dd0d5ec14e",
+    "/usr/lib/x86_64-linux-gnu/libm.so.6": "7f2ca87f652f56b094462474b076749e90e689d0ecb9cb63c7679820b271b4e7",
+    "/usr/lib/x86_64-linux-gnu/libc.so.6": "6b4a45352fd0c540a9c7c718f35ce8c8e46a4e482f9d3885a910c32d1a0e1421",
+    "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2": "02bcda52c1a5dfc236f94d9e5255b4a0e26347d8a372a5223b650e31f291ce3c",
+    "/usr/lib/x86_64-linux-gnu/libmount.so.1.1.0": "70c1da7f7a3d802c498f4938449bfc7a51877c46b16572d1a396901c032758bc",
+    "/usr/lib/x86_64-linux-gnu/libselinux.so.1": "0207e4908ea384e186c75925b0e56996a3eccecd48c99252aeb757d0d3451c93",
+    "/usr/lib/x86_64-linux-gnu/libblkid.so.1.1.0": "cc3d6ca965cab25eacb8d7d98f0b13be7c94a19583983fb864ba10163e5536b0",
+    "/usr/lib/x86_64-linux-gnu/libpcre2-8.so.0.11.2": "092bc945140e65c691c7c717d71083111f46813f31a76dd848bf82e91450778b"
+  },
+  "package_sha256": "a5beb74d0e75f0ea3c6d0bd600b81d78a42211b1cd8da3aa0f84936ccfe44990",
+  "binary_sha256": {
+    "limeos-core": "d7b1a3efdb1d7a4fc88f394b1b3c0835ef04e165f5a7e869dfb75d92d0c15cbb",
+    "limeos-executor": "debcdc6c26e571ae251a16a14a6b9b90e164821e3eda429b67bd674d088e93cc",
+    "limeos-password-worker": "141ae01d41fa7fc32c785da4d700ba19a873c01ec1fc31c916f44bd39378bac6",
+    "limeosctl": "fa507a53dcbe442b288f258a83a987a23c14799fef32e63f7ab2740a75f9581f"
+  },
+  "unit_sha256": "51a05b27d0c40186801876b21a90277813a50427e47d11d8ecc0ba5b62ea87c2",
+  "filesystem_root_before_preparation": {
+    "major": 254,
+    "minor": 65,
+    "inode": 2,
+    "mode": 16877,
+    "uid": 0,
+    "gid": 0
+  },
+  "configuration_sha256": {
+    "/etc/limeos/storage-contract.json": "ece7d65ec9956bb31a5f6bc3b599843c7c1eb2fe7d0cf625d8cad52928d112c7",
+    "/etc/limeos/pools.json": "ae8d67f7e6af424d4543d19f1b129778d8faafa151a2e683e305df8072e3baa8",
+    "/etc/limeos/protection.json": "5d2bfca97721e5c5c8d9ea1a3642219fd501c56209461f2880505e6a94cccdf6",
+    "/etc/limeos/shares.json": "0d4b3c328c50266bcb882d609c0d08b29f198930e88e595578cbd62077118ae8",
+    "/etc/limeos/system-policy/storage-mounts.json": "a0750217a3ab2f9662d77ff4ede857437e363afda47b5202b62bb069cf3a166e"
+  },
+  "prepared_filesystem_root": {
+    "major": 254,
+    "minor": 65,
+    "inode": 2,
+    "mode": 16877,
+    "uid": 1000,
+    "gid": 1000
+  },
+  "previous_writer": {
+    "before": {
+      "MainPID": "0",
+      "ControlGroup": ""
+    },
+    "main_pid_after": 0,
+    "owned_cgroup_empty_or_removed": true
+  },
+  "service": {
+    "pid": 7032,
+    "status": {
+      "CapEff": "0000000000280004",
+      "CapBnd": "0000000000280004",
+      "CapAmb": "0000000000280004",
+      "NoNewPrivs": "1",
+      "Threads": "2",
+      "VmRSS": "3640 kB"
+    },
+    "properties": {
+      "Restart": "no",
+      "ControlGroup": "/system.slice/limeos-storage-mounts.service",
+      "MemoryMax": "67108864",
+      "TasksMax": "16",
+      "LimitNOFILE": "256",
+      "KillMode": "control-group",
+      "SendSIGKILL": "yes"
+    },
+    "fd_count_after_start": 10
+  },
+  "finished": 1792523747.520989,
+  "error": "unexpected API status 409, expected 201: {\"code\":\"conflict\",\"message\":\"The request conflicts with current state.\",\"retry\":false,\"audit_id\":\"http-2\"}",
+  "after_refusal_facts": {
+    "scope": "after refusal, before stop; samples are not failed-scan facts or authority",
+    "kernel_release": "6.1.0-54-cloud-amd64",
+    "unit": {
+      "main_process_matches_start": true,
+      "memory_current_bytes": 5525504,
+      "tasks_current": 2,
+      "descriptor_limit": 256
+    },
+    "selected_process_status": {
+      "CapAmb": 2621444,
+      "CapBnd": 2621444,
+      "CapEff": 2621444,
+      "FDSize": 128,
+      "Gid": [
+        113,
+        113,
+        113,
+        113
+      ],
+      "NoNewPrivs": 1,
+      "Threads": 2,
+      "Uid": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "resident_kib": 6160
+    },
+    "selected_process_fd_count": 10,
+    "selected_process_context": {
+      "mount_namespace_equals_pid1": true,
+      "root_device_inode_equals_pid1": true
+    },
+    "observer_mount_summary": {
+      "observer_namespace_equals_pid1": true,
+      "mount_count": 30,
+      "btrfs_count": 0,
+      "fuse_count": 1,
+      "root_mount_id": 27,
+      "root_device": {
+        "major": 254,
+        "minor": 1
+      },
+      "root_filesystem": "ext4",
+      "target_is_mountpoint": false,
+      "target_covering_filesystem": "ext4",
+      "underlay_filesystem": "ext4",
+      "target_covering_device": {
+        "major": 254,
+        "minor": 1
+      }
+    },
+    "namespace_census": {
+      "scope": "later post-refusal diagnostic only; no authority or failed-scan sample",
+      "complete_without_observed_read_or_membership_errors": true,
+      "tasks_seen": 116,
+      "kernel_tasks_seen": 76,
+      "namespace_count_seen": 9,
+      "namespaces": [
+        {
+          "device": 4,
+          "inode": 4026531841,
+          "host": true,
+          "task_count": 27,
+          "task_samples": [
+            {
+              "pid": 1,
+              "tid": 1
+            },
+            {
+              "pid": 251,
+              "tid": 251
+            },
+            {
+              "pid": 474,
+              "tid": 474
+            },
+            {
+              "pid": 479,
+              "tid": 479
+            }
+          ],
+          "cgroup_samples": [
+            "/init.scope",
+            "/system.slice/systemd-journald.service"
+          ]
+        },
+        {
+          "device": 4,
+          "inode": 4026532297,
+          "host": false,
+          "task_count": 1,
+          "task_samples": [
+            {
+              "pid": 277,
+              "tid": 277
+            }
+          ],
+          "cgroup_samples": [
+            "/system.slice/systemd-udevd.service/udev"
+          ]
+        },
+        {
+          "device": 4,
+          "inode": 4026532299,
+          "host": false,
+          "task_count": 1,
+          "task_samples": [
+            {
+              "pid": 389,
+              "tid": 389
+            }
+          ],
+          "cgroup_samples": [
+            "/system.slice/systemd-resolved.service"
+          ]
+        },
+        {
+          "device": 4,
+          "inode": 4026532300,
+          "host": false,
+          "task_count": 2,
+          "task_samples": [
+            {
+              "pid": 392,
+              "tid": 392
+            },
+            {
+              "pid": 392,
+              "tid": 399
+            }
+          ],
+          "cgroup_samples": [
+            "/system.slice/systemd-timesyncd.service"
+          ]
+        },
+        {
+          "device": 4,
+          "inode": 4026532302,
+          "host": false,
+          "task_count": 1,
+          "task_samples": [
+            {
+              "pid": 425,
+              "tid": 425
+            }
+          ],
+          "cgroup_samples": [
+            "/system.slice/systemd-networkd.service"
+          ]
+        },
+        {
+          "device": 4,
+          "inode": 4026532351,
+          "host": false,
+          "task_count": 1,
+          "task_samples": [
+            {
+              "pid": 477,
+              "tid": 477
+            }
+          ],
+          "cgroup_samples": [
+            "/system.slice/systemd-logind.service"
+          ]
+        },
+        {
+          "device": 4,
+          "inode": 4026532303,
+          "host": false,
+          "task_count": 1,
+          "task_samples": [
+            {
+              "pid": 6164,
+              "tid": 6164
+            }
+          ],
+          "cgroup_samples": [
+            "/system.slice/limeos-storaged.service"
+          ]
+        },
+        {
+          "device": 4,
+          "inode": 4026532304,
+          "host": false,
+          "task_count": 1,
+          "task_samples": [
+            {
+              "pid": 6165,
+              "tid": 6165
+            }
+          ],
+          "cgroup_samples": [
+            "/system.slice/limeos-containerd.service"
+          ]
+        },
+        {
+          "device": 4,
+          "inode": 4026532305,
+          "host": false,
+          "task_count": 5,
+          "task_samples": [
+            {
+              "pid": 6166,
+              "tid": 6166
+            },
+            {
+              "pid": 6166,
+              "tid": 6169
+            },
+            {
+              "pid": 6166,
+              "tid": 6170
+            },
+            {
+              "pid": 6166,
+              "tid": 6173
+            }
+          ],
+          "cgroup_samples": [
+            "/system.slice/limeos-core.service"
+          ]
+        }
+      ],
+      "error_count": 0,
+      "error_samples": [],
+      "elapsed_seconds": 0.01479686199999719,
+      "bounds": {
+        "tasks": 256,
+        "namespaces": 32,
+        "bytes": 24576,
+        "seconds": 2
+      }
+    }
+  },
+  "unit_diagnostics": "Oct 20 19:12:50 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.\nOct 20 19:12:50 limeos-p01-test limeos-core[1766]: {\"timestamp\":\"2026-10-20T19:12:50.251751Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"core ready\",\"generation\":2}}\nOct 20 19:12:53 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...\nOct 20 19:12:53 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.\nOct 20 19:12:53 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.\nOct 20 19:12:53 limeos-p01-test systemd[1]: limeos-core.service: Consumed 1.283s CPU time.\nOct 20 19:12:53 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...\nOct 20 19:12:53 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.\nOct 20 19:12:53 limeos-p01-test limeos-core[1929]: {\"timestamp\":\"2026-10-20T19:12:53.548786Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"core ready\",\"generation\":3}}\nOct 20 19:12:55 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...\nOct 20 19:12:55 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.\nOct 20 19:12:55 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.\nOct 20 19:12:56 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...\nOct 20 19:12:56 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.\nOct 20 19:12:56 limeos-p01-test limeos-core[2458]: {\"timestamp\":\"2026-10-20T19:12:56.203829Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"core ready\",\"generation\":4}}\nOct 20 19:13:04 limeos-p01-test systemd[1]: limeos-core.service: Main process exited, code=killed, status=9/KILL\nOct 20 19:13:04 limeos-p01-test systemd[1]: limeos-core.service: Failed with result 'signal'.\nOct 20 19:13:06 limeos-p01-test systemd[1]: limeos-core.service: Scheduled restart job, restart counter is at 1.\nOct 20 19:13:06 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.\nOct 20 19:13:06 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...\nOct 20 19:13:06 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.\nOct 20 19:13:06 limeos-p01-test limeos-core[4226]: {\"timestamp\":\"2026-10-20T19:13:06.283965Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"core ready\",\"generation\":5}}\nOct 20 19:13:06 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...\nOct 20 19:13:06 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.\nOct 20 19:13:06 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.\nOct 20 19:13:06 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...\nOct 20 19:13:06 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.\nOct 20 19:13:06 limeos-p01-test limeos-core[4246]: {\"timestamp\":\"2026-10-20T19:13:06.650090Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"core ready\",\"generation\":6}}\nOct 20 19:13:06 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...\nOct 20 19:13:06 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.\nOct 20 19:13:06 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.\nOct 20 19:13:06 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...\nOct 20 19:13:06 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.\nOct 20 19:13:06 limeos-p01-test limeos-core[4259]: {\"timestamp\":\"2026-10-20T19:13:06.922639Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"core ready\",\"generation\":7}}\nOct 20 19:13:21 limeos-p01-test systemd[1]: limeos-core.service: Main process exited, code=killed, status=9/KILL\nOct 20 19:13:21 limeos-p01-test systemd[1]: limeos-core.service: Failed with result 'signal'.\nOct 20 19:13:23 limeos-p01-test systemd[1]: limeos-core.service: Scheduled restart job, restart counter is at 1.\nOct 20 19:13:23 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.\nOct 20 19:13:23 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...\nOct 20 19:13:23 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.\nOct 20 19:13:23 limeos-p01-test limeos-core[5125]: {\"timestamp\":\"2026-10-20T19:13:23.316408Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"core ready\",\"generation\":8}}\nOct 20 19:13:56 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...\nOct 20 19:13:56 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.\nOct 20 19:13:56 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.\nOct 20 19:13:56 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...\nOct 20 19:13:56 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.\nOct 20 19:13:56 limeos-p01-test limeos-core[5636]: {\"timestamp\":\"2026-10-20T19:13:56.564713Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"core ready\",\"generation\":9}}\nOct 20 19:13:56 limeos-p01-test limeos-core[5636]: {\"timestamp\":\"2026-10-20T19:13:56.568849Z\",\"level\":\"WARN\",\"fields\":{\"message\":\"storage target job remains pending or requires reconciliation\",\"code\":\"Unavailable\"}}\nOct 20 19:14:32 limeos-p01-test systemd[1]: Stopping limeos-core.service - LimeOS core...\nOct 20 19:14:32 limeos-p01-test systemd[1]: limeos-core.service: Deactivated successfully.\nOct 20 19:14:32 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.\nOct 20 19:14:33 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...\nOct 20 19:14:33 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.\nOct 20 19:14:33 limeos-p01-test limeos-core[6166]: {\"timestamp\":\"2026-10-20T19:14:33.574534Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"core ready\",\"generation\":10}}\nOct 20 19:15:44 limeos-p01-test systemd[1]: Starting limeos-storage-mounts.service - LimeOS approved nonpersistent storage mount...\nOct 20 19:15:44 limeos-p01-test systemd[1]: Started limeos-storage-mounts.service - LimeOS approved nonpersistent storage mount.\nOct 20 19:15:47 limeos-p01-test limeos-executor[7032]: {\"level\":\"WARN\",\"event\":\"storage_mount_target_refused\",\"phase\":\"scan.recheck.user_tasks\",\"failure\":\"Conflict\",\"errno\":0,\"observed\":116,\"limit\":118}\nOct 20 19:15:47 limeos-p01-test limeos-executor[7032]: {\"level\":\"WARN\",\"event\":\"storage_mount_target_refused\",\"phase\":\"recheck.host_consumers.before\",\"failure\":\"Conflict\",\"errno\":0,\"observed\":0,\"limit\":0}\nOct 20 19:15:47 limeos-p01-test limeos-executor[7032]: {\"level\":\"WARN\",\"event\":\"storage_mount_admission_refused\",\"phase\":\"revalidate.target_and_host_consumers.after\",\"code\":\"Conflict\"}\nOct 20 19:15:47 limeos-p01-test limeos-core[6166]: {\"level\":\"WARN\",\"event\":\"storage_mount_rpc_refused\",\"operation\":\"inspect\",\"phase\":\"root_reply\",\"code\":\"Conflict\"}\n",
+  "teardown": {
+    "unit_stop_returncode": 0,
+    "mount_left_for_vm_disposal": true
+  }
+}

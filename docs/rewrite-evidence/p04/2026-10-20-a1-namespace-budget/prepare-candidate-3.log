@@ -1,0 +1,3 @@
+dpkg-deb: building package 'limeos' in '/home/marc/Documents/github/lime-os/.cache/a1-namespace-review/diagnostic-candidate/packages/limeos_0.4.4+namespace.2_amd64.deb'.
+dpkg-deb: building package 'limeos-shadow' in '/home/marc/Documents/github/lime-os/.cache/a1-namespace-review/diagnostic-candidate/packages/limeos-shadow_0.4.4+namespace.2_amd64.deb'.
+{"repository": "/home/marc/Documents/github/lime-os/.cache/a1-namespace-review/diagnostic-candidate/repository", "version": "0.4.4+namespace.2", "executor_source": "0934eb421d5f4d91f20484d9e543d02cf800059b", "scope": "derived disposable fixture packages; unchanged Core/ctl/password-worker/UI/contracts/units from CI, newly built executor plus updated profile documentation"}

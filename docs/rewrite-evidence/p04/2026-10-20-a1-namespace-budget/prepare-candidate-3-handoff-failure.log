@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/marc/Documents/github/lime-os/.cache/a1-namespace-review/prepare-candidate.py", line 84, in <module>
+    assert [line.split()[0] for line in observed] == [digest(path) for path in handoff_files], "Container package inputs differ from committed host inputs"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Container package inputs differ from committed host inputs
