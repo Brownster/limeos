@@ -150,14 +150,14 @@ impl Drop for FlightGuard {
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
-struct Sample {
-    open_fds: usize,
-    rss_bytes: usize,
-    threads: usize,
-    soft_nofile: Option<u64>,
+pub(crate) struct Sample {
+    pub(crate) open_fds: usize,
+    pub(crate) rss_bytes: usize,
+    pub(crate) threads: usize,
+    pub(crate) soft_nofile: Option<u64>,
 }
 impl Sample {
-    fn read() -> Result<Self> {
+    pub(crate) fn read() -> Result<Self> {
         let (rss_bytes, threads) = status(&read_status()?)?;
         // Counts the observer directory too; conservative by one descriptor.
         let mut open_fds = 0;

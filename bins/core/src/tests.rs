@@ -61,6 +61,7 @@ async fn observations_and_history_use_current_resource_grants_and_reject_revocat
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        stacks: Default::default(),
         compose_catalog: None,
         password_workers: Arc::new(Semaphore::new(2)),
         dummy_hash: "unused".into(),
@@ -102,6 +103,7 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        stacks: Default::default(),
         compose_catalog: None,
     };
     for (index, fixture) in fixtures.as_array().unwrap().iter().enumerate() {

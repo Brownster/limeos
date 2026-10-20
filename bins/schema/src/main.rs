@@ -78,6 +78,14 @@ fn main() {
     emit!("intent", limeos_domain::Intent);
     emit!("event", limeos_domain::Event);
     emit!("overview", limeos_contracts::Overview);
+    emit!(
+        "stack-inventory",
+        limeos_domain::deployment::discovery::StackInventory
+    );
+    emit!(
+        "stack-cohort",
+        limeos_domain::deployment::discovery::DiscoveryCohort
+    );
     emit!("resource-page", limeos_contracts::ResourcePage);
     emit!("metric-history", limeos_contracts::MetricHistory);
     emit!("restart-plan", limeos_domain::PlannedRestart);
@@ -313,6 +321,25 @@ fn main() {
     ts!(limeos_contracts::QueueRestartInput);
     ts!(limeos_contracts::JobProgress);
     ts!(limeos_executor_protocol::Request);
+    ts!(limeos_domain::deployment::discovery::StackInventory);
+    ts!(limeos_domain::deployment::discovery::SourceStatus);
+    ts!(limeos_domain::deployment::discovery::SourceState);
+    ts!(limeos_domain::deployment::discovery::RuntimeStatus);
+    ts!(limeos_domain::deployment::discovery::Counts);
+    ts!(limeos_domain::deployment::discovery::MemberView);
+    ts!(limeos_domain::deployment::discovery::ServiceView);
+    ts!(limeos_domain::deployment::discovery::StackIssue);
+    ts!(limeos_domain::deployment::discovery::StackView);
+    ts!(limeos_domain::deployment::discovery::RegistrationRelation);
+    ts!(limeos_domain::deployment::discovery::OtherProjectView);
+    ts!(limeos_domain::deployment::discovery::ProjectIdentity);
+    ts!(limeos_domain::deployment::discovery::FileStatus);
+    ts!(limeos_domain::deployment::discovery::UnsupportedSource);
+    ts!(limeos_domain::deployment::discovery::CatalogFacts);
+    ts!(limeos_domain::deployment::discovery::EngineFacts);
+    ts!(limeos_domain::deployment::discovery::Declaration);
+    ts!(limeos_domain::deployment::discovery::Membership);
+    ts!(limeos_domain::deployment::discovery::DiscoveryCohort);
     ts!(limeos_executor_protocol::Ceiling);
     ts!(limeos_executor_protocol::Receipt);
     types.push_str("export type RestartPlan = ContainerPlan;\nexport type PlannedRestart = PlannedContainerAction;\nexport type RestartJob = ContainerJob;\nexport type RestartRequest = ContainerRequest;\nexport type RestartReceipt = ContainerReceipt;\n");
@@ -322,6 +349,11 @@ fn main() {
         "/api/v1/auth/login":{"post":{"requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_contracts::Login)}}},"responses":{"200":{"description":"Secure session cookie and CSRF token","content":{"application/json":{"schema":schema_for!(limeos_contracts::SessionView)}}},"401":{"description":"Authentication failed"}}}},
         "/api/v1/auth/session":{"get":{"responses":{"200":{"description":"Current session","content":{"application/json":{"schema":schema_for!(limeos_contracts::SessionView)}}}}}},
         "/api/v1/auth/logout":{"post":{"responses":{"204":{"description":"Session revoked"}}}}
+    }});
+    openapi["paths"]["/api/v1/deployment/stacks"] = serde_json::json!({"get":{
+        "security":[{"session":[]}],
+        "description":"Read the shared stack cache. Requires current HealthRead grants for deployment:stacks and every disclosed stack, project and container. A partial grant refuses the complete view. Does not launch a probe or authorize stack actions.",
+        "responses":{"200":{"description":"Bounded stack/member observation with original source clocks","content":{"application/json":{"schema":schema_for!(limeos_domain::deployment::discovery::StackInventory)}}},"401":{"description":"Session expired or revoked"},"403":{"description":"Complete inventory is outside current grants"},"503":{"description":"Bounded inventory is unavailable"}}
     }});
     openapi["paths"]["/api/v1/auth/capabilities/observe-health/enable"] = serde_json::json!({"post":{
         "security":[{"session":[]}],

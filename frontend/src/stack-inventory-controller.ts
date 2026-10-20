@@ -4,7 +4,7 @@ import type { StackInventory } from "./stack-inventory-client";
 export type StackReadState = { value: StackInventory | null; loading: boolean; stale: boolean; error: string; expired: boolean; denied: boolean };
 type Reader = (signal: AbortSignal) => Promise<StackInventory>;
 type Clock = { now: () => number; schedule: (callback: () => void, ms: number) => ReturnType<typeof setTimeout>; cancel: (id: ReturnType<typeof setTimeout>) => void };
-const defaultClock: Clock = { now: () => Date.now() / 1000, schedule: setTimeout, cancel: clearTimeout };
+const defaultClock: Clock = { now: () => Date.now() / 1000, schedule: (callback,ms) => setTimeout(callback,ms), cancel: id => clearTimeout(id) };
 const initial = (): StackReadState => ({ value: null, loading: false, stale: true, error: "", expired: false, denied: false });
 
 /** One owner per authenticated principal/grant revision. No polling or writes. */
@@ -30,7 +30,7 @@ export class StackInventoryController {
         this.clearTimer(); const stale = inventoryStale(value, this.clock.now());
         this.update({ value, stale, error: "" });
         if (!stale) {
-          const expires = Math.min(...[value.catalog, value.engine].map(s => s.sampled_at! + s.max_age_seconds));
+          const expires = Math.min(...[value.catalog, value.engine].map(s => Math.min(s.sampled_at! + s.max_age_seconds,value.generated_at+s.valid_for_millis/1000)));
           this.timer = this.clock.schedule(() => { this.timer = null; if (!this.disposed && this.state.value === value) this.update({ stale: true }); }, Math.max(1, (expires - this.clock.now()) * 1000 + 1));
         }
       } catch (error) {

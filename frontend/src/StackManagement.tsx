@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import type { Counts, FileStatus, RuntimeStatus, ServiceView, StackInventory } from "./stack-inventory-client";
 import { StackInventoryController } from "./stack-inventory-controller";
 
@@ -23,7 +23,7 @@ export function StackManagement({ value, loading = false, stale = false, error =
         <p>Engine · {value.engine.state} · {sample(value.engine.sampled_at)}</p>
         {value.engine_matches_catalog === false && <p className="notice" role="status">The Engine identity differs from the registration. Runtime counts cannot be matched to these stacks.</p>}
       </div>
-      <p className="notice">Stack actions are unavailable while deployment execution is being integrated. Container membership does not verify Compose source files or storage dependencies.</p>
+      <p className="notice">Compose files and storage dependencies need verification before whole-stack changes.</p>
       {value.stacks.length === 0 && <p>{value.catalog.state === "fresh" ? "No stacks are registered." : "Registered stacks could not be confirmed."}</p>}
       {value.stacks.map(stack => <article key={stack.stack} aria-label={`Stack ${stack.stack}`}>
         <h3>{stack.stack} <span className={`badge ${stale || stack.runtime !== "running" ? "warning" : ""}`}>{stale ? "Unknown" : runtimeLabels[stack.runtime]}</span></h3>
@@ -72,11 +72,15 @@ function Services({ value, stale }: { value: ServiceView[]; stale: boolean }) {
 }
 
 /** Mount with the shared authenticated principal/grant identity. */
-export function StackPanel({ principal, grantRevision, expired }: { principal: string; grantRevision: number; expired: () => void }) {
+export function StackPanel({ principal, grantRevision, csrf, expired }: { principal: string; grantRevision: number; csrf:string; expired: () => void }) {
+  return <OwnedStackPanel key={JSON.stringify([principal,grantRevision,csrf])} expired={expired} />;
+}
+const useOwnerEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+function OwnedStackPanel({ expired }: { expired:()=>void }) {
   const expiry = useRef(expired); expiry.current = expired;
-  const controller = useMemo(() => new StackInventoryController(() => expiry.current()), [principal, grantRevision]);
+  const controller = useMemo(() => new StackInventoryController(() => expiry.current()), []);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
-  useEffect(() => {
+  useOwnerEffect(() => {
     void controller.start(); const refresh = () => { void controller.refresh(); };
     window.addEventListener("focus", refresh); window.addEventListener("online", refresh);
     return () => { window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); controller.dispose(); };

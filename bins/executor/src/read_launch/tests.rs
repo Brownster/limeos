@@ -50,6 +50,34 @@ fn paths() -> ConfigurationPaths<'static> {
 }
 
 #[test]
+fn stack_role_accepts_only_installed_profiles_and_canonical_configuration_names() {
+    for prefix in ["limeos", "limeos-shadow"] {
+        let (image, catalog) =
+            installed_stack_paths(Path::new(&format!("/usr/lib/{prefix}/limeos-executor")))
+                .unwrap();
+        assert_eq!(image, format!("/usr/lib/{prefix}/limeos-stack-read-worker"));
+        assert_eq!(catalog, format!("/etc/{prefix}/management-catalog.json"));
+        assert!(StackSelection::new(Path::new(catalog)).is_ok());
+    }
+    for path in [
+        "/var/lib/limeos/limeos-executor",
+        "/tmp/limeos-executor",
+        "/usr/lib/limeos/../limeos/limeos-executor",
+    ] {
+        assert!(installed_stack_paths(Path::new(path)).is_err());
+    }
+    for path in [
+        "relative",
+        "/",
+        "/a/../catalog",
+        "/a//catalog",
+        "/a\n/catalog",
+    ] {
+        assert!(StackSelection::new(Path::new(path)).is_err());
+    }
+}
+
+#[test]
 fn selection_refuses_noncanonical_amplified_duplicate_and_missing_role_names() {
     assert!(ConfigurationSelection::new(paths()).is_ok());
     for path in [

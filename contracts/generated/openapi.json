@@ -1556,6 +1556,349 @@
         ],
         "type": "string"
       },
+      "StackCounts": {
+        "properties": {
+          "one_off_running": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "one_offs": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ordinary": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "running": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ordinary",
+          "running",
+          "one_offs",
+          "one_off_running"
+        ],
+        "type": "object"
+      },
+      "StackFileStatus": {
+        "description": "Diagnostic facts only. No variant makes stack actions executable.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "const": "not_inspected",
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "candidates": {
+                "items": {
+                  "$ref": "#/components/schemas/ComposeFileName"
+                },
+                "type": "array"
+              },
+              "state": {
+                "const": "conflict",
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "candidates"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "$ref": "#/components/schemas/StackUnsupportedSource"
+              },
+              "state": {
+                "const": "unsupported",
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "reason"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "const": "unavailable",
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "StackIssue": {
+        "enum": [
+          "identity_conflict",
+          "overlapping_project",
+          "undeclared_services"
+        ],
+        "type": "string"
+      },
+      "StackMemberView": {
+        "properties": {
+          "container": {
+            "$ref": "#/components/schemas/ContainerSnapshot"
+          },
+          "one_off": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "container",
+          "one_off"
+        ],
+        "type": "object"
+      },
+      "StackOtherProjectView": {
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/StackProjectIdentity"
+          },
+          "relation": {
+            "$ref": "#/components/schemas/StackRegistrationRelation"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/StackServiceView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "project",
+          "relation",
+          "services"
+        ],
+        "type": "object"
+      },
+      "StackProjectIdentity": {
+        "additionalProperties": false,
+        "properties": {
+          "config_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "working_directory": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "working_directory",
+          "config_files"
+        ],
+        "type": "object"
+      },
+      "StackRegistrationRelation": {
+        "enum": [
+          "not_registered",
+          "catalog_unknown",
+          "engine_mismatch",
+          "identity_conflict",
+          "overlapping"
+        ],
+        "type": "string"
+      },
+      "StackRuntimeStatus": {
+        "enum": [
+          "unknown",
+          "no_containers",
+          "stopped",
+          "running",
+          "partial",
+          "conflict"
+        ],
+        "type": "string"
+      },
+      "StackServiceView": {
+        "properties": {
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StackCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "declared": {
+            "type": "boolean"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/StackMemberView"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/StackRuntimeStatus"
+          }
+        },
+        "required": [
+          "name",
+          "declared",
+          "runtime",
+          "members"
+        ],
+        "type": "object"
+      },
+      "StackSourceState": {
+        "enum": [
+          "fresh",
+          "stale",
+          "unavailable"
+        ],
+        "type": "string"
+      },
+      "StackSourceStatus": {
+        "properties": {
+          "max_age_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sampled_at": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/StackSourceState"
+          },
+          "valid_for_millis": {
+            "description": "Remaining display lifetime, shortened by every cache/transport layer.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "max_age_seconds",
+          "valid_for_millis"
+        ],
+        "type": "object"
+      },
+      "StackUnsupportedSource": {
+        "enum": [
+          "yaml",
+          "environment",
+          "include",
+          "interpolation",
+          "other"
+        ],
+        "type": "string"
+      },
+      "StackView": {
+        "properties": {
+          "config_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StackCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "files": {
+            "$ref": "#/components/schemas/StackFileStatus"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/StackIssue"
+            },
+            "type": "array"
+          },
+          "missing_services": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "project": {
+            "type": "string"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/StackRuntimeStatus"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/StackServiceView"
+            },
+            "type": "array"
+          },
+          "stack": {
+            "type": "string"
+          },
+          "working_directory": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stack",
+          "project",
+          "working_directory",
+          "config_files",
+          "files",
+          "runtime",
+          "services",
+          "issues"
+        ],
+        "type": "object"
+      },
       "StorageBlockDevice": {
         "additionalProperties": false,
         "properties": {
@@ -8807,6 +9150,281 @@
               }
             },
             "description": "Bounded selected-container log text"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/deployment/stacks": {
+      "get": {
+        "description": "Read the shared stack cache. Requires current HealthRead grants for deployment:stacks and every disclosed stack, project and container. A partial grant refuses the complete view. Does not launch a probe or authorize stack actions.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "properties": {
+                    "catalog": {
+                      "$ref": "#/components/schemas/StackSourceStatus"
+                    },
+                    "engine": {
+                      "$ref": "#/components/schemas/StackSourceStatus"
+                    },
+                    "engine_matches_catalog": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "generated_at": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "other_projects": {
+                      "items": {
+                        "$ref": "#/components/schemas/StackOtherProjectView"
+                      },
+                      "type": "array"
+                    },
+                    "stacks": {
+                      "items": {
+                        "$ref": "#/components/schemas/StackView"
+                      },
+                      "type": "array"
+                    },
+                    "standalone_containers": {
+                      "format": "uint16",
+                      "maximum": 65535,
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "version": {
+                      "format": "uint16",
+                      "maximum": 65535,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "generated_at",
+                    "catalog",
+                    "engine",
+                    "stacks",
+                    "other_projects"
+                  ],
+                  "title": "StackInventory",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bounded stack/member observation with original source clocks"
           },
           "400": {
             "content": {

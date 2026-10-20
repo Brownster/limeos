@@ -11,6 +11,7 @@ import { page } from "./model";
 import { ObservationView } from "./ObservationView";
 import { ContainerJobs } from "./ContainerActions";
 import { StorageMounts } from "./storage/StorageMounts";
+import { StackPanel } from "./StackManagement";
 const views: [string, ResourceKind | undefined][] = [
   ["All resources", undefined],
   ["Containers", "container"],
@@ -153,6 +154,22 @@ export function Dashboard({
           {error}
         </p>
       )}
+      <nav className="resource-nav" aria-label="Resource views">
+        {views.map(([label, k]) => (
+          <button
+            key={label}
+            className={kind === k ? "selected" : ""}
+            aria-pressed={kind === k}
+            onClick={() => { setKind(k); setOffset(0); }}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      {kind === "stack" && (
+        <StackPanel principal={session.principal.id} grantRevision={session.principal.grant_revision}
+          csrf={session.csrf_token} expired={expired} />
+      )}
       {!value ? (
         <p role="status">
           {error
@@ -161,21 +178,6 @@ export function Dashboard({
         </p>
       ) : (
         <>
-          <nav className="resource-nav" aria-label="Resource views">
-            {views.map(([label, k]) => (
-              <button
-                key={label}
-                className={kind === k ? "selected" : ""}
-                aria-pressed={kind === k}
-                onClick={() => {
-                  setKind(k);
-                  setOffset(0);
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
           <ObservationView
             value={value}
             items={page(value.resources, kind, safeOffset)}

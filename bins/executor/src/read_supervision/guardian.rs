@@ -33,6 +33,13 @@ impl WorkerBootstrap {
     ) -> read_collection::Result<CollectedReadReport> {
         read_collection::collect(paths, &|| process::getppid() != Some(self.guardian)).await
     }
+    /// Closed stack collection reuses this guardian/parent-death bootstrap.
+    pub async fn collect_stacks(
+        &self,
+        catalog: &std::path::Path,
+    ) -> limeos_domain::Result<Vec<u8>> {
+        crate::stack_read::collect(catalog, &|| process::getppid() != Some(self.guardian)).await
+    }
 }
 
 pub fn write_worker_report(body: &[u8]) -> Result<()> {

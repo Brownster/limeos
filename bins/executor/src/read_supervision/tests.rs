@@ -1,4 +1,26 @@
 use super::*;
+
+#[test]
+fn shared_service_admission_cannot_bypass_an_uncertain_cleanup() {
+    let manager = Supervisor::default();
+    assert!(manager.ensure_not_poisoned().is_ok());
+    let admission = Admission {
+        _flight: manager.flight.try_acquire().unwrap(),
+        poisoned: manager.poisoned.clone(),
+        launched: true,
+        confirmed: false,
+    };
+    drop(admission);
+    assert_eq!(
+        manager.ensure_not_poisoned(),
+        Err(Refusal::CleanupUnconfirmed)
+    );
+    assert!(manager.flight.try_acquire().is_ok());
+    assert_eq!(
+        manager.ensure_not_poisoned(),
+        Err(Refusal::CleanupUnconfirmed)
+    );
+}
 use std::io::Cursor;
 fn frame(status: u8, body: &[u8]) -> Capture {
     let mut bytes = vec![status];

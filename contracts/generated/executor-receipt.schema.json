@@ -76,6 +76,16 @@
         }
       ]
     },
+    "stack_cohort": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DiscoveryCohort"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "storage": {
       "anyOf": [
         {
@@ -156,6 +166,38 @@
         "fresh",
         "stale",
         "unavailable"
+      ]
+    },
+    "CatalogFacts": {
+      "type": "object",
+      "properties": {
+        "engine_id": {
+          "type": "string"
+        },
+        "sampled_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "stacks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StackDeclaration"
+          }
+        }
+      },
+      "required": [
+        "engine_id",
+        "sampled_at",
+        "stacks"
+      ]
+    },
+    "ComposeFileName": {
+      "type": "string",
+      "enum": [
+        "compose.yaml",
+        "compose.yml",
+        "docker-compose.yaml",
+        "docker-compose.yml"
       ]
     },
     "ContainerAction": {
@@ -414,6 +456,84 @@
         "mode",
         "uid",
         "gid"
+      ]
+    },
+    "DiscoveryCohort": {
+      "description": "Selected past facts, never file/Engine ownership or execution permission.",
+      "type": "object",
+      "properties": {
+        "catalog": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogFacts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "catalog_current": {
+          "type": "boolean"
+        },
+        "catalog_valid_for_millis": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "engine": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EngineFacts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "engine_current": {
+          "type": "boolean"
+        },
+        "engine_valid_for_millis": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "required": [
+        "version",
+        "catalog_current",
+        "engine_current",
+        "catalog_valid_for_millis",
+        "engine_valid_for_millis"
+      ]
+    },
+    "EngineFacts": {
+      "type": "object",
+      "properties": {
+        "engine_id": {
+          "type": "string"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StackMembership"
+          }
+        },
+        "sampled_at": {
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "engine_id",
+        "sampled_at",
+        "members"
       ]
     },
     "ErrorCode": {
@@ -817,6 +937,196 @@
         "pools",
         "docker",
         "history"
+      ]
+    },
+    "StackDeclaration": {
+      "description": "Plain input values, not retained evidence or a wire admission decoder.",
+      "type": "object",
+      "properties": {
+        "config_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "files": {
+          "$ref": "#/$defs/StackFileStatus"
+        },
+        "project": {
+          "type": "string"
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stack": {
+          "type": "string"
+        },
+        "working_directory": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "stack",
+        "project",
+        "working_directory",
+        "config_files",
+        "services",
+        "files"
+      ]
+    },
+    "StackFileStatus": {
+      "description": "Diagnostic facts only. No variant makes stack actions executable.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "const": "not_inspected"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidates": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ComposeFileName"
+              }
+            },
+            "state": {
+              "type": "string",
+              "const": "conflict"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "candidates"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "$ref": "#/$defs/StackUnsupportedSource"
+            },
+            "state": {
+              "type": "string",
+              "const": "unsupported"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "reason"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "const": "unavailable"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ]
+        }
+      ]
+    },
+    "StackMembership": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "container": {
+              "$ref": "#/$defs/ContainerSnapshot"
+            },
+            "kind": {
+              "type": "string",
+              "const": "standalone"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "container"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "container": {
+              "$ref": "#/$defs/ContainerSnapshot"
+            },
+            "kind": {
+              "type": "string",
+              "const": "compose"
+            },
+            "one_off": {
+              "type": "boolean"
+            },
+            "project": {
+              "$ref": "#/$defs/StackProjectIdentity"
+            },
+            "service": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "container",
+            "project",
+            "service",
+            "one_off"
+          ]
+        }
+      ]
+    },
+    "StackProjectIdentity": {
+      "type": "object",
+      "properties": {
+        "config_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "working_directory": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "working_directory",
+        "config_files"
+      ]
+    },
+    "StackUnsupportedSource": {
+      "type": "string",
+      "enum": [
+        "yaml",
+        "environment",
+        "include",
+        "interpolation",
+        "other"
       ]
     },
     "StorageBlockDevice": {

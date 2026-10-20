@@ -1,6 +1,11 @@
 use crate::{ComposeFileName, ContainerSnapshot, Error, ErrorCode, Result};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, io::Write};
+use ts_rs::TS;
+
+mod cohort;
+pub use cohort::{CatalogFacts, DiscoveryCohort, EngineFacts};
 
 pub const MAX_STACKS: usize = 8;
 pub const MAX_SERVICES: usize = 16;
@@ -10,7 +15,9 @@ pub const MAX_REPORT_BYTES: usize = 64 * 1024;
 pub const MAX_AGE_SECONDS: i64 = 90;
 const MAX_TIME: i64 = 253_402_300_799;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(rename = "StackUnsupportedSource")]
+#[schemars(rename = "StackUnsupportedSource")]
 #[serde(rename_all = "snake_case")]
 pub enum UnsupportedSource {
     Yaml,
@@ -21,7 +28,9 @@ pub enum UnsupportedSource {
 }
 
 /// Diagnostic facts only. No variant makes stack actions executable.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(rename = "StackFileStatus")]
+#[schemars(rename = "StackFileStatus")]
 #[serde(tag = "state", rename_all = "snake_case", deny_unknown_fields)]
 pub enum FileStatus {
     NotInspected,
@@ -31,7 +40,9 @@ pub enum FileStatus {
 }
 
 /// Plain input values, not retained evidence or a wire admission decoder.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(rename = "StackDeclaration")]
+#[schemars(rename = "StackDeclaration")]
 #[serde(deny_unknown_fields)]
 pub struct Declaration {
     pub stack: String,
@@ -42,7 +53,9 @@ pub struct Declaration {
     pub files: FileStatus,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(rename = "StackProjectIdentity")]
+#[schemars(rename = "StackProjectIdentity")]
 #[serde(deny_unknown_fields)]
 pub struct ProjectIdentity {
     pub name: String,
@@ -50,7 +63,9 @@ pub struct ProjectIdentity {
     pub config_files: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(rename = "StackMembership")]
+#[schemars(rename = "StackMembership")]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Membership {
     Standalone {
@@ -64,7 +79,7 @@ pub enum Membership {
     },
 }
 impl Membership {
-    fn container(&self) -> &ContainerSnapshot {
+    pub fn container(&self) -> &ContainerSnapshot {
         match self {
             Self::Standalone { container } | Self::Compose { container, .. } => container,
         }
@@ -83,20 +98,30 @@ pub struct EngineInput<'a> {
     pub members: &'a [Membership],
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, JsonSchema, TS)]
+#[ts(rename = "StackSourceState")]
+#[schemars(rename = "StackSourceState")]
 #[serde(rename_all = "snake_case")]
 pub enum SourceState {
     Fresh,
     Stale,
     Unavailable,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema, TS)]
+#[ts(rename = "StackSourceStatus")]
+#[schemars(rename = "StackSourceStatus")]
 pub struct SourceStatus {
     pub state: SourceState,
+    #[ts(type = "number | null")]
     pub sampled_at: Option<i64>,
+    #[ts(type = "number")]
     pub max_age_seconds: i64,
+    /// Remaining display lifetime, shortened by every cache/transport layer.
+    pub valid_for_millis: u32,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, JsonSchema, TS)]
+#[ts(rename = "StackRuntimeStatus")]
+#[schemars(rename = "StackRuntimeStatus")]
 #[serde(rename_all = "snake_case")]
 pub enum RuntimeStatus {
     Unknown,
@@ -106,19 +131,25 @@ pub enum RuntimeStatus {
     Partial,
     Conflict,
 }
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, JsonSchema, TS)]
+#[ts(rename = "StackCounts")]
+#[schemars(rename = "StackCounts")]
 pub struct Counts {
     pub ordinary: u16,
     pub running: u16,
     pub one_offs: u16,
     pub one_off_running: u16,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema, TS)]
+#[ts(rename = "StackMemberView")]
+#[schemars(rename = "StackMemberView")]
 pub struct MemberView {
     pub container: ContainerSnapshot,
     pub one_off: bool,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema, TS)]
+#[ts(rename = "StackServiceView")]
+#[schemars(rename = "StackServiceView")]
 pub struct ServiceView {
     pub name: String,
     pub declared: bool,
@@ -126,14 +157,14 @@ pub struct ServiceView {
     pub counts: Option<Counts>,
     pub members: Vec<MemberView>,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum StackIssue {
     IdentityConflict,
     OverlappingProject,
     UndeclaredServices,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema, TS)]
 pub struct StackView {
     pub stack: String,
     pub project: String,
@@ -146,7 +177,9 @@ pub struct StackView {
     pub services: Vec<ServiceView>,
     pub issues: Vec<StackIssue>,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, JsonSchema, TS)]
+#[ts(rename = "StackRegistrationRelation")]
+#[schemars(rename = "StackRegistrationRelation")]
 #[serde(rename_all = "snake_case")]
 pub enum RegistrationRelation {
     NotRegistered,
@@ -155,15 +188,18 @@ pub enum RegistrationRelation {
     IdentityConflict,
     Overlapping,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema, TS)]
+#[ts(rename = "StackOtherProjectView")]
+#[schemars(rename = "StackOtherProjectView")]
 pub struct OtherProjectView {
     pub project: ProjectIdentity,
     pub relation: RegistrationRelation,
     pub services: Vec<ServiceView>,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema, TS)]
 pub struct StackInventory {
     pub version: u16,
+    #[ts(type = "number")]
     pub generated_at: i64,
     pub catalog: SourceStatus,
     pub engine: SourceStatus,
@@ -231,14 +267,20 @@ fn source(at: Option<i64>, now: i64) -> Result<SourceStatus> {
     if at.is_some_and(|at| !(0..=MAX_TIME).contains(&at)) {
         return Err(invalid());
     }
+    let state = match at {
+        None => SourceState::Unavailable,
+        Some(at) if at > now || now - at > MAX_AGE_SECONDS => SourceState::Stale,
+        Some(_) => SourceState::Fresh,
+    };
     Ok(SourceStatus {
-        state: match at {
-            None => SourceState::Unavailable,
-            Some(at) if at > now || now - at > MAX_AGE_SECONDS => SourceState::Stale,
-            Some(_) => SourceState::Fresh,
-        },
+        state,
         sampled_at: at,
         max_age_seconds: MAX_AGE_SECONDS,
+        valid_for_millis: if state == SourceState::Fresh {
+            ((MAX_AGE_SECONDS - (now - at.unwrap())) * 1000) as u32
+        } else {
+            0
+        },
     })
 }
 fn admit(catalog: Option<&CatalogInput<'_>>, engine: Option<&EngineInput<'_>>) -> Result<()> {
@@ -427,12 +469,30 @@ pub fn discover(
     catalog: Option<CatalogInput<'_>>,
     engine: Option<EngineInput<'_>>,
 ) -> Result<StackInventory> {
+    discover_current(now, catalog, engine, true, true)
+}
+
+fn discover_current(
+    now: i64,
+    catalog: Option<CatalogInput<'_>>,
+    engine: Option<EngineInput<'_>>,
+    catalog_current: bool,
+    engine_current: bool,
+) -> Result<StackInventory> {
     if !(0..=MAX_TIME).contains(&now) {
         return Err(invalid());
     }
     admit(catalog.as_ref(), engine.as_ref())?;
-    let catalog_status = source(catalog.as_ref().map(|c| c.sampled_at), now)?;
-    let engine_status = source(engine.as_ref().map(|e| e.sampled_at), now)?;
+    let mut catalog_status = source(catalog.as_ref().map(|c| c.sampled_at), now)?;
+    let mut engine_status = source(engine.as_ref().map(|e| e.sampled_at), now)?;
+    if !catalog_current && catalog_status.sampled_at.is_some() {
+        catalog_status.state = SourceState::Stale;
+        catalog_status.valid_for_millis = 0;
+    }
+    if !engine_current && engine_status.sampled_at.is_some() {
+        engine_status.state = SourceState::Stale;
+        engine_status.valid_for_millis = 0;
+    }
     let catalog_fresh = catalog_status.state == SourceState::Fresh;
     let engine_fresh = engine_status.state == SourceState::Fresh;
     let engine_matches_catalog = if catalog_fresh && engine_fresh {

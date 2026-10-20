@@ -5,8 +5,8 @@ use crate::{
     docker::compose_evidence::{ComposeOwnership, EngineComposeEvidence, EngineComposeSnapshot},
 };
 use limeos_domain::deployment::discovery::{
-    self as model, CatalogInput, Declaration, EngineInput, FileStatus, Membership, ProjectIdentity,
-    StackInventory,
+    self as model, CatalogFacts, Declaration, DiscoveryCohort, EngineFacts, FileStatus, Membership,
+    ProjectIdentity, StackInventory,
 };
 use limeos_domain::{COMPOSE_MANAGED_FILE, ComposeFileName, Error, ErrorCode, Result};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -24,18 +24,11 @@ pub async fn inventory(
     }
     catalog.revalidate(cancelled)?;
     engine.revalidate().await?;
-    if cancelled() {
-        return Err(Error(ErrorCode::Conflict));
-    }
-    let at = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|_| Error(ErrorCode::Unavailable))?
-        .as_secs();
     let report = project(
         catalog.catalog(),
         catalog.snapshot().observed_at,
         engine.snapshot(),
-        i64::try_from(at).map_err(|_| Error(ErrorCode::Unavailable))?,
+        now()?,
     )?;
     catalog.revalidate(cancelled)?;
     if cancelled() {
@@ -44,16 +37,60 @@ pub async fn inventory(
     Ok(report)
 }
 
+/// Select display facts only after each original owner's final revalidation.
+/// Source refusal discards that source, while cancellation refuses the cohort.
+/// The returned value cannot reconstruct either retained owner.
+pub async fn cohort(
+    catalog: Option<&ManagementCatalogEvidence>,
+    engine: Option<&EngineComposeEvidence>,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<DiscoveryCohort> {
+    if cancelled() {
+        return Err(Error(ErrorCode::Conflict));
+    }
+    let catalog = catalog.filter(|c| c.revalidate(cancelled).is_ok());
+    let engine = match engine {
+        Some(e) if e.revalidate().await.is_ok() => Some(e),
+        _ => None,
+    };
+    if cancelled() {
+        return Err(Error(ErrorCode::Conflict));
+    }
+    let catalog = catalog.filter(|c| c.revalidate(cancelled).is_ok());
+    let catalog = catalog
+        .map(|c| catalog_facts(c.catalog(), c.snapshot().observed_at))
+        .transpose()?;
+    let engine = engine.map(|e| engine_facts(e.snapshot())).transpose()?;
+    let report = DiscoveryCohort::new(catalog, engine)?;
+    if cancelled() {
+        return Err(Error(ErrorCode::Conflict));
+    }
+    Ok(report)
+}
+
+fn now() -> Result<i64> {
+    let at = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| Error(ErrorCode::Unavailable))?
+        .as_secs();
+    i64::try_from(at).map_err(|_| Error(ErrorCode::Unavailable))
+}
+
 fn project(
     catalog: &ManagementCatalog,
     catalog_at: i64,
     engine: &EngineComposeSnapshot,
     at: i64,
 ) -> Result<StackInventory> {
+    DiscoveryCohort::new(
+        Some(catalog_facts(catalog, catalog_at)?),
+        Some(engine_facts(engine)?),
+    )?
+    .project(at)
+}
+
+fn catalog_facts(catalog: &ManagementCatalog, sampled_at: i64) -> Result<CatalogFacts> {
     catalog.validate()?;
-    if engine.version != 1 || engine.containers.len() > model::MAX_MEMBERS {
-        return Err(Error(ErrorCode::Unavailable));
-    }
     let mut declarations = Vec::new();
     for registration in &catalog.stacks {
         let selection = registration.selection()?;
@@ -84,6 +121,17 @@ fn project(
             files: FileStatus::NotInspected,
         });
     }
+    Ok(CatalogFacts {
+        engine_id: catalog.engine_id.clone(),
+        sampled_at,
+        stacks: declarations,
+    })
+}
+
+fn engine_facts(engine: &EngineComposeSnapshot) -> Result<EngineFacts> {
+    if engine.version != 1 || engine.containers.len() > model::MAX_MEMBERS {
+        return Err(Error(ErrorCode::Unavailable));
+    }
     let members: Vec<_> = engine
         .containers
         .iter()
@@ -107,19 +155,11 @@ fn project(
             },
         })
         .collect();
-    model::discover(
-        at,
-        Some(CatalogInput {
-            engine_id: &catalog.engine_id,
-            sampled_at: catalog_at,
-            stacks: &declarations,
-        }),
-        Some(EngineInput {
-            engine_id: &engine.engine_id,
-            sampled_at: engine.containers_observed_at,
-            members: &members,
-        }),
-    )
+    Ok(EngineFacts {
+        engine_id: engine.engine_id.clone(),
+        sampled_at: engine.containers_observed_at,
+        members,
+    })
 }
 
 #[cfg(test)]

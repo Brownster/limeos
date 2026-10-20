@@ -26,6 +26,7 @@ mod operations;
 #[cfg(test)]
 mod read_tests;
 mod reads;
+mod stacks;
 mod storage;
 mod storage_mounts;
 
@@ -34,6 +35,14 @@ pub struct IssuedSession {
     pub view: SessionView,
 }
 pub trait Backend: Clone + Send + Sync + 'static {
+    /// Current stored session/grants and the shared stack cache only.
+    fn stack_inventory(
+        &self,
+        _token: String,
+    ) -> impl Future<Output = Result<limeos_domain::deployment::discovery::StackInventory>> + Send
+    {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
     fn observe_health_schedules(
         &self,
         _token: String,
@@ -400,6 +409,7 @@ impl Limiter {
 }
 pub fn router<B: Backend>(backend: B, origin: String) -> Router {
     Router::new()
+        .route("/api/v1/deployment/stacks", get(stacks::inventory::<B>))
         .route("/api/v1/health", get(health::<B>))
         .route(
             "/api/v1/storage/mounts/targets",

@@ -20,6 +20,7 @@ use std::{
 #[cfg(test)]
 mod tests;
 const IMAGE: &str = "/usr/lib/limeos/limeos-combined-read-probe";
+const STACK_KEY: &str = "LIMEOS_STACK_CATALOG";
 const MAX_IMAGE: u64 = 8 * 1024 * 1024;
 const WINDOW: Duration = Duration::from_secs(4);
 const KEYS: [&str; 4] = [
@@ -42,6 +43,44 @@ pub enum Refusal {
     Unavailable,
 }
 pub type Result<T> = std::result::Result<T, Refusal>;
+
+/// Protected configuration name, never a caller-selected endpoint or command.
+#[derive(Clone, Debug)]
+pub struct StackSelection(String);
+impl StackSelection {
+    pub fn installed() -> Result<Self> {
+        let executable = std::env::current_exe().map_err(|_| Refusal::Unavailable)?;
+        Self::new(Path::new(installed_stack_paths(&executable)?.1))
+    }
+    pub fn new(path: &Path) -> Result<Self> {
+        let text = path.to_str().ok_or(Refusal::InvalidSelection)?;
+        canonical(text)?;
+        Ok(Self(text.into()))
+    }
+    pub fn path(&self) -> &Path {
+        Path::new(&self.0)
+    }
+    fn from_environment() -> Result<Self> {
+        let text = std::env::var_os(STACK_KEY).ok_or(Refusal::InvalidSelection)?;
+        if text.len() > 512 || KEYS.iter().any(|key| std::env::var_os(key).is_some()) {
+            return Err(Refusal::InvalidSelection);
+        }
+        Self::new(Path::new(&text))
+    }
+}
+fn installed_stack_paths(executable: &Path) -> Result<(&'static str, &'static str)> {
+    match executable.to_str() {
+        Some("/usr/lib/limeos/limeos-executor") => Ok((
+            "/usr/lib/limeos/limeos-stack-read-worker",
+            "/etc/limeos/management-catalog.json",
+        )),
+        Some("/usr/lib/limeos-shadow/limeos-executor") => Ok((
+            "/usr/lib/limeos-shadow/limeos-stack-read-worker",
+            "/etc/limeos-shadow/management-catalog.json",
+        )),
+        _ => Err(Refusal::UntrustedImage),
+    }
+}
 
 /// Names, never retained file contents or execution authority.
 /// ```compile_fail
@@ -191,6 +230,18 @@ impl SealedExecutable {
         )
     }
     fn command(&self, role: &str, selection: &ConfigurationSelection) -> Command {
+        let mut command = self.role_command(role);
+        for (key, path) in KEYS.into_iter().zip(&selection.paths) {
+            command.env(key, path);
+        }
+        command
+    }
+    fn stack_command(&self, role: &str, selection: &StackSelection) -> Command {
+        let mut command = self.role_command(role);
+        command.env(STACK_KEY, &selection.0);
+        command
+    }
+    fn role_command(&self, role: &str) -> Command {
         let mut command = Command::new(format!(
             "/proc/{}/fd/{}",
             std::process::id(),
@@ -200,9 +251,6 @@ impl SealedExecutable {
             .arg(role)
             .env_clear()
             .env(DIGEST_KEY, &self.metadata.sha256);
-        for (key, path) in KEYS.into_iter().zip(&selection.paths) {
-            command.env(key, path);
-        }
         command
     }
 }
@@ -306,6 +354,72 @@ impl ProtectedLaunch {
     }
 }
 
+/// Same protected package walk/seals/supervision, with a separate closed role.
+pub struct ProtectedStackLaunch {
+    image: Arc<SealedExecutable>,
+    selection: StackSelection,
+    deadline: Instant,
+}
+impl ProtectedStackLaunch {
+    pub fn prepare(selection: StackSelection) -> Result<Self> {
+        let deadline = Instant::now() + WINDOW;
+        let root = File::from(
+            rustix::fs::open(
+                "/",
+                OFlags::PATH | OFlags::DIRECTORY | OFlags::CLOEXEC,
+                Mode::empty(),
+            )
+            .map_err(|_| Refusal::Unavailable)?,
+        );
+        let executable = std::env::current_exe().map_err(|_| Refusal::Unavailable)?;
+        let image = protected_image(root, &installed_stack_paths(&executable)?.0[1..], 0)?;
+        if Instant::now() >= deadline {
+            return Err(Refusal::Expired);
+        }
+        Ok(Self {
+            image,
+            selection,
+            deadline,
+        })
+    }
+    pub fn start(
+        &self,
+        manager: &Supervisor,
+    ) -> std::result::Result<Ticket, crate::read_supervision::Refusal> {
+        self.start_with(manager, ())
+    }
+    pub(crate) fn start_with<L: Send + 'static>(
+        &self,
+        manager: &Supervisor,
+        lease: L,
+    ) -> std::result::Result<Ticket, crate::read_supervision::Refusal> {
+        manager.start_held(
+            self.image.stack_command("guardian", &self.selection),
+            self.deadline,
+            (self.image.clone(), lease),
+        )
+    }
+}
+
+pub struct LoadedStackRole {
+    image: Arc<SealedExecutable>,
+    selection: StackSelection,
+}
+impl LoadedStackRole {
+    pub fn current() -> Result<Self> {
+        Ok(Self {
+            image: current_image()?,
+            selection: StackSelection::from_environment()?,
+        })
+    }
+    pub fn worker_command(&self) -> Command {
+        self.image.stack_command("worker", &self.selection)
+    }
+    pub fn catalog(&self) -> &Path {
+        self.selection.path()
+    }
+}
+
 /// Current sealed executable, never reopened from the manager's numeric PID.
 pub struct LoadedRole {
     image: Arc<SealedExecutable>,
@@ -313,54 +427,8 @@ pub struct LoadedRole {
 }
 impl LoadedRole {
     pub fn current() -> Result<Self> {
-        let digest = std::env::var_os(DIGEST_KEY).ok_or(Refusal::UntrustedImage)?;
-        let digest = digest
-            .to_str()
-            .filter(|text| {
-                text.len() == 64
-                    && text
-                        .bytes()
-                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-            })
-            .ok_or(Refusal::UntrustedImage)?;
-        let file = File::open("/proc/self/exe").map_err(|_| Refusal::Unavailable)?;
-        if !rustix::fs::fcntl_get_seals(&file)
-            .map_err(|_| Refusal::UntrustedImage)?
-            .contains(seals())
-        {
-            return Err(Refusal::UntrustedImage);
-        }
-        let metadata = file.metadata().map_err(|_| Refusal::Unavailable)?;
-        if !(64..=MAX_IMAGE).contains(&metadata.len()) {
-            return Err(Refusal::ImageLimit);
-        }
-        let mut header = [0; 64];
-        file.read_exact_at(&mut header, 0)
-            .map_err(|_| Refusal::Unavailable)?;
-        elf(&header)?;
-        let mut reader = &file;
-        let mut scratch = [0; 64 * 1024];
-        let mut hash = Sha256::new();
-        loop {
-            let n = reader
-                .read(&mut scratch)
-                .map_err(|_| Refusal::Unavailable)?;
-            if n == 0 {
-                break;
-            }
-            hash.update(&scratch[..n]);
-        }
-        if hex(&hash.finalize()) != digest {
-            return Err(Refusal::UntrustedImage);
-        }
         Ok(Self {
-            image: Arc::new(SealedExecutable {
-                file,
-                metadata: ImageMetadata {
-                    bytes: metadata.len(),
-                    sha256: digest.into(),
-                },
-            }),
+            image: current_image()?,
             selection: ConfigurationSelection::from_environment()?,
         })
     }
@@ -370,6 +438,56 @@ impl LoadedRole {
     pub fn paths(&self) -> ConfigurationPaths<'_> {
         self.selection.paths()
     }
+}
+
+fn current_image() -> Result<Arc<SealedExecutable>> {
+    let digest = std::env::var_os(DIGEST_KEY).ok_or(Refusal::UntrustedImage)?;
+    let digest = digest
+        .to_str()
+        .filter(|text| {
+            text.len() == 64
+                && text
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        })
+        .ok_or(Refusal::UntrustedImage)?;
+    let file = File::open("/proc/self/exe").map_err(|_| Refusal::Unavailable)?;
+    if !rustix::fs::fcntl_get_seals(&file)
+        .map_err(|_| Refusal::UntrustedImage)?
+        .contains(seals())
+    {
+        return Err(Refusal::UntrustedImage);
+    }
+    let metadata = file.metadata().map_err(|_| Refusal::Unavailable)?;
+    if !(64..=MAX_IMAGE).contains(&metadata.len()) {
+        return Err(Refusal::ImageLimit);
+    }
+    let mut header = [0; 64];
+    file.read_exact_at(&mut header, 0)
+        .map_err(|_| Refusal::Unavailable)?;
+    elf(&header)?;
+    let mut reader = &file;
+    let mut scratch = [0; 64 * 1024];
+    let mut hash = Sha256::new();
+    loop {
+        let n = reader
+            .read(&mut scratch)
+            .map_err(|_| Refusal::Unavailable)?;
+        if n == 0 {
+            break;
+        }
+        hash.update(&scratch[..n]);
+    }
+    if hex(&hash.finalize()) != digest {
+        return Err(Refusal::UntrustedImage);
+    }
+    Ok(Arc::new(SealedExecutable {
+        file,
+        metadata: ImageMetadata {
+            bytes: metadata.len(),
+            sha256: digest.into(),
+        },
+    }))
 }
 
 fn protected_image(root: File, relative: &str, owner: u32) -> Result<Arc<SealedExecutable>> {

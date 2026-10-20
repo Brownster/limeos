@@ -20,6 +20,7 @@ mod automation_schedules;
 mod compose;
 mod identity_enablement;
 mod operations;
+mod stacks;
 mod storage;
 mod storage_mounts;
 mod storage_targets;
@@ -44,6 +45,7 @@ struct Core {
     storage_target_socket: Arc<PathBuf>,
     storage_mount_socket: Arc<PathBuf>,
     storage_readers: Arc<Semaphore>,
+    stacks: limeos_observations::stacks::Cache,
 }
 impl Core {
     async fn password(
@@ -124,6 +126,12 @@ impl Core {
     }
 }
 impl Backend for Core {
+    async fn stack_inventory(
+        &self,
+        token: String,
+    ) -> Result<limeos_domain::deployment::discovery::StackInventory> {
+        self.human_stack_inventory(token).await
+    }
     async fn observe_health_schedules(
         &self,
         token: String,
@@ -854,6 +862,7 @@ async fn run() -> Result<()> {
         telemetry.clone(),
     );
     let mut core = Core {
+        stacks: limeos_observations::stacks::start_proxy(config.storage_socket.clone().into()),
         db,
         password_workers: Arc::new(Semaphore::new(2)),
         dummy_hash: "".into(),

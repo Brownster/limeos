@@ -328,6 +328,7 @@ def main():
                             "limeos-core",
                             "limeos-password-worker",
                             "limeos-executor",
+                            "limeos-stack-read-worker",
                             "limeosctl",
                         ]:
                             run(

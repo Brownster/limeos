@@ -15,6 +15,8 @@ pub struct Ceiling {
     #[serde(default)]
     pub allow_storage_read: bool,
     #[serde(default)]
+    pub allow_stack_read: bool,
+    #[serde(default)]
     pub allow_container_read: bool,
     #[serde(default)]
     pub allow_restart: bool,
@@ -30,6 +32,9 @@ pub struct Ceiling {
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Request {
+    StackInventory {
+        version: u16,
+    },
     StorageMountCatalog {
         version: u16,
     },
@@ -116,6 +121,8 @@ pub enum Request {
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct Receipt {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stack_cohort: Option<limeos_domain::deployment::discovery::DiscoveryCohort>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub storage_mount_catalog: Option<limeos_domain::StorageMountCatalog>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -300,7 +307,7 @@ impl Ceiling {
                 .iter()
                 .all(|id| limeos_domain::opaque_id(id))
             && (!(self.can_write() || self.allow_container_logs) || self.allow_container_read)
-            && (!self.allow_storage_read
+            && (!(self.allow_storage_read || self.allow_stack_read)
                 || (!self.can_write()
                     && !self.allow_container_read
                     && !self.allow_host_read
@@ -314,6 +321,9 @@ impl Ceiling {
             return Err(Error(ErrorCode::Forbidden));
         }
         match request {
+            Request::StackInventory { version } if *version == VERSION && self.allow_stack_read => {
+                Ok(Receipt::empty())
+            }
             Request::ContainerStorageInventory { version }
                 if *version == VERSION && self.allow_container_read =>
             {
@@ -326,6 +336,7 @@ impl Ceiling {
             }
             Request::Health { version } if *version == VERSION && self.allow_health => {
                 Ok(Receipt {
+                    stack_cohort: None,
                     storage_mount_catalog: None,
                     storage_mount_inspection: None,
                     storage_mount: None,
@@ -351,6 +362,7 @@ impl Ceiling {
                         && self.allow_container_read)) =>
             {
                 Ok(Receipt {
+                    stack_cohort: None,
                     storage_mount_catalog: None,
                     storage_mount_inspection: None,
                     storage_mount: None,
@@ -461,6 +473,7 @@ impl Ceiling {
 impl Receipt {
     pub fn empty() -> Self {
         Self {
+            stack_cohort: None,
             storage_mount_catalog: None,
             storage_mount_inspection: None,
             storage_mount: None,
@@ -482,6 +495,48 @@ impl Receipt {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn stack_cache_read_is_closed_and_independent_from_other_read_and_effect_roles() {
+        let mut c: Ceiling = serde_json::from_str(
+            r#"{"version":1,"core_uid":1001,"allow_health":true,"allow_stack_read":true}"#,
+        )
+        .unwrap();
+        assert!(c.configuration_valid());
+        assert!(!c.can_write());
+        assert!(
+            c.validate(1001, &Request::StackInventory { version: VERSION })
+                .is_ok()
+        );
+        assert!(
+            c.validate(1002, &Request::StackInventory { version: VERSION })
+                .is_err()
+        );
+        assert!(
+            c.validate(1001, &Request::StackInventory { version: 2 })
+                .is_err()
+        );
+        assert!(
+            c.validate(1001, &Request::StorageInventory { version: VERSION })
+                .is_err()
+        );
+        for field in [
+            "path",
+            "command",
+            "endpoint",
+            "principal",
+            "approval",
+            "resources",
+        ] {
+            let mut wire = serde_json::json!({"operation":"stack_inventory","version":1});
+            wire[field] = serde_json::json!("caller");
+            assert!(serde_json::from_value::<Request>(wire).is_err());
+        }
+        c.allow_host_read = true;
+        assert!(!c.configuration_valid());
+        c.allow_host_read = false;
+        c.allow_container_read = true;
+        assert!(!c.configuration_valid());
+    }
     #[test]
     fn container_storage_read_requires_the_container_ceiling_and_accepts_no_filters() {
         let mut ceiling: Ceiling = serde_json::from_str(
@@ -610,6 +665,7 @@ mod tests {
             allow_health: true,
             allow_host_read: false,
             allow_storage_read: false,
+            allow_stack_read: false,
             allow_container_read: true,
             allow_restart: false,
             allow_start: false,
@@ -652,6 +708,7 @@ mod tests {
             allow_health: true,
             allow_host_read: false,
             allow_storage_read: false,
+            allow_stack_read: false,
             allow_container_read: false,
             allow_restart: false,
             allow_start: false,

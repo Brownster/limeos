@@ -4,12 +4,14 @@
   "catalog": {
     "state": "fresh",
     "sampled_at": 100,
-    "max_age_seconds": 90
+    "max_age_seconds": 90,
+    "valid_for_millis": 89000
   },
   "engine": {
     "state": "fresh",
     "sampled_at": 100,
-    "max_age_seconds": 90
+    "max_age_seconds": 90,
+    "valid_for_millis": 89000
   },
   "engine_matches_catalog": true,
   "stacks": [

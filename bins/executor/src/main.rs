@@ -21,7 +21,7 @@ fn main() {
     let mounts = args.get(3).is_some_and(|role| role == "storage-mounts");
     let mut builder = tokio::runtime::Builder::new_current_thread();
     builder.enable_all();
-    if mounts {
+    if mounts || args.get(3).is_some_and(|role| role == "storage") {
         builder.max_blocking_threads(1);
     }
     let runtime = builder.build().expect("executor runtime");
@@ -203,7 +203,10 @@ async fn run() -> std::io::Result<()> {
         _ => return Err(std::io::Error::other("invalid executor kind")),
     };
     let storage_reader = args[3] == "storage";
-    if ceiling.allow_storage_read != storage_reader || (storage_reader && args.len() != 4) {
+    if (storage_reader
+        && (!(ceiling.allow_storage_read || ceiling.allow_stack_read) || args.len() != 4))
+        || (!storage_reader && (ceiling.allow_storage_read || ceiling.allow_stack_read))
+    {
         return Err(std::io::Error::other(
             "storage reader requires a dedicated read-only ceiling",
         ));
@@ -258,6 +261,41 @@ async fn run() -> std::io::Result<()> {
     std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o660))?;
     let permits = Arc::new(Semaphore::new(8));
     let storage_permit = Arc::new(Mutex::new(()));
+    let read_supervisor = Arc::new(limeos_executor::read_supervision::Supervisor::default());
+    let stacks = limeos_observations::stacks::Cache::new();
+    if storage_reader && ceiling.allow_stack_read {
+        let writer = stacks.clone();
+        let gate = storage_permit.clone();
+        let manager = read_supervisor.clone();
+        let selection = limeos_executor::read_launch::StackSelection::installed()
+            .map_err(|_| std::io::Error::other("invalid stack configuration selection"))?;
+        tokio::spawn(async move {
+            loop {
+                let result = match gate.clone().try_lock_owned() {
+                    Ok(guard) => {
+                        let manager = manager.clone();
+                        let selection = selection.clone();
+                        tokio::task::spawn_blocking(move || {
+                            limeos_executor::stack_read::refresh(selection, &manager, guard)
+                        })
+                        .await
+                        .ok()
+                        .and_then(Result::ok)
+                    }
+                    Err(_) => None,
+                };
+                match result {
+                    Some(cohort) => {
+                        if writer.update(&cohort).is_err() {
+                            writer.failed();
+                        }
+                    }
+                    None => writer.failed(),
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            }
+        });
+    }
     loop {
         let (mut stream, _) = listener.accept().await?;
         let Ok(permit) = permits.clone().try_acquire_owned() else {
@@ -269,6 +307,8 @@ async fn run() -> std::io::Result<()> {
         let restart_ceiling = restart_ceiling.clone();
         let engine = engine.clone();
         let storage_permit = storage_permit.clone();
+        let read_supervisor = read_supervisor.clone();
+        let stacks = stacks.clone();
         tokio::spawn(async move {
             let _permit = permit;
             let result = async {
@@ -287,6 +327,9 @@ async fn run() -> std::io::Result<()> {
                 .map_err(|_| limeos_domain::Error(limeos_domain::ErrorCode::Unavailable))??;
                 let mut receipt = ceiling.validate(peer.uid(), &request)?;
                 match request {
+                    Request::StackInventory { .. } if storage_reader => {
+                        receipt.stack_cohort = Some(stacks.cohort()?);
+                    }
                     Request::ContainerStorageInventory { .. }
                         if source == limeos_contracts::Source::Docker =>
                     {
@@ -298,6 +341,9 @@ async fn run() -> std::io::Result<()> {
                     Request::StorageInventory { .. } if storage_reader => {
                         let _single_flight = storage_permit.try_lock().map_err(|_| {
                             limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
+                        })?;
+                        read_supervisor.ensure_not_poisoned().map_err(|_| {
+                            limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
                         })?;
                         receipt.storage = Some(
                             tokio::time::timeout(

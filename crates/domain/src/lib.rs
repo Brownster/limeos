@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 pub mod automation;
 pub mod backup_jobs;
+pub mod deployment;
 pub use backup_jobs::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

@@ -7,6 +7,11 @@ license.workspace = true
 publish.workspace = true
 default-run = "limeos-executor"
 
+[[bin]]
+name = "limeos-stack-read-worker"
+path = "src/stack_read_worker.rs"
+test = false
+
 [features]
 read-worker-probe = []
 

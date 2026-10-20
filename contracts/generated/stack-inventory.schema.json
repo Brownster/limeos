@@ -1,0 +1,437 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StackInventory",
+  "type": "object",
+  "properties": {
+    "catalog": {
+      "$ref": "#/$defs/StackSourceStatus"
+    },
+    "engine": {
+      "$ref": "#/$defs/StackSourceStatus"
+    },
+    "engine_matches_catalog": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "generated_at": {
+      "type": "integer",
+      "format": "int64"
+    },
+    "other_projects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/StackOtherProjectView"
+      }
+    },
+    "stacks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/StackView"
+      }
+    },
+    "standalone_containers": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    },
+    "version": {
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    }
+  },
+  "required": [
+    "version",
+    "generated_at",
+    "catalog",
+    "engine",
+    "stacks",
+    "other_projects"
+  ],
+  "$defs": {
+    "ComposeFileName": {
+      "type": "string",
+      "enum": [
+        "compose.yaml",
+        "compose.yml",
+        "docker-compose.yaml",
+        "docker-compose.yml"
+      ]
+    },
+    "ContainerSnapshot": {
+      "description": "Selected inspection evidence. Environment variables, labels and host paths\nnever enter a plan. The full ID, image and start timestamp identify an instance.",
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "resource": {
+          "type": "string"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "started_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "image",
+        "started_at",
+        "running"
+      ]
+    },
+    "StackCounts": {
+      "type": "object",
+      "properties": {
+        "one_off_running": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "one_offs": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "ordinary": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "running": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "required": [
+        "ordinary",
+        "running",
+        "one_offs",
+        "one_off_running"
+      ]
+    },
+    "StackFileStatus": {
+      "description": "Diagnostic facts only. No variant makes stack actions executable.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "const": "not_inspected"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidates": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ComposeFileName"
+              }
+            },
+            "state": {
+              "type": "string",
+              "const": "conflict"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "candidates"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "$ref": "#/$defs/StackUnsupportedSource"
+            },
+            "state": {
+              "type": "string",
+              "const": "unsupported"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "reason"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "const": "unavailable"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ]
+        }
+      ]
+    },
+    "StackIssue": {
+      "type": "string",
+      "enum": [
+        "identity_conflict",
+        "overlapping_project",
+        "undeclared_services"
+      ]
+    },
+    "StackMemberView": {
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/$defs/ContainerSnapshot"
+        },
+        "one_off": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "container",
+        "one_off"
+      ]
+    },
+    "StackOtherProjectView": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "$ref": "#/$defs/StackProjectIdentity"
+        },
+        "relation": {
+          "$ref": "#/$defs/StackRegistrationRelation"
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StackServiceView"
+          }
+        }
+      },
+      "required": [
+        "project",
+        "relation",
+        "services"
+      ]
+    },
+    "StackProjectIdentity": {
+      "type": "object",
+      "properties": {
+        "config_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "working_directory": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "working_directory",
+        "config_files"
+      ]
+    },
+    "StackRegistrationRelation": {
+      "type": "string",
+      "enum": [
+        "not_registered",
+        "catalog_unknown",
+        "engine_mismatch",
+        "identity_conflict",
+        "overlapping"
+      ]
+    },
+    "StackRuntimeStatus": {
+      "type": "string",
+      "enum": [
+        "unknown",
+        "no_containers",
+        "stopped",
+        "running",
+        "partial",
+        "conflict"
+      ]
+    },
+    "StackServiceView": {
+      "type": "object",
+      "properties": {
+        "counts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StackCounts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "declared": {
+          "type": "boolean"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StackMemberView"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/StackRuntimeStatus"
+        }
+      },
+      "required": [
+        "name",
+        "declared",
+        "runtime",
+        "members"
+      ]
+    },
+    "StackSourceState": {
+      "type": "string",
+      "enum": [
+        "fresh",
+        "stale",
+        "unavailable"
+      ]
+    },
+    "StackSourceStatus": {
+      "type": "object",
+      "properties": {
+        "max_age_seconds": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "sampled_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "state": {
+          "$ref": "#/$defs/StackSourceState"
+        },
+        "valid_for_millis": {
+          "description": "Remaining display lifetime, shortened by every cache/transport layer.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "state",
+        "max_age_seconds",
+        "valid_for_millis"
+      ]
+    },
+    "StackUnsupportedSource": {
+      "type": "string",
+      "enum": [
+        "yaml",
+        "environment",
+        "include",
+        "interpolation",
+        "other"
+      ]
+    },
+    "StackView": {
+      "type": "object",
+      "properties": {
+        "config_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "counts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StackCounts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "files": {
+          "$ref": "#/$defs/StackFileStatus"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StackIssue"
+          }
+        },
+        "missing_services": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "project": {
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/StackRuntimeStatus"
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StackServiceView"
+          }
+        },
+        "stack": {
+          "type": "string"
+        },
+        "working_directory": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "stack",
+        "project",
+        "working_directory",
+        "config_files",
+        "files",
+        "runtime",
+        "services",
+        "issues"
+      ]
+    }
+  }
+}

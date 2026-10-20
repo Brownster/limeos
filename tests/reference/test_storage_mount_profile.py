@@ -272,6 +272,7 @@ fct_stop_optional_service limeos-storage-mounts.service
             for name in [
                 "limeos-core",
                 "limeos-executor",
+                "limeos-stack-read-worker",
                 "limeosctl",
                 "limeos-password-worker",
             ]:

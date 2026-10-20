@@ -53,6 +53,8 @@ def main():
         "--bin",
         "limeos-executor",
         "--bin",
+        "limeos-stack-read-worker",
+        "--bin",
         "limeosctl",
         cwd=source,
         env=environment,

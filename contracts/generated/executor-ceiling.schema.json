@@ -22,6 +22,10 @@
       "type": "boolean",
       "default": false
     },
+    "allow_stack_read": {
+      "type": "boolean",
+      "default": false
+    },
     "allow_start": {
       "type": "boolean",
       "default": false

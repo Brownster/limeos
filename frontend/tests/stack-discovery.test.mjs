@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { decodeStackInventory, readStackInventory, inventoryStale, StackReadError, StackInventoryController, StackManagement, wire } from "./helpers/stack-discovery.mjs";
+import { decodeStackInventory, readStackInventory, inventoryStale, StackReadError, StackInventoryController, StackManagement, StackPanel, wire } from "./helpers/stack-discovery.mjs";
 
 const clone = () => structuredClone(wire);
 const render = props => renderToStaticMarkup(React.createElement(StackManagement, { refresh() {}, ...props }));
@@ -84,7 +84,7 @@ test("concurrent refresh requests coalesce", async () => {
   assert.equal(controller.getSnapshot().loading, false); assert.equal(controller.getSnapshot().stale, false); controller.dispose();
 });
 
-test("default browser clock can construct and read without injection", async () => {
+test("default clock can construct and read without injection", async () => {
   const controller = new StackInventoryController(() => {}, async () => clone());
   await controller.start(); assert.equal(controller.getSnapshot().value.version, 1); controller.dispose();
 });
@@ -146,4 +146,25 @@ test("dispose before dispatch prevents a late request from being started", async
 
 test("malformed JSON yields a safe inventory error", async () => {
   await assert.rejects(readStackInventory(new AbortController().signal, async () => new Response("PRIVATE_RAW_INVALID_BODY")), error => error instanceof StackReadError && !error.message.includes("PRIVATE_RAW_INVALID_BODY"));
+});
+
+test("stack view ownership changes with principal, grants and session",()=>{
+  const props={ principal:"alice",grantRevision:1,csrf:"first",expired() {} };
+  const key=StackPanel(props).key;
+  for(const change of [{principal:"bob"},{grantRevision:2},{csrf:"second"}]) assert.notEqual(StackPanel({...props,...change}).key,key);
+  assert.equal(StackPanel({...props}).key,key);
+});
+test("transport stops pre-aborted requests and cancels a stalled response body",async()=>{
+  const stopped=new AbortController();stopped.abort();let calls=0;
+  await assert.rejects(readStackInventory(stopped.signal,async()=>{calls++;return Response.json(wire);}));assert.equal(calls,0);
+  const stop=new AbortController();let cancelled=false;
+  const pending=readStackInventory(stop.signal,async()=>new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode("{"));},cancel(){cancelled=true;}})));
+  await Promise.resolve();await Promise.resolve();stop.abort();await assert.rejects(pending);assert.equal(cancelled,true);
+});
+test("short remaining server lifetime expires without another read",async()=>{
+  const value=clone();value.catalog.valid_for_millis=500;value.engine.valid_for_millis=500;
+  const clock=fakeClock();const controller=new StackInventoryController(()=>{},async()=>value,clock);
+  await controller.start();assert.equal(controller.getSnapshot().stale,false);
+  assert.equal([...clock.timers.values()][0].ms,501);
+  clock.advance(102);assert.equal(controller.getSnapshot().stale,true);controller.dispose();
 });

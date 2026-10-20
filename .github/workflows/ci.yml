@@ -84,6 +84,7 @@ jobs:
           python3 -m venv /tmp/limeos-browser-check
           /tmp/limeos-browser-check/bin/pip install playwright==1.62.0
           /tmp/limeos-browser-check/bin/python tests/frontend/restart.py
+          /tmp/limeos-browser-check/bin/python tests/frontend/stacks.py --output docs/rewrite-evidence/p04/ci-stack-browser
       - name: Deliberate release-gate rejection probes
         run: python3 scripts/test_gates.py
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

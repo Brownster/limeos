@@ -27,13 +27,11 @@ def module(name: str, relative: str) -> str:
 packages = {
     "domain": (
         ["serde", "serde_json"],
-        "pub use original_domain::*;\n"
-        + module("deployment", "crates/domain/src/deployment/mod.rs"),
+        "pub use original_domain::*;\n",
     ),
     "adapter": (
         ["serde", "serde_json", "sha2", "hex", "tokio"],
-        "pub use original_executor::{compose_files, compose_management, docker};\n"
-        + module("deployment", "crates/executor-container/src/deployment/mod.rs")
+        "pub use original_executor::{compose_files, compose_management, docker, deployment};\n"
         + module("updates", "bins/executor/src/updates/mod.rs"),
     ),
     "api": (

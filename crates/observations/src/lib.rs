@@ -5,6 +5,7 @@ pub use collectors::{start_core, start_docker, start_host};
 pub mod pool_protection;
 mod probes;
 pub mod shares;
+pub mod stacks;
 pub mod telemetry;
 use limeos_contracts::{Availability, Freshness, ObservationBatch, Overview, Source, VERSION};
 use limeos_domain::{Error, ErrorCode, Result};

@@ -1,26 +1,11 @@
-/** Proposed B2 wire types; shared contract registration/generation is central. */
-export type RuntimeStatus = "unknown" | "no_containers" | "stopped" | "running" | "partial" | "conflict";
-export type SourceStatus = { state: "fresh" | "stale" | "unavailable"; sampled_at: number | null; max_age_seconds: number };
-export type Counts = { ordinary: number; running: number; one_offs: number; one_off_running: number };
-export type MemberView = { container: { resource: string; image: string; started_at: string; running: boolean }; one_off: boolean };
-export type ServiceView = { name: string; declared: boolean; runtime: RuntimeStatus; counts: Counts | null; members: MemberView[] };
-export type FileStatus = { state: "not_inspected" | "unavailable" } |
-  { state: "conflict"; candidates: string[] } | { state: "unsupported"; reason: "yaml" | "environment" | "include" | "interpolation" | "other" };
-export type StackView = {
-  stack: string; project: string; working_directory: string; config_files: string[]; files: FileStatus;
-  runtime: RuntimeStatus; counts: Counts | null; missing_services: number | null;
-  services: ServiceView[]; issues: ("identity_conflict" | "overlapping_project" | "undeclared_services")[];
-};
-export type OtherProject = {
-  project: { name: string; working_directory: string; config_files: string[] };
-  relation: "not_registered" | "catalog_unknown" | "engine_mismatch" | "identity_conflict" | "overlapping";
-  services: ServiceView[];
-};
-export type StackInventory = {
-  version: 1; generated_at: number; catalog: SourceStatus; engine: SourceStatus;
-  engine_matches_catalog: boolean | null; stacks: StackView[]; other_projects: OtherProject[];
-  standalone_containers: number | null;
-};
+/** Generated shared wire types; runtime admission below still validates bytes. */
+import type { StackInventory } from "../../contracts/generated/types";
+export type { StackInventory } from "../../contracts/generated/types";
+export type {
+  StackRuntimeStatus as RuntimeStatus, StackSourceStatus as SourceStatus,
+  StackCounts as Counts, StackMemberView as MemberView, StackServiceView as ServiceView,
+  StackFileStatus as FileStatus, StackView, StackOtherProjectView as OtherProject,
+} from "../../contracts/generated/types";
 
 export class StackReadError extends Error {
   constructor(message: string, readonly status = 0, readonly code = "unavailable", readonly auditId = "") { super(message); }
@@ -38,6 +23,8 @@ function source(v: unknown): void {
   const r = record(v); choice(r.state, ["fresh", "stale", "unavailable"]);
   nullableInteger(r.sampled_at, 253402300799);
   if ((r.state === "unavailable") !== (r.sampled_at === null) || r.max_age_seconds !== 90) invalid();
+  integer(r.valid_for_millis,90_000);
+  if(r.state!=="fresh" && r.valid_for_millis!==0)invalid();
 }
 function counts(v: unknown): void {
   const r = record(v);
@@ -100,19 +87,23 @@ export function decodeStackInventory(value: unknown): StackInventory {
 }
 
 export function inventoryStale(value: StackInventory, now = Date.now() / 1000): boolean {
-  return [value.catalog, value.engine].some(s => s.state !== "fresh" || s.sampled_at === null || now < s.sampled_at || now - s.sampled_at > s.max_age_seconds);
+  return [value.catalog, value.engine].some(s => s.state !== "fresh" || s.sampled_at === null || now < s.sampled_at || now - s.sampled_at > s.max_age_seconds || now*1000>value.generated_at*1000+s.valid_for_millis);
 }
 
-async function body(response: Response): Promise<unknown> {
+async function body(response: Response, signal:AbortSignal): Promise<unknown> {
   const reader = response.body?.getReader() ?? invalid();
   const buffer = new Uint8Array(65_536); let bytes = 0;
+  let aborted=false;
+  const abort=()=>{ aborted=true;void reader.cancel().catch(()=>{}); };
+  signal.addEventListener("abort",abort,{ once:true });if(signal.aborted)abort();
   try {
     for (;;) {
-      const item = await reader.read(); if (item.done) break;
+      if(aborted)invalid();
+      const item = await reader.read();if(aborted)invalid(); if (item.done) break;
       if (item.value.length > buffer.length - bytes) { void reader.cancel().catch(() => {}); invalid(); }
       buffer.set(item.value, bytes); bytes += item.value.length;
     }
-  } finally { reader.releaseLock(); }
+  } finally { signal.removeEventListener("abort",abort);reader.releaseLock(); }
   try { return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(0, bytes))) as unknown; }
   catch { return invalid(); }
 }
@@ -121,17 +112,22 @@ export async function readStackInventory(signal: AbortSignal, fetcher: typeof fe
   const controller = new AbortController(); const abort = () => controller.abort();
   signal.addEventListener("abort", abort, { once: true }); if (signal.aborted) abort();
   const timer = setTimeout(abort, 12_000);
+  const started=performance.now();
   try {
-    const response = await fetcher("/api/v1/deployment/stacks", { method: "GET", credentials: "same-origin", cache: "no-store", headers: { Accept: "application/json" }, signal: controller.signal });
+    if(controller.signal.aborted)invalid();
+    const response = await fetcher("/api/v1/deployment/stacks", { method: "GET", credentials: "same-origin", cache: "no-store", redirect:"error", headers: { Accept: "application/json" }, signal: controller.signal });
     if (response.status === 401 || response.status === 403) {
       void response.body?.cancel().catch(() => {});
       throw new StackReadError(response.status === 401 ? "Your session has expired." : "You no longer have access to stack inventory.", response.status);
     }
     if (!response.ok) {
-      const value = await body(response).catch(() => null); const error = value && typeof value === "object" ? value as Record<string, unknown> : null;
+      const value = await body(response,controller.signal).catch(() => null); const error = value && typeof value === "object" ? value as Record<string, unknown> : null;
       throw new StackReadError(typeof error?.message === "string" && error.message.length <= 512 ? error.message : "Stack inventory is unavailable. Refresh to try again.", response.status,
         typeof error?.code === "string" && error.code.length <= 64 ? error.code : "unavailable", typeof error?.audit_id === "string" && error.audit_id.length <= 128 ? error.audit_id : "");
     }
-    return decodeStackInventory(await body(response));
+    const value=decodeStackInventory(await body(response,controller.signal));
+    const elapsed=Math.max(0,Math.ceil(performance.now()-started));
+    for(const source of [value.catalog,value.engine]) source.valid_for_millis=Math.max(0,source.valid_for_millis-elapsed);
+    return value;
   } finally { clearTimeout(timer); signal.removeEventListener("abort", abort); }
 }

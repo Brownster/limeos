@@ -47,6 +47,7 @@ def check_root_execution_payload(stage: Path, package: str) -> None:
         for name in (
             "limeos-core",
             "limeos-executor",
+            "limeos-stack-read-worker",
             "limeosctl",
             "limeos-password-worker",
         )
@@ -94,6 +95,7 @@ def main() -> None:
         for name in [
             "limeos-core",
             "limeos-executor",
+            "limeos-stack-read-worker",
             "limeosctl",
             "limeos-password-worker",
         ]:
@@ -203,6 +205,7 @@ Description: Secure host observations and approved container operations
             elif path.name not in [
                 "limeos-core",
                 "limeos-executor",
+                "limeos-stack-read-worker",
                 "limeosctl",
                 "limeos-password-worker",
                 "postinst",

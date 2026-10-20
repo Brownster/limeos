@@ -60,6 +60,15 @@ pub struct Ticket {
     started: Instant,
 }
 impl Supervisor {
+    /// Shared service admission must retain this permanent cleanup barrier,
+    /// including callers which use the same gate without launching this worker.
+    pub fn ensure_not_poisoned(&self) -> Result<()> {
+        if self.poisoned.load(Ordering::Acquire) {
+            Err(Refusal::CleanupUnconfirmed)
+        } else {
+            Ok(())
+        }
+    }
     /// Trusted Rust-side guardian selection only. No runtime route calls this.
     /// The dedicated guardian must invoke `guardian` before any other work.
     pub fn start(&self, command: Command) -> Result<Ticket> {
