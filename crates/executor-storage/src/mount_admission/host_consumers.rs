@@ -14,6 +14,24 @@ pub(super) struct Task {
     start: u64,
     namespace: (u64, u64),
 }
+
+// Diagnostic classes only. The caller still refuses every identity difference;
+// neither a genuine kernel-task marker nor a class here grants admission.
+fn task_difference(held: &[Task], fresh: &[Task]) -> &'static str {
+    let kernel = |task: &&Task| task.namespace == (0, 0);
+    let userspace = |task: &&Task| task.namespace != (0, 0);
+    let same_kernel = held.iter().filter(kernel).eq(fresh.iter().filter(kernel));
+    let same_userspace = held
+        .iter()
+        .filter(userspace)
+        .eq(fresh.iter().filter(userspace));
+    match (same_kernel, same_userspace) {
+        (false, true) => "scan.recheck.kernel_tasks",
+        (true, false) => "scan.recheck.user_tasks",
+        (false, false) => "scan.recheck.mixed_tasks",
+        (true, true) => "scan.recheck.task_order",
+    }
+}
 struct Namespace {
     fd: OwnedFd,
     digest: String,
@@ -119,11 +137,32 @@ impl HostConsumers {
                     cancelled,
                 ),
             )?;
-            if tasks != self.tasks
-                || digest != self.digest
-                || namespaces.len() != self.namespaces.len()
-            {
-                return Err(Failure::Conflict);
+            if tasks != self.tasks {
+                return Err(refusal(
+                    task_difference(&self.tasks, &tasks),
+                    Failure::Conflict,
+                    0,
+                    tasks.len(),
+                    self.tasks.len(),
+                ));
+            }
+            if namespaces.len() != self.namespaces.len() {
+                return Err(refusal(
+                    "scan.recheck.namespace_membership",
+                    Failure::Conflict,
+                    0,
+                    namespaces.len(),
+                    self.namespaces.len(),
+                ));
+            }
+            if digest != self.digest {
+                return Err(refusal(
+                    "scan.recheck.mount_digest",
+                    Failure::Conflict,
+                    0,
+                    0,
+                    0,
+                ));
             }
             for (key, held) in &self.namespaces {
                 let fresh = namespaces.get(key).ok_or(Failure::Conflict)?;
@@ -799,6 +838,42 @@ fn code_digest(fd: &OwnedFd) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn task_diagnostics_distinguish_same_count_kernel_and_user_identity_changes() {
+        let user = Task {
+            pid: 2,
+            tid: 2,
+            start: 100,
+            namespace: (4, 10),
+        };
+        let kernel = Task {
+            pid: 3,
+            tid: 3,
+            start: 101,
+            namespace: (0, 0),
+        };
+        let held = [user.clone(), kernel.clone()];
+        let mut changed_user = user.clone();
+        changed_user.start += 1;
+        let mut changed_kernel = kernel.clone();
+        changed_kernel.start += 1;
+        for (fresh, phase) in [
+            (
+                [user.clone(), changed_kernel.clone()],
+                "scan.recheck.kernel_tasks",
+            ),
+            (
+                [changed_user.clone(), kernel.clone()],
+                "scan.recheck.user_tasks",
+            ),
+            ([changed_user, changed_kernel], "scan.recheck.mixed_tasks"),
+            ([kernel, user], "scan.recheck.task_order"),
+        ] {
+            assert_ne!(held, fresh);
+            assert_eq!(task_difference(&held, &fresh), phase);
+        }
+    }
+
     #[test]
     fn namespace_capacity_retains_anchors_and_refuses_before_excess_table_read() {
         let mut retained = BTreeMap::new();
