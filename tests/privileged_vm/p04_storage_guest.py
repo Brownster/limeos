@@ -54,7 +54,10 @@ print('raw-probe', r.returncode, r.stdout, r.stderr)
                 timeout=15,
             )
             print("READINESS CONTEXT: " + context.stdout + context.stderr, flush=True)
-        raise AssertionError(f"{args[0]} failed: {value.stderr[-2000:]}")
+        raise AssertionError(
+            f"{args[0]} failed ({value.returncode}): "
+            f"stdout={value.stdout[-2000:]!r}; stderr={value.stderr[-2000:]!r}"
+        )
     return value
 
 
