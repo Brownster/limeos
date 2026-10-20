@@ -1,0 +1,192 @@
+{
+  "source": "6466eb0236cf4599bd6c67555277b1a8cdccfc1b",
+  "assembled_product_source": "b587621a2cde11442ce318728f57faad6fc384e7",
+  "workspace_components": {
+    "workspace_excluding_storage": 906,
+    "storage_unit": 211,
+    "storage_compile_fail": 13
+  },
+  "workspace_passed": 1130,
+  "stream_b_harness_passed": 507,
+  "harness_overlap": "Root API cases overlap workspace checks; do not sum the two counts as unique tests",
+  "checks": {
+    "workspace-rest": {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--workspace",
+        "--exclude",
+        "limeos-executor-storage",
+        "--locked",
+        "--no-fail-fast"
+      ],
+      "exit_code": 0,
+      "minimum_available_bytes": 5036359680,
+      "inputs_unchanged": true,
+      "started": "2026-10-20T11:54:29.263464+00:00",
+      "ended": "2026-10-20T11:56:43.213835+00:00"
+    },
+    "storage-compile": {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit_code": 0,
+      "minimum_available_bytes": 4820459520,
+      "inputs_unchanged": true,
+      "started": "2026-10-20T11:56:43.310019+00:00",
+      "ended": "2026-10-20T11:57:53.923849+00:00"
+    },
+    "storage-runtime": {
+      "command": [
+        "uv",
+        "--cache-dir",
+        "/home/marc/Documents/github/lime-os/.cache/uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "/home/marc/Documents/github/lime-os/.cache/main-consolidation/storage_runtime.py"
+      ],
+      "exit_code": 0,
+      "minimum_available_bytes": 5179912192,
+      "inputs_unchanged": true,
+      "started": "2026-10-20T11:57:54.038080+00:00",
+      "ended": "2026-10-20T11:57:58.163609+00:00"
+    },
+    "storage-docs": {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--doc"
+      ],
+      "exit_code": 0,
+      "minimum_available_bytes": 4865613824,
+      "inputs_unchanged": true,
+      "started": "2026-10-20T12:02:37.404476+00:00",
+      "ended": "2026-10-20T12:02:38.630742+00:00"
+    },
+    "main-clippy": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "minimum_available_bytes": 4822568960,
+      "inputs_unchanged": true,
+      "started": "2026-10-20T11:57:58.248992+00:00",
+      "ended": "2026-10-20T11:59:43.399774+00:00"
+    },
+    "main-contracts": {
+      "command": [
+        "uv",
+        "--cache-dir",
+        "/home/marc/Documents/github/lime-os/.cache/uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "scripts/check_contracts.py"
+      ],
+      "exit_code": 0,
+      "minimum_available_bytes": 5069492224,
+      "inputs_unchanged": true,
+      "started": "2026-10-20T11:59:43.499099+00:00",
+      "ended": "2026-10-20T11:59:48.935396+00:00"
+    },
+    "prepare-stream-b": {
+      "command": [
+        "uv",
+        "--cache-dir",
+        "/home/marc/Documents/github/lime-os/.cache/uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "tests/fixtures/stream-b/check-leaves.py"
+      ],
+      "exit_code": 0,
+      "minimum_available_bytes": 5201014784,
+      "inputs_unchanged": true,
+      "started": "2026-10-20T11:59:49.016149+00:00",
+      "ended": "2026-10-20T11:59:49.235592+00:00"
+    },
+    "stream-b-tests": {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--manifest-path",
+        ".cache/stream-b-leaf/Cargo.toml"
+      ],
+      "exit_code": 0,
+      "minimum_available_bytes": 4430626816,
+      "inputs_unchanged": true,
+      "started": "2026-10-20T11:59:49.318767+00:00",
+      "ended": "2026-10-20T12:01:42.289643+00:00"
+    },
+    "stream-b-clippy": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "--manifest-path",
+        ".cache/stream-b-leaf/Cargo.toml",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "minimum_available_bytes": 4614238208,
+      "inputs_unchanged": true,
+      "started": "2026-10-20T12:01:42.652441+00:00",
+      "ended": "2026-10-20T12:02:22.261842+00:00"
+    }
+  },
+  "storage_runtime": {
+    "executable": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target/debug/deps/limeos_executor_storage-1b92f2a31d62eb89",
+    "sha256": "e5c56b1809e2e4a2f8f63973b2fdf114c9dc8615c00126b1821060b599df7f89",
+    "exit_code": 0,
+    "tmpfs_fixture_sampled_peak_bytes": 57496,
+    "sampling_threshold_bytes": 16777216,
+    "per_file_limit_bytes": 16777216,
+    "scratch_removed": true,
+    "compile_record": "attempts/storage-compile/record.json",
+    "runtime_tmpdir": "/run/user/1000/limeos-storage-fixtures-yju64bz8",
+    "cargo_or_compilation_on_tmpfs": false
+  },
+  "tools": {
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5",
+    "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+    "kernel": "Linux 7.0.14-101.fc43.x86_64 x86_64 unknown"
+  },
+  "cleanup": {
+    "worktrees_removed": 78,
+    "branches_removed": 87,
+    "dirty_worktrees_retained": 8
+  },
+  "frontend": {
+    "passed": 219,
+    "scope": "Earlier unchanged final frontend source, TypeScript and production build; see 19 October packet"
+  },
+  "fresh_native_arm64_and_installed": "UNRUN",
+  "remote_push": false,
+  "phase_completion": false
+}

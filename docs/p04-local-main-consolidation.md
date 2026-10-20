@@ -1,4 +1,4 @@
-# Local main consolidation, 19 October 2026
+# Local main consolidation, validated 20 October 2026
 
 This integration collects all committed local branch tips descended from or
 reconciled with local main `7df3f7530865c31b7faefd1f7b12a25aa7655860`.
@@ -44,8 +44,10 @@ other B leaf adapters.
 
 ## Validation and limits
 
-The [local evidence packet](rewrite-evidence/p04/2026-10-19-local-main-consolidation/README.md)
-retains exact logs, source inputs and check identities.
+The [final local validation packet](rewrite-evidence/p04/2026-10-20-local-main-validation/README.md)
+binds source `6466eb0` and records the completed checks. The
+[initial assembly packet](rewrite-evidence/p04/2026-10-19-local-main-consolidation/README.md)
+retains the earlier attempts and their original limits.
 
 | Check | Result |
 | --- | --- |
@@ -54,24 +56,36 @@ retains exact logs, source inputs and check identities.
 | Production frontend build | Passed; 22 modules, no mounted browser/visual acceptance |
 | Reference tests | 57 passed with local IPC outside the sandbox |
 | ARM64 qualification harness | 63 pure harness cases passed; no ARM64 hardware execution |
-| Schema generator regression | One native Rust test passed; actual contracts regenerated |
+| Schema generator and contract drift | Passed through the actual Rust generator; regression included in workspace results |
 | Formatting and repository hygiene | Passed |
-| Full native Rust workspace | Unqualified: first attempt lacked cached rustls; second used the existing locked cache but the 3 GiB memory guard terminated compilation before tests |
-| Fresh strict workspace Clippy and installed/package/VM checks | Not run for the final combined source |
+| Complete native Rust workspace | 1,130 unit/integration/doctest checks passed across disjoint workspace-rest, storage-unit and storage-doctest runs |
+| Combined Stream B harness | 507 passed; overlaps root API cases, so its count stays separate |
+| Strict all-target workspace and B Clippy | Both passed with `-D warnings` |
+| Fresh native ARM64 and installed/package/VM checks | Not run for the combined source |
 
 The reference/harness and schema records retain their earlier input snapshots;
 later UI, leaf-harness and documentation corrections are identified separately.
 Old source-bound leaf packets keep their original source/test claims. Counts
 from old runs, harnesses or repeated checks are not added to the current totals.
 
+After cleanup restored headroom, the full native run reached tests and exposed
+17 existing Btrfs fixture failures. The documented storage-fixture procedure
+resolved the test setup without changing production code or assertions:
+compile on disk, then execute only the compiled storage tests in a private
+runtime tmpfs directory. All 211 storage unit tests pass; sampled data peaked at
+57,496 bytes and the directory was removed. Cargo, caches, logs and general
+scratch stayed on disk. The remaining workspace and 13 storage compile-fail
+doctests passed separately. Initial missing-cache, guard-stop and filesystem
+failures remain archived; this does not qualify Btrfs source resolution.
+
 The earlier [hosted bootstrap](https://github.com/Brownster/limeos/actions/runs/39155342674)
 qualified the schedule Rust inputs and generated real contracts. The separate
 [ordinary bootstrap CI](https://github.com/Brownster/limeos/actions/runs/39155342585)
 failed at the expected tracked-contract drift check on both architectures. Those
-runs predate this combined candidate and its ABI correction; they do not qualify
-the final source. A fresh hosted run requires publishing a qualification branch,
-which remains subject to the user's pending permission. No push occurred during
-local consolidation.
+runs predate this combined candidate and its ABI correction. The final local
+checks qualify the assembled source independently. A fresh hosted ARM64/matrix
+run requires publishing a qualification branch, which remains subject to the
+user's optional pending permission. No push occurred during local consolidation.
 
 The supplemental `qualification-stream-b-leaves.yml` workflow checks the existing
 combined B harness on native AMD64 and ARM64. It supports explicit dispatch or
@@ -84,7 +98,9 @@ output and strict Clippy output are archived by that workflow.
 Remove a worktree only after its HEAD is an ancestor of actual local main and its
 tracked/untracked status is empty. Preserve ignored evidence caches separately;
 delete only local branches with merged ancestry and no remaining worktree.
-The machine-readable outcome is `.cache/main-consolidation/cleanup-result.json`.
+Cleanup removed **78 worktrees and 87 local branches** after these checks. The
+machine-readable outcome is `.cache/main-consolidation/cleanup-result.json` and
+is also archived in the final packet.
 
 Eight worktrees contain uncommitted drafts and are retained, with recovery copies:
 

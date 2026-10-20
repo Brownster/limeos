@@ -1,0 +1,17 @@
+[package]
+name = "limeos-stream-b-adapter-leaf"
+version = "0.0.0"
+edition = "2024"
+publish = false
+[dependencies]
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+sha2 = "=0.10.9"
+hex = "=0.4.3"
+tokio = { version = "=1.48.0", features = ["io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "test-util", "time"] }
+limeos-domain = { package = "limeos-stream-b-domain-leaf", path = "../domain" }
+original-executor = { package = "limeos-executor-container", path = "/home/marc/Documents/github/lime-os/crates/executor-container" }
+[lib]
+path = "lib.rs"
+[lints.rust]
+unsafe_code = "forbid"
