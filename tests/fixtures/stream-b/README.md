@@ -7,6 +7,13 @@ list for each leaf. It leaves production root exports, routes, Store/schema,
 protocol, workers, claims/authority, frontend shell and package activation intact.
 Successful checks do not prove registered runtime behavior or P04 completion.
 
+The 20 October stack runtime registers the deployment domain and container
+adapter modules in their native crates. This harness re-exports those exact
+types; run their root unit suites for that coverage. Its domain wrapper now has
+zero tests, while the supplemental host-policy, proposed API and runner cases
+remain here. The registered stack route also has native Core/API and browser
+checks. See [the runtime handoff](../../../docs/p04-stack-inventory-runtime-handoff.md).
+
 Use repository disk scratch and cached dependencies, one local Cargo job/suite at
 a time. From the worktree root:
 

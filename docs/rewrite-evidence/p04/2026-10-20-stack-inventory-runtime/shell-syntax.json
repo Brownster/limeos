@@ -1,0 +1,9 @@
+{
+  "command": [
+    "bash",
+    "-n",
+    "packaging/debian/postinst"
+  ],
+  "exit_code": 0,
+  "source_sha256": "06e19667bde86e8d9ab90fac95b132470de2834dc4d4396ba778b95e08c91efb"
+}

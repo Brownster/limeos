@@ -1,5 +1,9 @@
 # B2 stack discovery integration handoff
 
+20 October update: [registered runtime handoff](p04-stack-inventory-runtime-handoff.md)
+records the subsequent Core/API/UI path and local qualification. The original
+leaf's source and acceptance claims below retain their 15 October scope.
+
 Engineer B, 15 October 2026. Branch `engineer/p04-stack-discovery`, independent
 from main `b37c718`. Tested code: `c4b30f52e1d7f1cb318ff16e122a13f0cac219df`.
 This is a read-only B2 slice. Runtime/API/UI registration, real source inspection,
