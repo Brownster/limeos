@@ -1,0 +1,79 @@
+[
+  {
+    "label": "schedules-ui-types-1",
+    "exit_code": 0,
+    "guard_triggered": false,
+    "minimum_available_bytes": 3598831616,
+    "inputs_unchanged": true
+  },
+  {
+    "label": "schedules-ui-focused-1",
+    "exit_code": 0,
+    "guard_triggered": false,
+    "minimum_available_bytes": 3603218432,
+    "inputs_unchanged": true
+  },
+  {
+    "label": "schedules-ui-all-1",
+    "exit_code": 0,
+    "guard_triggered": false,
+    "minimum_available_bytes": 3565068288,
+    "inputs_unchanged": true
+  },
+  {
+    "label": "schedules-ui-build-1",
+    "exit_code": 0,
+    "guard_triggered": false,
+    "minimum_available_bytes": 3543166976,
+    "inputs_unchanged": true
+  },
+  {
+    "label": "schedules-ui-build-2",
+    "exit_code": 0,
+    "guard_triggered": false,
+    "minimum_available_bytes": 3465068544,
+    "inputs_unchanged": true
+  },
+  {
+    "label": "schedules-ui-browser-lint-1",
+    "exit_code": 1,
+    "guard_triggered": false,
+    "minimum_available_bytes": 3752398848,
+    "inputs_unchanged": true
+  },
+  {
+    "label": "schedules-ui-browser-lint-2",
+    "exit_code": 0,
+    "guard_triggered": false,
+    "minimum_available_bytes": 3494199296,
+    "inputs_unchanged": true
+  },
+  {
+    "label": "schedules-ui-browser-1",
+    "exit_code": 0,
+    "guard_triggered": false,
+    "minimum_available_bytes": 3316441088,
+    "inputs_unchanged": true
+  },
+  {
+    "label": "schedules-ui-browser-2",
+    "exit_code": 0,
+    "guard_triggered": false,
+    "minimum_available_bytes": 3435425792,
+    "inputs_unchanged": true
+  },
+  {
+    "label": "schedules-ui-browser-3",
+    "exit_code": 143,
+    "guard_triggered": true,
+    "minimum_available_bytes": 3175645184,
+    "inputs_unchanged": true
+  },
+  {
+    "label": "schedules-ui-reference-final",
+    "exit_code": 0,
+    "guard_triggered": false,
+    "minimum_available_bytes": 3255132160,
+    "inputs_unchanged": true
+  }
+]

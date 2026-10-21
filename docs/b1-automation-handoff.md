@@ -1,5 +1,12 @@
 # B1 integration handoff
 
+October 21 current integration: [native health schedule management](p04-health-schedule-ui-handoff.md)
+now mounts the registered metadata and fixed self-enablement routes. The dashboard
+uses schedules-only traffic and truthful waiting-for-observations status. The
+producer, alerts, notifications and their durable/installed acceptance remain
+open. The historical branch handoff below retains its original scope; its claim
+that the central metadata contract was absent describes that earlier source.
+
 Engineer B branch: `engineer/p04-automation-b1`, based on local main `0c7ec8c`. The [design](plans/2026-10-14-b1-automation-design.md) and [stream brief](plans/2026-10-14-engineer-p04-deployment-scheduling-runtime.md) define ownership. This is the observation-only leaf implementation. It is not registered B1 completion, persistent deduplication proof or installed qualification.
 
 October 15 continuation: the branch consumes main's published Rustls fix `b37c718`. Qualified leaf source `5a8a8cf0959d23ed520f9a99ec922c77d5bbf1a9` adds ordered in-app delivery, interrupted-attempt reconciliation and a mount-ready panel/controller. [Focused evidence](rewrite-evidence/p04/2026-10-15-b1-delivery-controller/README.md) records 38 Rust and 24 frontend cases. The central automation contract is still absent on the checked main; shared registration and durable acceptance remain open.

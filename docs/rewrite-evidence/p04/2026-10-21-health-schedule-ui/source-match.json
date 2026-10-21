@@ -1,0 +1,17 @@
+{
+  "source": "3e494a00116d561f5f57a0e38240921725f4c2d7",
+  "checks": [
+    {
+      "label": "schedules-ui-all-1",
+      "frontend_inputs_matching_committed_source": 52
+    },
+    {
+      "label": "schedules-ui-build-2",
+      "frontend_inputs_matching_committed_source": 52
+    },
+    {
+      "label": "schedules-ui-browser-2",
+      "frontend_inputs_matching_committed_source": 52
+    }
+  ]
+}
