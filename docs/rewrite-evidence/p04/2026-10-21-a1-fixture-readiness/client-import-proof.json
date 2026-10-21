@@ -1,0 +1,8 @@
+{
+  "module": "tests/privileged_vm/guest.py",
+  "module_sha256": "3e3c808f40769c2ffec5fba65ce09304d6354089502bcf74c5e8eac6daed2570",
+  "function": "executor_probe_code",
+  "client_sha256": "00f70263f1e7b52fa6b8a46c8434359c0585803cd63133a6e6f78bed57666999",
+  "import_and_parse_passed": true,
+  "client_executed": false
+}

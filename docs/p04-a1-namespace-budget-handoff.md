@@ -1,5 +1,13 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 21 follow-up: [committed disposable fixture readiness](rewrite-evidence/p04/2026-10-21-a1-fixture-readiness/README.md)
+now supplies the bounded reader and natural udev-worker waits in the actual test
+entry points. Eight setup regressions and all 73 reference cases pass. Its exact
+installed run was stopped by the unchanged host memory floor before suite output,
+so real approved-mount acceptance remains open. The frozen package's UI predates
+the separately completed health schedule panel. Resume with more host headroom;
+do not relax production task comparisons or infer a mount result from pure tests.
+
 ## Exact task witness, 21 October
 
 The [current-source task witness](rewrite-evidence/p04/2026-10-21-a1-task-witness/README.md)

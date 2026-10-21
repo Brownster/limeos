@@ -1,0 +1,8 @@
+{
+  "at_utc": "2026-10-21T15:46:55.293624+00:00",
+  "available_bytes": 3820457984,
+  "guest_start_threshold_bytes": 3758096384,
+  "runtime_stop_floor_bytes": 3221225472,
+  "admitted": true,
+  "guest_memory_mib": 384
+}
