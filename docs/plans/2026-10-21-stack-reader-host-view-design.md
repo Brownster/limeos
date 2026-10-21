@@ -66,3 +66,23 @@ still requires the Engine confinement fix, both fresh sources, maximum layouts,
 refusal/recovery, ownership, worker faults, resources and native ARM64. A1, B1,
 whole-stack effects and P05/P06 remain part of the original cutover objective.
 No production/Pi window or activation is implied.
+
+## Namespace mount rendering regression
+
+The Engine-profile qualification exposes a further catalog refusal after real
+containers create namespace mounts. A disposable kernel-only reproduction
+captures this genuine mountinfo row:
+
+```text
+293 26 0:4 net:[4026532191] /run/limeos-nsfs-probe rw shared:196 - nsfs nsfs rw
+```
+
+Linux [nsfs_show_path](https://github.com/torvalds/linux/blob/v6.1/fs/nsfs.c#L254)
+renders this root as a namespace name rather than an absolute filesystem path.
+The root-ID selector must treat other mounts' renderer-defined roots as opaque
+bytes. Continue requiring an absolute mountpoint, well-formed bounded fields,
+one actual `/` entry and an absolute mount-root for that selected host root.
+Root descriptor identity, current/PID 1 agreement, genuine procfs checks and all
+input bounds remain unchanged. Regress the captured row and refusal when its
+symbolic root is substituted for the selected host root; rebuild the Rust
+payloads before qualifying running-container layouts again.
