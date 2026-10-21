@@ -14,6 +14,21 @@ const TABLE: &str =
 const STATUS: &str =
     include_str!("../../../../tests/fixtures/container-process-evidence/status.txt");
 
+#[test]
+fn namespace_roots_survive_both_process_profiles() {
+    let text = format!(
+        "{TABLE}293 26 0:4 net:[4026532191] /run/limeos-nsfs-probe rw shared:196 - nsfs nsfs rw\n"
+    );
+    for profile in [ProcessReadProfile::Standard, ProcessReadProfile::CombinedV1] {
+        let table =
+            parse_mounts_with_profile(&text, &|| Ok(()), profile, &mut MountPayload::new(profile))
+                .unwrap();
+        let namespace = table.iter().find(|row| row.mount_id == 293).unwrap();
+        assert_eq!(namespace.filesystem_root, "net:[4026532191]");
+        assert_eq!(namespace.mountpoint, "/run/limeos-nsfs-probe");
+    }
+}
+
 fn declaration(n: usize, observed_at: i64) -> ContainerStorageInventory {
     ContainerStorageInventory {
         version: 1,

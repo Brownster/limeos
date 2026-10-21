@@ -14,6 +14,37 @@ struct Facts {
     table: Vec<Mount>,
     sources: ContainerSourceSnapshot,
 }
+#[test]
+fn namespace_metadata_cannot_be_promoted_to_physical_backing() {
+    let mut f = Facts::new();
+    f.table.push(Mount {
+        id: 293,
+        device: DeviceNumber { major: 0, minor: 4 },
+        root: "net:[4026532191]".into(),
+        path: "/run/namespace".into(),
+        filesystem: "nsfs".into(),
+        writable: true,
+    });
+    f.storage.mounts_digest = digest(&f.table).unwrap();
+    f.sources.mounts.push(ContainerSourceMount {
+        mount_id: 293,
+        device: DeviceNumber { major: 0, minor: 4 },
+        filesystem_root: "net:[4026532191]".into(),
+        mountpoint: "/run/namespace".into(),
+        filesystem: "nsfs".into(),
+    });
+    assert_eq!(
+        bind(
+            &f.contract,
+            &f.storage,
+            &f.topology,
+            &f.table,
+            &f.sources.mounts_digest,
+            &f.sources
+        ),
+        Err(Failure::Unavailable)
+    );
+}
 
 #[test]
 fn combined_binding_preserves_standard_complete_dependency_report_and_digests() {

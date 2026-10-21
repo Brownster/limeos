@@ -311,6 +311,33 @@ fn row(id: u64, minor: u32, root: &str, path: &str) -> mounts::Mount {
     }
 }
 #[test]
+fn namespace_rows_remain_in_validated_tables_and_nested_source_references() {
+    let raw = "27 1 8:1 / / rw - ext4 /dev/vda1 rw\n293 27 0:4 net:[4026532191] /run/namespace rw - nsfs nsfs rw\n";
+    for profile in [StorageReadProfile::Standard, StorageReadProfile::CombinedV1] {
+        let table = mounts::parse_with_profile(raw, profile).unwrap();
+        validate_table(&table).unwrap();
+        let source = ContainerSourceIdentity {
+            device: table[0].device,
+            mount_id: 27,
+            inode: 1,
+            kind: ContainerSourceKind::Directory,
+        };
+        assert_eq!(candidates(&source, "/run", &table).unwrap(), [27, 293]);
+        assert!(
+            table_matches_with_profile(
+                &raw.replace("4026532191", "4026532192"),
+                &table,
+                &limeos_identity::digest(raw),
+                profile
+            )
+            .is_err()
+        );
+        let mut invalid = table.clone();
+        invalid[1].filesystem = "ext4".into();
+        assert!(validate_table(&invalid).is_err());
+    }
+}
+#[test]
 fn alias_roots_and_nested_mounts_preserve_device_identity_and_component_boundaries() {
     let table = vec![
         row(1, 1, "/", "/"),

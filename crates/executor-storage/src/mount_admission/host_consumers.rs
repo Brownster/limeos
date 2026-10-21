@@ -509,6 +509,13 @@ fn check_mounts(
     physical: &[StorageBlockDevice],
     underlay: &DirectoryIdentity,
 ) -> Result<()> {
+    for row in rows {
+        if let crate::mounts::MountRoot::Namespace { kind: "mnt", .. } = row.root_kind()? {
+            // A bound namespace can retain an otherwise unobserved mount tree.
+            // Its rendered inode is not an independently inspected owner/table.
+            return Err(Failure::Unavailable);
+        }
+    }
     if rows.iter().any(|m| {
         relevant((m.device.major, m.device.minor), physical)
             || ((m.device.major, m.device.minor) == (underlay.major, underlay.minor)
@@ -838,6 +845,29 @@ fn code_digest(fd: &OwnedFd) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn network_namespace_metadata_does_not_hide_an_uninspected_mount_namespace() {
+        let underlay = DirectoryIdentity {
+            major: 0,
+            minor: 21,
+            mount_id: 1,
+            inode: 42,
+            mode: 0o40755,
+            uid: 0,
+            gid: 0,
+        };
+        let net = crate::mounts::parse("1 1 0:21 / / rw - ext4 /dev/root rw\n293 1 0:4 net:[4026532191] /run/namespace rw - nsfs nsfs rw\n").unwrap();
+        let physical = [StorageBlockDevice { major: 8, minor: 1 }];
+        assert_eq!(
+            check_mounts(&net, &selected(), &physical, &underlay),
+            Ok(())
+        );
+        let hidden = crate::mounts::parse("1 1 0:21 / / rw - ext4 /dev/root rw\n293 1 0:4 mnt:[4026532191] /run/namespace rw - nsfs nsfs rw\n").unwrap();
+        assert_eq!(
+            check_mounts(&hidden, &selected(), &physical, &underlay),
+            Err(Failure::Unavailable)
+        );
+    }
     #[test]
     fn task_diagnostics_distinguish_same_count_kernel_and_user_identity_changes() {
         let user = Task {

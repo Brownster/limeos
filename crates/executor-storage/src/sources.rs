@@ -603,13 +603,21 @@ fn read_table() -> Result<Vec<mounts::Mount>> {
 }
 fn read_table_with_profile(profile: StorageReadProfile) -> Result<Vec<mounts::Mount>> {
     let table = mounts::parse_with_profile(&read_mount_text_with_profile(profile)?, profile)?;
-    if table
-        .iter()
-        .any(|m| m.id == 0 || !container_storage_path(&m.path) || !container_storage_path(&m.root))
-    {
-        return Err(Failure::Unavailable);
-    }
+    validate_table(&table)?;
     Ok(table)
+}
+fn validate_table(table: &[mounts::Mount]) -> Result<()> {
+    for mount in table {
+        if mount.id == 0 || !container_storage_path(&mount.path) {
+            return Err(Failure::Unavailable);
+        }
+        if let mounts::MountRoot::Path(root) = mount.root_kind()?
+            && !container_storage_path(root)
+        {
+            return Err(Failure::Unavailable);
+        }
+    }
+    Ok(())
 }
 fn read_mount_text_with_profile(profile: StorageReadProfile) -> Result<String> {
     profile.read(Path::new("/proc/self/mountinfo"), profile.table_bytes())

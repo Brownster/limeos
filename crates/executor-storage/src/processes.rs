@@ -1069,6 +1069,7 @@ fn host_root_row(table: &[ContainerProcessMount]) -> Result<mounts::Mount> {
     if roots.next().is_some() {
         return Err(Failure::Unavailable);
     }
+    mounts::root_kind(&root.filesystem_root, &root.filesystem, &root.mountpoint)?;
     Ok(mounts::Mount {
         id: root.mount_id,
         device: root.device,
@@ -1270,9 +1271,7 @@ fn parse_mounts_with_profile(
         }
         let root = payload.path(root, profile)?;
         let path = payload.path(path, profile)?;
-        if !root.starts_with('/') || !path.starts_with('/') {
-            return Err(Failure::Unavailable);
-        }
+        mounts::root_kind(&root, filesystem, &path)?;
         parsed.push(ContainerProcessMount {
             mount_id: id,
             parent_mount_id: parent,

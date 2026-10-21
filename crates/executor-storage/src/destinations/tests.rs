@@ -19,6 +19,35 @@ fn limits() -> DestinationLimits {
 fn device() -> DeviceNumber {
     DeviceNumber { major: 8, minor: 1 }
 }
+#[test]
+fn namespace_roots_cannot_be_joined_into_destination_filesystem_paths() {
+    let source = ContainerSourcePath {
+        container: format!("container:{}", "a".repeat(64)),
+        destination: "/data".into(),
+        declared_path: "/run/namespace".into(),
+        resolved_path: "/run/namespace".into(),
+        identity: ContainerSourceIdentity {
+            device: DeviceNumber { major: 0, minor: 4 },
+            mount_id: 293,
+            inode: 42,
+            kind: ContainerSourceKind::RegularFile,
+        },
+        potential_mount_ids: vec![293],
+    };
+    for root in ["net:[4026532191]", "/"] {
+        let mount = ContainerSourceMount {
+            mount_id: 293,
+            device: DeviceNumber { major: 0, minor: 4 },
+            filesystem_root: root.into(),
+            mountpoint: "/run/namespace".into(),
+            filesystem: "nsfs".into(),
+        };
+        assert_eq!(
+            filesystem_root(&source, &mount),
+            Err(Failure::IdentityMismatch)
+        );
+    }
+}
 struct MappedFs {
     mounts: BTreeMap<u64, u64>,
     device: Cell<DeviceNumber>,

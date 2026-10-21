@@ -252,7 +252,10 @@ fn beneath(path: &str, root: &str) -> bool {
     root == "/" || path == root || path.strip_prefix(root).is_some_and(|s| s.starts_with('/'))
 }
 fn filesystem_root(source: &ContainerSourcePath, mount: &ContainerSourceMount) -> Result<String> {
-    if !container_storage_path(&source.resolved_path)
+    if !matches!(
+        crate::mounts::root_kind(&mount.filesystem_root, &mount.filesystem, &mount.mountpoint),
+        Ok(crate::mounts::MountRoot::Path(_))
+    ) || !container_storage_path(&source.resolved_path)
         || !container_storage_path(&mount.mountpoint)
         || !container_storage_path(&mount.filesystem_root)
         || !beneath(&source.resolved_path, &mount.mountpoint)

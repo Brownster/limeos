@@ -215,6 +215,9 @@ fn bind_with_profile(
             .iter()
             .find(|m| m.id == mount.mount_id)
             .ok_or(Failure::IdentityMismatch)?;
+        if !matches!(actual.root_kind()?, crate::mounts::MountRoot::Path(_)) {
+            return Err(Failure::Unavailable);
+        }
         if actual.device != mount.device
             || actual.root != mount.filesystem_root
             || actual.path != mount.mountpoint

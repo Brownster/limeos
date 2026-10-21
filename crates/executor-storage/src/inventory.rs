@@ -174,14 +174,19 @@ pub async fn inspect_storage_inventory_with_profile(
             let mut selected: Vec<_> = mounts
                 .iter()
                 .filter(|m| m.device == *number)
-                .map(|m| StorageObservedMount {
-                    mountpoint: m.path.clone(),
-                    mount_id: m.id,
-                    filesystem_root: m.root.clone(),
-                    filesystem: m.filesystem.clone(),
-                    writable: m.writable,
+                .map(|m| {
+                    let mounts::MountRoot::Path(root) = m.root_kind()? else {
+                        return Err(Failure::Unavailable);
+                    };
+                    Ok(StorageObservedMount {
+                        mountpoint: m.path.clone(),
+                        mount_id: m.id,
+                        filesystem_root: root.to_owned(),
+                        filesystem: m.filesystem.clone(),
+                        writable: m.writable,
+                    })
                 })
-                .collect();
+                .collect::<Result<_>>()?;
             selected.sort_by(|a, b| a.mount_id.cmp(&b.mount_id));
             devices.push(StorageObservedDevice {
                 device: wire(*number),

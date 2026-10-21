@@ -9,6 +9,17 @@ use limeos_domain::{
 use std::collections::{BTreeMap, BTreeSet};
 
 const PROFILE: StorageReadProfile = StorageReadProfile::CombinedV1;
+#[test]
+fn namespace_roots_survive_both_host_profiles() {
+    let text = "27 1 8:1 / / rw - ext4 /dev/vda1 rw\n293 26 0:4 net:[4026532191] /run/limeos-nsfs-probe rw shared:196 - nsfs nsfs rw\n";
+    for profile in [StorageReadProfile::Standard, StorageReadProfile::CombinedV1] {
+        let table = mounts::parse_with_profile(text, profile).unwrap();
+        assert_eq!(table.len(), 2);
+        assert_eq!(table[0].root, "/");
+        assert_eq!(table[1].root, "net:[4026532191]");
+        assert_eq!(table[1].filesystem, "nsfs");
+    }
+}
 fn inventory(count: usize, mounts: usize) -> ContainerStorageInventory {
     ContainerStorageInventory {
         version: 1,

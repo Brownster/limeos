@@ -1,6 +1,9 @@
 use crate::{Failure, Result, StorageReadProfile, read_admission, topology::DeviceNumber};
 use std::collections::BTreeSet;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct Mount {
     pub id: u64,
@@ -9,6 +12,60 @@ pub(crate) struct Mount {
     pub path: String,
     pub filesystem: String,
     pub writable: bool,
+}
+
+/// Kernel rendering, never a path/namespace owner reconstructed from text.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MountRoot<'a> {
+    Path(&'a str),
+    Namespace { kind: &'a str, inode: u64 },
+}
+impl Mount {
+    pub(crate) fn root_kind(&self) -> Result<MountRoot<'_>> {
+        root_kind(&self.root, &self.filesystem, &self.path)
+    }
+}
+pub(crate) fn root_kind<'a>(
+    root: &'a str,
+    filesystem: &str,
+    mountpoint: &str,
+) -> Result<MountRoot<'a>> {
+    if !mountpoint.starts_with('/') {
+        return Err(Failure::Unavailable);
+    }
+    if filesystem != "nsfs" {
+        return root
+            .starts_with('/')
+            .then_some(MountRoot::Path(root))
+            .ok_or(Failure::Unavailable);
+    }
+    if mountpoint == "/" {
+        return Err(Failure::Unavailable);
+    }
+    let (kind, number) = root
+        .strip_suffix(']')
+        .and_then(|s| s.split_once(":["))
+        .ok_or(Failure::Unavailable)?;
+    if !matches!(
+        kind,
+        "net"
+            | "mnt"
+            | "uts"
+            | "ipc"
+            | "pid"
+            | "pid_for_children"
+            | "user"
+            | "cgroup"
+            | "time"
+            | "time_for_children"
+    ) || number.is_empty()
+        || number.starts_with('0')
+        || !number.bytes().all(|b| b.is_ascii_digit())
+    {
+        return Err(Failure::Unavailable);
+    }
+    let inode = number.parse::<u64>().map_err(|_| Failure::Unavailable)?;
+    Ok(MountRoot::Namespace { kind, inode })
 }
 pub(crate) fn parse(text: &str) -> Result<Vec<Mount>> {
     let mut mounts = Vec::new();
@@ -27,11 +84,14 @@ pub(crate) fn parse(text: &str) -> Result<Vec<Mount>> {
         if !ids.insert(id) {
             return Err(Failure::Unavailable);
         }
+        let root = unescape(l[3])?;
+        let path = unescape(l[4])?;
+        root_kind(&root, r[0], &path)?;
         mounts.push(Mount {
             id,
             device: DeviceNumber::parse(l[2])?,
-            root: unescape(l[3])?,
-            path: unescape(l[4])?,
+            root,
+            path,
             filesystem: r[0].into(),
             writable: l[5].split(',').any(|s| s == "rw") && r[2].split(',').any(|s| s == "rw"),
         });
@@ -103,10 +163,8 @@ pub(crate) fn parse_with_profile(text: &str, profile: StorageReadProfile) -> Res
         };
         let root = allocate(l[3], true)?;
         let path = allocate(l[4], true)?;
-        if !root.starts_with('/') || !path.starts_with('/') {
-            return Err(Failure::Unavailable);
-        }
         let filesystem = allocate(r[0], false)?;
+        root_kind(&root, &filesystem, &path)?;
         let writable = |options: &str| -> Result<bool> {
             let rw = options.split(',').any(|s| s == "rw");
             let ro = options.split(',').any(|s| s == "ro");
