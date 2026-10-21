@@ -32,6 +32,43 @@ fn task_difference(held: &[Task], fresh: &[Task]) -> &'static str {
         (true, true) => "scan.recheck.task_order",
     }
 }
+
+const TASK_DIAGNOSTIC_SAMPLES: usize = 4;
+#[derive(serde::Serialize)]
+struct TaskDifference<'a> {
+    level: &'static str,
+    event: &'static str,
+    phase: &'static str,
+    sample_limit: usize,
+    removed_count: usize,
+    added_count: usize,
+    removed: [Option<&'a Task>; TASK_DIAGNOSTIC_SAMPLES],
+    added: [Option<&'a Task>; TASK_DIAGNOSTIC_SAMPLES],
+}
+impl<'a> TaskDifference<'a> {
+    fn between(held: &'a [Task], fresh: &'a [Task]) -> Self {
+        let mut removed = held.iter().filter(|task| !fresh.contains(task));
+        let mut added = fresh.iter().filter(|task| !held.contains(task));
+        Self {
+            level: "WARN",
+            event: "storage_mount_consumer_tasks_changed",
+            phase: task_difference(held, fresh),
+            sample_limit: TASK_DIAGNOSTIC_SAMPLES,
+            removed_count: removed.clone().count(),
+            added_count: added.clone().count(),
+            removed: std::array::from_fn(|_| removed.next()),
+            added: std::array::from_fn(|_| added.next()),
+        }
+    }
+}
+fn log_task_difference(held: &[Task], fresh: &[Task]) {
+    use std::io::Write as _;
+    let mut output = std::io::stderr().lock();
+    // Failure-only observations from the actual compared vectors. Logging
+    // cannot renew the owner or change the original refusal on any IO error.
+    let _ = serde_json::to_writer(&mut output, &TaskDifference::between(held, fresh));
+    let _ = writeln!(output);
+}
 struct Namespace {
     fd: OwnedFd,
     digest: String,
@@ -138,6 +175,7 @@ impl HostConsumers {
                 ),
             )?;
             if tasks != self.tasks {
+                log_task_difference(&self.tasks, &tasks);
                 return Err(refusal(
                     task_difference(&self.tasks, &tasks),
                     Failure::Conflict,
@@ -845,6 +883,86 @@ fn code_digest(fd: &OwnedFd) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn task_differences_retain_exact_same_count_identity_replacements() {
+        let held = [Task {
+            pid: 23,
+            tid: 24,
+            start: 100,
+            namespace: (4, 9),
+        }];
+        for replacement in [
+            Task {
+                start: 101,
+                ..held[0].clone()
+            },
+            Task {
+                namespace: (4, 10),
+                ..held[0].clone()
+            },
+            Task {
+                tid: 25,
+                ..held[0].clone()
+            },
+        ] {
+            let fresh = [replacement];
+            let difference = TaskDifference::between(&held, &fresh);
+            assert_eq!(difference.phase, "scan.recheck.user_tasks");
+            assert_eq!((difference.removed_count, difference.added_count), (1, 1));
+            assert_eq!(difference.removed, [Some(&held[0]), None, None, None]);
+            assert_eq!(difference.added, [Some(&fresh[0]), None, None, None]);
+        }
+    }
+    #[test]
+    fn task_difference_samples_are_bounded_without_losing_total_counts() {
+        let held: Vec<_> = (0..TASKS)
+            .map(|index| Task {
+                pid: u32::MAX,
+                tid: u32::MAX - index as u32,
+                start: u64::MAX,
+                namespace: (u64::MAX, u64::MAX),
+            })
+            .collect();
+        let fresh: Vec<_> = held
+            .iter()
+            .map(|task| Task {
+                start: u64::MAX - 1,
+                ..task.clone()
+            })
+            .collect();
+        let difference = TaskDifference::between(&held, &fresh);
+        assert_eq!(
+            (difference.removed_count, difference.added_count),
+            (TASKS, TASKS)
+        );
+        assert_eq!(difference.removed, std::array::from_fn(|i| Some(&held[i])));
+        assert_eq!(difference.added, std::array::from_fn(|i| Some(&fresh[i])));
+        assert!(serde_json::to_vec(&difference).unwrap().len() < 2048);
+    }
+    #[test]
+    fn reordered_task_membership_does_not_invent_added_or_removed_identities() {
+        let held = [
+            Task {
+                pid: 2,
+                tid: 2,
+                start: 1,
+                namespace: (0, 0),
+            },
+            Task {
+                pid: 3,
+                tid: 3,
+                start: 2,
+                namespace: (4, 9),
+            },
+        ];
+        let fresh = [held[1].clone(), held[0].clone()];
+        assert_ne!(held, fresh);
+        let difference = TaskDifference::between(&held, &fresh);
+        assert_eq!(difference.phase, "scan.recheck.task_order");
+        assert_eq!((difference.removed_count, difference.added_count), (0, 0));
+        assert_eq!(difference.removed, [None; TASK_DIAGNOSTIC_SAMPLES]);
+        assert_eq!(difference.added, [None; TASK_DIAGNOSTIC_SAMPLES]);
+    }
     #[test]
     fn network_namespace_metadata_does_not_hide_an_uninspected_mount_namespace() {
         let underlay = DirectoryIdentity {
