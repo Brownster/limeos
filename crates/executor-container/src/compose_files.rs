@@ -13,6 +13,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+mod host_view;
 #[cfg(test)]
 mod tests;
 const FILE_BYTES: u64 = 64 * 1024;
@@ -584,17 +585,14 @@ pub(crate) fn view_identity(fd: &OwnedFd) -> Result<ComposeMountView> {
         inode: s.st_ino,
     })
 }
-fn view() -> Result<View> {
-    let open = |name| {
-        rustix::fs::open(name, OFlags::RDONLY | OFlags::CLOEXEC, Mode::empty())
-            .map_err(|_| unavailable())
-    };
-    let current = open("/proc/self/ns/mnt")?;
-    let host = open("/proc/1/ns/mnt")?;
+fn current_view() -> Result<View> {
+    let current = rustix::fs::open(
+        "/proc/self/ns/mnt",
+        OFlags::RDONLY | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| unavailable())?;
     let identity = view_identity(&current)?;
-    if identity != view_identity(&host)? {
-        return Err(unavailable());
-    }
     Ok(View {
         fd: current,
         identity,
@@ -604,15 +602,19 @@ pub(crate) fn host_root() -> Result<Root> {
     if !rustix::process::geteuid().is_root() {
         return Err(Error(ErrorCode::Forbidden));
     }
-    let original = view()?;
+    let original = current_view()?;
     let fd = rustix::fs::open(
         "/",
         OFlags::PATH | OFlags::DIRECTORY | OFlags::CLOEXEC,
         Mode::empty(),
     )
     .map_err(|_| unavailable())?;
-    directory(&fd, 0)?;
-    if view()?.identity != original.identity {
+    let identity = directory(&fd, 0)?;
+    // Empty-capability UID 0 cannot dereference PID 1's namespace link. The
+    // held root mount instead pins the kernel identity compared with both
+    // genuine proc tables; cloned namespaces have distinct mount objects.
+    host_view::authenticate(&identity)?;
+    if current_view()?.identity != original.identity || directory(&fd, 0)? != identity {
         return Err(conflict());
     }
     Ok(Root {
