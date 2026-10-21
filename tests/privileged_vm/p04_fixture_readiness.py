@@ -122,6 +122,7 @@ def wait_udev_workers(run):
         pending = children()
     if start() != identity:
         raise ValueError("Fixture udev parent changed")
+    _before(started + 35)
     return {
         "scope": "fixture disk-setup quiescence; not admission or later runtime evidence",
         "parent_pid": pid,

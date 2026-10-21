@@ -134,6 +134,15 @@ class FixtureReadinessTests(unittest.TestCase):
             with self.subTest(changed=changed, error=error), self.assertRaises(error):
                 self.udev(workers, changed=changed)
 
+    def test_workers_exiting_at_the_deadline_cannot_report_quiescence(self):
+        with (
+            mock.patch.object(
+                fixture.time, "sleep", side_effect=lambda _: self.advance(35)
+            ),
+            self.assertRaises(TimeoutError),
+        ):
+            self.udev(lambda now: "7137" if now < 35 else "")
+
     def test_proc_read_bound_is_enforced_before_parsing(self):
         (ROOT / ".cache").mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=ROOT / ".cache") as directory:
