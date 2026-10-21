@@ -1,5 +1,40 @@
 # A1 installed namespace progress, 20 October 2026
 
+## Exact task witness, 21 October
+
+The [current-source task witness](rewrite-evidence/p04/2026-10-21-a1-task-witness/README.md)
+identifies the disappearing tasks in a new genuine reproduction. Product
+`c6932b2` adds failure-only diagnostics of the actual compared task vectors:
+four samples per side, full difference counts and a tested output bound below
+2 KiB. Equality, poisoning, deadlines, limits and every effect gate are intact.
+Twelve focused host-consumer tests, strict Clippy and formatting pass.
+
+All five current Debian binaries were rebuilt offline with unchanged frozen
+inputs, then standard/shadow fixture packages were assembled with a fresh
+short-lived disposable test key. One 384-MiB guest completed the preceding
+installed planning, claims and approved-target recovery checks, then A1 refused
+the first real plan with HTTP 409 before any mount job. Its exact comparison
+records two removed tasks and no additions: PID/TID 7137 and 7138, both start
+21331, namespace `(4, 4026532297)`. The independent before-RPC witness matches
+every identity field and places both in
+`/system.slice/systemd-udevd.service/udev`; both are absent afterward.
+This proves the cause of this reproduction, not the original older run's PIDs.
+
+The fixture's own disk setup left transient udev workers. The next correction
+waits for queued events and natural worker exit before the first plan request;
+it never stops udev, ignores a runtime change or retries a failed operation.
+That private correction remains unqualified: its next guest was stopped by the
+unchanged 3-GiB host memory guard before reaching it. Another interrupted run
+and two earlier startup-inventory 503 failures remain in the packet.
+The latter had successful subsequent CLI and authenticated RPC diagnostics;
+a bounded read-only fixture readiness probe allowed the later run to proceed,
+but the exact original RPC failure is not established.
+
+Promote and qualify those bounded fixture preconditions when headroom permits,
+then complete the actual mount, independent verification, replay and restart
+checks. No approved mount success, new native ARM64, upgrade, full resource or Pi
+acceptance is claimed. No production connection, policy relaxation or push ran.
+
 The initial installed profile cannot admit an ordinary Debian host: baseline
 `477b81f` reaches a ninth mount namespace against its limit of eight, with no
 Engine containers. The [source-bound packet](rewrite-evidence/p04/2026-10-20-a1-namespace-budget/README.md)

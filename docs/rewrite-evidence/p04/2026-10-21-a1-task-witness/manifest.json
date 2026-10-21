@@ -1,0 +1,212 @@
+{
+  "source": "c6932b291d2583114b3d4b122e75d94b4db9be93",
+  "validation_source_matches": [
+    {
+      "attempt": "a1-task-difference-focused-1",
+      "tracked_inputs_matching_source": 671
+    },
+    {
+      "attempt": "a1-task-difference-clippy-1",
+      "tracked_inputs_matching_source": 671
+    },
+    {
+      "attempt": "a1-task-difference-format-1",
+      "tracked_inputs_matching_source": 671
+    }
+  ],
+  "attempts": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--lib",
+        "host_consumers::tests"
+      ],
+      "exit_code": 0,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3647832064,
+      "inputs_unchanged": true
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3919306752,
+      "inputs_unchanged": true
+    },
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3740573696,
+      "inputs_unchanged": true
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--no-managed-python",
+        ".cache/a1-task-difference/prepare_candidate.py"
+      ],
+      "exit_code": 0,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3941142528,
+      "inputs_unchanged": true
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--no-managed-python",
+        ".cache/stack-installed-qualification/run_512.py",
+        "--image",
+        ".cache/a1-namespace-review/debian-12-genericcloud-amd64.qcow2",
+        "--checksums",
+        ".cache/a1-namespace-review/SHA512SUMS",
+        "--repository",
+        ".cache/stack-installed-qualification/candidate-5/repository",
+        "--guest-script",
+        ".cache/a1-task-difference/guest/task_difference_guest.py",
+        "--storage-disks",
+        "--output",
+        ".cache/a1-task-difference/result-1.json"
+      ],
+      "exit_code": 1,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3541745664,
+      "inputs_unchanged": true
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--no-managed-python",
+        ".cache/stack-installed-qualification/run_512.py",
+        "--image",
+        ".cache/a1-namespace-review/debian-12-genericcloud-amd64.qcow2",
+        "--checksums",
+        ".cache/a1-namespace-review/SHA512SUMS",
+        "--repository",
+        ".cache/stack-installed-qualification/candidate-5/repository",
+        "--guest-script",
+        ".cache/a1-task-difference/guest-2/task_difference_guest.py",
+        "--storage-disks",
+        "--output",
+        ".cache/a1-task-difference/result-2.json"
+      ],
+      "exit_code": 1,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3358101504,
+      "inputs_unchanged": true
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--no-managed-python",
+        ".cache/stack-installed-qualification/run_512.py",
+        "--image",
+        ".cache/a1-namespace-review/debian-12-genericcloud-amd64.qcow2",
+        "--checksums",
+        ".cache/a1-namespace-review/SHA512SUMS",
+        "--repository",
+        ".cache/stack-installed-qualification/candidate-5/repository",
+        "--guest-script",
+        ".cache/a1-task-difference/guest-3/task_difference_guest.py",
+        "--storage-disks",
+        "--output",
+        ".cache/a1-task-difference/result-3.json"
+      ],
+      "exit_code": 143,
+      "guard_triggered": true,
+      "minimum_available_bytes": 3215114240,
+      "inputs_unchanged": true
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--no-managed-python",
+        ".cache/stack-installed-qualification/run_384.py",
+        "--image",
+        ".cache/a1-namespace-review/debian-12-genericcloud-amd64.qcow2",
+        "--checksums",
+        ".cache/a1-namespace-review/SHA512SUMS",
+        "--repository",
+        ".cache/stack-installed-qualification/candidate-5/repository",
+        "--guest-script",
+        ".cache/a1-task-difference/guest-3/task_difference_guest.py",
+        "--storage-disks",
+        "--output",
+        ".cache/a1-task-difference/result-4.json"
+      ],
+      "exit_code": 1,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3305410560,
+      "inputs_unchanged": true
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--no-managed-python",
+        ".cache/stack-installed-qualification/run_384.py",
+        "--image",
+        ".cache/a1-namespace-review/debian-12-genericcloud-amd64.qcow2",
+        "--checksums",
+        ".cache/a1-namespace-review/SHA512SUMS",
+        "--repository",
+        ".cache/stack-installed-qualification/candidate-5/repository",
+        "--guest-script",
+        ".cache/a1-task-difference/guest-4/task_difference_guest.py",
+        "--storage-disks",
+        "--output",
+        ".cache/a1-task-difference/result-5.json"
+      ],
+      "exit_code": 143,
+      "guard_triggered": true,
+      "minimum_available_bytes": 3121061888,
+      "inputs_unchanged": true
+    }
+  ],
+  "owned_vm_pids_after_all_attempts": [],
+  "compiler_pids_after_all_attempts": [],
+  "build_container_removed": true,
+  "private_keys_excluded": true,
+  "a1_accepted": false,
+  "push_performed": false,
+  "production_access": false
+}

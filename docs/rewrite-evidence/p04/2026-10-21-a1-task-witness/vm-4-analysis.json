@@ -1,0 +1,66 @@
+{
+  "source": "c6932b291d2583114b3d4b122e75d94b4db9be93",
+  "stage": "pre_effect_api_refusals",
+  "error": "unexpected API status 409, expected 201: {\"code\":\"conflict\",\"message\":\"The request conflicts with current state.\",\"retry\":false,\"audit_id\":\"http-2\"}",
+  "actual_comparison": {
+    "level": "WARN",
+    "event": "storage_mount_consumer_tasks_changed",
+    "phase": "scan.recheck.user_tasks",
+    "sample_limit": 4,
+    "removed_count": 2,
+    "added_count": 0,
+    "removed": [
+      {
+        "pid": 7137,
+        "tid": 7137,
+        "start": 21331,
+        "namespace": [
+          4,
+          4026532297
+        ]
+      },
+      {
+        "pid": 7138,
+        "tid": 7138,
+        "start": 21331,
+        "namespace": [
+          4,
+          4026532297
+        ]
+      },
+      null,
+      null
+    ],
+    "added": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "independent_before_witness": [
+    {
+      "pid": 7137,
+      "tid": 7137,
+      "start": 21331,
+      "namespace": [
+        4,
+        4026532297
+      ],
+      "cgroup": "/system.slice/systemd-udevd.service/udev"
+    },
+    {
+      "pid": 7138,
+      "tid": 7138,
+      "start": 21331,
+      "namespace": [
+        4,
+        4026532297
+      ],
+      "cgroup": "/system.slice/systemd-udevd.service/udev"
+    }
+  ],
+  "both_external_samples_complete": true,
+  "conclusion": "This reproduction refused two disappearing systemd-udevd worker identities. Original earlier-run identities remain unproven.",
+  "next": "Quiesce fixture disk-setup udev work and wait for owned guest daemon workers to exit naturally before the first planning RPC; retain every runtime comparison."
+}

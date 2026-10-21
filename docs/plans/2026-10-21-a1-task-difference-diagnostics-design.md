@@ -17,7 +17,7 @@ The exact vector comparison, deadline, poisoned-owner behavior, namespace and
 mount checks, limits, locking and effect admission remain unchanged. Numeric
 diagnostics are observations, never process ownership or effect authority.
 Reordered-but-identical membership still fails the original equality check and
-reports zero set additions/removals with the existing task-order class.
+reports zero set additions/removals with the existing diagnostic class.
 
 External sampling alone leaves the failed comparison ambiguous. Capturing whole
 process metadata on every scan would add reads, races and resource costs before
