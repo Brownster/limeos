@@ -21,7 +21,10 @@ NoNewPrivileges=yes
 # This dormant reader has no effectful request, shell, write flag or capability.
 PrivateMounts=no
 PrivateDevices=no
-RestrictSUIDSGID=yes
+# This filter rejects openat2's indirect arguments, including protected reads.
+# The fixed read role needs openat2; it has no file-write operation. Keep the
+# empty capability sets and NoNewPrivileges rather than adding privileges.
+RestrictSUIDSGID=no
 RestrictRealtime=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
@@ -29,7 +32,7 @@ RestrictAddressFamilies=AF_UNIX
 CapabilityBoundingSet=
 AmbientCapabilities=
 SystemCallArchitectures=native
-SystemCallFilter=@system-service
+SystemCallFilter=@system-service openat2
 LimitNOFILE=256
 TasksMax=16
 MemoryMax=64M
