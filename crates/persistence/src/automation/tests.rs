@@ -61,6 +61,209 @@ fn watermark(store: &Store, id: &str) -> Option<i64> {
 }
 
 #[test]
+fn reservation_rechecks_time_and_deadline_after_actual_write_lock_wait() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicI64, AtomicUsize, Ordering},
+        mpsc,
+    };
+    use std::time::{Duration, Instant};
+
+    for (now, window, expired) in [
+        (201, None, false),
+        (231, None, false),
+        (
+            240,
+            Some(MaintenanceWindow {
+                start_minute: 0,
+                end_minute: 4,
+            }),
+            false,
+        ),
+        (200, None, true),
+    ] {
+        let (dir, mut store, actor) = setup();
+        let mut input = input(ScheduledOperation::ObserveHealth);
+        input.definition.window = window;
+        let row = store
+            .automation_create(&actor, &input, 200)
+            .unwrap()
+            .schedule;
+        let request = settlement(&row, 200);
+        let before = counts(&store);
+        let wall = Arc::new(AtomicI64::new(200));
+        let moved = wall.clone();
+        let calls = AtomicUsize::new(0);
+        let path = dir.path().join("core.sqlite");
+        let (ready, occupied) = mpsc::sync_channel(0);
+        let writer = std::thread::spawn(move || {
+            let writer = Connection::open(path).unwrap();
+            writer.execute_batch("BEGIN IMMEDIATE").unwrap();
+            ready.send(()).unwrap();
+            std::thread::sleep(Duration::from_millis(70));
+            moved.store(now, Ordering::SeqCst);
+            writer.execute_batch("COMMIT").unwrap();
+        });
+        occupied.recv().unwrap();
+        let start = Instant::now();
+        let deadline = start
+            + if expired {
+                Duration::from_millis(20)
+            } else {
+                Duration::from_secs(10)
+            };
+        let clock = || {
+            calls.fetch_add(1, Ordering::SeqCst);
+            wall.load(Ordering::SeqCst)
+        };
+        let result = store.automation_reserve_current(&row, &request, clock, deadline);
+        writer.join().unwrap();
+        assert!(start.elapsed() >= Duration::from_millis(50));
+        assert_eq!(calls.load(Ordering::SeqCst), usize::from(!expired));
+        if now == 201 {
+            let Reservation::Queued(job) = result.unwrap() else {
+                panic!("current due occurrence was not reserved");
+            };
+            let deadline: i64 = store
+                .conn
+                .query_row("SELECT deadline FROM jobs WHERE id=?", [&job.id], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(deadline, now + JOB_SECONDS);
+            assert_eq!(watermark(&store, &row.id), Some(200));
+            let after = counts(&store);
+            assert_eq!(
+                (after.0, after.1, after.2),
+                (before.0 + 1, before.1 + 1, before.2 + 2)
+            );
+            assert!(after.3 > before.3);
+        } else {
+            assert_eq!(
+                result,
+                if expired {
+                    Err(Error(ErrorCode::Expired))
+                } else {
+                    Ok(Reservation::Stale)
+                }
+            );
+            assert_eq!(counts(&store), before);
+            assert_eq!(watermark(&store, &row.id), None);
+        }
+    }
+}
+
+#[test]
+fn current_reservation_replays_after_restart_and_rechecks_owner_revision() {
+    use std::time::{Duration, Instant};
+
+    let (dir, mut store, actor) = setup();
+    let row = create(&mut store, &actor);
+    let request = settlement(&row, 200);
+    assert!(matches!(
+        store.automation_reserve_current(
+            &row,
+            &request,
+            || 200,
+            Instant::now() + Duration::from_secs(10)
+        ),
+        Ok(Reservation::Queued(_))
+    ));
+    let before = counts(&store);
+    drop(store);
+    let mut store = Store::open(&dir.path().join("core.sqlite")).unwrap();
+    assert_eq!(
+        store.automation_reserve_current(
+            &row,
+            &request,
+            || 260,
+            Instant::now() + Duration::from_secs(10)
+        ),
+        Ok(Reservation::Existing)
+    );
+    assert_eq!(counts(&store), before);
+    store
+        .revise_grants(&actor.id, Role::Operator, &scopes(), 261)
+        .unwrap();
+    let before = counts(&store);
+    assert_eq!(
+        store.automation_reserve_current(
+            &row,
+            &request,
+            || 262,
+            Instant::now() + Duration::from_secs(10)
+        ),
+        Ok(Reservation::Stale)
+    );
+    assert_eq!(counts(&store), before);
+    assert_eq!(watermark(&store, &row.id), Some(200));
+}
+
+#[test]
+fn current_reservation_expiring_inside_clock_refuses_before_any_insert() {
+    use std::cell::Cell;
+    use std::time::{Duration, Instant};
+
+    let (_dir, mut store, actor) = setup();
+    let row = create(&mut store, &actor);
+    let request = settlement(&row, 200);
+    let before = counts(&store);
+    store.conn.execute_batch("CREATE TEMP TRIGGER refuse_late_reservation BEFORE INSERT ON jobs BEGIN SELECT RAISE(ABORT,'insert reached after deadline'); END").unwrap();
+    let called = Cell::new(false);
+    let deadline = Instant::now() + Duration::from_millis(200);
+    assert_eq!(
+        store.automation_reserve_current(
+            &row,
+            &request,
+            || {
+                called.set(true);
+                std::thread::sleep(
+                    deadline.saturating_duration_since(Instant::now()) + Duration::from_millis(1),
+                );
+                200
+            },
+            deadline
+        ),
+        Err(Error(ErrorCode::Expired))
+    );
+    assert!(called.get());
+    assert_eq!(counts(&store), before);
+    assert_eq!(watermark(&store, &row.id), None);
+}
+
+#[test]
+fn current_reservation_refuses_expired_deadlines_and_invalid_clock_values() {
+    use std::time::{Duration, Instant};
+
+    let (_dir, mut store, actor) = setup();
+    let row = create(&mut store, &actor);
+    let request = settlement(&row, 200);
+    let before = counts(&store);
+    assert_eq!(
+        store.automation_reserve_current(
+            &row,
+            &request,
+            || panic!("expired reservation sampled its clock"),
+            Instant::now()
+        ),
+        Err(Error(ErrorCode::Expired))
+    );
+    for now in [-1, MAX_TIME + 1] {
+        assert_eq!(
+            store.automation_reserve_current(
+                &row,
+                &request,
+                || now,
+                Instant::now() + Duration::from_secs(10)
+            ),
+            Err(Error(ErrorCode::InvalidInput))
+        );
+    }
+    assert_eq!(counts(&store), before);
+    assert_eq!(watermark(&store, &row.id), None);
+}
+
+#[test]
 fn explicit_management_and_host_read_grants_are_both_required_without_role_inference() {
     let (_dir, mut store, actor) = setup();
     for (role, grants) in [

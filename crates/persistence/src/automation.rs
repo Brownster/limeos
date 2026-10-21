@@ -2,6 +2,7 @@
 use super::*;
 use limeos_domain::automation::*;
 use std::io::Write;
+use std::time::Instant;
 
 const POLICY: &str = "health-v1";
 const DEFINITION_BYTES: usize = 4096;
@@ -18,6 +19,27 @@ type ScheduleHeader = (String, i64, i64, bool, Option<i64>, i64, String, String)
 type LastOccurrence = (i64, i64, String, Option<String>, Option<String>);
 fn time(now: i64) -> Result<()> {
     if !(0..=MAX_TIME).contains(&now) {
+        return Err(Error(ErrorCode::InvalidInput));
+    }
+    Ok(())
+}
+fn reservation_live(deadline: Option<Instant>) -> Result<()> {
+    if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+        return Err(Error(ErrorCode::Expired));
+    }
+    Ok(())
+}
+fn reservation_input(expected: &Schedule, settlement: &Settlement, now: i64) -> Result<()> {
+    time(now)?;
+    expected.validate()?;
+    let key = settlement.key();
+    if key.schedule != expected.id
+        || key.revision != expected.revision
+        || key.due < expected.definition.anchor
+        || key.due > now
+        || (key.due - expected.definition.anchor) % i64::from(expected.definition.interval_seconds)
+            != 0
+    {
         return Err(Error(ErrorCode::InvalidInput));
     }
     Ok(())
@@ -467,64 +489,196 @@ impl Store {
             })
             .collect()
     }
+    /// Deterministic foundation seam, not a production clock source.
+    /// The runtime must use `automation_reserve_current` with its trusted clock.
     pub fn automation_reserve(
         &mut self,
         expected: &Schedule,
         settlement: &Settlement,
         now: i64,
     ) -> Result<Reservation> {
-        time(now)?;
-        expected.validate()?;
-        let key = settlement.key();
-        if key.schedule != expected.id
-            || key.revision != expected.revision
-            || key.due < expected.definition.anchor
-            || key.due > now
-            || (key.due - expected.definition.anchor)
-                % i64::from(expected.definition.interval_seconds)
-                != 0
-        {
-            return Err(Error(ErrorCode::InvalidInput));
-        }
+        reservation_input(expected, settlement, now)?;
+        self.automation_reserve_with_clock(expected, settlement, || now, None)
+    }
+    /// Reserve from current stored authority and post-lock trusted time.
+    /// An advisory tick/page timestamp never supplies runtime admission time.
+    pub fn automation_reserve_current(
+        &mut self,
+        expected: &Schedule,
+        settlement: &Settlement,
+        clock: impl Fn() -> i64,
+        deadline: Instant,
+    ) -> Result<Reservation> {
+        reservation_live(Some(deadline))?;
+        self.automation_reserve_with_clock(expected, settlement, clock, Some(deadline))
+    }
+    fn automation_reserve_with_clock(
+        &mut self,
+        expected: &Schedule,
+        settlement: &Settlement,
+        clock: impl Fn() -> i64,
+        deadline: Option<Instant>,
+    ) -> Result<Reservation> {
         let generation = self.generation;
         self.write(|tx| {
-            let Some(row)=load(tx,&expected.id)? else { return Ok(Reservation::Stale); };
-            let actor=principal(tx,&row.owner)?;
-            match authorize(tx,&actor,true) {
-                Ok(())=>{},
-                Err(Error(ErrorCode::Forbidden|ErrorCode::Expired))=>return Ok(Reservation::Stale),
-                Err(error)=>return Err(error),
-            }
-            if row.owner_revision!=actor.grant_revision || row.schedule.revision!=expected.revision
-                || row.schedule.paused || row.schedule.paused!=expected.paused
-                || row.schedule.definition!=expected.definition { return Ok(Reservation::Stale); }
-            let old:Option<String>=tx.query_row("SELECT settlement FROM automation_occurrences WHERE schedule=? AND revision=? AND due=?",params![key.schedule,key.revision,key.due],|r|r.get(0)).optional().map_err(durable)?;
-            let kind=match settlement { Settlement::Observation(_)=>"observation",Settlement::Skipped(_)=>"skipped",Settlement::AdapterUnavailable(_)=>"blocked" };
-            if let Some(old)=old { return if old==kind { Ok(Reservation::Existing) } else { Err(Error(ErrorCode::Conflict)) }; }
-            if row.schedule.settled_through.is_some_and(|through|key.due<=through) { return Ok(Reservation::Existing); }
-            if proposed(&row.schedule,now)?.as_ref()!=Some(settlement) { return Ok(Reservation::Stale); }
-            let count:i64=tx.query_row("SELECT count(*) FROM automation_occurrences",[],|r|r.get(0)).map_err(durable)?;
-            if count>=MAX_OCCURRENCES { return Err(Error(ErrorCode::Overloaded)); }
-            audit_capacity(tx,if kind=="observation" {2} else {1})?;
-            let job=if kind=="observation" {
-                let active:i64=tx.query_row("SELECT count(*) FROM jobs WHERE state IN ('queued','running','verifying','outcome_unknown','needs_intervention')",[],|r|r.get(0)).map_err(durable)?;
-                if active>=QUEUE_CAPACITY as i64 { return Err(Error(ErrorCode::Overloaded)); }
-                let id=limeos_identity::opaque().map_err(|_|Error(ErrorCode::Unavailable))?;
-                let idempotency=job_key(key)?;
-                let collision:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM jobs WHERE principal=? AND idempotency=?)",params![actor.id,idempotency],|r|r.get(0)).map_err(durable)?;
-                if collision { return Err(Error(ErrorCode::Conflict)); }
-                let deadline=now.checked_add(JOB_SECONDS).filter(|v|*v<=MAX_TIME).ok_or(Error(ErrorCode::InvalidInput))?;
-                let body=json(&Intent::AutomationObserveHealth { occurrence:key.clone() })?;
-                tx.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,'queued',?,?,?)",params![id,actor.id,idempotency,body,limeos_identity::digest(&body),"system",generation,actor.grant_revision,deadline]).map_err(durable)?;
-                Some(id)
-            } else { None };
-            tx.execute("INSERT INTO automation_occurrences VALUES(?,?,?,?,?,?,?,?,?)",params![key.schedule,key.revision,key.due,actor.id,POLICY,actor.grant_revision,kind,job,now]).map_err(durable)?;
-            if tx.execute("UPDATE automation_schedules SET settled_through=?,updated=? WHERE id=? AND revision=?",params![key.due,now,key.schedule,key.revision]).map_err(durable)?!=1 { return Err(Error(ErrorCode::Conflict)); }
-            if let Some(id)=&job { event(tx,Some(&actor.id),Some(id),EventKind::JobQueued,now)?; }
-            event(tx,Some(&actor.id),job.as_deref(),EventKind::AutomationOccurrenceSettled { schedule:key.schedule.clone(),revision:key.revision,due:key.due },now)?;
-            Ok(match job { Some(id)=>Reservation::Queued(ObservationJob { id,occurrence:key.clone() }),None if kind=="skipped"=>Reservation::Skipped,None=>Reservation::Blocked })
+            reservation_live(deadline)?;
+            let now = clock();
+            reservation_live(deadline)?;
+            reservation_input(expected, settlement, now)?;
+            let result = reserve_occurrence(tx, expected, settlement, now, generation)?;
+            reservation_live(deadline)?;
+            Ok(result)
         })
     }
+}
+
+fn reserve_occurrence(
+    tx: &Transaction<'_>,
+    expected: &Schedule,
+    settlement: &Settlement,
+    now: i64,
+    generation: i64,
+) -> Result<Reservation> {
+    let key = settlement.key();
+    let Some(row) = load(tx, &expected.id)? else {
+        return Ok(Reservation::Stale);
+    };
+    let actor = principal(tx, &row.owner)?;
+    match authorize(tx, &actor, true) {
+        Ok(()) => {}
+        Err(Error(ErrorCode::Forbidden | ErrorCode::Expired)) => return Ok(Reservation::Stale),
+        Err(error) => return Err(error),
+    }
+    if row.owner_revision != actor.grant_revision
+        || row.schedule.revision != expected.revision
+        || row.schedule.paused
+        || row.schedule.paused != expected.paused
+        || row.schedule.definition != expected.definition
+    {
+        return Ok(Reservation::Stale);
+    }
+    let old:Option<String>=tx.query_row("SELECT settlement FROM automation_occurrences WHERE schedule=? AND revision=? AND due=?",params![key.schedule,key.revision,key.due],|r|r.get(0)).optional().map_err(durable)?;
+    let kind = match settlement {
+        Settlement::Observation(_) => "observation",
+        Settlement::Skipped(_) => "skipped",
+        Settlement::AdapterUnavailable(_) => "blocked",
+    };
+    if let Some(old) = old {
+        return if old == kind {
+            Ok(Reservation::Existing)
+        } else {
+            Err(Error(ErrorCode::Conflict))
+        };
+    }
+    if row
+        .schedule
+        .settled_through
+        .is_some_and(|through| key.due <= through)
+    {
+        return Ok(Reservation::Existing);
+    }
+    if proposed(&row.schedule, now)?.as_ref() != Some(settlement) {
+        return Ok(Reservation::Stale);
+    }
+    let count: i64 = tx
+        .query_row("SELECT count(*) FROM automation_occurrences", [], |r| {
+            r.get(0)
+        })
+        .map_err(durable)?;
+    if count >= MAX_OCCURRENCES {
+        return Err(Error(ErrorCode::Overloaded));
+    }
+    audit_capacity(tx, if kind == "observation" { 2 } else { 1 })?;
+    let job = if kind == "observation" {
+        let active:i64=tx.query_row("SELECT count(*) FROM jobs WHERE state IN ('queued','running','verifying','outcome_unknown','needs_intervention')",[],|r|r.get(0)).map_err(durable)?;
+        if active >= QUEUE_CAPACITY as i64 {
+            return Err(Error(ErrorCode::Overloaded));
+        }
+        let id = limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?;
+        let idempotency = job_key(key)?;
+        let collision: bool = tx
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM jobs WHERE principal=? AND idempotency=?)",
+                params![actor.id, idempotency],
+                |r| r.get(0),
+            )
+            .map_err(durable)?;
+        if collision {
+            return Err(Error(ErrorCode::Conflict));
+        }
+        let deadline = now
+            .checked_add(JOB_SECONDS)
+            .filter(|v| *v <= MAX_TIME)
+            .ok_or(Error(ErrorCode::InvalidInput))?;
+        let body = json(&Intent::AutomationObserveHealth {
+            occurrence: key.clone(),
+        })?;
+        tx.execute(
+            "INSERT INTO jobs VALUES(?,?,?,?,?,?,'queued',?,?,?)",
+            params![
+                id,
+                actor.id,
+                idempotency,
+                body,
+                limeos_identity::digest(&body),
+                "system",
+                generation,
+                actor.grant_revision,
+                deadline
+            ],
+        )
+        .map_err(durable)?;
+        Some(id)
+    } else {
+        None
+    };
+    tx.execute(
+        "INSERT INTO automation_occurrences VALUES(?,?,?,?,?,?,?,?,?)",
+        params![
+            key.schedule,
+            key.revision,
+            key.due,
+            actor.id,
+            POLICY,
+            actor.grant_revision,
+            kind,
+            job,
+            now
+        ],
+    )
+    .map_err(durable)?;
+    if tx
+        .execute(
+            "UPDATE automation_schedules SET settled_through=?,updated=? WHERE id=? AND revision=?",
+            params![key.due, now, key.schedule, key.revision],
+        )
+        .map_err(durable)?
+        != 1
+    {
+        return Err(Error(ErrorCode::Conflict));
+    }
+    if let Some(id) = &job {
+        event(tx, Some(&actor.id), Some(id), EventKind::JobQueued, now)?;
+    }
+    event(
+        tx,
+        Some(&actor.id),
+        job.as_deref(),
+        EventKind::AutomationOccurrenceSettled {
+            schedule: key.schedule.clone(),
+            revision: key.revision,
+            due: key.due,
+        },
+        now,
+    )?;
+    Ok(match job {
+        Some(id) => Reservation::Queued(ObservationJob {
+            id,
+            occurrence: key.clone(),
+        }),
+        None if kind == "skipped" => Reservation::Skipped,
+        None => Reservation::Blocked,
+    })
 }
 
 pub(super) fn check(conn: &Connection) -> Result<()> {
