@@ -72,8 +72,8 @@ Install section starts it.
 
 ## Privilege and namespace contract
 
-This is a separate effect role. Existing storage readers retain their original
-units and capability bounds. The new role has exactly
+This is a separate effect role. Storage readers keep separate units and their
+existing capability bounds. The effect role has exactly
 `CAP_DAC_READ_SEARCH CAP_SYS_PTRACE CAP_SYS_ADMIN` in its bounding and ambient
 sets. The genuine producer and guardian check the effective set. These permit
 protected host proc inspection and the fixed mount effect; they are not granted
@@ -87,8 +87,10 @@ would not establish host visibility. Additional bind/path sandbox directives or
 hidden proc settings are unsupported and must refuse through genuine evidence.
 There is no setns fallback or test authentication substitution.
 
-`RestrictSUIDSGID=no` is specific to this role because the existing confinement
-findings showed openat2 blocked by that setting. The syscall filter preserves
+This role uses `RestrictSUIDSGID=no` because confinement findings showed openat2
+blocked by that setting. The dormant root reader now has its own
+[scoped read-profile exception](plans/2026-10-21-stack-engine-profile-design.md),
+with empty capabilities and no effect request. The effect-role syscall filter preserves
 `@system-service` and explicitly lists `openat2 mount pidfd_open
 pidfd_send_signal prctl setsid memfd_create`. The guardian establishes its session
 and subreaper before READY; a real durable identity and fresh one-use journal

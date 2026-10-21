@@ -106,16 +106,27 @@ and private-namespace refusal, foreign UID rejection, no-renewal reads and reade
 Core restart recovery pass under the unchanged service profile.
 
 The diagnostic confirms `RestrictSUIDSGID` returns `ENOSYS` for `openat2`; an explicit
-syscall allow alone does not override it. The production setting remains unchanged.
-Engine/member collection and complete B2 acceptance remain open.
+syscall allow alone does not override it. Source `5ef8897` now contains the scoped
+reader profile exception and a namespace-root rendering correction. Empty
+capabilities, `NoNewPrivileges`, closed read-only dispatch and all resource limits
+remain unchanged. The SUID/SGID file-bit restriction itself is removed; the
+[profile decision](plans/2026-10-21-stack-engine-profile-design.md) records that
+distinction.
+
+The [installed Engine packet](rewrite-evidence/p04/2026-10-21-stack-engine-profile/README.md)
+binds a fresh Debian build and `.4` packages to 357 container unit tests, seventeen
+compile-fail doctests, 65 reference tests, strict Clippy and nine passing installed
+checks. Genuine empty and running/stopped/one-off layouts, independent source
+refusal/recovery, no-renewal reads and Core/reader restart recovery pass. Actual
+image hashes identify stable manager/guardian/worker capability samples. The
+observed cgroup memory peak is 5,996,544 bytes for these layouts; full resource
+and B2 acceptance remain open. Earlier failures and the host-memory stop remain
+preserved alongside the passing result.
 
 ## Next acceptance work
 
-Resolve the confirmed Engine confinement conflict while preserving protected
-socket traversal and an explicit confinement contract. Build a distinct immutable
-candidate after the correction. Qualify genuine root catalog/Engine collection and refusal through
-the installed socket/API/UI, with source hashes and new worker identity.
-Measure the complete service cgroup,
+Extend installed catalog/Engine scenarios to maximum layouts and actual UI
+ownership with the same immutable source/package discipline. Measure the complete service cgroup,
 including image capture and failure paths, within unchanged limits. Exercise
 worker/guardian/manager death, cancellation, deadline, late output and cleanup
 barriers through the registered path. Add installed principal/grant replacement
@@ -128,5 +139,7 @@ still need protected collection. Whole-stack lifecycle, shared claims/approval,
 verified shutdown and recovery remain subsequent B2/B3 work. B1 still needs a
 genuine durable observation producer, alerts and notification runtime. A1's
 [userspace-task revalidation failure](p04-a1-namespace-budget-handoff.md) remains
-open. P05's minimal assistant and P06's migration/return rehearsal remain required
+open. A source audit also found the absolute-root assumption in the bounded
+storage mount parser; that separate Stream A path needs its own regression and
+consumer review. P05's minimal assistant and P06's migration/return rehearsal remain required
 before replacing the frozen app.
