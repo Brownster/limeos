@@ -7,6 +7,11 @@ no timer, API route, UI, collector, notification publisher or service. A subsequ
 owned-list and pause/resume routes; it still starts no observation work. The
 initial-assembly results below remain historical foundation evidence.
 
+The subsequent [reservation-clock admission slice](p04-b1-reservation-clock-handoff.md)
+adds the production-facing trusted-clock/deadline entry point. Its local native
+tests qualify post-lock admission; observation completion and dispatch remain
+unregistered.
+
 At initial assembly on 2026-10-17, this foundation was based on
 `3311f762bbec95d45e1056ad554cf51bfa0281b3`, retaining the published A1 qualification
 changes. Nine unchanged B1 dependency files were copied from `7df3f753`; unrelated

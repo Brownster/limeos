@@ -1,0 +1,79 @@
+{
+  "source": "7f22d135fdac9a1f4aa663ec2b5cf4229aeacfd4",
+  "checks": [
+    {
+      "attempt": "reservation-clock-clippy-1",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-persistence",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "source": "7f22d135fdac9a1f4aa663ec2b5cf4229aeacfd4",
+      "matching_tracked_inputs": 677,
+      "passed_results": [],
+      "minimum_available_bytes": 3564429312
+    },
+    {
+      "attempt": "reservation-clock-tests-2",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-persistence",
+        "--lib",
+        "automation::tests::"
+      ],
+      "source": "7f22d135fdac9a1f4aa663ec2b5cf4229aeacfd4",
+      "matching_tracked_inputs": 677,
+      "passed_results": [
+        22
+      ],
+      "minimum_available_bytes": 3258830848
+    },
+    {
+      "attempt": "reservation-clock-persistence-all-1",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-persistence"
+      ],
+      "source": "7f22d135fdac9a1f4aa663ec2b5cf4229aeacfd4",
+      "matching_tracked_inputs": 677,
+      "passed_results": [
+        133,
+        2
+      ],
+      "minimum_available_bytes": 3479736320
+    },
+    {
+      "attempt": "reservation-clock-format-check-1",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "source": "7f22d135fdac9a1f4aa663ec2b5cf4229aeacfd4",
+      "matching_tracked_inputs": 677,
+      "passed_results": [],
+      "minimum_available_bytes": 3848208384
+    }
+  ],
+  "scope": "Post-lock trusted reservation clock and original deadline; no producer, timer, observation completion or installed acceptance",
+  "red_attempt": "Refused before compilation below 3 GiB; no failing assertion is claimed",
+  "stopped_attempt": "First candidate test build terminated by unchanged 3 GiB host guard before tests",
+  "formatter_runs": "Two successful formatting mutations precede qualification; their changed-input flags are expected and are not accepted test records"
+}

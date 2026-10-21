@@ -7,6 +7,11 @@ producer, alerts, notifications and their durable/installed acceptance remain
 open. The historical branch handoff below retains its original scope; its claim
 that the central metadata contract was absent describes that earlier source.
 
+The [reservation-clock follow-up](p04-b1-reservation-clock-handoff.md) now supplies
+trusted time after SQLite write-lock admission and preserves the original
+deadline. Future producer integration must use that entry; ordered observation
+completion and atomic alert/outbox publication still need their central contract.
+
 Engineer B branch: `engineer/p04-automation-b1`, based on local main `0c7ec8c`. The [design](plans/2026-10-14-b1-automation-design.md) and [stream brief](plans/2026-10-14-engineer-p04-deployment-scheduling-runtime.md) define ownership. This is the observation-only leaf implementation. It is not registered B1 completion, persistent deduplication proof or installed qualification.
 
 October 15 continuation: the branch consumes main's published Rustls fix `b37c718`. Qualified leaf source `5a8a8cf0959d23ed520f9a99ec922c77d5bbf1a9` adds ordered in-app delivery, interrupted-attempt reconciliation and a mount-ready panel/controller. [Focused evidence](rewrite-evidence/p04/2026-10-15-b1-delivery-controller/README.md) records 38 Rust and 24 frontend cases. The central automation contract is still absent on the checked main; shared registration and durable acceptance remain open.

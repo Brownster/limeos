@@ -1,5 +1,9 @@
 # B1 reservation clock at the writer boundary
 
+Implemented in `7f22d13`. The [handoff](../p04-b1-reservation-clock-handoff.md)
+records local native validation and remaining runtime requirements. The design
+below describes the original gap and intended admission contract.
+
 The accepted schedule metadata paths sample trusted time after acquiring their
 SQLite snapshot/write lock. The reservation foundation instead accepts a fixed
 `now` before `Store::write`. A producer that passes its tick timestamp would use
@@ -36,6 +40,9 @@ folding, bounded retention and restart-safe publication in the sole Store.
 Those requirements are not replaced by this prerequisite. Keep the implementation
 unmerged until focused Rust tests, strict Clippy and existing regressions pass.
 The initial implementation draft and binary patch are preserved under
-`.cache/main-consolidation/cleanup-2026-10-21-evening/`; only this design has been
-merged, and its temporary branch/worktree removed. The host is currently below
-the unchanged 3-GiB test/build floor.
+`.cache/main-consolidation/cleanup-2026-10-21-evening/`; its temporary branch and
+worktree were removed during consolidation. Subsequent work on local main
+completed the shared implementation and four regression tests. After a host
+memory refusal and one guarded stop, improved headroom allowed the focused
+suite, all 133 persistence unit tests, two compile-fail doctests, strict Clippy
+and formatting to pass. The 3-GiB floor remains unchanged.
