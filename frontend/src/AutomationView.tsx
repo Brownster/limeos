@@ -5,11 +5,11 @@ import { NotificationsView } from "./NotificationsView";
 import type { AutomationState, PageKind } from "./automation-controller";
 import type { AlertState, Page, ObserveHealthScheduleInput, ScheduleView } from "./automation-client";
 
-export function AutomationView({ schedules, alerts, canManage, create, pause, moreSchedules, moreAlerts, error, busy = false, disabled = false }: {
+export function AutomationView({ schedules, alerts, canManage, create, pause, moreSchedules, moreAlerts, error, busy = false, disabled = false, showAlerts = true }: {
   schedules: Page<ScheduleView> | null; alerts: Page<AlertState> | null; canManage: boolean;
   create?: (input: ObserveHealthScheduleInput) => void; pause?: (row: ScheduleView) => void;
   moreSchedules: () => void; moreAlerts: () => void;
-  error?: string | null; busy?: boolean; disabled?: boolean;
+  error?: string | null; busy?: boolean; disabled?: boolean; showAlerts?: boolean;
 }) {
   const [formError, setFormError] = useState("");
   const [minutes, setMinutes] = useState(10); const [start, setStart] = useState(0); const [end, setEnd] = useState(0);
@@ -17,19 +17,19 @@ export function AutomationView({ schedules, alerts, canManage, create, pause, mo
   const [missed, setMissed] = useState<ObserveHealthScheduleInput["missed"]>("coalesce_latest");
   const blocked = busy || disabled;
   return <section aria-labelledby="automation-heading">
-    <p className="eyebrow">AUTOMATION</p><h2 id="automation-heading">Schedules and alerts</h2>
-    {(schedules?.partial || alerts?.partial) && <p className="notice" role="status">Some observations are unavailable. Missing observations keep active alerts open.</p>}
+    <p className="eyebrow">AUTOMATION</p><h2 id="automation-heading">{showAlerts ? "Schedules and alerts" : "Health schedules"}</h2>
+    {(schedules?.partial || (showAlerts && alerts?.partial)) && <p className="notice" role="status">Some observations are unavailable. {showAlerts && "Missing observations keep active alerts open."}</p>}
     {error && <p className="error" role="alert">{error}</p>}
     {formError && <p className="error" role="alert">{formError}</p>}
     {busy && <p role="status">Saving schedule change…</p>}
-    <div className="table-wrap"><table><caption>Observation schedules</caption><thead><tr><th scope="col">Schedule</th><th scope="col">Timing</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
-      <tbody>{schedules?.items.map(row => <tr key={row.schedule.id}><th scope="row">{row.schedule.id}<small>{row.schedule.definition.operation.replaceAll("_", " ")}</small></th>
+    <div className="table-wrap" tabIndex={0} role="region" aria-label="Observation schedules"><table className="schedules-table"><caption>Observation schedules</caption><thead><tr><th scope="col">Schedule</th><th scope="col">Timing</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
+      <tbody>{schedules?.items.map(row => <tr key={row.schedule.id}><th scope="row"><abbr title={row.schedule.id}>{scheduleReference(row.schedule.id)}</abbr><small>{row.schedule.definition.operation === "observe_health" ? "Health observations" : row.schedule.definition.operation.replaceAll("_", " ")}</small></th>
         <td>Every {row.schedule.definition.interval_seconds / 60} minutes<small>{row.schedule.definition.window ? `UTC ${clock(row.schedule.definition.window.start_minute)}–${clock(row.schedule.definition.window.end_minute)}` : "Any time · UTC"}</small></td>
         <td><span className={`badge ${row.status === "blocked" || row.status === "authority_suspended" ? "warning" : ""}`}>{scheduleLabel(row)}</span>{row.status === "blocked" && <small>Operation adapter is unavailable.</small>}
           {row.status === "awaiting_producer" && <small>Schedule saved. Automatic observations are not available yet.</small>}
           {row.status === "authority_suspended" && <small>Scheduling permission needs renewal before this schedule can resume.</small>}
           {row.last_occurrence && <small>Latest occurrence · {new Date(row.last_occurrence.key.due * 1000).toISOString()}<br />{row.last_occurrence.outcome.outcome === "job" ? `Job ${row.last_occurrence.outcome.id} · ${row.last_occurrence.outcome.state.replaceAll("_", " ")}` : row.last_occurrence.outcome.outcome}</small>}</td>
-        <td>{canManage && <button disabled={blocked || !pause} onClick={() => { if (!blocked) pause?.(row); }}>{row.schedule.paused ? "Resume" : "Pause"} {row.schedule.id}</button>}</td>
+        <td>{canManage && <button aria-label={`${row.schedule.paused ? "Resume" : "Pause"} ${row.schedule.id}`} disabled={blocked || !pause} onClick={() => { if (!blocked) pause?.(row); }}>{row.schedule.paused ? "Resume" : "Pause"} {scheduleReference(row.schedule.id)}</button>}</td>
       </tr>)}{schedules?.items.length === 0 && <tr><td colSpan={4}>No schedules on this page.</td></tr>}{!schedules && <tr><td colSpan={4}>Schedule data is unavailable.</td></tr>}</tbody></table></div>
     {schedules?.next && <button onClick={moreSchedules} disabled={busy}>Next schedules</button>}
     {canManage && <form onSubmit={event => {
@@ -48,13 +48,14 @@ export function AutomationView({ schedules, alerts, canManage, create, pause, mo
         <label htmlFor="window-end">Window end (UTC)</label><input id="window-end" type="time" required value={clock(end)} disabled={blocked} onChange={event => setEnd(minute(event.target.value))} /></>}
       <button disabled={blocked || !create}>Create observation schedule</button>
     </form>}
-    <h3>Active alerts</h3><ul>{alerts?.items.filter(row => row.incident.phase === "open").map(row => <li key={row.key}><strong>{row.key}</strong>{row.incident.phase === "open" && <p>{row.incident.summary} <span className="badge warning">{row.incident.severity}</span></p>}</li>)}</ul>
+    {showAlerts && <><h3>Active alerts</h3><ul>{alerts?.items.filter(row => row.incident.phase === "open").map(row => <li key={row.key}><strong>{row.key}</strong>{row.incident.phase === "open" && <p>{row.incident.summary} <span className="badge warning">{row.incident.severity}</span></p>}</li>)}</ul>
     {!alerts && <p>Alert data is unavailable.</p>}
     {alerts?.items.every(row => row.incident.phase !== "open") && <p>No active alerts on this page.</p>}
-    {alerts?.next && <button onClick={moreAlerts}>Next alerts</button>}
+    {alerts?.next && <button onClick={moreAlerts}>Next alerts</button>}</>}
   </section>;
 }
 function clock(value: number): string { return `${Math.floor(value / 60).toString().padStart(2, "0")}:${(value % 60).toString().padStart(2, "0")}`; }
+function scheduleReference(id: string): string { return id.length > 16 ? `${id.slice(0, 8)}…` : id; }
 function minute(value: string): number { const [hours, minutes] = value.split(":").map(Number); return hours * 60 + minutes; }
 function scheduleLabel(row: ScheduleView): string {
   switch (row.status) {
@@ -107,9 +108,9 @@ function OwnedAutomationPanel({ csrf, canManage, canAcknowledge, expired }: {
     {state.notifications.after && <button disabled={state.notifications.loading} onClick={() => { void controller.first("notifications"); }}>First notifications</button>}
   </>;
 }
-export function AutomationReadStatus({ state }: { state: AutomationState }) {
+export function AutomationReadStatus({ state, kinds = ["schedules", "alerts", "notifications"] }: { state: AutomationState; kinds?: readonly PageKind[] }) {
   return <div aria-label="Automation connection status" aria-live="polite">
-    {(["schedules", "alerts", "notifications"] as const).map(kind => <div key={kind}>
+    {kinds.map(kind => <div key={kind}>
       {state[kind].loading && <p role="status">Loading {kind}…</p>}
       {state[kind].stale && <p className="notice">Previously read {kind} may be out of date. Changes are paused until a successful refresh.</p>}
       {state[kind].error && <p className="error" role="alert">{kind}: {state[kind].error}</p>}

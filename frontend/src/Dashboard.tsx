@@ -12,6 +12,7 @@ import { ObservationView } from "./ObservationView";
 import { ContainerJobs } from "./ContainerActions";
 import { StorageMounts } from "./storage/StorageMounts";
 import { StackPanel } from "./StackManagement";
+import { HealthSchedules } from "./HealthSchedules";
 const views: [string, ResourceKind | undefined][] = [
   ["All resources", undefined],
   ["Containers", "container"],
@@ -23,10 +24,13 @@ const views: [string, ResourceKind | undefined][] = [
 export function Dashboard({
   expired,
   session,
+  reauthenticate = expired,
 }: {
   expired: () => void;
   session: SessionView;
+  reauthenticate?: () => void;
 }) {
+  const [schedulesOpen, setSchedulesOpen] = useState(false);
   const [operationsRevision, setOperationsRevision] = useState(0);
   const changed = useCallback(() => setOperationsRevision((v) => v + 1), []);
   const canManage = ["operator", "administrator"].includes(
@@ -170,6 +174,13 @@ export function Dashboard({
         <StackPanel principal={session.principal.id} grantRevision={session.principal.grant_revision}
           csrf={session.csrf_token} expired={expired} />
       )}
+      <div>
+        <button aria-expanded={schedulesOpen} aria-controls="health-schedules-panel" onClick={() => setSchedulesOpen(open => !open)}>
+          {schedulesOpen ? "Close health schedules" : "Manage health schedules"}
+        </button>
+        {schedulesOpen && <HealthSchedules principal={session.principal.id} grantRevision={session.principal.grant_revision}
+          csrf={session.csrf_token} expired={expired} reauthenticate={reauthenticate} />}
+      </div>
       {!value ? (
         <p role="status">
           {error

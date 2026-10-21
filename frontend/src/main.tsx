@@ -9,6 +9,10 @@ function App() {
   const [pending, setPending] = useState(true);
   const [error, setError] = useState("");
   const expired = useCallback(() => setSession(null), []);
+  const reauthenticate = useCallback(() => {
+    setSession(null);
+    setError("Health scheduling enabled. Sign in again to use the updated permission.");
+  }, []);
   useEffect(() => {
     document.title = session ? "LimeOS · Observations" : "LimeOS · Sign in";
   }, [session]);
@@ -85,7 +89,7 @@ function App() {
             </p>
           )}
           <div id="content" tabIndex={-1}>
-            <Dashboard expired={expired} session={session} />
+            <Dashboard expired={expired} session={session} reauthenticate={reauthenticate} />
           </div>
         </>
       ) : (

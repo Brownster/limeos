@@ -242,6 +242,19 @@ details p {
   overflow-x: auto;
   border: 1px solid #475244;
 }
+.schedules-table {
+  min-width: 40rem;
+}
+.schedules-table th:first-child {
+  width: 18%;
+}
+.schedules-table td:last-child {
+  width: 20%;
+}
+.schedules-table abbr {
+  text-decoration: none;
+  font-family: monospace;
+}
 table {
   width: 100%;
   border-collapse: collapse;

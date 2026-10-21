@@ -38,7 +38,8 @@ export class AutomationController {
   private closed = false;
   private running: Promise<void> | undefined;
   private refreshAgain = false;
-  constructor(private readonly expired: () => void, private readonly reader: Reader = automationClient) {}
+  constructor(private readonly expired: () => void, private readonly reader: Reader = automationClient, private readonly mode: "all" | "schedules" = "all") {}
+  private enabled(kind: PageKind): boolean { return this.mode === "all" || kind === "schedules"; }
   getSnapshot = (): AutomationState => this.state;
   subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
   private emit(): void { for (const listener of this.listeners) listener(); }
@@ -74,7 +75,7 @@ export class AutomationController {
     this.state = { ...initial(), expired: true }; this.emit(); this.expired();
   }
   private async read<K extends PageKind>(kind: K, after: string | undefined): Promise<void> {
-    if (this.closed || this.state.expired || this.pending(kind)) return;
+    if (!this.enabled(kind) || this.closed || this.state.expired || this.pending(kind)) return;
     this.active[kind]?.abort.abort();
     const request = { serial: ++this.serial, abort: new AbortController(), after };
     const lifetime = this.lifetime;
@@ -104,7 +105,7 @@ export class AutomationController {
     const task = (async () => {
       do {
         this.refreshAgain = false;
-        await Promise.all(kinds.map(kind => this.read(kind, this.active[kind] ? this.active[kind]!.after : this.state[kind].after)));
+        await Promise.all(kinds.filter(kind => this.enabled(kind)).map(kind => this.read(kind, this.active[kind] ? this.active[kind]!.after : this.state[kind].after)));
       } while (this.refreshAgain && !this.closed && !this.state.expired && this.lifetime === lifetime);
     })();
     this.running = task;
@@ -124,7 +125,7 @@ export class AutomationController {
   async mutate(kind: MutationKind, action: (signal: AbortSignal) => Promise<unknown>): Promise<void> {
     const read = this.state[kind];
     const write = this.state.mutations[kind];
-    if (this.closed || this.state.expired || write.pending || write.denied || !read.page || read.loading || read.stale || read.error) return;
+    if (!this.enabled(kind) || this.closed || this.state.expired || write.pending || write.denied || !read.page || read.loading || read.stale || read.error) return;
     const request = { abort: new AbortController() };
     const lifetime = this.lifetime;
     this.writes[kind] = request;
@@ -155,12 +156,12 @@ export class AutomationController {
     if (!this.closed && !this.state.expired && this.lifetime === lifetime && !request.abort.signal.aborted) await this.refresh();
   }
   committed(kind: PageKind): Promise<void> {
-    if (this.closed || this.state.expired) return Promise.resolve();
+    if (!this.enabled(kind) || this.closed || this.state.expired) return Promise.resolve();
     this.invalidate(kind);
     return this.refresh();
   }
   mutationFailed(kind: PageKind, error: unknown): Promise<void> {
-    if (this.closed || this.state.expired) return Promise.resolve();
+    if (!this.enabled(kind) || this.closed || this.state.expired) return Promise.resolve();
     if (code(error) === "unauthenticated") { this.expire(); return Promise.resolve(); }
     this.invalidate(kind);
     const denied = code(error) === "forbidden" || code(error) === "expired";

@@ -1,5 +1,5 @@
 import { ApiError } from "./api";
-import type { ObserveHealthScheduleInput, ScheduleView } from "../../contracts/generated/types";
+import type { ObserveHealthEnabled, ObserveHealthScheduleInput, ScheduleView } from "../../contracts/generated/types";
 export type { ObserveHealthScheduleInput, ScheduleDefinition, ScheduleView } from "../../contracts/generated/types";
 
 // Alert and notification routes remain proposed B1 wire shapes.
@@ -78,10 +78,10 @@ function notification(value: unknown): value is Notification {
     default: return false;
   }
 }
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, base = "/api/v1/automation"): Promise<T> {
   const timeout = AbortSignal.timeout(12_000);
   const signal = init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
-  const response = await fetch(`/api/v1/automation${path}`, { ...init, credentials: "same-origin", cache: "no-store", signal }).catch(() => { throw unavailable(0); });
+  const response = await fetch(`${base}${path}`, { ...init, credentials: "same-origin", cache: "no-store", signal }).catch(() => { throw unavailable(0); });
   if (response.status === 401) {
     await response.body?.cancel().catch(() => undefined);
     throw new ApiError({ code: "unauthenticated", message: "Your session has expired. Sign in again.", retry: false, audit_id: "http-401" });
@@ -111,6 +111,12 @@ async function checked<T>(value: Promise<T>, guard: (value: unknown) => value is
   return result;
 }
 export const automationClient = {
+  enableHealth: (password: string, csrf: string, signal?: AbortSignal): Promise<ObserveHealthEnabled> => {
+    if (!password || new TextEncoder().encode(password).byteLength > 1024) return Promise.reject(new ApiError({ code: "invalid_input", message: "Enter your current password, up to 1,024 bytes.", retry: false, audit_id: "client-password" }));
+    return checked(request<ObserveHealthEnabled>("/auth/capabilities/observe-health/enable", {
+      method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ password }), signal,
+    }, "/api/v1"), (value): value is ObserveHealthEnabled => object(value) && value.enabled === true && typeof value.reauthenticate === "boolean" && Object.keys(value).every(key => key === "enabled" || key === "reauthenticate"));
+  },
   schedules: (after?: string, signal?: AbortSignal) => page<ScheduleView>("/schedules", schedule, after, signal),
   alerts: (after?: string, signal?: AbortSignal) => page<AlertState>("/alerts", alert, after, signal),
   notifications: (after?: string, signal?: AbortSignal) => page<Notification>("/notifications", notification, after, signal),
