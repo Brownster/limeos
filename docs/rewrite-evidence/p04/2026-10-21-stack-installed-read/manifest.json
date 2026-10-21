@@ -1,0 +1,462 @@
+{
+  "source": "54022bb2b9fe3a2f7570e4f00b9de07a1e9e334f",
+  "created_at": "2026-10-21T09:53:31.832000+00:00",
+  "scope": "Fresh AMD64 Debian build and signed installation; stack collection refuses",
+  "candidate": {
+    "source": "54022bb2b9fe3a2f7570e4f00b9de07a1e9e334f",
+    "version": "0.4.5+stack.1",
+    "scope": "fresh standard and shadow packages; all five Debian binaries from one frozen source",
+    "packages": {
+      "limeos-shadow_0.4.5+stack.1_amd64.deb": "7c4d8d471e1fef47e399d91937bee6d2d1816c1983effec9c17d6255aa683b14",
+      "limeos_0.4.5+stack.1_amd64.deb": "06b344417d0c9e1727b41524e7d63aab4ee8683ceef2fa4602a26cad10dbb7f1"
+    },
+    "binaries": {
+      "limeos-core": {
+        "sha256": "d71eee8c16a556e56d458bf5b719371d76a359f29d35fb73797eeba6f0638ac7",
+        "bytes": 6905112
+      },
+      "limeos-password-worker": {
+        "sha256": "2c32e7ed5721d60e74273e5a97ad7b6e8cb6f14f87aa6900b9b2ae84fd78d3db",
+        "bytes": 553760
+      },
+      "limeos-executor": {
+        "sha256": "4902d414cc1916f13304744ad02820ec2e1cbbabd97c174e736eabe46821b75e",
+        "bytes": 6024344
+      },
+      "limeos-stack-read-worker": {
+        "sha256": "b4a5a1c46367b5ed166a56bfeaf644b2d2d2808ff00f96166b8a28ca83acd712",
+        "bytes": 1229664
+      },
+      "limeosctl": {
+        "sha256": "da888aa4a8d2177c08e0f62b36bd17731fa48150dc1e0a6d054798da4fad91c9",
+        "bytes": 906080
+      }
+    },
+    "ui": {
+      "frontend/dist/assets/index-C3RxCNyi.css": "64c20446c003aed19c6bed2fede7316b50f9e1d9ac8e17633b1fff8cd5e37df8",
+      "frontend/dist/assets/index-DlRhZ14L.js": "e0826435f17e5ead75041b7ada47568d1565ecb59dbb733fcd2cc72772053147",
+      "frontend/dist/index.html": "9e15fb227706f55d6c32c2544a08b3a309480029750be5829b4095b04911b561"
+    },
+    "packaging_sha256": "e438fe4bb6f8ef5d88a5ad59cea69c7650eac0c6a9a5c3e4d82fdcf4fd9eae97",
+    "repository_tool_image": "sha256:e0df67a00f0f3080a0d01274c4c492c1173c6e39853913864d2cf596ad726fab",
+    "package_handoff": [
+      "7c4d8d471e1fef47e399d91937bee6d2d1816c1983effec9c17d6255aa683b14  /build/.cache/stack-installed-qualification/candidate-1/packages/limeos-shadow_0.4.5+stack.1_amd64.deb",
+      "06b344417d0c9e1727b41524e7d63aab4ee8683ceef2fa4602a26cad10dbb7f1  /build/.cache/stack-installed-qualification/candidate-1/packages/limeos_0.4.5+stack.1_amd64.deb"
+    ]
+  },
+  "attempts": {
+    "stack-installed-vm-1": {
+      "head": "54022bb2b9fe3a2f7570e4f00b9de07a1e9e334f",
+      "started": "2026-10-21T09:26:49.914768+00:00",
+      "ended": "2026-10-21T09:28:23.554608+00:00",
+      "exit_code": 143,
+      "guard_triggered": true,
+      "minimum_available_bytes": 3212128256,
+      "inputs_unchanged": true
+    },
+    "stack-installed-vm-2": {
+      "head": "54022bb2b9fe3a2f7570e4f00b9de07a1e9e334f",
+      "started": "2026-10-21T09:29:53.176280+00:00",
+      "ended": "2026-10-21T09:32:27.624406+00:00",
+      "exit_code": 1,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3279577088,
+      "inputs_unchanged": true
+    },
+    "stack-installed-vm-3-trace": {
+      "head": "54022bb2b9fe3a2f7570e4f00b9de07a1e9e334f",
+      "started": "2026-10-21T09:37:11.752748+00:00",
+      "ended": "2026-10-21T09:39:58.173200+00:00",
+      "exit_code": 1,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3411095552,
+      "inputs_unchanged": true
+    },
+    "stack-installed-vm-4-file-trace": {
+      "head": "54022bb2b9fe3a2f7570e4f00b9de07a1e9e334f",
+      "started": "2026-10-21T09:48:33.049611+00:00",
+      "ended": "2026-10-21T09:51:14.562944+00:00",
+      "exit_code": 1,
+      "guard_triggered": false,
+      "minimum_available_bytes": 3384344576,
+      "inputs_unchanged": true
+    }
+  },
+  "files": {
+    "build/binaries.json.gz": {
+      "sha256": "902ad8e6e5a7fb6a8b16c4418be8585eba9dba014fe430dc7bf03b4e3c5c121d",
+      "original_sha256": "837d8f6e948d5b9774c63ae979d6dfc939eb027aabdf2b6c225fb15ca3e66e1e",
+      "original_bytes": 662,
+      "source": ".cache/stack-installed-qualification/build-1/binaries.json"
+    },
+    "build/build_candidate.py.gz": {
+      "sha256": "c52de014ee0c9fb35209cae33eee714cee211586b78d4d47e2a16246d2a13ce1",
+      "original_sha256": "97a15cf0d9138131ac8f3a47341e7b37fb11236bdb9f9c487080ca9174f8719d",
+      "original_bytes": 5803,
+      "source": ".cache/stack-installed-qualification/build-1/build_candidate.py"
+    },
+    "build/build_inside.py.gz": {
+      "sha256": "c00e2ab21c234fc35a6e474646716d415b5b2025c2f8314f0a7d7025946a97d4",
+      "original_sha256": "2cd40030443236b68a2e0a0532b21c91a095af3368c9de5b0bb40c32bc85e063",
+      "original_bytes": 1533,
+      "source": ".cache/stack-installed-qualification/build-1/build_inside.py"
+    },
+    "build/container-after.json.gz": {
+      "sha256": "7b67f3b4346244c7b50fe10d9113f8b827767553139c0ac5081d6eebd4b62b23",
+      "original_sha256": "3082f9eb78174ea916ac7b20185cb7f413dad5c0bdf682aad8ee093e5d793f84",
+      "original_bytes": 7536,
+      "source": ".cache/stack-installed-qualification/build-1/container-after.json"
+    },
+    "build/container-before.json.gz": {
+      "sha256": "c789fdfc45be1ea2ad6b3dc7ba8bdb719a60e6a4381b891cb09f384c4543d11d",
+      "original_sha256": "0267395bd031cad2e18d68286755648f4d65972cd7424733b3aedfd9dfa78329",
+      "original_bytes": 6990,
+      "source": ".cache/stack-installed-qualification/build-1/container-before.json"
+    },
+    "build/inputs.sha256.gz": {
+      "sha256": "562bf8baa5dc2a304ba9696ad7eea2f9d75874c7be76b1c3507a0d5aad1ebe30",
+      "original_sha256": "4a6b35a78da8a8faea89a6373bb8cf55d3aeaf5362ef796d8e580214fe56f185",
+      "original_bytes": 77738,
+      "source": ".cache/stack-installed-qualification/build-1/inputs.sha256"
+    },
+    "build/output.log.gz": {
+      "sha256": "25d1c53b422addc7916dc3547a95e05e3a04c651595927ee70fb9a858e970cbd",
+      "original_sha256": "2b086f24dc1e8ebac7b6e384ee42b3bfa30ae8a67eed658dc23a13b0c47a0b20",
+      "original_bytes": 4034,
+      "source": ".cache/stack-installed-qualification/build-1/output.log"
+    },
+    "build/record.json.gz": {
+      "sha256": "58091400012c6137445dc0f017b56c6b7be70637698c746e2a14d30d804d4a77",
+      "original_sha256": "1b6eaaaa4971ff1c1bdba77dc0bb683616b934208d2e0dfce734395c8ff9d7f4",
+      "original_bytes": 160464,
+      "source": ".cache/stack-installed-qualification/build-1/record.json"
+    },
+    "build/source-after.log.gz": {
+      "sha256": "7f5bdb79bf2bba5d7ae689040f302bdb2f484c5eebd45de778a48b1ded73f3e7",
+      "original_sha256": "6acc0e1728e27465d714f48a911f7766b443769f0700e83ec54606a4d5ece0ae",
+      "original_bytes": 36322,
+      "source": ".cache/stack-installed-qualification/build-1/source-after.log"
+    },
+    "build/source-before.log.gz": {
+      "sha256": "7f5bdb79bf2bba5d7ae689040f302bdb2f484c5eebd45de778a48b1ded73f3e7",
+      "original_sha256": "6acc0e1728e27465d714f48a911f7766b443769f0700e83ec54606a4d5ece0ae",
+      "original_bytes": 36322,
+      "source": ".cache/stack-installed-qualification/build-1/source-before.log"
+    },
+    "candidate/inputs.json.gz": {
+      "sha256": "a2c9c91dc8f061ce60669ac3634a29296b901201b9e1e40ca444cb736d74f4d3",
+      "original_sha256": "09fb3431cb51692b217fb3bf812be782c3e773cc38cbcc5682a5d7d99cff0783",
+      "original_bytes": 2052,
+      "source": ".cache/stack-installed-qualification/candidate-1/inputs.json"
+    },
+    "candidate/prepare_packages.py.gz": {
+      "sha256": "746b4b93b4c4257a0d95a5fa7ab2ba8a3a7ac4b00237eee9a3d080084d2f807c",
+      "original_sha256": "ab78fd04c6b44bf82a46f4dd46d6e63778f1996e64f5b67201c18639e31323fd",
+      "original_bytes": 3099,
+      "source": ".cache/stack-installed-qualification/candidate-1/prepare_packages.py"
+    },
+    "repository/dists/stable/InRelease.gz": {
+      "sha256": "7b0db38c42682cc902114dfc96e8019cca2ce46fdfe981feb1baa63907c9d5d4",
+      "original_sha256": "2595df9a739225ef8e8ede030297c18e15351c46496f60fa5a8165427d4f4c3e",
+      "original_bytes": 2680,
+      "source": ".cache/stack-installed-qualification/candidate-1/repository/dists/stable/InRelease"
+    },
+    "repository/dists/stable/Release.gz": {
+      "sha256": "699db1ad9402987b4950d7c596e666b5c1d42f7c6268d22287c06592be587159",
+      "original_sha256": "c31091659316098f556b1e68dae24ea13e1d8788ee815301f896f92784d20614",
+      "original_bytes": 2403,
+      "source": ".cache/stack-installed-qualification/candidate-1/repository/dists/stable/Release"
+    },
+    "repository/dists/stable/Release.gpg.gz": {
+      "sha256": "125ca338322a8b9d9b89e8bf8ebd96b87567ccd2b6bc4f5ffc160f346e8c2f41",
+      "original_sha256": "d27adbfb20ad0960acbb540580a426ffe7cf5ce31d579da4d0676900e4bec996",
+      "original_bytes": 228,
+      "source": ".cache/stack-installed-qualification/candidate-1/repository/dists/stable/Release.gpg"
+    },
+    "repository/dists/stable/main/binary-amd64/Packages.gz": {
+      "sha256": "04564c3aef6e50459b7de0d31e5d045195de7617e41f4c045b3671f155403898",
+      "original_sha256": "028aaf025302275869eb6d29fe90ebacea2e9e4d8b4f5fe5441b645f582a0f76",
+      "original_bytes": 1492,
+      "source": ".cache/stack-installed-qualification/candidate-1/repository/dists/stable/main/binary-amd64/Packages"
+    },
+    "repository/dists/stable/main/binary-amd64/Packages.gz.gz": {
+      "sha256": "9cbb08c2c27e0b011795a87c5128ceba7c0007700304bd782c180fbe7d03adfc",
+      "original_sha256": "3cfe0f06d6b75fc266ed1d8976937c541483f84c73ce010c09c13749aed1e839",
+      "original_bytes": 711,
+      "source": ".cache/stack-installed-qualification/candidate-1/repository/dists/stable/main/binary-amd64/Packages.gz"
+    },
+    "repository/dists/stable/main/binary-arm64/Packages.gz": {
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "source": ".cache/stack-installed-qualification/candidate-1/repository/dists/stable/main/binary-arm64/Packages"
+    },
+    "repository/dists/stable/main/binary-arm64/Packages.gz.gz": {
+      "sha256": "eb9bca100a3e71312ed4212d502b5f3779ce951cc67607a195b0a8e6cda6f7da",
+      "original_sha256": "59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2",
+      "original_bytes": 20,
+      "source": ".cache/stack-installed-qualification/candidate-1/repository/dists/stable/main/binary-arm64/Packages.gz"
+    },
+    "repository/limeos-archive-keyring.gpg.gz": {
+      "sha256": "57ebfc402b1e72517f027891c5e4e239bd0393c0c61ad52ee6d24f5915063af6",
+      "original_sha256": "e443a8c8429576fd3c3e2940d693dd286d44eeba3db53f71338345deaa927957",
+      "original_bytes": 248,
+      "source": ".cache/stack-installed-qualification/candidate-1/repository/limeos-archive-keyring.gpg"
+    },
+    "attempts/stack-installed-vm-1/record.json.gz": {
+      "sha256": "761d25a19d5a12e379fbdcf170a575d8cd340d26b3ed322e9cb63ffd01839cd8",
+      "original_sha256": "18c6f983d16f90d416a6470d57b8e43f587bbce61d22b56f0e2eb2f5abab9272",
+      "original_bytes": 159827,
+      "source": ".cache/main-consolidation/attempts/stack-installed-vm-1/record.json"
+    },
+    "attempts/stack-installed-vm-1/output.log.gz": {
+      "sha256": "7801501c80011e93c7e5fbb56b31501ef6d6e7e2fccd4ebcfd35aabe7feb7dd5",
+      "original_sha256": "1912ff48deb6ade26c0b8bd9bed23e20b61c31b9945f15b3abcbe31e585bc823",
+      "original_bytes": 148,
+      "source": ".cache/main-consolidation/attempts/stack-installed-vm-1/output.log"
+    },
+    "attempts/stack-installed-vm-2/record.json.gz": {
+      "sha256": "5845d35cb962d3ca5f5b74bd325e1a279e20e7dc55a8752e4cd78658fcddae08",
+      "original_sha256": "56d7e2d5ccad068a3babdb79b6e7b5ff5ab5f63ade8fa6af45d19a622d4bf3b7",
+      "original_bytes": 159847,
+      "source": ".cache/main-consolidation/attempts/stack-installed-vm-2/record.json"
+    },
+    "attempts/stack-installed-vm-2/output.log.gz": {
+      "sha256": "0b649d36d8f46ef7160509db21a756dcc455e6688f1863ba9aab2f1ec2d6a355",
+      "original_sha256": "3afc82037b7de48d2cc99e753b97d42fdd178e3be4344b1d934e372214e58f33",
+      "original_bytes": 4864,
+      "source": ".cache/main-consolidation/attempts/stack-installed-vm-2/output.log"
+    },
+    "attempts/stack-installed-vm-2/failure-extracted.json.gz": {
+      "sha256": "d1e00dc325cee3a721bcc0c6b7254130aa4e689fda95fdbf6c07b317ded6b874",
+      "original_sha256": "c0ac18689f4087c2f4238ebbf4ac54989ee2da98df1463a007c9150e4eed1615",
+      "original_bytes": 3188,
+      "source": ".cache/main-consolidation/attempts/stack-installed-vm-2/failure-extracted.json"
+    },
+    "attempts/stack-installed-vm-2/result-startup-console.txt.gz": {
+      "sha256": "242d3d1ff569ffd128d193af4b65e6bb5822e13c25167377f14b8520ddba4782",
+      "original_sha256": "176aec843735571a188c14711d23f40344a09e76e8d1b99f8bb70972781c9ced",
+      "original_bytes": 32984,
+      "source": ".cache/stack-installed-qualification/vm-2/result-startup-console.txt"
+    },
+    "attempts/stack-installed-vm-2/result-vm-failure.txt.gz": {
+      "sha256": "3bf663748e33915665120277d37a4e016392e96352fcef4b8ca92f05495b0722",
+      "original_sha256": "30d4f4e5c2e49e00b8384578c97ce96c3dce126f3325dfdcd11071a7c3723e12",
+      "original_bytes": 7016,
+      "source": ".cache/stack-installed-qualification/vm-2/result-vm-failure.txt"
+    },
+    "attempts/stack-installed-vm-3-trace/record.json.gz": {
+      "sha256": "3175d51f7641433c5fac0a848cb5ee6b1a49ad5a225cc45e0bbd73b78ec82f70",
+      "original_sha256": "00d792d83ab043713a414958f35543f8099df8bfdd92e941993437fe54277af3",
+      "original_bytes": 159847,
+      "source": ".cache/main-consolidation/attempts/stack-installed-vm-3-trace/record.json"
+    },
+    "attempts/stack-installed-vm-3-trace/output.log.gz": {
+      "sha256": "b02f89ab8b9cd4ee1895f7873240b3c367fd64140195dbac012f685afd49c43f",
+      "original_sha256": "062b7da9553be4d378e0a09e5589dc1fd3e77036402e9879c0d75e50c88e1da2",
+      "original_bytes": 31495,
+      "source": ".cache/main-consolidation/attempts/stack-installed-vm-3-trace/output.log"
+    },
+    "attempts/stack-installed-vm-3-trace/failure-extracted.json.gz": {
+      "sha256": "10e0dc109f1b90c572650cab29ddba74351bc1fc3cdca5b13ea4360c29da2ba0",
+      "original_sha256": "3e15e5d99fc186494a04fd51206295cbda0a06ec7c38b7f6e24afbafb44354b3",
+      "original_bytes": 30103,
+      "source": ".cache/main-consolidation/attempts/stack-installed-vm-3-trace/failure-extracted.json"
+    },
+    "attempts/stack-installed-vm-3-trace/result-startup-console.txt.gz": {
+      "sha256": "402c17c5958defa5f27d3f1d39195a7cd544bbf623922f3d4458ef6a58d6280d",
+      "original_sha256": "1ad1710c705d180d04868c2d0d2d634da3fec4096681e2748b136c4d525609a5",
+      "original_bytes": 32984,
+      "source": ".cache/stack-installed-qualification/vm-3/result-startup-console.txt"
+    },
+    "attempts/stack-installed-vm-3-trace/result-vm-failure.txt.gz": {
+      "sha256": "e127630118514b7990065c20eee97f6d139e937eeffa8b0130a54ace753ac508",
+      "original_sha256": "92e2992d3277b81ae03f6857a0d6a64e00aef589676b30fb859a55237956fb97",
+      "original_bytes": 6814,
+      "source": ".cache/stack-installed-qualification/vm-3/result-vm-failure.txt"
+    },
+    "attempts/stack-installed-vm-4-file-trace/record.json.gz": {
+      "sha256": "da043ff0999203caf3bfb13f6172073ab821a89121f8485a39bbe636e609ac8b",
+      "original_sha256": "e1f6a0ff2e18f2a0836dbfe93d2a34f861c66925dde5cae5c78c2776c463910a",
+      "original_bytes": 159847,
+      "source": ".cache/main-consolidation/attempts/stack-installed-vm-4-file-trace/record.json"
+    },
+    "attempts/stack-installed-vm-4-file-trace/output.log.gz": {
+      "sha256": "b517bb1d76a0576ce09f2f5fc4fa07c9ae579dc56ed93e2472d5ffae3423322c",
+      "original_sha256": "3d7ff8e70d99c0a901b08f1f34776aa0b3e70d9f84232422d1ed80453c42dd08",
+      "original_bytes": 45043,
+      "source": ".cache/main-consolidation/attempts/stack-installed-vm-4-file-trace/output.log"
+    },
+    "attempts/stack-installed-vm-4-file-trace/failure-extracted.json.gz": {
+      "sha256": "b94b3c8400f4be7eb93464fae0bceaf30fa61b3f3d53b75595937235d96404e7",
+      "original_sha256": "bbf33f6b21c19e8f94c890427c242e30d58609a9be7843e8f2daf91313667b37",
+      "original_bytes": 43681,
+      "source": ".cache/main-consolidation/attempts/stack-installed-vm-4-file-trace/failure-extracted.json"
+    },
+    "attempts/stack-installed-vm-4-file-trace/result-startup-console.txt.gz": {
+      "sha256": "487f2cfb9bb03296ac7c861e4a4a27fe69ccd148bfc4071f3d41f0b35e9cf241",
+      "original_sha256": "8e5fc12ebb1ce439cb4f06be14eadbebea51b1fe384e85119cd18aa26385e150",
+      "original_bytes": 32984,
+      "source": ".cache/stack-installed-qualification/vm-4/result-startup-console.txt"
+    },
+    "attempts/stack-installed-vm-4-file-trace/result-vm-failure.txt.gz": {
+      "sha256": "14340cab2f378ba885b31a5c410efac86932f3dae93114dc26b0be3345c86ef8",
+      "original_sha256": "643fb19a6cc68a63c30e7cad78ad914053ae8d8215d3b1846a8515e7547b289f",
+      "original_bytes": 6814,
+      "source": ".cache/stack-installed-qualification/vm-4/result-vm-failure.txt"
+    },
+    "inputs/vm-2-guest/guest.py.gz": {
+      "sha256": "2a786372934e888e8f795b6edea3450a78ef274e4a9b2cc620278ff9be78ecc8",
+      "original_sha256": "3e3c808f40769c2ffec5fba65ce09304d6354089502bcf74c5e8eac6daed2570",
+      "original_bytes": 22507,
+      "source": ".cache/stack-installed-qualification/vm-2-guest/guest.py"
+    },
+    "inputs/vm-2-guest/p04_mounts_guest.py.gz": {
+      "sha256": "7187f9753b64ac6b168445dba23a44464807380bfa6d6ea5e7c8116a3c1e1c34",
+      "original_sha256": "937e887dc5020a5f8d6d0edd0b05454a130726e21ed4bd47d03d5fd539b7fc4c",
+      "original_bytes": 71487,
+      "source": ".cache/stack-installed-qualification/vm-2-guest/p04_mounts_guest.py"
+    },
+    "inputs/vm-2-guest/stack_runtime_guest.py.gz": {
+      "sha256": "b9001afa3f4069657f043e43e738269c887ced6866ecf34df87a003217c35e7a",
+      "original_sha256": "be0fcb62f35ec90ab6c441eae334166bfd4a92464a8bec2ca2ecf5c125dec2cb",
+      "original_bytes": 15539,
+      "source": ".cache/stack-installed-qualification/vm-2-guest/stack_runtime_guest.py"
+    },
+    "inputs/vm-3-guest/guest.py.gz": {
+      "sha256": "2a786372934e888e8f795b6edea3450a78ef274e4a9b2cc620278ff9be78ecc8",
+      "original_sha256": "3e3c808f40769c2ffec5fba65ce09304d6354089502bcf74c5e8eac6daed2570",
+      "original_bytes": 22507,
+      "source": ".cache/stack-installed-qualification/vm-3-guest/guest.py"
+    },
+    "inputs/vm-3-guest/p04_mounts_guest.py.gz": {
+      "sha256": "7187f9753b64ac6b168445dba23a44464807380bfa6d6ea5e7c8116a3c1e1c34",
+      "original_sha256": "937e887dc5020a5f8d6d0edd0b05454a130726e21ed4bd47d03d5fd539b7fc4c",
+      "original_bytes": 71487,
+      "source": ".cache/stack-installed-qualification/vm-3-guest/p04_mounts_guest.py"
+    },
+    "inputs/vm-3-guest/stack_runtime_guest.py.gz": {
+      "sha256": "540e2b935e6e008c2a23c2dd54c16fcbd72523ac8d223dcc3955f6d3600e89c6",
+      "original_sha256": "21ac16c306bb3313e7f5754d00fb9933053bd4287d06c289e094728f72fa95c4",
+      "original_bytes": 16432,
+      "source": ".cache/stack-installed-qualification/vm-3-guest/stack_runtime_guest.py"
+    },
+    "inputs/vm-4-inputs/.cache/stack-installed-qualification/candidate-1/inputs.json.gz": {
+      "sha256": "a2c9c91dc8f061ce60669ac3634a29296b901201b9e1e40ca444cb736d74f4d3",
+      "original_sha256": "09fb3431cb51692b217fb3bf812be782c3e773cc38cbcc5682a5d7d99cff0783",
+      "original_bytes": 2052,
+      "source": ".cache/stack-installed-qualification/vm-4-inputs/.cache/stack-installed-qualification/candidate-1/inputs.json"
+    },
+    "inputs/vm-4-inputs/.cache/stack-installed-qualification/current_authority_schema.py.gz": {
+      "sha256": "92393d5b7ebe92cb19e7c64c66d7e5ec465f92feda296eaf87b75499eb06b593",
+      "original_sha256": "cf88c8fe44eb175847339e19922da617d24f1810313acf81ed8f357e2548f4ce",
+      "original_bytes": 1777,
+      "source": ".cache/stack-installed-qualification/vm-4-inputs/.cache/stack-installed-qualification/current_authority_schema.py"
+    },
+    "inputs/vm-4-inputs/.cache/stack-installed-qualification/guest/guest.py.gz": {
+      "sha256": "2a786372934e888e8f795b6edea3450a78ef274e4a9b2cc620278ff9be78ecc8",
+      "original_sha256": "3e3c808f40769c2ffec5fba65ce09304d6354089502bcf74c5e8eac6daed2570",
+      "original_bytes": 22507,
+      "source": ".cache/stack-installed-qualification/vm-4-inputs/.cache/stack-installed-qualification/guest/guest.py"
+    },
+    "inputs/vm-4-inputs/.cache/stack-installed-qualification/guest/p04_mounts_guest.py.gz": {
+      "sha256": "7187f9753b64ac6b168445dba23a44464807380bfa6d6ea5e7c8116a3c1e1c34",
+      "original_sha256": "937e887dc5020a5f8d6d0edd0b05454a130726e21ed4bd47d03d5fd539b7fc4c",
+      "original_bytes": 71487,
+      "source": ".cache/stack-installed-qualification/vm-4-inputs/.cache/stack-installed-qualification/guest/p04_mounts_guest.py"
+    },
+    "inputs/vm-4-inputs/.cache/stack-installed-qualification/guest/stack_runtime_guest.py.gz": {
+      "sha256": "22e064c6f6c906a4bb38f20397777afdf4216e31b17b0c92bcdb15021d903110",
+      "original_sha256": "f44c2f8cf7e202aebe5c94b4b89e52bd45f1ef26036430e749a214c3c19711ab",
+      "original_bytes": 17051,
+      "source": ".cache/stack-installed-qualification/vm-4-inputs/.cache/stack-installed-qualification/guest/stack_runtime_guest.py"
+    },
+    "inputs/vm-4-inputs/.cache/stack-installed-qualification/run_768.py.gz": {
+      "sha256": "73a029f785273b8a79b9c02a2fffe17af5b5bea2f866a6c6626098cc08b50315",
+      "original_sha256": "a9f3cebdb0d2c05eafe374107437fa5a3e3457a668eb2677b9b520635a4a0512",
+      "original_bytes": 16082,
+      "source": ".cache/stack-installed-qualification/vm-4-inputs/.cache/stack-installed-qualification/run_768.py"
+    },
+    "inputs/vm-4-inputs/inputs.json.gz": {
+      "sha256": "47735612aebbb4594696afb4617273b846e9e65e3bdb252bb60b8751cedd847e",
+      "original_sha256": "0c138ebdfba7d0e2fc188e9b97905ca964208c8e8a86f370d74b2ca2cdc409a2",
+      "original_bytes": 1174,
+      "source": ".cache/stack-installed-qualification/vm-4-inputs/inputs.json"
+    },
+    "inputs/vm-4-inputs/tests/privileged_vm/run.py.gz": {
+      "sha256": "c9545b05fe256ec67353490a648bc2395717da8db60df7c3b2d125c2bd40b97c",
+      "original_sha256": "865c375d95f308bc83a043cc83c8a2ddcaac605cb441468f3e6d46ed98f0c732",
+      "original_bytes": 16083,
+      "source": ".cache/stack-installed-qualification/vm-4-inputs/tests/privileged_vm/run.py"
+    },
+    "inputs/run_768.py.gz": {
+      "sha256": "73a029f785273b8a79b9c02a2fffe17af5b5bea2f866a6c6626098cc08b50315",
+      "original_sha256": "a9f3cebdb0d2c05eafe374107437fa5a3e3457a668eb2677b9b520635a4a0512",
+      "original_bytes": 16082,
+      "source": ".cache/stack-installed-qualification/run_768.py"
+    },
+    "inputs/prepare_vm.py.gz": {
+      "sha256": "0c8fa9f8a61e854329d37e18e02ccba73612113d01e28f2a5e91c4e5a41a8837",
+      "original_sha256": "43c8237e5962227ec7d4996730b88c06184902fd6ca9b675555e6e0d2d539cfe",
+      "original_bytes": 1214,
+      "source": ".cache/stack-installed-qualification/prepare_vm.py"
+    },
+    "inputs/vm-2-inputs.json.gz": {
+      "sha256": "6c7b0ac2ce78434d6fe70c1f012d4403b6ae7e972d394e90d29dcf29d8151940",
+      "original_sha256": "93f73a68777f4f820daa1834637d51c7fd19e52bf107d328e6e0ce2254dfdcba",
+      "original_bytes": 705,
+      "source": ".cache/stack-installed-qualification/vm-2-inputs.json"
+    },
+    "inputs/freeze_vm_inputs.py.gz": {
+      "sha256": "947b9e7e7531ea5e9be1593b9647abc57abab98e800237c5946d147d63caa3eb",
+      "original_sha256": "50fe8a134281549b1afe9fb5011b36b54a748a735583899c53605c66999ce859",
+      "original_bytes": 1016,
+      "source": ".cache/stack-installed-qualification/freeze_vm_inputs.py"
+    },
+    "inputs/inspect_failure.py.gz": {
+      "sha256": "f5a385b201e9fbc6475c0603a47b19b0a6b33b47bd4b38a3962cd761076ac22b",
+      "original_sha256": "8c87585bdf6cd66761cd0eefa7a5e37315550a1fd2ae2814fa09d43b7a2702f1",
+      "original_bytes": 1013,
+      "source": ".cache/stack-installed-qualification/inspect_failure.py"
+    },
+    "inputs/archive_attempts.py.gz": {
+      "sha256": "f6c7420dc3e1541b500f7fb1ac0c43436793417bc4f60d04e960d1312c03f02e",
+      "original_sha256": "aa7ea4708e9201722ae7a60f245856e5d543e9aa375da9271ded3893ff40abdb",
+      "original_bytes": 4463,
+      "source": ".cache/stack-installed-qualification/archive_attempts.py"
+    },
+    "consolidation/audit.json.gz": {
+      "sha256": "86d467c5f9f10bb88ddae35ec7d1ecd07a88c9c2beff44d98fc123c5329dfc1d",
+      "original_sha256": "b9312a8a47c0077e74b9202d0977624055f416a2f424451090ee984cc2bc6152",
+      "original_bytes": 3136,
+      "source": ".cache/main-consolidation/recheck-2026-10-21/audit.json"
+    },
+    "consolidation/live-remote-refs.txt.gz": {
+      "sha256": "93770970b08cc1be57e719b9e9c122ec338d71e8d0ad4110945beb978e004755",
+      "original_sha256": "186e356f40a6426be5ee96b18409483be36694151cc4d2ba78a2335c7e4a1e69",
+      "original_bytes": 694,
+      "source": ".cache/main-consolidation/recheck-2026-10-21/live-remote-refs.txt"
+    },
+    "consolidation/recheck-current.py.gz": {
+      "sha256": "f3451782e7d25149bf1ef464f761e1028e1dcb2b07c3ca68f2f0bb8d8b7e177a",
+      "original_sha256": "9f196eb82954bf217ece50a8159d4c4ed87de3a6ec5fd39d312681318fd3e5a9",
+      "original_bytes": 2585,
+      "source": ".cache/main-consolidation/recheck-current.py"
+    },
+    "inputs/verify_packet.py.gz": {
+      "sha256": "c6b3c32f203b2facbd989a1b193f33df1f531893a5a0d97091b0a351d4b2a8a5",
+      "original_sha256": "0eb27160eb23dd54bb4f6eae364ea0630888fe5bc905be47d6557204c1092d0e",
+      "original_bytes": 3505,
+      "source": ".cache/stack-installed-qualification/verify_packet.py"
+    }
+  },
+  "limits": [
+    "No successful installed stack collection or complete resource acceptance",
+    "Trace diagnostics preserve selected syscall lines and bounded tails, not a full syscall trace",
+    "VM 1 was stopped by the host guard; its exact cache-only guest script was not separately frozen",
+    "VM 2 and 3 guest scripts were preserved after those terminal runs; VM 4 inputs were hashed before execution",
+    "Host-memory sampling covers the build and VM supervisors, not the low-memory package assembly command",
+    "Only standard package installed; shadow was assembled and hashed",
+    "No ARM64, Pi, lifecycle, source inspection, recovery or cutover credit"
+  ]
+}
