@@ -134,6 +134,12 @@ def main():
     cookie, csrf = headers["set-cookie"].split(";", 1)[0], session["csrf_token"]
     assert http(BASE + "/inventory", cookie=cookie)[0] == 503
     run("systemctl", "start", "limeos-storage-reader")
+    from p04_fixture_readiness import wait_storage_reader
+
+    evidence["reader_startup"] = wait_storage_reader(
+        run, readiness.foundation.executor_probe_code()
+    )
+    print("FIXTURE_READER_READY " + json.dumps(evidence["reader_startup"]), flush=True)
     pid = run(
         "systemctl", "show", "limeos-storage-reader", "-p", "MainPID", "--value"
     ).stdout.strip()
