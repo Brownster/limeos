@@ -1,0 +1,33 @@
+{
+  "source": "b28bdb19789abeaf2255dee2c31bd7d8ace8c5c1",
+  "checks": [
+    {
+      "attempt": "storage-namespace-compile-1",
+      "tracked_inputs_matching_committed_source": 671,
+      "exit_code": 0,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    {
+      "attempt": "storage-namespace-runtime-1",
+      "tracked_inputs_matching_committed_source": 671,
+      "exit_code": 0,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    {
+      "attempt": "storage-namespace-clippy-1",
+      "tracked_inputs_matching_committed_source": 671,
+      "exit_code": 0,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    {
+      "attempt": "storage-namespace-docs-1",
+      "tracked_inputs_matching_committed_source": 671,
+      "exit_code": 0,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    }
+  ]
+}

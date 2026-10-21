@@ -1,0 +1,28 @@
+{
+  "base": "b28bdb19789abeaf2255dee2c31bd7d8ace8c5c1",
+  "original_directory": "tests/fixtures/storage-namespace-roots",
+  "reason": "Unfinished disposable VM read-adapter probe; strict Clippy passed, guest controller and runtime qualification remain unfinished. Preserved to return the checkout to local main without publishing draft acceptance.",
+  "clippy_record": "attempts/storage-namespace-probe-clippy-1/record.json",
+  "files": [
+    {
+      "path": "tests/fixtures/storage-namespace-roots/Cargo.lock",
+      "bytes": 23362,
+      "sha256": "b9211db4d090f5c83f83f7b6fdf50786e50528da72de512b45fbe888a5e1ba9a"
+    },
+    {
+      "path": "tests/fixtures/storage-namespace-roots/Cargo.toml",
+      "bytes": 437,
+      "sha256": "ad7a2756bb5d60b669df57c9db4a16dcbf5d73b56885ec7df50e39f0144977c3"
+    },
+    {
+      "path": "tests/fixtures/storage-namespace-roots/README.md",
+      "bytes": 948,
+      "sha256": "e396af68dce0eb50a029d58789d87fdc9f0a24ec9f2c111a15f70cca3d4402f1"
+    },
+    {
+      "path": "tests/fixtures/storage-namespace-roots/src/main.rs",
+      "bytes": 4947,
+      "sha256": "1c3be9b7f4344d15799f3062e60feb1a9f4414eefea1367689264e56fa304b88"
+    }
+  ]
+}

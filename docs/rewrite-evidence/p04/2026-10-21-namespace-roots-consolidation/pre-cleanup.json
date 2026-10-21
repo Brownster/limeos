@@ -1,0 +1,114 @@
+{
+  "at_utc": "2026-10-21T12:41:55.414481+00:00",
+  "main": "b28bdb19789abeaf2255dee2c31bd7d8ace8c5c1",
+  "main_clean": true,
+  "all_local_and_fetched_remote_tips_merged": true,
+  "refs": [
+    "refs/heads/engineer/p04-a1-guest-qualification b37c7187488ff1c9421f88625c66bcf8ad0ae385",
+    "refs/heads/engineer/p04-a1-plan-diagnostics 3311f762bbec95d45e1056ad554cf51bfa0281b3",
+    "refs/heads/engineer/p04-a1-pre-effect-qualification 02605383730fb56bc47035cafd34dc1e80cdf982",
+    "refs/heads/engineer/p04-a1-storage-admission b37c7187488ff1c9421f88625c66bcf8ad0ae385",
+    "refs/heads/engineer/p04-a1-storage-effects b37c7187488ff1c9421f88625c66bcf8ad0ae385",
+    "refs/heads/engineer/p04-mount-subphase-diagnostics cb57e1aaddec7441077665d7edf49ddea031004c",
+    "refs/heads/engineer/p04-storage-namespace-roots b28bdb19789abeaf2255dee2c31bd7d8ace8c5c1",
+    "refs/heads/integrator/p04-b1-store-integration 7df3f7530865c31b7faefd1f7b12a25aa7655860",
+    "refs/heads/integrator/p04-backup-bound-recovery fddfadcabeb25ae33d5b123ec0916e729ac1f6e4",
+    "refs/heads/main b28bdb19789abeaf2255dee2c31bd7d8ace8c5c1",
+    "refs/remotes/origin/HEAD 477b81f2ba78c9d100a6857950f50467079b406e",
+    "refs/remotes/origin/engineer/backup-restore-preparation c5da028744678802e5a709e656a405195a28ac87",
+    "refs/remotes/origin/engineer/p04-a1-browser-fixture 8c5b498ada423d86fb2f348a7ed2c881ae7b8385",
+    "refs/remotes/origin/engineer/p04-a1-negative-qualification 3311f762bbec95d45e1056ad554cf51bfa0281b3",
+    "refs/remotes/origin/engineer/p04-b1-store-foundation cb57e1aaddec7441077665d7edf49ddea031004c",
+    "refs/remotes/origin/engineer/p04-observe-health-enablement eb0c347a916d7d007ce95c8ae1f64b8e6ef26d7e",
+    "refs/remotes/origin/engineer/rw040-confinement-qualification 841f0655852b1818c0978bb0b8b8c59ee661f6cc",
+    "refs/remotes/origin/main 477b81f2ba78c9d100a6857950f50467079b406e",
+    "refs/remotes/origin/qualification/p04-observe-health-schedules-bootstrap d962272ed73970a3de2b72b612161dd4836dfe3d"
+  ],
+  "trees": [
+    {
+      "worktree": "/home/marc/Documents/github/lime-os",
+      "HEAD": "b28bdb19789abeaf2255dee2c31bd7d8ace8c5c1",
+      "branch": "refs/heads/main",
+      "committed_head_merged": true,
+      "dirty": false
+    },
+    {
+      "worktree": "/home/marc/Documents/github/lime-os/.worktrees/bound-private-reconstruction",
+      "HEAD": "fddfadcabeb25ae33d5b123ec0916e729ac1f6e4",
+      "branch": "refs/heads/integrator/p04-backup-bound-recovery",
+      "committed_head_merged": true,
+      "dirty": true,
+      "recovery": ".cache/main-consolidation/request-2026-10-21/recovery/bound-private-reconstruction",
+      "recovery_matches_worktree": true
+    },
+    {
+      "worktree": "/home/marc/Documents/github/lime-os/.worktrees/p04-a1-admission",
+      "HEAD": "b37c7187488ff1c9421f88625c66bcf8ad0ae385",
+      "branch": "refs/heads/engineer/p04-a1-storage-admission",
+      "committed_head_merged": true,
+      "dirty": true,
+      "recovery": ".cache/main-consolidation/request-2026-10-21/recovery/p04-a1-admission",
+      "recovery_matches_worktree": true
+    },
+    {
+      "worktree": "/home/marc/Documents/github/lime-os/.worktrees/p04-a1-effects",
+      "HEAD": "b37c7187488ff1c9421f88625c66bcf8ad0ae385",
+      "branch": "refs/heads/engineer/p04-a1-storage-effects",
+      "committed_head_merged": true,
+      "dirty": true,
+      "recovery": ".cache/main-consolidation/request-2026-10-21/recovery/p04-a1-effects",
+      "recovery_matches_worktree": true
+    },
+    {
+      "worktree": "/home/marc/Documents/github/lime-os/.worktrees/p04-a1-guest-qualification",
+      "HEAD": "b37c7187488ff1c9421f88625c66bcf8ad0ae385",
+      "branch": "refs/heads/engineer/p04-a1-guest-qualification",
+      "committed_head_merged": true,
+      "dirty": true,
+      "recovery": ".cache/main-consolidation/request-2026-10-21/recovery/p04-a1-guest-qualification",
+      "recovery_matches_worktree": true
+    },
+    {
+      "worktree": "/home/marc/Documents/github/lime-os/.worktrees/p04-a1-plan-diagnostics",
+      "HEAD": "3311f762bbec95d45e1056ad554cf51bfa0281b3",
+      "branch": "refs/heads/engineer/p04-a1-plan-diagnostics",
+      "committed_head_merged": true,
+      "dirty": true,
+      "recovery": ".cache/main-consolidation/request-2026-10-21/recovery/p04-a1-plan-diagnostics",
+      "recovery_matches_worktree": true
+    },
+    {
+      "worktree": "/home/marc/Documents/github/lime-os/.worktrees/p04-a1-pre-effect-qualification",
+      "HEAD": "02605383730fb56bc47035cafd34dc1e80cdf982",
+      "branch": "refs/heads/engineer/p04-a1-pre-effect-qualification",
+      "committed_head_merged": true,
+      "dirty": true,
+      "recovery": ".cache/main-consolidation/request-2026-10-21/recovery/p04-a1-pre-effect-qualification",
+      "recovery_matches_worktree": true
+    },
+    {
+      "worktree": "/home/marc/Documents/github/lime-os/.worktrees/p04-b1-store-integration",
+      "HEAD": "7df3f7530865c31b7faefd1f7b12a25aa7655860",
+      "branch": "refs/heads/integrator/p04-b1-store-integration",
+      "committed_head_merged": true,
+      "dirty": true,
+      "recovery": ".cache/main-consolidation/request-2026-10-21/recovery/p04-b1-store-integration",
+      "recovery_matches_worktree": true
+    },
+    {
+      "worktree": "/home/marc/Documents/github/lime-os/.worktrees/p04-mount-subphase-diagnostics",
+      "HEAD": "cb57e1aaddec7441077665d7edf49ddea031004c",
+      "branch": "refs/heads/engineer/p04-mount-subphase-diagnostics",
+      "committed_head_merged": true,
+      "dirty": true,
+      "recovery": ".cache/main-consolidation/request-2026-10-21/recovery/p04-mount-subphase-diagnostics",
+      "recovery_matches_worktree": true
+    }
+  ],
+  "other_engineer": {
+    "schedule_contracts": "ca13ffb62170f89760b7add4bf6c356566ff0494",
+    "abi_fix": "4baf338db3899907b5009479c8eb82da4ee50402",
+    "handoff": "71df2a628c7b0b634b15371e95c86c31f9ec5572"
+  },
+  "push_performed": false
+}

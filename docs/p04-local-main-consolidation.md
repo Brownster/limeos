@@ -1,5 +1,37 @@
 # Local main consolidation, validated 20 October 2026
 
+## Re-audit, 21 October 2026
+
+A fresh `git fetch origin --prune` found no remote work outside local main.
+The other engineer's schedules and verified contracts (`ca13ffb`), handoff
+(`71df2a6`) and Linux ABI correction (`4baf338`) are all ancestors of main.
+The [21 October packet](rewrite-evidence/p04/2026-10-21-namespace-roots-consolidation/README.md)
+records the additional fast-forward from `d7f09e1` to `b28bdb1`, the branch
+audit and current contract regeneration. No push occurred.
+
+The new storage classifier retains genuine `nsfs` namespace roots across both
+host and process read profiles. Such roots cannot become physical backing or
+destination paths; an uninspected bound mount namespace still refuses storage
+effect admission. Its committed source matches all 671 tracked inputs in each
+successful compile, unit, Clippy and doctest record. The 225 storage unit tests,
+13 compile-fail doctests, strict Clippy, formatting, actual contract drift and
+repository checks pass. The packet preserves the pre-fix regressions and the
+initial Btrfs fixture failure. This slice has no installed or ARM64 qualification.
+
+The merged `engineer/p04-storage-namespace-roots` branch was deleted. There are
+no clean secondary worktrees or unmerged local/fetched remote branch tips.
+The eight dirty worktrees listed below remain intact, with fresh recovery copies
+under `.cache/main-consolidation/request-2026-10-21/recovery/`. Their committed
+tips are on main; their uncommitted drafts are not accepted source. A separate
+unfinished VM probe from the root checkout is preserved byte-for-byte in
+`request-2026-10-21/unfinished-namespace-probe/` under the same cache directory.
+It passed Clippy but has no guest runtime result. A verified full Git bundle
+was saved before deleting the clean branch. The checkout returns clean on main.
+
+The earlier native hosted CI results retain their original source identity.
+The installed A1 userspace-task conflict, broader A/B runtime work and P05/P06
+cutover requirements remain open. No Pi connection or production mutation ran.
+
 This integration collects all committed local branch tips descended from or
 reconciled with local main `7df3f7530865c31b7faefd1f7b12a25aa7655860`.
 Original branch names and tips, dirty-file recovery copies and a complete Git

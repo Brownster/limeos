@@ -1,0 +1,6 @@
+{
+  "path": ".cache/main-consolidation/request-2026-10-21/refs-before-cleanup.bundle",
+  "bytes": 18408942,
+  "sha256": "e9f9ed682412c6bbd5b36da9909766c0b2c89d1398e3f4e36295341b46ae1f04",
+  "verification": "git bundle verify passed before branch deletion; complete history"
+}
