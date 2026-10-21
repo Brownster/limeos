@@ -29,7 +29,7 @@ The existing storage reader uses this distinction rather than requiring ptrace.
 
 Granting `CAP_SYS_PTRACE` would enlarge the read role's authority. Keeping catalog
 data permanently unavailable would leave the required runtime unfinished. The
-mount-ID proof keeps the role unprivileged while retaining a concrete kernel
+mount-ID proof keeps the empty capability set while retaining a concrete kernel
 identity check; it is not a fixture, cached report or imported authority object.
 
 ## Bounded acquisition and revalidation

@@ -87,19 +87,33 @@ records fresh Debian binaries and signed standard/shadow packages from clean
 main `54022bb`. Signed standard installation passes, but genuine collection
 refuses: the catalog gets `EACCES` opening PID 1's namespace and the Engine gets
 `ENOSYS` opening its fixed socket with `openat2`. The sealed worker starts and
-exits normally. The exact kernel-versus-filter origin of `ENOSYS` still needs
-confirmation. Service limits and source identity checks are unchanged.
+exits normally. The subsequent diagnostic below identifies the filter conflict.
+Service limits and source identity checks are unchanged.
 
 The four terminal VM attempts retain the initial host-memory stop, an untraced
 collection failure and two diagnostic traces. They provide no successful
 installed collection or full resource qualification. The owned build container
 and VMs were removed; the Pi remains untouched.
 
+Source `7f35dd5` subsequently corrects the catalog's host-view proof. It retains
+the actual current NSFS descriptor and compares both bounded genuine proc mount
+tables with the held root descriptor's mount ID and device. Different mount roots,
+cloned namespaces, malformed/ambiguous data and resource bounds refuse. It adds
+no ptrace capability or serialized authority. The [new packet](rewrite-evidence/p04/2026-10-21-stack-host-view/README.md)
+records 356 container unit tests, seventeen compile-fail doctests, strict Clippy,
+fresh Debian packages and six passing installed catalog checks. Writable-catalog
+and private-namespace refusal, foreign UID rejection, no-renewal reads and reader/
+Core restart recovery pass under the unchanged service profile.
+
+The diagnostic confirms `RestrictSUIDSGID` returns `ENOSYS` for `openat2`; an explicit
+syscall allow alone does not override it. The production setting remains unchanged.
+Engine/member collection and complete B2 acceptance remain open.
+
 ## Next acceptance work
 
-Resolve the two installed refusals while preserving protected host/source
-identity and socket traversal. Build a distinct immutable candidate after the
-correction. Qualify genuine root catalog/Engine collection and refusal through
+Resolve the confirmed Engine confinement conflict while preserving protected
+socket traversal and an explicit confinement contract. Build a distinct immutable
+candidate after the correction. Qualify genuine root catalog/Engine collection and refusal through
 the installed socket/API/UI, with source hashes and new worker identity.
 Measure the complete service cgroup,
 including image capture and failure paths, within unchanged limits. Exercise
