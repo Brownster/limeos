@@ -33,6 +33,9 @@ No schema migration, job-state guard, collector, timer or delivery is enabled by
 this change. The next runtime contract must still provide ordered owner-scoped
 observation completion, current per-resource read grants, atomic alert/outbox
 folding, bounded retention and restart-safe publication in the sole Store.
-Those requirements are not replaced by this prerequisite. Keep this branch
+Those requirements are not replaced by this prerequisite. Keep the implementation
 unmerged until focused Rust tests, strict Clippy and existing regressions pass.
-The host is currently below the unchanged 3-GiB test/build floor.
+The initial implementation draft and binary patch are preserved under
+`.cache/main-consolidation/cleanup-2026-10-21-evening/`; only this design has been
+merged, and its temporary branch/worktree removed. The host is currently below
+the unchanged 3-GiB test/build floor.

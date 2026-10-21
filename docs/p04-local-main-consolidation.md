@@ -1,5 +1,28 @@
 # Local main consolidation, validated 20 October 2026
 
+## Evening re-audit, 21 October 2026
+
+A fresh fetch still finds every local and remote branch tip included in local
+main. The other engineer's schedules, verified contracts, handoff and ABI fix
+remain merged. There are no clean secondary worktrees left to remove. The eight
+dirty worktrees below are unchanged from their preserved recovery copies; their
+committed tips are merged, while their uncommitted drafts remain separate.
+
+The mounted health schedule management UI is now integrated; its
+[handoff](p04-health-schedule-ui-handoff.md) records the local checks and remaining
+runtime limits. The newer [reservation-clock design](plans/2026-10-21-b1-reservation-clock-design.md)
+is also on main. Its unfinished implementation is preserved byte-for-byte with
+a binary patch under
+`.cache/main-consolidation/cleanup-2026-10-21-evening/`, then removed from the
+temporary checkout. The clean design branch and worktree were deleted. The same
+directory contains a verified full-history Git bundle and the final ancestry,
+worktree and recovery audit. The implementation has not been compiled, tested
+or merged; host memory remains below the 3-GiB test/build floor.
+
+The root checkout is clean on local main. No push or Pi operation occurred.
+Native hosted checks previously passed on both architectures, but the installed
+A1 qualification and broader runtime/cutover gates described below remain open.
+
 ## Re-audit, 21 October 2026
 
 A fresh `git fetch origin --prune` found no remote work outside local main.
