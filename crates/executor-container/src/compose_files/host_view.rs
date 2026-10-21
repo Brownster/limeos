@@ -131,7 +131,7 @@ fn root_mount(bytes: &[u8]) -> Result<RootMount> {
             .map_err(|_| unavailable())?;
         let mount_root = next()?;
         let mountpoint = next()?;
-        if !mount_root.starts_with(b"/") || !mountpoint.starts_with(b"/") {
+        if !mountpoint.starts_with(b"/") {
             return Err(unavailable());
         }
         next()?; // Per-mount options.
@@ -143,7 +143,9 @@ fn root_mount(bytes: &[u8]) -> Result<RootMount> {
             return Err(unavailable());
         }
         if mountpoint == b"/" {
-            if root.is_some() {
+            // Other filesystems can render opaque roots (nsfs: net:[inode]).
+            // Only this selected directory root contributes to the host proof.
+            if !mount_root.starts_with(b"/") || root.is_some() {
                 return Err(unavailable());
             }
             let mut retained = Vec::new();
@@ -266,6 +268,16 @@ mod tests {
     fn unrelated_non_utf8_paths_do_not_hide_the_root() {
         let bytes = [ROOT, b"28 27 0:1 / /other\xff rw - tmpfs tmpfs rw\n"].concat();
         assert_eq!(root_mount(&bytes).unwrap(), root_mount(ROOT).unwrap());
+    }
+    #[test]
+    fn non_path_namespace_mount_roots_do_not_hide_the_host_root() {
+        // Captured from a genuine nsfs bind mount in the disposable Debian VM.
+        let namespace =
+            b"293 26 0:4 net:[4026532191] /run/limeos-nsfs-probe rw shared:196 - nsfs nsfs rw\n";
+        let bytes = [ROOT, namespace.as_slice()].concat();
+        assert_eq!(root_mount(&bytes).unwrap(), root_mount(ROOT).unwrap());
+        let invalid_host_root = b"293 26 0:4 net:[4026532191] / rw - nsfs nsfs rw\n";
+        assert!(root_mount(invalid_host_root).is_err());
     }
     #[test]
     fn ordinary_descriptors_cannot_supply_proc_evidence() {
