@@ -972,6 +972,100 @@
               "due"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "complete": {
+                "type": "boolean"
+              },
+              "kind": {
+                "const": "automation_observation_settled",
+                "type": "string"
+              },
+              "sequence": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "kind",
+              "sequence",
+              "complete"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "automation_notification_published",
+                "type": "string"
+              },
+              "notification": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "notification"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "digest": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "automation_notification_created",
+                "type": "string"
+              },
+              "notification": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "notification",
+              "digest"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "automation_notification_pruned",
+                "type": "string"
+              },
+              "notification": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "notification"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "automation_notification_acknowledged",
+                "type": "string"
+              },
+              "notification": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "notification"
+            ],
+            "type": "object"
           }
         ]
       },

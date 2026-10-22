@@ -754,7 +754,10 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             {
                 return Err(Error(ErrorCode::StateNotDurable));
             }
-        } else if state != "canceled" {
+        } else if !matches!(
+            state.as_str(),
+            "canceled" | "succeeded" | "failed" | "precondition_changed"
+        ) {
             return Err(Error(ErrorCode::StateNotDurable));
         }
         if state == "canceled" {
@@ -783,15 +786,24 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             || row.get::<_, String>(2).map_err(durable)? != job_key(&key)?
             || row.get::<_, String>(4).map_err(durable)? != limeos_identity::digest(&intent)
             || row.get::<_, String>(5).map_err(durable)? != "system"
-            || !matches!(state.as_str(), "queued" | "canceled")
+            || !matches!(
+                state.as_str(),
+                "queued" | "canceled" | "succeeded" | "failed" | "precondition_changed"
+            )
         {
             return Err(Error(ErrorCode::StateNotDurable));
         }
     }
-    Ok(())
+    completion::check(conn)
 }
 
+mod completion;
 mod management;
+pub(super) use completion::ActiveObservation;
+pub use completion::{
+    HealthObservation, InAppPublication, ObservationAdmission, ObservationLease, ObservationResult,
+    ScopedHealthSignal,
+};
 
 #[cfg(test)]
 mod tests;

@@ -210,6 +210,24 @@ pub enum EventKind {
         #[ts(type = "number")]
         due: i64,
     },
+    AutomationObservationSettled {
+        #[ts(type = "number")]
+        sequence: i64,
+        complete: bool,
+    },
+    AutomationNotificationPublished {
+        notification: String,
+    },
+    AutomationNotificationCreated {
+        notification: String,
+        digest: String,
+    },
+    AutomationNotificationPruned {
+        notification: String,
+    },
+    AutomationNotificationAcknowledged {
+        notification: String,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]

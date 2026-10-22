@@ -12,7 +12,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 11;
+pub const SCHEMA_VERSION: u32 = 12;
 pub const QUEUE_CAPACITY: usize = 64;
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
@@ -58,6 +58,7 @@ pub struct Store {
     _lock: File,
     directory: PathBuf,
     pub generation: i64,
+    observation_leases: std::collections::HashMap<String, automation::ActiveObservation>,
 }
 pub struct TaskGrant<'a> {
     pub service_uid: u32,
@@ -131,7 +132,7 @@ impl Store {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(durable)?;
         match version {
-            0..=10 => {
+            0..=11 => {
                 if version < 1 {
                     tx.execute_batch(include_str!("schema.sql"))
                         .map_err(durable)?;
@@ -172,7 +173,11 @@ impl Store {
                     tx.execute_batch(include_str!("migration-v10.sql"))
                         .map_err(durable)?;
                 }
-                tx.execute_batch(include_str!("migration-v11.sql"))
+                if version < 11 {
+                    tx.execute_batch(include_str!("migration-v11.sql"))
+                        .map_err(durable)?;
+                }
+                tx.execute_batch(include_str!("migration-v12.sql"))
                     .map_err(durable)?;
             }
             SCHEMA_VERSION => {}
@@ -227,6 +232,7 @@ impl Store {
             _lock: lock,
             directory,
             generation,
+            observation_leases: std::collections::HashMap::new(),
         })
     }
     fn write<T>(&mut self, f: impl FnOnce(&Transaction<'_>) -> Result<T>) -> Result<T> {
@@ -252,6 +258,10 @@ impl Store {
 }
 
 mod automation;
+pub use automation::{
+    HealthObservation, InAppPublication, ObservationAdmission, ObservationLease, ObservationResult,
+    ScopedHealthSignal,
+};
 mod backup_preparation;
 mod budgets;
 mod compose;
@@ -276,6 +286,8 @@ fn remove_v10_schema(conn: &Connection) {
 
 #[cfg(test)]
 fn remove_v11_schema(conn: &Connection) {
+    // Legacy migration fixtures must remove every later schema addition.
+    conn.execute_batch("DROP TABLE IF EXISTS automation_notifications; DROP TABLE IF EXISTS automation_alerts; DROP TABLE IF EXISTS automation_observation_results; DROP TABLE IF EXISTS automation_streams;").unwrap();
     conn.execute_batch("DROP TRIGGER IF EXISTS automation_job_update_state; DROP TRIGGER IF EXISTS automation_job_insert_state; DROP TRIGGER IF EXISTS automation_occurrence_delete; DROP TRIGGER IF EXISTS automation_occurrence_identity; DROP TRIGGER IF EXISTS automation_schedule_delete; DROP TRIGGER IF EXISTS automation_schedule_identity; DROP TABLE IF EXISTS automation_occurrences; DROP TABLE IF EXISTS automation_schedules;").unwrap();
 }
 
