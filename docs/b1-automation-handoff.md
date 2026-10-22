@@ -1,5 +1,10 @@
 # B1 integration handoff
 
+October 22 current integration: [Store observation settlement](p04-b1-observation-settlement-handoff.md)
+now supplies qualified ordered completion, atomic alert/outbox/job/audit results,
+restart proof validation and bounded authorized in-app publication/read/acknowledgment.
+The runtime producer, protected collection and installed acceptance remain open.
+
 The [frozen notification settings inventory](p04-frozen-notification-inventory.md)
 adds 32 captured configuration cases, including package-destination fallback,
 policy-file precedence and retained silence metadata. Configured policy and
@@ -15,8 +20,8 @@ that the central metadata contract was absent describes that earlier source.
 
 The [reservation-clock follow-up](p04-b1-reservation-clock-handoff.md) now supplies
 trusted time after SQLite write-lock admission and preserves the original
-deadline. Future producer integration must use that entry; ordered observation
-completion and atomic alert/outbox publication still need their central contract.
+deadline. Future producer integration must use that entry together with the
+qualified Store settlement methods above.
 
 Engineer B branch: `engineer/p04-automation-b1`, based on local main `0c7ec8c`. The [design](plans/2026-10-14-b1-automation-design.md) and [stream brief](plans/2026-10-14-engineer-p04-deployment-scheduling-runtime.md) define ownership. This is the observation-only leaf implementation. It is not registered B1 completion, persistent deduplication proof or installed qualification.
 

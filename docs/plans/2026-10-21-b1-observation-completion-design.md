@@ -1,5 +1,9 @@
 # B1 observation completion in the sole Store
 
+Implemented in `11843c3` and locally qualified on 22 October; see the
+[Store handoff](../p04-b1-observation-settlement-handoff.md) for exact evidence and
+remaining runtime/installed gates. The design below describes that Store boundary.
+
 Schema 11 reserves observation jobs but deliberately permits only queued or
 review-canceled states. The proposed runner has no concrete completion adapter.
 Extend that boundary before registering a producer. Use the accepted post-lock
@@ -13,6 +17,8 @@ SQLite snapshot. Require the fixed management grant, host read permission and
 every concrete resource read scope before collection. The caller supplies
 trusted normalized resource identifiers, never a principal or permission bit.
 Bound the resource list by the 256-signal limit and reject wildcards/duplicates.
+Retain literal case/path resource identities, bounded to 512 UTF-8 bytes;
+restricting identifiers to CLI-safe characters would lose existing mount IDs.
 
 The existing sole Store keeps at most 64 short-lived leases in memory, one per
 owner. A private random nonce, Store generation, owner grant revision, job,
@@ -36,6 +42,15 @@ the original job, sequence, outcome, completeness, completion time and canonical
 batch digest. Store no raw observation batch or resource list in result history.
 Compact result proofs follow the existing retained job/audit lifetime and audit
 capacity bound; do not add an unbounded payload ledger.
+
+Each result and latest owner watermark bind the complete current alert material
+with a framed SHA-256 digest. Missing or altered clear/streak rows must also
+refuse startup. Results count the notifications they created. Audited creation
+binds each notification's immutable payload/resource; audited pruning proves
+legitimate removal after verified delivery and retention. Reserve audit capacity
+for every created/pruned notification as well as settlement. Current alert rows
+remain retained under the 256-row bound until a separate audited material-pruning
+contract is implemented; do not silently discard closed rows to bypass that cap.
 
 Completion reloads current authority and all selected read scopes, validates
 the live private lease and job deadline, and checks its expected owner sequence.

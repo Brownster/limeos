@@ -1,0 +1,207 @@
+{
+  "source": "11843c3076cb1918d533b5822af896565f948193",
+  "checks": [
+    {
+      "attempt": "observation-settlement-persistence-2",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-persistence"
+      ],
+      "source": "11843c3076cb1918d533b5822af896565f948193",
+      "matching_tracked_inputs": 685,
+      "passed_results": [
+        143,
+        2
+      ],
+      "python_test_count": [],
+      "minimum_available_bytes": 8003198976
+    },
+    {
+      "attempt": "observation-settlement-workspace-clippy-1",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "source": "11843c3076cb1918d533b5822af896565f948193",
+      "matching_tracked_inputs": 685,
+      "passed_results": [],
+      "python_test_count": [],
+      "minimum_available_bytes": 8005705728
+    },
+    {
+      "attempt": "observation-settlement-format-check-1",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "source": "11843c3076cb1918d533b5822af896565f948193",
+      "matching_tracked_inputs": 685,
+      "passed_results": [],
+      "python_test_count": [],
+      "minimum_available_bytes": 8646844416
+    },
+    {
+      "attempt": "observation-settlement-contract-check-1",
+      "command": [
+        "env",
+        "CARGO_NET_OFFLINE=true",
+        "python3",
+        "scripts/check_contracts.py"
+      ],
+      "source": "11843c3076cb1918d533b5822af896565f948193",
+      "matching_tracked_inputs": 685,
+      "passed_results": [],
+      "python_test_count": [],
+      "minimum_available_bytes": 8625864704
+    },
+    {
+      "attempt": "observation-settlement-repository-1",
+      "command": [
+        "python3",
+        "scripts/check_repository.py"
+      ],
+      "source": "11843c3076cb1918d533b5822af896565f948193",
+      "matching_tracked_inputs": 685,
+      "passed_results": [],
+      "python_test_count": [],
+      "minimum_available_bytes": 8695394304
+    },
+    {
+      "attempt": "observation-settlement-reference-1",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/reference",
+        "-p",
+        "test_*.py"
+      ],
+      "source": "11843c3076cb1918d533b5822af896565f948193",
+      "matching_tracked_inputs": 685,
+      "passed_results": [],
+      "python_test_count": [
+        84
+      ],
+      "minimum_available_bytes": 8722673664
+    }
+  ],
+  "preliminary_attempts": [
+    {
+      "attempt": "observation-settlement-format-2",
+      "exit_code": -15,
+      "guard_triggered": true,
+      "inputs_unchanged": false,
+      "differs_from_final_after_paths": [
+        "contracts/generated/event.schema.json",
+        "contracts/generated/job-progress.schema.json",
+        "contracts/generated/openapi.json",
+        "contracts/generated/types.ts",
+        "crates/domain/src/lib.rs",
+        "crates/persistence/src/automation/completion.rs",
+        "crates/persistence/src/automation/completion/check.rs",
+        "crates/persistence/src/automation/completion/in_app.rs",
+        "crates/persistence/src/automation/completion/tests.rs",
+        "crates/persistence/src/lib.rs",
+        "crates/persistence/src/migration-v12.sql"
+      ],
+      "not_final_source_qualification": true
+    },
+    {
+      "attempt": "observation-settlement-clippy-1",
+      "exit_code": -15,
+      "guard_triggered": true,
+      "inputs_unchanged": true,
+      "differs_from_final_after_paths": [
+        "contracts/generated/event.schema.json",
+        "contracts/generated/job-progress.schema.json",
+        "contracts/generated/openapi.json",
+        "contracts/generated/types.ts",
+        "crates/domain/src/lib.rs",
+        "crates/persistence/src/automation/completion.rs",
+        "crates/persistence/src/automation/completion/check.rs",
+        "crates/persistence/src/automation/completion/in_app.rs",
+        "crates/persistence/src/automation/completion/tests.rs",
+        "crates/persistence/src/lib.rs",
+        "crates/persistence/src/migration-v12.sql"
+      ],
+      "not_final_source_qualification": true
+    },
+    {
+      "attempt": "observation-settlement-format-3",
+      "exit_code": 0,
+      "guard_triggered": false,
+      "inputs_unchanged": false,
+      "differs_from_final_after_paths": [
+        "contracts/generated/event.schema.json",
+        "contracts/generated/job-progress.schema.json",
+        "contracts/generated/openapi.json",
+        "contracts/generated/types.ts",
+        "crates/persistence/src/lib.rs"
+      ],
+      "not_final_source_qualification": true
+    },
+    {
+      "attempt": "observation-settlement-clippy-2",
+      "exit_code": 0,
+      "guard_triggered": false,
+      "inputs_unchanged": true,
+      "differs_from_final_after_paths": [
+        "contracts/generated/event.schema.json",
+        "contracts/generated/job-progress.schema.json",
+        "contracts/generated/openapi.json",
+        "contracts/generated/types.ts",
+        "crates/persistence/src/lib.rs"
+      ],
+      "not_final_source_qualification": true
+    },
+    {
+      "attempt": "observation-settlement-contracts-1",
+      "exit_code": 0,
+      "guard_triggered": false,
+      "inputs_unchanged": false,
+      "differs_from_final_after_paths": [
+        "crates/persistence/src/lib.rs"
+      ],
+      "not_final_source_qualification": true
+    },
+    {
+      "attempt": "observation-settlement-focused-1",
+      "exit_code": 0,
+      "guard_triggered": false,
+      "inputs_unchanged": true,
+      "differs_from_final_after_paths": [
+        "crates/persistence/src/lib.rs"
+      ],
+      "not_final_source_qualification": true
+    },
+    {
+      "attempt": "observation-settlement-persistence-1",
+      "exit_code": 101,
+      "guard_triggered": false,
+      "inputs_unchanged": true,
+      "differs_from_final_after_paths": [
+        "crates/persistence/src/lib.rs"
+      ],
+      "not_final_source_qualification": true
+    }
+  ],
+  "scope": "Local native Store settlement, migration, restart, alert/outbox atomicity and in-app publication; no registered collector/producer/API/UI or installed acceptance",
+  "reference_followup": "84 reference tests now pass after final inventory formatting, including all 11 notification inventory tests",
+  "remaining_policy_boundary": "Default AlertPolicy only; no configured-policy/destination migration or concrete-resource replacement qualification"
+}

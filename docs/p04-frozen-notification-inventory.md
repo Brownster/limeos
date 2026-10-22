@@ -13,6 +13,11 @@ retain the 11 passing focused tests before formatting, final Ruff checks and the
 full-suite refusal below the host memory floor. They provide no new Rust runtime
 or installed qualification.
 
+The [October 22 Store follow-up](rewrite-evidence/p04/2026-10-22-b1-observation-settlement/README.md)
+now records all 84 reference tests passing, including these 11 inventory tests
+after their final formatting. It qualifies Store settlement separately from
+configured-policy and external transport parity.
+
 The earlier [stack notification handoff](p04-stack-notifications-handoff.md)
 retains its decoder/event fixtures. This inventory adds executable configuration
 and precedence evidence. An in-app outbox alone does not preserve these external
@@ -65,16 +70,18 @@ transport retirement. This survey does not establish deployed channel use.
 ## Remaining acceptance
 
 Thread accepted policy/destination revisions through owner-scoped observation
-leases, folding and outbox publication. The current settlement draft on
-`engineer/p04-b1-observation-settlement` remains unqualified and uses the default
-alert policy; the inventory does not close that work. Add configured-policy and
-secret-reference adapters before claiming ordinary notification parity.
+leases, folding and outbox publication. The
+[qualified Store settlement](p04-b1-observation-settlement-handoff.md) uses the
+default alert policy; the inventory does not close configured-policy work. Add
+configured-policy and secret-reference adapters before claiming ordinary
+notification parity.
 
 The protected collector adapter also needs an explicit mapping between legacy
 name/path alert keys and concrete Rust read-resource identities. Review instance
 replacement and resource-binding changes: an existing incident must neither be
 silently rebound to a different object nor stranded behind an immutable old
-binding. The current default-policy Store draft does not qualify that adapter.
+binding. The current default-policy Store implementation does not qualify that
+adapter.
 
 Installed API/UI scenarios still need configured/missing/disabled destinations,
 current grants/CSRF, token revocation, policy changes during collection/send,
