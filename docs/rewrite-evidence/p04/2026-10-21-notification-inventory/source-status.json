@@ -1,0 +1,159 @@
+{
+  "reference_commit": "80593b29443ea9b81eb60ed4e5c3c3ac7a236204",
+  "captured_cases": 32,
+  "source_files": 25,
+  "focused_tests_passed": 11,
+  "fixture_sha256": "ab8cadf41fb8610415c693052a26dedbd2e6027d45e4b0ebff4027cb4bd2a2f7",
+  "files": [
+    {
+      "path": "tests/reference/frozen_notifications.py",
+      "sha256": "e7391742eefa63a13a69720a56d153601bea4a43018f574c86beafef7a69ab06",
+      "matches_final_lint_input": true,
+      "matches_preformat_test_input": false
+    },
+    {
+      "path": "tests/reference/test_frozen_notifications.py",
+      "sha256": "1b75b2bf23260a459948abf6b741cb2d7f80baaa3be7d6a226b31f300ead5adc",
+      "matches_final_lint_input": true,
+      "matches_preformat_test_input": false
+    },
+    {
+      "path": "tests/fixtures/automation/frozen-notification-settings.json",
+      "sha256": "ab8cadf41fb8610415c693052a26dedbd2e6027d45e4b0ebff4027cb4bd2a2f7",
+      "matches_final_lint_input": true,
+      "matches_preformat_test_input": true
+    }
+  ],
+  "checks": [
+    {
+      "attempt": "notification-inventory-capture-1",
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--no-managed-python",
+        "python",
+        ".cache/notification-inventory/capture.py"
+      ],
+      "process_exit": 0,
+      "guard_triggered": false,
+      "inputs_unchanged": true,
+      "started": "2026-10-21T22:09:31.028215+00:00",
+      "ended": "2026-10-21T22:09:33.737610+00:00"
+    },
+    {
+      "attempt": "notification-inventory-capture-2",
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--no-managed-python",
+        "python",
+        ".cache/notification-inventory/capture.py"
+      ],
+      "process_exit": 0,
+      "guard_triggered": false,
+      "inputs_unchanged": true,
+      "started": "2026-10-21T22:11:48.036994+00:00",
+      "ended": "2026-10-21T22:11:48.874056+00:00"
+    },
+    {
+      "attempt": "notification-inventory-tests-1",
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--no-managed-python",
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/reference",
+        "-p",
+        "test_frozen_notifications.py",
+        "-v"
+      ],
+      "process_exit": 0,
+      "guard_triggered": false,
+      "inputs_unchanged": true,
+      "started": "2026-10-21T22:11:59.035354+00:00",
+      "ended": "2026-10-21T22:11:59.499172+00:00"
+    },
+    {
+      "attempt": "notification-inventory-format-1",
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--no-managed-python",
+        "--with",
+        "ruff==0.17.0",
+        "ruff",
+        "format",
+        "tests/reference/frozen_notifications.py",
+        "tests/reference/test_frozen_notifications.py"
+      ],
+      "process_exit": 0,
+      "guard_triggered": false,
+      "inputs_unchanged": false,
+      "started": "2026-10-21T22:12:33.695145+00:00",
+      "ended": "2026-10-21T22:12:34.037721+00:00"
+    },
+    {
+      "attempt": "notification-inventory-lint-1",
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--no-managed-python",
+        "--with",
+        "ruff==0.17.0",
+        "ruff",
+        "check",
+        "--select",
+        "E4,E7,E9,F,I,UP,B",
+        "tests/reference/frozen_notifications.py",
+        "tests/reference/test_frozen_notifications.py"
+      ],
+      "process_exit": 1,
+      "guard_triggered": false,
+      "inputs_unchanged": true,
+      "started": "2026-10-21T22:12:39.137928+00:00",
+      "ended": "2026-10-21T22:12:39.384169+00:00"
+    },
+    {
+      "attempt": "notification-inventory-lint-2",
+      "command": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-project",
+        "--no-managed-python",
+        "--with",
+        "ruff==0.17.0",
+        "ruff",
+        "check",
+        "--select",
+        "E4,E7,E9,F,I,UP,B",
+        "tests/reference/frozen_notifications.py",
+        "tests/reference/test_frozen_notifications.py"
+      ],
+      "process_exit": 0,
+      "guard_triggered": false,
+      "inputs_unchanged": true,
+      "started": "2026-10-21T22:13:09.976192+00:00",
+      "ended": "2026-10-21T22:13:10.214455+00:00"
+    }
+  ],
+  "full_reference_suite": "Refused before execution below 3-GiB floor on 2026-10-22; no result counted",
+  "test_ordering": "Focused tests ran before Ruff formatting; final lint inputs match committed candidate. No post-format replay or full reference pass is claimed",
+  "rust_runtime_and_deployed_configuration": "Not qualified by this inventory",
+  "push_or_pi_operations": false,
+  "source_commit": "476e2d547947db608b858c398e0e807129e311ae"
+}

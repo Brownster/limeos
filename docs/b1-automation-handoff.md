@@ -1,5 +1,11 @@
 # B1 integration handoff
 
+The [frozen notification settings inventory](p04-frozen-notification-inventory.md)
+adds 32 captured configuration cases, including package-destination fallback,
+policy-file precedence and retained silence metadata. Configured policy and
+ordinary transport adapters remain requirements; a default in-app outbox is not
+complete notification parity.
+
 October 21 current integration: [native health schedule management](p04-health-schedule-ui-handoff.md)
 now mounts the registered metadata and fixed self-enablement routes. The dashboard
 uses schedules-only traffic and truthful waiting-for-observations status. The
