@@ -1,5 +1,14 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 27 follow-up: the [fresh current-source guest](rewrite-evidence/p04/2026-10-27-a1-current-initial-census/README.md)
+uses schema 12, rebuilt Debian binaries and the current schedule UI. It completed
+the prerequisite scenarios without a host resource stop, then the first real
+mount plan refused at `scan.initial_collection`. The udev setup wait completed,
+but the exact initial identity/membership comparison is not yet identified.
+This is separate from the older proven revalidation difference below. Keep
+approved-mount acceptance open and instrument that initial comparison without
+relaxing any safety barrier.
+
 October 21 follow-up: [committed disposable fixture readiness](rewrite-evidence/p04/2026-10-21-a1-fixture-readiness/README.md)
 now supplies the bounded reader and natural udev-worker waits in the actual test
 entry points. Eight setup regressions and all 73 reference cases pass. Its exact
