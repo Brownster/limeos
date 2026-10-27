@@ -1,5 +1,11 @@
 # B1 integration handoff
 
+October 27 current integration: the [asynchronous Store bridge](p04-b1-async-store-bridge-handoff.md)
+now uses the actual bounded database worker for reservations, private leases,
+settlement and original queued-job recovery. Local worker/restart/deadline checks
+pass. Protected health collection, production scheduling, alert/notification
+API/UI and installed acceptance remain open.
+
 October 22 current integration: [Store observation settlement](p04-b1-observation-settlement-handoff.md)
 now supplies qualified ordered completion, atomic alert/outbox/job/audit results,
 restart proof validation and bounded authorized in-app publication/read/acknowledgment.

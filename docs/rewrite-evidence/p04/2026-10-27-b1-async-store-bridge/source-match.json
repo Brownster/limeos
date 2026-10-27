@@ -1,0 +1,135 @@
+{
+  "source": "7b44a0158ffc5ec044121b4aa914786cf65d08e4",
+  "checks": [
+    {
+      "attempt": "b1-async-store-clippy-1",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-core",
+        "-p",
+        "limeos-persistence",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "source": "7b44a0158ffc5ec044121b4aa914786cf65d08e4",
+      "candidate_base": "72ce6beaa3d9497bc1e2c13b9d52fb7eaa9f272d",
+      "started": "2026-10-26T23:22:33.635310+00:00",
+      "ended": "2026-10-26T23:24:07.580143+00:00",
+      "matching_tracked_inputs": 687,
+      "passed_results": [],
+      "minimum_available_bytes": 6877786112
+    },
+    {
+      "attempt": "b1-async-store-core-focused-1",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-core",
+        "--bin",
+        "limeos-core",
+        "automation_store::tests::"
+      ],
+      "source": "7b44a0158ffc5ec044121b4aa914786cf65d08e4",
+      "candidate_base": "72ce6beaa3d9497bc1e2c13b9d52fb7eaa9f272d",
+      "started": "2026-10-26T23:24:48.638899+00:00",
+      "ended": "2026-10-26T23:26:14.789851+00:00",
+      "matching_tracked_inputs": 687,
+      "passed_results": [
+        6
+      ],
+      "minimum_available_bytes": 9455316992
+    },
+    {
+      "attempt": "b1-async-store-full-1",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-core",
+        "-p",
+        "limeos-persistence"
+      ],
+      "source": "7b44a0158ffc5ec044121b4aa914786cf65d08e4",
+      "candidate_base": "72ce6beaa3d9497bc1e2c13b9d52fb7eaa9f272d",
+      "started": "2026-10-26T23:31:50.648574+00:00",
+      "ended": "2026-10-26T23:35:48.721943+00:00",
+      "matching_tracked_inputs": 687,
+      "passed_results": [
+        37,
+        0,
+        6,
+        1,
+        144,
+        2
+      ],
+      "minimum_available_bytes": 9021267968
+    },
+    {
+      "attempt": "b1-async-store-format-check-1",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "source": "7b44a0158ffc5ec044121b4aa914786cf65d08e4",
+      "candidate_base": "72ce6beaa3d9497bc1e2c13b9d52fb7eaa9f272d",
+      "started": "2026-10-27T00:15:53.137952+00:00",
+      "ended": "2026-10-27T00:15:55.619404+00:00",
+      "matching_tracked_inputs": 687,
+      "passed_results": [],
+      "minimum_available_bytes": 10288668672
+    },
+    {
+      "attempt": "b1-async-store-contracts-1",
+      "command": [
+        "env",
+        "CARGO_NET_OFFLINE=true",
+        "python3",
+        "scripts/check_contracts.py"
+      ],
+      "source": "7b44a0158ffc5ec044121b4aa914786cf65d08e4",
+      "candidate_base": "72ce6beaa3d9497bc1e2c13b9d52fb7eaa9f272d",
+      "started": "2026-10-27T00:16:12.098899+00:00",
+      "ended": "2026-10-27T00:16:45.375703+00:00",
+      "matching_tracked_inputs": 687,
+      "passed_results": [],
+      "minimum_available_bytes": 9165602816
+    },
+    {
+      "attempt": "b1-async-store-repository-1",
+      "command": [
+        "python3",
+        "scripts/check_repository.py"
+      ],
+      "source": "7b44a0158ffc5ec044121b4aa914786cf65d08e4",
+      "candidate_base": "72ce6beaa3d9497bc1e2c13b9d52fb7eaa9f272d",
+      "started": "2026-10-27T00:19:29.387137+00:00",
+      "ended": "2026-10-27T00:19:29.635566+00:00",
+      "matching_tracked_inputs": 687,
+      "passed_results": [],
+      "minimum_available_bytes": 10262016000
+    }
+  ],
+  "preliminary_formatting": {
+    "attempt": "b1-async-store-format-1",
+    "exit_code": 0,
+    "inputs_unchanged": false,
+    "qualification": false
+  },
+  "scope": "Actual asynchronous Store bridge and query-only original-job recovery; no registered protected health collector, timer, alert/notification HTTP/UI or installed acceptance",
+  "test_overlap": "The six focused Core tests are included in the 37-test Core unit run; the queued-page regression is included in 144 persistence unit tests",
+  "full_run": "Core: 37 unit and seven integration tests; persistence: 144 unit and two compile-fail doctests"
+}

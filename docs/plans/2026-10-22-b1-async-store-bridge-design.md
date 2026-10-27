@@ -1,5 +1,9 @@
 # B1 asynchronous Store bridge
 
+Implemented in `7b44a01` and locally qualified on 26–27 October; see the
+[handoff](../p04-b1-async-store-bridge-handoff.md) for exact evidence and remaining
+collector/runtime/installed gates.
+
 The accepted Store settlement is synchronous on the sole database worker. The
 historical runner leaf instead proposes synchronous orchestration traits, and
 Core has no way to rediscover observation jobs after a lost reservation reply.

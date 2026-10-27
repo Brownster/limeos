@@ -1,5 +1,10 @@
 # B1 Store observation settlement
 
+The [October 27 asynchronous bridge](p04-b1-async-store-bridge-handoff.md) now
+connects these methods to Core through the actual database worker and adds
+query-only original-job rediscovery. It does not register the protected collector
+or production timer.
+
 Source `11843c3076cb1918d533b5822af896565f948193` implements the
 [completion design](plans/2026-10-21-b1-observation-completion-design.md) in the
 existing sole Store. [Local evidence](rewrite-evidence/p04/2026-10-22-b1-observation-settlement/README.md)
