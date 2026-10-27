@@ -17,6 +17,7 @@ use tokio::{
     sync::Semaphore,
 };
 mod automation_schedules;
+pub mod automation_store;
 mod compose;
 mod identity_enablement;
 mod operations;

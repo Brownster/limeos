@@ -121,6 +121,68 @@ fn alert(store: &Store) -> AlertState {
 }
 
 #[test]
+fn queued_pages_are_query_only_bounded_and_do_not_recreate_terminal_jobs() {
+    let (_dir, mut store, actor) = setup();
+    let mut jobs: Vec<_> = (0..33).map(|_| queue(&mut store, &actor, 200)).collect();
+    jobs.sort_by(|a, b| a.id.cmp(&b.id));
+    let before = counts(&store);
+    store.conn.execute_batch("PRAGMA query_only=ON").unwrap();
+    let first = store.automation_queued_observation_page(None, 32).unwrap();
+    assert_eq!(first.items, jobs[..32]);
+    assert_eq!(first.next.as_deref(), Some(jobs[31].id.as_str()));
+    let last = store
+        .automation_queued_observation_page(first.next.as_deref(), 32)
+        .unwrap();
+    assert_eq!(last.items, jobs[32..]);
+    assert_eq!(last.next, None);
+    assert!(!first.partial && !last.partial);
+    for limit in [0, 33, usize::MAX] {
+        assert!(matches!(
+            store.automation_queued_observation_page(None, limit),
+            Err(Error(ErrorCode::InvalidInput))
+        ));
+    }
+    assert!(matches!(
+        store.automation_queued_observation_page(Some("*"), 32),
+        Err(Error(ErrorCode::InvalidInput))
+    ));
+    assert_eq!(counts(&store), before);
+    store.conn.execute_batch("PRAGMA query_only=OFF").unwrap();
+    let lease = begin(&mut store, &jobs[0], 201);
+    store
+        .automation_observation_complete(
+            &lease,
+            &HealthObservation {
+                signals: vec![],
+                complete: false,
+            },
+            || 201,
+        )
+        .unwrap();
+    store
+        .automation_pause(
+            &actor,
+            &jobs[1].occurrence.schedule,
+            &PauseSchedule {
+                revision: 1,
+                paused: true,
+            },
+            202,
+        )
+        .unwrap();
+    let before = counts(&store);
+    store.conn.execute_batch("PRAGMA query_only=ON").unwrap();
+    assert_eq!(
+        store
+            .automation_queued_observation_page(None, 32)
+            .unwrap()
+            .items,
+        jobs[2..]
+    );
+    assert_eq!(counts(&store), before);
+}
+
+#[test]
 fn owner_sequences_partial_observation_transition_outbox_and_ack_survive_restart() {
     let (dir, mut store, actor) = setup();
     sample(&mut store, &actor, 200, &batch(SignalStatus::Failing, true));

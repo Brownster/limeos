@@ -457,6 +457,58 @@ fn fold(
 }
 
 impl Store {
+    /// Internal query-only recovery hints, never a grant to collect or complete.
+    pub fn automation_queued_observation_page(
+        &self,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<AutomationPage<ObservationJob>> {
+        if !(1..=MAX_TICK_SCHEDULES).contains(&limit)
+            || after.is_some_and(|id| !limeos_domain::opaque_id(id))
+        {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
+        let mut statement = self.conn.prepare("SELECT id,intent FROM jobs WHERE id>? AND state='queued' AND json_extract(intent,'$.operation')='automation_observe_health' ORDER BY id LIMIT ?").map_err(durable)?;
+        let mut rows = statement
+            .query(params![after.unwrap_or(""), limit as i64 + 1])
+            .map_err(durable)?;
+        let mut items = Vec::new();
+        let mut next = None;
+        while let Some(row) = rows.next().map_err(durable)? {
+            if items.len() == limit {
+                next = items.last().map(|job: &ObservationJob| job.id.clone());
+                break;
+            }
+            let id = row.get_ref(0).map_err(durable)?;
+            let id = id.as_str().map_err(|_| Error(ErrorCode::StateNotDurable))?;
+            let intent = row.get_ref(1).map_err(durable)?;
+            let intent = intent
+                .as_str()
+                .map_err(|_| Error(ErrorCode::StateNotDurable))?;
+            if !limeos_domain::opaque_id(id) || intent.len() > DEFINITION_BYTES {
+                return Err(Error(ErrorCode::StateNotDurable));
+            }
+            let Intent::AutomationObserveHealth { occurrence } = parse(intent)? else {
+                return Err(Error(ErrorCode::StateNotDurable));
+            };
+            if !limeos_domain::opaque_id(&occurrence.schedule)
+                || !(1..=MAX_REVISION).contains(&occurrence.revision)
+                || !(0..=MAX_TIME).contains(&occurrence.due)
+            {
+                return Err(Error(ErrorCode::StateNotDurable));
+            }
+            items.push(ObservationJob {
+                id: id.into(),
+                occurrence,
+            });
+        }
+        Ok(AutomationPage {
+            items,
+            next,
+            partial: false,
+        })
+    }
+
     pub fn automation_observation_begin(
         &mut self,
         job: &ObservationJob,
