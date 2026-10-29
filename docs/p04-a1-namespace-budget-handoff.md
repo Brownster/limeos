@@ -1,5 +1,11 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 29 resource follow-up: [the genuine journal footprint is measured](rewrite-evidence/p04/2026-10-29-a1-journal-descriptor-footprint/README.md)
+at `d65fb71`: five descriptors remain through create/write/reopen and all release
+on drop. The isolated native regression and all 14 journal cases pass with strict
+Clippy and formatting. Production capacity is unchanged; add a typed reservation
+for the actual execution journal within the existing aggregate model next.
+
 October 29 execution follow-up: the [corrected continuously guarded candidate](rewrite-evidence/p04/2026-10-29-a1-execute-capacity-refusal/README.md)
 passed real plan creation, human approval and queuing without the worker-thread
 refusal. Execution then refused at `inspect.capacity.admit`; Root returned no

@@ -1,5 +1,11 @@
 # Account for the retained mount execution journal
 
+Native measurement is now [qualified at `d65fb71`](../rewrite-evidence/p04/2026-10-29-a1-journal-descriptor-footprint/README.md):
+the real journal retains five descriptors after creation, durable writing and
+reopen, then releases all five on drop. Fourteen journal cases, strict Clippy,
+formatting and repository checks pass. The next step is the typed execution
+reservation; the installed failed sample itself remains unrecorded.
+
 The [continuously guarded corrected guest](../rewrite-evidence/p04/2026-10-29-a1-execute-capacity-refusal/README.md)
 reached a genuine human-approved queued job, then Root refused at
 `inspect.capacity.admit`. No task-difference event occurred. The protected receipt

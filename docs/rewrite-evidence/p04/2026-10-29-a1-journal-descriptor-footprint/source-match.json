@@ -1,0 +1,133 @@
+{
+  "source": "d65fb71c0c1f2dd6b134ac0e67b4f28b47d4e7f5",
+  "recorded_inputs_match_commit": 687,
+  "checks": {
+    "a1-journal-descriptor-format-2": {
+      "head": "1a0ac5b40697d387673acbd2903f93ef0d27d56e",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started": "2026-10-29T23:23:21.941570+00:00",
+      "ended": "2026-10-29T23:23:24.425095+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7830257664,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-journal-descriptor-tests-2": {
+      "head": "1a0ac5b40697d387673acbd2903f93ef0d27d56e",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--lib",
+        "effects::tests::"
+      ],
+      "started": "2026-10-29T23:23:24.523748+00:00",
+      "ended": "2026-10-29T23:23:42.691520+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7334227968,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-journal-descriptor-clippy-2": {
+      "head": "1a0ac5b40697d387673acbd2903f93ef0d27d56e",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started": "2026-10-29T23:23:42.811035+00:00",
+      "ended": "2026-10-29T23:23:49.808159+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7602511872,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-journal-descriptor-repository-2": {
+      "head": "1a0ac5b40697d387673acbd2903f93ef0d27d56e",
+      "command": [
+        "python3",
+        "scripts/check_repository.py"
+      ],
+      "started": "2026-10-29T23:23:49.884993+00:00",
+      "ended": "2026-10-29T23:23:50.263430+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7762808832,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-journal-descriptor-probe-1": {
+      "head": "1a0ac5b40697d387673acbd2903f93ef0d27d56e",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--lib",
+        "effects::tests::journal_descriptor_probe",
+        "--",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "started": "2026-10-29T23:08:28.798210+00:00",
+      "ended": "2026-10-29T23:08:58.447185+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7374385152,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-journal-descriptor-format-1": {
+      "head": "1a0ac5b40697d387673acbd2903f93ef0d27d56e",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started": "2026-10-29T23:14:43.112415+00:00",
+      "ended": "2026-10-29T23:14:45.907626+00:00",
+      "exit_code": 1,
+      "minimum_available_bytes": 7810478080,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    }
+  },
+  "measurement": {
+    "after_create_drop": 4,
+    "after_reopen_drop": 4,
+    "after_write": 9,
+    "baseline": 4,
+    "created": 9,
+    "reopened": 9
+  },
+  "retained_descriptor_delta": 5,
+  "final_source_checks": [
+    "format-2",
+    "tests-2",
+    "clippy-2",
+    "repository-2"
+  ],
+  "final_test_executable_sha256": "e055f207b4bd678fdfa94ecfb2ce435830f0f11ea81cc287bb2ba6cd474dd5a6",
+  "production_capacity_changed": false,
+  "installed_a1_accepted": false,
+  "failed_installed_admission_count_proven": false
+}
