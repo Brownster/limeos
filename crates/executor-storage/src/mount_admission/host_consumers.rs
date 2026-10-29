@@ -69,6 +69,133 @@ fn log_task_difference(held: &[Task], fresh: &[Task]) {
     let _ = serde_json::to_writer(&mut output, &TaskDifference::between(held, fresh));
     let _ = writeln!(output);
 }
+
+#[derive(serde::Serialize)]
+struct CollectionChange<'a, T> {
+    level: &'static str,
+    event: &'static str,
+    phase: &'static str,
+    detail: &'a T,
+}
+impl<'a, T> CollectionChange<'a, T> {
+    fn new(phase: &'static str, detail: &'a T) -> Self {
+        Self {
+            level: "WARN",
+            event: "storage_mount_consumer_collection_changed",
+            phase,
+            detail,
+        }
+    }
+}
+fn log_collection_change(phase: &'static str, detail: &impl serde::Serialize) {
+    use std::io::Write as _;
+    let mut output = std::io::stderr().lock();
+    // Only already-compared values. No later proc read, retry or owner renewal.
+    let _ = serde_json::to_writer(&mut output, &CollectionChange::new(phase, detail));
+    let _ = writeln!(output);
+}
+#[derive(serde::Serialize)]
+struct MembershipChange {
+    pid: Option<u32>,
+    sample_limit: usize,
+    expected_count: usize,
+    observed_count: usize,
+    removed_count: usize,
+    added_count: usize,
+    removed: [Option<u32>; TASK_DIAGNOSTIC_SAMPLES],
+    added: [Option<u32>; TASK_DIAGNOSTIC_SAMPLES],
+}
+impl MembershipChange {
+    fn between(pid: Option<u32>, expected: &[u32], observed: &[u32]) -> Self {
+        let mut removed = expected.iter().filter(|id| !observed.contains(id));
+        let mut added = observed.iter().filter(|id| !expected.contains(id));
+        Self {
+            pid,
+            sample_limit: TASK_DIAGNOSTIC_SAMPLES,
+            expected_count: expected.len(),
+            observed_count: observed.len(),
+            removed_count: removed.clone().count(),
+            added_count: added.clone().count(),
+            removed: std::array::from_fn(|_| removed.next().copied()),
+            added: std::array::from_fn(|_| added.next().copied()),
+        }
+    }
+}
+fn same_membership(
+    phase: &'static str,
+    pid: Option<u32>,
+    expected: &[u32],
+    observed: &[u32],
+) -> Result<()> {
+    if expected == observed {
+        return Ok(());
+    }
+    log_collection_change(phase, &MembershipChange::between(pid, expected, observed));
+    Err(refusal(
+        phase,
+        Failure::Conflict,
+        0,
+        observed.len(),
+        expected.len(),
+    ))
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+struct ScannedIdentity {
+    pid: u32,
+    tid: u32,
+    start: u64,
+    // None means not read at this comparison, never a kernel-task classification.
+    namespace: Option<(u64, u64)>,
+}
+impl ScannedIdentity {
+    fn leader(pid: u32, start: u64) -> Self {
+        Self {
+            pid,
+            tid: pid,
+            start,
+            namespace: None,
+        }
+    }
+}
+#[derive(serde::Serialize)]
+struct IdentityChange {
+    expected: ScannedIdentity,
+    observed: ScannedIdentity,
+}
+fn same_identity(
+    phase: &'static str,
+    expected: ScannedIdentity,
+    observed: ScannedIdentity,
+) -> Result<()> {
+    if expected == observed {
+        return Ok(());
+    }
+    log_collection_change(phase, &IdentityChange { expected, observed });
+    Err(refusal(phase, Failure::Conflict, 0, 0, 0))
+}
+#[derive(serde::Serialize)]
+struct KernelClassificationChange {
+    pid: u32,
+    start: u64,
+    expected_kernel: bool,
+    observed_kernel: bool,
+}
+fn still_kernel(pid: u32, start: u64, observed_kernel: bool) -> Result<()> {
+    if observed_kernel {
+        return Ok(());
+    }
+    let phase = "scan.kernel.classification_changed";
+    log_collection_change(
+        phase,
+        &KernelClassificationChange {
+            pid,
+            start,
+            expected_kernel: true,
+            observed_kernel,
+        },
+    );
+    Err(refusal(phase, Failure::Conflict, 0, 0, 0))
+}
 struct Namespace {
     fd: OwnedFd,
     digest: String,
@@ -397,13 +524,25 @@ fn collect(
                     namespace: (0, 0),
                 });
             }
-            if diagnosed("scan.kernel.tids.after", numeric(&taskdir, TASKS))? != tids
-                || diagnosed("scan.kernel.leader_start.after", start(&process, *pid))?
-                    != leader_start
-                || !diagnosed("scan.kernel.classification.after", kernel_thread(&process))?
-            {
-                return Err(Failure::Conflict);
-            }
+            same_membership(
+                "scan.kernel.tids_changed",
+                Some(*pid),
+                &tids,
+                &diagnosed("scan.kernel.tids.after", numeric(&taskdir, TASKS))?,
+            )?;
+            same_identity(
+                "scan.kernel.leader_identity_changed",
+                ScannedIdentity::leader(*pid, leader_start),
+                ScannedIdentity::leader(
+                    *pid,
+                    diagnosed("scan.kernel.leader_start.after", start(&process, *pid))?,
+                ),
+            )?;
+            still_kernel(
+                *pid,
+                leader_start,
+                diagnosed("scan.kernel.classification.after", kernel_thread(&process))?,
+            )?;
             diagnosed("scan.kernel.pidfd", live_pidfd(&pidfd, *pid))?;
             continue;
         }
@@ -506,9 +645,21 @@ fn collect(
             let fresh = rustix::fs::fstat(&fresh).map_err(|error| {
                 io_failure("scan.namespace.restat", error, Failure::Unavailable)
             })?;
-            if after != ticks || (fresh.st_dev, fresh.st_ino) != key {
-                return Err(Failure::Conflict);
-            }
+            same_identity(
+                "scan.task.identity_changed",
+                ScannedIdentity {
+                    pid: *pid,
+                    tid: *tid,
+                    start: ticks,
+                    namespace: Some(key),
+                },
+                ScannedIdentity {
+                    pid: *pid,
+                    tid: *tid,
+                    start: after,
+                    namespace: Some((fresh.st_dev, fresh.st_ino)),
+                },
+            )?;
             tasks.push(Task {
                 pid: *pid,
                 tid: *tid,
@@ -516,17 +667,29 @@ fn collect(
                 namespace: key,
             });
         }
-        if diagnosed("scan.leader_start.after", start(&process, *pid))? != leader_start
-            || diagnosed("scan.tids.after", numeric(&taskdir, TASKS))? != tids
-        {
-            return Err(Failure::Conflict);
-        }
+        same_identity(
+            "scan.leader_identity_changed",
+            ScannedIdentity::leader(*pid, leader_start),
+            ScannedIdentity::leader(
+                *pid,
+                diagnosed("scan.leader_start.after", start(&process, *pid))?,
+            ),
+        )?;
+        same_membership(
+            "scan.tids_changed",
+            Some(*pid),
+            &tids,
+            &diagnosed("scan.tids.after", numeric(&taskdir, TASKS))?,
+        )?;
         // Holding a pidfd prevents interpreting a recycled PID as this owner.
         diagnosed("scan.pidfd", live_pidfd(&pidfd, *pid))?;
     }
-    if diagnosed("scan.process_ids.after", numeric(proc, TASKS))? != pids {
-        return Err(Failure::Conflict);
-    }
+    same_membership(
+        "scan.process_ids_changed",
+        None,
+        &pids,
+        &diagnosed("scan.process_ids.after", numeric(proc, TASKS))?,
+    )?;
     diagnosed("scan.window.after", poll(expires, cancelled))?;
     let ns: Vec<_> = namespaces
         .iter()
@@ -883,6 +1046,115 @@ fn code_digest(fd: &OwnedFd) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn initial_membership_refuses_replacement_and_order_changes_with_exact_bounded_ids() {
+        let phase = "scan.process_ids_changed";
+        assert_eq!(same_membership(phase, None, &[1, 2], &[1, 2]), Ok(()));
+        for observed in [[1, 3], [2, 1]] {
+            assert_eq!(
+                same_membership(phase, None, &[1, 2], &observed),
+                Err(Failure::Conflict)
+            );
+        }
+        let reordered = MembershipChange::between(None, &[1, 2], &[2, 1]);
+        assert_eq!((reordered.removed_count, reordered.added_count), (0, 0));
+        assert_eq!((reordered.removed, reordered.added), ([None; 4], [None; 4]));
+        let expected: Vec<_> = (0..TASKS).map(|i| u32::MAX - i as u32).collect();
+        let observed: Vec<_> = (0..TASKS).map(|i| u32::MAX - (TASKS + i) as u32).collect();
+        let change = MembershipChange::between(Some(u32::MAX), &expected, &observed);
+        assert_eq!(
+            (change.expected_count, change.observed_count),
+            (TASKS, TASKS)
+        );
+        assert_eq!((change.removed_count, change.added_count), (TASKS, TASKS));
+        assert_eq!(change.removed, std::array::from_fn(|i| Some(expected[i])));
+        assert_eq!(change.added, std::array::from_fn(|i| Some(observed[i])));
+        assert!(
+            serde_json::to_vec(&CollectionChange::new("scan.kernel.tids_changed", &change))
+                .unwrap()
+                .len()
+                < 2048
+        );
+        assert_eq!(
+            same_membership("scan.tids_changed", Some(u32::MAX), &expected, &observed),
+            Err(Failure::Conflict)
+        );
+    }
+    #[test]
+    fn initial_identity_checks_keep_start_and_namespace_changes_as_conflicts() {
+        let expected = ScannedIdentity::leader(u32::MAX, u64::MAX);
+        assert_eq!(
+            same_identity("scan.leader_identity_changed", expected, expected),
+            Ok(())
+        );
+        let observed = ScannedIdentity {
+            start: u64::MAX - 1,
+            ..expected
+        };
+        assert_eq!(
+            same_identity("scan.kernel.leader_identity_changed", expected, observed),
+            Err(Failure::Conflict)
+        );
+        let bytes = serde_json::to_vec(&CollectionChange::new(
+            "scan.leader_identity_changed",
+            &IdentityChange { expected, observed },
+        ))
+        .unwrap();
+        assert!(bytes.len() < 2048);
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(value["detail"]["expected"]["namespace"].is_null());
+        assert!(value["detail"]["observed"]["namespace"].is_null());
+        let expected = ScannedIdentity {
+            namespace: Some((u64::MAX, u64::MAX)),
+            ..expected
+        };
+        let observed = ScannedIdentity {
+            namespace: Some((u64::MAX, u64::MAX - 1)),
+            ..expected
+        };
+        assert_eq!(
+            same_identity("scan.task.identity_changed", expected, observed),
+            Err(Failure::Conflict)
+        );
+        let bytes = serde_json::to_vec(&CollectionChange::new(
+            "scan.task.identity_changed",
+            &IdentityChange { expected, observed },
+        ))
+        .unwrap();
+        assert!(bytes.len() < 2048);
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            value["detail"]["expected"]["namespace"],
+            serde_json::json!([u64::MAX, u64::MAX])
+        );
+        assert_eq!(
+            value["detail"]["observed"]["namespace"],
+            serde_json::json!([u64::MAX, u64::MAX - 1])
+        );
+    }
+    #[test]
+    fn changed_kernel_classification_is_still_a_refusal_not_an_exemption() {
+        assert_eq!(still_kernel(u32::MAX, u64::MAX, true), Ok(()));
+        assert_eq!(
+            still_kernel(u32::MAX, u64::MAX, false),
+            Err(Failure::Conflict)
+        );
+        let change = KernelClassificationChange {
+            pid: u32::MAX,
+            start: u64::MAX,
+            expected_kernel: true,
+            observed_kernel: false,
+        };
+        assert!(
+            serde_json::to_vec(&CollectionChange::new(
+                "scan.kernel.classification_changed",
+                &change
+            ))
+            .unwrap()
+            .len()
+                < 2048
+        );
+    }
     #[test]
     fn task_differences_retain_exact_same_count_identity_replacements() {
         let held = [Task {
