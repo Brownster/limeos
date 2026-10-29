@@ -1,0 +1,181 @@
+{
+  "source": "9a7d6fd05b70066fd58b6020d8dfe488525b379e",
+  "recorded_inputs_match_commit": 687,
+  "checks": {
+    "a1-initial-census-clippy-1": {
+      "head": "c1a4dd6d8097e984780a6840373bc745cc597c4d",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started": "2026-10-27T23:19:03.766588+00:00",
+      "ended": "2026-10-27T23:19:27.707314+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 9092718592,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-initial-census-focused-1": {
+      "head": "c1a4dd6d8097e984780a6840373bc745cc597c4d",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--lib",
+        "mount_admission::host_consumers::tests::"
+      ],
+      "started": "2026-10-27T23:21:01.875408+00:00",
+      "ended": "2026-10-27T23:21:15.652303+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 9644920832,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-initial-census-storage-all-1": {
+      "head": "c1a4dd6d8097e984780a6840373bc745cc597c4d",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage"
+      ],
+      "started": "2026-10-27T23:41:27.507401+00:00",
+      "ended": "2026-10-27T23:41:39.997795+00:00",
+      "exit_code": 101,
+      "minimum_available_bytes": 10091315200,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-initial-census-compile-1": {
+      "head": "c1a4dd6d8097e984780a6840373bc745cc597c4d",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "started": "2026-10-28T20:04:14.742904+00:00",
+      "ended": "2026-10-28T20:04:16.201485+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 9197993984,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-initial-census-runtime-1": {
+      "head": "c1a4dd6d8097e984780a6840373bc745cc597c4d",
+      "command": [
+        "python3",
+        ".cache/main-consolidation/a1_initial_census_runtime.py"
+      ],
+      "started": "2026-10-28T21:09:24.815402+00:00",
+      "ended": "2026-10-28T21:09:31.306249+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 10913292288,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-initial-census-doctests-1": {
+      "head": "c1a4dd6d8097e984780a6840373bc745cc597c4d",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--doc"
+      ],
+      "started": "2026-10-28T21:30:48.740212+00:00",
+      "ended": "2026-10-28T21:30:50.644576+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 11129733120,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-initial-census-executor-clippy-1": {
+      "head": "c1a4dd6d8097e984780a6840373bc745cc597c4d",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started": "2026-10-28T22:51:01.002468+00:00",
+      "ended": "2026-10-28T22:51:29.886247+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 10423652352,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-initial-census-format-check-1": {
+      "head": "c1a4dd6d8097e984780a6840373bc745cc597c4d",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started": "2026-10-29T14:23:41.237860+00:00",
+      "ended": "2026-10-29T14:23:43.630847+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 8799395840,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-initial-census-repository-1": {
+      "head": "9a7d6fd05b70066fd58b6020d8dfe488525b379e",
+      "command": [
+        "python3",
+        "scripts/check_repository.py"
+      ],
+      "started": "2026-10-29T14:24:29.811470+00:00",
+      "ended": "2026-10-29T14:24:30.041691+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 9024000000,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    }
+  },
+  "runtime": {
+    "runner_sha256": "0ef90f5048ee63d81e14e09681395326a2d2c92d5e4c9f9c7659ce435cb072e9",
+    "executable": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target/debug/deps/limeos_executor_storage-1b92f2a31d62eb89",
+    "sha256": "bc074ad499e7d132900798ce2595e67d35778b26ff1a588c57df6c20d02dc386",
+    "exit_code": 0,
+    "tmpfs_fixture_sampled_peak_bytes": 73976,
+    "sampling_threshold_bytes": 16777216,
+    "per_file_limit_bytes": 16777216,
+    "scratch_removed": true,
+    "compile_record": "attempts/a1-initial-census-compile-1/record.json",
+    "runtime_tmpdir": "/run/user/1000/limeos-storage-fixtures-b8f5tno3",
+    "cargo_or_compilation_on_tmpfs": false
+  },
+  "direct_disk_suite_accepted": false,
+  "fixture_only_tmpfs_suite_accepted": true,
+  "installed_a1_accepted": false,
+  "scope": "Initial-census diagnostics only; no changed admission policy or installed mount acceptance"
+}

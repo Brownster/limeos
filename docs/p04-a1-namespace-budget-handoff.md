@@ -1,5 +1,14 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 29 follow-up: [initial-census diagnostics are qualified](rewrite-evidence/p04/2026-10-29-a1-initial-census-diagnostics/README.md)
+at `9a7d6fd`. The exact membership/identity comparisons now emit bounded numeric
+details while retaining every refusal and admission budget. All 231 storage
+tests passed with the small fixture-only tmpfs runner; the direct Btrfs fixture
+run failed and is preserved alongside that result. Thirteen doctests, strict
+storage/executor Clippy, formatting and repository checks passed. Build a fresh
+source-bound candidate for the diagnostic guest; the actual installed cause and
+approved API/UI mount acceptance remain open.
+
 October 27 follow-up: the [fresh current-source guest](rewrite-evidence/p04/2026-10-27-a1-current-initial-census/README.md)
 uses schema 12, rebuilt Debian binaries and the current schedule UI. It completed
 the prerequisite scenarios without a host resource stop, then the first real
