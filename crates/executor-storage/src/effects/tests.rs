@@ -92,6 +92,79 @@ fn reopen(directory: &Path) -> Result<MountJournal> {
     let owner = std::fs::metadata(directory).unwrap().uid();
     MountJournal::from_directory(fd, owner)
 }
+
+#[test]
+fn journal_descriptor_ownership_is_measured_in_an_isolated_process() {
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--ignored",
+            "--exact",
+            "effects::tests::journal_descriptor_probe",
+            "--test-threads=1",
+            "--nocapture",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "journal descriptor probe failed: {}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = String::from_utf8(output.stdout).unwrap();
+    let records: Vec<_> = text
+        .lines()
+        .filter_map(|line| line.split_once("JOURNAL_DESCRIPTOR_FOOTPRINT "))
+        .collect();
+    assert_eq!(
+        records.len(),
+        1,
+        "missing or duplicated native probe record"
+    );
+    let value: serde_json::Value = serde_json::from_str(records[0].1).unwrap();
+    assert_eq!(value["after_create_drop"], value["baseline"]);
+    assert_eq!(value["after_reopen_drop"], value["baseline"]);
+}
+
+#[test]
+#[ignore = "run in an isolated process by the journal descriptor regression"]
+fn journal_descriptor_probe() {
+    fn count() -> usize {
+        std::fs::read_dir("/proc/self/fd")
+            .unwrap()
+            .try_fold(0usize, |count, entry| entry.map(|_| count + 1))
+            .unwrap()
+    }
+    let baseline = count();
+    let (directory, mut journal) = fixture();
+    let created = count();
+    journal.begin(&plan(), 100).unwrap();
+    let after_write = count();
+    drop(journal);
+    let after_create_drop = count();
+    let journal = reopen(directory.path()).unwrap();
+    let reopened = count();
+    drop(journal);
+    let after_reopen_drop = count();
+    println!(
+        "JOURNAL_DESCRIPTOR_FOOTPRINT {}",
+        serde_json::json!({
+            "baseline": baseline,
+            "created": created,
+            "after_write": after_write,
+            "after_create_drop": after_create_drop,
+            "reopened": reopened,
+            "after_reopen_drop": after_reopen_drop,
+        })
+    );
+    // Protected directory + process lock + SQLite database/WAL/shared memory.
+    assert_eq!(created, baseline + 5);
+    assert_eq!(after_write, created);
+    assert_eq!(reopened, created);
+    assert_eq!(after_create_drop, baseline);
+    assert_eq!(after_reopen_drop, baseline);
+}
+
 fn helper() -> MountHelperIdentity {
     MountHelperIdentity {
         pid: 23,
