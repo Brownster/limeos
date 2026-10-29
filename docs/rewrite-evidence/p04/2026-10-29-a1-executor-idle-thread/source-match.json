@@ -1,0 +1,70 @@
+{
+  "source": "c2246af4689ceafd8b4a42c9d3533b4497ccd100",
+  "recorded_inputs_match_commit": 687,
+  "a1_accepted": false,
+  "continuous_host_guard_accepted": false,
+  "terminal_guard_record_missing": true,
+  "runner_and_vm_absent_native_observation": true,
+  "vm_scratch_removed": true,
+  "original_vm_record_modified": false,
+  "guest_reported_stage": "human_plan_approval_queue",
+  "removed_task": {
+    "pid": 7189,
+    "tid": 7190,
+    "start": 22303,
+    "namespace": [
+      4,
+      4026531841
+    ]
+  },
+  "matched_service_pid_and_witness_cgroup": true,
+  "pre_effect_refusal_cases": [
+    {
+      "case": "extra_path_field",
+      "responses": [
+        {
+          "status": 400,
+          "code": "invalid_input",
+          "retry": false
+        }
+      ],
+      "no_effect": true
+    },
+    {
+      "case": "tampered_approval_digest",
+      "responses": [
+        {
+          "status": 409,
+          "code": "conflict",
+          "retry": false
+        }
+      ],
+      "no_effect": true
+    },
+    {
+      "case": "cancelled_approved_plan",
+      "responses": [
+        {
+          "status": 404,
+          "code": "not_found",
+          "retry": false
+        },
+        {
+          "status": 404,
+          "code": "not_found",
+          "retry": false
+        }
+      ],
+      "no_effect": true
+    }
+  ],
+  "binary_and_package_match": true,
+  "packages": {
+    "limeos-shadow_0.4.7+scan.1_amd64.deb": "081fcdef68cc81ab2153588fb19eb69e4960fd49508dc1d4d4f58c296c4f0215",
+    "limeos_0.4.7+scan.1_amd64.deb": "3e786389d02ed8fb3157b1ec5498df0780d9108d171b09ff97e4c1d15a9613fe"
+  },
+  "tokio_blocking_pool_source_sha256": "6e1f4f3c1e6f7974a8ccab4dab8b8784f447097990f763fc5703202e4d278a65",
+  "hypothesis": "Startup-only no-op creates the executor blocking worker, whose default ten-second idle retirement changes the exact host task set during a later admission",
+  "upgrade_qualification": false,
+  "installed_ui_qualification": false
+}

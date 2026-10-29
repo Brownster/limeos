@@ -1,5 +1,13 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 29 installed follow-up: the [fresh diagnostic guest](rewrite-evidence/p04/2026-10-29-a1-executor-idle-thread/README.md)
+passed initial collection and the negative API cases, then refused positive
+human approval when the executor's own blocking worker disappeared. The exact
+identity and its service ownership are retained. The runtime's startup-only
+no-op and Tokio's ten-second idle timeout explain a concrete next regression.
+This run lost its outer terminal guard record and supplies diagnostic evidence
+only; no approved mount or continuously guarded acceptance is credited.
+
 October 29 follow-up: [initial-census diagnostics are qualified](rewrite-evidence/p04/2026-10-29-a1-initial-census-diagnostics/README.md)
 at `9a7d6fd`. The exact membership/identity comparisons now emit bounded numeric
 details while retaining every refusal and admission budget. All 231 storage
