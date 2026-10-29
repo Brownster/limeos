@@ -1,0 +1,143 @@
+{
+  "source": "5945dfb4e052b9b46eaeb8106da43a97e148cdbf",
+  "recorded_inputs_match_commit": 687,
+  "checks": {
+    "a1-runtime-bootstrap-format-2": {
+      "head": "5723452836f9a8a73366d92bf990f9df6d1f3e39",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started": "2026-10-29T22:49:12.559959+00:00",
+      "ended": "2026-10-29T22:49:14.519796+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7696101376,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-runtime-bootstrap-executor-tests-2": {
+      "head": "5723452836f9a8a73366d92bf990f9df6d1f3e39",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor"
+      ],
+      "started": "2026-10-29T22:49:14.584899+00:00",
+      "ended": "2026-10-29T22:49:32.272303+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7378751488,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-runtime-bootstrap-clippy-2": {
+      "head": "5723452836f9a8a73366d92bf990f9df6d1f3e39",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started": "2026-10-29T22:49:32.344202+00:00",
+      "ended": "2026-10-29T22:49:33.726862+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7425253376,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-runtime-bootstrap-repository-2": {
+      "head": "5723452836f9a8a73366d92bf990f9df6d1f3e39",
+      "command": [
+        "python3",
+        "scripts/check_repository.py"
+      ],
+      "started": "2026-10-29T22:49:33.807921+00:00",
+      "ended": "2026-10-29T22:49:34.062162+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7532326912,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-runtime-bootstrap-red-1": {
+      "head": "5723452836f9a8a73366d92bf990f9df6d1f3e39",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor",
+        "--bin",
+        "limeos-executor",
+        "runtime_tests::mount_bootstrap_keeps_its_thread_set_through_unix_and_child_io",
+        "--",
+        "--exact"
+      ],
+      "started": "2026-10-29T22:08:34.312524+00:00",
+      "ended": "2026-10-29T22:09:23.172813+00:00",
+      "exit_code": 101,
+      "minimum_available_bytes": 7398039552,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-runtime-bootstrap-green-1": {
+      "head": "5723452836f9a8a73366d92bf990f9df6d1f3e39",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor",
+        "--bin",
+        "limeos-executor",
+        "runtime_tests::mount_bootstrap_keeps_its_thread_set_through_unix_and_child_io",
+        "--",
+        "--exact"
+      ],
+      "started": "2026-10-29T22:11:50.779984+00:00",
+      "ended": "2026-10-29T22:11:56.722467+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7717998592,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-runtime-bootstrap-format-1": {
+      "head": "5723452836f9a8a73366d92bf990f9df6d1f3e39",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started": "2026-10-29T22:48:49.944925+00:00",
+      "ended": "2026-10-29T22:48:52.006240+00:00",
+      "exit_code": 1,
+      "minimum_available_bytes": 7486058496,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    }
+  },
+  "final_source_checks": [
+    "format-2",
+    "executor-tests-2",
+    "clippy-2",
+    "repository-2"
+  ],
+  "red_and_preformat_variants_joined_by_exact_source_hash": true,
+  "installed_a1_accepted": false,
+  "blocking_pool_ceiling_unchanged": true,
+  "host_task_comparisons_unchanged": true
+}

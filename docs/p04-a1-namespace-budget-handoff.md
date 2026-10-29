@@ -1,5 +1,12 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 29 correction: [the runtime bootstrap regression is qualified](rewrite-evidence/p04/2026-10-29-a1-runtime-bootstrap-correction/README.md)
+at `5945dfb`. The isolated native test reproduces the extra startup worker, then
+passes after removing the no-op spawn through real Unix-stream and child-pipe
+I/O with unchanged thread identities. The default executor suite, strict Clippy,
+formatting and repository checks pass. Every task comparison and resource ceiling
+is retained. A fresh continuously supervised installed candidate is still required.
+
 October 29 installed follow-up: the [fresh diagnostic guest](rewrite-evidence/p04/2026-10-29-a1-executor-idle-thread/README.md)
 passed initial collection and the negative API cases, then refused positive
 human approval when the executor's own blocking worker disappeared. The exact
