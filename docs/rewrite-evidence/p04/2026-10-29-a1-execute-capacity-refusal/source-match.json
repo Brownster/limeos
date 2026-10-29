@@ -1,0 +1,47 @@
+{
+  "source": "b1f747de43d537f6260faee7ad151cef591d7cb1",
+  "recorded_inputs_match_commit": 687,
+  "a1_accepted": false,
+  "continuous_guard_terminal_record_present": true,
+  "vm_exit_code": 1,
+  "host_guard_triggered": false,
+  "minimum_available_bytes": 6303768576,
+  "inputs_unchanged": true,
+  "vm_scratch_removed": true,
+  "stage": "await_terminal_receipt",
+  "job_state": "needs_intervention",
+  "action": "25410c4d3572c4ac402efecd83ad8d24852b67fc2008487e27049d3dadcac95b",
+  "actual_refusal": "inspect.capacity.admit Unavailable",
+  "root_receipt_reply": "NotFound",
+  "task_difference_records": 0,
+  "service_threads_at_start": "1",
+  "packages": {
+    "limeos-shadow_0.4.8+runtime.1_amd64.deb": "ffa64846fc441adcd05882ec2a2b10b83a482768790838e9dde4724408737419",
+    "limeos_0.4.8+runtime.1_amd64.deb": "876c892cb87285556bb8b60363246d4cc1a5b4ae28af365e7b9785ec5d1b4a1f"
+  },
+  "binaries": {
+    "limeos-core": {
+      "sha256": "15b4ed69dfdba98f9c65a6932f1d136ba9dd8a2fe05639a5c042b544d61d9eba",
+      "bytes": 7044376
+    },
+    "limeos-password-worker": {
+      "sha256": "2c32e7ed5721d60e74273e5a97ad7b6e8cb6f14f87aa6900b9b2ae84fd78d3db",
+      "bytes": 553760
+    },
+    "limeos-executor": {
+      "sha256": "cd02dcff0cc713ac1adbdd71bf90ce7b01e449aaeabd840089195fd9e2aa7593",
+      "bytes": 6036632
+    },
+    "limeos-stack-read-worker": {
+      "sha256": "665e3f534ec73d774fad49a7ad2728e36dd6c7d37709207aaf8b19aaa392be0b",
+      "bytes": 1233760
+    },
+    "limeosctl": {
+      "sha256": "a7500618733476e8404f35a905472a1480ef61140dc5ced16ad60eeda62cee1d",
+      "bytes": 906080
+    }
+  },
+  "upgrade_qualification": false,
+  "installed_ui_qualification": false,
+  "next": "Measure execution resource admission with the genuine already-open MountJournal; do not raise limits or retry this action"
+}

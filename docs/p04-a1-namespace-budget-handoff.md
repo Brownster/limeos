@@ -1,5 +1,13 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 29 execution follow-up: the [corrected continuously guarded candidate](rewrite-evidence/p04/2026-10-29-a1-execute-capacity-refusal/README.md)
+passed real plan creation, human approval and queuing without the worker-thread
+refusal. Execution then refused at `inspect.capacity.admit`; Root returned no
+receipt and Core retained `needs_intervention`. The guest stopped without replay.
+The original guard completed with unchanged inputs and no memory stop. Investigate
+the genuine already-open journal's resource reservation before another candidate;
+the actual failing sample is unrecorded and no mount acceptance is credited.
+
 October 29 correction: [the runtime bootstrap regression is qualified](rewrite-evidence/p04/2026-10-29-a1-runtime-bootstrap-correction/README.md)
 at `5945dfb`. The isolated native test reproduces the extra startup worker, then
 passes after removing the no-op spawn through real Unix-stream and child-pipe
