@@ -18,19 +18,18 @@ fn main() {
         }
         return;
     }
-    let mounts = args.get(3).is_some_and(|role| role == "storage-mounts");
+    run_in_runtime(args.get(3).map(String::as_str), async_main());
+}
+fn run_in_runtime(role: Option<&str>, work: impl std::future::Future<Output = ()>) {
     let mut builder = tokio::runtime::Builder::new_current_thread();
     builder.enable_all();
-    if mounts || args.get(3).is_some_and(|role| role == "storage") {
+    if matches!(role, Some("storage-mounts" | "storage")) {
         builder.max_blocking_threads(1);
     }
     let runtime = builder.build().expect("executor runtime");
-    runtime.block_on(async {
-        if mounts && tokio::task::spawn_blocking(|| ()).await.is_err() {
-            std::process::exit(1);
-        }
-        async_main().await;
-    });
+    // A spare blocking worker retires while idle, changing the exact host task
+    // census. Unix I/O and subprocess pipes need no startup blocking task.
+    runtime.block_on(work);
 }
 async fn async_main() {
     let args: Vec<_> = std::env::args().collect();
@@ -481,4 +480,89 @@ fn clock() -> i64 {
         .unwrap_or_default()
         .as_secs()
         .min(i64::MAX as u64) as i64
+}
+
+#[cfg(test)]
+mod runtime_tests {
+    use super::run_in_runtime;
+    use std::{process::Command, time::Duration};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    fn task_ids() -> Vec<u32> {
+        let mut tasks: Vec<_> = std::fs::read_dir("/proc/self/task")
+            .unwrap()
+            .map(|entry| {
+                entry
+                    .unwrap()
+                    .file_name()
+                    .to_str()
+                    .unwrap()
+                    .parse()
+                    .unwrap()
+            })
+            .collect();
+        tasks.sort_unstable();
+        tasks
+    }
+
+    #[test]
+    fn mount_bootstrap_keeps_its_thread_set_through_unix_and_child_io() {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--exact",
+                "runtime_tests::mount_runtime_child",
+                "--test-threads=1",
+                "--nocapture",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "runtime probe failed: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("mount-runtime-probe-ok"));
+    }
+
+    #[test]
+    #[ignore = "run in an isolated process by the runtime bootstrap regression"]
+    fn mount_runtime_child() {
+        let expected = task_ids();
+        run_in_runtime(Some("storage-mounts"), async {
+            assert_eq!(task_ids(), expected, "bootstrap added an idle worker");
+            tokio::time::timeout(Duration::from_secs(5), async {
+                let (mut left, mut right) = tokio::net::UnixStream::pair().unwrap();
+                left.write_all(b"x").await.unwrap();
+                let mut received = [0];
+                right.read_exact(&mut received).await.unwrap();
+                assert_eq!(&received, b"x");
+                let mut child = tokio::process::Command::new("/bin/true")
+                    .env_clear()
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::null())
+                    .kill_on_drop(true)
+                    .spawn()
+                    .unwrap();
+                let mut bytes = Vec::new();
+                child
+                    .stdout
+                    .take()
+                    .unwrap()
+                    .take(1)
+                    .read_to_end(&mut bytes)
+                    .await
+                    .unwrap();
+                assert!(bytes.is_empty());
+                assert!(child.wait().await.unwrap().success());
+                assert_eq!(task_ids(), expected, "async I/O changed executor threads");
+            })
+            .await
+            .unwrap();
+        });
+        assert_eq!(task_ids(), expected);
+        println!("mount-runtime-probe-ok");
+    }
 }
