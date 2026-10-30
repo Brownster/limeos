@@ -1,0 +1,148 @@
+{
+  "source": "c9ddcfc09bf594f9fed3a0854ee2a7d2d168b2bd",
+  "recorded_inputs_match_commit": 687,
+  "checks": {
+    "a1-fd-context-format-1": {
+      "head": "ade6a2df4be2ed4a1ee3d07d734d684ceef727a5",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started": "2026-10-30T12:44:10.143960+00:00",
+      "ended": "2026-10-30T12:44:12.493803+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 6557450240,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-fd-context-focused-1": {
+      "head": "ade6a2df4be2ed4a1ee3d07d734d684ceef727a5",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--lib",
+        "mount_admission::host_consumers::tests"
+      ],
+      "started": "2026-10-30T12:44:12.577425+00:00",
+      "ended": "2026-10-30T12:44:27.969372+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 5959290880,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-fd-context-compile-1": {
+      "head": "ade6a2df4be2ed4a1ee3d07d734d684ceef727a5",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "started": "2026-10-30T12:44:28.039882+00:00",
+      "ended": "2026-10-30T12:44:28.379797+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 6559440896,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-fd-context-runtime-1": {
+      "head": "ade6a2df4be2ed4a1ee3d07d734d684ceef727a5",
+      "command": [
+        "/usr/bin/python3",
+        "/home/marc/Documents/github/lime-os/.cache/main-consolidation/a1_fd_context_runtime.py"
+      ],
+      "started": "2026-10-30T12:44:28.458270+00:00",
+      "ended": "2026-10-30T12:44:32.912072+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 6486974464,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-fd-context-doctests-1": {
+      "head": "ade6a2df4be2ed4a1ee3d07d734d684ceef727a5",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--doc"
+      ],
+      "started": "2026-10-30T12:44:32.977623+00:00",
+      "ended": "2026-10-30T12:44:40.821604+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 6231564288,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-fd-context-clippy-1": {
+      "head": "ade6a2df4be2ed4a1ee3d07d734d684ceef727a5",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "-p",
+        "limeos-executor",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started": "2026-10-30T12:44:40.889273+00:00",
+      "ended": "2026-10-30T12:44:51.765086+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 6325903360,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-fd-context-repository-1": {
+      "head": "ade6a2df4be2ed4a1ee3d07d734d684ceef727a5",
+      "command": [
+        "python3",
+        "scripts/check_repository.py"
+      ],
+      "started": "2026-10-30T12:44:51.831135+00:00",
+      "ended": "2026-10-30T12:44:52.060590+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 6597730304,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    }
+  },
+  "runtime": {
+    "runner_sha256": "8d207afdc141a00cf7a8cc31fa1b91f74c83d43e06a427942d4ee9e9c307ca9f",
+    "executable": "/home/marc/Documents/github/lime-os/.cache/rewrite-pool-dependencies/target/debug/deps/limeos_executor_storage-1b92f2a31d62eb89",
+    "sha256": "96f4a85632ca0e51fafc8dddc78d53e58212b3e4fbb32df9adde5e42e0a89756",
+    "exit_code": 0,
+    "tmpfs_fixture_sampled_peak_bytes": 20480,
+    "sampling_threshold_bytes": 16777216,
+    "per_file_limit_bytes": 16777216,
+    "scratch_removed": true,
+    "compile_record": "attempts/a1-fd-context-compile-1/record.json",
+    "runtime_tmpdir": "/run/user/1000/limeos-storage-fixtures-kktk03j2",
+    "cargo_or_compilation_on_tmpfs": false
+  },
+  "predicate_and_read_order_unchanged": true,
+  "owner_identity_scope": "already-read owner_before, preceding later task revalidation",
+  "fd_fact_scope": "Enumerated FD number when known, original failure forwarded, errno explicitly unknown in context",
+  "sample_limit_per_side": 4,
+  "maximum_tested_event_bytes_less_than": 2048,
+  "installed_a1_accepted": false,
+  "next": "Distinct diagnostic candidate; identify the actual owner and FD comparison before choosing any runtime correction"
+}

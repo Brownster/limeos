@@ -1,5 +1,12 @@
 # Identify the exact changing host FD table
 
+The [early-failure context extension is qualified at `c9ddcfc`](../rewrite-evidence/p04/2026-10-30-a1-fd-early-context/README.md).
+All early FD-scan failures now retain available owner-before and FD context
+while forwarding the original class and leaving wrapper errno explicitly
+unknown. Eighteen focused cases, 235 full storage runtime cases, doctests and
+strict storage/executor Clippy pass. The next step is a distinct installed
+diagnostic candidate; the actual changing owner is still unidentified.
+
 The [first installed diagnostic run](../rewrite-evidence/p04/2026-10-30-a1-vanished-fd-link/README.md)
 created the positive plan but refused approval when `link.open` returned
 `ENOENT`. It exited before the after-list comparison, so the new membership

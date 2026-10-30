@@ -1,5 +1,12 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 30 context follow-up: [early FD-failure context is qualified](rewrite-evidence/p04/2026-10-30-a1-fd-early-context/README.md)
+at `c9ddcfc`. Directory, enumeration, deadline and per-link failures retain the
+available owner-before/FD facts while forwarding the original error and leaving
+wrapper errno unknown. All 18 focused and 235 full storage runtime cases pass,
+plus doctests and strict Clippy. Use a distinct candidate to identify the actual
+failed owner; every policy predicate and installed acceptance gate remains open.
+
 October 30 early-link follow-up: the [first FD-owner diagnostic guest](rewrite-evidence/p04/2026-10-30-a1-vanished-fd-link/README.md)
 created the positive plan, then approval refused because `link.open` returned
 `ENOENT`. That earlier return precedes the after-list membership event, leaving
