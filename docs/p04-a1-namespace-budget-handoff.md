@@ -1,5 +1,14 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 30 transport follow-up: [the scoped positive-flow HTTP session is qualified locally](rewrite-evidence/p04/2026-10-30-a1-api-session-isolation/README.md)
+at `97b117e`; all 102 native reference cases pass, including real HTTP socket
+lifetime and fatal/no-retry cases. The installed guest completed negative cases
+but refused positive planning on a new task under the authenticated Docker
+daemon PID. No positive job was reached; the Core polling-FD hypothesis remains
+untested during execution. Normal process/FD churn and safe refused-gate recovery
+need a design review, rather than further arbitrary fixture settling. A1 stays
+open; continue independent B1 runtime integration without weakening its gates.
+
 October 30 exact-owner follow-up: [the fresh quiet-probe guest identifies a Core FD refusal](rewrite-evidence/p04/2026-10-30-a1-core-fd-refusal/README.md).
 Fixture `02ba0d5` passes all 98 native reference cases. The actual approved job
 durably bound its guardian, then Root recorded `outcome_unknown` with pending

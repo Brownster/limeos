@@ -1,0 +1,204 @@
+{
+  "fixture_source": "97b117e9b8f9c1f6150a074cfc5b83695a81eda0",
+  "product_source": "f6f583e69518a732bcb8a34b2d09c7f4e3b7e23d",
+  "recorded_inputs_match_fixture_commit": 687,
+  "test_only_changes_since_package_build": {
+    "tests/privileged_vm/p04_fixture_readiness.py": {
+      "built_sha256": "fbd6eb7238aee4a31d8e56b49b66fadef84c37d3ea8221b3bf81acf4636c445e",
+      "fixture_sha256": "659c062f3d328087e3f53716924feb4ce7b2675f2ddcfd5bffb659b593bffee9"
+    },
+    "tests/privileged_vm/p04_mounts_guest.py": {
+      "built_sha256": "75eb191a6ca882c231a7343f8f87879fb3d7d1711b8e026a63781d25c2a0567b",
+      "fixture_sha256": "ac68ea913a9dc4b91d349538f454da6124ca651d9038f24604a5243b2e4caaee"
+    },
+    "tests/reference/test_p04_fixture_readiness.py": {
+      "built_sha256": "ea5ae096b7a760c29bef4e983348f4ba5206610a95bde05777c7898df8bf2008",
+      "fixture_sha256": "e056c89882ad520fe1d05b39244fb471cd3f6bbeeb5000b378b52ab4d89cbda9"
+    },
+    "tests/reference/test_p04_mounts_guest.py": {
+      "built_sha256": "7134ab57284dc6acf14750c6cf4ddde158c6b3a5c642e0f31dc345dbb638f50c",
+      "fixture_sha256": "f22cab50ee33d905aa9160572a67d4007a50f25a85f3479a80bd1c0491697302"
+    }
+  },
+  "native_reference_tests": 102,
+  "native_precommit_record_head": "d7d89c736b4518312fa18243dadc589ca89f65b2",
+  "native_recorded_inputs_match_fixture_commit": true,
+  "docker_startup": {
+    "scope": "read-only fixture startup; no admission or later runtime authority",
+    "parent_pid": 7087,
+    "parent_start": 22735,
+    "initial": {
+      "tasks": [
+        [
+          7087,
+          22735
+        ],
+        [
+          7088,
+          22737
+        ],
+        [
+          7089,
+          22737
+        ],
+        [
+          7090,
+          22738
+        ],
+        [
+          7091,
+          22738
+        ],
+        [
+          7092,
+          22739
+        ],
+        [
+          7093,
+          22739
+        ]
+      ],
+      "fds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ]
+    },
+    "final": {
+      "tasks": [
+        [
+          7087,
+          22735
+        ],
+        [
+          7088,
+          22737
+        ],
+        [
+          7089,
+          22737
+        ],
+        [
+          7090,
+          22738
+        ],
+        [
+          7091,
+          22738
+        ],
+        [
+          7092,
+          22739
+        ],
+        [
+          7093,
+          22739
+        ]
+      ],
+      "fds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        22
+      ]
+    },
+    "membership_changes": 1,
+    "read_passes": 4,
+    "quiet_observations": 46,
+    "quiet_seconds": 3.035801741,
+    "elapsed_seconds": 4.624139778999989,
+    "service_stopped_or_modified": false
+  },
+  "vm": {
+    "started": "2026-10-30T17:57:14.336097+00:00",
+    "ended": "2026-10-30T18:01:20.499817+00:00",
+    "exit_code": 1,
+    "minimum_available_bytes": 5157785600,
+    "inputs_unchanged": true,
+    "guard_triggered": false
+  },
+  "stage": "human_plan_approval_queue",
+  "action": null,
+  "positive_plan_created": false,
+  "positive_job_created": false,
+  "job_state": null,
+  "transport_session": {
+    "scope": "fixture transport lifetime; no storage admission authority",
+    "successful_requests": 1,
+    "attempted_requests": 1,
+    "socket_inode": 33711,
+    "reconnects": 0
+  },
+  "task_change": {
+    "level": "WARN",
+    "event": "storage_mount_consumer_tasks_changed",
+    "phase": "scan.recheck.user_tasks",
+    "sample_limit": 4,
+    "removed_count": 0,
+    "added_count": 1,
+    "removed": [
+      null,
+      null,
+      null,
+      null
+    ],
+    "added": [
+      {
+        "pid": 7087,
+        "tid": 8333,
+        "start": 24285,
+        "namespace": [
+          4,
+          4026531841
+        ]
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "root_receipt_and_exact_effect_stage_recorded": false,
+  "admission_diagnostic_records": 1,
+  "core_polling_hypothesis_exercised": false,
+  "vm_scratch_removed": true,
+  "a1_accepted": false,
+  "installed_ui_qualification": false,
+  "operation_retried": false,
+  "production_pi_accessed": false
+}
