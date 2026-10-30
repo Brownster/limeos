@@ -228,3 +228,19 @@ Source `31fdb5f47fb680597f8806b41e6fb4bb7d504026` adds only the reviewed [Engine
 [Source-bound local evidence](rw040-engine-admission/README.md) records 17 new tests, 62 crate tests and actual 392 unit/integration plus two compile-fail workspace tests (394 total), zero failed/ignored, with all required local gates and independent source review. Failed WIP and temporary-filesystem/quota attempts remain distinct; the final unchanged-source run follows narrowly scoped generated cleanup. [Full exact-source CI](https://github.com/Brownster/limeos/actions/runs/37827510060) passed native AMD64/ARM64 actual 392+2 Rust/33 harness tests each, 15 reference tests and all five exact fresh installed suites 14/6/61/50/49 (180 checks), with current package/binary and image bindings verified. The earlier dbf 377 proof remains attributed to dbf1aac8. Conditional serde scratch/requested-payload accounting is not cgroup headroom or allocator-abort recovery.
 
 This prerequisite does not activate combined collection or close a defect/operation/cutover gate. Bounded storage/process/source acquisition, retained composition, independent process deadlines/descendant cleanup, installed 256-FD/64-MiB/Tasks16/no-swap/empty-cap qualification, namespace-destination binding and all effects remain open. The overall estimate stays 16 human hours/review 24, P04 320/480; agent/tool waits and human effort were not independently timed. No wybie/Pi/SSH/workstation Docker or frozen-Python work ran, and the historical 61.401-ms/20-ms row remains failed.
+
+## 30 October: registered B1 history
+
+Source `f7d5946` registers owned alert/notification reads and delivered in-app
+acknowledgment through the actual Core Database worker, authenticated API and
+dashboard. The [handoff](../../p04-b1-in-app-history-handoff.md) and
+[local evidence](2026-10-30-b1-in-app-history/README.md) bind 617 runtime tests,
+seven compile-fail doctests, 235 frontend tests, strict Clippy, regenerated
+contracts and closed desktop/mobile browser checks to the committed source and
+built UI. Failed draft runs remain retained. No schema migration or production
+collector/timer/sender is added; configured policy, genuine observations,
+supervision, installed restart/idle-write and external notification parity
+remain open. This is a completed local history slice, not RW-045/B1 or P04
+completion. No defect or cutover gate closes. A1 reliability, broader A/B, P05
+and P06 remain required; the historical inventory performance failure remains
+open. Holly's Pi and frozen Python app were untouched; nothing was pushed.

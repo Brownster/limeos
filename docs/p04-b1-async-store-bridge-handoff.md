@@ -7,6 +7,10 @@ bind six final snapshots to 687 recorded tracked inputs each. This connects Core
 orchestration to the accepted Store worker; fresh collection and a production
 timer remain unregistered.
 
+The later [owned-history integration](p04-b1-in-app-history-handoff.md) registers
+the existing alert/notification reads and acknowledgment through API/UI. Its
+source and qualification are separate from this bridge's original evidence.
+
 ## Runtime-facing contract
 
 `bins/core/src/automation_store.rs` is compiled with Core. Its
@@ -79,7 +83,7 @@ resource replacement, as recorded in the
 policy does not establish migrated configuration parity.
 
 Then supervise bounded reservation, queued-job collection, publication and
-retention in Core; register alert/notification API/UI behavior and qualify the
-installed restart/concurrent-tick/resource scenarios. Schedule metadata continues
-to report awaiting producer. This bridge does not close B1, P04 or the P05/P06
-cutover gates.
+retention in Core; qualify the registered API/UI with genuine production
+observations and installed restart/concurrent-tick/resource scenarios. Schedule
+metadata continues to report awaiting producer. This bridge does not close B1,
+P04 or the P05/P06 cutover gates.

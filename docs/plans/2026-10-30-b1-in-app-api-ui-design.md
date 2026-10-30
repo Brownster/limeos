@@ -1,5 +1,11 @@
 # Register owned alert history and in-app notification access
 
+Implemented by `f7d5946`. The
+[handoff](../p04-b1-in-app-history-handoff.md) and
+[local qualification](../rewrite-evidence/p04/2026-10-30-b1-in-app-history/README.md)
+record the delivered boundary and remaining B1/cutover gates. The baseline below
+describes the state before this implementation.
+
 Baseline `039bf55` has the schema-12 Store's observation settlement, owned
 alert/notification reads, in-app publication and acknowledgment. Core exposes
 schedule metadata only. The proposed alert/notification routes and UI leaves
