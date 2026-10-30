@@ -162,6 +162,42 @@ struct IdentityChange {
     expected: ScannedIdentity,
     observed: ScannedIdentity,
 }
+#[derive(serde::Serialize)]
+struct DescriptorChange {
+    // These facts were read before the FD comparison. Its refusal precedes the
+    // task's later identity recheck; this is never a reconstructed final owner.
+    owner_before: ScannedIdentity,
+    fds: MembershipChange,
+}
+impl DescriptorChange {
+    fn between(owner_before: ScannedIdentity, expected: &[u32], observed: &[u32]) -> Self {
+        Self {
+            owner_before,
+            fds: MembershipChange::between(Some(owner_before.pid), expected, observed),
+        }
+    }
+}
+fn same_descriptors(
+    owner_before: ScannedIdentity,
+    expected: &[u32],
+    observed: &[u32],
+) -> Result<()> {
+    if expected == observed {
+        return Ok(());
+    }
+    let phase = "fds.ids_changed";
+    log_collection_change(
+        phase,
+        &DescriptorChange::between(owner_before, expected, observed),
+    );
+    Err(refusal(
+        phase,
+        Failure::Conflict,
+        0,
+        observed.len(),
+        expected.len(),
+    ))
+}
 fn same_identity(
     phase: &'static str,
     expected: ScannedIdentity,
@@ -623,7 +659,20 @@ fn collect(
                 // actual tables, not only the process leader's table.
                 diagnosed(
                     "scan.fds",
-                    check_fds(&task, selected, physical, underlay, expires, cancelled),
+                    check_fds(
+                        &task,
+                        ScannedIdentity {
+                            pid: *pid,
+                            tid: *tid,
+                            start: ticks,
+                            namespace: Some(key),
+                        },
+                        selected,
+                        physical,
+                        underlay,
+                        expires,
+                        cancelled,
+                    ),
                 )?;
                 diagnosed(
                     "scan.maps",
@@ -768,6 +817,7 @@ fn check_link(
 }
 fn check_fds(
     process: &OwnedFd,
+    owner_before: ScannedIdentity,
     selected: &StorageDevice,
     physical: &[StorageBlockDevice],
     underlay: &DirectoryIdentity,
@@ -786,10 +836,11 @@ fn check_fds(
             check_link(&fds, &fd.to_string(), selected, physical, underlay),
         )?;
     }
-    if diagnosed("fds.ids.after", numeric(&fds, FDS_PER_PROCESS))? != ids {
-        return Err(Failure::Conflict);
-    }
-    Ok(())
+    same_descriptors(
+        owner_before,
+        &ids,
+        &diagnosed("fds.ids.after", numeric(&fds, FDS_PER_PROCESS))?,
+    )
 }
 fn check_maps(text: &str, selected: &StorageDevice, physical: &[StorageBlockDevice]) -> Result<()> {
     if !text.is_empty() && !text.ends_with('\n') {
@@ -1046,6 +1097,59 @@ fn code_digest(fd: &OwnedFd) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fd_membership_changes_keep_exact_owner_before_and_bounded_numeric_samples() {
+        let owner = ScannedIdentity {
+            pid: u32::MAX,
+            tid: u32::MAX - 1,
+            start: u64::MAX,
+            namespace: Some((u64::MAX, u64::MAX - 1)),
+        };
+        assert_eq!(same_descriptors(owner, &[4, 7], &[4, 7]), Ok(()));
+        for changed in [[4, 8], [7, 4]] {
+            assert_eq!(
+                same_descriptors(owner, &[4, 7], &changed),
+                Err(Failure::Conflict)
+            );
+        }
+        let change = DescriptorChange::between(owner, &[4, 7], &[4, 8]);
+        assert_eq!(change.owner_before, owner);
+        assert_eq!(
+            (change.fds.expected_count, change.fds.observed_count),
+            (2, 2)
+        );
+        assert_eq!((change.fds.removed_count, change.fds.added_count), (1, 1));
+        assert_eq!(change.fds.removed, [Some(7), None, None, None]);
+        assert_eq!(change.fds.added, [Some(8), None, None, None]);
+        let expected: Vec<_> = (0..FDS_PER_PROCESS).map(|i| u32::MAX - i as u32).collect();
+        let observed: Vec<_> = (0..FDS_PER_PROCESS)
+            .map(|i| u32::MAX - (FDS_PER_PROCESS + i) as u32)
+            .collect();
+        let change = DescriptorChange::between(owner, &expected, &observed);
+        assert_eq!(
+            (change.fds.removed_count, change.fds.added_count),
+            (FDS_PER_PROCESS, FDS_PER_PROCESS)
+        );
+        assert_eq!(
+            change.fds.removed,
+            std::array::from_fn(|i| Some(expected[i]))
+        );
+        assert_eq!(change.fds.added, std::array::from_fn(|i| Some(observed[i])));
+        let bytes = serde_json::to_vec(&CollectionChange::new("fds.ids_changed", &change)).unwrap();
+        assert!(bytes.len() < 2048);
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            value["detail"]["owner_before"],
+            serde_json::to_value(owner).unwrap()
+        );
+        assert_eq!(value["detail"]["fds"]["sample_limit"], 4);
+        assert_eq!(
+            same_descriptors(owner, &expected, &observed),
+            Err(Failure::Conflict)
+        );
+    }
+
     #[test]
     fn initial_membership_refuses_replacement_and_order_changes_with_exact_bounded_ids() {
         let phase = "scan.process_ids_changed";
