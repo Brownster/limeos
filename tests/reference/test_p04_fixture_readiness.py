@@ -161,6 +161,28 @@ class FixtureReadinessTests(unittest.TestCase):
         ):
             self.docker()
 
+    def test_docker_warmup_stops_sending_requests_during_quiet_observation(self):
+        connections = 0
+
+        def response(path):
+            nonlocal connections
+            if path == "/version":
+                return {"ApiVersion": "1.41"}
+            if path == "/v1.41/info":
+                return {"ID": "engine"}
+            connections += 1
+            return []
+
+        report, reads = self.docker(
+            lambda _: {"tasks": [(7043, 100)], "fds": [connections]}, response
+        )
+        self.assertEqual(connections, 4)
+        self.assertEqual(reads.call_count, 12)
+        self.assertEqual(report["read_passes"], 4)
+        self.assertGreater(report["quiet_observations"], 1)
+        self.assertGreaterEqual(report["quiet_seconds"], 3)
+        self.assertEqual(report["final"]["fds"], [4])
+
     def test_docker_changed_identity_inventory_and_invalid_version_refuse(self):
         for path, value in (
             ("/version", []),

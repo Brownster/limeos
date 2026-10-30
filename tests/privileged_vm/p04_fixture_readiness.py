@@ -154,9 +154,8 @@ def wait_docker_startup(peer, engine_id):
     deadline = started + 15
     start = _start(PROC / str(peer["pid"]))
     initial = previous = _docker_membership(peer["pid"], start)
-    quiet_since = started
     changes = 0
-    for attempt in range(96):
+    for _ in range(4):
         _before(deadline)
         version = _docker_json(peer, "/version", 8192, deadline)
         api = version.get("ApiVersion") if isinstance(version, dict) else None
@@ -185,6 +184,11 @@ def wait_docker_startup(peer, engine_id):
             or containers != []
         ):
             raise ValueError("Fixture Docker identity or empty inventory changed")
+    # Warmup connections themselves change daemon FDs. Close all of them before
+    # quiet observation; no network requests or authority acquisition occur here.
+    quiet_since = time.monotonic()
+    for attempt in range(96):
+        _before(deadline)
         current = _docker_membership(peer["pid"], start)
         now = time.monotonic()
         _before(deadline)
@@ -199,14 +203,19 @@ def wait_docker_startup(peer, engine_id):
                 "initial": initial,
                 "final": current,
                 "membership_changes": changes,
-                "read_passes": attempt + 1,
+                "read_passes": 4,
+                "quiet_observations": attempt + 1,
                 "quiet_seconds": now - quiet_since,
                 "elapsed_seconds": now - started,
                 "service_stopped_or_modified": False,
             }
         previous = current
         time.sleep(min(0.1, _before(deadline)))
-    raise TimeoutError("Fixture Docker startup attempt limit exceeded")
+    raise TimeoutError(
+        f"Fixture Docker startup attempt limit exceeded; changes={changes}, "
+        f"quiet_seconds={time.monotonic() - quiet_since:.3f}, "
+        f"elapsed_seconds={time.monotonic() - started:.3f}"
+    )
 
 
 def wait_udev_workers(run):
