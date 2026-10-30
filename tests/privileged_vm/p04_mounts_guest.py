@@ -22,6 +22,7 @@ import stat
 import struct
 import subprocess
 import time
+from contextlib import closing
 from pathlib import Path
 
 BASE = "/api/v1/storage/mounts"
@@ -669,9 +670,109 @@ def query(path, sql, parameters=()):
     require(
         path.exists() and not path.is_symlink(), "expected durable database missing"
     )
-    with sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2) as database:
+    with closing(
+        sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2)
+    ) as database:
         database.execute("PRAGMA query_only=ON")
         return database.execute(sql, parameters).fetchall()
+
+
+def execution_failure_snapshot(action):
+    """Later independent observations; never authority, cleanup or a retry."""
+    require(
+        os.geteuid() == 0 and socket.gethostname() == "limeos-p01-test",
+        "disposable guest required for failure observations",
+    )
+    require(
+        isinstance(action, str) and re.fullmatch(r"[a-f0-9]{64}", action),
+        "exact queued action required for failure observations",
+    )
+    result = {
+        "scope": "post-failure, before service stop; separate read-only observations, not an atomic snapshot or authority",
+        "action": action,
+        "observed_at": time.time(),
+    }
+
+    def capture(name, observe):
+        try:
+            result[name] = observe()
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            RecursionError,
+            sqlite3.Error,
+        ) as error:
+            result[name] = {
+                "available": False,
+                "error_type": type(error).__name__,
+                "errno": getattr(error, "errno", None),
+            }
+
+    def receipt():
+        rows = query(
+            ROOT_DB,
+            "SELECT CASE WHEN length(CAST(digest AS BLOB))=64 THEN digest END,"
+            "CASE WHEN length(CAST(state AS BLOB)) BETWEEN 1 AND 24 THEN state END,"
+            "length(CAST(body AS BLOB)),"
+            "CASE WHEN length(CAST(body AS BLOB)) BETWEEN 1 AND 65536 THEN body END "
+            "FROM receipts WHERE action=? LIMIT 2",
+            (action,),
+        )
+        if not rows:
+            return {"present": False}
+        require(len(rows) == 1, "ambiguous receipt observation")
+        digest_value, state, size, body = rows[0]
+        require(
+            all(isinstance(v, str) for v in (digest_value, state, body)),
+            "receipt exceeds observation bound",
+        )
+        require(size == len(body.encode()) <= 65536, "receipt byte length changed")
+        value = parse_json(body)
+        require(
+            isinstance(value, dict)
+            and isinstance(value.get("plan"), dict)
+            and value["plan"].get("action") == action,
+            "receipt action differs",
+        )
+        return {
+            "present": True,
+            "stored_digest": digest_value,
+            "stored_state": state,
+            "body_sha256": text_digest(body),
+            "receipt": value,
+        }
+
+    def claims(path, sql):
+        rows = query(path, sql, (action,))
+        require(len(rows) <= 32, "claim count exceeds observation bound")
+        require(
+            all(
+                isinstance(row[0], str) and 0 < len(row[0].encode()) <= 256
+                for row in rows
+            ),
+            "claim length exceeds observation bound",
+        )
+        return [row[0] for row in rows]
+
+    capture("root_receipt", receipt)
+    for name, path, table, column in (
+        ("root_claims", ROOT_DB, "locks", "action"),
+        ("core_claims", CORE_DB, "resource_locks", "job"),
+        ("core_required_resources", CORE_DB, "job_resources", "job"),
+    ):
+        # Closed fixture table names; bound text before materializing it.
+        sql = (
+            "SELECT CASE WHEN length(CAST(resource AS BLOB)) BETWEEN 1 AND 256 "
+            f"THEN resource END FROM {table} WHERE {column}=? ORDER BY resource LIMIT 33"
+        )
+        capture(name, lambda path=path, sql=sql: claims(path, sql))
+    capture(
+        "target_mount_rows",
+        lambda: [row for row in mounts() if row["target"] == str(TARGET)],
+    )
+    return result
 
 
 def authority_snapshot(exclude=None):
@@ -1879,6 +1980,10 @@ def qualify(repo, output, package_version, authority_schema):
                 result["after_refusal_facts"] = _after_refusal_facts(
                     result.get("service")
                 )
+                if result.get("action") is not None:
+                    result["execution_after_failure"] = execution_failure_snapshot(
+                        result["action"]
+                    )
                 result["unit_diagnostics"] = run(
                     "journalctl",
                     "-u",

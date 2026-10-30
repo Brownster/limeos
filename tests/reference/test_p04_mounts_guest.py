@@ -1,11 +1,14 @@
 """Pure source-fixture guards; these do not qualify a mount or run a guest."""
 
 import contextlib
+import gc
 import importlib.util
 import io
 import json
 import os
+import sqlite3
 import stat
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -80,6 +83,147 @@ class MountFixtureGuards(unittest.TestCase):
             ):
                 guest.mounted_snapshot(facts, "uuid")
             destination.assert_not_called()
+
+
+class FailureObservations(unittest.TestCase):
+    def setUp(self):
+        self.action = "a" * 64
+        self.directory = tempfile.TemporaryDirectory(dir=SOURCE.parents[2] / ".cache")
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name) / "root.sqlite"
+        self.core = Path(self.directory.name) / "core.sqlite"
+        with contextlib.closing(sqlite3.connect(self.root)) as database, database:
+            database.executescript(
+                "CREATE TABLE receipts(action PRIMARY KEY,digest,state,body);"
+                "CREATE TABLE locks(resource,action);"
+            )
+        with contextlib.closing(sqlite3.connect(self.core)) as database, database:
+            database.executescript(
+                "CREATE TABLE resource_locks(resource,job);"
+                "CREATE TABLE job_resources(resource,job);"
+                "INSERT INTO resource_locks VALUES('foreign','other');"
+            )
+        for patch in (
+            mock.patch.object(guest, "ROOT_DB", self.root),
+            mock.patch.object(guest, "CORE_DB", self.core),
+            mock.patch.object(guest.os, "geteuid", return_value=0),
+            mock.patch.object(
+                guest.socket, "gethostname", return_value="limeos-p01-test"
+            ),
+            mock.patch.object(guest, "mounts", return_value=[]),
+        ):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def store(self, body):
+        with contextlib.closing(sqlite3.connect(self.root)) as database, database:
+            database.execute(
+                "INSERT INTO receipts VALUES(?,?,?,?)",
+                (self.action, "b" * 64, "outcome_unknown", body),
+            )
+
+    def test_real_sqlite_observations_preserve_receipt_and_claims_without_writes(self):
+        receipt = {
+            "plan": {"action": self.action},
+            "state": "outcome_unknown",
+            "quiescence": {"state": "pending", "helper": None},
+            "after": None,
+        }
+        body = json.dumps(receipt)
+        self.store(body)
+        with contextlib.closing(sqlite3.connect(self.root)) as database, database:
+            database.execute("INSERT INTO locks VALUES('device:1:2',?)", (self.action,))
+        with contextlib.closing(sqlite3.connect(self.core)) as database, database:
+            for table in ("resource_locks", "job_resources"):
+                database.execute(
+                    f"INSERT INTO {table} VALUES('device:1:2',?)", (self.action,)
+                )
+        before = (self.root.read_bytes(), self.core.read_bytes())
+        with mock.patch.object(
+            guest,
+            "mounts",
+            return_value=[
+                {"target": str(guest.TARGET), "mount_id": 44},
+                {"target": "/other"},
+            ],
+        ):
+            report = guest.execution_failure_snapshot(self.action)
+        self.assertEqual(report["root_receipt"]["receipt"], receipt)
+        self.assertEqual(report["root_receipt"]["stored_state"], "outcome_unknown")
+        self.assertEqual(report["root_receipt"]["body_sha256"], guest.text_digest(body))
+        for name in ("root_claims", "core_claims", "core_required_resources"):
+            self.assertEqual(report[name], ["device:1:2"])
+        self.assertEqual(
+            report["target_mount_rows"], [{"target": str(guest.TARGET), "mount_id": 44}]
+        )
+        self.assertEqual(before, (self.root.read_bytes(), self.core.read_bytes()))
+        self.assertIn("not an atomic snapshot or authority", report["scope"])
+
+    def test_missing_receipt_is_observed_without_creating_one(self):
+        report = guest.execution_failure_snapshot(self.action)
+        self.assertEqual(report["root_receipt"], {"present": False})
+        self.assertEqual(report["root_claims"], [])
+
+    def test_read_connections_close_without_waiting_for_garbage_collection(self):
+        was_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            before = set(os.listdir("/proc/self/fd"))
+            for _ in range(32):
+                self.assertEqual(
+                    guest.query(self.root, "SELECT count(*) FROM receipts"), [(0,)]
+                )
+            with self.assertRaises(sqlite3.OperationalError):
+                guest.query(self.root, "SELECT missing FROM no_such_table")
+            self.assertEqual(before, set(os.listdir("/proc/self/fd")))
+        finally:
+            if was_enabled:
+                gc.enable()
+            gc.collect()
+
+    def test_corrupt_or_oversized_receipt_does_not_hide_other_observations(self):
+        for body in ("not-json", "é" * 32769, '{"plan":{"action":"other"}}'):
+            with self.subTest(size=len(body.encode())):
+                with (
+                    contextlib.closing(sqlite3.connect(self.root)) as database,
+                    database,
+                ):
+                    database.execute("DELETE FROM receipts")
+                self.store(body)
+                report = guest.execution_failure_snapshot(self.action)
+                self.assertFalse(report["root_receipt"]["available"])
+                self.assertEqual(report["core_claims"], [])
+                self.assertEqual(report["target_mount_rows"], [])
+
+    def test_excess_count_or_byte_length_cannot_report_complete_claims(self):
+        for resources in ([str(i) for i in range(33)], ["é" * 129]):
+            with self.subTest(count=len(resources)):
+                with (
+                    contextlib.closing(sqlite3.connect(self.root)) as database,
+                    database,
+                ):
+                    database.execute("DELETE FROM locks")
+                    database.executemany(
+                        "INSERT INTO locks VALUES(?,?)",
+                        [(r, self.action) for r in resources],
+                    )
+                report = guest.execution_failure_snapshot(self.action)
+                self.assertFalse(report["root_claims"]["available"])
+                self.assertEqual(report["core_required_resources"], [])
+
+    def test_invalid_host_or_action_cannot_open_a_database(self):
+        with mock.patch.object(guest, "query") as read:
+            with (
+                mock.patch.object(
+                    guest.socket, "gethostname", return_value="production"
+                ),
+                self.assertRaises(ValueError),
+            ):
+                guest.execution_failure_snapshot(self.action)
+            for action in (None, "../other", "A" * 64):
+                with self.assertRaises(ValueError):
+                    guest.execution_failure_snapshot(action)
+        read.assert_not_called()
 
 
 if __name__ == "__main__":
