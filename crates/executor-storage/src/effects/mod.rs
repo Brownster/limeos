@@ -118,6 +118,11 @@ fn private_file(fd: &OwnedFd, owner: u32) -> Result<()> {
     Ok(())
 }
 impl MountJournal {
+    /// Retained directory, process lock and SQLite database/WAL/shared memory.
+    /// Constructor and transaction scratch must fit the caller's separate
+    /// transient allowance. This bound grants no execution or replay authority.
+    pub const RETAINED_DESCRIPTOR_BOUND: usize = 5;
+
     pub fn open() -> Result<Self> {
         if !rustix::process::geteuid().is_root() {
             return Err(Failure::Unavailable);

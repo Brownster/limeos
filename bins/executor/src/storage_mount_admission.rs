@@ -14,6 +14,7 @@ use limeos_executor_storage::{
         ConfigurationPaths, ConfigurationReadProfile, inspect_storage_configuration_with_profile,
     },
     destinations::{DestinationLimits, inspect_container_destinations},
+    effects::MountJournal,
     inspect_container_dependencies_with_profile,
     mount_admission::{self, MountTarget},
     processes::{
@@ -36,13 +37,15 @@ const MAX_RUNNING: usize = 4;
 const MAX_DESTINATIONS: usize = 16;
 const FDS: usize = 226;
 const TRANSIENT: usize = 32;
+const BASELINE_FDS: usize = 16;
 const CONFIGURATION_PROFILE: ConfigurationReadProfile = ConfigurationReadProfile::InstalledMountV1;
 const CONFIGURATION_FDS: usize = CONFIGURATION_PROFILE.limits().max_retained_fds as usize;
 const HOST_CONSUMER_FDS: usize = 1 + mount_admission::HOST_CONSUMER_NAMESPACE_LIMIT;
 // Initial A1 limits, not full-host parity. Reservations include every owner live
 // during revalidation. No service or worker ceiling is increased.
-// baseline16 + configuration13 + Engine1 + processes21 + physical75 +
-// destinations16 + target8 + guardian14 + host-consumers17 + transient32 = 213.
+// Inspection: baseline16 + configuration13 + Engine1 + processes21 + physical75
+// + destinations16 + target8 + guardian14 + host-consumers17 + transient32 = 213.
+// Execution/reconciliation retains the genuine journal's five FDs as well: 218.
 const RESERVATIONS: [usize; 7] = [CONFIGURATION_FDS, 1, 21, 75, 16, 8 + HOST_CONSUMER_FDS, 14];
 static FLIGHT: OnceLock<SingleFlight> = OnceLock::new();
 
@@ -223,6 +226,31 @@ pub async fn inspect(
     selection: &StorageMountSelection,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<MountAdmission> {
+    inspect_with_profile(selection, cancelled, CapacityProfile::Inspection).await
+}
+
+/// The actual protected journal supplies the execution-only reservation; a
+/// receipt, count or request cannot select this profile.
+/// ```compile_fail
+/// use limeos_executor::storage_mount_admission::inspect_with_journal;
+/// use limeos_domain::{StorageMountReceipt, StorageMountSelection};
+/// async fn forged(selection: &StorageMountSelection, receipt: &StorageMountReceipt) {
+///     let _ = inspect_with_journal(selection, receipt, &|| false).await;
+/// }
+/// ```
+pub async fn inspect_with_journal(
+    selection: &StorageMountSelection,
+    journal: &MountJournal,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<MountAdmission> {
+    inspect_with_profile(selection, cancelled, CapacityProfile::for_journal(journal)).await
+}
+
+async fn inspect_with_profile(
+    selection: &StorageMountSelection,
+    cancelled: &dyn Fn() -> bool,
+    profile: CapacityProfile,
+) -> Result<MountAdmission> {
     diagnosed("inspect.selection", selection.validate())?;
     let flight = diagnosed(
         "inspect.single_flight",
@@ -235,7 +263,7 @@ pub async fn inspect(
         .checked_add(399)
         .ok_or_else(error)?;
     let window = diagnosed("inspect.window.start", Window::new())?;
-    let mut capacity = diagnosed("inspect.capacity.admit", Capacity::admit())?;
+    let mut capacity = diagnosed("inspect.capacity.admit", Capacity::admit(profile))?;
     let poll = || window.check(cancelled).is_err();
     diagnosed(
         "inspect.window.before_configuration",
@@ -502,16 +530,57 @@ fn hash(value: &impl Serialize) -> Result<String> {
         .collect())
 }
 
+#[derive(Clone, Copy)]
+enum CapacityProfile {
+    Inspection,
+    Journal,
+}
+impl CapacityProfile {
+    fn for_journal(_: &MountJournal) -> Self {
+        Self::Journal
+    }
+    fn baseline_limit(self) -> usize {
+        BASELINE_FDS
+            + match self {
+                Self::Inspection => 0,
+                Self::Journal => MountJournal::RETAINED_DESCRIPTOR_BOUND,
+            }
+    }
+}
+fn capacity_refused(phase: &'static str, observed: u64, minimum: u64, maximum: u64) -> Error {
+    let _ = writeln!(
+        std::io::stderr().lock(),
+        "{{\"level\":\"WARN\",\"event\":\"storage_mount_capacity_refused\",\"phase\":\"{phase}\",\"observed\":{observed},\"minimum\":{minimum},\"maximum\":{maximum}}}"
+    );
+    error()
+}
 struct Capacity {
     baseline: usize,
     retained: usize,
     next: usize,
 }
 impl Capacity {
-    fn admit() -> Result<Self> {
-        let baseline = sample()?;
-        if baseline > 16 || 16 + RESERVATIONS.iter().sum::<usize>() + TRANSIENT > FDS {
-            return Err(error());
+    fn admit(profile: CapacityProfile) -> Result<Self> {
+        Self::from_baseline(sample()?, profile)
+    }
+    fn from_baseline(baseline: usize, profile: CapacityProfile) -> Result<Self> {
+        let limit = profile.baseline_limit();
+        if baseline > limit {
+            return Err(capacity_refused(
+                "capacity.baseline",
+                baseline as u64,
+                0,
+                limit as u64,
+            ));
+        }
+        let reserved = limit + RESERVATIONS.iter().sum::<usize>() + TRANSIENT;
+        if reserved > FDS {
+            return Err(capacity_refused(
+                "capacity.model",
+                reserved as u64,
+                0,
+                FDS as u64,
+            ));
         }
         Ok(Self {
             baseline,
@@ -531,8 +600,15 @@ impl Capacity {
         self.check()
     }
     fn check(&self) -> Result<()> {
-        if sample()? > self.baseline + self.retained + TRANSIENT {
-            Err(error())
+        let observed = sample()?;
+        let limit = self.baseline + self.retained + TRANSIENT;
+        if observed > limit {
+            Err(capacity_refused(
+                "capacity.retained",
+                observed as u64,
+                0,
+                limit as u64,
+            ))
         } else {
             Ok(())
         }
@@ -543,7 +619,7 @@ fn sample() -> Result<usize> {
         .current
         .ok_or_else(error)?;
     if !(226..=256).contains(&soft) {
-        return Err(error());
+        return Err(capacity_refused("sample.nofile", soft, 226, 256));
     }
     let mut file = std::fs::File::open("/proc/self/status").map_err(|_| error())?;
     let mut status = String::new();
@@ -566,8 +642,13 @@ fn sample() -> Result<usize> {
         }
         Ok(value)
     };
-    if field("VmRSS:")? > 48 * 1024 || !(1..=4).contains(&field("Threads:")?) {
-        return Err(error());
+    let rss = field("VmRSS:")?;
+    if rss > 48 * 1024 {
+        return Err(capacity_refused("sample.rss_kib", rss as u64, 0, 48 * 1024));
+    }
+    let threads = field("Threads:")?;
+    if !(1..=4).contains(&threads) {
+        return Err(capacity_refused("sample.threads", threads as u64, 1, 4));
     }
     let mut count = 0;
     for entry in std::fs::read_dir("/proc/self/fd").map_err(|_| error())? {
@@ -582,7 +663,12 @@ fn sample() -> Result<usize> {
         }
         count += 1;
         if count > FDS - TRANSIENT {
-            return Err(error());
+            return Err(capacity_refused(
+                "sample.open_fds",
+                count as u64,
+                0,
+                (FDS - TRANSIENT) as u64,
+            ));
         }
     }
     Ok(count)
@@ -630,13 +716,15 @@ pub async fn inspect_mounted(
 }
 pub async fn inspect_unmounted(
     plan: &StorageMountEffectPlan,
+    journal: &MountJournal,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<StorageMountInspection> {
     plan.validate(plan.created_at)?;
-    let admission = inspect(
+    let admission = inspect_with_journal(
         &StorageMountSelection {
             target_id: plan.device.id.clone(),
         },
+        journal,
         cancelled,
     )
     .await?;
@@ -647,6 +735,87 @@ pub async fn inspect_unmounted(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn operation_capacity_boundaries_use_real_descriptors_in_an_isolated_process() {
+        let parent_limit = rustix::process::getrlimit(rustix::process::Resource::Nofile);
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--exact",
+                "storage_mount_admission::tests::journal_capacity_probe",
+                "--test-threads=1",
+                "--nocapture",
+            ])
+            .output()
+            .unwrap();
+        assert_eq!(
+            rustix::process::getrlimit(rustix::process::Resource::Nofile),
+            parent_limit
+        );
+        assert!(
+            output.status.success(),
+            "capacity probe failed: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("mount-journal-capacity-probe-ok")
+        );
+    }
+
+    #[test]
+    #[ignore = "run in an isolated process by the operation capacity regression"]
+    fn journal_capacity_probe() {
+        let limit = rustix::process::getrlimit(rustix::process::Resource::Nofile);
+        rustix::process::setrlimit(
+            rustix::process::Resource::Nofile,
+            rustix::process::Rlimit {
+                current: Some(256),
+                maximum: limit.maximum,
+            },
+        )
+        .unwrap();
+        let starting = sample().unwrap();
+        assert!(starting <= 16);
+        let mut held = Vec::new();
+        while sample().unwrap() < 16 {
+            held.push(std::fs::File::open("/dev/null").unwrap());
+        }
+        assert_eq!(
+            Capacity::admit(CapacityProfile::Inspection)
+                .unwrap()
+                .baseline,
+            16
+        );
+        held.push(std::fs::File::open("/dev/null").unwrap());
+        assert_eq!(sample().unwrap(), 17);
+        assert!(
+            Capacity::admit(CapacityProfile::Inspection).is_err(),
+            "ordinary inspection admitted excess FDs"
+        );
+        while sample().unwrap() < 21 {
+            held.push(std::fs::File::open("/dev/null").unwrap());
+        }
+        // The measured five-descriptor journal is already live at execution
+        // admission. This probe tests resource arithmetic, not journal authority.
+        assert_eq!(
+            Capacity::admit(CapacityProfile::Journal)
+                .expect("execution journal has no reservation")
+                .baseline,
+            21
+        );
+        held.push(std::fs::File::open("/dev/null").unwrap());
+        assert_eq!(sample().unwrap(), 22);
+        assert!(
+            Capacity::admit(CapacityProfile::Journal).is_err(),
+            "journal budget admitted excess FDs"
+        );
+        drop(held);
+        assert_eq!(sample().unwrap(), starting);
+        println!("mount-journal-capacity-probe-ok");
+    }
+
     #[test]
     fn installed_selection_fits_reserved_configuration_and_namespace_capacity() {
         let paths = paths();
@@ -661,6 +830,17 @@ mod tests {
         let reservation = 16 + RESERVATIONS.iter().sum::<usize>() + TRANSIENT;
         assert_eq!(reservation, 213);
         assert!(reservation <= FDS);
+        assert_eq!(CapacityProfile::Inspection.baseline_limit(), 16);
+        assert_eq!(CapacityProfile::Journal.baseline_limit(), 21);
+        let journal_reservation = reservation + MountJournal::RETAINED_DESCRIPTOR_BOUND;
+        assert_eq!(journal_reservation, 218);
+        assert!(journal_reservation <= FDS);
+        for profile in [CapacityProfile::Inspection, CapacityProfile::Journal] {
+            let limit = profile.baseline_limit();
+            assert!(Capacity::from_baseline(limit, profile).is_ok());
+            assert!(Capacity::from_baseline(limit + 1, profile).is_err());
+            assert!(Capacity::from_baseline(usize::MAX, profile).is_err());
+        }
         // Retaining the generic configuration reservation would exceed the
         // unchanged model after admitting the installed service namespaces.
         assert!(

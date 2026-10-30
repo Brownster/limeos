@@ -164,7 +164,8 @@ async fn dispatch(uid: u32, request: Request, cancelled: &dyn Fn() -> bool) -> R
                 return Err(Error(ErrorCode::Conflict));
             }
             if receipt.state == MountExecutionState::PreconditionChanged {
-                let current = storage_mount_admission::inspect_unmounted(&plan, cancelled).await?;
+                let current =
+                    storage_mount_admission::inspect_unmounted(&plan, &journal, cancelled).await?;
                 plan.check_reconciliation(&current, now()?)?;
                 reply.storage_mount_inspection = Some(current);
             } else {
@@ -198,7 +199,8 @@ async fn execute(
     let selection = StorageMountSelection {
         target_id: plan.device.id.clone(),
     };
-    let admission: MountAdmission = storage_mount_admission::inspect(&selection, cancelled).await?;
+    let admission: MountAdmission =
+        storage_mount_admission::inspect_with_journal(&selection, &journal, cancelled).await?;
     admission.revalidate(cancelled).await?;
     plan.check_current(admission.inspection(), now()?)?;
     policy()?.authorize_plan(uid, plan, now()?)?;
@@ -276,10 +278,11 @@ async fn reconcile_quiescent(
     if !receipt.quiescence.is_quiescent() {
         return unknown(journal, receipt);
     }
-    let current = match storage_mount_admission::inspect_unmounted(&receipt.plan, cancelled).await {
-        Ok(value) => value,
-        Err(_) => return unknown(journal, receipt),
-    };
+    let current =
+        match storage_mount_admission::inspect_unmounted(&receipt.plan, journal, cancelled).await {
+            Ok(value) => value,
+            Err(_) => return unknown(journal, receipt),
+        };
     if receipt.plan.check_reconciliation(&current, now()?).is_err() {
         return unknown(journal, receipt);
     }

@@ -158,7 +158,8 @@ fn journal_descriptor_probe() {
         })
     );
     // Protected directory + process lock + SQLite database/WAL/shared memory.
-    assert_eq!(created, baseline + 5);
+    assert_eq!(MountJournal::RETAINED_DESCRIPTOR_BOUND, 5);
+    assert_eq!(created, baseline + MountJournal::RETAINED_DESCRIPTOR_BOUND);
     assert_eq!(after_write, created);
     assert_eq!(reopened, created);
     assert_eq!(after_create_drop, baseline);
