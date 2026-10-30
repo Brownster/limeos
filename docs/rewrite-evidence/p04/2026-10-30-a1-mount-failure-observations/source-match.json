@@ -1,0 +1,46 @@
+{
+  "fixture_source": "e2012bec0987d524f9c72712ee7789b6b920ad72",
+  "product_source": "f6f583e69518a732bcb8a34b2d09c7f4e3b7e23d",
+  "recorded_inputs_match_commit": 687,
+  "native_reference_tests": 97,
+  "native_precommit_record_head": "7796359b1ebc2a1a31602a92ccdea2cbd8726ae3",
+  "sqlite_descriptor_regression": {
+    "baseline_source": "7796359b1ebc2a1a31602a92ccdea2cbd8726ae3",
+    "original_query_sha256": "7776eb1be3dbcee7f365591e2b701498f4f89211a4d00248904749da9dcb83be",
+    "regression_source_sha256": "350d82aa566af28f1d19321408e82111e5826ecf6d71e10b1d2d762e550b1c08",
+    "tests_run": 1,
+    "failures": 1,
+    "errors": 0,
+    "expected_red": true
+  },
+  "runs": [
+    {
+      "started": "2026-10-30T16:43:05.623198+00:00",
+      "ended": "2026-10-30T16:47:38.366922+00:00",
+      "exit_code": 1,
+      "minimum_available_bytes": 5050105856,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "stage": "pre_effect_api_refusals",
+      "error": "unexpected API status 409, expected 201: {\"code\":\"conflict\",\"message\":\"The request conflicts with current state.\",\"retry\":false,\"audit_id\":\"http-2\"}",
+      "positive_job_created": false,
+      "vm_scratch_removed": true
+    },
+    {
+      "started": "2026-10-30T16:51:54.274735+00:00",
+      "ended": "2026-10-30T16:56:12.222452+00:00",
+      "exit_code": 1,
+      "minimum_available_bytes": 5322559488,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "stage": "fixture_docker_startup",
+      "error": "Fixture Docker startup attempt limit exceeded",
+      "positive_job_created": false,
+      "vm_scratch_removed": true
+    }
+  ],
+  "installed_execution_capture_exercised": false,
+  "a1_accepted": false,
+  "earlier_process_or_fd_causes_identified": false,
+  "production_pi_accessed": false
+}

@@ -1,5 +1,14 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 30 observation follow-up: [bounded post-failure execution observations are qualified locally](rewrite-evidence/p04/2026-10-30-a1-mount-failure-observations/README.md)
+at `e2012be`, with all 97 reference tests passing. The exact original SQLite
+query helper fails the new FD-lifetime regression with 33 retained descriptors;
+explicit closure passes without GC. Two guarded guests stopped before a positive
+job: one added an unidentified PID during collection, the other reached Docker
+setup's quiet-observation attempt limit. Installed execution capture remains
+unexercised. Separate fixed Engine warmup from quiet proc sampling, retaining
+the existing bounds, then exercise the actual Root receipt/quiescence capture.
+
 October 30 readiness follow-up: [bounded Docker fixture startup is qualified](rewrite-evidence/p04/2026-10-30-a1-docker-fixture-readiness/README.md)
 at `658ccdb`; all 91 reference cases and scoped lint/format checks pass. A fresh
 canonical guest with the unchanged packages completed startup, negative API
