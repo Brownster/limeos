@@ -1,5 +1,13 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 30 follow-up: [the typed journal reservation is qualified](rewrite-evidence/p04/2026-10-30-a1-typed-journal-reservation/README.md)
+at `a7bc867`. Execution and unmounted reconciliation borrow the genuine held
+journal for its measured five-descriptor reservation. Ordinary inspection stays
+at 16 baseline FDs; journal-held admission allows 21, reserving 218 within the
+unchanged 226 aggregate model and 256 service limit. Native exact-bound/excess
+cases, full executor checks, journal tests, doctests and strict Clippy pass. A
+distinct continuously guarded installed candidate must still prove the effect.
+
 October 29 resource follow-up: [the genuine journal footprint is measured](rewrite-evidence/p04/2026-10-29-a1-journal-descriptor-footprint/README.md)
 at `d65fb71`: five descriptors remain through create/write/reopen and all release
 on drop. The isolated native regression and all 14 journal cases pass with strict

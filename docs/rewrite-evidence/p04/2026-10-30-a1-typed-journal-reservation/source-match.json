@@ -1,0 +1,140 @@
+{
+  "source": "a7bc86710c04505281336305d521a43367a3edc2",
+  "recorded_inputs_match_commit": 687,
+  "checks": {
+    "a1-journal-budget-format-1": {
+      "head": "53eec20df8daf1c98a849acec518aecd3ce2f2fe",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started": "2026-10-30T00:00:10.084121+00:00",
+      "ended": "2026-10-30T00:00:12.063153+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7763349504,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-journal-budget-executor-tests-1": {
+      "head": "53eec20df8daf1c98a849acec518aecd3ce2f2fe",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor"
+      ],
+      "started": "2026-10-30T00:00:12.175200+00:00",
+      "ended": "2026-10-30T00:00:52.165721+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7145652224,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-journal-budget-journal-tests-1": {
+      "head": "53eec20df8daf1c98a849acec518aecd3ce2f2fe",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--lib",
+        "effects::tests::"
+      ],
+      "started": "2026-10-30T00:00:52.251920+00:00",
+      "ended": "2026-10-30T00:01:07.366313+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7291473920,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-journal-budget-storage-docs-1": {
+      "head": "53eec20df8daf1c98a849acec518aecd3ce2f2fe",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor-storage",
+        "--doc"
+      ],
+      "started": "2026-10-30T00:01:07.439628+00:00",
+      "ended": "2026-10-30T00:01:15.591250+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7465803776,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-journal-budget-clippy-1": {
+      "head": "53eec20df8daf1c98a849acec518aecd3ce2f2fe",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "limeos-executor",
+        "-p",
+        "limeos-executor-storage",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started": "2026-10-30T00:01:15.656322+00:00",
+      "ended": "2026-10-30T00:01:26.222871+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7410212864,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-journal-budget-reference-1": {
+      "head": "53eec20df8daf1c98a849acec518aecd3ce2f2fe",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "tests.reference.test_storage_mount_profile"
+      ],
+      "started": "2026-10-30T00:01:26.293881+00:00",
+      "ended": "2026-10-30T00:01:26.950264+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7507578880,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "a1-journal-budget-repository-1": {
+      "head": "53eec20df8daf1c98a849acec518aecd3ce2f2fe",
+      "command": [
+        "python3",
+        "scripts/check_repository.py"
+      ],
+      "started": "2026-10-30T00:01:27.017054+00:00",
+      "ended": "2026-10-30T00:01:27.245491+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 7894495232,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    }
+  },
+  "red_source_parent": "53eec20df8daf1c98a849acec518aecd3ce2f2fe",
+  "red_variant_joined": true,
+  "inspection_baseline_bound": 16,
+  "journal_baseline_bound": 21,
+  "inspection_total_reservation": 213,
+  "journal_total_reservation": 218,
+  "aggregate_fd_limit": 226,
+  "service_nofile_limit": 256,
+  "ordinary_seventeenth_descriptor_refused": true,
+  "journal_twenty_second_descriptor_refused": true,
+  "genuine_journal_required_by_public_composition_seam": true,
+  "installed_a1_accepted": false,
+  "new_installed_candidate_required": true
+}

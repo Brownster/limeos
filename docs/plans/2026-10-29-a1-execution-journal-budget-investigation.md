@@ -1,5 +1,14 @@
 # Account for the retained mount execution journal
 
+The [typed correction is qualified at `a7bc867`](../rewrite-evidence/p04/2026-10-30-a1-typed-journal-reservation/README.md).
+Genuine journal-held admission reserves five additional descriptors within the
+existing aggregate model. Ordinary inspection retains its 16-FD baseline;
+journal-held admission allows 21 and the aggregate reservation is 218 within
+226. Real native descriptor tests prove both exact bounds and refusal of the
+next descriptor, and a compile-fail case preserves the genuine-owner seam.
+Fresh installed effect qualification is next. The original failed sample
+remains unrecorded and the earlier uncertain action must not be replayed.
+
 Native measurement is now [qualified at `d65fb71`](../rewrite-evidence/p04/2026-10-29-a1-journal-descriptor-footprint/README.md):
 the real journal retains five descriptors after creation, durable writing and
 reopen, then releases all five on drop. Fourteen journal cases, strict Clippy,

@@ -99,9 +99,13 @@ permit precede GO. The helper uses fixed ext4/rw/nosuid/nodev arguments with
 are not added speculatively; unsupported helper behavior must fail in the guest.
 
 The process keeps the existing `LimitNOFILE=256`, `TasksMax=16`, `MemoryMax=64M`
-and `MemorySwapMax=0`. The source's conservative reservation is 213 FDs within
-the existing 226 worker model, with baseline, transient and guardian ownership
-charged before acquisition. A1 selects `InstalledMountV1` configuration admission:
+and `MemorySwapMax=0`. The conservative reservation is 213 FDs for ordinary
+inspection and 218 while a genuine protected mount journal is held, within
+the existing 226 worker model. The typed journal borrow reserves its five
+retained descriptors; ordinary inspection keeps its 16-FD baseline allowance.
+Both profiles include baseline, transient and guardian ownership. The journal
+is already held at admission; subsequent read owners are charged before
+acquisition. A1 selects `InstalledMountV1` configuration admission:
 one shared root plus the four fixed three-component `/etc/limeos/<file>` paths
 retain thirteen descriptors. Deeper aggregate path requirements refuse before
 host/configuration acquisition. The general combined reader retains its 33-FD
