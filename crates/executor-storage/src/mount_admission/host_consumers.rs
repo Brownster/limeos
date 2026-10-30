@@ -169,6 +169,34 @@ struct DescriptorChange {
     owner_before: ScannedIdentity,
     fds: MembershipChange,
 }
+#[derive(serde::Serialize)]
+struct DescriptorFailure {
+    owner_before: ScannedIdentity,
+    fd: Option<u32>,
+    failure: Failure,
+    // The original leaf I/O diagnostic retains errno. This wrapper observes
+    // only Failure and must never reconstruct errno from that class.
+    errno: Option<i32>,
+}
+fn descriptor_result<T>(
+    owner_before: ScannedIdentity,
+    fd: Option<u32>,
+    phase: &'static str,
+    result: Result<T>,
+) -> Result<T> {
+    if let Err(failure) = &result {
+        log_collection_change(
+            phase,
+            &DescriptorFailure {
+                owner_before,
+                fd,
+                failure: *failure,
+                errno: None,
+            },
+        );
+    }
+    result
+}
 impl DescriptorChange {
     fn between(owner_before: ScannedIdentity, expected: &[u32], observed: &[u32]) -> Self {
         Self {
@@ -824,23 +852,45 @@ fn check_fds(
     expires: Instant,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<()> {
-    let fds = diagnosed(
-        "fds.directory",
-        openat(process, "fd", OFlags::RDONLY | OFlags::DIRECTORY),
-    )?;
-    let ids = diagnosed("fds.ids.before", numeric(&fds, FDS_PER_PROCESS))?;
-    for fd in &ids {
-        diagnosed("fds.window", poll(expires, cancelled))?;
+    let fds = descriptor_result(
+        owner_before,
+        None,
+        "fds.directory_failed",
         diagnosed(
-            "fds.link",
-            check_link(&fds, &fd.to_string(), selected, physical, underlay),
+            "fds.directory",
+            openat(process, "fd", OFlags::RDONLY | OFlags::DIRECTORY),
+        ),
+    )?;
+    let ids = descriptor_result(
+        owner_before,
+        None,
+        "fds.ids_before_failed",
+        diagnosed("fds.ids.before", numeric(&fds, FDS_PER_PROCESS)),
+    )?;
+    for fd in &ids {
+        descriptor_result(
+            owner_before,
+            Some(*fd),
+            "fds.window_failed",
+            diagnosed("fds.window", poll(expires, cancelled)),
+        )?;
+        descriptor_result(
+            owner_before,
+            Some(*fd),
+            "fds.link_failed",
+            diagnosed(
+                "fds.link",
+                check_link(&fds, &fd.to_string(), selected, physical, underlay),
+            ),
         )?;
     }
-    same_descriptors(
+    let after = descriptor_result(
         owner_before,
-        &ids,
-        &diagnosed("fds.ids.after", numeric(&fds, FDS_PER_PROCESS))?,
-    )
+        None,
+        "fds.ids_after_failed",
+        diagnosed("fds.ids.after", numeric(&fds, FDS_PER_PROCESS)),
+    )?;
+    same_descriptors(owner_before, &ids, &after)
 }
 fn check_maps(text: &str, selected: &StorageDevice, physical: &[StorageBlockDevice]) -> Result<()> {
     if !text.is_empty() && !text.ends_with('\n') {
@@ -1097,6 +1147,96 @@ fn code_digest(fd: &OwnedFd) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn early_fd_failures_preserve_classes_and_explicit_unknown_context() {
+        let owner = ScannedIdentity {
+            pid: u32::MAX,
+            tid: u32::MAX - 1,
+            start: u64::MAX,
+            namespace: Some((u64::MAX, u64::MAX - 1)),
+        };
+        assert_eq!(
+            descriptor_result(owner, None, "fds.directory_failed", Ok(7)),
+            Ok(7)
+        );
+        for failure in [Failure::Unavailable, Failure::Conflict, Failure::TimedOut] {
+            assert_eq!(
+                descriptor_result::<()>(owner, Some(u32::MAX), "fds.link_failed", Err(failure)),
+                Err(failure)
+            );
+            let detail = DescriptorFailure {
+                owner_before: owner,
+                fd: Some(u32::MAX),
+                failure,
+                errno: None,
+            };
+            let bytes =
+                serde_json::to_vec(&CollectionChange::new("fds.link_failed", &detail)).unwrap();
+            assert!(bytes.len() < 2048);
+            let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(
+                value["detail"]["owner_before"],
+                serde_json::to_value(owner).unwrap()
+            );
+            assert_eq!(value["detail"]["fd"], u32::MAX);
+            assert_eq!(
+                value["detail"]["failure"],
+                serde_json::to_value(failure).unwrap()
+            );
+            assert!(value["detail"]["errno"].is_null());
+        }
+        let detail = DescriptorFailure {
+            owner_before: ScannedIdentity {
+                namespace: None,
+                ..owner
+            },
+            fd: None,
+            failure: Failure::Unavailable,
+            errno: None,
+        };
+        let value = serde_json::to_value(&detail).unwrap();
+        assert!(value["fd"].is_null());
+        assert!(value["owner_before"]["namespace"].is_null());
+        assert!(value["errno"].is_null());
+    }
+
+    #[test]
+    fn missing_native_proc_fd_remains_unavailable_with_owner_context() {
+        let pid = std::process::id();
+        let process = rustix::fs::open(
+            format!("/proc/{pid}"),
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .unwrap();
+        let owner = ScannedIdentity::leader(pid, start(&process, pid).unwrap());
+        let fds = openat(&process, "fd", OFlags::RDONLY | OFlags::DIRECTORY).unwrap();
+        // Linux FD numbers are signed ints, so this cannot race another test's
+        // descriptor allocation. Exercise the real procfs lookup error.
+        let fd = u32::MAX;
+        let underlay = DirectoryIdentity {
+            major: 0,
+            minor: 0,
+            mount_id: 1,
+            inode: 1,
+            mode: 0o40755,
+            uid: 0,
+            gid: 0,
+        };
+        assert_eq!(
+            descriptor_result(
+                owner,
+                Some(fd),
+                "fds.link_failed",
+                diagnosed(
+                    "fds.link",
+                    check_link(&fds, &fd.to_string(), &selected(), &[], &underlay)
+                )
+            ),
+            Err(Failure::Unavailable)
+        );
+    }
 
     #[test]
     fn fd_membership_changes_keep_exact_owner_before_and_bounded_numeric_samples() {
