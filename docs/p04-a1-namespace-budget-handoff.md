@@ -1,5 +1,14 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 30 exact-owner follow-up: [the fresh quiet-probe guest identifies a Core FD refusal](rewrite-evidence/p04/2026-10-30-a1-core-fd-refusal/README.md).
+Fixture `02ba0d5` passes all 98 native reference cases. The actual approved job
+durably bound its guardian, then Root recorded `outcome_unknown` with pending
+quiescence; both sides retain the same five claims. FD 19 vanished in exactly
+identified Core task 6331/6333, corroborated by both independent witnesses.
+Its link target/purpose is unknown. Investigate the fixture's per-poll HTTP
+connection churn with a scoped persistent positive-flow client; preserve every
+production comparison and uncertain-state barrier. No mount acceptance is added.
+
 October 30 observation follow-up: [bounded post-failure execution observations are qualified locally](rewrite-evidence/p04/2026-10-30-a1-mount-failure-observations/README.md)
 at `e2012be`, with all 97 reference tests passing. The exact original SQLite
 query helper fails the new FD-lifetime regression with 33 retained descriptors;

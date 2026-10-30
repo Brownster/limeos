@@ -1,0 +1,446 @@
+{
+  "fixture_source": "02ba0d59df806ec493619d6de48a24c3083e77a1",
+  "product_source": "f6f583e69518a732bcb8a34b2d09c7f4e3b7e23d",
+  "recorded_inputs_match_fixture_commit": 687,
+  "test_only_changes_since_package_build": {
+    "tests/privileged_vm/p04_fixture_readiness.py": {
+      "built_sha256": "fbd6eb7238aee4a31d8e56b49b66fadef84c37d3ea8221b3bf81acf4636c445e",
+      "fixture_sha256": "659c062f3d328087e3f53716924feb4ce7b2675f2ddcfd5bffb659b593bffee9"
+    },
+    "tests/privileged_vm/p04_mounts_guest.py": {
+      "built_sha256": "75eb191a6ca882c231a7343f8f87879fb3d7d1711b8e026a63781d25c2a0567b",
+      "fixture_sha256": "1706d4313d8eccc507689998f137cf9dcd7dcff22c05620c99ca9da3fd81b1d8"
+    },
+    "tests/reference/test_p04_fixture_readiness.py": {
+      "built_sha256": "ea5ae096b7a760c29bef4e983348f4ba5206610a95bde05777c7898df8bf2008",
+      "fixture_sha256": "e056c89882ad520fe1d05b39244fb471cd3f6bbeeb5000b378b52ab4d89cbda9"
+    },
+    "tests/reference/test_p04_mounts_guest.py": {
+      "built_sha256": "7134ab57284dc6acf14750c6cf4ddde158c6b3a5c642e0f31dc345dbb638f50c",
+      "fixture_sha256": "350d82aa566af28f1d19321408e82111e5826ecf6d71e10b1d2d762e550b1c08"
+    }
+  },
+  "native_reference_tests": 98,
+  "native_precommit_record_head": "8f0c47175268c949db1b63e5ad2dd070e3a0d312",
+  "native_recorded_inputs_match_fixture_commit": true,
+  "docker_startup": {
+    "scope": "read-only fixture startup; no admission or later runtime authority",
+    "parent_pid": 7120,
+    "parent_start": 25228,
+    "initial": {
+      "tasks": [
+        [
+          7120,
+          25228
+        ],
+        [
+          7121,
+          25231
+        ],
+        [
+          7122,
+          25231
+        ],
+        [
+          7123,
+          25231
+        ],
+        [
+          7124,
+          25231
+        ],
+        [
+          7125,
+          25232
+        ],
+        [
+          7126,
+          25234
+        ],
+        [
+          7127,
+          25234
+        ],
+        [
+          7128,
+          25234
+        ]
+      ],
+      "fds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ]
+    },
+    "final": {
+      "tasks": [
+        [
+          7120,
+          25228
+        ],
+        [
+          7121,
+          25231
+        ],
+        [
+          7122,
+          25231
+        ],
+        [
+          7123,
+          25231
+        ],
+        [
+          7124,
+          25231
+        ],
+        [
+          7125,
+          25232
+        ],
+        [
+          7126,
+          25234
+        ],
+        [
+          7127,
+          25234
+        ],
+        [
+          7128,
+          25234
+        ]
+      ],
+      "fds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21
+      ]
+    },
+    "membership_changes": 1,
+    "read_passes": 4,
+    "quiet_observations": 44,
+    "quiet_seconds": 3.0508440280000286,
+    "elapsed_seconds": 4.415178784999995,
+    "service_stopped_or_modified": false
+  },
+  "vm": {
+    "started": "2026-10-30T17:03:11.293359+00:00",
+    "ended": "2026-10-30T17:07:54.748221+00:00",
+    "exit_code": 1,
+    "minimum_available_bytes": 5367726080,
+    "inputs_unchanged": true,
+    "guard_triggered": false
+  },
+  "stage": "await_terminal_receipt",
+  "action": "7d7211b7ffa42029bb9639d9dc95c5fd210b0b32bc1ae2c8bdb03da6f7006cc6",
+  "job_state": "needs_intervention",
+  "root_receipt_recorded": true,
+  "guardian_identity_durably_bound": true,
+  "fd_owner_before": {
+    "pid": 6331,
+    "tid": 6333,
+    "start": 18693,
+    "namespace": [
+      4,
+      4026532305
+    ]
+  },
+  "fd_number": 19,
+  "observed_fd_open_errno": 2,
+  "fd_link_target_or_purpose_recorded": false,
+  "execution_after_failure": {
+    "scope": "post-failure, before service stop; separate read-only observations, not an atomic snapshot or authority",
+    "action": "7d7211b7ffa42029bb9639d9dc95c5fd210b0b32bc1ae2c8bdb03da6f7006cc6",
+    "observed_at": 1793380073.7782402,
+    "root_receipt": {
+      "present": true,
+      "stored_digest": "387d06d731677e77982fc7f53eb3ed7fb80b766b00d71a5e20ba4321772cd535",
+      "stored_state": "outcome_unknown",
+      "body_sha256": "47fff4f5b274731dae553a02bccb133aeffe97bc83b39254b0ee6d84c829cd5f",
+      "receipt": {
+        "plan": {
+          "version": 1,
+          "operation": "storage.mount",
+          "action": "7d7211b7ffa42029bb9639d9dc95c5fd210b0b32bc1ae2c8bdb03da6f7006cc6",
+          "device": {
+            "id": "a1-data",
+            "role": "data",
+            "filesystem_uuid": "8a743e3f-f6c1-4ae2-86dd-bbf696ebc6ed",
+            "filesystem": "ext4",
+            "mountpoint": "/mnt/approved-targets/Data",
+            "serial": "limeos-test-3"
+          },
+          "expected": {
+            "host_root_mount_id": 27,
+            "topology_digest": "37cd1c2813be9ae07e9cfeb0a320f4ca10375b4a84ab605a05f09d9cb8e21963",
+            "mounts_digest": "21a91d30533380bf1c786a3cc8c8c140e0ba2e722c7840067c4de5ef1ff5a2d3",
+            "fstab_digest": "c4d9008eb3402309c5aebb13b328943548b9a8caae6c24ef66efe1145260e780",
+            "fstab_entries": [
+              {
+                "filesystem_uuid": null,
+                "device": null,
+                "mountpoint": "/",
+                "managed": false
+              },
+              {
+                "filesystem_uuid": null,
+                "device": null,
+                "mountpoint": "/boot/efi",
+                "managed": false
+              }
+            ],
+            "devices": [
+              {
+                "device": {
+                  "major": 254,
+                  "minor": 1
+                },
+                "filesystem_uuid": "ecda0b9e-5366-4e9d-8621-1d76248d2854",
+                "filesystem": "ext4",
+                "serial": null,
+                "boot_backing": true,
+                "mounts": [
+                  {
+                    "mountpoint": "/",
+                    "mount_id": 27,
+                    "filesystem_root": "/",
+                    "filesystem": "ext4",
+                    "writable": true
+                  }
+                ]
+              },
+              {
+                "device": {
+                  "major": 254,
+                  "minor": 15
+                },
+                "filesystem_uuid": "DD28-31D4",
+                "filesystem": "vfat",
+                "serial": null,
+                "boot_backing": true,
+                "mounts": [
+                  {
+                    "mountpoint": "/boot/efi",
+                    "mount_id": 79,
+                    "filesystem_root": "/",
+                    "filesystem": "vfat",
+                    "writable": true
+                  }
+                ]
+              },
+              {
+                "device": {
+                  "major": 254,
+                  "minor": 17
+                },
+                "filesystem_uuid": "32a0ecb6-00f6-4cc2-9077-fb6ab91b5f53",
+                "filesystem": "ext4",
+                "serial": "limeos-test-0",
+                "boot_backing": false,
+                "mounts": [
+                  {
+                    "mountpoint": "/mnt/data",
+                    "mount_id": 320,
+                    "filesystem_root": "/",
+                    "filesystem": "ext4",
+                    "writable": true
+                  }
+                ]
+              },
+              {
+                "device": {
+                  "major": 254,
+                  "minor": 18
+                },
+                "filesystem_uuid": "0596625b-6601-4abd-a835-85562e5c85cb",
+                "filesystem": "ext4",
+                "serial": "limeos-test-0",
+                "boot_backing": false,
+                "mounts": [
+                  {
+                    "mountpoint": "/mnt/data2",
+                    "mount_id": 593,
+                    "filesystem_root": "/",
+                    "filesystem": "ext4",
+                    "writable": true
+                  }
+                ]
+              },
+              {
+                "device": {
+                  "major": 254,
+                  "minor": 33
+                },
+                "filesystem_uuid": "fc06dc5d-7fae-4416-9699-a023642c5105",
+                "filesystem": "ext4",
+                "serial": "limeos-test-1",
+                "boot_backing": false,
+                "mounts": [
+                  {
+                    "mountpoint": "/mnt/downloads",
+                    "mount_id": 567,
+                    "filesystem_root": "/",
+                    "filesystem": "ext4",
+                    "writable": true
+                  }
+                ]
+              },
+              {
+                "device": {
+                  "major": 254,
+                  "minor": 49
+                },
+                "filesystem_uuid": "0dfddd66-2611-4dc2-a3b9-16bee108ffa1",
+                "filesystem": "ext4",
+                "serial": "limeos-test-2",
+                "boot_backing": false,
+                "mounts": [
+                  {
+                    "mountpoint": "/mnt/parity",
+                    "mount_id": 592,
+                    "filesystem_root": "/",
+                    "filesystem": "ext4",
+                    "writable": true
+                  }
+                ]
+              },
+              {
+                "device": {
+                  "major": 254,
+                  "minor": 65
+                },
+                "filesystem_uuid": "8a743e3f-f6c1-4ae2-86dd-bbf696ebc6ed",
+                "filesystem": "ext4",
+                "serial": "limeos-test-3",
+                "boot_backing": false,
+                "mounts": []
+              }
+            ]
+          },
+          "target": {
+            "mountpoint": "/mnt/approved-targets/Data",
+            "parent": {
+              "major": 254,
+              "minor": 1,
+              "mount_id": 27,
+              "inode": 131397,
+              "mode": 16877,
+              "uid": 0,
+              "gid": 0
+            },
+            "existing": {
+              "major": 254,
+              "minor": 1,
+              "mount_id": 27,
+              "inode": 131399,
+              "mode": 16877,
+              "uid": 0,
+              "gid": 0
+            }
+          },
+          "physical_devices": [
+            {
+              "major": 254,
+              "minor": 64
+            },
+            {
+              "major": 254,
+              "minor": 65
+            }
+          ],
+          "consumer_digest": "1ef0bf23c2c06529e128f8b1e2d819f122b5c6f388f2883eb91567d40945d9b7",
+          "created_at": 1793380062,
+          "expires_at": 1793380362
+        },
+        "digest": "387d06d731677e77982fc7f53eb3ed7fb80b766b00d71a5e20ba4321772cd535",
+        "state": "outcome_unknown",
+        "quiescence": {
+          "state": "pending",
+          "helper": {
+            "pid": 10248,
+            "start_time_ticks": 27953,
+            "mount_namespace_inode": 4026531841,
+            "cgroup": "/system.slice/limeos-storage-mounts.service",
+            "image_digest": "b956697f302b3cf6a34f74e148505ed668ff310e8baec54b756e6fcddbc900d7"
+          }
+        },
+        "after": null
+      }
+    },
+    "root_claims": [
+      "storage:configuration",
+      "storage:device:254:64",
+      "storage:device:254:65",
+      "storage:mount:/mnt/approved-targets/Data",
+      "storage:uuid:8a743e3f-f6c1-4ae2-86dd-bbf696ebc6ed"
+    ],
+    "core_claims": [
+      "storage:configuration",
+      "storage:device:254:64",
+      "storage:device:254:65",
+      "storage:mount:/mnt/approved-targets/Data",
+      "storage:uuid:8a743e3f-f6c1-4ae2-86dd-bbf696ebc6ed"
+    ],
+    "core_required_resources": [
+      "storage:configuration",
+      "storage:device:254:64",
+      "storage:device:254:65",
+      "storage:mount:/mnt/approved-targets/Data",
+      "storage:uuid:8a743e3f-f6c1-4ae2-86dd-bbf696ebc6ed"
+    ],
+    "target_mount_rows": []
+  },
+  "admission_diagnostic_records": 1,
+  "quiet_probe_expected_red": {
+    "baseline_source": "8f0c47175268c949db1b63e5ad2dd070e3a0d312",
+    "original_helper_sha256": "5a9fb06f0a89c818231528b37691ff4fd2c56f3e211bc18d239bbeea298ea2a9",
+    "regression_source_sha256": "e056c89882ad520fe1d05b39244fb471cd3f6bbeeb5000b378b52ab4d89cbda9",
+    "tests_run": 1,
+    "failures": 0,
+    "errors": 1,
+    "expected_red": true
+  },
+  "vm_scratch_removed": true,
+  "a1_accepted": false,
+  "installed_ui_qualification": false,
+  "operation_retried": false,
+  "production_pi_accessed": false
+}
