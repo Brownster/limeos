@@ -1,5 +1,14 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 30 installed context follow-up: [two guarded runs preserve separate refusals](rewrite-evidence/p04/2026-10-30-a1-docker-startup-and-deadline/README.md)
+at `f6f583e`. The 384-MiB guest queued the genuinely approved mount, then Core
+retained `needs_intervention` after Root's original configuration lifetime
+expired. The canonical 1024-MiB guest stopped earlier: the authenticated test
+Docker daemon added an exactly identified thread during the first plan. There
+is no causal RAM conclusion and no mount acceptance. Check bounded read-only
+Docker fixture startup readiness before a distinct run; retain all production
+comparisons, ceilings, original deadlines and uncertain-state barriers.
+
 October 30 context follow-up: [early FD-failure context is qualified](rewrite-evidence/p04/2026-10-30-a1-fd-early-context/README.md)
 at `c9ddcfc`. Directory, enumeration, deadline and per-link failures retain the
 available owner-before/FD facts while forwarding the original error and leaving

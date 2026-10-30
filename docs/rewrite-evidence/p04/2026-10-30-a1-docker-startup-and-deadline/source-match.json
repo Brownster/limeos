@@ -1,0 +1,65 @@
+{
+  "source": "f6f583e69518a732bcb8a34b2d09c7f4e3b7e23d",
+  "recorded_inputs_match_commit": 687,
+  "runs": [
+    {
+      "started": "2026-10-30T14:49:52.745896+00:00",
+      "ended": "2026-10-30T14:54:05.930365+00:00",
+      "exit_code": 1,
+      "minimum_available_bytes": 5723648000,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "guest_memory_mib": 384,
+      "stage": "await_terminal_receipt",
+      "actual_refusal": "original configuration lifetime expired; Core job needs_intervention",
+      "vm_scratch_removed": true,
+      "a1_accepted": false
+    },
+    {
+      "started": "2026-10-30T15:20:50.345613+00:00",
+      "ended": "2026-10-30T15:24:50.557678+00:00",
+      "exit_code": 1,
+      "minimum_available_bytes": 5431795712,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "guest_memory_mib": 1024,
+      "stage": "pre_effect_api_refusals",
+      "actual_refusal": "authenticated fixture Docker daemon added task 7043/7420, start 23684, namespace (4,4026531841)",
+      "vm_scratch_removed": true,
+      "a1_accepted": false
+    }
+  ],
+  "guest_modules_unchanged": 31,
+  "packages": {
+    "limeos-shadow_0.4.11+fdcontext.1_amd64.deb": "62cf52c3d14b84f882156a6e1e67c680bd20a2c8f58a8ca8b8e9bd10db80168f",
+    "limeos_0.4.11+fdcontext.1_amd64.deb": "95771fc73b71ec3ac7cd9d530c68a508c13263dd3595b2f9c36c3109748967f7"
+  },
+  "binaries": {
+    "limeos-core": {
+      "sha256": "15b4ed69dfdba98f9c65a6932f1d136ba9dd8a2fe05639a5c042b544d61d9eba",
+      "bytes": 7044376
+    },
+    "limeos-password-worker": {
+      "sha256": "2c32e7ed5721d60e74273e5a97ad7b6e8cb6f14f87aa6900b9b2ae84fd78d3db",
+      "bytes": 553760
+    },
+    "limeos-executor": {
+      "sha256": "b956697f302b3cf6a34f74e148505ed668ff310e8baec54b756e6fcddbc900d7",
+      "bytes": 6048920
+    },
+    "limeos-stack-read-worker": {
+      "sha256": "665e3f534ec73d774fad49a7ad2728e36dd6c7d37709207aaf8b19aaa392be0b",
+      "bytes": 1233760
+    },
+    "limeosctl": {
+      "sha256": "a7500618733476e8404f35a905472a1480ef61140dc5ced16ad60eeda62cee1d",
+      "bytes": 906080
+    }
+  },
+  "a1_accepted": false,
+  "causal_memory_conclusion": false,
+  "earlier_unknown_fd_owners_identified": false,
+  "installed_ui_qualification": false,
+  "upgrade_qualification": false,
+  "production_pi_accessed": false
+}
