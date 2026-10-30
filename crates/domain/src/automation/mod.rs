@@ -3,6 +3,7 @@ mod alerts;
 mod delivery;
 mod runner;
 mod schedule;
+pub mod settings;
 mod signals;
 mod views;
 pub use alerts::*;
