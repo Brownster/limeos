@@ -16,6 +16,7 @@ use tokio::{
     net::{TcpListener, UnixListener, UnixStream},
     sync::Semaphore,
 };
+mod automation_history;
 mod automation_schedules;
 pub mod automation_store;
 mod compose;
@@ -127,6 +128,35 @@ impl Core {
     }
 }
 impl Backend for Core {
+    async fn observe_health_alerts(
+        &self,
+        token: String,
+        after: Option<String>,
+        deadline: std::time::Instant,
+    ) -> Result<limeos_domain::automation::AutomationPage<limeos_domain::automation::AlertState>>
+    {
+        self.human_alert_page(token, after, deadline).await
+    }
+    async fn observe_health_notifications(
+        &self,
+        token: String,
+        after: Option<String>,
+        deadline: std::time::Instant,
+    ) -> Result<limeos_domain::automation::AutomationPage<limeos_domain::automation::Notification>>
+    {
+        self.human_notification_page(token, after, deadline).await
+    }
+    async fn acknowledge_observe_health_notification(
+        &self,
+        token: String,
+        csrf: String,
+        id: String,
+        input: limeos_domain::automation::AcknowledgeNotification,
+        deadline: std::time::Instant,
+    ) -> Result<limeos_domain::automation::Notification> {
+        self.human_notification_acknowledge(token, csrf, id, input, deadline)
+            .await
+    }
     async fn stack_inventory(
         &self,
         token: String,

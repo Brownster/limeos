@@ -2,19 +2,9 @@ import { ApiError } from "./api";
 import type { ObserveHealthEnabled, ObserveHealthScheduleInput, ScheduleView } from "../../contracts/generated/types";
 export type { ObserveHealthScheduleInput, ScheduleDefinition, ScheduleView } from "../../contracts/generated/types";
 
-// Alert and notification routes remain proposed B1 wire shapes.
-export type AlertState = {
-  key: string; kind: "container" | "smart" | "mount" | "snapraid" | "host"; last_sequence: number;
-  incident: { phase: "clear"; failures: number } | { phase: "open"; generation: number; severity: "warning" | "critical"; summary: string; announced: boolean };
-};
-export type Notification = {
-  id: string; revision: number;
-  event: { key: string; generation: number; event: "incident" | "recovery"; kind: AlertState["kind"]; severity: "warning" | "critical"; summary: string; at: number };
-  channel: "in_app" | "idempotent_receiver" | "external";
-  delivery: { state: "pending" | "blocked" } | { state: "in_flight"; started_at: number } | { state: "delivered" | "ambiguous"; at: number } | { state: "failed"; retry_at: number | null };
-  attempts: number; acknowledged_at: number | null;
-};
-export type Page<T> = { items: T[]; next: string | null; partial: boolean };
+export type { AlertState, Notification } from "../../contracts/generated/types";
+import type { AlertState, Notification, AutomationPage } from "../../contracts/generated/types";
+export type Page<T> = AutomationPage<T>;
 const MAX_RESPONSE = 64 * 1024;
 function unavailable(status: number): ApiError {
   return new ApiError({ code: "unavailable", message: "Unable to read automation state. Refresh to check the outcome.", retry: true, audit_id: `http-${status}` });

@@ -245,6 +245,31 @@ details p {
 .schedules-table {
   min-width: 40rem;
 }
+.notifications-table {
+  min-width: 38rem;
+}
+.notifications-table th:first-child {
+  width: 45%;
+}
+.notifications-table td:last-child {
+  width: 25%;
+}
+.recorded-alerts-table {
+  min-width: 28rem;
+}
+.recorded-alerts-table th:first-child {
+  width: 40%;
+}
+.table-scroll-hint {
+  display: none;
+}
+@media (max-width: 640px) {
+  .table-scroll-hint {
+    display: block;
+    color: #b4beb6;
+    font-size: 0.875rem;
+  }
+}
 .schedules-table th:first-child {
   width: 18%;
 }

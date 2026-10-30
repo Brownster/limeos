@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AlertState",
+  "type": "object",
+  "properties": {
+    "incident": {
+      "$ref": "#/$defs/IncidentState"
+    },
+    "key": {
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/AlertKind"
+    },
+    "last_sequence": {
+      "type": "integer",
+      "format": "int64"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "key",
+    "kind",
+    "last_sequence",
+    "incident"
+  ],
+  "$defs": {
+    "AlertKind": {
+      "type": "string",
+      "enum": [
+        "container",
+        "smart",
+        "mount",
+        "snapraid",
+        "host"
+      ]
+    },
+    "AutomationSeverity": {
+      "type": "string",
+      "enum": [
+        "warning",
+        "critical"
+      ]
+    },
+    "IncidentState": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "failures": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "phase": {
+              "type": "string",
+              "const": "clear"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "phase",
+            "failures"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "announced": {
+              "type": "boolean"
+            },
+            "generation": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "phase": {
+              "type": "string",
+              "const": "open"
+            },
+            "severity": {
+              "$ref": "#/$defs/AutomationSeverity"
+            },
+            "summary": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "phase",
+            "generation",
+            "severity",
+            "summary",
+            "announced"
+          ]
+        }
+      ]
+    }
+  }
+}

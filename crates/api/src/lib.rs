@@ -17,6 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::{net::TcpListener, sync::Semaphore};
+mod automation_history;
 mod automation_schedules;
 mod compose;
 mod identity_enablement;
@@ -35,6 +36,40 @@ pub struct IssuedSession {
     pub view: SessionView,
 }
 pub trait Backend: Clone + Send + Sync + 'static {
+    fn observe_health_alerts(
+        &self,
+        _token: String,
+        _after: Option<String>,
+        _deadline: Instant,
+    ) -> impl Future<
+        Output = Result<
+            limeos_domain::automation::AutomationPage<limeos_domain::automation::AlertState>,
+        >,
+    > + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn observe_health_notifications(
+        &self,
+        _token: String,
+        _after: Option<String>,
+        _deadline: Instant,
+    ) -> impl Future<
+        Output = Result<
+            limeos_domain::automation::AutomationPage<limeos_domain::automation::Notification>,
+        >,
+    > + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn acknowledge_observe_health_notification(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+        _input: limeos_domain::automation::AcknowledgeNotification,
+        _deadline: Instant,
+    ) -> impl Future<Output = Result<limeos_domain::automation::Notification>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
     /// Current stored session/grants and the shared stack cache only.
     fn stack_inventory(
         &self,
@@ -557,6 +592,7 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
             post(operations::cancel_job::<B>),
         )
         .merge(automation_schedules::routes::<B>())
+        .merge(automation_history::routes::<B>())
         .fallback(|| async { failure(Error(ErrorCode::NotFound)) })
         .layer(middleware::from_fn(limits))
         .with_state(App {

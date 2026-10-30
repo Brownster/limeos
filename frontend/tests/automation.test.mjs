@@ -82,14 +82,14 @@ test("blocked schedules and partial observations have visible explanations", () 
 test("read-only UI offers no schedule or acknowledgment mutations", () => {
   const html = render(AutomationView, { schedules: page([row]), alerts: page([]), canManage: false, moreSchedules() {}, moreAlerts() {} });
   assert.doesNotMatch(html, /Create observation schedule|Pause health|Resume health/);
-  const notes = render(NotificationsView, { value: page([note]), canAcknowledge: false, more() {} });
-  assert.match(notes, /Unacknowledged/); assert.doesNotMatch(notes, /Acknowledge note-1/);
+  const notes = render(NotificationsView, { value: page([{ ...note, delivery: { state: "delivered", at: 1001 } }]), canAcknowledge: false, more() {} });
+  assert.match(notes, /Unacknowledged/); assert.doesNotMatch(notes, /<button[^>]*>Acknowledge/);
 });
 test("notification UI preserves failed, ambiguous and acknowledgment states", () => {
   assert.match(deliveryLabel(note), /retries exhausted/);
   assert.match(deliveryLabel({ ...note, delivery: { state: "ambiguous", at: 1001 } }), /check receiver/);
   const html = render(NotificationsView, { value: { ...page([note]), partial: true }, canAcknowledge: true, acknowledge() {}, more() {} });
-  assert.match(html, /Delivery failed/); assert.match(html, /Acknowledge note-1/); assert.match(html, /Some notification state is unavailable/);
+  assert.match(html, /Delivery failed/); assert.match(html, /Awaiting verified delivery/); assert.doesNotMatch(html, /<button[^>]*>Acknowledge/); assert.match(html, /Some notification state is unavailable/);
   assert.match(html, /&lt;script&gt;/); assert.doesNotMatch(html, /<script>/);
 });
 test("latest durable occurrence and job state are visible after refresh", () => {

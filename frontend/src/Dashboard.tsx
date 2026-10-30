@@ -13,6 +13,7 @@ import { ContainerJobs } from "./ContainerActions";
 import { StorageMounts } from "./storage/StorageMounts";
 import { StackPanel } from "./StackManagement";
 import { HealthSchedules } from "./HealthSchedules";
+import { HealthHistory } from "./HealthHistory";
 const views: [string, ResourceKind | undefined][] = [
   ["All resources", undefined],
   ["Containers", "container"],
@@ -31,6 +32,7 @@ export function Dashboard({
   reauthenticate?: () => void;
 }) {
   const [schedulesOpen, setSchedulesOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [operationsRevision, setOperationsRevision] = useState(0);
   const changed = useCallback(() => setOperationsRevision((v) => v + 1), []);
   const canManage = ["operator", "administrator"].includes(
@@ -180,6 +182,13 @@ export function Dashboard({
         </button>
         {schedulesOpen && <HealthSchedules principal={session.principal.id} grantRevision={session.principal.grant_revision}
           csrf={session.csrf_token} expired={expired} reauthenticate={reauthenticate} />}
+      </div>
+      <div>
+        <button aria-expanded={historyOpen} aria-controls="health-history-panel" onClick={() => setHistoryOpen(open => !open)}>
+          {historyOpen ? "Close alert history" : "View alerts and notifications"}
+        </button>
+        {historyOpen && <HealthHistory principal={session.principal.id} grantRevision={session.principal.grant_revision}
+          csrf={session.csrf_token} expired={expired} />}
       </div>
       {!value ? (
         <p role="status">

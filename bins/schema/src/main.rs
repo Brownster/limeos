@@ -72,6 +72,23 @@ fn main() {
         "automation-schedule-page",
         limeos_domain::automation::AutomationPage<limeos_domain::automation::ScheduleView>
     );
+    emit!("automation-alert", limeos_domain::automation::AlertState);
+    emit!(
+        "automation-alert-page",
+        limeos_domain::automation::AutomationPage<limeos_domain::automation::AlertState>
+    );
+    emit!(
+        "automation-notification",
+        limeos_domain::automation::Notification
+    );
+    emit!(
+        "automation-notification-page",
+        limeos_domain::automation::AutomationPage<limeos_domain::automation::Notification>
+    );
+    emit!(
+        "automation-acknowledgment",
+        limeos_domain::automation::AcknowledgeNotification
+    );
     emit!("core-response", limeos_contracts::CoreResponse);
     emit!("executor-request", limeos_executor_protocol::Request);
     emit!("executor-ceiling", limeos_executor_protocol::Ceiling);
@@ -296,6 +313,16 @@ fn main() {
     ts!(limeos_domain::automation::OccurrenceOutcome);
     ts!(limeos_domain::automation::OccurrenceView);
     ts!(limeos_domain::automation::ScheduleView);
+    ts!(limeos_domain::automation::AlertKind);
+    ts!(limeos_domain::automation::Severity);
+    ts!(limeos_domain::automation::IncidentState);
+    ts!(limeos_domain::automation::AlertState);
+    ts!(limeos_domain::automation::AlertEventKind);
+    ts!(limeos_domain::automation::AlertEvent);
+    ts!(limeos_domain::automation::DeliveryChannel);
+    ts!(limeos_domain::automation::DeliveryState);
+    ts!(limeos_domain::automation::Notification);
+    ts!(limeos_domain::automation::AcknowledgeNotification);
     ts!(limeos_domain::automation::AutomationPage<limeos_domain::automation::ScheduleView>);
     ts!(limeos_contracts::Enrollment);
     ts!(limeos_contracts::Health);
@@ -392,6 +419,29 @@ fn main() {
         ],
         "requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_domain::automation::PauseSchedule)}}},
         "responses":{"200":{"description":"Committed schedule metadata","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::ScheduleView)}}}}
+    }});
+    openapi["paths"]["/api/v1/automation/alerts"] = serde_json::json!({"get":{
+        "security":[{"session":[]}],
+        "description":"Read at most 32 owned stored alert rows within 64 KiB, with current host and per-resource HealthRead grants. No collection or publication. Missing/incomplete observation history remains partial; empty history is not proof of health.",
+        "parameters":[{"name":"after","in":"query","schema":{"type":"string","minLength":1,"maxLength":256}}],
+        "responses":{"200":{"description":"Owned alert history","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::AutomationPage<limeos_domain::automation::AlertState>)}}}}
+    }});
+    openapi["paths"]["/api/v1/automation/notifications"] = serde_json::json!({"get":{
+        "security":[{"session":[]}],
+        "description":"Read at most 32 owned in-app notifications within 64 KiB under current host and per-resource HealthRead grants. Does not publish, send or acknowledge. Partial state remains explicit.",
+        "parameters":[{"name":"after","in":"query","schema":{"type":"string","pattern":"^[a-f0-9]{64}$"}}],
+        "responses":{"200":{"description":"Owned in-app notification history","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::AutomationPage<limeos_domain::automation::Notification>)}}}}
+    }});
+    openapi["paths"]["/api/v1/automation/notifications/{id}/acknowledgment"] = serde_json::json!({"post":{
+        "security":[{"session":[]}],
+        "description":"Acknowledge an owned delivered in-app row with current session/CSRF and resource grants. Revision CAS, idempotent acknowledgment replay and existing audit apply. An abandoned/timed-out reply may have committed; reconcile with GET, without automatically repeating the POST. No send or publication.",
+        "parameters":[
+            {"name":"id","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{64}$"}},
+            {"name":"Origin","in":"header","required":true,"schema":{"type":"string"}},
+            {"name":"X-CSRF-Token","in":"header","required":true,"schema":{"type":"string","minLength":64,"maxLength":64}}
+        ],
+        "requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_domain::automation::AcknowledgeNotification)}}},
+        "responses":{"200":{"description":"Committed acknowledgment","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::Notification)}}}}
     }});
     for (path, schema) in [
         (

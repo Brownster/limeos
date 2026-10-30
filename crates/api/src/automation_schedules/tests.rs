@@ -238,13 +238,15 @@ async fn fixed_inputs_methods_and_credentials_cannot_select_authority_or_effects
         "/api/v1/automation/alerts",
         "/api/v1/automation/notifications",
     ] {
+        // Registered history routes stay unavailable in this schedule-only
+        // backend; they cannot manufacture data or start a producer.
         assert_eq!(
             app.clone()
                 .oneshot(request("GET", path, ""))
                 .await
                 .unwrap()
                 .status(),
-            StatusCode::NOT_FOUND
+            StatusCode::SERVICE_UNAVAILABLE
         );
     }
     assert_eq!(stub.reads.load(Ordering::SeqCst), 0);

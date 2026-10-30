@@ -2,7 +2,9 @@ use super::{MAX_REVISION, text, valid_time};
 use crate::{Error, ErrorCode, Result};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum AlertKind {
     Container,
@@ -22,8 +24,12 @@ impl AlertKind {
         }
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS,
+)]
 #[serde(rename_all = "snake_case")]
+#[schemars(rename = "AutomationSeverity")]
+#[ts(rename = "AutomationSeverity")]
 pub enum Severity {
     Warning,
     Critical,
@@ -112,42 +118,48 @@ impl AlertPolicy {
             })
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS)]
 #[serde(tag = "phase", rename_all = "snake_case", deny_unknown_fields)]
 pub enum IncidentState {
     Clear {
         failures: u8,
     },
     Open {
+        #[ts(type = "number")]
         generation: i64,
         severity: Severity,
         summary: String,
         announced: bool,
     },
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct AlertState {
     pub key: String,
     pub kind: AlertKind,
+    #[ts(type = "number")]
     pub last_sequence: i64,
     pub incident: IncidentState,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum AlertEventKind {
     Incident,
     Recovery,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct AlertEvent {
     pub key: String,
+    #[ts(type = "number")]
     pub generation: i64,
     pub event: AlertEventKind,
     pub kind: AlertKind,
     pub severity: Severity,
     pub summary: String,
+    #[ts(type = "number")]
     pub at: i64,
 }
 impl AlertEvent {

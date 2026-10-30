@@ -163,6 +163,6 @@ test("pending and uncertain feedback is visible without optimistic acknowledgmen
   assert.match(schedules, /Saving schedule change/); assert.match(schedules, /outcome is unconfirmed/);
   assert.match(schedules, /disabled=""[^>]*>Pause health/);
   const notifications = render(NotificationsView, { value: page([note]), canAcknowledge: true, acknowledge() {}, more() {}, busy: true });
-  assert.match(notifications, /Saving acknowledgment/); assert.match(notifications, /disabled=""[^>]*>Acknowledge note-1/);
+  assert.match(notifications, /Saving acknowledgment/); assert.match(notifications, /disabled=""[^>]*>Acknowledge</);
   assert.doesNotMatch(notifications, />Acknowledged</);
 });

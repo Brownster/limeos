@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Notification",
+  "type": "object",
+  "properties": {
+    "acknowledged_at": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "int64"
+    },
+    "attempts": {
+      "type": "integer",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0
+    },
+    "channel": {
+      "$ref": "#/$defs/DeliveryChannel"
+    },
+    "delivery": {
+      "$ref": "#/$defs/DeliveryState"
+    },
+    "event": {
+      "$ref": "#/$defs/AlertEvent"
+    },
+    "id": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "integer",
+      "format": "int64"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "revision",
+    "event",
+    "channel",
+    "delivery",
+    "attempts"
+  ],
+  "$defs": {
+    "AlertEvent": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "event": {
+          "$ref": "#/$defs/AlertEventKind"
+        },
+        "generation": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/AlertKind"
+        },
+        "severity": {
+          "$ref": "#/$defs/AutomationSeverity"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "generation",
+        "event",
+        "kind",
+        "severity",
+        "summary",
+        "at"
+      ]
+    },
+    "AlertEventKind": {
+      "type": "string",
+      "enum": [
+        "incident",
+        "recovery"
+      ]
+    },
+    "AlertKind": {
+      "type": "string",
+      "enum": [
+        "container",
+        "smart",
+        "mount",
+        "snapraid",
+        "host"
+      ]
+    },
+    "AutomationSeverity": {
+      "type": "string",
+      "enum": [
+        "warning",
+        "critical"
+      ]
+    },
+    "DeliveryChannel": {
+      "type": "string",
+      "enum": [
+        "in_app",
+        "idempotent_receiver",
+        "external"
+      ]
+    },
+    "DeliveryState": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "const": "pending"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "started_at": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "state": {
+              "type": "string",
+              "const": "in_flight"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "started_at"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "at": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "state": {
+              "type": "string",
+              "const": "delivered"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "at"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "retry_at": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            },
+            "state": {
+              "type": "string",
+              "const": "failed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "at": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "state": {
+              "type": "string",
+              "const": "ambiguous"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "at"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "const": "blocked"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ]
+        }
+      ]
+    }
+  }
+}

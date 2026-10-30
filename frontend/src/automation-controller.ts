@@ -38,8 +38,8 @@ export class AutomationController {
   private closed = false;
   private running: Promise<void> | undefined;
   private refreshAgain = false;
-  constructor(private readonly expired: () => void, private readonly reader: Reader = automationClient, private readonly mode: "all" | "schedules" = "all") {}
-  private enabled(kind: PageKind): boolean { return this.mode === "all" || kind === "schedules"; }
+  constructor(private readonly expired: () => void, private readonly reader: Reader = automationClient, private readonly mode: "all" | "schedules" | "history" = "all") {}
+  private enabled(kind: PageKind): boolean { return this.mode === "all" || (this.mode === "schedules" ? kind === "schedules" : kind !== "schedules"); }
   getSnapshot = (): AutomationState => this.state;
   subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
   private emit(): void { for (const listener of this.listeners) listener(); }

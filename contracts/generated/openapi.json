@@ -1,6 +1,93 @@
 {
   "components": {
     "schemas": {
+      "AlertEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "event": {
+            "$ref": "#/components/schemas/AlertEventKind"
+          },
+          "generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AlertKind"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/AutomationSeverity"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "generation",
+          "event",
+          "kind",
+          "severity",
+          "summary",
+          "at"
+        ],
+        "type": "object"
+      },
+      "AlertEventKind": {
+        "enum": [
+          "incident",
+          "recovery"
+        ],
+        "type": "string"
+      },
+      "AlertKind": {
+        "enum": [
+          "container",
+          "smart",
+          "mount",
+          "snapraid",
+          "host"
+        ],
+        "type": "string"
+      },
+      "AlertState": {
+        "additionalProperties": false,
+        "properties": {
+          "incident": {
+            "$ref": "#/components/schemas/IncidentState"
+          },
+          "key": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AlertKind"
+          },
+          "last_sequence": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "last_sequence",
+          "incident"
+        ],
+        "type": "object"
+      },
+      "AutomationSeverity": {
+        "enum": [
+          "warning",
+          "critical"
+        ],
+        "type": "string"
+      },
       "Availability": {
         "enum": [
           "loading",
@@ -605,6 +692,118 @@
           }
         ]
       },
+      "DeliveryChannel": {
+        "enum": [
+          "in_app",
+          "idempotent_receiver",
+          "external"
+        ],
+        "type": "string"
+      },
+      "DeliveryState": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "const": "pending",
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "started_at": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "state": {
+                "const": "in_flight",
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "started_at"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "state": {
+                "const": "delivered",
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "at"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "retry_at": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "state": {
+                "const": "failed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "state": {
+                "const": "ambiguous",
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "at"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "const": "blocked",
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "DirectoryIdentity": {
         "additionalProperties": false,
         "properties": {
@@ -1161,6 +1360,60 @@
         },
         "type": "object"
       },
+      "IncidentState": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "failures": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "phase": {
+                "const": "clear",
+                "type": "string"
+              }
+            },
+            "required": [
+              "phase",
+              "failures"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "announced": {
+                "type": "boolean"
+              },
+              "generation": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "phase": {
+                "const": "open",
+                "type": "string"
+              },
+              "severity": {
+                "$ref": "#/components/schemas/AutomationSeverity"
+              },
+              "summary": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "phase",
+              "generation",
+              "severity",
+              "summary",
+              "announced"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "JobState": {
         "enum": [
           "planned",
@@ -1247,6 +1500,49 @@
           "skip"
         ],
         "type": "string"
+      },
+      "Notification": {
+        "additionalProperties": false,
+        "properties": {
+          "acknowledged_at": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "attempts": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/DeliveryChannel"
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/DeliveryState"
+          },
+          "event": {
+            "$ref": "#/components/schemas/AlertEvent"
+          },
+          "id": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "event",
+          "channel",
+          "delivery",
+          "attempts"
+        ],
+        "type": "object"
       },
       "OccurrenceKey": {
         "additionalProperties": false,
@@ -3451,6 +3747,837 @@
               }
             },
             "description": "Current session"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/automation/alerts": {
+      "get": {
+        "description": "Read at most 32 owned stored alert rows within 64 KiB, with current host and per-resource HealthRead grants. No collection or publication. Missing/incomplete observation history remains partial; empty history is not proof of health.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/AlertState"
+                      },
+                      "type": "array"
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "partial": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "partial"
+                  ],
+                  "title": "AutomationPage",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Owned alert history"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/automation/notifications": {
+      "get": {
+        "description": "Read at most 32 owned in-app notifications within 64 KiB under current host and per-resource HealthRead grants. Does not publish, send or acknowledge. Partial state remains explicit.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/Notification"
+                      },
+                      "type": "array"
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "partial": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "partial"
+                  ],
+                  "title": "AutomationPage",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Owned in-app notification history"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/automation/notifications/{id}/acknowledgment": {
+      "post": {
+        "description": "Acknowledge an owned delivered in-app row with current session/CSRF and resource grants. Revision CAS, idempotent acknowledgment replay and existing audit apply. An abandoned/timed-out reply may have committed; reconcile with GET, without automatically repeating the POST. No send or publication.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "revision": {
+                    "format": "int64",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "revision"
+                ],
+                "title": "AcknowledgeNotification",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "acknowledged_at": {
+                      "format": "int64",
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "attempts": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "channel": {
+                      "$ref": "#/components/schemas/DeliveryChannel"
+                    },
+                    "delivery": {
+                      "$ref": "#/components/schemas/DeliveryState"
+                    },
+                    "event": {
+                      "$ref": "#/components/schemas/AlertEvent"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "format": "int64",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "revision",
+                    "event",
+                    "channel",
+                    "delivery",
+                    "attempts"
+                  ],
+                  "title": "Notification",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Committed acknowledgment"
           },
           "400": {
             "content": {

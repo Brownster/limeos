@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AcknowledgeNotification",
+  "type": "object",
+  "properties": {
+    "revision": {
+      "type": "integer",
+      "format": "int64"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "revision"
+  ]
+}

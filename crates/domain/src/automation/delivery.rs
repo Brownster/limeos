@@ -6,32 +6,48 @@ pub use planning::*;
 
 pub const MAX_DELIVERY_ATTEMPTS: u8 = 4;
 pub const DELIVERED_RETENTION_SECONDS: i64 = 7 * 86400;
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum DeliveryChannel {
     InApp,
     IdempotentReceiver,
     External,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS)]
 #[serde(tag = "state", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DeliveryState {
     Pending,
-    InFlight { started_at: i64 },
-    Delivered { at: i64 },
-    Failed { retry_at: Option<i64> },
-    Ambiguous { at: i64 },
+    InFlight {
+        #[ts(type = "number")]
+        started_at: i64,
+    },
+    Delivered {
+        #[ts(type = "number")]
+        at: i64,
+    },
+    Failed {
+        #[ts(type = "number | null")]
+        retry_at: Option<i64>,
+    },
+    Ambiguous {
+        #[ts(type = "number")]
+        at: i64,
+    },
     Blocked,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct Notification {
     pub id: String,
+    #[ts(type = "number")]
     pub revision: i64,
     pub event: AlertEvent,
     pub channel: DeliveryChannel,
     pub delivery: DeliveryState,
     pub attempts: u8,
+    #[ts(type = "number | null")]
     pub acknowledged_at: Option<i64>,
 }
 impl Notification {
@@ -153,8 +169,9 @@ pub enum DeliveryResult {
     Rejected,
     Unknown,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct AcknowledgeNotification {
+    #[ts(type = "number")]
     pub revision: i64,
 }
