@@ -1,0 +1,169 @@
+{
+  "fixture_source": "658ccdb2e7fb2d3c9fb9c6d84d5d71bb3e162d2d",
+  "product_source": "f6f583e69518a732bcb8a34b2d09c7f4e3b7e23d",
+  "recorded_inputs_match_fixture_commit": 687,
+  "test_only_changes_since_package_build": {
+    "tests/privileged_vm/p04_fixture_readiness.py": {
+      "built_sha256": "fbd6eb7238aee4a31d8e56b49b66fadef84c37d3ea8221b3bf81acf4636c445e",
+      "fixture_sha256": "de1b9e1ea084ae5bca0f3cc3777ab8e8dc7e7b27cb903847ef753d76075214f8"
+    },
+    "tests/privileged_vm/p04_mounts_guest.py": {
+      "built_sha256": "75eb191a6ca882c231a7343f8f87879fb3d7d1711b8e026a63781d25c2a0567b",
+      "fixture_sha256": "2efeeed3f423ce895e9e61eb860780be2b20eb9958defc536b14ea3cc8b72dbd"
+    },
+    "tests/reference/test_p04_fixture_readiness.py": {
+      "built_sha256": "ea5ae096b7a760c29bef4e983348f4ba5206610a95bde05777c7898df8bf2008",
+      "fixture_sha256": "33111582664b6f0d1eb3dcae866dca1217a1add041597d651e2ef50902dd6108"
+    }
+  },
+  "native_reference_tests": 91,
+  "native_precommit_record_head": "df62f5bcea15f49b2c1dd6b69dbbd3c366c905f2",
+  "native_recorded_inputs_match_fixture_commit": true,
+  "docker_startup": {
+    "scope": "read-only fixture startup; no admission or later runtime authority",
+    "parent_pid": 7074,
+    "parent_start": 21969,
+    "initial": {
+      "tasks": [
+        [
+          7074,
+          21969
+        ],
+        [
+          7075,
+          21972
+        ],
+        [
+          7076,
+          21972
+        ],
+        [
+          7077,
+          21972
+        ],
+        [
+          7078,
+          21972
+        ],
+        [
+          7079,
+          21974
+        ],
+        [
+          7080,
+          21975
+        ],
+        [
+          7090,
+          21989
+        ]
+      ],
+      "fds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ]
+    },
+    "final": {
+      "tasks": [
+        [
+          7074,
+          21969
+        ],
+        [
+          7075,
+          21972
+        ],
+        [
+          7076,
+          21972
+        ],
+        [
+          7077,
+          21972
+        ],
+        [
+          7078,
+          21972
+        ],
+        [
+          7079,
+          21974
+        ],
+        [
+          7080,
+          21975
+        ],
+        [
+          7090,
+          21989
+        ]
+      ],
+      "fds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        22
+      ]
+    },
+    "membership_changes": 3,
+    "read_passes": 50,
+    "quiet_seconds": 3.0068155189999857,
+    "elapsed_seconds": 5.988130092000006,
+    "service_stopped_or_modified": false
+  },
+  "vm": {
+    "started": "2026-10-30T16:13:03.311451+00:00",
+    "ended": "2026-10-30T16:17:14.872901+00:00",
+    "exit_code": 1,
+    "minimum_available_bytes": 5394800640,
+    "inputs_unchanged": true,
+    "guard_triggered": false
+  },
+  "stage": "await_terminal_receipt",
+  "action": "23e8135de594a033ff65857d459c83094d88d9adc47e370a5e35aed0bd4e8543",
+  "job_state": "needs_intervention",
+  "root_receipt_and_exact_effect_stage_recorded": false,
+  "admission_diagnostic_records": 0,
+  "vm_scratch_removed": true,
+  "a1_accepted": false,
+  "installed_ui_qualification": false,
+  "operation_retried": false,
+  "production_pi_accessed": false
+}

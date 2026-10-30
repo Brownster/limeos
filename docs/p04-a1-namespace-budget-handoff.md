@@ -1,5 +1,14 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 30 readiness follow-up: [bounded Docker fixture startup is qualified](rewrite-evidence/p04/2026-10-30-a1-docker-fixture-readiness/README.md)
+at `658ccdb`; all 91 reference cases and scoped lint/format checks pass. A fresh
+canonical guest with the unchanged packages completed startup, negative API
+cases, positive plan, approval and queue. Execution retained `needs_intervention`
+without the earlier admission diagnostics. The exact Root receipt/effect stage
+was not captured; no mount acceptance is credited. Add bounded read-only
+post-failure receipt/quiescence and claim observations before the next distinct
+guest. Preserve original deadlines, comparisons and recovery barriers.
+
 October 30 installed context follow-up: [two guarded runs preserve separate refusals](rewrite-evidence/p04/2026-10-30-a1-docker-startup-and-deadline/README.md)
 at `f6f583e`. The 384-MiB guest queued the genuinely approved mount, then Core
 retained `needs_intervention` after Root's original configuration lifetime
