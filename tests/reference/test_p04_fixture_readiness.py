@@ -100,6 +100,159 @@ class FixtureReadinessTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     function(run, *args)
                 run.assert_not_called()
+            with (
+                mock.patch.object(fixture, "_docker_json") as read,
+                self.assertRaises(ValueError),
+            ):
+                fixture.wait_docker_startup({"pid": 7043, "uid": 0}, "engine")
+            read.assert_not_called()
+
+    def docker(self, membership=None, response=None):
+        peer = {"pid": 7043, "uid": 0, "gid": 0}
+        stable = {"tasks": [(7043, 100)], "fds": [0, 1, 2, 3]}
+
+        def get(_, path, limit, deadline):
+            self.assertGreater(deadline, self.clock)
+            self.assertLessEqual(limit, 512 * 1024)
+            if response:
+                return response(path)
+            if path == "/version":
+                return {"ApiVersion": "1.41", "MinAPIVersion": "1.24"}
+            if path == "/v1.41/info":
+                return {"ID": "engine"}
+            self.assertEqual(path, "/v1.41/containers/json?all=1")
+            return []
+
+        with (
+            mock.patch.object(fixture, "_start", return_value=100),
+            mock.patch.object(
+                fixture,
+                "_docker_membership",
+                side_effect=lambda *_: membership(self.clock) if membership else stable,
+            ),
+            mock.patch.object(fixture, "_docker_json", side_effect=get) as reads,
+        ):
+            return fixture.wait_docker_startup(peer, "engine"), reads
+
+    def test_docker_waits_for_natural_task_and_fd_settling_using_only_reads(self):
+        def membership(now):
+            return {
+                "tasks": [(7043, 100)] + ([(7420, 200)] if now >= 1 else []),
+                "fds": [0, 1, 2] + ([8] if now >= 2 else []),
+            }
+
+        report, reads = self.docker(membership)
+        self.assertGreaterEqual(report["elapsed_seconds"], 5)
+        self.assertEqual(report["membership_changes"], 2)
+        self.assertGreaterEqual(report["quiet_seconds"], 3)
+        self.assertEqual(report["final"]["tasks"], [(7043, 100), (7420, 200)])
+        self.assertFalse(report["service_stopped_or_modified"])
+        self.assertEqual(reads.call_count, 3 * report["read_passes"])
+
+    def test_docker_persistent_churn_and_late_quiet_never_report_ready(self):
+        with self.assertRaises(TimeoutError):
+            self.docker(lambda now: {"tasks": [(7043, 100)], "fds": [int(now * 100)]})
+        self.clock = 0
+        with (
+            mock.patch.object(
+                fixture.time, "sleep", side_effect=lambda _: self.advance(15)
+            ),
+            self.assertRaises(TimeoutError),
+        ):
+            self.docker()
+
+    def test_docker_changed_identity_inventory_and_invalid_version_refuse(self):
+        for path, value in (
+            ("/version", []),
+            ("/version", {"ApiVersion": "1.40"}),
+            ("/version", {"ApiVersion": "1.41", "MinAPIVersion": "1.42"}),
+            ("/version", {"ApiVersion": "1.٤١"}),
+            ("/v1.41/info", {"ID": "other-engine"}),
+            ("/v1.41/containers/json?all=1", [{"Id": "container"}]),
+        ):
+            self.clock = 0
+
+            def reply(request, path=path, value=value):
+                if request == path:
+                    return value
+                return (
+                    {"ApiVersion": "1.41"}
+                    if request == "/version"
+                    else {"ID": "engine"}
+                )
+
+            with self.subTest(path=path, value=value), self.assertRaises(ValueError):
+                self.docker(response=reply)
+
+    def test_docker_peer_replacement_closes_socket_without_sending_request(self):
+        connection = mock.Mock()
+        sock = mock.Mock()
+        sock.getsockopt.return_value = fixture.struct.pack("3i", 9999, 0, 0)
+        with (
+            mock.patch.object(
+                fixture.http.client, "HTTPConnection", return_value=connection
+            ),
+            mock.patch.object(fixture.socket, "socket", return_value=sock),
+            self.assertRaises(ValueError),
+        ):
+            fixture._docker_json(
+                {"pid": 7043, "uid": 0, "gid": 0}, "/version", 8192, 15
+            )
+        connection.request.assert_not_called()
+        connection.close.assert_called_once()
+
+    def test_docker_read_is_bounded_authenticated_and_always_closed(self):
+        for status, raw in ((200, b"{}"), (503, b"{}"), (200, b"x" * 8193)):
+            connection = mock.Mock()
+            reply = connection.getresponse.return_value
+            reply.status, reply.read.return_value = status, raw
+            sock = mock.Mock()
+            sock.getsockopt.return_value = fixture.struct.pack("3i", 7043, 0, 0)
+            with (
+                self.subTest(status=status, size=len(raw)),
+                mock.patch.object(
+                    fixture.http.client, "HTTPConnection", return_value=connection
+                ),
+                mock.patch.object(fixture.socket, "socket", return_value=sock),
+            ):
+                if status == 200 and len(raw) <= 8192:
+                    self.assertEqual(
+                        fixture._docker_json(
+                            {"pid": 7043, "uid": 0, "gid": 0}, "/version", 8192, 15
+                        ),
+                        {},
+                    )
+                else:
+                    with self.assertRaises(ValueError):
+                        fixture._docker_json(
+                            {"pid": 7043, "uid": 0, "gid": 0}, "/version", 8192, 15
+                        )
+            connection.request.assert_called_once_with(
+                "GET", "/version", headers={"Connection": "close"}
+            )
+            reply.read.assert_called_once_with(8193)
+            connection.close.assert_called_once()
+
+    def test_docker_membership_rejects_parent_replacement(self):
+        with (
+            mock.patch.object(fixture, "_start", side_effect=[100, 200]),
+            mock.patch.object(fixture, "_ids", return_value=[]),
+            self.assertRaises(ValueError),
+        ):
+            fixture._docker_membership(7043, 100)
+
+    def test_docker_proc_membership_rejects_excess_or_non_numeric_entries(self):
+        for names in (["0", "1", "2"], ["../other"], ["4294967296"]):
+            entries = mock.MagicMock()
+            entries.__enter__.return_value = iter(
+                SimpleNamespace(name=n) for n in names
+            )
+            with (
+                self.subTest(names=names),
+                mock.patch.object(fixture.os, "scandir", return_value=entries),
+                self.assertRaises(ValueError),
+            ):
+                fixture._ids(Path("unused"), 2)
 
     def udev(self, workers, changed=False):
         run = mock.Mock(return_value=SimpleNamespace(stdout="278\n"))

@@ -1697,12 +1697,20 @@ def qualify(repo, output, package_version, authority_schema):
             "catalog differs from exact managed selection",
         )
         result["stage"] = "fixture_udev_quiescence"
-        from p04_fixture_readiness import wait_udev_workers
+        from p04_fixture_readiness import wait_docker_startup, wait_udev_workers
 
         result["fixture_udev_quiescence"] = wait_udev_workers(run)
         print(
             "A1_FIXTURE_UDEV_QUIESCENCE "
             + json.dumps(result["fixture_udev_quiescence"]),
+            flush=True,
+        )
+        result["stage"] = "fixture_docker_startup"
+        result["fixture_docker_startup"] = wait_docker_startup(
+            result["docker"]["peer"], result["docker"]["id"]
+        )
+        print(
+            "A1_FIXTURE_DOCKER_STARTUP " + json.dumps(result["fixture_docker_startup"]),
             flush=True,
         )
         result["stage"] = "pre_effect_api_refusals"

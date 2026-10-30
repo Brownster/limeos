@@ -1,8 +1,10 @@
 """Bounded disposable-guest setup observations, never production admission."""
 
+import http.client
 import json
 import os
 import socket
+import struct
 import time
 from pathlib import Path
 
@@ -78,6 +80,133 @@ def _read(path):
     if len(value) > 4096:
         raise ValueError("Fixture proc field exceeds bound")
     return value.decode("ascii")
+
+
+def _start(proc):
+    raw = _read(proc / "stat")
+    return int(raw[raw.rindex(")") + 1 :].split()[19])
+
+
+def _ids(path, limit):
+    result = []
+    with os.scandir(path) as entries:
+        for entry in entries:
+            name = entry.name
+            if (
+                len(result) >= limit
+                or not name.isascii()
+                or not name.isdecimal()
+                or len(name) > 10
+                or int(name) > 0xFFFF_FFFF
+            ):
+                raise ValueError("Invalid fixture Docker proc membership")
+            result.append(int(name))
+    return sorted(result)
+
+
+def _docker_membership(pid, start):
+    proc = PROC / str(pid)
+    if _start(proc) != start:
+        raise ValueError("Fixture Docker parent changed")
+    tasks = [(tid, _start(proc / "task" / str(tid))) for tid in _ids(proc / "task", 64)]
+    fds = _ids(proc / "fd", 256)
+    if _start(proc) != start:
+        raise ValueError("Fixture Docker parent changed")
+    return {"tasks": tasks, "fds": fds}
+
+
+def _docker_json(peer, path, limit, deadline):
+    # These fixed GETs exercise the real zero-container collector's HTTP paths.
+    # No daemon configuration, plan, approval or effect endpoint is called.
+    connection = http.client.HTTPConnection("localhost", timeout=_before(deadline))
+    try:
+        connection.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        connection.sock.settimeout(_before(deadline))
+        connection.sock.connect("/run/docker.sock")
+        actual = struct.unpack(
+            "3i", connection.sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
+        )
+        if actual != (peer["pid"], peer["uid"], peer["gid"]):
+            raise ValueError("Fixture Docker peer changed")
+        connection.request("GET", path, headers={"Connection": "close"})
+        reply = connection.getresponse()
+        raw = reply.read(limit + 1)
+        _before(deadline)
+        if reply.status != 200 or len(raw) > limit:
+            raise ValueError("Invalid fixture Docker read response")
+        return json.loads(raw)
+    finally:
+        connection.close()
+
+
+def wait_docker_startup(peer, engine_id):
+    """Exercise read paths, then observe natural startup settling before planning."""
+    _guest()
+    if (
+        type(peer.get("pid")) is not int
+        or not 1 < peer["pid"] <= 0xFFFF_FFFF
+        or peer.get("uid") != 0
+        or not isinstance(engine_id, str)
+        or not 1 <= len(engine_id) <= 256
+    ):
+        raise ValueError("Live fixture Docker identity required")
+    started = time.monotonic()
+    deadline = started + 15
+    start = _start(PROC / str(peer["pid"]))
+    initial = previous = _docker_membership(peer["pid"], start)
+    quiet_since = started
+    changes = 0
+    for attempt in range(96):
+        _before(deadline)
+        version = _docker_json(peer, "/version", 8192, deadline)
+        api = version.get("ApiVersion") if isinstance(version, dict) else None
+        minimum = (
+            version.get("MinAPIVersion", "1.24") if isinstance(version, dict) else None
+        )
+        if not all(
+            isinstance(v, str)
+            and v.startswith("1.")
+            and v[2:].isascii()
+            and v[2:].isdecimal()
+            for v in (api, minimum)
+        ):
+            raise ValueError("Invalid fixture Docker API version")
+        maximum = min(int(api[2:]), 56)
+        if maximum < 41 or int(minimum[2:]) > maximum:
+            raise ValueError("Unsupported fixture Docker API version")
+        prefix = f"/v1.{maximum}"
+        info = _docker_json(peer, prefix + "/info", 128 * 1024, deadline)
+        containers = _docker_json(
+            peer, prefix + "/containers/json?all=1", 512 * 1024, deadline
+        )
+        if (
+            not isinstance(info, dict)
+            or info.get("ID") != engine_id
+            or containers != []
+        ):
+            raise ValueError("Fixture Docker identity or empty inventory changed")
+        current = _docker_membership(peer["pid"], start)
+        now = time.monotonic()
+        _before(deadline)
+        if current != previous:
+            changes += 1
+            quiet_since = now
+        if now - quiet_since >= 3:
+            return {
+                "scope": "read-only fixture startup; no admission or later runtime authority",
+                "parent_pid": peer["pid"],
+                "parent_start": start,
+                "initial": initial,
+                "final": current,
+                "membership_changes": changes,
+                "read_passes": attempt + 1,
+                "quiet_seconds": now - quiet_since,
+                "elapsed_seconds": now - started,
+                "service_stopped_or_modified": False,
+            }
+        previous = current
+        time.sleep(min(0.1, _before(deadline)))
+    raise TimeoutError("Fixture Docker startup attempt limit exceeded")
 
 
 def wait_udev_workers(run):
