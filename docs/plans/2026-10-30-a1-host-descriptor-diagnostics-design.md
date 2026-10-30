@@ -1,5 +1,17 @@
 # Identify the exact changing host FD table
 
+The [first installed diagnostic run](../rewrite-evidence/p04/2026-10-30-a1-vanished-fd-link/README.md)
+created the positive plan but refused approval when `link.open` returned
+`ENOENT`. It exited before the after-list comparison, so the new membership
+event could not run. Complete the diagnostic coverage by attaching already-read
+owner-before and optional enumerated FD number to earlier `check_fds` failures.
+Forward each original failure unchanged. Existing adjacent I/O diagnostics keep
+the actual errno; context logging must leave errno explicitly unknown rather
+than reconstructing it from the wrapper's failure class. Include directory,
+initial/after enumeration, per-FD deadline and link checks so early exits retain
+the available context. Add no extra reads or predicate changes. Test error
+forwarding, optional unknown FD/errno and bounded output before another candidate.
+
 The [fresh journal-budget candidate](../rewrite-evidence/p04/2026-10-30-a1-host-fd-membership-refusal/README.md)
 passed negative pre-effect cases and refused positive plan creation at
 `scan.fds Conflict`. The remaining unlabelled return compares sorted FD-number

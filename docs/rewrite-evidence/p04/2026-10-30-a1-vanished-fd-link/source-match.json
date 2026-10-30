@@ -1,0 +1,91 @@
+{
+  "source": "c58833c49049e62fc9bcff010c6f07e37779475e",
+  "recorded_inputs_match_commit": 687,
+  "a1_accepted": false,
+  "continuous_guard_terminal_record_present": true,
+  "vm_exit_code": 1,
+  "host_guard_triggered": false,
+  "minimum_available_bytes": 5109948416,
+  "inputs_unchanged": true,
+  "started": "2026-10-30T10:47:22.950288+00:00",
+  "ended": "2026-10-30T10:51:33.590137+00:00",
+  "vm_scratch_removed": true,
+  "stage": "human_plan_approval_queue",
+  "error": "unexpected API status 503, expected 200: {\"code\":\"unavailable\",\"message\":\"The service is unavailable.\",\"retry\":true,\"audit_id\":\"http-6\"}",
+  "positive_plan_created": true,
+  "positive_mount_job_created": false,
+  "journal_execution_profile_exercised": false,
+  "actual_refusal": "link.open ENOENT / fds.link Unavailable",
+  "owner_and_fd_number_recorded": false,
+  "membership_comparison_reached": false,
+  "admission_diagnostic_records": 0,
+  "pre_effect_cases": [
+    {
+      "case": "extra_path_field",
+      "responses": [
+        {
+          "status": 400,
+          "code": "invalid_input",
+          "retry": false
+        }
+      ],
+      "no_effect": true
+    },
+    {
+      "case": "tampered_approval_digest",
+      "responses": [
+        {
+          "status": 409,
+          "code": "conflict",
+          "retry": false
+        }
+      ],
+      "no_effect": true
+    },
+    {
+      "case": "cancelled_approved_plan",
+      "responses": [
+        {
+          "status": 404,
+          "code": "not_found",
+          "retry": false
+        },
+        {
+          "status": 404,
+          "code": "not_found",
+          "retry": false
+        }
+      ],
+      "no_effect": true
+    }
+  ],
+  "packages": {
+    "limeos-shadow_0.4.10+fdowner.1_amd64.deb": "4e0329bb9572875e13a616921fa89271fb5bb7d91bbef238006e654aa242f63b",
+    "limeos_0.4.10+fdowner.1_amd64.deb": "3c0c7265df89ec27fb7a4b8a47951d513c335b1ec8e6005cc38014290c7c0a3d"
+  },
+  "binaries": {
+    "limeos-core": {
+      "sha256": "15b4ed69dfdba98f9c65a6932f1d136ba9dd8a2fe05639a5c042b544d61d9eba",
+      "bytes": 7044376
+    },
+    "limeos-password-worker": {
+      "sha256": "2c32e7ed5721d60e74273e5a97ad7b6e8cb6f14f87aa6900b9b2ae84fd78d3db",
+      "bytes": 553760
+    },
+    "limeos-executor": {
+      "sha256": "444356de81503103851da1e5860b1d79c1477beabf8f44e52b0a530c6ec5ca73",
+      "bytes": 6044824
+    },
+    "limeos-stack-read-worker": {
+      "sha256": "665e3f534ec73d774fad49a7ad2728e36dd6c7d37709207aaf8b19aaa392be0b",
+      "bytes": 1233760
+    },
+    "limeosctl": {
+      "sha256": "a7500618733476e8404f35a905472a1480ef61140dc5ced16ad60eeda62cee1d",
+      "bytes": 906080
+    }
+  },
+  "upgrade_qualification": false,
+  "installed_ui_qualification": false,
+  "next": "Attach already-read owner-before and FD-number context to per-link failures; retain the underlying error without inferring errno or retrying this flow"
+}

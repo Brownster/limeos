@@ -1,5 +1,12 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 30 early-link follow-up: the [first FD-owner diagnostic guest](rewrite-evidence/p04/2026-10-30-a1-vanished-fd-link/README.md)
+created the positive plan, then approval refused because `link.open` returned
+`ENOENT`. That earlier return precedes the after-list membership event, leaving
+the owner and FD number unknown. The continuously guarded run preserved inputs
+and ended without a memory stop; no positive job or journal execution was reached.
+Attach available owner/FD context to earlier failures before another candidate.
+
 October 30 diagnostic follow-up: [bounded FD-owner diagnostics are qualified](rewrite-evidence/p04/2026-10-30-a1-fd-owner-diagnostics/README.md)
 at `6ed0155`. The exact comparison retains the already-read owner-before identity
 and four numeric samples per side, with every predicate and read order intact.
