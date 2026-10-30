@@ -1,5 +1,12 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 30 diagnostic follow-up: [bounded FD-owner diagnostics are qualified](rewrite-evidence/p04/2026-10-30-a1-fd-owner-diagnostics/README.md)
+at `6ed0155`. The exact comparison retains the already-read owner-before identity
+and four numeric samples per side, with every predicate and read order intact.
+All 16 focused and 233 full storage runtime cases pass, plus doctests and strict
+storage/executor Clippy. Build a distinct candidate to identify the actual owner;
+no installed mount acceptance is added by these native checks.
+
 October 30 installed follow-up: the [fresh journal-budget guest](rewrite-evidence/p04/2026-10-30-a1-host-fd-membership-refusal/README.md)
 passed the negative API cases, then positive plan creation refused because a
 host FD-number table changed during comparison. The owner and exact FD values
