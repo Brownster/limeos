@@ -2,6 +2,7 @@
 
 import contextlib
 import gc
+import http.server
 import importlib.util
 import io
 import json
@@ -9,6 +10,7 @@ import os
 import sqlite3
 import stat
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -224,6 +226,137 @@ class FailureObservations(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     guest.execution_failure_snapshot(action)
         read.assert_not_called()
+
+
+class ApiTransportLifetime(unittest.TestCase):
+    """Real loopback HTTP lifetime checks; no Core, Root or storage effect."""
+
+    def setUp(self):
+        owner = self
+        self.accepted = []
+        self.records = []
+
+        class Server(http.server.ThreadingHTTPServer):
+            def get_request(self):
+                result = super().get_request()
+                owner.accepted.append(result[1])
+                return result
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def setup(self):
+                super().setup()
+                self.connection.settimeout(2)
+
+            def do_GET(self):
+                body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+                owner.records.append(
+                    (self.command, self.path, body, dict(self.headers))
+                )
+                reply = b"{}"
+                if self.path == "/oversize":
+                    reply = b"x" * (guest.LIMIT + 1)
+                elif self.path == "/bad-json":
+                    reply = b"{"
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(reply)))
+                if self.path == "/close":
+                    self.send_header("Connection", "close")
+                    self.close_connection = True
+                self.end_headers()
+                self.wfile.write(reply)
+
+            do_POST = do_GET
+
+            def log_message(self, *_):
+                pass
+
+        server = Server(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(
+            target=lambda: server.serve_forever(poll_interval=0.01)
+        )
+        thread.start()
+
+        def stop():
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            self.assertFalse(thread.is_alive())
+
+        self.addCleanup(stop)
+        original = guest.http.client.HTTPConnection
+
+        def connect(host, port, timeout):
+            self.assertEqual((host, port, timeout), ("127.0.0.1", 8003, 40))
+            return original("127.0.0.1", server.server_port, timeout=2)
+
+        patch = mock.patch.object(
+            guest.http.client, "HTTPConnection", side_effect=connect
+        )
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_session_reuses_one_real_socket_where_individual_calls_open_two(self):
+        guest.api("/legacy-first")
+        guest.api("/legacy-second")
+        self.assertEqual(len(self.accepted), 2)
+        session = guest.FixtureApiSession()
+        self.addCleanup(session.close)
+        session(
+            "/plan", "POST", {"selected": "fixture"}, "session-cookie", "csrf-value"
+        )
+        inode = session.observation()["socket_inode"]
+        for _ in range(3):
+            self.assertEqual(session("/job")[0], 200)
+            self.assertEqual(session.observation()["socket_inode"], inode)
+        self.assertEqual(len(self.accepted), 3)
+        self.assertEqual(session.observation()["successful_requests"], 4)
+        self.assertEqual(session.observation()["attempted_requests"], 4)
+        self.assertEqual(session.observation()["reconnects"], 0)
+        method, path, body, headers = self.records[2]
+        self.assertEqual(
+            (method, path, json.loads(body)), ("POST", "/plan", {"selected": "fixture"})
+        )
+        self.assertEqual(headers["Origin"], "https://localhost")
+        self.assertEqual(headers["Cookie"], "session-cookie")
+        self.assertEqual(headers["X-CSRF-Token"], "csrf-value")
+
+    def test_closed_or_invalid_reply_is_fatal_without_retrying_the_post(self):
+        for path in ("/close", "/bad-json", "/oversize"):
+            with self.subTest(path=path):
+                session = guest.FixtureApiSession()
+                before = len(self.records)
+                with self.assertRaises(ValueError):
+                    session(path, "POST", {"request": "once"})
+                self.assertTrue(session.closed)
+                self.assertEqual(session.observation()["attempted_requests"], 1)
+                self.assertEqual(len(self.records), before + 1)
+                with self.assertRaises(ValueError):
+                    session("/never-send-again", "POST", {"request": "once"})
+                self.assertEqual(len(self.records), before + 1)
+
+    def test_new_connection_requires_an_explicit_new_session(self):
+        session = guest.FixtureApiSession()
+        session("/before-restart-boundary")
+        session.close()
+        session.close()
+        with self.assertRaises(ValueError):
+            session("/cannot-reconnect")
+        replacement = guest.FixtureApiSession()
+        self.addCleanup(replacement.close)
+        replacement("/after-restart-boundary")
+        self.assertEqual(len(self.accepted), 2)
+
+    def test_changed_socket_refuses_before_another_request(self):
+        session = guest.FixtureApiSession()
+        self.addCleanup(session.close)
+        session("/initial")
+        session.connection.close()
+        with self.assertRaises(ValueError):
+            session("/must-not-reconnect")
+        self.assertEqual(len(self.records), 1)
+        self.assertEqual(session.observation()["attempted_requests"], 1)
 
 
 if __name__ == "__main__":

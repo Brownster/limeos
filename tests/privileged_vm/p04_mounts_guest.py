@@ -924,27 +924,81 @@ def stop_prior_target_writer():
     }
 
 
-def api(path, method="GET", body=None, cookie=None, csrf=None):
-    connection = http.client.HTTPConnection("127.0.0.1", 8003, timeout=40)
+def _api_request(connection, path, method="GET", body=None, cookie=None, csrf=None):
     headers = {"Origin": "https://localhost", "Content-Type": "application/json"}
     if cookie:
         headers["Cookie"] = cookie
     if csrf:
         headers["X-CSRF-Token"] = csrf
+    connection.request(method, path, None if body is None else canonical(body), headers)
+    response = connection.getresponse()
+    data = response.read(LIMIT + 1)
+    require(len(data) <= LIMIT, "API response exceeds fixture bound")
+    return (
+        response.status,
+        dict(response.getheaders()),
+        parse_json(data) if data else None,
+    )
+
+
+def api(path, method="GET", body=None, cookie=None, csrf=None):
+    connection = http.client.HTTPConnection("127.0.0.1", 8003, timeout=40)
     try:
-        connection.request(
-            method, path, None if body is None else canonical(body), headers
-        )
-        response = connection.getresponse()
-        data = response.read(LIMIT + 1)
-        require(len(data) <= LIMIT, "API response exceeds fixture bound")
-        return (
-            response.status,
-            dict(response.getheaders()),
-            parse_json(data) if data else None,
-        )
+        return _api_request(connection, path, method, body, cookie, csrf)
     finally:
         connection.close()
+
+
+class FixtureApiSession:
+    """One fixture connection; failed/closed transports never reconnect or retry."""
+
+    def __init__(self):
+        self.connection = http.client.HTTPConnection("127.0.0.1", 8003, timeout=40)
+        self.socket = None
+        self.socket_inode = None
+        self.requests = 0
+        self.attempts = 0
+        self.closed = False
+
+    def __call__(self, path, method="GET", body=None, cookie=None, csrf=None):
+        require(not self.closed, "fixture API session is closed; no retry")
+        try:
+            require(
+                self.connection.sock is self.socket,
+                "fixture API socket changed before request",
+            )
+            self.attempts += 1
+            response = _api_request(self.connection, path, method, body, cookie, csrf)
+            require(
+                self.connection.sock is not None, "fixture API peer closed connection"
+            )
+            if self.socket is None:
+                self.socket = self.connection.sock
+                self.socket_inode = os.fstat(self.socket.fileno()).st_ino
+            require(
+                self.connection.sock is self.socket
+                and os.fstat(self.socket.fileno()).st_ino == self.socket_inode,
+                "fixture API socket identity changed",
+            )
+            self.requests += 1
+            return response
+        except BaseException:
+            self.close()
+            raise
+
+    def observation(self):
+        return {
+            "scope": "fixture transport lifetime; no storage admission authority",
+            "successful_requests": self.requests,
+            "attempted_requests": self.attempts,
+            "socket_inode": self.socket_inode,
+            "reconnects": 0,
+        }
+
+    def close(self):
+        if not self.closed:
+            self.closed = True
+            self.connection.close()
 
 
 def expect(status, response):
@@ -1654,6 +1708,7 @@ def qualify(repo, output, package_version, authority_schema):
     evidence = None
     started = False
     failure = None
+    positive_api = None
     try:
         guard_host(repo, output)
         evidence = parse_json(read(output, 1024 * 1024))
@@ -1826,8 +1881,12 @@ def qualify(repo, output, package_version, authority_schema):
             == 403,
             "CSRF refusal missing",
         )
+        positive_api = FixtureApiSession()
         proposal = expect(
-            201, api(BASE + "/plans", "POST", {"target_id": device["id"]}, cookie, csrf)
+            201,
+            positive_api(
+                BASE + "/plans", "POST", {"target_id": device["id"]}, cookie, csrf
+            ),
         )
         effect = proposal["plan"]["effect"]
         require(
@@ -1856,7 +1915,7 @@ def qualify(repo, output, package_version, authority_schema):
         )
         approval = expect(
             200,
-            api(
+            positive_api(
                 BASE + f"/plans/{proposal['plan']['id']}/approval",
                 "POST",
                 {"digest": proposal["digest"]},
@@ -1869,7 +1928,10 @@ def qualify(repo, output, package_version, authority_schema):
             "approval": approval["token"],
             "idempotency_key": "a1-mount-positive-once",
         }
-        job = expect(202, api(BASE + "/jobs", "POST", queue, cookie, csrf))
+        # A lost/closed queue response can still have committed the job. Keep
+        # its reviewed action available for later read-only failure evidence.
+        result["queue_requested_action"] = effect["action"]
+        job = expect(202, positive_api(BASE + "/jobs", "POST", queue, cookie, csrf))
         result["action"] = job["id"]
         result["stage"] = "await_terminal_receipt"
         publish(output, evidence, result)
@@ -1880,8 +1942,9 @@ def qualify(repo, output, package_version, authority_schema):
                 "approved mount did not complete in fixture bound",
             )
             time.sleep(0.2)
-            job = expect(200, api(BASE + f"/jobs/{job['id']}", cookie=cookie))
+            job = expect(200, positive_api(BASE + f"/jobs/{job['id']}", cookie=cookie))
         result["job"] = job
+        result["positive_api_session"] = positive_api.observation()
         require(
             job["state"] == "succeeded",
             "mount job is uncertain/refused; preserve claims and do not retry",
@@ -1901,7 +1964,7 @@ def qualify(repo, output, package_version, authority_schema):
         before_replay = query(
             CORE_DB, "SELECT count(*) FROM events WHERE job=?", (job["id"],)
         )
-        replay = expect(202, api(BASE + "/jobs", "POST", queue, cookie, csrf))
+        replay = expect(202, positive_api(BASE + "/jobs", "POST", queue, cookie, csrf))
         require(
             replay == job and mounted_snapshot(facts, uuid) == snapshot,
             "lost-response replay changed job or mount identity",
@@ -1918,17 +1981,23 @@ def qualify(repo, output, package_version, authority_schema):
             == result["durable"],
             "queue replay changed root receipt/resources/audit",
         )
+        result["positive_api_session"] = positive_api.observation()
+        positive_api.close()
+        positive_api = None
         run("systemctl", "restart", "limeos-core")
         deadline = time.monotonic() + 30
         while run("/usr/lib/limeos/limeosctl", "status", check=False).returncode:
             require(time.monotonic() < deadline, "Core did not recover verified job")
             time.sleep(0.2)
+        positive_api = FixtureApiSession()
         require(
-            expect(200, api(BASE + f"/jobs/{job['id']}", cookie=cookie)) == job,
+            expect(200, positive_api(BASE + f"/jobs/{job['id']}", cookie=cookie))
+            == job,
             "stored verified job did not survive Core restart",
         )
         require(
-            expect(202, api(BASE + "/jobs", "POST", queue, cookie, csrf)) == job,
+            expect(202, positive_api(BASE + "/jobs", "POST", queue, cookie, csrf))
+            == job,
             "post-restart replay changed job",
         )
         require(
@@ -1940,6 +2009,7 @@ def qualify(repo, output, package_version, authority_schema):
             "Core restart repeated effect or changed verified facts",
         )
         preserved_authority(result["authority_before"], authority_snapshot(job["id"]))
+        result["post_restart_api_session"] = positive_api.observation()
         result["data_after"] = {
             name: unchanged_file(
                 (TARGET if name == "backup" else Path("/mnt") / name) / "sentinel"
@@ -1980,9 +2050,12 @@ def qualify(repo, output, package_version, authority_schema):
                 result["after_refusal_facts"] = _after_refusal_facts(
                     result.get("service")
                 )
-                if result.get("action") is not None:
+                observed_action = result.get(
+                    "action", result.get("queue_requested_action")
+                )
+                if observed_action is not None:
                     result["execution_after_failure"] = execution_failure_snapshot(
-                        result["action"]
+                        observed_action
                     )
                 result["unit_diagnostics"] = run(
                     "journalctl",
@@ -1999,6 +2072,9 @@ def qualify(repo, output, package_version, authority_schema):
             except Exception as diagnostic_error:  # noqa: BLE001 - Diagnostics never replace the retained primary failure.
                 result["diagnostic_error"] = str(diagnostic_error)[:1000]
     finally:
+        if positive_api is not None:
+            result["last_api_session"] = positive_api.observation()
+            positive_api.close()
         if started:
             # Stopping a unit does not prove helper death, release claims or
             # authorize unmount/repair. The runner disposes of the whole VM.
