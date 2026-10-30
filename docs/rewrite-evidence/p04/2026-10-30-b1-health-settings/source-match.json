@@ -1,0 +1,86 @@
+{
+  "qualified_commit": "32265d41163109c161f51b76b417abf4a07f9e5e",
+  "recorded_precommit_head": "f6b4fef46abe0cb457a9c7de0dfd16519654bad1",
+  "final_identical_guard_input_maps": [
+    "b1-settings-rust-2",
+    "b1-settings-clippy-2",
+    "b1-settings-contracts-1"
+  ],
+  "committed_input_count": 702,
+  "committed_inputs_match": true,
+  "worktree_inputs_match": true,
+  "first_passing_rust_only_source_delta": [
+    "crates/domain/src/automation/settings.rs"
+  ],
+  "runtime_tests": 559,
+  "compile_fail_doctests": 7,
+  "new_tests": 12,
+  "covered_frozen_fixture_cases": 21,
+  "total_frozen_fixture_cases": 32,
+  "checks": {
+    "b1-settings-clippy-1": {
+      "started": "2026-10-30T22:14:38.204472+00:00",
+      "ended": "2026-10-30T22:14:53.177927+00:00",
+      "exit_code": 101,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 4731265024,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-settings-clippy-2": {
+      "started": "2026-10-30T22:15:22.501732+00:00",
+      "ended": "2026-10-30T22:15:55.444464+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 4589764608,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-settings-contracts-1": {
+      "started": "2026-10-30T22:17:40.926896+00:00",
+      "ended": "2026-10-30T22:17:47.121041+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5159063552,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-settings-rust-1": {
+      "started": "2026-10-30T22:13:15.355310+00:00",
+      "ended": "2026-10-30T22:14:11.303965+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 4322566144,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-settings-rust-2": {
+      "started": "2026-10-30T22:16:14.158365+00:00",
+      "ended": "2026-10-30T22:17:08.143427+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 4279930880,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    }
+  },
+  "reproduction_source_hashes": {
+    ".cache/b1-settings-qualification/archive_evidence.py": "7fc4cfd502af1ead1efd09cb5215fa53a5890b35db714e36206b4927b18e126c",
+    ".cache/b1-settings-qualification/launch_check.py": "91c9fd63b28557effefa004ac6d975fd2f3f68aacb825b1a548879c6fa7c2311",
+    ".cache/main-consolidation/guard.py": "380a78ebd9dbb3902a97bebbcdb164df1e6bfc4c069b56a45092af6eb26813d6",
+    ".cache/stack-installed-qualification/detached_guard.py": "a02420e3fc4bc48bfb9c2f0cc9739f0ffde3635e78d089d932d75c1e1290d21a",
+    "crates/domain/src/automation/mod.rs": "aacabf4dc0e6702e7be719d3d4b0264a98750ed9208ee686297df8b29805c591",
+    "crates/domain/src/automation/settings.rs": "51a9bf665367ff2a53e00bda59dc9418f0f4e41eaaae137cf315327588846507",
+    "crates/domain/src/automation/settings/tests.rs": "30c9082b8e563d1a54095551e552f33e05b213cf00030b939e99e8903b21fbe5",
+    "crates/domain/src/automation/settings/timestamp.rs": "1e07be5c5a90e5287f504192154f0a8be01debef829b348514b132105608ce77",
+    "tests/fixtures/automation/frozen-notification-settings.json": "ab8cadf41fb8610415c693052a26dedbd2e6027d45e4b0ebff4027cb4bd2a2f7",
+    "tests/reference/frozen_notifications.py": "e7391742eefa63a13a69720a56d153601bea4a43018f574c86beafef7a69ab06",
+    "tests/reference/test_frozen_notifications.py": "1b75b2bf23260a459948abf6b741cb2d7f80baaa3be7d6a226b31f300ead5adc"
+  },
+  "scope": "Pure migration-planner tests only; no deployed configuration, Store policy binding, runtime producer, package, ARM64, external send or cutover acceptance"
+}

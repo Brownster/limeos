@@ -1,5 +1,10 @@
 # Plan frozen health settings before binding runtime policy
 
+Implemented by `32265d4`. The
+[handoff](../p04-b1-health-settings-migration-handoff.md) and
+[local evidence](../rewrite-evidence/p04/2026-10-30-b1-health-settings/README.md)
+record the exact parser profile, bounds and remaining integration work.
+
 Baseline `4eea9c8` registers owned history but still folds observations under the
 default alert policy. The [frozen inventory](../p04-frozen-notification-inventory.md)
 contains supported settings and legacy values outside Rust's runtime bounds.

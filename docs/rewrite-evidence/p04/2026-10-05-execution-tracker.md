@@ -244,3 +244,13 @@ remain open. This is a completed local history slice, not RW-045/B1 or P04
 completion. No defect or cutover gate closes. A1 reliability, broader A/B, P05
 and P06 remain required; the historical inventory performance failure remains
 open. Holly's Pi and frozen Python app were untouched; nothing was pushed.
+
+Source `32265d4` adds the next pure
+[health-settings migration prerequisite](../../p04-b1-health-settings-migration-handoff.md).
+[Local evidence](2026-10-30-b1-health-settings/README.md) records 559 domain tests,
+seven compile-fail doctests and required scoped checks against 702 committed
+inputs. Twenty-one pinned frozen cases cover daemon settings, policy precedence
+and silence metadata/expiry; unsupported legacy limits require explicit review
+instead of changed defaults. The existing Store still folds under default
+policy. Configured revisions, protected actual-state acquisition, producer and
+installed acceptance remain open; no phase, defect or cutover gate closes.

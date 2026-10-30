@@ -18,6 +18,13 @@ now records all 84 reference tests passing, including these 11 inventory tests
 after their final formatting. It qualifies Store settlement separately from
 configured-policy and external transport parity.
 
+The [30 October typed migration planner](p04-b1-health-settings-migration-handoff.md)
+now preserves representable health settings and silence metadata, with explicit
+review for unsupported values. Its source-bound domain tests cover the 21
+daemon/policy/expiry/precedence cases here; the other eleven cases cover external
+destination selection, provisioning and saved preferences. It does not read deployed
+configuration or bind policy revisions to the running Store.
+
 The earlier [stack notification handoff](p04-stack-notifications-handoff.md)
 retains its decoder/event fixtures. This inventory adds executable configuration
 and precedence evidence. An in-app outbox alone does not preserve these external
