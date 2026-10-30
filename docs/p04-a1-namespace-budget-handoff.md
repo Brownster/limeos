@@ -1,5 +1,12 @@
 # A1 installed namespace progress, 20 October 2026
 
+October 30 installed follow-up: the [fresh journal-budget guest](rewrite-evidence/p04/2026-10-30-a1-host-fd-membership-refusal/README.md)
+passed the negative API cases, then positive plan creation refused because a
+host FD-number table changed during comparison. The owner and exact FD values
+are unrecorded. The continuously guarded run ended normally with unchanged
+inputs; no positive mount job or journal-held execution was reached. Add bounded
+owner-before/FD-number diagnostics before choosing a runtime correction.
+
 October 30 follow-up: [the typed journal reservation is qualified](rewrite-evidence/p04/2026-10-30-a1-typed-journal-reservation/README.md)
 at `a7bc867`. Execution and unmounted reconciliation borrow the genuine held
 journal for its measured five-descriptor reservation. Ordinary inspection stays

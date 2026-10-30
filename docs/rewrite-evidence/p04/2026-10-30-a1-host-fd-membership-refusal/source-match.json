@@ -1,0 +1,89 @@
+{
+  "source": "e19fca92c0072cd2d2ddb241a2d10c8c9564e8f4",
+  "recorded_inputs_match_commit": 687,
+  "a1_accepted": false,
+  "continuous_guard_terminal_record_present": true,
+  "vm_exit_code": 1,
+  "host_guard_triggered": false,
+  "minimum_available_bytes": 6749884416,
+  "inputs_unchanged": true,
+  "started": "2026-10-30T00:35:41.007619+00:00",
+  "ended": "2026-10-30T00:39:39.081001+00:00",
+  "vm_scratch_removed": true,
+  "stage": "human_plan_approval_queue",
+  "error": "unexpected API status 409, expected 201: {\"code\":\"conflict\",\"message\":\"The request conflicts with current state.\",\"retry\":false,\"audit_id\":\"http-6\"}",
+  "positive_mount_job_created": false,
+  "journal_execution_profile_exercised": false,
+  "actual_refusal": "scan.fds Conflict",
+  "owner_and_compared_fd_numbers_recorded": false,
+  "admission_diagnostic_records": 0,
+  "pre_effect_cases": [
+    {
+      "case": "extra_path_field",
+      "responses": [
+        {
+          "status": 400,
+          "code": "invalid_input",
+          "retry": false
+        }
+      ],
+      "no_effect": true
+    },
+    {
+      "case": "tampered_approval_digest",
+      "responses": [
+        {
+          "status": 409,
+          "code": "conflict",
+          "retry": false
+        }
+      ],
+      "no_effect": true
+    },
+    {
+      "case": "cancelled_approved_plan",
+      "responses": [
+        {
+          "status": 404,
+          "code": "not_found",
+          "retry": false
+        },
+        {
+          "status": 404,
+          "code": "not_found",
+          "retry": false
+        }
+      ],
+      "no_effect": true
+    }
+  ],
+  "packages": {
+    "limeos-shadow_0.4.9+journal.1_amd64.deb": "7a101925edda300cab19b6d9db938f4bb1182cf414c8796ca9185d51446bb348",
+    "limeos_0.4.9+journal.1_amd64.deb": "733762c1442d3d7b01e199fe36fd28b93d632580d782ea0e970cf9ebde8809fe"
+  },
+  "binaries": {
+    "limeos-core": {
+      "sha256": "15b4ed69dfdba98f9c65a6932f1d136ba9dd8a2fe05639a5c042b544d61d9eba",
+      "bytes": 7044376
+    },
+    "limeos-password-worker": {
+      "sha256": "2c32e7ed5721d60e74273e5a97ad7b6e8cb6f14f87aa6900b9b2ae84fd78d3db",
+      "bytes": 553760
+    },
+    "limeos-executor": {
+      "sha256": "54dde9990ab2c5f5610a21b8752bd34667f983700a7c3f03de2a64ddf2fb0286",
+      "bytes": 6040728
+    },
+    "limeos-stack-read-worker": {
+      "sha256": "665e3f534ec73d774fad49a7ad2728e36dd6c7d37709207aaf8b19aaa392be0b",
+      "bytes": 1233760
+    },
+    "limeosctl": {
+      "sha256": "a7500618733476e8404f35a905472a1480ef61140dc5ced16ad60eeda62cee1d",
+      "bytes": 906080
+    }
+  },
+  "upgrade_qualification": false,
+  "installed_ui_qualification": false,
+  "next": "Capture bounded owner-before identity and exact compared FD-number membership without changing predicates or retrying this failed flow"
+}

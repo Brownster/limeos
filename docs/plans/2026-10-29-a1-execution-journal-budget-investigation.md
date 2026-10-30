@@ -1,5 +1,11 @@
 # Account for the retained mount execution journal
 
+The [fresh installed journal-budget candidate](../rewrite-evidence/p04/2026-10-30-a1-host-fd-membership-refusal/README.md)
+refused an ordinary plan inspection at an unlabelled host FD-table membership
+comparison before the positive job or journal-held execution. It supplies no
+installed acceptance for the typed reservation. Keep the qualified native
+reservation and investigate that distinct comparison with exact owner/FD facts.
+
 The [typed correction is qualified at `a7bc867`](../rewrite-evidence/p04/2026-10-30-a1-typed-journal-reservation/README.md).
 Genuine journal-held admission reserves five additional descriptors within the
 existing aggregate model. Ordinary inspection retains its 16-FD baseline;
