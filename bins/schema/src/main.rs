@@ -74,6 +74,15 @@ fn main() {
     );
     emit!("automation-alert", limeos_domain::automation::AlertState);
     emit!(
+        "health-policy-definition",
+        limeos_domain::automation::HealthPolicyDefinition
+    );
+    emit!("health-policy", limeos_domain::automation::HealthPolicyView);
+    emit!(
+        "health-policy-replacement",
+        limeos_domain::automation::ReplaceHealthPolicy
+    );
+    emit!(
         "automation-alert-page",
         limeos_domain::automation::AutomationPage<limeos_domain::automation::AlertState>
     );
@@ -318,6 +327,10 @@ fn main() {
     ts!(limeos_domain::automation::IncidentState);
     ts!(limeos_domain::automation::AlertState);
     ts!(limeos_domain::automation::AlertEventKind);
+    ts!(limeos_domain::automation::HealthPolicySilence);
+    ts!(limeos_domain::automation::HealthPolicyDefinition);
+    ts!(limeos_domain::automation::HealthPolicyView);
+    ts!(limeos_domain::automation::ReplaceHealthPolicy);
     ts!(limeos_domain::automation::AlertEvent);
     ts!(limeos_domain::automation::DeliveryChannel);
     ts!(limeos_domain::automation::DeliveryState);
@@ -426,6 +439,10 @@ fn main() {
         "parameters":[{"name":"after","in":"query","schema":{"type":"string","minLength":1,"maxLength":256}}],
         "responses":{"200":{"description":"Owned alert history","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::AutomationPage<limeos_domain::automation::AlertState>)}}}}
     }});
+    openapi["paths"]["/api/v1/automation/health-policy"] = serde_json::json!({
+        "get":{"security":[{"session":[]}],"description":"Read current owned policy with host-read and narrow health-automation management grants. Implicit revision zero creates no rows. No collection or delivery.","responses":{"200":{"description":"Current owned configuration","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::HealthPolicyView)}}}}},
+        "post":{"security":[{"session":[]}],"description":"Replace owned policy by expected revision with current session, Origin, CSRF, host-read and narrow health-automation management grants. Preserves literal mounts and silence metadata; no credential or resource authority. Lost replies may have committed: reconcile by GET before any explicit retry. The production collector and supervisor remain unavailable.","parameters":[{"name":"Origin","in":"header","required":true,"schema":{"type":"string"}},{"name":"X-CSRF-Token","in":"header","required":true,"schema":{"type":"string","minLength":64,"maxLength":64}}],"requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_domain::automation::ReplaceHealthPolicy)}}},"responses":{"200":{"description":"Committed explicit policy revision","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::HealthPolicyView)}}}}}
+    });
     openapi["paths"]["/api/v1/automation/notifications"] = serde_json::json!({"get":{
         "security":[{"session":[]}],
         "description":"Read at most 32 owned in-app notifications within 64 KiB under current host and per-resource HealthRead grants. Does not publish, send or acknowledge. Partial state remains explicit.",
@@ -752,6 +769,17 @@ fn main() {
             "{}{}",
             std::fs::read_to_string(dir.join("authority-v9.sql")).unwrap(),
             include_str!("../../../crates/persistence/src/migration-v10.sql")
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("authority-v13.sql"),
+        format!(
+            "{}{}{}{}",
+            std::fs::read_to_string(dir.join("authority-v10.sql")).unwrap(),
+            include_str!("../../../crates/persistence/src/migration-v11.sql"),
+            include_str!("../../../crates/persistence/src/migration-v12.sql"),
+            include_str!("../../../crates/persistence/src/migration-v13.sql")
         ),
     )
     .unwrap();

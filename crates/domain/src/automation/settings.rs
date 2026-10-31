@@ -335,6 +335,9 @@ fn categories(object: &Map<String, Value>) -> Result<Vec<AlertKind>> {
 }
 
 mod timestamp;
+pub(super) fn policy_timestamp(value: &str) -> Option<PlannedTimestamp> {
+    timestamp::parse(value)
+}
 fn silence(value: &Value, default_created_at: &str) -> Result<PlannedSilence> {
     let object = value
         .as_object()

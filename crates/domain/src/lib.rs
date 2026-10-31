@@ -228,6 +228,16 @@ pub enum EventKind {
     AutomationNotificationAcknowledged {
         notification: String,
     },
+    AutomationHealthPolicyChanged {
+        #[ts(type = "number")]
+        revision: i64,
+        digest: String,
+    },
+    AutomationNotificationPolicyChecked {
+        notification: String,
+        #[ts(type = "number")]
+        revision: i64,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]

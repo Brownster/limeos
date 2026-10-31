@@ -29,6 +29,7 @@ pub struct ObservationLease {
     generation: i64,
     sequence: i64,
     resources: Vec<String>,
+    policy: Box<HealthPolicyView>,
     deadline: Instant,
 }
 impl std::fmt::Debug for ObservationLease {
@@ -48,6 +49,9 @@ impl ObservationLease {
     }
     pub fn deadline(&self) -> Instant {
         self.deadline
+    }
+    pub fn health_policy(&self) -> &HealthPolicyView {
+        &self.policy
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -131,6 +135,7 @@ struct Context {
     queued: i64,
     state: JobState,
     schedule: Stored,
+    policy: HealthPolicyView,
 }
 fn context(conn: &Connection, job: &ObservationJob) -> Result<Context> {
     if !limeos_domain::opaque_id(&job.id) || !limeos_domain::opaque_id(&job.occurrence.schedule) {
@@ -164,6 +169,9 @@ fn context(conn: &Connection, job: &ObservationJob) -> Result<Context> {
             |r| r.get(0),
         )
         .map_err(durable)?;
+    let bound:Option<i64>=conn.query_row("SELECT coalesce((SELECT policy_revision FROM automation_occurrences WHERE job=?),(SELECT policy_revision FROM automation_observation_results WHERE job=?))",params![job.id,job.id],|r|r.get(0)).map_err(durable)?;
+    let bound = bound.ok_or(Error(ErrorCode::StateNotDurable))?;
+    let policy = super::policy::at(conn, &owner, bound)?;
     Ok(Context {
         owner,
         revision,
@@ -171,6 +179,7 @@ fn context(conn: &Connection, job: &ObservationJob) -> Result<Context> {
         queued,
         state: parse(&json(&state)?)?,
         schedule,
+        policy,
     })
 }
 fn current(conn: &Connection, ctx: &Context, job: &ObservationJob) -> Result<Principal> {
@@ -180,6 +189,8 @@ fn current(conn: &Connection, ctx: &Context, job: &ObservationJob) -> Result<Pri
         || ctx.schedule.owner_revision != ctx.revision
         || ctx.schedule.schedule.revision != job.occurrence.revision
         || ctx.schedule.schedule.paused
+        || (ctx.state == JobState::Queued
+            && super::policy::current(conn, &ctx.owner)?.revision != ctx.policy.revision)
     {
         return Err(Error(ErrorCode::Expired));
     }
@@ -260,7 +271,7 @@ fn save_result(
     audit_capacity(tx, 2)?;
     let alerts_digest = material_digest(tx, &ctx.owner)?;
     tx.execute(
-        "INSERT INTO automation_observation_results VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO automation_observation_results VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
         params![
             job.id,
             ctx.owner,
@@ -272,11 +283,12 @@ fn save_result(
             digest,
             receipt.recorded,
             receipt.notifications,
-            alerts_digest
+            alerts_digest,
+            ctx.policy.revision
         ],
     )
     .map_err(durable)?;
-    tx.execute("INSERT INTO automation_streams VALUES(?,?,?,?,?,?) ON CONFLICT(owner) DO UPDATE SET sequence=excluded.sequence,complete=excluded.complete,owner_revision=excluded.owner_revision,recorded=excluded.recorded,alerts_digest=excluded.alerts_digest", params![ctx.owner,receipt.sequence,receipt.complete,ctx.revision,receipt.recorded,alerts_digest]).map_err(durable)?;
+    tx.execute("INSERT INTO automation_streams VALUES(?,?,?,?,?,?,?) ON CONFLICT(owner) DO UPDATE SET sequence=excluded.sequence,complete=excluded.complete,owner_revision=excluded.owner_revision,recorded=excluded.recorded,alerts_digest=excluded.alerts_digest,policy_revision=excluded.policy_revision", params![ctx.owner,receipt.sequence,receipt.complete,ctx.revision,receipt.recorded,alerts_digest,ctx.policy.revision]).map_err(durable)?;
     Ok(())
 }
 fn finish_job(tx: &Transaction<'_>, ctx: &Context, receipt: &ObservationResult) -> Result<()> {
@@ -359,6 +371,7 @@ fn fold(
     batch: &HealthObservation,
 ) -> Result<u16> {
     let mut created = 0;
+    let policy = ctx.policy.definition.runtime_policy()?;
     for entry in &batch.signals {
         let old: Option<(String, String)> = tx
             .query_row(
@@ -380,7 +393,7 @@ fn fold(
         let folded = fold_alert(
             state.as_ref(),
             &entry.signal,
-            &AlertPolicy::default(),
+            &policy,
             receipt.sequence,
             receipt.recorded,
         )?;
@@ -574,6 +587,7 @@ impl Store {
             generation: self.generation,
             sequence,
             resources: selected,
+            policy: Box::new(ctx.policy),
             deadline,
         }))
     }
@@ -616,6 +630,7 @@ impl Store {
                 || generation != lease.generation
                 || actor.grant_revision != lease.revision
                 || ctx.owner != lease.owner
+                || ctx.policy != *lease.policy
             {
                 return Err(Error(ErrorCode::Expired));
             }

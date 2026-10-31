@@ -724,7 +724,7 @@ fn reciprocal_occurrence_to_ordinary_job_corruption_refuses_before_startup_mutat
             200,
         )
         .unwrap();
-    store.conn.execute("INSERT INTO automation_occurrences VALUES(?,1,200,?,'health-v1',?,'observation',?,200)",params![row.id,actor.id,actor.grant_revision,ordinary]).unwrap();
+    store.conn.execute("INSERT INTO automation_occurrences VALUES(?,1,200,?,'health-v1',?,'observation',?,200,0)",params![row.id,actor.id,actor.grant_revision,ordinary]).unwrap();
     store
         .conn
         .execute(

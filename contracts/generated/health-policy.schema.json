@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HealthPolicyView",
+  "type": "object",
+  "properties": {
+    "definition": {
+      "$ref": "#/$defs/HealthPolicyDefinition"
+    },
+    "revision": {
+      "type": "integer",
+      "format": "int64"
+    },
+    "updated": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "int64"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "revision",
+    "definition"
+  ],
+  "$defs": {
+    "AlertKind": {
+      "type": "string",
+      "enum": [
+        "container",
+        "smart",
+        "mount",
+        "snapraid",
+        "host"
+      ]
+    },
+    "HealthPolicyDefinition": {
+      "type": "object",
+      "properties": {
+        "disabled": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AlertKind"
+          }
+        },
+        "fail_threshold": {
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "required_mounts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "silences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HealthPolicySilence"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "fail_threshold",
+        "disabled",
+        "required_mounts",
+        "silences"
+      ]
+    },
+    "HealthPolicySilence": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "expires_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/AlertKind"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "key",
+        "created_at",
+        "reason"
+      ]
+    }
+  }
+}

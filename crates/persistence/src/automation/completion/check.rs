@@ -103,7 +103,7 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
     let invalid:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM jobs j WHERE json_extract(j.intent,'$.operation')='automation_observe_health' AND j.state IN ('succeeded','failed','precondition_changed') AND NOT EXISTS(SELECT 1 FROM automation_observation_results r WHERE r.job=j.id)) OR EXISTS(SELECT 1 FROM automation_observation_results r LEFT JOIN automation_streams s ON s.owner=r.owner LEFT JOIN jobs j ON j.id=r.job LEFT JOIN users u ON u.id=r.owner WHERE s.owner IS NULL OR j.id IS NULL OR u.id IS NULL) OR EXISTS(SELECT 1 FROM events WHERE json_extract(kind,'$.kind')='automation_notification_created' GROUP BY json_extract(kind,'$.notification') HAVING count(*)<>1)",[],|r|r.get(0)).map_err(durable)?;
     require(!invalid)?;
     let mut stmt = conn
-        .prepare("SELECT owner,sequence,complete,owner_revision,recorded,alerts_digest FROM automation_streams")
+        .prepare("SELECT owner,sequence,complete,owner_revision,recorded,alerts_digest,policy_revision FROM automation_streams")
         .map_err(durable)?;
     let mut rows = stmt.query([]).map_err(durable)?;
     while let Some(row) = rows.next().map_err(durable)? {
@@ -116,12 +116,12 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         require(proof == (sequence, 1, sequence))?;
         let digest: String = row.get(5).map_err(durable)?;
         require(material_digest(conn, &owner)? == digest)?;
-        let matches:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM automation_observation_results WHERE owner=? AND sequence=? AND complete=? AND owner_revision=? AND recorded=? AND alerts_digest=?)",params![owner,sequence,complete,revision,recorded,digest],|r|r.get(0)).map_err(durable)?;
+        let matches:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM automation_observation_results WHERE owner=? AND sequence=? AND complete=? AND owner_revision=? AND recorded=? AND alerts_digest=? AND policy_revision=?)",params![owner,sequence,complete,revision,recorded,digest,row.get::<_,i64>(6).map_err(durable)?],|r|r.get(0)).map_err(durable)?;
         require(matches)?;
         let backwards:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM automation_observation_results a JOIN automation_observation_results b ON b.owner=a.owner AND b.sequence=a.sequence+1 WHERE a.owner=? AND b.recorded<a.recorded)",[owner],|r|r.get(0)).map_err(durable)?;
         require(!backwards)?;
     }
-    let mut stmt=conn.prepare("SELECT r.job,r.owner,r.sequence,r.owner_revision,r.outcome,r.reason,r.complete,r.recorded,j.principal,j.revision,j.state,j.deadline,r.notifications FROM automation_observation_results r JOIN jobs j ON j.id=r.job").map_err(durable)?;
+    let mut stmt=conn.prepare("SELECT r.job,r.owner,r.sequence,r.owner_revision,r.outcome,r.reason,r.complete,r.recorded,j.principal,j.revision,j.state,j.deadline,r.notifications,r.policy_revision FROM automation_observation_results r JOIN jobs j ON j.id=r.job").map_err(durable)?;
     let mut rows = stmt.query([]).map_err(durable)?;
     while let Some(row) = rows.next().map_err(durable)? {
         let job: String = row.get(0).map_err(durable)?;
@@ -151,6 +151,18 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             )
             .map_err(durable)?;
         require(at >= queued)?;
+        let queued_cursor: i64 = conn
+            .query_row(
+                "SELECT cursor FROM events WHERE job=? AND kind=?",
+                params![job, json(&EventKind::JobQueued)?],
+                |r| r.get(0),
+            )
+            .map_err(durable)?;
+        let policy_revision = row.get::<_, i64>(13).map_err(durable)?;
+        require(
+            policy_revision == super::super::policy::revision_before(conn, &owner, queued_cursor)?,
+        )?;
+        super::super::policy::at(conn, &owner, policy_revision)?;
         audit(
             conn,
             &owner,

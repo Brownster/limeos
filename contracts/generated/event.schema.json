@@ -394,6 +394,50 @@
             "kind",
             "notification"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "digest": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "automation_health_policy_changed"
+            },
+            "revision": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "revision",
+            "digest"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "automation_notification_policy_checked"
+            },
+            "notification": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "notification",
+            "revision"
+          ]
         }
       ]
     },

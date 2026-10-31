@@ -1,7 +1,8 @@
 //! Owned observation history through the sole Store worker; no producer/send.
 use super::*;
 use limeos_domain::automation::{
-    AcknowledgeNotification, AlertState, AutomationPage, Notification,
+    AcknowledgeNotification, AlertState, AutomationPage, HealthPolicyView, Notification,
+    ReplaceHealthPolicy,
 };
 use limeos_persistence::Store;
 use std::time::Instant;
@@ -15,6 +16,31 @@ fn live(deadline: Instant) -> Result<()> {
 }
 
 impl Core {
+    pub(super) async fn human_health_policy(
+        &self,
+        token: String,
+        deadline: Instant,
+    ) -> Result<HealthPolicyView> {
+        let session = limeos_identity::digest(&token);
+        self.history_store(deadline, move |store| {
+            store.observe_health_policy(&session, now, deadline)
+        })
+        .await
+    }
+    pub(super) async fn human_health_policy_replace(
+        &self,
+        token: String,
+        csrf: String,
+        input: ReplaceHealthPolicy,
+        deadline: Instant,
+    ) -> Result<HealthPolicyView> {
+        let session = limeos_identity::digest(&token);
+        let csrf = limeos_identity::digest(&csrf);
+        self.history_store(deadline, move |store| {
+            store.observe_health_policy_replace(&session, &csrf, &input, now, deadline)
+        })
+        .await
+    }
     async fn history_store<T: Send + 'static>(
         &self,
         deadline: Instant,

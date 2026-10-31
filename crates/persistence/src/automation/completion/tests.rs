@@ -819,12 +819,17 @@ fn migration_from_compiled_schema_eleven_preserves_queued_and_canceled_jobs() {
         "automation_alerts",
         "automation_observation_results",
         "automation_streams",
+        "automation_health_policies",
     ] {
         store
             .conn
             .execute_batch(&format!("DROP TABLE {table}"))
             .unwrap();
     }
+    store
+        .conn
+        .execute_batch("ALTER TABLE automation_occurrences DROP COLUMN policy_revision")
+        .unwrap();
     store.conn.pragma_update(None, "user_version", 11).unwrap();
     assert_eq!(objects(&store.conn, "table"), objects(&reference, "table"));
     assert_eq!(objects(&store.conn, "trigger"), expected);
@@ -839,7 +844,7 @@ fn migration_from_compiled_schema_eleven_preserves_queued_and_canceled_jobs() {
             .conn
             .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
             .unwrap(),
-        12
+        SCHEMA_VERSION
     );
 }
 fn counts_jobs(store: &Store) -> String {

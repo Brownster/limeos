@@ -128,6 +128,23 @@ impl Core {
     }
 }
 impl Backend for Core {
+    async fn observe_health_policy(
+        &self,
+        token: String,
+        deadline: std::time::Instant,
+    ) -> Result<limeos_domain::automation::HealthPolicyView> {
+        self.human_health_policy(token, deadline).await
+    }
+    async fn replace_observe_health_policy(
+        &self,
+        token: String,
+        csrf: String,
+        input: limeos_domain::automation::ReplaceHealthPolicy,
+        deadline: std::time::Instant,
+    ) -> Result<limeos_domain::automation::HealthPolicyView> {
+        self.human_health_policy_replace(token, csrf, input, deadline)
+            .await
+    }
     async fn observe_health_alerts(
         &self,
         token: String,

@@ -110,10 +110,13 @@ impl AlertPolicy {
         Ok(())
     }
     pub fn allows(&self, signal: &AlertSignal, now: i64) -> bool {
-        !self.disabled.contains(&signal.kind)
+        self.allows_key(signal.kind, &signal.key, now)
+    }
+    pub fn allows_key(&self, kind: AlertKind, key: &str, now: i64) -> bool {
+        !self.disabled.contains(&kind)
             && !self.silences.iter().any(|silence| {
-                silence.kind == signal.kind
-                    && silence.key == signal.key
+                silence.kind == kind
+                    && silence.key == key
                     && silence.expires_at.is_none_or(|at| now < at)
             })
     }

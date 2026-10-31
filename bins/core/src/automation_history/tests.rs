@@ -1,8 +1,9 @@
 //! Actual Store worker and HTTP routes; health inputs are explicit fixtures.
 use super::*;
 use limeos_domain::automation::{
-    AlertKind, AlertSignal, CreateSchedule, DueDecision, MissedRunPolicy, Reservation,
-    ScheduleDefinition, ScheduledOperation, Settlement, Severity, SignalStatus,
+    AlertKind, AlertSignal, CreateSchedule, DueDecision, HealthPolicyDefinition,
+    HealthPolicySilence, MissedRunPolicy, ReplaceHealthPolicy, Reservation, ScheduleDefinition,
+    ScheduledOperation, Settlement, Severity, SignalStatus,
 };
 use limeos_domain::{Operation, Principal, Role};
 use limeos_persistence::{HealthObservation, ObservationAdmission, ScopedHealthSignal};
@@ -11,6 +12,277 @@ use std::time::Duration;
 
 fn deadline() -> Instant {
     Instant::now() + Duration::from_secs(10)
+}
+
+#[tokio::test]
+async fn owned_policy_uses_real_http_cas_csrf_current_grants_and_restart() {
+    let (dir, initial, actor, _) = setup(true);
+    let (address, server) = http(initial.clone()).await;
+    let path = "/api/v1/automation/health-policy";
+    let token = "a".repeat(64);
+    let csrf = "c".repeat(64);
+    let before = counts(&dir);
+    let (status, value) = request(address, "GET", path, &token, None, "").await;
+    assert_eq!(status, 200);
+    assert_eq!(value["revision"], 0);
+    assert_eq!(counts(&dir), before);
+    assert_eq!(
+        request(address, "GET", path, &"b".repeat(64), None, "")
+            .await
+            .0,
+        403
+    );
+    let definition = HealthPolicyDefinition {
+        fail_threshold: 3,
+        required_mounts: vec!["/mnt/Media".into(), "/mnt/media".into()],
+        silences: vec![HealthPolicySilence {
+            kind: AlertKind::Container,
+            key: "container:fixture".into(),
+            created_at: "2026-10-20T12:00:00.123456Z".into(),
+            expires_at: None,
+            reason: "fixture maintenance".into(),
+        }],
+        ..Default::default()
+    };
+    let input = serde_json::to_string(&ReplaceHealthPolicy {
+        revision: 0,
+        definition: definition.clone(),
+    })
+    .unwrap();
+    assert_eq!(
+        request(address, "POST", path, &token, None, &input).await.0,
+        403
+    );
+    assert_eq!(counts(&dir), before);
+    let (status, saved) = request(address, "POST", path, &token, Some(&csrf), &input).await;
+    assert_eq!(status, 200);
+    assert_eq!(saved["revision"], 1);
+    assert_eq!(
+        saved["definition"],
+        serde_json::to_value(&definition).unwrap()
+    );
+    let after = counts(&dir);
+    assert_eq!(after.3, before.3 + 1);
+    assert_eq!(
+        (after.0, after.1, after.2),
+        (before.0, before.1, before.2),
+        "configuration creates no observation, job or delivery"
+    );
+    assert_eq!(
+        request(address, "POST", path, &token, Some(&csrf), &input)
+            .await
+            .1,
+        saved
+    );
+    assert_eq!(counts(&dir), after);
+    let changed = input.replace("\"fail_threshold\":3", "\"fail_threshold\":4");
+    assert_eq!(
+        request(address, "POST", path, &token, Some(&csrf), &changed)
+            .await
+            .0,
+        409
+    );
+    assert_eq!(
+        request(
+            address,
+            "GET",
+            &format!("{path}?owner=other"),
+            &token,
+            None,
+            ""
+        )
+        .await
+        .0,
+        400
+    );
+    initial
+        .db
+        .call(|store| {
+            let bob = store.login_record("bob")?.unwrap().principal;
+            store.revise_grants(&bob.id, Role::Operator, &scopes(), now())?;
+            session(store, "bob", &"e".repeat(64), &"f".repeat(64));
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let bob = request(address, "GET", path, &"e".repeat(64), None, "").await;
+    assert_eq!(bob.0, 200);
+    assert_eq!(
+        bob.1["revision"], 0,
+        "another manager cannot read the owner's policy"
+    );
+    initial
+        .db
+        .call(move |store| {
+            store.revise_grants(
+                &actor.id,
+                Role::Viewer,
+                &[Scope {
+                    operation: Operation::HealthRead,
+                    resource: "host:system".into(),
+                }],
+                now(),
+            )?;
+            session(store, "alice", &"1".repeat(64), &"2".repeat(64));
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert_eq!(request(address, "GET", path, &token, None, "").await.0, 401);
+    assert_eq!(
+        request(address, "GET", path, &"1".repeat(64), None, "")
+            .await
+            .0,
+        403
+    );
+    server.abort();
+    let _ = server.await;
+    drop(initial);
+    let mut database = None;
+    for _ in 0..20 {
+        match Database::open(&dir.path().join("core.sqlite")) {
+            Ok(value) => {
+                database = Some(value);
+                break;
+            }
+            Err(Error(ErrorCode::Conflict)) => tokio::time::sleep(Duration::from_millis(10)).await,
+            Err(error) => panic!("reopen {error:?}"),
+        }
+    }
+    let reopened = core(database.expect("prior worker released"));
+    let value = reopened
+        .db
+        .call(|store| {
+            let actor = store.login_record("alice")?.unwrap().principal;
+            store.revise_grants(&actor.id, Role::Operator, &scopes(), now())?;
+            session(store, "alice", &"3".repeat(64), &"4".repeat(64));
+            Ok(())
+        })
+        .await;
+    value.unwrap();
+    assert_eq!(
+        serde_json::to_value(
+            reopened
+                .human_health_policy("3".repeat(64), deadline())
+                .await
+                .unwrap()
+        )
+        .unwrap(),
+        saved
+    );
+}
+
+#[tokio::test]
+async fn policy_deadlines_refuse_expired_queued_work_and_reconcile_late_commits() {
+    let (dir, initial, _, _) = setup(true);
+    let before = counts(&dir);
+    let (entered, ready) = tokio::sync::oneshot::channel();
+    let (release, hold) = std::sync::mpsc::channel();
+    let db = initial.db.clone();
+    let blocked = tokio::spawn(async move {
+        db.call(move |_| {
+            entered.send(()).unwrap();
+            hold.recv_timeout(Duration::from_secs(2)).unwrap();
+            Ok(())
+        })
+        .await
+    });
+    ready.await.unwrap();
+    let input = ReplaceHealthPolicy {
+        revision: 0,
+        definition: HealthPolicyDefinition {
+            fail_threshold: 3,
+            ..Default::default()
+        },
+    };
+    assert_eq!(
+        initial
+            .human_health_policy_replace(
+                "a".repeat(64),
+                "c".repeat(64),
+                input.clone(),
+                Instant::now() + Duration::from_millis(80)
+            )
+            .await,
+        Err(Error(ErrorCode::Expired))
+    );
+    release.send(()).unwrap();
+    blocked.await.unwrap().unwrap();
+    initial.db.call(|_| Ok(())).await.unwrap();
+    assert_eq!(counts(&dir), before);
+    let (committed, ready) = tokio::sync::oneshot::channel();
+    let (release, hold) = std::sync::mpsc::channel();
+    let worker = initial.clone();
+    let original = Instant::now() + Duration::from_millis(250);
+    let pending = tokio::spawn(async move {
+        worker
+            .history_store(original, move |store| {
+                let value = store.observe_health_policy_replace(
+                    &limeos_identity::digest(&"a".repeat(64)),
+                    &limeos_identity::digest(&"c".repeat(64)),
+                    &input,
+                    now,
+                    original,
+                )?;
+                committed.send(()).unwrap();
+                hold.recv_timeout(Duration::from_secs(2)).unwrap();
+                Ok(value)
+            })
+            .await
+    });
+    ready.await.unwrap();
+    assert_eq!(pending.await.unwrap(), Err(Error(ErrorCode::Expired)));
+    release.send(()).unwrap();
+    initial.db.call(|_| Ok(())).await.unwrap();
+    let value = initial
+        .human_health_policy("a".repeat(64), deadline())
+        .await
+        .unwrap();
+    assert_eq!(value.revision, 1);
+    assert_eq!(value.definition.fail_threshold, 3);
+    assert_eq!(
+        counts(&dir).3,
+        before.3 + 1,
+        "one committed replacement, never retried"
+    );
+}
+
+#[tokio::test]
+async fn concurrent_policy_replacements_commit_one_owned_revision() {
+    let (dir, initial, _, _) = setup(true);
+    let before = counts(&dir);
+    let left = ReplaceHealthPolicy {
+        revision: 0,
+        definition: HealthPolicyDefinition {
+            fail_threshold: 3,
+            ..Default::default()
+        },
+    };
+    let right = ReplaceHealthPolicy {
+        revision: 0,
+        definition: HealthPolicyDefinition {
+            fail_threshold: 4,
+            ..Default::default()
+        },
+    };
+    let (left, right) = tokio::join!(
+        initial.human_health_policy_replace("a".repeat(64), "c".repeat(64), left, deadline()),
+        initial.human_health_policy_replace("a".repeat(64), "c".repeat(64), right, deadline())
+    );
+    let winner = match (left, right) {
+        (Ok(value), Err(Error(ErrorCode::Conflict)))
+        | (Err(Error(ErrorCode::Conflict)), Ok(value)) => value,
+        values => panic!("one CAS winner: {values:?}"),
+    };
+    assert_eq!(winner.revision, 1);
+    assert_eq!(
+        initial
+            .human_health_policy("a".repeat(64), deadline())
+            .await
+            .unwrap(),
+        winner
+    );
+    assert_eq!(counts(&dir).3, before.3 + 1);
 }
 fn scopes() -> Vec<Scope> {
     vec![

@@ -52,15 +52,18 @@ fn cursor(after: Option<&str>, limit: usize) -> Result<()> {
     Ok(())
 }
 fn partial(conn: &Connection, actor: &Principal, now: i64) -> Result<bool> {
-    let stream: Option<(bool, i64)> = conn
+    let stream: Option<(bool, i64, i64)> = conn
         .query_row(
-            "SELECT complete,owner_revision FROM automation_streams WHERE owner=?",
+            "SELECT complete,owner_revision,policy_revision FROM automation_streams WHERE owner=?",
             [&actor.id],
-            |r| Ok((r.get(0)?, r.get(1)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
         .optional()
         .map_err(durable)?;
-    if stream.is_none_or(|(complete, revision)| !complete || revision != actor.grant_revision) {
+    let current = super::super::policy::current(conn, &actor.id)?.revision;
+    if stream.is_none_or(|(complete, revision, policy)| {
+        !complete || revision != actor.grant_revision || policy != current
+    }) {
         return Ok(true);
     }
     conn.query_row("SELECT EXISTS(SELECT 1 FROM jobs WHERE principal=? AND state='queued' AND deadline<=? AND json_extract(intent,'$.operation')='automation_observe_health')",params![actor.id,now],|r|r.get(0)).map_err(durable)
@@ -106,15 +109,18 @@ impl Store {
                     Ok(()) | Err(Error(ErrorCode::Forbidden|ErrorCode::Expired)) => { page.blocked+=1; continue; },
                     Err(error) => return Err(error),
                 }
+                let policy=super::super::policy::current(tx,&row.owner)?;
+                if policy.updated.is_some_and(|at|now<at) || !policy.definition.runtime_policy()?.allows_key(row.value.event.kind,&row.value.event.key,now) { page.blocked+=1; continue; }
                 let opening = if row.value.event.event == AlertEventKind::Recovery {
                     let id: Option<String> = tx.query_row("SELECT id FROM automation_notifications WHERE owner=? AND key=? AND generation=? AND phase='incident'",params![row.owner,row.value.event.key,row.value.event.generation],|r|r.get(0)).optional().map_err(durable)?;
                     id.map(|id|notification(tx,&id)?.ok_or(Error(ErrorCode::StateNotDurable))).transpose()?
                 } else {None};
                 if opening.as_ref().is_some_and(|opening|opening.owner!=row.owner || opening.resource!=row.resource) { return Err(Error(ErrorCode::StateNotDurable)); }
                 if plan_in_app_delivery(&row.value,opening.as_ref().map(|r|&r.value),now)? != DeliveryDecision::PublishInApp { page.blocked+=1; continue; }
-                audit_capacity(tx,1)?;
+                audit_capacity(tx,if policy.revision>0 {2} else {1})?;
                 let next = row.value.begin(now)?.finish(DeliveryResult::Verified,now)?;
                 if tx.execute("UPDATE automation_notifications SET body=? WHERE id=? AND json_extract(body,'$.revision')=?",params![json(&next)?,id,row.value.revision]).map_err(durable)?!=1 { return Err(Error(ErrorCode::Conflict)); }
+                if policy.revision>0 {event(tx,Some(&row.owner),None,EventKind::AutomationNotificationPolicyChecked { notification:id.clone(),revision:policy.revision },now)?;}
                 event(tx,Some(&row.owner),None,EventKind::AutomationNotificationPublished { notification:id },now)?;
                 page.published+=1;
             }

@@ -455,3 +455,14 @@ select {
     padding: 12px;
   }
 }
+.health-policy-form { max-width: 52rem; }
+.health-policy-form fieldset { min-width: 0; margin: 1rem 0; padding: 1rem; border: 1px solid #5d695d; border-radius: .65rem; }
+.health-policy-form textarea { box-sizing: border-box; width: 100%; max-width: 100%; padding: .7rem; border: 1px solid #5d695d; border-radius: .4rem; color: inherit; background: #202822; font: inherit; }
+.health-policy-form input[type="number"] { max-width: 12rem; }
+.health-category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: .65rem; margin: 1rem 0; }
+.health-category-grid label { display: flex; align-items: center; gap: .5rem; }
+.health-category-grid input { width: auto; }
+.health-silences { padding-left: 1.25rem; }
+.health-silences li { margin: 1rem 0; overflow-wrap: anywhere; }
+.health-silences small { display: block; margin-bottom: .5rem; }
+.health-silence-fields { display: grid; gap: .5rem; }

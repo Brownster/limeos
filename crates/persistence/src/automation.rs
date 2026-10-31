@@ -589,6 +589,15 @@ fn reserve_occurrence(
         return Err(Error(ErrorCode::Overloaded));
     }
     audit_capacity(tx, if kind == "observation" { 2 } else { 1 })?;
+    let policy_revision = if kind == "observation" {
+        let value = policy::current(tx, &actor.id)?;
+        if value.updated.is_some_and(|at| now < at) {
+            return Err(Error(ErrorCode::Conflict));
+        }
+        value.revision
+    } else {
+        0
+    };
     let job = if kind == "observation" {
         let active:i64=tx.query_row("SELECT count(*) FROM jobs WHERE state IN ('queued','running','verifying','outcome_unknown','needs_intervention')",[],|r|r.get(0)).map_err(durable)?;
         if active >= QUEUE_CAPACITY as i64 {
@@ -633,7 +642,7 @@ fn reserve_occurrence(
         None
     };
     tx.execute(
-        "INSERT INTO automation_occurrences VALUES(?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO automation_occurrences VALUES(?,?,?,?,?,?,?,?,?,?)",
         params![
             key.schedule,
             key.revision,
@@ -643,7 +652,8 @@ fn reserve_occurrence(
             actor.grant_revision,
             kind,
             job,
-            now
+            now,
+            policy_revision
         ],
     )
     .map_err(durable)?;
@@ -682,6 +692,11 @@ fn reserve_occurrence(
 }
 
 pub(super) fn check(conn: &Connection) -> Result<()> {
+    policy::check(conn)?;
+    let invalid_policy:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM automation_occurrences WHERE settlement<>'observation' AND policy_revision<>0)",[],|r|r.get(0)).map_err(durable)?;
+    if invalid_policy {
+        return Err(Error(ErrorCode::StateNotDurable));
+    }
     let schedules: i64 = conn
         .query_row("SELECT count(*) FROM automation_schedules", [], |r| {
             r.get(0)
@@ -708,7 +723,7 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
     if invalid {
         return Err(Error(ErrorCode::StateNotDurable));
     }
-    let mut stmt=conn.prepare("SELECT j.id,j.principal,j.idempotency,j.intent,j.digest,j.resource,j.state,j.revision,j.deadline,o.schedule,o.revision,o.due,o.owner,o.owner_revision,o.created FROM jobs j LEFT JOIN automation_occurrences o ON o.job=j.id WHERE json_extract(j.intent,'$.operation')='automation_observe_health'").map_err(durable)?;
+    let mut stmt=conn.prepare("SELECT j.id,j.principal,j.idempotency,j.intent,j.digest,j.resource,j.state,j.revision,j.deadline,o.schedule,o.revision,o.due,o.owner,o.owner_revision,o.created,o.policy_revision FROM jobs j LEFT JOIN automation_occurrences o ON o.job=j.id WHERE json_extract(j.intent,'$.operation')='automation_observe_health'").map_err(durable)?;
     let mut rows = stmt.query([]).map_err(durable)?;
     while let Some(row) = rows.next().map_err(durable)? {
         let id: String = row.get(0).map_err(durable)?;
@@ -744,6 +759,18 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             return Err(Error(ErrorCode::StateNotDurable));
         }
         if joined.is_some() {
+            let queued_cursor: i64 = conn
+                .query_row(
+                    "SELECT cursor FROM events WHERE job=? AND kind=?",
+                    params![id, json(&EventKind::JobQueued)?],
+                    |r| r.get(0),
+                )
+                .map_err(durable)?;
+            if row.get::<_, i64>(15).map_err(durable)?
+                != policy::revision_before(conn, &owner, queued_cursor)?
+            {
+                return Err(Error(ErrorCode::StateNotDurable));
+            }
             if row.get::<_, String>(9).map_err(durable)? != key.schedule
                 || row.get::<_, i64>(10).map_err(durable)? != key.revision
                 || row.get::<_, i64>(11).map_err(durable)? != key.due
@@ -799,6 +826,7 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
 
 mod completion;
 mod management;
+mod policy;
 pub(super) use completion::ActiveObservation;
 pub use completion::{
     HealthObservation, InAppPublication, ObservationAdmission, ObservationLease, ObservationResult,
