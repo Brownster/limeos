@@ -20,7 +20,8 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             include_str!("migration-v10.sql"),
             include_str!("migration-v11.sql"),
             include_str!("migration-v12.sql"),
-            include_str!("migration-v13.sql")
+            include_str!("migration-v13.sql"),
+            include_str!("migration-v14.sql")
         ))
         .map_err(durable)?;
     let mut stmt = reference
@@ -56,6 +57,7 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         "automation_alerts",
         "automation_notifications",
         "automation_health_policies",
+        "automation_poll_origins",
     ] {
         let expected: String = reference
             .query_row(

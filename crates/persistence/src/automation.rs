@@ -539,6 +539,17 @@ fn reserve_occurrence(
     now: i64,
     generation: i64,
 ) -> Result<Reservation> {
+    reserve_admitted_occurrence(tx, expected, settlement, now, generation, None)
+}
+
+fn reserve_admitted_occurrence(
+    tx: &Transaction<'_>,
+    expected: &Schedule,
+    settlement: &Settlement,
+    now: i64,
+    generation: i64,
+    admitted: Option<(i64, Option<i64>)>,
+) -> Result<Reservation> {
     let key = settlement.key();
     let Some(row) = load(tx, &expected.id)? else {
         return Ok(Reservation::Stale);
@@ -577,7 +588,24 @@ fn reserve_occurrence(
     {
         return Ok(Reservation::Existing);
     }
-    if proposed(&row.schedule, now)?.as_ref() != Some(settlement) {
+    let mut due_schedule = row.schedule.clone();
+    let due_at = if let Some((at, previous_due)) = admitted {
+        if at > now
+            || now - at > 10
+            || row
+                .schedule
+                .settled_through
+                .is_some_and(|through| previous_due.is_none_or(|previous| previous < through))
+        {
+            return Ok(Reservation::Stale);
+        }
+        due_schedule.settled_through = previous_due;
+        due_schedule.validate()?;
+        at
+    } else {
+        now
+    };
+    if proposed(&due_schedule, due_at)?.as_ref() != Some(settlement) {
         return Ok(Reservation::Stale);
     }
     let count: i64 = tx
@@ -827,9 +855,10 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
 mod completion;
 mod management;
 mod policy;
-pub(super) use completion::ActiveObservation;
+pub(super) use completion::{ActiveObservation, PollWatermark};
 pub use completion::{
-    HealthObservation, InAppPublication, ObservationAdmission, ObservationLease, ObservationResult,
+    HealthObservation, InAppPublication, ObservationAdmission, ObservationLease,
+    ObservationPollAdmission, ObservationPollLease, ObservationPollOutcome, ObservationResult,
     ScopedHealthSignal,
 };
 

@@ -1197,6 +1197,23 @@
           {
             "additionalProperties": false,
             "properties": {
+              "digest": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "automation_observation_polled",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "digest"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
               "kind": {
                 "const": "automation_notification_published",
                 "type": "string"

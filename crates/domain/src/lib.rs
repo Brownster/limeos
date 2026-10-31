@@ -215,6 +215,9 @@ pub enum EventKind {
         sequence: i64,
         complete: bool,
     },
+    AutomationObservationPolled {
+        digest: String,
+    },
     AutomationNotificationPublished {
         notification: String,
     },

@@ -5,7 +5,10 @@ use std::time::{Duration, Instant};
 
 mod check;
 mod in_app;
+mod polling;
 pub use in_app::InAppPublication;
+pub(crate) use polling::PollWatermark;
+pub use polling::{ObservationPollAdmission, ObservationPollLease, ObservationPollOutcome};
 
 const ROW_BYTES: usize = 4096;
 const RESOURCE_BYTES: usize = 512;
@@ -15,7 +18,7 @@ const MAX_RESULTS: i64 = AUDIT_LIMIT / (4 * 256);
 
 pub(crate) struct ActiveObservation {
     nonce: String,
-    job: String,
+    job: Option<String>,
     deadline: Instant,
 }
 
@@ -364,6 +367,32 @@ fn notification_digest(
         &value.event,
     ))?))
 }
+fn old_alert(
+    conn: &Connection,
+    owner: &str,
+    entry: &ScopedHealthSignal,
+) -> Result<Option<AlertState>> {
+    let old: Option<(String, String)> = conn
+        .query_row(
+            "SELECT resource,body FROM automation_alerts WHERE owner=? AND key=?",
+            params![owner, entry.signal.key],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()
+        .map_err(durable)?;
+    old.map(|(resource, body)| {
+        if resource != entry.resource {
+            return Err(Error(ErrorCode::Conflict));
+        }
+        if body.len() > ROW_BYTES {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
+        let state: AlertState = parse(&body)?;
+        state.validate()?;
+        Ok(state)
+    })
+    .transpose()
+}
 fn fold(
     tx: &Transaction<'_>,
     ctx: &Context,
@@ -373,23 +402,7 @@ fn fold(
     let mut created = 0;
     let policy = ctx.policy.definition.runtime_policy()?;
     for entry in &batch.signals {
-        let old: Option<(String, String)> = tx
-            .query_row(
-                "SELECT resource,body FROM automation_alerts WHERE owner=? AND key=?",
-                params![ctx.owner, entry.signal.key],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .optional()
-            .map_err(durable)?;
-        let state = old
-            .as_ref()
-            .map(|(resource, body)| {
-                if resource != &entry.resource {
-                    return Err(Error(ErrorCode::Conflict));
-                }
-                parse::<AlertState>(body)
-            })
-            .transpose()?;
+        let state = old_alert(tx, &ctx.owner, entry)?;
         let folded = fold_alert(
             state.as_ref(),
             &entry.signal,
@@ -575,7 +588,7 @@ impl Store {
             ctx.owner.clone(),
             ActiveObservation {
                 nonce: nonce.clone(),
-                job: job.id.clone(),
+                job: Some(job.id.clone()),
                 deadline,
             },
         );
@@ -604,7 +617,7 @@ impl Store {
             .get(&lease.owner)
             .is_some_and(|entry| {
                 entry.nonce == lease.nonce
-                    && entry.job == lease.job.id
+                    && entry.job.as_deref() == Some(lease.job.id.as_str())
                     && entry.deadline == lease.deadline
             });
         let generation = self.generation;
@@ -727,13 +740,14 @@ impl Store {
             Ok(receipt)
         })?;
         self.observation_leases
-            .retain(|_, entry| entry.job != job.id);
+            .retain(|_, entry| entry.job.as_deref() != Some(job.id.as_str()));
         Ok(receipt)
     }
 }
 
 pub(super) fn check(conn: &Connection) -> Result<()> {
-    check::check(conn)
+    check::check(conn)?;
+    polling::check(conn)
 }
 
 #[cfg(test)]

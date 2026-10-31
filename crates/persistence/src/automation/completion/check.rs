@@ -1,13 +1,13 @@
 use super::*;
 
-fn require(value: bool) -> Result<()> {
+pub(super) fn require(value: bool) -> Result<()> {
     if value {
         Ok(())
     } else {
         Err(Error(ErrorCode::StateNotDurable))
     }
 }
-fn audit(
+pub(super) fn audit(
     conn: &Connection,
     owner: &str,
     job: Option<&str>,

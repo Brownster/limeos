@@ -117,6 +117,135 @@ fn batch(status: SignalStatus, complete: bool) -> HealthObservation {
     }
 }
 
+async fn poll(bridge: &ObservationStoreBridge, id: &str) -> ObservationPollLease {
+    let ObservationPollAdmission::Lease(lease) = bridge
+        .poll_begin(id.into(), vec!["host:system".into()], deadline())
+        .await
+        .unwrap()
+    else {
+        panic!("poll lease");
+    };
+    *lease
+}
+
+#[tokio::test]
+async fn transition_poll_bridge_commits_once_and_restart_repeats_only_a_read() {
+    let (dir, bridge, actor, clock) = setup();
+    clock.store(210, Ordering::SeqCst);
+    let row = schedule(&bridge, &actor, ScheduledOperation::ObserveHealth).await;
+    let lease = poll(&bridge, &row.id).await;
+    let receipt = bridge
+        .poll_complete(lease.clone(), batch(SignalStatus::Healthy, true))
+        .await
+        .unwrap();
+    assert!(matches!(receipt, ObservationPollOutcome::Committed(_)));
+    let before = counts(&dir);
+    assert_eq!(
+        bridge
+            .poll_complete(lease, batch(SignalStatus::Healthy, true))
+            .await
+            .unwrap(),
+        receipt
+    );
+    assert_eq!(counts(&dir), before);
+    clock.store(240, Ordering::SeqCst);
+    let read = poll(&bridge, &row.id).await;
+    assert_eq!(
+        bridge
+            .poll_complete(read, batch(SignalStatus::Healthy, true))
+            .await
+            .unwrap(),
+        ObservationPollOutcome::Unchanged {
+            complete: true,
+            sampled_at: 240
+        }
+    );
+    assert_eq!(counts(&dir), before);
+    drop(bridge);
+    let mut bridge = ObservationStoreBridge::new(reopen(&dir).await);
+    bridge.clock = Arc::new(|| 240);
+    let read = poll(&bridge, &row.id).await;
+    assert!(matches!(
+        bridge
+            .poll_complete(read, batch(SignalStatus::Healthy, true))
+            .await
+            .unwrap(),
+        ObservationPollOutcome::Unchanged { .. }
+    ));
+    assert_eq!(counts(&dir), before);
+}
+
+#[tokio::test]
+async fn concurrent_poll_admission_has_one_private_lease_and_no_queued_job() {
+    let (dir, bridge, actor, clock) = setup();
+    clock.store(210, Ordering::SeqCst);
+    let row = schedule(&bridge, &actor, ScheduledOperation::ObserveHealth).await;
+    let before = counts(&dir);
+    let (one, two) = tokio::join!(
+        bridge.poll_begin(row.id.clone(), vec!["host:system".into()], deadline()),
+        bridge.poll_begin(row.id.clone(), vec!["host:system".into()], deadline())
+    );
+    let lease = match (one, two) {
+        (Ok(ObservationPollAdmission::Lease(lease)), Err(Error(ErrorCode::Conflict)))
+        | (Err(Error(ErrorCode::Conflict)), Ok(ObservationPollAdmission::Lease(lease))) => lease,
+        other => panic!("unexpected admissions: {other:?}"),
+    };
+    assert_eq!(counts(&dir), before);
+    assert!(
+        bridge
+            .queued_page(None, deadline())
+            .await
+            .unwrap()
+            .items
+            .is_empty()
+    );
+    bridge.poll_abandon(*lease, deadline()).await.unwrap();
+    assert_eq!(counts(&dir), before);
+    let fresh = poll(&bridge, &row.id).await;
+    bridge
+        .poll_complete(fresh, batch(SignalStatus::Failing, true))
+        .await
+        .unwrap();
+    assert!(
+        bridge
+            .queued_page(None, deadline())
+            .await
+            .unwrap()
+            .items
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn expired_poll_reply_cannot_receive_a_new_worker_deadline() {
+    let (dir, bridge, actor, clock) = setup();
+    clock.store(210, Ordering::SeqCst);
+    let row = schedule(&bridge, &actor, ScheduledOperation::ObserveHealth).await;
+    let short = Instant::now() + Duration::from_millis(50);
+    let ObservationPollAdmission::Lease(lease) = bridge
+        .poll_begin(row.id.clone(), vec!["host:system".into()], short)
+        .await
+        .unwrap()
+    else {
+        panic!("lease")
+    };
+    let before = counts(&dir);
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    assert_eq!(
+        bridge
+            .poll_complete((*lease).clone(), batch(SignalStatus::Failing, true))
+            .await,
+        Err(Error(ErrorCode::Expired))
+    );
+    bridge.poll_abandon(*lease, deadline()).await.unwrap();
+    assert_eq!(counts(&dir), before);
+    let read = poll(&bridge, &row.id).await;
+    bridge
+        .poll_complete(read, batch(SignalStatus::Healthy, true))
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn concurrent_passes_and_restart_discover_only_original_queued_jobs() {
     let (dir, bridge, actor, _) = setup();

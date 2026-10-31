@@ -6,7 +6,8 @@ use limeos_domain::automation::{
 use limeos_domain::{Error, ErrorCode, Result};
 use limeos_persistence::{
     Database, HealthObservation, InAppPublication, ObservationAdmission, ObservationLease,
-    ObservationResult, Store,
+    ObservationPollAdmission, ObservationPollLease, ObservationPollOutcome, ObservationResult,
+    Store,
 };
 use std::{sync::Arc, time::Instant};
 
@@ -137,6 +138,41 @@ impl ObservationStoreBridge {
     ) -> Result<AutomationPage<ObservationJob>> {
         self.call(deadline, move |store| {
             store.automation_queued_observation_page(after.as_deref(), MAX_TICK_SCHEDULES)
+        })
+        .await
+    }
+
+    /// Production polling seam: no durable reservation for an unchanged sample.
+    /// Concrete resources must come from the protected collector adapter.
+    pub async fn poll_begin(
+        &self,
+        schedule: String,
+        resources: Vec<String>,
+        deadline: Instant,
+    ) -> Result<ObservationPollAdmission> {
+        let clock = self.clock.clone();
+        self.call(deadline, move |store| {
+            store.automation_poll_begin(&schedule, resources, || clock(), deadline)
+        })
+        .await
+    }
+
+    pub async fn poll_complete(
+        &self,
+        lease: ObservationPollLease,
+        batch: HealthObservation,
+    ) -> Result<ObservationPollOutcome> {
+        let clock = self.clock.clone();
+        self.call(lease.deadline(), move |store| {
+            store.automation_poll_complete(&lease, &batch, || clock())
+        })
+        .await
+    }
+
+    pub async fn poll_abandon(&self, lease: ObservationPollLease, deadline: Instant) -> Result<()> {
+        self.call(deadline, move |store| {
+            store.automation_poll_abandon(&lease);
+            Ok(())
         })
         .await
     }

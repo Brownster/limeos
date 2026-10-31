@@ -443,6 +443,23 @@
         {
           "type": "object",
           "properties": {
+            "digest": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "automation_observation_polled"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "digest"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
             "kind": {
               "type": "string",
               "const": "automation_notification_published"

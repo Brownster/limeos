@@ -1,9 +1,9 @@
 use super::*;
 
-fn deadline() -> Instant {
+pub(super) fn deadline() -> Instant {
     Instant::now() + Duration::from_secs(10)
 }
-fn setup() -> (tempfile::TempDir, Store, Principal) {
+pub(super) fn setup() -> (tempfile::TempDir, Store, Principal) {
     let dir = tempfile::tempdir().unwrap();
     let mut store = Store::open(&dir.path().join("core.sqlite")).unwrap();
     store.issue_bootstrap("bootstrap", 100).unwrap();
@@ -34,7 +34,7 @@ fn setup() -> (tempfile::TempDir, Store, Principal) {
         .unwrap();
     (dir, store, record.principal)
 }
-fn queue(store: &mut Store, actor: &Principal, now: i64) -> ObservationJob {
+pub(super) fn queue(store: &mut Store, actor: &Principal, now: i64) -> ObservationJob {
     let row = store
         .automation_create(
             actor,
@@ -61,7 +61,7 @@ fn queue(store: &mut Store, actor: &Principal, now: i64) -> ObservationJob {
     };
     job
 }
-fn begin(store: &mut Store, job: &ObservationJob, now: i64) -> ObservationLease {
+pub(super) fn begin(store: &mut Store, job: &ObservationJob, now: i64) -> ObservationLease {
     let ObservationAdmission::Lease(lease) = store
         .automation_observation_begin(
             job,
@@ -75,7 +75,7 @@ fn begin(store: &mut Store, job: &ObservationJob, now: i64) -> ObservationLease 
     };
     lease
 }
-fn batch(status: SignalStatus, complete: bool) -> HealthObservation {
+pub(super) fn batch(status: SignalStatus, complete: bool) -> HealthObservation {
     HealthObservation {
         signals: vec![ScopedHealthSignal {
             resource: "host:system".into(),
@@ -103,10 +103,10 @@ fn sample(
         .unwrap();
     (job, lease, receipt)
 }
-fn counts(store: &Store) -> (i64, i64, i64, i64, i64, i64) {
+pub(super) fn counts(store: &Store) -> (i64, i64, i64, i64, i64, i64) {
     store.conn.query_row("SELECT (SELECT count(*) FROM automation_observation_results),(SELECT coalesce(sum(sequence),0) FROM automation_streams),(SELECT count(*) FROM automation_alerts),(SELECT count(*) FROM automation_notifications),(SELECT count(*) FROM events),audit_bytes FROM meta WHERE id=1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?))).unwrap()
 }
-fn alert(store: &Store) -> AlertState {
+pub(super) fn alert(store: &Store) -> AlertState {
     parse(
         &store
             .conn
@@ -815,6 +815,7 @@ fn migration_from_compiled_schema_eleven_preserves_queued_and_canceled_jobs() {
         }
     }
     for table in [
+        "automation_poll_origins",
         "automation_notifications",
         "automation_alerts",
         "automation_observation_results",
@@ -849,6 +850,77 @@ fn migration_from_compiled_schema_eleven_preserves_queued_and_canceled_jobs() {
 }
 fn counts_jobs(store: &Store) -> String {
     store.conn.query_row("SELECT group_concat(id||':'||state||':'||intent||':'||digest||':'||revision||':'||deadline,'|') FROM (SELECT * FROM jobs ORDER BY id)",[],|r|r.get(0)).unwrap()
+}
+
+#[test]
+fn unchanged_queued_health_samples_write_only_bookkeeping() {
+    let (directory, mut store, actor) = setup();
+    let schedule = store
+        .automation_create(
+            &actor,
+            &CreateSchedule {
+                definition: ScheduleDefinition {
+                    operation: ScheduledOperation::ObserveHealth,
+                    anchor: 0,
+                    interval_seconds: 30,
+                    grace_seconds: 5,
+                    missed: MissedRunPolicy::CoalesceLatest,
+                    window: None,
+                },
+            },
+            120,
+        )
+        .unwrap()
+        .schedule;
+    fn observe(store: &mut Store, id: &str, at: i64) {
+        let current = load(&store.conn, id).unwrap().unwrap().schedule;
+        let proposed = proposed(&current, at).unwrap().unwrap();
+        let Reservation::Queued(job) = store
+            .automation_reserve_current(&current, &proposed, || at, deadline())
+            .unwrap()
+        else {
+            panic!("queued")
+        };
+        let lease = begin(store, &job, at);
+        store
+            .automation_observation_complete(&lease, &batch(SignalStatus::Healthy, true), || at)
+            .unwrap();
+    }
+    observe(&mut store, &schedule.id, 120);
+    let before = counts(&store);
+    let changes = store.conn.total_changes();
+    let wal = directory.path().join("core.sqlite-wal");
+    let wal_before = std::fs::metadata(&wal).unwrap().len();
+    let io = || {
+        std::fs::read_to_string("/proc/self/io")
+            .unwrap()
+            .lines()
+            .find_map(|line| {
+                line.strip_prefix("write_bytes: ")
+                    .and_then(|value| value.parse::<u64>().ok())
+            })
+            .unwrap()
+    };
+    let writes_before = io();
+    for index in 1..=32 {
+        let at = 120 + index * 30;
+        observe(&mut store, &schedule.id, at);
+    }
+    let writes_after = io();
+    let after = counts(&store);
+    let changed = store.conn.total_changes() - changes;
+    assert_eq!(after.0, before.0 + 32);
+    assert_eq!(after.1, before.1 + 32);
+    assert_eq!(
+        (after.2, after.3),
+        (before.2, before.3),
+        "no alert or notification transition"
+    );
+    assert!(changed > 0);
+    println!(
+        "LIMEOS_QUEUED_IDLE_BASELINE {}",
+        serde_json::json!({"scope":"normalized healthy fixture facts; queued library path only, not installed idle measurement","polls":32,"sqlite_changes":changed,"wal_before_bytes":wal_before,"wal_after_bytes":std::fs::metadata(&wal).unwrap().len(),"process_write_bytes":writes_after-writes_before})
+    );
 }
 
 #[test]
