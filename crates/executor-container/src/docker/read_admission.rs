@@ -8,7 +8,7 @@ use std::{
     ops::Deref,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering},
     },
 };
 
@@ -28,6 +28,61 @@ const STRING: usize = 16 * 1024;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EngineReadProfile {
     CombinedV1,
+}
+
+/// Retained selected projections cannot recover after a failed or abandoned
+/// comparison. Concurrent entry poisons the first comparison as well.
+pub(super) struct ValidationGate(AtomicU8);
+impl ValidationGate {
+    pub(super) fn new() -> Self {
+        Self(AtomicU8::new(0))
+    }
+    pub(super) fn begin(&self) -> Result<Validation<'_>> {
+        if self
+            .0
+            .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            self.0.store(2, Ordering::Release);
+            return Err(Error(ErrorCode::Conflict));
+        }
+        Ok(Validation {
+            gate: self,
+            finished: false,
+        })
+    }
+}
+pub(super) struct Validation<'a> {
+    gate: &'a ValidationGate,
+    finished: bool,
+}
+impl Validation<'_> {
+    pub(super) fn finish(mut self, result: Result<()>) -> Result<()> {
+        let result = match result {
+            Ok(())
+                if self
+                    .gate
+                    .0
+                    .compare_exchange(1, 0, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok() =>
+            {
+                Ok(())
+            }
+            other => {
+                self.gate.0.store(2, Ordering::Release);
+                other.and(Err(Error(ErrorCode::Conflict)))
+            }
+        };
+        self.finished = true;
+        result
+    }
+}
+impl Drop for Validation<'_> {
+    fn drop(&mut self) {
+        if !self.finished {
+            self.gate.0.store(2, Ordering::Release);
+        }
+    }
 }
 
 fn refused() -> Error {

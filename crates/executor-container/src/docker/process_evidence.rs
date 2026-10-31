@@ -3,6 +3,7 @@ pub use super::read_admission::EngineReadProfile;
 use super::{
     Docker, StatusCode, Value,
     compose_evidence::{self, EngineComposeSnapshot},
+    health_evidence::{self, EngineHealthSnapshot},
     parse_api_version,
     read_admission::{self, Admission, Json, Scope},
 };
@@ -101,6 +102,7 @@ pub struct EngineStorageProcessEvidence {
     snapshot: EngineStorageProcessSnapshot,
     // Charged projection data drops before its payload reservation.
     compose: Option<compose_evidence::Capture>,
+    health: Option<health_evidence::Capture>,
     authenticated: AuthenticatedEngine,
     lifetime: EvidenceLifetime,
     admission: Option<Admission>,
@@ -132,6 +134,9 @@ impl EngineStorageProcessEvidence {
     pub(super) fn compose_snapshot(&self) -> Option<&EngineComposeSnapshot> {
         self.compose.as_ref().map(|capture| &capture.snapshot)
     }
+    pub(super) fn health_snapshot(&self) -> Option<&EngineHealthSnapshot> {
+        self.health.as_ref().map(|capture| &capture.snapshot)
+    }
     /// Fresh GETs compare complete facts; they do not extend the original age,
     /// authenticate a daemon PID, retain container processes or authorize effects.
     pub async fn revalidate(&self) -> Result<()> {
@@ -140,13 +145,24 @@ impl EngineStorageProcessEvidence {
             .as_ref()
             .map(compose_evidence::Capture::begin)
             .transpose()?;
+        let health_validation = self
+            .health
+            .as_ref()
+            .map(health_evidence::Capture::begin)
+            .transpose()?;
         let result = async {
             self.lifetime.check()?;
             let fresh = collect(
                 &self.authenticated,
                 &self.lifetime,
                 self.admission.as_ref(),
-                self.compose.is_some(),
+                if self.compose.is_some() {
+                    Projection::Compose
+                } else if self.health.is_some() {
+                    Projection::Health
+                } else {
+                    Projection::Storage
+                },
             )
             .await?;
             self.lifetime.check()?;
@@ -154,6 +170,7 @@ impl EngineStorageProcessEvidence {
                 || fresh.declarations.containers != self.snapshot.declarations.containers
                 || fresh.running != self.snapshot.running
                 || fresh.compose.as_ref() != self.compose_snapshot()
+                || fresh.health.as_ref() != self.health_snapshot()
             {
                 return Err(conflict());
             }
@@ -161,6 +178,11 @@ impl EngineStorageProcessEvidence {
             self.lifetime.check()
         }
         .await;
+        let result = if let Some(validation) = health_validation {
+            validation.finish(result)
+        } else {
+            result
+        };
         if let Some(validation) = validation {
             validation.finish(result)
         } else {
@@ -228,7 +250,46 @@ async fn inspect_selected(
     admission: Option<Admission>,
     capture_compose: bool,
 ) -> Result<EngineStorageProcessEvidence> {
-    if capture_compose && admission.is_none() {
+    inspect_projection(
+        docker,
+        policy,
+        clock,
+        admission,
+        if capture_compose {
+            Projection::Compose
+        } else {
+            Projection::Storage
+        },
+    )
+    .await
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Projection {
+    Storage,
+    Compose,
+    Health,
+}
+pub(super) async fn inspect_health(
+    docker: &Docker,
+    policy: EnginePeerPolicy,
+) -> Result<EngineStorageProcessEvidence> {
+    inspect_projection(
+        docker,
+        policy,
+        TimeSource::default(),
+        Some(Admission::new(EngineReadProfile::CombinedV1)),
+        Projection::Health,
+    )
+    .await
+}
+async fn inspect_projection(
+    docker: &Docker,
+    policy: EnginePeerPolicy,
+    clock: TimeSource,
+    admission: Option<Admission>,
+    projection: Projection,
+) -> Result<EngineStorageProcessEvidence> {
+    if projection != Projection::Storage && admission.is_none() {
         return Err(unavailable());
     }
     let lifetime = EvidenceLifetime::new(clock)?;
@@ -242,13 +303,7 @@ async fn inspect_selected(
         scope.charge(8192)?;
     }
     let authenticated = AuthenticatedEngine::open(docker.clone(), policy)?;
-    let collected = collect(
-        &authenticated,
-        &lifetime,
-        admission.as_ref(),
-        capture_compose,
-    )
-    .await?;
+    let collected = collect(&authenticated, &lifetime, admission.as_ref(), projection).await?;
     let snapshot = EngineStorageProcessSnapshot {
         version: 1,
         endpoint: docker.socket.clone(),
@@ -269,6 +324,17 @@ async fn inspect_selected(
             compose,
         })?;
     }
+    if let Some(health) = &collected.health {
+        #[derive(Serialize)]
+        struct Report<'a> {
+            storage: &'a EngineStorageProcessSnapshot,
+            health: &'a EngineHealthSnapshot,
+        }
+        check_report(&Report {
+            storage: &snapshot,
+            health,
+        })?;
+    }
     lifetime.check()?;
     Ok(EngineStorageProcessEvidence {
         snapshot,
@@ -278,6 +344,7 @@ async fn inspect_selected(
         _scope: collected._scope,
         _launch: launch,
         compose: collected.compose.map(compose_evidence::Capture::new),
+        health: collected.health.map(health_evidence::Capture::new),
     })
 }
 
@@ -485,14 +552,17 @@ struct Collected {
     declarations: ContainerStorageInventory,
     running: Vec<EngineRunningProcess>,
     compose: Option<EngineComposeSnapshot>,
+    health: Option<EngineHealthSnapshot>,
     _scope: Option<Scope>,
 }
 async fn collect(
     authenticated: &AuthenticatedEngine,
     lifetime: &EvidenceLifetime,
     admission: Option<&Admission>,
-    capture_compose: bool,
+    projection: Projection,
 ) -> Result<Collected> {
+    let capture_compose = projection == Projection::Compose;
+    let capture_health = projection == Projection::Health;
     lifetime.check()?;
     let _collecting = admission.map(Admission::collect).transpose()?;
     let deadline = lifetime
@@ -508,7 +578,14 @@ async fn collect(
             scope.charge(8192)?;
         }
         let get = |path, limit| {
-            authenticated.json(path, limit, &budget, lifetime, admission, capture_compose)
+            authenticated.json(
+                path,
+                limit,
+                &budget,
+                lifetime,
+                admission,
+                projection != Projection::Storage,
+            )
         };
         let version_json = get("/version".into(), 8192).await?;
         let version = parse_api_version(&version_json)?;
@@ -527,11 +604,15 @@ async fn collect(
         let mut containers = Vec::new();
         let mut pids = Vec::new();
         let mut members = Vec::new();
+        let mut health_members = Vec::new();
         if let Some(scope) = &mut scope {
             scope.reserve(&mut containers, ids.len())?;
             scope.reserve(&mut pids, ids.len())?;
             if capture_compose {
                 scope.reserve(&mut members, ids.len())?;
+            }
+            if capture_health {
+                scope.reserve(&mut health_members, ids.len())?;
             }
         } else {
             containers.reserve(ids.len());
@@ -557,6 +638,13 @@ async fn collect(
             let pid = container_pid(&value, &consumer)?;
             if capture_compose {
                 members.push(compose_evidence::parse(
+                    &value,
+                    &consumer.container,
+                    scope.as_mut().ok_or_else(unavailable)?,
+                )?);
+            }
+            if capture_health {
+                health_members.push(health_evidence::parse(
                     &value,
                     &consumer.container,
                     scope.as_mut().ok_or_else(unavailable)?,
@@ -615,6 +703,15 @@ async fn collect(
             {
                 return Err(conflict());
             }
+            if capture_health
+                && health_evidence::parse(
+                    &value,
+                    &after.container,
+                    comparison.as_mut().ok_or_else(unavailable)?,
+                )? != health_members[index]
+            {
+                return Err(conflict());
+            }
         }
         let mut comparison = admission.map(Admission::scope);
         let list_json = get(list_path, 512 * 1024).await?;
@@ -666,11 +763,26 @@ async fn collect(
         } else {
             None
         };
+        let health = if capture_health {
+            Some(EngineHealthSnapshot {
+                version: 1,
+                engine_id: scope
+                    .as_mut()
+                    .ok_or_else(unavailable)?
+                    .string(&declarations.engine_id)?,
+                containers_observed_at: lifetime.observed_at,
+                complete: health_evidence::complete(&health_members),
+                containers: health_members,
+            })
+        } else {
+            None
+        };
         Ok(Collected {
             declarations,
             running,
             _scope: scope,
             compose,
+            health,
         })
     })
     .await

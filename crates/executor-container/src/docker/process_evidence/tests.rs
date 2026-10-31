@@ -39,6 +39,8 @@ struct Config {
     clock_on_final_info: Option<(Arc<AtomicI64>, i64)>,
     compose_labels: Option<Vec<Value>>,
     compose_labels_after: Option<Vec<Value>>,
+    health_inspect: Option<Value>,
+    health_inspect_after: Option<Value>,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -62,6 +64,8 @@ impl Default for Config {
             clock_on_final_info: None,
             compose_labels: None,
             compose_labels_after: None,
+            health_inspect: None,
+            health_inspect_after: None,
         }
     }
 }
@@ -225,6 +229,26 @@ async fn fixture(config: Config) -> Fixture {
                     "Labels": {"credential": "private"},
                     "padding": "x".repeat(config.padding),
                 });
+                fn merge(target: &mut Value, patch: &Value) {
+                    if let (Some(target), Some(patch)) = (target.as_object_mut(), patch.as_object())
+                    {
+                        for (key, value) in patch {
+                            merge(target.entry(key.clone()).or_insert(Value::Null), value);
+                        }
+                    } else {
+                        *target = patch.clone();
+                    }
+                }
+                if let Some(health) = if nth > 1 {
+                    config
+                        .health_inspect_after
+                        .as_ref()
+                        .or(config.health_inspect.as_ref())
+                } else {
+                    config.health_inspect.as_ref()
+                } {
+                    merge(&mut value, health);
+                }
                 let selected_labels = if nth > 1 {
                     config
                         .compose_labels_after
@@ -288,6 +312,7 @@ async fn fixture(config: Config) -> Fixture {
 }
 
 mod compose_tests;
+mod health_tests;
 mod management_tests;
 mod source_binding_tests;
 

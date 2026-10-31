@@ -2,12 +2,11 @@
 use super::{
     Docker,
     process_evidence::{self, EnginePeerPolicy, EngineStorageProcessEvidence},
-    read_admission::Scope,
+    read_admission::{Scope, Validation, ValidationGate},
 };
 use limeos_domain::{ContainerSnapshot, Error, ErrorCode, Result};
 use serde::Serialize;
 use serde_json::Value;
-use std::sync::atomic::{AtomicU8, Ordering};
 
 const PREFIX: &str = "com.docker.compose.";
 const PROJECT: &str = "com.docker.compose.project";
@@ -94,60 +93,17 @@ pub async fn inspect_compose_membership() -> Result<EngineComposeEvidence> {
 
 pub(super) struct Capture {
     pub(super) snapshot: EngineComposeSnapshot,
-    state: AtomicU8,
+    gate: ValidationGate,
 }
 impl Capture {
     pub(super) fn new(snapshot: EngineComposeSnapshot) -> Self {
         Self {
             snapshot,
-            state: AtomicU8::new(0),
+            gate: ValidationGate::new(),
         }
     }
     pub(super) fn begin(&self) -> Result<Validation<'_>> {
-        if self
-            .state
-            .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
-            .is_err()
-        {
-            self.state.store(2, Ordering::Release);
-            return Err(Error(ErrorCode::Conflict));
-        }
-        Ok(Validation {
-            capture: self,
-            finished: false,
-        })
-    }
-}
-pub(super) struct Validation<'a> {
-    capture: &'a Capture,
-    finished: bool,
-}
-impl Validation<'_> {
-    pub(super) fn finish(mut self, result: Result<()>) -> Result<()> {
-        let result = match result {
-            Ok(())
-                if self
-                    .capture
-                    .state
-                    .compare_exchange(1, 0, Ordering::AcqRel, Ordering::Acquire)
-                    .is_ok() =>
-            {
-                Ok(())
-            }
-            other => {
-                self.capture.state.store(2, Ordering::Release);
-                other.and(Err(Error(ErrorCode::Conflict)))
-            }
-        };
-        self.finished = true;
-        result
-    }
-}
-impl Drop for Validation<'_> {
-    fn drop(&mut self) {
-        if !self.finished {
-            self.capture.state.store(2, Ordering::Release);
-        }
+        self.gate.begin()
     }
 }
 fn refused() -> Error {
