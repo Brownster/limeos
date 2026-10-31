@@ -33,6 +33,30 @@ fn main() {
         .nth(1)
         .expect("closed fixture role required");
     match role.as_str() {
+        "health-launch-observer" => {
+            // Match only this owned process to the dormant service's inherited
+            // descriptor profile; never change the integration-test runner.
+            let mut limit = process::getrlimit(process::Resource::Nofile);
+            limit.current = Some(256);
+            process::setrlimit(process::Resource::Nofile, limit).unwrap();
+            let path = std::env::var_os("LIMEOS_TEST_HEALTH_IMAGE").unwrap();
+            let image = limeos_executor::read_launch::SealedExecutable::capture(
+                &std::fs::File::open(path).unwrap(),
+            )
+            .unwrap();
+            let manager = Supervisor::default();
+            let answer = image
+                .start_health_for_probe(&manager, &"a".repeat(64))
+                .unwrap()
+                .wait();
+            assert!(
+                matches!(answer, Err(supervision::Refusal::WorkerRefused)),
+                "health worker: {:?}",
+                answer.err()
+            );
+            manager.ensure_not_poisoned().unwrap();
+            println!("LIMEOS_HEALTH_REAL_WORKER_REFUSED_CLEANLY soft_nofile=256");
+        }
         "guardian" => {
             marker("guardian");
             let mode = std::env::var("LIMEOS_TEST_WORKER_MODE").unwrap();

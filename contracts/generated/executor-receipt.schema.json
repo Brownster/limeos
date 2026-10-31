@@ -3,6 +3,16 @@
   "title": "Receipt",
   "type": "object",
   "properties": {
+    "container_health": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ContainerHealthCohort"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "container_storage": {
       "anyOf": [
         {
@@ -159,6 +169,55 @@
     "ready"
   ],
   "$defs": {
+    "AlertKind": {
+      "type": "string",
+      "enum": [
+        "container",
+        "smart",
+        "mount",
+        "snapraid",
+        "host"
+      ]
+    },
+    "AlertSignal": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 1
+        },
+        "kind": {
+          "$ref": "#/$defs/AlertKind"
+        },
+        "severity": {
+          "$ref": "#/$defs/AutomationSeverity"
+        },
+        "status": {
+          "$ref": "#/$defs/SignalStatus"
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 512,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "kind",
+        "status",
+        "severity",
+        "summary"
+      ]
+    },
+    "AutomationSeverity": {
+      "type": "string",
+      "enum": [
+        "warning",
+        "critical"
+      ]
+    },
     "Availability": {
       "type": "string",
       "enum": [
@@ -206,6 +265,75 @@
         "restart",
         "start",
         "stop"
+      ]
+    },
+    "ContainerHealthCohort": {
+      "description": "Plain selected observations. Deserialization restores no Engine or poll lease.",
+      "type": "object",
+      "properties": {
+        "complete": {
+          "type": "boolean"
+        },
+        "engine_id": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContainerHealthMember"
+          },
+          "maxItems": 16
+        },
+        "nonce": {
+          "type": "string",
+          "maxLength": 64,
+          "minLength": 64
+        },
+        "sampled_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "nonce",
+        "engine_id",
+        "sampled_at",
+        "complete",
+        "members"
+      ]
+    },
+    "ContainerHealthMember": {
+      "type": "object",
+      "properties": {
+        "resource": {
+          "type": "string",
+          "maxLength": 74,
+          "minLength": 74
+        },
+        "signal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AlertSignal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource"
       ]
     },
     "ContainerLogs": {
@@ -927,6 +1055,14 @@
         "pool",
         "container",
         "stack"
+      ]
+    },
+    "SignalStatus": {
+      "type": "string",
+      "enum": [
+        "healthy",
+        "failing",
+        "unavailable"
       ]
     },
     "Source": {

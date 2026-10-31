@@ -17,6 +17,8 @@ pub struct Ceiling {
     #[serde(default)]
     pub allow_stack_read: bool,
     #[serde(default)]
+    pub allow_container_health_read: bool,
+    #[serde(default)]
     pub allow_container_read: bool,
     #[serde(default)]
     pub allow_restart: bool,
@@ -32,6 +34,11 @@ pub struct Ceiling {
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Request {
+    ContainerHealth {
+        version: u16,
+        #[schemars(length(min = 64, max = 64))]
+        nonce: String,
+    },
     StackInventory {
         version: u16,
     },
@@ -121,6 +128,8 @@ pub enum Request {
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct Receipt {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub container_health: Option<limeos_domain::automation::ContainerHealthCohort>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stack_cohort: Option<limeos_domain::deployment::discovery::DiscoveryCohort>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -307,7 +316,9 @@ impl Ceiling {
                 .iter()
                 .all(|id| limeos_domain::opaque_id(id))
             && (!(self.can_write() || self.allow_container_logs) || self.allow_container_read)
-            && (!(self.allow_storage_read || self.allow_stack_read)
+            && (!(self.allow_storage_read
+                || self.allow_stack_read
+                || self.allow_container_health_read)
                 || (!self.can_write()
                     && !self.allow_container_read
                     && !self.allow_host_read
@@ -321,6 +332,13 @@ impl Ceiling {
             return Err(Error(ErrorCode::Forbidden));
         }
         match request {
+            Request::ContainerHealth { version, nonce }
+                if *version == VERSION
+                    && self.allow_container_health_read
+                    && limeos_domain::opaque_id(nonce) =>
+            {
+                Ok(Receipt::empty())
+            }
             Request::StackInventory { version } if *version == VERSION && self.allow_stack_read => {
                 Ok(Receipt::empty())
             }
@@ -336,6 +354,7 @@ impl Ceiling {
             }
             Request::Health { version } if *version == VERSION && self.allow_health => {
                 Ok(Receipt {
+                    container_health: None,
                     stack_cohort: None,
                     storage_mount_catalog: None,
                     storage_mount_inspection: None,
@@ -362,6 +381,7 @@ impl Ceiling {
                         && self.allow_container_read)) =>
             {
                 Ok(Receipt {
+                    container_health: None,
                     stack_cohort: None,
                     storage_mount_catalog: None,
                     storage_mount_inspection: None,
@@ -473,6 +493,7 @@ impl Ceiling {
 impl Receipt {
     pub fn empty() -> Self {
         Self {
+            container_health: None,
             stack_cohort: None,
             storage_mount_catalog: None,
             storage_mount_inspection: None,
@@ -536,6 +557,67 @@ mod tests {
         c.allow_host_read = false;
         c.allow_container_read = true;
         assert!(!c.configuration_valid());
+    }
+
+    #[test]
+    fn health_capture_requires_dedicated_read_ceiling_nonce_and_current_kernel_peer() {
+        let mut ceiling: Ceiling = serde_json::from_str(
+            r#"{"version":1,"core_uid":1001,"allow_health":true,"allow_storage_read":true}"#,
+        )
+        .unwrap();
+        let request = Request::ContainerHealth {
+            version: VERSION,
+            nonce: "a".repeat(64),
+        };
+        assert!(ceiling.validate(1001, &request).is_err());
+        ceiling.allow_container_health_read = true;
+        assert!(ceiling.validate(1001, &request).is_ok());
+        assert!(!ceiling.can_write());
+        assert!(ceiling.validate(1002, &request).is_err());
+        for nonce in ["".into(), "short".into(), "A".repeat(64), "a".repeat(65)] {
+            assert!(
+                ceiling
+                    .validate(
+                        1001,
+                        &Request::ContainerHealth {
+                            version: VERSION,
+                            nonce
+                        }
+                    )
+                    .is_err()
+            );
+        }
+        assert!(
+            ceiling
+                .validate(
+                    1001,
+                    &Request::ContainerHealth {
+                        version: 2,
+                        nonce: "a".repeat(64)
+                    }
+                )
+                .is_err()
+        );
+        for flag in [0, 1, 2, 3] {
+            let mut mixed = ceiling.clone();
+            match flag {
+                0 => mixed.allow_host_read = true,
+                1 => mixed.allow_container_read = true,
+                2 => mixed.allow_container_logs = true,
+                _ => {
+                    mixed.allow_container_read = true;
+                    mixed.allow_restart = true;
+                }
+            }
+            assert!(!mixed.configuration_valid());
+        }
+        for field in [
+            "endpoint", "uid", "clock", "path", "profile", "deadline", "command", "resource",
+        ] {
+            let mut wire = serde_json::json!({"operation":"container_health","version":1,"nonce":"a".repeat(64)});
+            wire[field] = serde_json::json!("forbidden selector");
+            assert!(serde_json::from_value::<Request>(wire).is_err());
+        }
     }
     #[test]
     fn container_storage_read_requires_the_container_ceiling_and_accepts_no_filters() {
@@ -666,6 +748,7 @@ mod tests {
             allow_host_read: false,
             allow_storage_read: false,
             allow_stack_read: false,
+            allow_container_health_read: false,
             allow_container_read: true,
             allow_restart: false,
             allow_start: false,
@@ -709,6 +792,7 @@ mod tests {
             allow_host_read: false,
             allow_storage_read: false,
             allow_stack_read: false,
+            allow_container_health_read: false,
             allow_container_read: false,
             allow_restart: false,
             allow_start: false,

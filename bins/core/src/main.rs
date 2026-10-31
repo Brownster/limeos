@@ -20,6 +20,7 @@ mod automation_history;
 mod automation_schedules;
 pub mod automation_store;
 mod compose;
+pub mod health_collection;
 mod identity_enablement;
 mod operations;
 mod stacks;

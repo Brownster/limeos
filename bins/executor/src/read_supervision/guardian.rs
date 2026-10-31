@@ -40,6 +40,9 @@ impl WorkerBootstrap {
     ) -> limeos_domain::Result<Vec<u8>> {
         crate::stack_read::collect(catalog, &|| process::getppid() != Some(self.guardian)).await
     }
+    pub async fn collect_health(&self, nonce: &str) -> limeos_domain::Result<Vec<u8>> {
+        crate::health_read::collect(nonce, &|| process::getppid() != Some(self.guardian)).await
+    }
 }
 
 pub fn write_worker_report(body: &[u8]) -> Result<()> {

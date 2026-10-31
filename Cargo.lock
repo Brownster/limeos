@@ -791,6 +791,7 @@ dependencies = [
  "limeos-persistence",
  "limeos-policy",
  "rusqlite",
+ "rustix",
  "serde_json",
  "tempfile",
  "tokio",

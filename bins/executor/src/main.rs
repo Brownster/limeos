@@ -203,8 +203,14 @@ async fn run() -> std::io::Result<()> {
     };
     let storage_reader = args[3] == "storage";
     if (storage_reader
-        && (!(ceiling.allow_storage_read || ceiling.allow_stack_read) || args.len() != 4))
-        || (!storage_reader && (ceiling.allow_storage_read || ceiling.allow_stack_read))
+        && (!(ceiling.allow_storage_read
+            || ceiling.allow_stack_read
+            || ceiling.allow_container_health_read)
+            || args.len() != 4))
+        || (!storage_reader
+            && (ceiling.allow_storage_read
+                || ceiling.allow_stack_read
+                || ceiling.allow_container_health_read))
     {
         return Err(std::io::Error::other(
             "storage reader requires a dedicated read-only ceiling",
@@ -326,6 +332,21 @@ async fn run() -> std::io::Result<()> {
                 .map_err(|_| limeos_domain::Error(limeos_domain::ErrorCode::Unavailable))??;
                 let mut receipt = ceiling.validate(peer.uid(), &request)?;
                 match request {
+                    Request::ContainerHealth { nonce, .. } if storage_reader => {
+                        let guard = storage_permit.clone().try_lock_owned().map_err(|_| {
+                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
+                        })?;
+                        let manager = read_supervisor.clone();
+                        receipt.container_health = Some(
+                            tokio::task::spawn_blocking(move || {
+                                limeos_executor::health_read::refresh(&nonce, &manager, guard)
+                            })
+                            .await
+                            .map_err(|_| {
+                                limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
+                            })??,
+                        );
+                    }
                     Request::StackInventory { .. } if storage_reader => {
                         receipt.stack_cohort = Some(stacks.cohort()?);
                     }

@@ -1,6 +1,8 @@
 """Package contract for protected stack reads; installed syscall tests are separate."""
 
 import importlib.util
+import json
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -23,6 +25,52 @@ def properties(text):
 
 
 class StackReaderProfileTests(unittest.TestCase):
+    def test_new_storage_policy_adds_only_closed_read_permissions(self):
+        script = (ROOT / "packaging/debian/postinst").read_text()
+        line = next(
+            line.strip()
+            for line in script.splitlines()
+            if '"allow_container_health_read":true' in line
+        )
+        suffix = '>"${temporary}"'
+        self.assertTrue(line.endswith(suffix))
+        # Execute the actual printf using Bash builtins, without its file redirect
+        # or any account/systemd/filesystem operations from the package script.
+        result = subprocess.run(
+            [
+                "/bin/bash",
+                "--noprofile",
+                "--norc",
+                "-c",
+                "core_uid=1001\n" + line.removesuffix(suffix),
+            ],
+            env={"PATH": "/nonexistent"},
+            text=True,
+            capture_output=True,
+            timeout=5,
+            check=True,
+        )
+        self.assertEqual(
+            json.loads(result.stdout),
+            {
+                "version": 1,
+                "core_uid": 1001,
+                "allow_health": True,
+                "allow_storage_read": True,
+                "allow_stack_read": True,
+                "allow_container_health_read": True,
+                "managed_containers": [],
+            },
+        )
+        preserved = script[
+            script.index(
+                'if [[ -e "/etc/limeos/system-policy/${target}.json"'
+            ) : script.index('temporary="$(mktemp')
+        ]
+        self.assertIn("check-ceiling", preserved)
+        self.assertIn("continue", preserved)
+        self.assertNotIn("allow_container_health_read", preserved)
+
     def test_protected_open_is_compatible_without_capabilities_or_larger_limits(self):
         for shadow in (False, True):
             with self.subTest(shadow=shadow):

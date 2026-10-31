@@ -169,6 +169,32 @@ impl ObservationStoreBridge {
         .await
     }
 
+    /// Internal partial container pass. Remaining health sources and normal
+    /// scheduling are registered separately; this cannot claim global completeness.
+    pub async fn poll_containers(
+        &self,
+        reader: &crate::health_collection::HealthReader,
+        schedule: String,
+        deadline: Instant,
+    ) -> Result<Option<ObservationPollOutcome>> {
+        let fresh = reader.read(deadline).await?;
+        let original = fresh.deadline();
+        let mut resources = vec!["host:system".into()];
+        resources.extend(fresh.cohort().members().iter().map(|m| m.resource.clone()));
+        let admission = self.poll_begin(schedule, resources, original).await?;
+        let ObservationPollAdmission::Lease(lease) = admission else {
+            return Ok(None);
+        };
+        fresh.ensure_live()?;
+        let cohort = fresh.cohort().clone();
+        let clock = self.clock.clone();
+        self.call(original.min(lease.deadline()), move |store| {
+            store.automation_poll_containers_complete_before(&lease, &cohort, || clock(), original)
+        })
+        .await
+        .map(Some)
+    }
+
     pub async fn poll_abandon(&self, lease: ObservationPollLease, deadline: Instant) -> Result<()> {
         self.call(deadline, move |store| {
             store.automation_poll_abandon(&lease);

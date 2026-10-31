@@ -34,20 +34,24 @@ pub enum Severity {
     Warning,
     Critical,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum SignalStatus {
     Healthy,
     Failing,
     Unavailable,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct AlertSignal {
+    #[schemars(length(min = 1, max = 256))]
     pub key: String,
     pub kind: AlertKind,
     pub status: SignalStatus,
     pub severity: Severity,
+    #[schemars(length(min = 1, max = 512))]
     pub summary: String,
 }
 impl AlertSignal {

@@ -3,6 +3,10 @@
   "title": "Ceiling",
   "type": "object",
   "properties": {
+    "allow_container_health_read": {
+      "type": "boolean",
+      "default": false
+    },
     "allow_container_logs": {
       "type": "boolean",
       "default": false

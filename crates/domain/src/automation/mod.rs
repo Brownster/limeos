@@ -1,6 +1,7 @@
 //! Bounded deterministic automation facts; no authority, persistence or effects.
 mod alerts;
 mod delivery;
+mod health_cohort;
 mod health_policy;
 mod runner;
 mod schedule;
@@ -9,6 +10,7 @@ mod signals;
 mod views;
 pub use alerts::*;
 pub use delivery::*;
+pub use health_cohort::*;
 pub use health_policy::*;
 pub use runner::*;
 pub use schedule::*;

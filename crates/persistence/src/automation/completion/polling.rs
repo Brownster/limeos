@@ -143,6 +143,56 @@ fn material_change(
     Ok(changed)
 }
 
+fn container_bindings(
+    conn: &Connection,
+    lease: &ObservationPollLease,
+    cohort: &ContainerHealthCohort,
+    now: i64,
+) -> Result<()> {
+    cohort.check_time(cohort.sampled_at(), now)?;
+    let mut scopes = vec!["host:system".into()];
+    scopes.extend(cohort.members().iter().map(|m| m.resource.clone()));
+    scopes.sort();
+    if scopes != lease.resources {
+        return Err(Error(ErrorCode::Forbidden));
+    }
+    let present = |resource: &str| {
+        resource
+            .strip_prefix("container:")
+            .is_some_and(limeos_domain::opaque_id)
+            && cohort
+                .members()
+                .binary_search_by(|m| m.resource.as_str().cmp(resource))
+                .is_ok()
+    };
+    if lease
+        .policy
+        .definition
+        .silences
+        .iter()
+        .any(|silence| silence.kind == AlertKind::Container && !present(&silence.key))
+    {
+        return Err(Error(ErrorCode::Conflict));
+    }
+    let mut statement=conn.prepare("SELECT key,resource FROM automation_alerts WHERE owner=? AND json_extract(body,'$.kind')='container' LIMIT ?").map_err(durable)?;
+    let mut rows = statement
+        .query(params![lease.owner, MAX_ALERTS as i64 + 1])
+        .map_err(durable)?;
+    let mut count = 0;
+    while let Some(row) = rows.next().map_err(durable)? {
+        count += 1;
+        if count > MAX_ALERTS {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
+        let key: String = row.get(0).map_err(durable)?;
+        let resource: String = row.get(1).map_err(durable)?;
+        if key != resource || !present(&resource) {
+            return Err(Error(ErrorCode::Conflict));
+        }
+    }
+    Ok(())
+}
+
 impl Store {
     /// Read-only admission for an ObserveHealth schedule. Hints convey no authority.
     pub fn automation_poll_begin(
@@ -268,7 +318,57 @@ impl Store {
         batch: &HealthObservation,
         clock: impl Fn() -> i64,
     ) -> Result<ObservationPollOutcome> {
-        let answer = self.complete_poll(lease, batch, clock);
+        self.automation_poll_complete_before(lease, batch, clock, lease.deadline)
+    }
+    /// A trusted fresh reader may shorten completion lifetime, never renew it.
+    pub fn automation_poll_complete_before(
+        &mut self,
+        lease: &ObservationPollLease,
+        batch: &HealthObservation,
+        clock: impl Fn() -> i64,
+        read_deadline: Instant,
+    ) -> Result<ObservationPollOutcome> {
+        self.settle_poll(lease, batch, clock, read_deadline, None)
+    }
+    /// A partial container pass cannot silently rebind legacy names or retire
+    /// prior subjects. Check current source time and bindings in the commit snapshot.
+    pub fn automation_poll_containers_complete_before(
+        &mut self,
+        lease: &ObservationPollLease,
+        cohort: &ContainerHealthCohort,
+        clock: impl Fn() -> i64,
+        read_deadline: Instant,
+    ) -> Result<ObservationPollOutcome> {
+        let batch = HealthObservation {
+            signals: cohort
+                .members()
+                .iter()
+                .filter_map(|m| {
+                    m.signal.clone().map(|signal| ScopedHealthSignal {
+                        resource: m.resource.clone(),
+                        signal,
+                    })
+                })
+                .collect(),
+            complete: false,
+        };
+        self.settle_poll(lease, &batch, clock, read_deadline, Some(cohort))
+    }
+    fn settle_poll(
+        &mut self,
+        lease: &ObservationPollLease,
+        batch: &HealthObservation,
+        clock: impl Fn() -> i64,
+        read_deadline: Instant,
+        source: Option<&ContainerHealthCohort>,
+    ) -> Result<ObservationPollOutcome> {
+        let answer = self.complete_poll(
+            lease,
+            batch,
+            clock,
+            read_deadline.min(lease.deadline),
+            source,
+        );
         // Any failure requires fresh admission. This cannot release other work.
         self.automation_poll_abandon(lease);
         if answer.is_ok() {
@@ -293,8 +393,10 @@ impl Store {
         lease: &ObservationPollLease,
         batch: &HealthObservation,
         clock: impl Fn() -> i64,
+        deadline: Instant,
+        source: Option<&ContainerHealthCohort>,
     ) -> Result<ObservationPollOutcome> {
-        reservation_live(Some(lease.deadline))?;
+        reservation_live(Some(deadline))?;
         let digest = observation_digest(batch)?;
         if batch.complete
             && batch
@@ -308,9 +410,13 @@ impl Store {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(durable)?;
-        reservation_live(Some(lease.deadline))?;
+        reservation_live(Some(deadline))?;
         let now = clock();
+        reservation_live(Some(deadline))?;
         let row = poll_current(&tx, lease, self.generation, now)?;
+        if let Some(cohort) = source {
+            container_bindings(&tx, lease, cohort, now)?;
+        }
         // A replay needs the original private nonce, current authority and body.
         let prior:Option<(String,String)>=tx.query_row("SELECT o.job,p.lease_digest FROM automation_occurrences o JOIN automation_poll_origins p ON p.job=o.job WHERE o.schedule=? AND o.revision=? AND o.due=?",params![lease.occurrence.schedule,lease.occurrence.revision,lease.occurrence.due],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(durable)?;
         if let Some((job, nonce)) = prior {
@@ -318,7 +424,7 @@ impl Store {
             if nonce != limeos_identity::digest(&lease.nonce) || body != digest {
                 return Err(Error(ErrorCode::Conflict));
             }
-            reservation_live(Some(lease.deadline))?;
+            reservation_live(Some(deadline))?;
             tx.commit().map_err(durable)?;
             return Ok(ObservationPollOutcome::Committed(receipt));
         }
@@ -342,7 +448,7 @@ impl Store {
         }
         no_queued(&tx, &lease.owner)?;
         if !material_change(&tx, lease, batch, now)? {
-            reservation_live(Some(lease.deadline))?;
+            reservation_live(Some(deadline))?;
             tx.commit().map_err(durable)?;
             return Ok(ObservationPollOutcome::Unchanged {
                 complete: batch.complete,
@@ -400,7 +506,7 @@ impl Store {
         receipt.notifications = fold(&tx, &ctx, &receipt, batch)?;
         save_result(&tx, &job, &ctx, &receipt, "observed", &digest)?;
         finish_job(&tx, &ctx, &receipt)?;
-        reservation_live(Some(lease.deadline))?;
+        reservation_live(Some(deadline))?;
         tx.commit().map_err(durable)?;
         Ok(ObservationPollOutcome::Committed(receipt))
     }

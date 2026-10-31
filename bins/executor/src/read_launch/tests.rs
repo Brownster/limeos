@@ -78,6 +78,22 @@ fn stack_role_accepts_only_installed_profiles_and_canonical_configuration_names(
 }
 
 #[test]
+fn health_role_carries_only_nonce_and_digest_and_refuses_noncanonical_request_ids() {
+    let image = SealedExecutable::capture(&File::open("/usr/bin/true").unwrap()).unwrap();
+    let command = image.health_command("health-guardian", &"a".repeat(64));
+    let env = command
+        .get_envs()
+        .map(|(k, v)| (k.to_str().unwrap(), v.unwrap().to_str().unwrap()))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    assert_eq!(env.len(), 2);
+    assert_eq!(env[HEALTH_KEY], "a".repeat(64));
+    assert!(env.contains_key(DIGEST_KEY));
+    for invalid in ["short".into(), "A".repeat(64), "a".repeat(65)] {
+        assert!(health_nonce(&invalid).is_err());
+    }
+}
+
+#[test]
 fn selection_refuses_noncanonical_amplified_duplicate_and_missing_role_names() {
     assert!(ConfigurationSelection::new(paths()).is_ok());
     for path in [

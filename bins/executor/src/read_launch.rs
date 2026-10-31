@@ -21,6 +21,7 @@ use std::{
 mod tests;
 const IMAGE: &str = "/usr/lib/limeos/limeos-combined-read-probe";
 const STACK_KEY: &str = "LIMEOS_STACK_CATALOG";
+const HEALTH_KEY: &str = "LIMEOS_HEALTH_NONCE";
 const MAX_IMAGE: u64 = 8 * 1024 * 1024;
 const WINDOW: Duration = Duration::from_secs(4);
 const KEYS: [&str; 4] = [
@@ -62,7 +63,10 @@ impl StackSelection {
     }
     fn from_environment() -> Result<Self> {
         let text = std::env::var_os(STACK_KEY).ok_or(Refusal::InvalidSelection)?;
-        if text.len() > 512 || KEYS.iter().any(|key| std::env::var_os(key).is_some()) {
+        if text.len() > 512
+            || std::env::var_os(HEALTH_KEY).is_some()
+            || KEYS.iter().any(|key| std::env::var_os(key).is_some())
+        {
             return Err(Refusal::InvalidSelection);
         }
         Self::new(Path::new(&text))
@@ -120,6 +124,9 @@ impl ConfigurationSelection {
     }
     /// Internal test-role transport: bounded names, no UID/root/clock selectors.
     pub fn from_environment() -> Result<Self> {
+        if std::env::var_os(HEALTH_KEY).is_some() {
+            return Err(Refusal::InvalidSelection);
+        }
         let mut names = Vec::new();
         for key in KEYS {
             let value = std::env::var_os(key).ok_or(Refusal::InvalidSelection)?;
@@ -240,6 +247,26 @@ impl SealedExecutable {
         let mut command = self.role_command(role);
         command.env(STACK_KEY, &selection.0);
         command
+    }
+    fn health_command(&self, role: &str, nonce: &str) -> Command {
+        let mut command = self.role_command(role);
+        command.env(HEALTH_KEY, nonce);
+        command
+    }
+    /// Content-only owned-process fixture, absent from ordinary production builds.
+    #[cfg(feature = "read-worker-probe")]
+    pub fn start_health_for_probe(
+        self: &Arc<Self>,
+        manager: &Supervisor,
+        nonce: &str,
+    ) -> std::result::Result<Ticket, crate::read_supervision::Refusal> {
+        let nonce =
+            health_nonce(nonce).map_err(|_| crate::read_supervision::Refusal::Unavailable)?;
+        manager.start_held(
+            self.health_command("health-guardian", &nonce),
+            Instant::now() + WINDOW,
+            self.clone(),
+        )
     }
     fn role_command(&self, role: &str) -> Command {
         let mut command = Command::new(format!(
@@ -404,6 +431,78 @@ impl ProtectedStackLaunch {
 pub struct LoadedStackRole {
     image: Arc<SealedExecutable>,
     selection: StackSelection,
+}
+
+/// Same fixed package image and cleanup barrier, with a nonce-only health role.
+pub struct ProtectedHealthLaunch {
+    image: Arc<SealedExecutable>,
+    nonce: String,
+    deadline: Instant,
+}
+impl ProtectedHealthLaunch {
+    pub fn prepare(nonce: &str) -> Result<Self> {
+        let deadline = Instant::now() + WINDOW;
+        let nonce = health_nonce(nonce)?;
+        let root = File::from(
+            rustix::fs::open(
+                "/",
+                OFlags::PATH | OFlags::DIRECTORY | OFlags::CLOEXEC,
+                Mode::empty(),
+            )
+            .map_err(|_| Refusal::Unavailable)?,
+        );
+        let executable = std::env::current_exe().map_err(|_| Refusal::Unavailable)?;
+        let image = protected_image(root, &installed_stack_paths(&executable)?.0[1..], 0)?;
+        if Instant::now() >= deadline {
+            return Err(Refusal::Expired);
+        }
+        Ok(Self {
+            image,
+            nonce,
+            deadline,
+        })
+    }
+    pub(crate) fn start_with<L: Send + 'static>(
+        &self,
+        manager: &Supervisor,
+        lease: L,
+    ) -> std::result::Result<Ticket, crate::read_supervision::Refusal> {
+        manager.start_held(
+            self.image.health_command("health-guardian", &self.nonce),
+            self.deadline,
+            (self.image.clone(), lease),
+        )
+    }
+}
+fn health_nonce(value: &str) -> Result<String> {
+    if !limeos_domain::opaque_id(value) {
+        return Err(Refusal::InvalidSelection);
+    }
+    Ok(value.into())
+}
+pub struct LoadedHealthRole {
+    image: Arc<SealedExecutable>,
+    nonce: String,
+}
+impl LoadedHealthRole {
+    pub fn current() -> Result<Self> {
+        let image = current_image()?;
+        let nonce = std::env::var_os(HEALTH_KEY).ok_or(Refusal::InvalidSelection)?;
+        if nonce.len() != 64
+            || std::env::var_os(STACK_KEY).is_some()
+            || KEYS.iter().any(|key| std::env::var_os(key).is_some())
+        {
+            return Err(Refusal::InvalidSelection);
+        }
+        let nonce = health_nonce(nonce.to_str().ok_or(Refusal::InvalidSelection)?)?;
+        Ok(Self { image, nonce })
+    }
+    pub fn worker_command(&self) -> Command {
+        self.image.health_command("health-worker", &self.nonce)
+    }
+    pub fn nonce(&self) -> &str {
+        &self.nonce
+    }
 }
 impl LoadedStackRole {
     pub fn current() -> Result<Self> {

@@ -717,6 +717,87 @@ fn legal_pruning_of_old_occurrence_detail_keeps_poll_proofs_valid() {
     sample(&mut store, &id, 180, SignalStatus::Failing, true);
 }
 
+#[test]
+fn fresh_reader_deadline_is_rechecked_after_the_actual_sqlite_write_lock_wait() {
+    let (dir, mut store, actor) = setup();
+    let id = schedule(&mut store, &actor);
+    let poll = lease(&mut store, &id, 120);
+    let blocker = Connection::open(dir.path().join("core.sqlite")).unwrap();
+    blocker.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let before = counts(&store);
+    let deadline = Instant::now() + Duration::from_millis(80);
+    let thread = std::thread::spawn(move || {
+        let answer = store.automation_poll_complete_before(
+            &poll,
+            &batch(SignalStatus::Failing, true),
+            || 120,
+            deadline,
+        );
+        (store, answer)
+    });
+    std::thread::sleep(Duration::from_millis(120));
+    blocker.execute_batch("ROLLBACK").unwrap();
+    let (mut store, answer) = thread.join().unwrap();
+    assert_eq!(answer, Err(Error(ErrorCode::Expired)));
+    assert_eq!(counts(&store), before);
+    assert!(matches!(
+        sample(&mut store, &id, 120, SignalStatus::Healthy, true),
+        ObservationPollOutcome::Committed(_)
+    ));
+}
+
+#[test]
+fn a_later_read_deadline_cannot_extend_the_original_poll_lease() {
+    let (_dir, mut store, actor) = setup();
+    let id = schedule(&mut store, &actor);
+    let ObservationPollAdmission::Lease(poll) = store
+        .automation_poll_begin(
+            &id,
+            vec!["host:system".into()],
+            || 120,
+            Instant::now() + Duration::from_millis(20),
+        )
+        .unwrap()
+    else {
+        panic!("lease")
+    };
+    let before = counts(&store);
+    std::thread::sleep(Duration::from_millis(30));
+    assert_eq!(
+        store.automation_poll_complete_before(
+            &poll,
+            &batch(SignalStatus::Failing, true),
+            || 120,
+            Instant::now() + Duration::from_secs(60)
+        ),
+        Err(Error(ErrorCode::Expired))
+    );
+    assert_eq!(counts(&store), before);
+}
+
+#[test]
+fn container_source_wall_age_is_checked_again_in_the_completion_transaction() {
+    for (sampled, now) in [(120, 126), (121, 120)] {
+        let (_dir, mut store, actor) = setup();
+        let id = schedule(&mut store, &actor);
+        let ObservationPollAdmission::Lease(poll) = store
+            .automation_poll_begin(&id, vec!["host:system".into()], || 120, deadline())
+            .unwrap()
+        else {
+            panic!("lease")
+        };
+        let source =
+            ContainerHealthCohort::new("a".repeat(64), "fixture-engine".into(), sampled, vec![])
+                .unwrap();
+        let before = counts(&store);
+        assert_eq!(
+            store.automation_poll_containers_complete_before(&poll, &source, || now, deadline()),
+            Err(Error(ErrorCode::Conflict))
+        );
+        assert_eq!(counts(&store), before);
+    }
+}
+
 fn process_write_bytes() -> u64 {
     std::fs::read_to_string("/proc/self/io")
         .unwrap()

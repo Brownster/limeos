@@ -324,11 +324,15 @@ fn main() {
     ts!(limeos_domain::automation::ScheduleView);
     ts!(limeos_domain::automation::AlertKind);
     ts!(limeos_domain::automation::Severity);
+    ts!(limeos_domain::automation::SignalStatus);
+    ts!(limeos_domain::automation::AlertSignal);
     ts!(limeos_domain::automation::IncidentState);
     ts!(limeos_domain::automation::AlertState);
     ts!(limeos_domain::automation::AlertEventKind);
     ts!(limeos_domain::automation::HealthPolicySilence);
     ts!(limeos_domain::automation::HealthPolicyDefinition);
+    ts!(limeos_domain::automation::ContainerHealthMember);
+    ts!(limeos_domain::automation::ContainerHealthCohort);
     ts!(limeos_domain::automation::HealthPolicyView);
     ts!(limeos_domain::automation::ReplaceHealthPolicy);
     ts!(limeos_domain::automation::AlertEvent);
