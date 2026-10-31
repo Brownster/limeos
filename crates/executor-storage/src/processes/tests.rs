@@ -1098,12 +1098,15 @@ fn real_directory_link_count_is_validity_not_identity_and_detachment_refuses() {
     let budget = Budget::new(&kernel, &lease).unwrap();
     let before = kernel.directory_identity(&fd, &budget).unwrap();
     let links = rustix::fs::fstat(&fd).unwrap().st_nlink;
+    assert!(links > 0);
     let subdirectory = path.join("owned-subdirectory");
     std::fs::create_dir(&subdirectory).unwrap();
-    assert_ne!(rustix::fs::fstat(&fd).unwrap().st_nlink, links);
+    // Btrfs keeps directory links at one; other filesystems may increment it.
+    assert!(rustix::fs::fstat(&fd).unwrap().st_nlink > 0);
     assert_eq!(kernel.directory_identity(&fd, &budget).unwrap(), before);
     std::fs::remove_dir(subdirectory).unwrap();
     std::fs::remove_dir(path).unwrap();
+    assert_eq!(rustix::fs::fstat(&fd).unwrap().st_nlink, 0);
     assert_eq!(
         kernel.directory_identity(&fd, &budget),
         Err(Failure::Unavailable)

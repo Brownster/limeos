@@ -88,10 +88,9 @@ impl ContainerSourceEvidence {
     fn revalidate_inner(&self, deadline: Instant) -> Result<()> {
         check_deadline(self.expires)?;
         self.inventory.validate(now()?).map_err(domain_failure)?;
-        table_matches_with_profile(
-            &read_mount_text_with_profile(self.profile)?,
+        let verified = VerifiedMounts::current(
             &self.table,
-            &self.snapshot.mounts_digest,
+            Some(&self.snapshot.mounts_digest),
             self.profile,
         )?;
         let table = &self.table;
@@ -103,7 +102,7 @@ impl ContainerSourceEvidence {
         }
         for (source, fd) in self.snapshot.sources.iter().zip(&self.retained) {
             check_deadline(deadline)?;
-            if self.context.inspect(fd, table)?
+            if self.context.inspect_verified(fd, &verified)?
                 != (source.identity.clone(), source.resolved_path.clone())
             {
                 return Err(Failure::Conflict);
@@ -111,8 +110,8 @@ impl ContainerSourceEvidence {
             for name in [&source.declared_path, &source.resolved_path] {
                 let again = self
                     .context
-                    .open_with_profile(name, table, deadline, self.profile)?;
-                if self.context.inspect(&again, table)?
+                    .open_verified(name, &verified, deadline, self.profile)?;
+                if self.context.inspect_verified(&again, &verified)?
                     != (source.identity.clone(), source.resolved_path.clone())
                 {
                     return Err(Failure::Conflict);
@@ -190,7 +189,7 @@ fn collect_with_profile(
         + Duration::from_secs(
             (CONTAINER_STORAGE_MAX_AGE_SECONDS - (observed_at - inventory.observed_at)) as u64,
         );
-    let mounts_digest = limeos_identity::digest(&read_mount_text_with_profile(profile)?);
+    let verified = VerifiedMounts::current(&table, None, profile)?;
     read_admission::json_limit(inventory, 64 * 1024)?;
     if descriptor_mount_id(&context.root)? != ns {
         return Err(Failure::Unavailable);
@@ -204,8 +203,8 @@ fn collect_with_profile(
     for consumer in &inventory.containers {
         for source in &consumer.mounts {
             check_deadline(deadline)?;
-            let fd = context.open_with_profile(source.source.path(), &table, deadline, profile)?;
-            let (identity, resolved_path) = context.inspect(&fd, &table)?;
+            let fd = context.open_verified(source.source.path(), &verified, deadline, profile)?;
+            let (identity, resolved_path) = context.inspect_verified(&fd, &verified)?;
             let potential_mount_ids = candidates_with_limit(
                 &identity,
                 &resolved_path,
@@ -246,6 +245,7 @@ fn collect_with_profile(
         })
         .collect();
     selected_mounts.sort_by_key(|m| m.mount_id);
+    let mounts_digest = verified.digest;
     let evidence = ContainerSourceEvidence {
         snapshot: ContainerSourceSnapshot {
             version: 1,
@@ -265,6 +265,33 @@ fn collect_with_profile(
     read_admission::json_limit(evidence.snapshot(), MAX_REPORT_BYTES)?;
     evidence.revalidate_inner(deadline)?;
     Ok(evidence)
+}
+
+/// Only a fresh genuine proc table may select filesystem-specific inode rules.
+/// Borrow the already bounded rows rather than retaining another table or FD.
+struct VerifiedMounts<'a> {
+    rows: &'a [mounts::Mount],
+    digest: String,
+}
+impl<'a> VerifiedMounts<'a> {
+    fn current(
+        rows: &'a [mounts::Mount],
+        expected: Option<&str>,
+        profile: StorageReadProfile,
+    ) -> Result<Self> {
+        let text = read_mount_text_with_profile(profile)?;
+        let digest = limeos_identity::digest(&text);
+        table_matches_with_profile(&text, rows, expected.unwrap_or(&digest), profile)?;
+        validate_table(rows)?;
+        Ok(Self { rows, digest })
+    }
+
+    fn mount(&self, id: u64) -> Result<&mounts::Mount> {
+        self.rows
+            .iter()
+            .find(|m| m.id == id)
+            .ok_or(Failure::Conflict)
+    }
 }
 
 struct Context {
@@ -288,12 +315,13 @@ impl Context {
     }
     #[cfg(test)]
     fn open(&self, name: &str, table: &[mounts::Mount], deadline: Instant) -> Result<OwnedFd> {
-        self.open_with_profile(name, table, deadline, StorageReadProfile::Standard)
+        let verified = VerifiedMounts::current(table, None, StorageReadProfile::Standard)?;
+        self.open_verified(name, &verified, deadline, StorageReadProfile::Standard)
     }
-    fn open_with_profile(
+    fn open_verified(
         &self,
         name: &str,
-        table: &[mounts::Mount],
+        table: &VerifiedMounts<'_>,
         deadline: Instant,
         profile: StorageReadProfile,
     ) -> Result<OwnedFd> {
@@ -327,10 +355,7 @@ impl Context {
             };
             let fd = self.cached_leaf(&path)?;
             let mount_id = descriptor_mount_id(&fd)?;
-            let mount = table
-                .iter()
-                .find(|m| m.id == mount_id)
-                .ok_or(Failure::Conflict)?;
+            let mount = table.mount(mount_id)?;
             if !local_filesystem(&mount.filesystem) {
                 return Err(Failure::Unavailable);
             }
@@ -344,8 +369,9 @@ impl Context {
             let mask = StatxFlags::TYPE | StatxFlags::MNT_ID;
             if s.stx_mask & mask.bits() != mask.bits()
                 || s.stx_mnt_id != mount_id
-                || s.stx_dev_major != mount.device.major
-                || s.stx_dev_minor != mount.device.minor
+                || (mount.filesystem != "btrfs"
+                    && (s.stx_dev_major != mount.device.major
+                        || s.stx_dev_minor != mount.device.minor))
             {
                 return Err(Failure::Conflict);
             }
@@ -405,18 +431,24 @@ impl Context {
             _ => Failure::Unavailable,
         })
     }
+    #[cfg(test)]
     fn inspect(
         &self,
         fd: &OwnedFd,
         table: &[mounts::Mount],
     ) -> Result<(ContainerSourceIdentity, String)> {
+        let verified = VerifiedMounts::current(table, None, StorageReadProfile::Standard)?;
+        self.inspect_verified(fd, &verified)
+    }
+    fn inspect_verified(
+        &self,
+        fd: &OwnedFd,
+        table: &VerifiedMounts<'_>,
+    ) -> Result<(ContainerSourceIdentity, String)> {
         // Proc's mount ID is kernel metadata. Reject remote/FUSE sources before
         // requesting inode attributes from a potentially stalled filesystem.
         let mount_id = descriptor_mount_id(fd)?;
-        let mount = table
-            .iter()
-            .find(|m| m.id == mount_id)
-            .ok_or(Failure::Conflict)?;
+        let mount = table.mount(mount_id)?;
         if !local_filesystem(&mount.filesystem) {
             return Err(Failure::Unavailable);
         }
@@ -435,8 +467,20 @@ impl Context {
             major: s.stx_dev_major,
             minor: s.stx_dev_minor,
         };
-        if s.stx_mnt_id != mount_id || device != mount.device {
+        if s.stx_mnt_id != mount_id {
             return Err(Failure::Conflict);
+        }
+        if device != mount.device {
+            // Btrfs getattr uses a per-subvolume anonymous device. Keep that
+            // real device in the report; it grants no physical equivalence.
+            if mount.filesystem != "btrfs"
+                || rustix::fs::fstatfs(fd)
+                    .map_err(|_| Failure::Unavailable)?
+                    .f_type as u32
+                    != 0x9123_683e
+            {
+                return Err(Failure::Conflict);
+            }
         }
         let mut buffer = [0u8; 513];
         let length =

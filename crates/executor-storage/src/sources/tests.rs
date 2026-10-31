@@ -81,6 +81,47 @@ fn real_descriptors_bind_stopped_sources_without_reading_or_changing_contents() 
     assert_eq!(fs::read(&file).unwrap(), b"private contents");
 }
 #[test]
+fn real_inode_and_mount_devices_are_preserved_separately() {
+    let (_dir, file) = fixture();
+    let result = evidence(&inventory(&[&file])).unwrap();
+    let source = &result.snapshot.sources[0];
+    let fd = &result.retained[0];
+    let actual = rustix::fs::statx(fd, "", AtFlags::EMPTY_PATH, StatxFlags::MNT_ID).unwrap();
+    assert_eq!(source.identity.device.major, actual.stx_dev_major);
+    assert_eq!(source.identity.device.minor, actual.stx_dev_minor);
+    assert_eq!(source.identity.mount_id, actual.stx_mnt_id);
+    let table = read_table().unwrap();
+    let row = table.iter().find(|m| m.id == actual.stx_mnt_id).unwrap();
+    let report = result
+        .snapshot
+        .mounts
+        .iter()
+        .find(|m| m.mount_id == row.id)
+        .unwrap();
+    assert_eq!(report.device, row.device);
+    if source.identity.device != row.device {
+        assert_eq!(row.filesystem, "btrfs");
+        assert_eq!(rustix::fs::fstatfs(fd).unwrap().f_type as u32, 0x9123_683e);
+    }
+    // Genuine-table authentication precedes the Btrfs exception, even when
+    // a caller labels a forged row as Btrfs with the inode's actual device.
+    let mut forged = table.clone();
+    let row = forged
+        .iter_mut()
+        .find(|m| m.id == actual.stx_mnt_id)
+        .unwrap();
+    row.filesystem = "btrfs".into();
+    row.device.minor = row.device.minor.wrapping_add(1);
+    assert!(result.context.inspect(fd, &forged).is_err());
+    assert!(
+        result
+            .context
+            .open(file.to_str().unwrap(), &forged, deadline())
+            .is_err()
+    );
+    result.revalidate_inner(deadline()).unwrap();
+}
+#[test]
 fn ordinary_relative_and_absolute_links_resolve_the_same_kernel_identity() {
     let (dir, file) = fixture();
     let relative = dir.path().join("relative");
@@ -395,6 +436,8 @@ fn root_ancestor_and_per_source_mount_reference_limits_refuse_clipping() {
 #[test]
 fn aggregate_mount_reference_limit_covers_multiple_containers_and_duplicate_sources() {
     let (dir, _file) = fixture();
+    let actual = evidence(&inventory(&[dir.path()])).unwrap();
+    let source = &actual.snapshot.sources[0];
     let mut value = inventory(&vec![dir.path(); 64]);
     let original = value.containers[0].clone();
     value.containers = (0..4)
@@ -413,9 +456,31 @@ fn aggregate_mount_reference_limit_covers_multiple_containers_and_duplicate_sour
         row(id, 16, "/", &format!("{}/one", dir.path().display())),
         row(id + 1, 32, "/", &format!("{}/two", dir.path().display())),
     ]);
+    // Synthetic nested mounts can exercise the pure reference budget, but
+    // cannot authenticate a live path walk as if those mounts actually exist.
+    let mut references = 0;
+    let mut admitted = 0;
+    for _ in value.containers.iter().flat_map(|c| &c.mounts) {
+        match candidates_with_limit(
+            &source.identity,
+            &source.resolved_path,
+            &table,
+            MAX_MOUNT_REFERENCES - references,
+        ) {
+            Ok(ids) => {
+                references += ids.len();
+                admitted += 1;
+            }
+            Err(error) => {
+                assert_eq!(error, Failure::Unavailable);
+                break;
+            }
+        }
+    }
+    assert_eq!((admitted, references), (170, 510));
     assert!(matches!(
         collect(&value, Context::new().unwrap(), table, ns, deadline()),
-        Err(Failure::Unavailable)
+        Err(Failure::Conflict)
     ));
 }
 #[test]

@@ -47,6 +47,31 @@ fn namespace_metadata_cannot_be_promoted_to_physical_backing() {
 }
 
 #[test]
+fn btrfs_anonymous_inode_device_cannot_be_promoted_to_physical_backing() {
+    let mut f = Facts::new();
+    // Model the independently reported mount and inode devices; the virtual
+    // inode device must not be rewritten to the probed physical device.
+    f.table
+        .iter_mut()
+        .filter(|m| m.device == n(1))
+        .for_each(|m| m.filesystem = "btrfs".into());
+    f.assigned().filesystem = "btrfs".into();
+    f.assigned()
+        .mounts
+        .iter_mut()
+        .for_each(|m| m.filesystem = "btrfs".into());
+    f.contract.devices[0].filesystem = StorageFilesystem::Btrfs;
+    f.storage.mounts_digest = digest(&f.table).unwrap();
+    f.add_source(31, &[31], "/mnt/storage/data", "/mnt/storage/data");
+    f.sources.sources[0].identity.device = DeviceNumber {
+        major: 0,
+        minor: 43,
+    };
+    // Physical Btrfs binding is unsupported even before the exact-device join.
+    assert_eq!(f.bind(), Err(Failure::Unavailable));
+}
+
+#[test]
 fn combined_binding_preserves_standard_complete_dependency_report_and_digests() {
     let f = Facts::new();
     let standard = bind(
