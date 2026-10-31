@@ -12,6 +12,7 @@ struct Fixture {
     reader: HealthReader,
     requests: Arc<AtomicUsize>,
     task: tokio::task::JoinHandle<()>,
+    release: Arc<tokio::sync::Notify>,
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
@@ -48,6 +49,8 @@ async fn fixture(mode: u8, at: i64) -> Fixture {
     let clock = Arc::new(AtomicI64::new(at));
     let sampled = clock.clone();
     let endpoint = path.clone();
+    let release = Arc::new(tokio::sync::Notify::new());
+    let released = release.clone();
     let task = tokio::spawn(async move {
         loop {
             let (mut stream, _) = listener.accept().await.unwrap();
@@ -58,6 +61,9 @@ async fn fixture(mode: u8, at: i64) -> Fixture {
             };
             assert_eq!(version, limeos_contracts::VERSION);
             seen.fetch_add(1, Ordering::SeqCst);
+            if mode == 13 {
+                released.notified().await;
+            }
             if mode == 5 {
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
@@ -109,6 +115,7 @@ async fn fixture(mode: u8, at: i64) -> Fixture {
         reader,
         requests,
         task,
+        release,
     }
 }
 fn deadline() -> Instant {
@@ -180,10 +187,16 @@ async fn expired_and_concurrent_readers_cannot_renew_or_queue_a_fresh_request() 
 }
 
 fn database(granted: bool, legacy_silence: bool) -> (tempfile::TempDir, Database, String) {
+    database_at(granted, legacy_silence, super::super::now())
+}
+fn database_at(
+    granted: bool,
+    legacy_silence: bool,
+    at: i64,
+) -> (tempfile::TempDir, Database, String) {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("core.sqlite");
     let mut store = Store::open(&path).unwrap();
-    let at = super::super::now();
     store.issue_bootstrap("boot", at - 100).unwrap();
     store
         .enroll("boot", "alice", "$argon2id$fixture", at - 99)
@@ -291,6 +304,7 @@ async fn actual_rpc_to_store_pass_is_partial_and_creates_one_incident_without_du
         None
     );
     assert_eq!(counts(&dir), before);
+    assert_eq!(f.requests.load(Ordering::SeqCst), 1);
 }
 #[tokio::test]
 async fn missing_concrete_grants_and_legacy_silence_bindings_create_no_sample_or_job() {
@@ -318,7 +332,7 @@ async fn missing_concrete_grants_and_legacy_silence_bindings_create_no_sample_or
 }
 
 #[tokio::test]
-async fn original_read_window_expires_in_the_actual_database_queue_without_late_admission() {
+async fn admission_expires_in_the_actual_database_queue_without_contacting_the_reader() {
     let (dir, db, id) = database(true, false);
     let f = fixture(0, super::super::now()).await;
     let bridge = crate::automation_store::ObservationStoreBridge::new(db.clone());
@@ -335,7 +349,7 @@ async fn original_read_window_expires_in_the_actual_database_queue_without_late_
             .await
         }
     });
-    // The Store worker is independently blocked before starting the fresh RPC.
+    // Admission itself is independently blocked before any fresh RPC.
     tokio::task::spawn_blocking(move || ready.recv().unwrap())
         .await
         .unwrap();
@@ -348,7 +362,7 @@ async fn original_read_window_expires_in_the_actual_database_queue_without_late_
         )
         .await;
     assert_eq!(answer, Err(Error(ErrorCode::Expired)));
-    assert_eq!(f.requests.load(Ordering::SeqCst), 1);
+    assert_eq!(f.requests.load(Ordering::SeqCst), 0);
     release.send(()).unwrap();
     blocked.await.unwrap().unwrap();
     db.call(|_| Ok(())).await.unwrap();
@@ -406,4 +420,314 @@ async fn a_missing_prior_container_requires_retirement_review_without_clearing_i
     );
     assert_eq!(counts(&dir), before);
     assert_eq!(before.3, 1);
+}
+
+async fn queued(db: &Database, id: String, at: i64) -> ObservationJob {
+    db.call(move |store| {
+        let row = store
+            .automation_schedule_page(None, 32)?
+            .into_iter()
+            .find(|row| row.id == id)
+            .unwrap();
+        let DueDecision::Ready(key) = row.due(at)? else {
+            panic!("due")
+        };
+        let Reservation::Queued(job) = store.automation_reserve_current(
+            &row,
+            &Settlement::Observation(key),
+            || at,
+            deadline(),
+        )?
+        else {
+            panic!("queued")
+        };
+        Ok(job)
+    })
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+async fn paused_and_revoked_schedules_never_contact_the_protected_reader() {
+    for paused in [true, false] {
+        let (dir, db, id) = database(true, false);
+        let selected = id.clone();
+        db.call(move |store| {
+            let actor = store.login_record("alice")?.unwrap().principal;
+            if paused {
+                store.automation_pause(
+                    &actor,
+                    &selected,
+                    &PauseSchedule {
+                        revision: 1,
+                        paused: true,
+                    },
+                    super::super::now(),
+                )?;
+            } else {
+                store.revise_grants(&actor.id, Role::Viewer, &[], super::super::now())?;
+            }
+            Ok(())
+        })
+        .await
+        .unwrap();
+        let f = fixture(0, super::super::now()).await;
+        let bridge = crate::automation_store::ObservationStoreBridge::new(db);
+        let before = counts(&dir);
+        let answer = bridge.poll_containers(&f.reader, id, deadline()).await;
+        if paused {
+            assert_eq!(answer.unwrap(), None);
+        } else {
+            assert_eq!(answer, Err(Error(ErrorCode::Forbidden)));
+        }
+        assert_eq!(f.requests.load(Ordering::SeqCst), 0);
+        assert_eq!(counts(&dir), before);
+    }
+}
+
+#[tokio::test]
+async fn failed_source_releases_admission_for_an_immediate_fresh_retry() {
+    for recovery in [false, true] {
+        let at = super::super::now();
+        let (dir, db, id) = database_at(true, false, at);
+        let job = if recovery {
+            Some(queued(&db, id.clone(), at).await)
+        } else {
+            None
+        };
+        let bridge = crate::automation_store::ObservationStoreBridge::new(db);
+        let bad = fixture(1, super::super::now()).await;
+        let before = counts(&dir);
+        let failure = if let Some(job) = &job {
+            bridge
+                .recover_container_job(&bad.reader, job.clone(), deadline())
+                .await
+                .map(|_| ())
+        } else {
+            bridge
+                .poll_containers(&bad.reader, id.clone(), deadline())
+                .await
+                .map(|_| ())
+        };
+        assert_eq!(failure, Err(Error(ErrorCode::Conflict)));
+        assert_eq!(counts(&dir), before);
+        let good = fixture(0, super::super::now()).await;
+        if let Some(job) = job {
+            let receipt = bridge
+                .recover_container_job(&good.reader, job.clone(), deadline())
+                .await
+                .unwrap();
+            assert_eq!(receipt.job, job.id);
+            assert_eq!(counts(&dir).0, before.0);
+        } else {
+            assert!(
+                bridge
+                    .poll_containers(&good.reader, id, deadline())
+                    .await
+                    .unwrap()
+                    .is_some()
+            );
+        }
+        assert_eq!(bad.requests.load(Ordering::SeqCst), 1);
+        assert_eq!(good.requests.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[tokio::test]
+async fn cancelled_collection_keeps_only_its_original_bounded_admission() {
+    let (dir, db, id) = database(true, false);
+    let bridge = crate::automation_store::ObservationStoreBridge::new(db);
+    let held = fixture(13, super::super::now()).await;
+    let original = Instant::now() + Duration::from_millis(250);
+    let before = counts(&dir);
+    let task = tokio::spawn({
+        let bridge = bridge.clone();
+        let reader = held.reader.clone();
+        let id = id.clone();
+        async move { bridge.poll_containers(&reader, id, original).await }
+    });
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while held.requests.load(Ordering::SeqCst) == 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+    let fresh = fixture(0, super::super::now()).await;
+    assert_eq!(
+        bridge
+            .poll_containers(&fresh.reader, id.clone(), deadline())
+            .await,
+        Err(Error(ErrorCode::Conflict))
+    );
+    assert_eq!(fresh.requests.load(Ordering::SeqCst), 0);
+    assert_eq!(counts(&dir), before);
+    tokio::time::sleep_until(tokio::time::Instant::from_std(
+        original + Duration::from_millis(1),
+    ))
+    .await;
+    assert!(
+        bridge
+            .poll_containers(&fresh.reader, id, deadline())
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert_eq!(fresh.requests.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn original_read_window_still_expires_in_the_completion_queue_after_admission() {
+    let (dir, db, id) = database(true, false);
+    let f = fixture(13, super::super::now()).await;
+    let bridge = crate::automation_store::ObservationStoreBridge::new(db.clone());
+    let before = counts(&dir);
+    let read = tokio::spawn({
+        let bridge = bridge.clone();
+        let reader = f.reader.clone();
+        let id = id.clone();
+        async move {
+            bridge
+                .poll_containers(&reader, id, Instant::now() + Duration::from_millis(400))
+                .await
+        }
+    });
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while f.requests.load(Ordering::SeqCst) == 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    let (started, ready) = std::sync::mpsc::channel();
+    let (release, held) = std::sync::mpsc::channel();
+    let blocker = tokio::spawn({
+        let db = db.clone();
+        async move {
+            db.call(move |_| {
+                started.send(()).unwrap();
+                held.recv().unwrap();
+                Ok(())
+            })
+            .await
+        }
+    });
+    tokio::task::spawn_blocking(move || ready.recv().unwrap())
+        .await
+        .unwrap();
+    f.release.notify_one();
+    assert_eq!(read.await.unwrap(), Err(Error(ErrorCode::Expired)));
+    release.send(()).unwrap();
+    blocker.await.unwrap().unwrap();
+    db.call(|_| Ok(())).await.unwrap();
+    assert_eq!(counts(&dir), before);
+    // Late queued completion/cleanup cannot settle work or release later admission.
+    let lease = bridge
+        .poll_begin(id, vec!["host:system".into(), resource()], deadline())
+        .await
+        .unwrap();
+    let limeos_persistence::ObservationPollAdmission::Lease(lease) = lease else {
+        panic!("fresh")
+    };
+    bridge.poll_abandon(*lease, deadline()).await.unwrap();
+}
+
+#[tokio::test]
+async fn original_queued_job_recovers_after_reopen_once_and_publishes_in_app() {
+    let at = super::super::now();
+    let (dir, db, id) = database_at(true, false, at);
+    let job = queued(&db, id, at).await;
+    drop(db);
+    let mut reopened = None;
+    for _ in 0..50 {
+        match Database::open(&dir.path().join("core.sqlite")) {
+            Ok(db) => {
+                reopened = Some(db);
+                break;
+            }
+            Err(Error(ErrorCode::Conflict)) => tokio::time::sleep(Duration::from_millis(10)).await,
+            Err(error) => panic!("reopen: {error:?}"),
+        }
+    }
+    let bridge = crate::automation_store::ObservationStoreBridge::new(reopened.unwrap());
+    let f = fixture(0, super::super::now()).await;
+    let result = bridge
+        .recover_container_job(&f.reader, job.clone(), deadline())
+        .await
+        .unwrap();
+    assert_eq!(result.job, job.id);
+    assert!(!result.complete);
+    assert_eq!(result.notifications, 1);
+    assert_eq!(
+        bridge
+            .publish_page(None, deadline())
+            .await
+            .unwrap()
+            .published,
+        1
+    );
+    let before = counts(&dir);
+    assert_eq!(
+        bridge
+            .recover_container_job(&f.reader, job, deadline())
+            .await
+            .unwrap(),
+        result
+    );
+    assert_eq!(counts(&dir), before);
+    assert_eq!((before.0, before.1, before.2, before.3), (1, 1, 1, 1));
+    assert_eq!(f.requests.load(Ordering::SeqCst), 1);
+    assert!(
+        bridge
+            .queued_page(None, deadline())
+            .await
+            .unwrap()
+            .items
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn expired_or_revoked_queued_jobs_are_retired_without_contacting_the_reader() {
+    for revoked in [false, true] {
+        let at = super::super::now() - if revoked { 0 } else { 120 };
+        let (dir, db, id) = database_at(true, false, at);
+        let job = queued(&db, id, at).await;
+        if revoked {
+            db.call(|store| {
+                let actor = store.login_record("alice")?.unwrap().principal;
+                store.revise_grants(&actor.id, Role::Viewer, &[], super::super::now())
+            })
+            .await
+            .unwrap();
+        }
+        let bridge = crate::automation_store::ObservationStoreBridge::new(db);
+        let f = fixture(0, super::super::now()).await;
+        let result = bridge
+            .recover_container_job(&f.reader, job.clone(), deadline())
+            .await
+            .unwrap();
+        assert_eq!(result.job, job.id);
+        assert_eq!(
+            result.state,
+            if revoked {
+                limeos_domain::JobState::PreconditionChanged
+            } else {
+                limeos_domain::JobState::Failed
+            }
+        );
+        assert!(!result.complete);
+        let before = counts(&dir);
+        assert_eq!(
+            bridge
+                .recover_container_job(&f.reader, job, deadline())
+                .await
+                .unwrap(),
+            result
+        );
+        assert_eq!(counts(&dir), before);
+        assert_eq!(f.requests.load(Ordering::SeqCst), 0);
+    }
 }

@@ -5,9 +5,9 @@ use limeos_domain::automation::{
 };
 use limeos_domain::{Error, ErrorCode, Result};
 use limeos_persistence::{
-    Database, HealthObservation, InAppPublication, ObservationAdmission, ObservationLease,
-    ObservationPollAdmission, ObservationPollLease, ObservationPollOutcome, ObservationResult,
-    Store,
+    ContainerReadAdmission, ContainerReadOutcome, ContainerReadPermit, Database, HealthObservation,
+    InAppPublication, ObservationAdmission, ObservationLease, ObservationPollAdmission,
+    ObservationPollLease, ObservationPollOutcome, ObservationResult, Store,
 };
 use std::{sync::Arc, time::Instant};
 
@@ -177,22 +177,82 @@ impl ObservationStoreBridge {
         schedule: String,
         deadline: Instant,
     ) -> Result<Option<ObservationPollOutcome>> {
-        let fresh = reader.read(deadline).await?;
-        let original = fresh.deadline();
-        let mut resources = vec!["host:system".into()];
-        resources.extend(fresh.cohort().members().iter().map(|m| m.resource.clone()));
-        let admission = self.poll_begin(schedule, resources, original).await?;
-        let ObservationPollAdmission::Lease(lease) = admission else {
+        let clock = self.clock.clone();
+        let admission = self
+            .call(deadline, move |store| {
+                store.automation_container_poll_begin(&schedule, || clock(), deadline)
+            })
+            .await?;
+        let ContainerReadAdmission::Read(permit) = admission else {
             return Ok(None);
         };
-        fresh.ensure_live()?;
-        let cohort = fresh.cohort().clone();
+        match self.collect_containers(reader, *permit).await? {
+            ContainerReadOutcome::Poll(outcome) => Ok(Some(outcome)),
+            ContainerReadOutcome::Queued(_) => Err(Error(ErrorCode::StateNotDurable)),
+        }
+    }
+
+    /// Recover only the original queued observation. Invalid/expired work is
+    /// independently discarded under current Store checks before any root read.
+    pub async fn recover_container_job(
+        &self,
+        reader: &crate::health_collection::HealthReader,
+        job: ObservationJob,
+        deadline: Instant,
+    ) -> Result<ObservationResult> {
+        let selected = job.clone();
         let clock = self.clock.clone();
-        self.call(original.min(lease.deadline()), move |store| {
-            store.automation_poll_containers_complete_before(&lease, &cohort, || clock(), original)
-        })
-        .await
-        .map(Some)
+        let admission = self
+            .call(deadline, move |store| {
+                store.automation_container_job_begin(&selected, || clock(), deadline)
+            })
+            .await;
+        match admission {
+            Ok(ContainerReadAdmission::Existing(receipt)) => Ok(receipt),
+            Ok(ContainerReadAdmission::Read(permit)) => {
+                match self.collect_containers(reader, *permit).await? {
+                    ContainerReadOutcome::Queued(receipt) => Ok(receipt),
+                    ContainerReadOutcome::Poll(_) => Err(Error(ErrorCode::StateNotDurable)),
+                }
+            }
+            Err(Error(ErrorCode::Expired | ErrorCode::Forbidden)) => {
+                self.discard(job, deadline).await
+            }
+            Err(error) => Err(error),
+            Ok(_) => Err(Error(ErrorCode::StateNotDurable)),
+        }
+    }
+
+    async fn collect_containers(
+        &self,
+        reader: &crate::health_collection::HealthReader,
+        permit: ContainerReadPermit,
+    ) -> Result<ContainerReadOutcome> {
+        let answer = async {
+            let fresh = reader.read(permit.deadline()).await?;
+            fresh.ensure_live()?;
+            let original = fresh.deadline();
+            let cohort = fresh.cohort().clone();
+            let clock = self.clock.clone();
+            let selected = permit.clone();
+            self.call(original, move |store| {
+                store.automation_container_read_complete(&selected, &cohort, || clock(), original)
+            })
+            .await
+        }
+        .await;
+        if answer.is_err() {
+            // Bounded best effort only. Cancellation can leave this private
+            // lease until its original expiry; it never renews or settles work.
+            let cleanup = Instant::now() + std::time::Duration::from_millis(100);
+            let _ = self
+                .call(cleanup, move |store| {
+                    store.automation_container_read_abandon(&permit);
+                    Ok(())
+                })
+                .await;
+        }
+        answer
     }
 
     pub async fn poll_abandon(&self, lease: ObservationPollLease, deadline: Instant) -> Result<()> {

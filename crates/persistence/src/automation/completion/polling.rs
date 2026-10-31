@@ -28,6 +28,12 @@ impl std::fmt::Debug for ObservationPollLease {
     }
 }
 impl ObservationPollLease {
+    pub(super) fn with_resources(&self, resources: Vec<String>) -> Self {
+        Self {
+            resources,
+            ..self.clone()
+        }
+    }
     pub fn occurrence(&self) -> &OccurrenceKey {
         &self.occurrence
     }
@@ -143,9 +149,11 @@ fn material_change(
     Ok(changed)
 }
 
-fn container_bindings(
+pub(super) fn container_bindings(
     conn: &Connection,
-    lease: &ObservationPollLease,
+    owner: &str,
+    resources: &[String],
+    policy: &HealthPolicyView,
     cohort: &ContainerHealthCohort,
     now: i64,
 ) -> Result<()> {
@@ -153,7 +161,7 @@ fn container_bindings(
     let mut scopes = vec!["host:system".into()];
     scopes.extend(cohort.members().iter().map(|m| m.resource.clone()));
     scopes.sort();
-    if scopes != lease.resources {
+    if scopes != resources {
         return Err(Error(ErrorCode::Forbidden));
     }
     let present = |resource: &str| {
@@ -165,8 +173,7 @@ fn container_bindings(
                 .binary_search_by(|m| m.resource.as_str().cmp(resource))
                 .is_ok()
     };
-    if lease
-        .policy
+    if policy
         .definition
         .silences
         .iter()
@@ -176,7 +183,7 @@ fn container_bindings(
     }
     let mut statement=conn.prepare("SELECT key,resource FROM automation_alerts WHERE owner=? AND json_extract(body,'$.kind')='container' LIMIT ?").map_err(durable)?;
     let mut rows = statement
-        .query(params![lease.owner, MAX_ALERTS as i64 + 1])
+        .query(params![owner, MAX_ALERTS as i64 + 1])
         .map_err(durable)?;
     let mut count = 0;
     while let Some(row) = rows.next().map_err(durable)? {
@@ -415,7 +422,14 @@ impl Store {
         reservation_live(Some(deadline))?;
         let row = poll_current(&tx, lease, self.generation, now)?;
         if let Some(cohort) = source {
-            container_bindings(&tx, lease, cohort, now)?;
+            container_bindings(
+                &tx,
+                &lease.owner,
+                &lease.resources,
+                &lease.policy,
+                cohort,
+                now,
+            )?;
         }
         // A replay needs the original private nonce, current authority and body.
         let prior:Option<(String,String)>=tx.query_row("SELECT o.job,p.lease_digest FROM automation_occurrences o JOIN automation_poll_origins p ON p.job=o.job WHERE o.schedule=? AND o.revision=? AND o.due=?",params![lease.occurrence.schedule,lease.occurrence.revision,lease.occurrence.due],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(durable)?;

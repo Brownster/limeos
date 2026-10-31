@@ -857,9 +857,9 @@ mod management;
 mod policy;
 pub(super) use completion::{ActiveObservation, PollWatermark};
 pub use completion::{
-    HealthObservation, InAppPublication, ObservationAdmission, ObservationLease,
-    ObservationPollAdmission, ObservationPollLease, ObservationPollOutcome, ObservationResult,
-    ScopedHealthSignal,
+    ContainerReadAdmission, ContainerReadOutcome, ContainerReadPermit, HealthObservation,
+    InAppPublication, ObservationAdmission, ObservationLease, ObservationPollAdmission,
+    ObservationPollLease, ObservationPollOutcome, ObservationResult, ScopedHealthSignal,
 };
 
 #[cfg(test)]

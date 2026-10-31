@@ -269,9 +269,9 @@ impl Store {
 
 mod automation;
 pub use automation::{
-    HealthObservation, InAppPublication, ObservationAdmission, ObservationLease,
-    ObservationPollAdmission, ObservationPollLease, ObservationPollOutcome, ObservationResult,
-    ScopedHealthSignal,
+    ContainerReadAdmission, ContainerReadOutcome, ContainerReadPermit, HealthObservation,
+    InAppPublication, ObservationAdmission, ObservationLease, ObservationPollAdmission,
+    ObservationPollLease, ObservationPollOutcome, ObservationResult, ScopedHealthSignal,
 };
 mod backup_preparation;
 mod budgets;

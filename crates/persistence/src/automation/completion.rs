@@ -4,8 +4,10 @@ use sha2::{Digest, Sha256};
 use std::time::{Duration, Instant};
 
 mod check;
+mod container_read;
 mod in_app;
 mod polling;
+pub use container_read::{ContainerReadAdmission, ContainerReadOutcome, ContainerReadPermit};
 pub use in_app::InAppPublication;
 pub(crate) use polling::PollWatermark;
 pub use polling::{ObservationPollAdmission, ObservationPollLease, ObservationPollOutcome};
@@ -610,7 +612,18 @@ impl Store {
         batch: &HealthObservation,
         clock: impl Fn() -> i64,
     ) -> Result<ObservationResult> {
-        reservation_live(Some(lease.deadline))?;
+        self.complete_observation_before(lease, batch, clock, lease.deadline, None)
+    }
+    fn complete_observation_before(
+        &mut self,
+        lease: &ObservationLease,
+        batch: &HealthObservation,
+        clock: impl Fn() -> i64,
+        read_deadline: Instant,
+        source: Option<&ContainerHealthCohort>,
+    ) -> Result<ObservationResult> {
+        let deadline = read_deadline.min(lease.deadline);
+        reservation_live(Some(deadline))?;
         let digest = observation_digest(batch)?;
         let active = self
             .observation_leases
@@ -622,17 +635,27 @@ impl Store {
             });
         let generation = self.generation;
         let answer = self.write(|tx| {
-            reservation_live(Some(lease.deadline))?;
+            reservation_live(Some(deadline))?;
             let now = clock();
-            reservation_live(Some(lease.deadline))?;
+            reservation_live(Some(deadline))?;
             time(now)?;
             let ctx = context(tx, &lease.job)?;
             let actor = current(tx, &ctx, &lease.job)?;
             for resource in &lease.resources {
                 read_authorized(tx, &actor, resource)?;
             }
+            if let Some(cohort) = source {
+                polling::container_bindings(
+                    tx,
+                    &lease.owner,
+                    &lease.resources,
+                    &lease.policy,
+                    cohort,
+                    now,
+                )?;
+            }
             if let Some((receipt, old_digest)) = result(tx, &lease.job.id)? {
-                reservation_live(Some(lease.deadline))?;
+                reservation_live(Some(deadline))?;
                 return if old_digest == digest {
                     Ok(receipt)
                 } else {
@@ -674,7 +697,7 @@ impl Store {
             receipt.notifications = fold(tx, &ctx, &receipt, batch)?;
             save_result(tx, &lease.job, &ctx, &receipt, "observed", &digest)?;
             finish_job(tx, &ctx, &receipt)?;
-            reservation_live(Some(lease.deadline))?;
+            reservation_live(Some(deadline))?;
             Ok(receipt)
         });
         if answer.is_ok()
