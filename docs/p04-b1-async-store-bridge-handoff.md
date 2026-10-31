@@ -11,6 +11,10 @@ The later [owned-history integration](p04-b1-in-app-history-handoff.md) register
 the existing alert/notification reads and acknowledgment through API/UI. Its
 source and qualification are separate from this bridge's original evidence.
 
+The later [configured-policy integration](p04-b1-configured-policy-handoff.md)
+binds owner policy revisions through the same reservation/lease/settlement
+methods and checks current settings at atomic in-app publication.
+
 ## Runtime-facing contract
 
 `bins/core/src/automation_store.rs` is compiled with Core. Its
@@ -77,10 +81,10 @@ retained. No production Pi, package/service activation or push was performed.
 Connect a genuine protected fresh health collector, including the frozen
 restart-policy, healthcheck, SMART, required-mount and protection rules. The
 overview cache lacks required facts and cannot stand in for that collection.
-Bind current policy revisions and review stable alert keys against concrete
-resource replacement, as recorded in the
-[notification inventory](p04-frozen-notification-inventory.md). Default Store
-policy does not establish migrated configuration parity.
+Review stable alert keys against concrete resource replacement and bind current
+external destination references/revisions, as recorded in the
+[notification inventory](p04-frozen-notification-inventory.md). The later owned
+policy boundary does not establish actual deployed migration parity.
 
 Then supervise bounded reservation, queued-job collection, publication and
 retention in Core; qualify the registered API/UI with genuine production

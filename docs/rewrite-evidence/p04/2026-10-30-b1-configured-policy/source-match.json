@@ -1,0 +1,322 @@
+{
+  "qualified_commit": "a5c83784f9b84ea61c66e0b0d2f9f9a2eb41d1d0",
+  "parent_commit": "f779928bff26ab308903d2c04a864a4ed87ccad3",
+  "guard_recorded_precommit_head": "f779928bff26ab308903d2c04a864a4ed87ccad3",
+  "final_identical_guard_input_maps": [
+    "b1-policy-rust-4",
+    "b1-policy-clippy-4",
+    "b1-policy-contracts-1",
+    "b1-policy-frontend-3",
+    "b1-policy-browser-2"
+  ],
+  "committed_input_count": 718,
+  "committed_inputs_match": true,
+  "worktree_inputs_match": true,
+  "frontend_build_committed_input_count": 133,
+  "frontend_build_inputs_match_commit": true,
+  "frontend_ui_matches_browser_served_ui": true,
+  "ui": {
+    "frontend/dist/assets/index-CRb-EEjI.js": "0ef84d5fdb26d3d6f6199b0fe8c6044c0c80ac96bed5fc7743fa1bbe353634ef",
+    "frontend/dist/assets/index-DqMXDWU-.css": "fa440797a210247991800a0d27db738d33f3c5b318bfc05802a1a227864f423b",
+    "frontend/dist/index.html": "56ff253238a03c853d060c637a512d7b9eaef849157a84f5f33f8addf094f887"
+  },
+  "runtime_tests": 791,
+  "compile_fail_doctests": 9,
+  "new_native_tests": 18,
+  "frontend_tests": 242,
+  "browser_explicit_posts": 3,
+  "checks": {
+    "b1-policy-browser-1": {
+      "started": "2026-10-30T23:43:54.790716+00:00",
+      "ended": "2026-10-30T23:43:58.172664+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 6573383680,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-browser-2": {
+      "started": "2026-10-30T23:53:29.256354+00:00",
+      "ended": "2026-10-30T23:53:32.613756+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 6576582656,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-clippy-1": {
+      "started": "2026-10-30T23:45:02.073984+00:00",
+      "ended": "2026-10-30T23:45:29.214663+00:00",
+      "exit_code": 101,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5910962176,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-clippy-2": {
+      "started": "2026-10-30T23:47:16.957890+00:00",
+      "ended": "2026-10-30T23:47:51.178537+00:00",
+      "exit_code": 101,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5737369600,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-clippy-3": {
+      "started": "2026-10-30T23:48:06.864903+00:00",
+      "ended": "2026-10-30T23:48:25.547139+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5791858688,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-clippy-4": {
+      "started": "2026-10-30T23:58:04.556648+00:00",
+      "ended": "2026-10-30T23:58:05.091278+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 6640947200,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-contracts-1": {
+      "started": "2026-10-30T23:58:14.801193+00:00",
+      "ended": "2026-10-30T23:58:15.337377+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 6795485184,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-frontend-1": {
+      "started": "2026-10-30T23:42:32.294740+00:00",
+      "ended": "2026-10-30T23:42:48.892417+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 6560669696,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-frontend-2": {
+      "started": "2026-10-30T23:49:32.433089+00:00",
+      "ended": "2026-10-30T23:49:49.228771+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 6181203968,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-frontend-3": {
+      "started": "2026-10-30T23:51:52.394067+00:00",
+      "ended": "2026-10-30T23:52:08.480962+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 6648680448,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-rust-1": {
+      "started": "2026-10-30T23:30:26.781201+00:00",
+      "ended": "2026-10-30T23:30:56.703010+00:00",
+      "exit_code": 101,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5922893824,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-rust-2": {
+      "started": "2026-10-30T23:32:04.538951+00:00",
+      "ended": "2026-10-30T23:34:03.180955+00:00",
+      "exit_code": 101,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5713489920,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-rust-3": {
+      "started": "2026-10-30T23:37:52.995501+00:00",
+      "ended": "2026-10-30T23:40:51.715020+00:00",
+      "exit_code": 101,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5919272960,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-rust-4": {
+      "started": "2026-10-30T23:54:17.007745+00:00",
+      "ended": "2026-10-30T23:57:40.696108+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5887909888,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-policy-schema-1": {
+      "started": "2026-10-30T23:28:21.829194+00:00",
+      "ended": "2026-10-30T23:28:54.298100+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5892870144,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    }
+  },
+  "draft_input_differences_from_final": {
+    "b1-policy-browser-1": [
+      "crates/domain/src/automation/health_policy/tests.rs",
+      "crates/persistence/src/automation/completion.rs",
+      "frontend/src/health-policy-client.ts",
+      "frontend/tests/health-policy.test.mjs",
+      "tests/frontend/health_policy.py"
+    ],
+    "b1-policy-clippy-1": [
+      "crates/domain/src/automation/health_policy/tests.rs",
+      "crates/persistence/src/automation/completion.rs",
+      "frontend/src/health-policy-client.ts",
+      "frontend/tests/health-policy.test.mjs",
+      "tests/frontend/health_policy.py"
+    ],
+    "b1-policy-clippy-2": [
+      "crates/domain/src/automation/health_policy/tests.rs",
+      "frontend/src/health-policy-client.ts",
+      "frontend/tests/health-policy.test.mjs",
+      "tests/frontend/health_policy.py"
+    ],
+    "b1-policy-clippy-3": [
+      "frontend/src/health-policy-client.ts",
+      "frontend/tests/health-policy.test.mjs",
+      "tests/frontend/health_policy.py"
+    ],
+    "b1-policy-frontend-1": [
+      "crates/domain/src/automation/health_policy/tests.rs",
+      "crates/persistence/src/automation/completion.rs",
+      "crates/persistence/src/lib.rs",
+      "frontend/src/health-policy-client.ts",
+      "frontend/tests/health-policy.test.mjs",
+      "tests/frontend/health_policy.py"
+    ],
+    "b1-policy-frontend-2": [
+      "frontend/src/health-policy-client.ts",
+      "frontend/tests/health-policy.test.mjs",
+      "tests/frontend/health_policy.py"
+    ],
+    "b1-policy-rust-1": [
+      "bins/core/src/automation_history/tests.rs",
+      "crates/api/src/automation_policy.rs",
+      "crates/domain/src/automation/health_policy/tests.rs",
+      "crates/persistence/src/automation/completion.rs",
+      "crates/persistence/src/automation/policy/tests.rs",
+      "crates/persistence/src/lib.rs",
+      "crates/persistence/src/resources.rs",
+      "frontend/src/health-policy-client.ts",
+      "frontend/tests/health-policy.test.mjs",
+      "tests/frontend/health_policy.py"
+    ],
+    "b1-policy-rust-2": [
+      "bins/core/src/automation_history/tests.rs",
+      "crates/domain/src/automation/health_policy/tests.rs",
+      "crates/persistence/src/automation/completion.rs",
+      "crates/persistence/src/automation/policy/tests.rs",
+      "crates/persistence/src/lib.rs",
+      "crates/persistence/src/resources.rs",
+      "frontend/src/health-policy-client.ts",
+      "frontend/tests/health-policy.test.mjs",
+      "tests/frontend/health_policy.py"
+    ],
+    "b1-policy-rust-3": [
+      "crates/domain/src/automation/health_policy/tests.rs",
+      "crates/persistence/src/automation/completion.rs",
+      "crates/persistence/src/lib.rs",
+      "frontend/src/health-policy-client.ts",
+      "frontend/tests/health-policy.test.mjs",
+      "tests/frontend/health_policy.py"
+    ],
+    "b1-policy-schema-1": [
+      "bins/core/src/automation_history/tests.rs",
+      "contracts/generated/authority-v13.sql",
+      "contracts/generated/event.schema.json",
+      "contracts/generated/health-policy-definition.schema.json",
+      "contracts/generated/health-policy-replacement.schema.json",
+      "contracts/generated/health-policy.schema.json",
+      "contracts/generated/job-progress.schema.json",
+      "contracts/generated/openapi.json",
+      "contracts/generated/types.ts",
+      "crates/api/src/automation_policy.rs",
+      "crates/domain/src/automation/health_policy/tests.rs",
+      "crates/persistence/src/automation/completion.rs",
+      "crates/persistence/src/automation/policy/tests.rs",
+      "crates/persistence/src/lib.rs",
+      "crates/persistence/src/resources.rs",
+      "frontend/src/health-policy-client.ts",
+      "frontend/tests/health-policy.test.mjs",
+      "tests/frontend/health_policy.py"
+    ]
+  },
+  "reproduction_source_hashes": {
+    ".cache/b1-policy-qualification/archive_evidence.py": "509639b5b774ab291e6e780a1a1b1223058316e1eacc72671093a957ca3781f8",
+    ".cache/b1-policy-qualification/check_frontend.py": "a6514766fcc32d9af82d7278c9929a2c74e3d4e160aa411cfbd66c1b22b62f65",
+    ".cache/b1-policy-qualification/launch_check.py": "ec5a156ad5df1d5e032f113aed9fdf2d089c590c0639ec75795ea98df2e65b7c",
+    ".cache/main-consolidation/guard.py": "380a78ebd9dbb3902a97bebbcdb164df1e6bfc4c069b56a45092af6eb26813d6",
+    ".cache/stack-installed-qualification/detached_guard.py": "a02420e3fc4bc48bfb9c2f0cc9739f0ffde3635e78d089d932d75c1e1290d21a",
+    "bins/core/src/automation_history.rs": "d188c833bdc0c5d320932dd27c563f70043ae28df58c40aa2b4518b1064b5de6",
+    "bins/core/src/automation_history/tests.rs": "fa8c9300514f4d98abcc78dc3176e300134e3a9b799549c3c5caa2b15d9004e5",
+    "bins/core/src/main.rs": "0236a24890d0f9f58625df5a3dc33800fbf060b051d4684fcd1adee044819ad6",
+    "bins/schema/src/main.rs": "6cb6b4f070dabd1d80ed912ecc1d5cdceeeb88f5ef5747f5b94fd30ee3fb1ce6",
+    "contracts/generated/authority-v13.sql": "9bba150392a3ff7e6b6c43e5336b4d8601a430fefa36ab18ae19a88894f8a4b7",
+    "contracts/generated/event.schema.json": "066e912ffb5b3afc1650bd84ee83878388472e8c20a2aaf82da88f425bfec179",
+    "contracts/generated/health-policy-definition.schema.json": "2563d31a67b44d64255f1f83a6ca41668f25ee4e8355d67f825508fe61fb0129",
+    "contracts/generated/health-policy-replacement.schema.json": "354b94a30469f25781bf9abc53923884119d70e7cc7a918cda2430e2fdb47287",
+    "contracts/generated/health-policy.schema.json": "62be39ae75e90f111191bcc7578b477345c0e6a91d9a52662c605dfe691ad52a",
+    "contracts/generated/job-progress.schema.json": "ae91ece92c02b8accded8f2c229c47d74f28bce814c42a307530f7aa8a353a5a",
+    "contracts/generated/openapi.json": "1f18df4aa034a59c1eec3305d46cdc90aa6fe7981f4fa5dc7f5e0170434a7bc9",
+    "contracts/generated/types.ts": "899f45daecc917b6b3aaadcddfd12d6095ea7652a9f2dbc59228c40db519d976",
+    "crates/api/src/automation_policy.rs": "5eebde7fb2df08f8f8a2642fa45acce79b67007b22e31f856c80f42daed89257",
+    "crates/api/src/automation_policy/tests.rs": "5873bc80ec1ff35d349be83d737b83800acf2d11417298ff14cadb3502bcce63",
+    "crates/api/src/lib.rs": "b4d4a4f677fa96547bce3340b60ee135f8bec236512728c058f17c879de2f462",
+    "crates/domain/src/automation/alerts.rs": "1aa4297f049d858ad3e2ddfbd6cd6fd0950219fc5e0bf13d8d90b474680f411d",
+    "crates/domain/src/automation/health_policy.rs": "90683949f9a8c31fd486d2d217f9fc77fb5aa5b45f1910e1b3c4641c82f6758a",
+    "crates/domain/src/automation/health_policy/tests.rs": "70aa8006b054b1086d14abb96290f95ec1dd3ea8988085343faabcca37705ef2",
+    "crates/domain/src/automation/mod.rs": "e4eb2cf9e50dc958a135624ceed0ce43cfacb88eadeb4b2a28785d2b14fdbd45",
+    "crates/domain/src/automation/settings.rs": "7ecffc31e2b9471b24abed46bb300114c405ec5fb5b9d90e7f2f298fa6299d96",
+    "crates/domain/src/lib.rs": "1d9cc2cf929feaedfcaf7a26f28d7eb8d3e3e4b5541bc1a7f89b83d2cd46b405",
+    "crates/persistence/src/automation.rs": "93dc88ad3b194f5d40baee362a80b34fb0134c165a820a766579818433954996",
+    "crates/persistence/src/automation/completion.rs": "9c9a20131d659822d41a17b4a912b3f8f53ea8212290a8df6a46d38a3a494fc2",
+    "crates/persistence/src/automation/completion/check.rs": "1a3e22fed9d084d65b7a9e28c844dfcc906cf3b242ea668a9ede4f656c0da88d",
+    "crates/persistence/src/automation/completion/in_app.rs": "0cf2a5cd16fb464c8a700922ec8149bb374f06484a4ae8ce9eac4979f625b506",
+    "crates/persistence/src/automation/completion/tests.rs": "c0743e2734973902e71a5ba9e5fd94e4c59fa1f4f061b1e430694113248bcd34",
+    "crates/persistence/src/automation/policy.rs": "f8ac69499dd970dd23231a09b0ae47f8295da5f3e23d6bb1b3d0e450cf26de8f",
+    "crates/persistence/src/automation/policy/tests.rs": "085ff9b78c58a52fef16f151c92a6fa52ee43359d860dd41bd38dbdeeaca36b1",
+    "crates/persistence/src/automation/tests.rs": "a71ff25b5c8f76f46c24652e5d38d553e0f70cdbf0d2aa9e7664335e793125f5",
+    "crates/persistence/src/lib.rs": "e42c59f08e66b05ba1bf24052a7e3163134085ebd6ff50aa1d272651e3add3aa",
+    "crates/persistence/src/migration-v13.sql": "a6a4d714febf6feb4d0f1fe4a52848c943f1157657fed815efc19ef88d02f47a",
+    "crates/persistence/src/resources.rs": "54479d8abf9030c062eac60651951f904d4bd2cc99dad3ec5dd0f68c1c4e2d72",
+    "frontend/src/Dashboard.tsx": "820cf3d93f376960128c2438a98a3782941b1658e7f99bfd472cbfeb5c298ef0",
+    "frontend/src/HealthPolicy.tsx": "09cb556d669e8588e6d71fda7b462dc347d1fae3064fc9684bd3a330da86c878",
+    "frontend/src/health-policy-client.ts": "5f4c4c55f46e8da2291980060de447c2d7863dfd436326d2e4565cac56102e67",
+    "frontend/src/health-policy-controller.ts": "99956755a70b70f8cd3d57df547ce2a503a70a31d97c0eb16c83a8cb7ca341bd",
+    "frontend/src/style.css": "bb436cce12e8f93a5a6e802764d815e6719f0a656818f17e58d5891bdf0a31a3",
+    "frontend/tests/health-policy.test.mjs": "1fec01115a103aca12d57434e42af36f0f44841472c2d00cb899f9018fb1bf2a",
+    "frontend/tests/helpers/automation.mjs": "132c4c25862dba6d8f5bc2ae96906d63905cbb8bc57ea5b5b4b1c5b26c4e52fc",
+    "tests/frontend/health_policy.py": "8ee1d4a138911458818afc6e488de87ea88dea86e7158a6d22fe533d6ff0d180"
+  },
+  "reproduction_executable_paths": [
+    "tests/frontend/health_policy.py"
+  ],
+  "scope": "Local configured-policy Core/Store/API tests and closed-browser UI only; no actual deployed settings, protected collector, scheduler, package, ARM64, external send or cutover acceptance"
+}

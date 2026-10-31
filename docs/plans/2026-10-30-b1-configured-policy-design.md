@@ -1,5 +1,10 @@
 # Bind configured health policy through the existing runtime
 
+Implemented by `a5c8378`. The
+[handoff](../p04-b1-configured-policy-handoff.md) and
+[local evidence](../rewrite-evidence/p04/2026-10-30-b1-configured-policy/README.md)
+record the registered boundary, exact source/asset joins and remaining gates.
+
 Baseline `141fc51` has registered owned history and a pure frozen-settings
 migration planner. Observation settlement still uses `AlertPolicy::default()`.
 Replace that default-only boundary with owner-scoped, revisioned policy and

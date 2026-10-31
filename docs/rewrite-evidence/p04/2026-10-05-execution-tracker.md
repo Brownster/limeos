@@ -254,3 +254,19 @@ and silence metadata/expiry; unsupported legacy limits require explicit review
 instead of changed defaults. The existing Store still folds under default
 policy. Configured revisions, protected actual-state acquisition, producer and
 installed acceptance remain open; no phase, defect or cutover gate closes.
+
+The next [configured-policy integration](../../p04-b1-configured-policy-handoff.md),
+source `a5c8378`, registers owned settings through Core/API/UI and schema 13.
+Policy revisions now bind reservation/private leases/settlement/stream freshness;
+atomic in-app publication rechecks current category/silence settings. The
+[local evidence](2026-10-30-b1-configured-policy/README.md) binds 791 runtime tests,
+nine compile-fail doctests, 242 frontend tests, strict Clippy, actual contract
+regeneration and final desktop/mobile browser checks to 718 committed inputs
+and exact UI assets. Actual schema-11/12 and older upgrade/recovery regressions
+pass; failed drafts remain retained. Configuration/history is registered, while
+genuine collection, concrete replacement, protected actual-state migration,
+production supervision/retention, external destination/transport parity and
+installed ARM64/Pi/package/soak evidence remain open. Policy history has an
+explicit 1,024-version refusal bound; compaction remains pending. This does not
+complete B1, A1 reliability, P04 or P05/P06 cutover, close a defect row or change
+the existing inventory-performance failure. No Pi, external send or push ran.

@@ -6,6 +6,11 @@ Source `f7d5946` implements the
 qualifies the actual Core/Store/API integration and a separately scoped browser
 fixture. This extends the [asynchronous Store bridge](p04-b1-async-store-bridge-handoff.md).
 
+The later [configured-policy slice](p04-b1-configured-policy-handoff.md) registers
+owned settings and binds revisions through observation settlement and current
+in-app publication. Its schema-13 source and evidence are separate from this
+history slice's original qualification.
+
 ## Registered behavior
 
 The authenticated router now serves GET `/api/v1/automation/alerts`, GET
@@ -59,9 +64,10 @@ apply. Holly's Pi was untouched and nothing was pushed.
 
 ## Remaining integration
 
-Bind current configured policy revisions, complete frozen silence metadata and
-resolve stable alert keys against concrete resource replacement. Default Store
-policy is not migrated configuration parity; the
+Configured revisions and silence metadata now use the later registered policy
+boundary. Resolve stable alert keys against concrete resource replacement and
+bind current external destination references/revisions. Saved settings alone
+are not deployed migration parity; the
 [frozen inventory](p04-frozen-notification-inventory.md) records the gaps.
 
 Connect a genuine protected fresh collector with restart-policy, healthcheck,

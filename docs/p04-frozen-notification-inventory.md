@@ -25,6 +25,12 @@ daemon/policy/expiry/precedence cases here; the other eleven cases cover externa
 destination selection, provisioning and saved preferences. It does not read deployed
 configuration or bind policy revisions to the running Store.
 
+The [configured-policy integration](p04-b1-configured-policy-handoff.md), source
+`a5c8378`, now registers owned settings through API/UI and binds revisions to
+observation settlement and current in-app publication. Protected actual-state
+migration, concrete resource binding, production supervision and ordinary
+external destinations/transports remain separate acceptance work.
+
 The earlier [stack notification handoff](p04-stack-notifications-handoff.md)
 retains its decoder/event fixtures. This inventory adds executable configuration
 and precedence evidence. An in-app outbox alone does not preserve these external
@@ -32,10 +38,10 @@ flows, and no existing channel is retired here.
 
 | Flow | Verified frozen behavior | Rust integration still required |
 | --- | --- | --- |
-| Health alerts | `alert_daemon.py::config_from_env` defaults to 60 seconds and two failures. `alert_notifier.py` renders incident/recovery payloads and uses a 10-second HTTP timeout. Missing webhook selects `RecordingNotifier`. | Persist/read the configured threshold and delivery policy; use protected destination references. Recording/log mode must not become proof of external delivery. Keep observation and external delivery outcomes distinct. |
-| Alert categories and required mounts | `alert_policy.py` defaults container, SMART, mount and SnapRAID delivery to enabled. Paths retain case; normalization removes duplicate exact paths. A valid policy file, including `{}`, replaces environment mount selection. Missing, malformed or JSON-null policy falls back to environment mounts. | Register category/required-mount settings and bind their revision to collection/completion. Explicit empty configuration must remain empty. Resolve concrete read scopes without normalizing operator path spelling. |
-| Resource silences | Kind/key, created time, optional expiry and a trimmed reason are retained. Expiry is exclusive: delivery resumes exactly at expiry. Disabled/silenced delivery does not mean the incident disappeared. | Preserve operator metadata as well as the policy predicate. The existing domain `Silence` lacks created time/reason; the draft Store's default policy is not configured-policy parity. |
-| History and status | `alert_history.py` keeps 200 transitions under a 1-MiB read bound. `app.py::_default_overview_service` requests five recent recoveries. Daemon status separates latest delivery success/error from incident state. | Owner/resource-authorized incident/recovery history and delivery failure views through actual API/UI. Durable retention must preserve deduplication and delivery ordering. |
+| Health alerts | `alert_daemon.py::config_from_env` defaults to 60 seconds and two failures. `alert_notifier.py` renders incident/recovery payloads and uses a 10-second HTTP timeout. Missing webhook selects `RecordingNotifier`. | Owned threshold/category policy is now registered. Connect genuine protected facts and current external destination references. Recording/log mode must not become proof of external delivery. Keep observation and external delivery outcomes distinct. |
+| Alert categories and required mounts | `alert_policy.py` defaults container, SMART, mount and SnapRAID delivery to enabled. Paths retain case; normalization removes duplicate exact paths. A valid policy file, including `{}`, replaces environment mount selection. Missing, malformed or JSON-null policy falls back to environment mounts. | Owned category/mount settings and observation revisions are registered; the planner preserves empty-versus-missing precedence. Migrate actual source state and resolve concrete read scopes without normalizing operator path spelling. |
+| Resource silences | Kind/key, created time, optional expiry and a trimmed reason are retained. Expiry is exclusive: delivery resumes exactly at expiry. Disabled/silenced delivery does not mean the incident disappeared. | The planner and configured policy retain metadata and apply current in-app predicates. Qualify actual migration, genuine collection and current external-send policy checks; saved settings alone do not establish ordinary notification parity. |
+| History and status | `alert_history.py` keeps 200 transitions under a 1-MiB read bound. `app.py::_default_overview_service` requests five recent recoveries. Daemon status separates latest delivery success/error from incident state. | Owned alert/notification API/UI and acknowledgment are registered. Production supervision, external failure views and installed retention must preserve deduplication and delivery ordering. |
 | Manual delivery test | `MattermostIntegrationService.send_test` sends a distinct integration-test notification. The route requires login and CSRF; missing configuration returns 409 and transport failure 502. | An explicit authorized POST with a bounded, current destination. A manual test must not invent a healthy resource observation or reuse the narrow schedule-enablement grant as arbitrary credential authority. |
 | Stack inbound events | Token-gated POST, 256-KiB route cap, quiet/verbose policies and test/noise suppression. Status exposes the ingest token to the authenticated operator. Re-provisioning preserves token/mode/source and writes mode 0600, while setting enabled true. | Current protected token/stack binding, durable admission identity and outbox rollback. Preserve the operator's ingest-URL copy flow through an authorized secret-reveal boundary; ordinary status/logs/outbox data must not expose credentials. Re-provisioning is a reviewed mutation, never a GET effect. |
 | Held package updates | `pihealth_helper.py::_post_package_updates` reports newer held/critical or pinned entries after reconciliation. `_updates_webhook` prefers the enabled dedicated updates destination, then the alerts webhook. Notification failure does not fail the owned package reconciliation result. | Register genuine package outcome events and current delivery policy with durable receipts. Keep package reconciliation success separate from notification delivery; do not claim both succeeded from the reconciliation job alone. |
@@ -76,12 +82,12 @@ transport retirement. This survey does not establish deployed channel use.
 
 ## Remaining acceptance
 
-Thread accepted policy/destination revisions through owner-scoped observation
-leases, folding and outbox publication. The
-[qualified Store settlement](p04-b1-observation-settlement-handoff.md) uses the
-default alert policy; the inventory does not close configured-policy work. Add
-configured-policy and secret-reference adapters before claiming ordinary
-notification parity.
+Accepted configured policy revisions now reach owner-scoped reservation,
+leases, folding and current in-app publication. The original
+[Store settlement](p04-b1-observation-settlement-handoff.md) default-only evidence
+retains its historical scope; the later configured-policy handoff supplies the
+new source. Protected actual-state migration and current external destination
+references/revisions remain required before ordinary notification parity.
 
 The protected collector adapter also needs an explicit mapping between legacy
 name/path alert keys and concrete Rust read-resource identities. Review instance

@@ -3,9 +3,14 @@
 Source `32265d4` implements the
 [bounded migration design](plans/2026-10-30-b1-health-settings-migration-design.md).
 This supplies a complete representable policy candidate or a typed review issue.
-It prepares configured-policy integration; the running Store still uses its
-default policy. [Local evidence](rewrite-evidence/p04/2026-10-30-b1-health-settings/README.md)
+At this slice's baseline the Store still used its default policy.
+[Local evidence](rewrite-evidence/p04/2026-10-30-b1-health-settings/README.md)
 qualifies this pure domain boundary separately from registered history.
+
+The later [configured-policy integration](p04-b1-configured-policy-handoff.md)
+registers owned settings and preserves these metadata fields durably. Its
+`HealthPolicyDefinition::from_planned` projection consumes a supported candidate;
+actual-state source custody and schedule-interval migration remain pending.
 
 ## Interface and preserved rules
 
@@ -68,10 +73,10 @@ Checks use repository-disk scratch, one Cargo job, one test thread and the
 unchanged 3-GiB floor. Holly's Pi was untouched and nothing was pushed.
 
 A protected migration adapter still needs to read actual deployed settings with
-source custody and current authorization. Bind accepted policy/destination
-revisions through the Store's observation lease, completion and publication;
-preserve silence metadata durably. Resolve concrete resource replacement and
-connect genuine protected collection before registering bounded supervision.
-Settings API/UI, ordinary external notification parity, installed restart and
-idle-write evidence, broader A/B/P04 parity and P05/P06 remain open. A serializable
+source custody and current authorization, applying both policy and schedule
+interval. Current policy revisions and silence metadata now use the later Store
+integration; external destination references/revisions remain pending. Resolve
+concrete resource replacement and connect genuine protected collection before
+registering bounded supervision. Ordinary external notification parity, installed
+restart and idle-write evidence, broader A/B/P04 parity and P05/P06 remain open. A serializable
 candidate grants no mutation, collection, credential or delivery authority.

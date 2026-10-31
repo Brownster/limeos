@@ -1,0 +1,7 @@
+{
+  "scope": "Final owned qualification wrapper processes only",
+  "command": ["ps", "-o", "pid,ppid,stat,comm", "-p", "3234664,3237547,3237655,3233290,3234181"],
+  "exit_code": 1,
+  "stdout": "    PID    PPID STAT COMMAND\n",
+  "original_final_guard_pids_observed_absent": [3234664, 3237547, 3237655, 3233290, 3234181]
+}
