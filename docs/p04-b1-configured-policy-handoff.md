@@ -100,6 +100,11 @@ packages and historical ARM64/Pi measurements do not qualify this source.
 
 ## Remaining cutover work
 
+The next [transition-only polling slice](p04-b1-transition-polling-handoff.md)
+adds schema 14 and the real Store/worker polling seam. Normal periodic sampling
+must use that seam, keeping queued reservation for existing work and recovery.
+It does not register genuine collection or a production supervisor.
+
 Resolve required paths and legacy keys against concrete protected resource
 identities, including replacement and retirement of an old binding. A configured
 path is not evidence of a current mount. Connect genuine fresh restart-policy,

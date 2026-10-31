@@ -270,3 +270,34 @@ installed ARM64/Pi/package/soak evidence remain open. Policy history has an
 explicit 1,024-version refusal bound; compaction remains pending. This does not
 complete B1, A1 reliability, P04 or P05/P06 cutover, close a defect row or change
 the existing inventory-performance failure. No Pi, external send or push ran.
+
+## 31 October: transition-only B1 polling
+
+Source `05049bb` adds the real Store/sole-worker
+[transition-only polling seam](../../p04-b1-transition-polling-handoff.md).
+Unchanged samples write no durable occurrence, job, sequence, audit or outbox
+state; material changes commit the existing observation ledger atomically.
+Schema 14 binds original admission/due/private lease proofs to successful
+results. The old queued path remains available for existing jobs and recovery.
+
+The [local evidence](2026-10-31-b1-transition-polling/README.md) binds 810 runtime
+tests, nine compile-fail doctests, strict Clippy, regenerated contracts and 242
+frontend tests plus checked build to 722 committed inputs. Actual compiled
+schema-13 upgrade/partial-DDL rollback, older upgrades, actual worker exclusion,
+restart, policy/grant changes, origin corruption and legal history pruning
+pass. All eleven guard attempts remain recorded; five final checks share an
+identical source map. The isolated real-Store measurement records zero SQLite
+changes, identical database/WAL bytes and zero process write bytes for 2,880
+unchanged polls after one baseline. This advances simulated time by a day and
+does not establish a real installed 24-hour soak. The retained queued-path
+baseline records 480 changes and 8,200,192 process write bytes for 32 stable
+polls, with no alert/notification change; no daily rate is extrapolated.
+
+No production collector/supervisor is registered. Fresh protected health facts,
+concrete replacement, safe compaction, external notification parity, protected
+actual-state migration and installed/current ARM64/Pi/package/soak evidence
+remain open. Schema 14 requires fresh upgrade/return-path qualification. This
+does not close B1, A1 reliability, broader A/B/P04, P05/P06 or a defect row, and
+does not change the historical inventory-performance failure. All scratch is
+on repository disk with one Cargo job/test thread and the unchanged 3-GiB
+sampled floor. Holly's Pi and frozen app were untouched; nothing was pushed.

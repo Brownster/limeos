@@ -1,0 +1,230 @@
+{
+  "qualified_commit": "05049bb1b79204392bd0e03e0ee00df661442206",
+  "parent_commit": "4073a458b6d8f2919cf75cff110068a53adaee37",
+  "final_identical_guard_input_maps": [
+    "b1-poll-rust-4",
+    "b1-poll-clippy-2",
+    "b1-poll-contracts-1",
+    "b1-poll-frontend-1",
+    "b1-poll-idle-1"
+  ],
+  "committed_input_count": 722,
+  "committed_inputs_match": true,
+  "worktree_inputs_match": true,
+  "runtime_tests": 810,
+  "compile_fail_doctests": 9,
+  "new_native_tests": 19,
+  "frontend_tests": 242,
+  "frontend_build_input_count": 134,
+  "frontend_build_inputs_match_commit": true,
+  "built_ui_assets": {
+    "frontend/dist/assets/index-CRb-EEjI.js": "0ef84d5fdb26d3d6f6199b0fe8c6044c0c80ac96bed5fc7743fa1bbe353634ef",
+    "frontend/dist/assets/index-DqMXDWU-.css": "fa440797a210247991800a0d27db738d33f3c5b318bfc05802a1a227864f423b",
+    "frontend/dist/index.html": "56ff253238a03c853d060c637a512d7b9eaef849157a84f5f33f8addf094f887"
+  },
+  "baseline_head": "4073a458b6d8f2919cf75cff110068a53adaee37",
+  "baseline_only_modified_source": "crates/persistence/src/automation/completion/tests.rs",
+  "checks": {
+    "b1-poll-baseline-1": {
+      "started": "2026-10-31T00:24:37.492910+00:00",
+      "ended": "2026-10-31T00:24:53.823434+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5073960960,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-poll-clippy-1": {
+      "started": "2026-10-31T15:52:05.720260+00:00",
+      "ended": "2026-10-31T15:52:59.384812+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5159612416,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-poll-clippy-2": {
+      "started": "2026-10-31T15:56:07.360746+00:00",
+      "ended": "2026-10-31T15:56:11.237231+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5637210112,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-poll-contracts-1": {
+      "started": "2026-10-31T15:56:31.934002+00:00",
+      "ended": "2026-10-31T15:56:32.497921+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5785354240,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-poll-frontend-1": {
+      "started": "2026-10-31T15:56:53.525674+00:00",
+      "ended": "2026-10-31T15:57:12.314156+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5561921536,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-poll-idle-1": {
+      "started": "2026-10-31T15:57:21.961264+00:00",
+      "ended": "2026-10-31T15:57:40.667874+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5259345920,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-poll-rust-1": {
+      "started": "2026-10-31T15:42:34.282498+00:00",
+      "ended": "2026-10-31T15:43:04.591329+00:00",
+      "exit_code": 101,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5008044032,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-poll-rust-2": {
+      "started": "2026-10-31T15:44:12.415497+00:00",
+      "ended": "2026-10-31T15:47:54.337105+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": false,
+      "guard_triggered": false,
+      "minimum_available_bytes": 4490883072,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-poll-rust-3": {
+      "started": "2026-10-31T15:48:25.578900+00:00",
+      "ended": "2026-10-31T15:51:04.003561+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 4754292736,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-poll-rust-4": {
+      "started": "2026-10-31T15:53:10.890472+00:00",
+      "ended": "2026-10-31T15:55:29.970191+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5251330048,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-poll-schema-1": {
+      "started": "2026-10-31T15:51:24.034663+00:00",
+      "ended": "2026-10-31T15:51:50.266845+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5134983168,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    }
+  },
+  "draft_input_differences_from_final": {
+    "b1-poll-baseline-1": [
+      "bins/core/src/automation_store.rs",
+      "bins/core/src/automation_store/tests.rs",
+      "bins/schema/src/main.rs",
+      "contracts/generated/authority-v14.sql",
+      "contracts/generated/event.schema.json",
+      "contracts/generated/job-progress.schema.json",
+      "contracts/generated/openapi.json",
+      "contracts/generated/types.ts",
+      "crates/domain/src/lib.rs",
+      "crates/persistence/src/automation.rs",
+      "crates/persistence/src/automation/completion.rs",
+      "crates/persistence/src/automation/completion/check.rs",
+      "crates/persistence/src/automation/completion/polling.rs",
+      "crates/persistence/src/automation/completion/polling/tests.rs",
+      "crates/persistence/src/automation/completion/tests.rs",
+      "crates/persistence/src/automation/policy/tests.rs",
+      "crates/persistence/src/lib.rs",
+      "crates/persistence/src/migration-v14.sql",
+      "crates/persistence/src/resources.rs"
+    ],
+    "b1-poll-clippy-1": [
+      "crates/persistence/src/automation/completion/polling/tests.rs"
+    ],
+    "b1-poll-rust-1": [
+      "bins/core/src/automation_store/tests.rs",
+      "contracts/generated/authority-v14.sql",
+      "contracts/generated/event.schema.json",
+      "contracts/generated/job-progress.schema.json",
+      "contracts/generated/openapi.json",
+      "contracts/generated/types.ts",
+      "crates/persistence/src/automation/completion.rs",
+      "crates/persistence/src/automation/completion/polling.rs",
+      "crates/persistence/src/automation/completion/polling/tests.rs"
+    ],
+    "b1-poll-rust-2": [
+      "bins/core/src/automation_store/tests.rs",
+      "contracts/generated/authority-v14.sql",
+      "contracts/generated/event.schema.json",
+      "contracts/generated/job-progress.schema.json",
+      "contracts/generated/openapi.json",
+      "contracts/generated/types.ts",
+      "crates/persistence/src/automation/completion/polling.rs",
+      "crates/persistence/src/automation/completion/polling/tests.rs"
+    ],
+    "b1-poll-rust-3": [
+      "contracts/generated/authority-v14.sql",
+      "contracts/generated/event.schema.json",
+      "contracts/generated/job-progress.schema.json",
+      "contracts/generated/openapi.json",
+      "contracts/generated/types.ts",
+      "crates/persistence/src/automation/completion/polling/tests.rs"
+    ],
+    "b1-poll-schema-1": [
+      "contracts/generated/authority-v14.sql",
+      "contracts/generated/event.schema.json",
+      "contracts/generated/job-progress.schema.json",
+      "contracts/generated/openapi.json",
+      "contracts/generated/types.ts",
+      "crates/persistence/src/automation/completion/polling/tests.rs"
+    ]
+  },
+  "reproduction_source_hashes": {
+    ".cache/b1-poll-qualification/archive_evidence.py": "82e1cf3d146eafedd9d25545010ae1007c5ca25e045be367f80f70d6bb9faf22",
+    ".cache/b1-poll-qualification/check_frontend.py": "49bdf57282fe6f6c9656306fd05fd5dd6e29e7e2747e4f01660b961b21e8735f",
+    ".cache/b1-poll-qualification/launch_check.py": "c4d5257b48725e92d2be67abbfb6c9f135111fda786ed32b5625e93722a1dc58",
+    ".cache/b1-poll-qualification/local_checks.py": "b7e8750202813ab1a866b87ab0fe201b912b924a565e959065eb08001d8303cd",
+    ".cache/main-consolidation/guard.py": "380a78ebd9dbb3902a97bebbcdb164df1e6bfc4c069b56a45092af6eb26813d6",
+    ".cache/stack-installed-qualification/detached_guard.py": "a02420e3fc4bc48bfb9c2f0cc9739f0ffde3635e78d089d932d75c1e1290d21a",
+    "bins/core/src/automation_store.rs": "6b4c88ac66bc4d1372c80585ea51e19e4e8a5ab92f7e2ef06f17dd891035359a",
+    "bins/core/src/automation_store/tests.rs": "799cef71211751ceebdb725d36c6893726f669da4131b985f4bbb3f36e057fbe",
+    "bins/schema/src/main.rs": "58b281408f2f9455654de944e4d18e9c80c15f834796eedd25659144c73f1ad7",
+    "contracts/generated/authority-v14.sql": "49e40f84b57da5b0597031163d4e1fdd5ac820588d9766fd32e626d7a98f3b9c",
+    "contracts/generated/event.schema.json": "b98febed20312746dc510e5d048d64f04293320a9e41c7746e0e0e5a9d04b629",
+    "contracts/generated/job-progress.schema.json": "c895ec9efb0e6f3e1551925436b4baa97677a48c1034583e1766b4919b7b6220",
+    "contracts/generated/openapi.json": "de90b728c386a348779f87fc99e307634c60a9242b9a216db8fb33b681bd9ec0",
+    "contracts/generated/types.ts": "546e559f707d80149c10fa7ba66086f5f0b5870d32945af24dc5b9f814df7630",
+    "crates/domain/src/lib.rs": "d2bed40b7b8f9af2d0f23ad90f62b9c1f88d017900ac66d28b370135154decea",
+    "crates/persistence/src/automation.rs": "15f3f0d41121dfaddcb803889482b7c4265ef75297f49e7c0f937ff10f8fb232",
+    "crates/persistence/src/automation/completion.rs": "67c7c8c74637419028d5185e6dd9d7510247007c294981f2012e0c5f36b9e3c3",
+    "crates/persistence/src/automation/completion/check.rs": "dfd53b8841c1308b1f23fc933733f1d1d77cf9b4e62c7f83c1c2eb908f799dc6",
+    "crates/persistence/src/automation/completion/polling.rs": "49069dad55703e60bf9318fd322ed9898ea6dc7a41459035019f86192cfa73fb",
+    "crates/persistence/src/automation/completion/polling/tests.rs": "ddc69ea20d0434c0e2948009fba0bc8cd75e9a292cc6dac9eff6e3d7e4fd7129",
+    "crates/persistence/src/automation/completion/tests.rs": "3016e3bc94d5511ab8a4d08be8aa07f1584cb1c7bf444cbfdf1fadac313f5391",
+    "crates/persistence/src/automation/policy/tests.rs": "dc1e463c340e9a21e4e758325652f16c2077a01bea4ac8098b9e15f8b1945c4f",
+    "crates/persistence/src/lib.rs": "8cf096bb82e442a572eb12fccb2fbe5120f688e409945d6069cca7fe0255c2b1",
+    "crates/persistence/src/migration-v14.sql": "44efdf8b209dac12ef2a3cd4edfe9f9c9ad6aa818b6838979d00b1c32247ff8d",
+    "crates/persistence/src/resources.rs": "189429035a8815c1a0244674f53f2ac60003663c48b9bb9d4b2fa46e0432e6b6"
+  },
+  "scope": "Real file-backed Store and sole Core worker with normalized fixture facts; simulated idle day, not installed 24h, production collection/supervision, ARM64/package/Pi or cutover qualification"
+}
