@@ -72,3 +72,8 @@ external notifications, installed API/UI/restart/real idle-write evidence,
 packages/upgrades/return paths and actual-state migration remain open. B1,
 A1 reliability, wider A/B/P04 and P05/P06 cutover remain open. No Pi, real Engine,
 external recipient or frozen app was touched; nothing was pushed.
+
+Runtime adoption is now implemented by source `1219844`; the
+[protected health runtime handoff](p04-b1-protected-health-runtime-handoff.md)
+records its sealed worker/RPC and partial Store path. Normal scheduling and
+installed root-positive qualification remain open.

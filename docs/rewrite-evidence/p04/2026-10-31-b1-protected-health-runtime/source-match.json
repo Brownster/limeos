@@ -1,0 +1,566 @@
+{
+  "qualified_commit": "1219844171eee78bd897458295681c1892b4be7f",
+  "storage_fix_commit": "245d53d3d13bd6f4ede878d9fbaf576974841823",
+  "parent_commit": "245d53d3d13bd6f4ede878d9fbaf576974841823",
+  "final_identical_guard_input_maps": [
+    "b1-health-runtime-rust-4",
+    "b1-health-runtime-storage-2",
+    "b1-health-runtime-clippy-1",
+    "b1-health-runtime-contracts-1",
+    "b1-health-runtime-frontend-1",
+    "b1-health-runtime-reference-1",
+    "b1-health-runtime-sanity-3"
+  ],
+  "committed_input_count": 730,
+  "committed_inputs_match": true,
+  "worktree_inputs_match": true,
+  "runtime_tests_passed": 1701,
+  "doctests_passed": 53,
+  "cargo_test_groups": {
+    "Running unittests src/lib.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_api-04cf451326f01260)": {
+      "passed": 25,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/lib.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_backup_archive-1dae9fddf219a849)": {
+      "passed": 87,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running tests/archives.rs (.cache/rewrite-pool-dependencies/target/debug/deps/archives-21660f896497df06)": {
+      "passed": 32,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running tests/before_images.rs (.cache/rewrite-pool-dependencies/target/debug/deps/before_images-04aa942f5a4155af)": {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running tests/custody.rs (.cache/rewrite-pool-dependencies/target/debug/deps/custody-da3e0f393f6a4c10)": {
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running tests/preparation.rs (.cache/rewrite-pool-dependencies/target/debug/deps/preparation-dd581acba2143f59)": {
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/lib.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_contracts-ba21e1faf461c21a)": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/main.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_core-72842cac97c9356e)": {
+      "passed": 55,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/password_worker.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_password_worker-c064b3ec62a10061)": {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running tests/backup_preparation_binding.rs (.cache/rewrite-pool-dependencies/target/debug/deps/backup_preparation_binding-2aac6ee9fbec8cde)": {
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running tests/worker.rs (.cache/rewrite-pool-dependencies/target/debug/deps/worker-ee403ab8982bab1e)": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/lib.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_domain-5fbeea227e935ee7)": {
+      "passed": 567,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/lib.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_executor-6b9998abb4e7ec20)": {
+      "passed": 50,
+      "failed": 0,
+      "ignored": 1,
+      "doctest": false
+    },
+    "Running unittests src/main.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_executor-3e58163c8e6f8794)": {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 1,
+      "doctest": false
+    },
+    "Running tests/combined_read_launch.rs (.cache/rewrite-pool-dependencies/target/debug/deps/combined_read_launch-ecdc9d07283f943c)": {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running tests/combined_read_probe.rs (.cache/rewrite-pool-dependencies/target/debug/deps/combined_read_probe-163c3b547287233b)": {
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running tests/health_read_transport.rs (.cache/rewrite-pool-dependencies/target/debug/deps/health_read_transport-79bc1e0f89fef3c0)": {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running tests/read_worker_supervision.rs (.cache/rewrite-pool-dependencies/target/debug/deps/read_worker_supervision-4f8664c600a9c074)": {
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/lib.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_executor_container-6e0aa4195c2eb85a)": {
+      "passed": 368,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/lib.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_executor_protocol-361c31fccd37b8bf)": {
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/lib.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_executor_storage-bbb911bb2a762c8b)": {
+      "passed": 237,
+      "failed": 0,
+      "ignored": 1,
+      "doctest": false
+    },
+    "Running unittests src/main.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_footprint-749e6655179e99c0)": {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/lib.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_identity-a1f8efc2973bcb25)": {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/lib.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_observations-2b448f5d1b798e95)": {
+      "passed": 39,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/lib.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_persistence-63e43322bd62b5b7)": {
+      "passed": 172,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/lib.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_policy-5616957b6d44d2bf)": {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/main.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeos_schema-5a1ddafeace656fa)": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Running unittests src/main.rs (.cache/rewrite-pool-dependencies/target/debug/deps/limeosctl-67463d9d788d5a63)": {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": false
+    },
+    "Doc-tests limeos_api": {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": true
+    },
+    "Doc-tests limeos_backup_archive": {
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": true
+    },
+    "Doc-tests limeos_contracts": {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": true
+    },
+    "Doc-tests limeos_domain": {
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": true
+    },
+    "Doc-tests limeos_executor": {
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": true
+    },
+    "Doc-tests limeos_executor_container": {
+      "passed": 19,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": true
+    },
+    "Doc-tests limeos_executor_protocol": {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": true
+    },
+    "Doc-tests limeos_executor_storage": {
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": true
+    },
+    "Doc-tests limeos_identity": {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": true
+    },
+    "Doc-tests limeos_observations": {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": true
+    },
+    "Doc-tests limeos_persistence": {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": true
+    },
+    "Doc-tests limeos_policy": {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "doctest": true
+    }
+  },
+  "checks": {
+    "b1-health-runtime-clippy-1": {
+      "started": "2026-10-31T21:51:25.513951+00:00",
+      "ended": "2026-10-31T21:52:47.462535+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5213212672,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-contracts-1": {
+      "started": "2026-10-31T21:53:23.899596+00:00",
+      "ended": "2026-10-31T21:53:24.665060+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 6220836864,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-frontend-1": {
+      "started": "2026-10-31T21:53:50.669914+00:00",
+      "ended": "2026-10-31T21:54:07.659010+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5877010432,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-health_probe-1": {
+      "started": "2026-10-31T21:11:35.786874+00:00",
+      "ended": "2026-10-31T21:12:43.181307+00:00",
+      "exit_code": 101,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5216899072,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-health_probe-2": {
+      "started": "2026-10-31T21:16:15.507227+00:00",
+      "ended": "2026-10-31T21:16:22.503724+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5665640448,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-reference-1": {
+      "started": "2026-10-31T21:54:29.466398+00:00",
+      "ended": "2026-10-31T21:54:30.034295+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 6554869760,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-rust-1": {
+      "started": "2026-10-31T21:01:31.758778+00:00",
+      "ended": "2026-10-31T21:01:42.195668+00:00",
+      "exit_code": 101,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5634719744,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-rust-2": {
+      "started": "2026-10-31T21:02:40.981871+00:00",
+      "ended": "2026-10-31T21:08:44.373120+00:00",
+      "exit_code": 101,
+      "inputs_unchanged": false,
+      "guard_triggered": false,
+      "minimum_available_bytes": 4928462848,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-rust-3": {
+      "started": "2026-10-31T21:22:15.322849+00:00",
+      "ended": "2026-10-31T21:25:39.195453+00:00",
+      "exit_code": 101,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5309407232,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-rust-4": {
+      "started": "2026-10-31T21:46:37.859137+00:00",
+      "ended": "2026-10-31T21:51:13.716944+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 4809543680,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-sanity-1": {
+      "started": "2026-10-31T21:54:45.204361+00:00",
+      "ended": "2026-10-31T21:54:47.681223+00:00",
+      "exit_code": 1,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 6458056704,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-sanity-2": {
+      "started": "2026-10-31T21:55:53.980409+00:00",
+      "ended": "2026-10-31T21:55:56.328379+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 6564716544,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-sanity-3": {
+      "started": "2026-10-31T21:56:34.615835+00:00",
+      "ended": "2026-10-31T21:56:37.000352+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 6787031040,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-schema-1": {
+      "started": "2026-10-31T21:19:49.868067+00:00",
+      "ended": "2026-10-31T21:20:15.398689+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5360128000,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-storage-1": {
+      "started": "2026-10-31T21:45:21.666747+00:00",
+      "ended": "2026-10-31T21:45:40.223649+00:00",
+      "exit_code": 101,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5069295616,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-health-runtime-storage-2": {
+      "started": "2026-10-31T21:46:09.864429+00:00",
+      "ended": "2026-10-31T21:46:27.685848+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5067153408,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    }
+  },
+  "draft_input_differences_from_final": {
+    "b1-health-runtime-health_probe-1": [
+      "bins/core/src/automation_store.rs",
+      "bins/core/src/health_collection/tests.rs",
+      "bins/executor/tests/health_read_transport.rs",
+      "bins/executor/tests/support/read_worker_probe.rs",
+      "contracts/generated/executor-ceiling.schema.json",
+      "contracts/generated/executor-receipt.schema.json",
+      "contracts/generated/executor-request.schema.json",
+      "contracts/generated/types.ts",
+      "crates/executor-storage/src/dependencies/tests.rs",
+      "crates/executor-storage/src/processes/tests.rs",
+      "crates/executor-storage/src/sources.rs",
+      "crates/executor-storage/src/sources/tests.rs",
+      "crates/persistence/src/automation/completion/polling.rs",
+      "crates/persistence/src/automation/completion/polling/tests.rs"
+    ],
+    "b1-health-runtime-health_probe-2": [
+      "bins/core/src/automation_store.rs",
+      "bins/core/src/health_collection/tests.rs",
+      "contracts/generated/executor-ceiling.schema.json",
+      "contracts/generated/executor-receipt.schema.json",
+      "contracts/generated/executor-request.schema.json",
+      "contracts/generated/types.ts",
+      "crates/executor-storage/src/dependencies/tests.rs",
+      "crates/executor-storage/src/processes/tests.rs",
+      "crates/executor-storage/src/sources.rs",
+      "crates/executor-storage/src/sources/tests.rs",
+      "crates/persistence/src/automation/completion/polling.rs",
+      "crates/persistence/src/automation/completion/polling/tests.rs"
+    ],
+    "b1-health-runtime-rust-1": [
+      "bins/core/src/automation_store.rs",
+      "bins/core/src/health_collection.rs",
+      "bins/core/src/health_collection/tests.rs",
+      "bins/executor/tests/health_read_transport.rs",
+      "bins/executor/tests/support/read_worker_probe.rs",
+      "bins/schema/src/main.rs",
+      "contracts/generated/executor-ceiling.schema.json",
+      "contracts/generated/executor-receipt.schema.json",
+      "contracts/generated/executor-request.schema.json",
+      "contracts/generated/types.ts",
+      "crates/domain/src/automation/alerts.rs",
+      "crates/executor-storage/src/dependencies/tests.rs",
+      "crates/executor-storage/src/processes/tests.rs",
+      "crates/executor-storage/src/sources.rs",
+      "crates/executor-storage/src/sources/tests.rs",
+      "crates/persistence/src/automation/completion/polling.rs",
+      "crates/persistence/src/automation/completion/polling/tests.rs",
+      "tests/reference/test_stack_reader_profile.py"
+    ],
+    "b1-health-runtime-rust-2": [
+      "bins/core/src/automation_store.rs",
+      "bins/core/src/health_collection.rs",
+      "bins/core/src/health_collection/tests.rs",
+      "bins/executor/tests/health_read_transport.rs",
+      "bins/executor/tests/support/read_worker_probe.rs",
+      "contracts/generated/executor-ceiling.schema.json",
+      "contracts/generated/executor-receipt.schema.json",
+      "contracts/generated/executor-request.schema.json",
+      "contracts/generated/types.ts",
+      "crates/executor-storage/src/dependencies/tests.rs",
+      "crates/executor-storage/src/processes/tests.rs",
+      "crates/executor-storage/src/sources.rs",
+      "crates/executor-storage/src/sources/tests.rs",
+      "crates/persistence/src/automation/completion/polling.rs",
+      "crates/persistence/src/automation/completion/polling/tests.rs",
+      "tests/reference/test_stack_reader_profile.py"
+    ],
+    "b1-health-runtime-rust-3": [
+      "crates/executor-storage/src/dependencies/tests.rs",
+      "crates/executor-storage/src/processes/tests.rs",
+      "crates/executor-storage/src/sources.rs",
+      "crates/executor-storage/src/sources/tests.rs"
+    ],
+    "b1-health-runtime-sanity-1": [],
+    "b1-health-runtime-sanity-2": [],
+    "b1-health-runtime-schema-1": [
+      "contracts/generated/executor-ceiling.schema.json",
+      "contracts/generated/executor-receipt.schema.json",
+      "contracts/generated/executor-request.schema.json",
+      "contracts/generated/types.ts",
+      "crates/executor-storage/src/dependencies/tests.rs",
+      "crates/executor-storage/src/processes/tests.rs",
+      "crates/executor-storage/src/sources.rs",
+      "crates/executor-storage/src/sources/tests.rs"
+    ],
+    "b1-health-runtime-storage-1": [
+      "crates/executor-storage/src/dependencies/tests.rs",
+      "crates/executor-storage/src/sources/tests.rs"
+    ]
+  },
+  "reproduction_source_hashes": {
+    ".cache/b1-health-runtime-qualification/archive_evidence.py": "4e17ebf8b640d7abb51a69834ea9f8801769c25ba939f9c4c9d2f64b39723887",
+    ".cache/b1-health-runtime-qualification/check_frontend.py": "58efbf2bacdd92752cf98ee1654b21fbe38c9ec54ed609ef6cf87555e6161ad6",
+    ".cache/b1-health-runtime-qualification/check_sanity.py": "a4035943bcab575fa4159391ba2a53d5943c15d9bb7a4185d2cc6e5ea35df731",
+    ".cache/b1-health-runtime-qualification/directory_probe.py": "ae5e01bdfb98292521425c1c86a3ca1a775d705ec2d62269ce3a1f1604c69502",
+    ".cache/b1-health-runtime-qualification/inspect_state.py": "6b641dd9615d926e104534ca3fb04ca47d860398b71c4290fb53351c07caa26f",
+    ".cache/b1-health-runtime-qualification/install_generated.py": "46d08512c912a0ffa1436ab3938a9ab5cf4c43a0202774d718f009600e813ede",
+    ".cache/b1-health-runtime-qualification/launch_check.py": "da543beb46b9138d53b43669f399f02ba8185956e6bfa3895ed47baf93eb447a",
+    ".cache/b1-health-runtime-qualification/record_end.py": "29eac6eb3b0852c3bd7a5f10e3444dc1569d838ff4f999e0a7d011d21d8efef8",
+    ".cache/b1-health-runtime-qualification/record_linter.py": "dd893b89b9f84003118892b6f9ba2cdb25ab0a954a1ed275c5dc5d8acc32dde2",
+    ".cache/b1-health-runtime-qualification/seal_packet.py": "37ae6df97825f6190dc81cf765d95df53b4f80d7f89e466b55847aa4f9da2179",
+    ".cache/main-consolidation/guard.py": "380a78ebd9dbb3902a97bebbcdb164df1e6bfc4c069b56a45092af6eb26813d6",
+    ".cache/stack-installed-qualification/detached_guard.py": "a02420e3fc4bc48bfb9c2f0cc9739f0ffde3635e78d089d932d75c1e1290d21a",
+    "Cargo.lock": "9ee77f6015aeafee4c2df266352d078039e6ae41a2f55851b398ad8786cba121",
+    "bins/core/Cargo.toml": "31f7b2514158e2559d37fcd49ed1ced853e1771d08583ff36898d3951c301365",
+    "bins/core/src/automation_store.rs": "c38d01e4572b389333d062346ab3fa9c7fb25ca20c2de01c3e49cf05cb30e6a9",
+    "bins/core/src/health_collection.rs": "1d3decd7830afcd15835c385da77794f78f178f79168b267679162a1bfd4b0a0",
+    "bins/core/src/health_collection/tests.rs": "1aef8e531ec06164d2a40b4e3b78c5e1b634ab18d700fc65feb0afb88d4d980b",
+    "bins/core/src/main.rs": "5cd382a01d7e08754e786f324d51b3ca36d2f8356a8048935182bccc39e415e9",
+    "bins/executor/src/health_read.rs": "08d345d6287cee474a5649339db645c25b15984096546f8a0e53b8595ae6e638",
+    "bins/executor/src/lib.rs": "d484da1b18e899c7969318f319971bb994728de11fc5e2e83d0b6f90c4d432d1",
+    "bins/executor/src/main.rs": "8896e2245a9ddc1c072cc7399276dc6c994017a3726378322863e7e5b95ea531",
+    "bins/executor/src/read_launch.rs": "00e8dda2f4e12214c3dc4728b128f2fa2ebec992eb10cdd2793aa84f9bd583b8",
+    "bins/executor/src/read_launch/tests.rs": "75e3b6d77a7ecbc4851ed74b09d3eb79f02478ef81c9ed6b758ddc972297c474",
+    "bins/executor/src/read_supervision/guardian.rs": "f76a936b45e13d17b074e715221bf906cc5f37fc7bce51bbca298d19d26ac1ff",
+    "bins/executor/src/stack_read_worker.rs": "2036ebff834179ba17f54a237796b378351aebed47d35288cb9cfa396f4d934d",
+    "bins/executor/tests/health_read_transport.rs": "bd63d1703ce618d06faf8db0f9ddb0c4e13cf225c278f3a40a431996fe51b2f1",
+    "bins/executor/tests/support/read_worker_probe.rs": "537ad73505ddec678843b4228febc8430e0a33cf6eb28e639f7f0da1053c2cd9",
+    "bins/schema/src/main.rs": "1ec49fd7dd5d8ed7db6c7f0a8dd94543d3ab99e6a4a2bbc81b87920212e9faa7",
+    "contracts/generated/executor-ceiling.schema.json": "05140562cd611835cd27009f0047635d19d68e5658e81794754705d2a046fac7",
+    "contracts/generated/executor-receipt.schema.json": "a653946876da2747859f07100deac7e853098e7c49a023eea9c99ae7dd80c738",
+    "contracts/generated/executor-request.schema.json": "8b71afbeb564af1de318f455de0f1fdf8fadffd04a7e6c875c0d9dec4256c252",
+    "contracts/generated/types.ts": "dedd1d0979916930446e49d017cc7ddd21bae55106d17d36d2d88d89d82e61a0",
+    "crates/domain/src/automation/alerts.rs": "f2d1aea88af5d4a5666ee45aad2fcbf1ac79b1360cf5679f33ccf2962c3ddd22",
+    "crates/domain/src/automation/health_cohort.rs": "d509d2338111c3234e29fa46214dd79755f49681f217342d02b6f052f61138bd",
+    "crates/domain/src/automation/health_cohort/tests.rs": "b144dc8ad773e0bba724f833256c0d07688d29f4b716472e396fcd43dce82ad0",
+    "crates/domain/src/automation/mod.rs": "1b7988068f14cf29647a51aa8ba01a115a93e6573ce0ae8c4a5bb7e12be0f04f",
+    "crates/executor-protocol/src/lib.rs": "f446ac971c0bdaf992bd2691b03463aceb198334c72b9ad25de872274a67a096",
+    "crates/executor-storage/src/dependencies/tests.rs": "0233591453bd60688b3b4f3b1ee5ee5c20e8506cd9f3d97e55a2590c53193127",
+    "crates/executor-storage/src/processes/tests.rs": "b5148af9e8f142569b0604f02c4543dddd1e95a8efa25e7ba5acb4f8fd264769",
+    "crates/executor-storage/src/sources.rs": "7948526110c9c819a2f48b8c86495ab3368df330f5f977912bde70b399b42fd1",
+    "crates/executor-storage/src/sources/tests.rs": "cc6d14f5745b1b9a4b5e4f4611e3377ad523670d7630ad973e451af61242d219",
+    "crates/persistence/src/automation/completion/polling.rs": "faa3403f33d157f61283c0191df160766c1491d86b7d6ab86fe63991d7ef0ea8",
+    "crates/persistence/src/automation/completion/polling/tests.rs": "c40fbc6acc847c2379ea7835c715248a94893ed873db3d84177235f9e5e2ff59",
+    "docs/plans/2026-10-31-b1-protected-health-runtime-design.md": "333a31d222fe60848154f0ba083db4a78aa900beb0028ab6d2dfa129942f246c",
+    "docs/plans/2026-10-31-source-btrfs-device-design.md": "80478a64d10913e35227e396f800ce6d3725213523300c3cb3362f0c5713b9b9",
+    "external-skills/std-bash/scripts/run_shellck.sh": "c261ced0be7809e134b98c494f90ef26c4ce8a706c29151b9588badcffc50c8e",
+    "packaging/debian/postinst": "284d05b5cd4ef15802a9a5e805282a581b8743aad1980906085ad5f4def35194",
+    "tests/reference/test_stack_reader_profile.py": "bf0c6bd6ea61905bf3d42eda78674681d743519ed5f472e6fc8d9a0942eaa9c1"
+  },
+  "scope": "Native local workspace and opt-in real sealed worker bootstrap/nonroot refusal; private-unit Unix credentials/clocks and real Store queue/lock tests. No installed root-positive Engine, API/UI browser journey, service resource/footprint, package/upgrade/return, ARM64/Pi or cutover qualification."
+}

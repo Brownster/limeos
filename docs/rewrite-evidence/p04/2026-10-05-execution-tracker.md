@@ -326,3 +326,41 @@ replacement, remaining health sources, actual protected worker adoption and
 supervision, installed acceptance and all wider cutover gates remain open.
 No phase/defect closes, service ceiling changes, Pi/real Docker operation,
 external send, frozen-app mutation or push occurred.
+
+## 31 October: protected health worker and partial Store path
+
+Source `1219844` implements the
+[protected health runtime](../../p04-b1-protected-health-runtime-handoff.md):
+fixed sealed health guardian/worker roles, nonce-only read RPC and a private
+Core owner retaining its original four-second deadline through actual database
+queue/lock waits. Store completion rechecks current full-ID grants, source wall
+age and retained subject bindings in the transaction. Container-only samples
+stay globally partial; legacy names and removed IDs refuse pending review.
+No periodic scheduler starts. New package-created storage policies include the
+narrow read flag, while existing policies and dormant units are preserved.
+Return-path rehearsal must include policy before-images as well as the matching
+pre-schema-14 database and package assets.
+
+The [local packet](2026-10-31-b1-protected-health-runtime/README.md) binds 1,701
+workspace runtime passes, 53 compile-fail doctests, strict all-target Clippy,
+actual contract drift, 242 frontend tests/checked build, thirteen profile tests
+and explicit ShellCheck to 730 committed inputs across seven matching final
+guards. All sixteen attempts remain recorded. The broad run exposed a Btrfs
+source mismatch: fix `245d53d` authenticates the mount table before accepting
+anonymous subvolume inode devices, corroborates kernel filesystem type and
+retains both actual device identities. Physical Btrfs binding remains unavailable
+and exact effect/destination device checks remain unchanged. All 237 storage
+tests pass on the same repository disk. Three ignored child entries are invoked
+by passing isolated parents; child summaries are not counted twice.
+
+Owned listeners use private unit credentials/clocks. Actual sealed production
+roles return a collection refusal with confirmed cleanup under an isolated
+nonroot observer; this establishes no successful installed root-positive Engine
+read. Original owned qualification processes are absent. All scratch stays on
+repository disk with one Cargo job/test thread and the unchanged sampled 3-GiB
+floor. Due/authority preflight, queued recovery, fair scheduling, remaining health
+sources, reviewed replacement/retirement, retention, external ordinary channels,
+installed/current ARM64/Pi/package/return/soak evidence and P05/P06 remain open.
+No A1/B1/P04 or defect closes, and the historical inventory-performance failure
+is unchanged. Holly's Pi, real Docker and the frozen app were untouched; nothing
+was pushed.
