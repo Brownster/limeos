@@ -1,5 +1,11 @@
 # Authenticated Engine and running-PID evidence
 
+The additive [health reader](p04-b1-container-health-evidence-handoff.md) now
+selects restart policy, effective running and healthcheck state in the same
+genuine collector. Its fixed root endpoint retains original clocks/budgets and
+full-ID-bound signals; storage-only callers keep their existing selections.
+Protected health-worker/RPC adoption and installed qualification remain open.
+
 The additive [Compose membership reader](p04-compose-membership-evidence.md) now
 projects selected project/service metadata through this genuine collector under
 closed admission. Its new fixed-endpoint owner retains the original facts and

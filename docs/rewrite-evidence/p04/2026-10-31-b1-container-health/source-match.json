@@ -1,0 +1,87 @@
+{
+  "qualified_commit": "7f1256d889beb9db6a66876bb6b1c913d589428e",
+  "parent_commit": "39d9237f644b8efbaa13ad82655775cd6245dd62",
+  "final_identical_guard_input_maps": [
+    "b1-engine-health-rust-2",
+    "b1-engine-health-clippy-1",
+    "b1-engine-health-contracts-1"
+  ],
+  "committed_input_count": 724,
+  "committed_inputs_match": true,
+  "worktree_inputs_match": true,
+  "runtime_tests_passed": 986,
+  "compile_fail_doctests_passed": 33,
+  "new_runtime_tests": 11,
+  "new_compile_fail_doctests": 2,
+  "outer_ignored_child_entry_points": [
+    "storage_mount_admission::tests::journal_capacity_probe",
+    "runtime_tests::mount_runtime_child"
+  ],
+  "passing_parent_regressions": [
+    "storage_mount_admission::tests::operation_capacity_boundaries_use_real_descriptors_in_an_isolated_process",
+    "runtime_tests::mount_bootstrap_keeps_its_thread_set_through_unix_and_child_io"
+  ],
+  "checks": {
+    "b1-engine-health-clippy-1": {
+      "started": "2026-10-31T17:22:26.399014+00:00",
+      "ended": "2026-10-31T17:23:09.133510+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 4775886848,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-engine-health-contracts-1": {
+      "started": "2026-10-31T17:23:34.121487+00:00",
+      "ended": "2026-10-31T17:23:38.348917+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 5355446272,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-engine-health-rust-1": {
+      "started": "2026-10-31T17:17:13.781393+00:00",
+      "ended": "2026-10-31T17:18:38.590043+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": false,
+      "guard_triggered": false,
+      "minimum_available_bytes": 4346605568,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    },
+    "b1-engine-health-rust-2": {
+      "started": "2026-10-31T17:19:30.137379+00:00",
+      "ended": "2026-10-31T17:22:11.250573+00:00",
+      "exit_code": 0,
+      "inputs_unchanged": true,
+      "guard_triggered": false,
+      "minimum_available_bytes": 4342575104,
+      "memory_floor_bytes": 3221225472,
+      "observed_external_compilers": []
+    }
+  },
+  "draft_input_differences_from_final": {
+    "b1-engine-health-rust-1": [
+      "crates/executor-container/src/docker/health_evidence.rs",
+      "crates/executor-container/src/docker/process_evidence/tests/health_tests.rs"
+    ]
+  },
+  "reproduction_source_hashes": {
+    ".cache/b1-engine-health-qualification/archive_evidence.py": "23ca0eb0315b2e0df50efaebe0414a62f44035f1caca965ca3883a7b6d7906e2",
+    ".cache/b1-engine-health-qualification/launch_check.py": "a225907d08f98cedc7fa5ebc6851fa45b75dda6ea2107a89793d10200d610350",
+    ".cache/b1-engine-health-qualification/local_checks.py": "55f1d563b19be57ba9f2c92fb5494ad73b8924bfa769b251c139ca1cb21cb804",
+    ".cache/main-consolidation/guard.py": "380a78ebd9dbb3902a97bebbcdb164df1e6bfc4c069b56a45092af6eb26813d6",
+    ".cache/stack-installed-qualification/detached_guard.py": "a02420e3fc4bc48bfb9c2f0cc9739f0ffde3635e78d089d932d75c1e1290d21a",
+    "crates/executor-container/src/docker.rs": "111be4d364ae7a3ace92dd33afabbc1afeb69930f58f71789743b436a3548954",
+    "crates/executor-container/src/docker/compose_evidence.rs": "3661c969a4e40b2fec61c1f57e840e366bfa5a3548bca49b7f4c0f421964de99",
+    "crates/executor-container/src/docker/health_evidence.rs": "49e98000076c585c6b2bf14c2db2d5caa95a5f6e0ec0882ce387526f9cb104f1",
+    "crates/executor-container/src/docker/process_evidence.rs": "954a94376975571ef32f1973b80d955db9a5d539d7eebb579e3e4e9c481f6e0f",
+    "crates/executor-container/src/docker/process_evidence/tests.rs": "3d6bb3a90a4dbdd0c915165783a501de4b02f317410b8604c631ffc355ae0b6a",
+    "crates/executor-container/src/docker/process_evidence/tests/health_tests.rs": "d4be27effb537121eac62580a273fd27efa081dab97d11ad2fdf312e7fd3adda",
+    "crates/executor-container/src/docker/read_admission.rs": "ea3ae8cc22594498a0ea0cf1ca46517b090ff269c26ef9382f44a6e1d1ff0924"
+  },
+  "scope": "Actual owned Unix-listener HTTP collection under private unit credentials/clocks; no installed UID-0 Engine, actual Docker, worker/RPC registration, API/UI, footprint, package, ARM64/Pi or cutover qualification"
+}

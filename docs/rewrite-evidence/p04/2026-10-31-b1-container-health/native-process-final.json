@@ -1,0 +1,13 @@
+{
+  "observed_at": "2026-10-31T17:26:59.520264+00:00",
+  "native_command": [
+    "ps",
+    "-p",
+    "3690697,3690701,3693026,3693034,3695971,3695982,3696742,3696762",
+    "-o",
+    "pid,ppid,stat,comm"
+  ],
+  "exit_code": 1,
+  "stdout": "    PID    PPID STAT COMMAND\n",
+  "all_original_guard_and_child_pids_absent": true
+}

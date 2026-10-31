@@ -47,6 +47,10 @@ protection evidence, then use these poll methods. It must first settle old
 queued work and retain bounded fair cursors. Overview-cache values do not prove
 health. Concrete replacement, safe history/audit compaction, ordinary external
 notification destinations/transports and actual-state migration remain open.
+The next [retained container-health reader](p04-b1-container-health-evidence-handoff.md)
+now supplies genuine authenticated selected facts and resource-bound signals.
+Protected health-worker/RPC adoption remains required before normal supervision
+can feed it into this polling seam.
 
 Local qualification and exact source identities are recorded in the
 [evidence packet](rewrite-evidence/p04/2026-10-31-b1-transition-polling/README.md).

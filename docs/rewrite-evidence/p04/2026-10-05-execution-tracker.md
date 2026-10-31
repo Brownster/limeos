@@ -301,3 +301,28 @@ does not close B1, A1 reliability, broader A/B/P04, P05/P06 or a defect row, and
 does not change the historical inventory-performance failure. All scratch is
 on repository disk with one Cargo job/test thread and the unchanged 3-GiB
 sampled floor. Holly's Pi and frozen app were untouched; nothing was pushed.
+
+Source `7f1256d` implements the next
+[retained container-health reader](../../p04-b1-container-health-evidence-handoff.md).
+The fixed root-only canonical Engine path captures restart policy, effective
+running and healthcheck state through the actual authenticated double inspection,
+retains original storage/PID/Engine identity and clocks/budgets, and emits
+full-ID-bound frozen-rule signals. Configured missing health remains unavailable.
+Health and Compose share the permanent validation gate; existing storage-only
+selection and wire contracts remain unchanged.
+
+[Local evidence](2026-10-31-b1-container-health/README.md) binds 986 runtime passes
+and 33 compile-fail doctests, strict dependent-executor Clippy, actual contract
+drift, formatting and repository checks to 724 committed inputs. Eleven native
+health tests and two new compile-fail checks cover owned listener acquisition,
+policy/status/state rules, sanitization, changes, bounds, cancellation, clocks
+and peer refusal before HTTP. Two pre-existing child-entry helpers are ignored
+by the outer harness and invoked by passing parent regressions. All four guard
+attempts are retained; three final guards agree, while the first development run
+changed inputs and supplies no final-source acceptance. Successful fixtures use
+private test credentials/clocks. This is not installed root/Docker, worker/RPC,
+API/UI, footprint, package, ARM64 or Pi qualification. Legacy-key/resource
+replacement, remaining health sources, actual protected worker adoption and
+supervision, installed acceptance and all wider cutover gates remain open.
+No phase/defect closes, service ceiling changes, Pi/real Docker operation,
+external send, frozen-app mutation or push occurred.

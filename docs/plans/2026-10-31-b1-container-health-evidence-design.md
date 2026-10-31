@@ -43,13 +43,15 @@ comparison is imposed on storage-only callers.
 Require an object HostConfig/RestartPolicy with a string Name. Recognize
 `always`, `unless-stopped`, `no`, `on-failure` and the older empty string meaning
 disabled; unknown or malformed policy refuses the complete capture. The empty
-case follows [Moby's restart policy definition](https://github.com/moby/moby/blob/master/api/types/container/hostconfig.go).
+case follows [Moby v28.0.0's restart policy definition](https://github.com/moby/moby/blob/v28.0.0/api/types/container/hostconfig.go).
 The frozen Python reader and existing Rust domain rules monitor only always
 and unless-stopped policies; this does not add monitoring for batch containers.
 
-Require a canonical slash-prefixed bounded container name and typed running
-state. Use the existing pure `container_signal` rules with the display name,
-then bind its key and concrete scope to the full immutable container ID.
+Require a canonical slash-prefixed bounded container name and typed running,
+paused, restarting and dead flags. Effective running excludes the latter three
+states, matching the frozen running-status predicate. Use the existing pure
+`container_signal` rules with full-ID keys and the selected display name in
+summaries, binding the key and concrete scope to the full immutable container ID.
 Preserve the frozen starting/stopped/unhealthy behavior and severity. Legacy
 name/silence migration still needs explicit identity binding; do not pretend
 these new keys have already migrated old silences or retired resource state.
