@@ -364,3 +364,32 @@ installed/current ARM64/Pi/package/return/soak evidence and P05/P06 remain open.
 No A1/B1/P04 or defect closes, and the historical inventory-performance failure
 is unchanged. Holly's Pi, real Docker and the frozen app were untouched; nothing
 was pushed.
+
+## 31 October: container admission before collection and original-job recovery
+
+Source `2505191` implements
+[admission-first container reads](../../p04-b1-container-admission-recovery-handoff.md).
+Private Store permits reuse original poll/queued leases to check due state,
+host health-read/manage authority and owner exclusion before RPC. Fresh actual full-ID
+scopes and source wall age are checked in completion without changing the
+original nonce or deadline. Original queued jobs survive reopen, complete once
+and publish through the existing in-app path; invalid expired/revoked jobs use
+independently checked discard before collection. Source failure preserves live
+queued work for fresh retry. Cancellation retains only original bounded expiry.
+
+The [local packet](2026-10-31-b1-container-admission-recovery/README.md) binds
+1,712 workspace runtime passes, 54 compile-fail doctests, strict all-target
+Clippy, actual unchanged contract generation and repository checks to 732
+committed inputs across four matching final guards. All six successful attempts
+remain recorded; two earlier focused maps precede expanded cancellation/retry
+coverage. Actual owned RPC, database queue/write-lock waits and genuine Store
+reopen exercise the runtime boundary. Original qualification processes are
+absent; scratch and unchanged 3-GiB sampled floor stay on repository disk.
+
+Public wire contracts, SQL schema 14, packages, service ceilings, HTTP routes and UI remain
+unchanged. No normal timer starts. Fair runtime supervision/status, remaining
+health sources, explicit replacement/retirement, compaction, ordinary channels,
+installed/current ARM64/Pi/package/return/soak and P05/P06 remain required.
+A1/B1/P04 and all defect gates stay open, including the historical inventory
+performance failure. No Pi, real Docker, external send, service activation,
+frozen-app mutation or push ran.

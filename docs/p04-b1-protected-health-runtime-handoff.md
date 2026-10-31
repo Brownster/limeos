@@ -90,3 +90,9 @@ and real 24-hour idle-write evidence remain open. A1 reliability, wider A/B/P04,
 P05's minimal assistant and P06's actual-state migration/return rehearsal remain
 required for cutover. Historical inventory-performance failures are unchanged.
 Holly's Pi and the frozen app were untouched; nothing was pushed.
+
+Source `2505191` now moves Store admission ahead of the protected read and adds
+original queued-job recovery under the same fresh-report deadline. The
+[admission/recovery handoff](p04-b1-container-admission-recovery-handoff.md)
+records current scope binding, zero-read refusals, cancellation and restart
+acceptance. Fair supervision and timer activation remain pending.
