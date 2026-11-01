@@ -61,6 +61,14 @@ The ordinary running-helper path may observe the guardian's actual outcome;
 otherwise it retains pending uncertainty. A guardian may truthfully report
 `not_started` after a full GO if a final pre-spawn check refuses.
 
+Recheck the actual Root write ceiling after awaited admission/identity
+revalidation, immediately before GO publication. Then recheck cancellation and
+both original deadlines, with no further await before the first write. This
+trusted local authorization callback is not wire-supplied proof. A revocation
+during the earlier wait must use the same authenticated abort path. Native
+owned-pipe fixtures exercise this final authorization/deadline publication
+boundary, separately from installed protected-policy acceptance.
+
 ## Durable recovery
 
 Orchestration persists the genuine reaped outcome through the existing journal
