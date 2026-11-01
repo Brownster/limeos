@@ -298,6 +298,76 @@ fn restart_keeps_uncertain_barriers_and_post_expiry_no_effect_requires_quiescenc
 }
 
 #[test]
+fn restart_keeps_never_started_claims_until_separate_fresh_unmounted_verification() {
+    let (dir, mut store, principal, current) = setup();
+    let (_, _, job) = queued(&mut store, &principal, &current);
+    let running = store
+        .claim_storage_mount(&principal, &job.id, &current, 203)
+        .unwrap();
+    let (mut receipt, _) = verified(&running);
+    receipt.state = MountExecutionState::OutcomeUnknown;
+    receipt.after = None;
+    if let MountEffectQuiescence::Reaped { outcome, .. } = &mut receipt.quiescence {
+        *outcome = MountHelperOutcome::NotStarted {};
+    }
+    assert_eq!(
+        store
+            .record_storage_mount_result(&running, &receipt, None, None, 204)
+            .unwrap(),
+        JobState::NeedsIntervention
+    );
+    assert!(locks(&store, &job.id) > 0);
+    drop(store);
+    let mut store = Store::open(&dir.path().join("core.sqlite")).unwrap();
+    receipt.state = MountExecutionState::PreconditionChanged;
+    assert_eq!(
+        store
+            .record_storage_mount_result(&running, &receipt, None, None, 1000)
+            .unwrap(),
+        JobState::NeedsIntervention
+    );
+    assert!(locks(&store, &job.id) > 0);
+    // A lost independent-verification reply is durable and remains recoverable;
+    // a terminal Root receipt alone cannot release the separate Core claims.
+    drop(store);
+    let mut store = Store::open(&dir.path().join("core.sqlite")).unwrap();
+    assert_eq!(
+        store.storage_mount_job(&principal, &job.id).unwrap().state,
+        JobState::NeedsIntervention
+    );
+    assert!(locks(&store, &job.id) > 0);
+    assert!(
+        store
+            .record_storage_mount_result(&running, &receipt, None, Some(&current), 1000)
+            .is_err()
+    );
+    let mut fresh = current;
+    fresh.observed_at = 1000;
+    let mut changed = fresh.clone();
+    changed.consumer_digest = "f".repeat(64);
+    assert!(
+        store
+            .record_storage_mount_result(&running, &receipt, None, Some(&changed), 1000)
+            .is_err()
+    );
+    assert!(locks(&store, &job.id) > 0);
+    assert_eq!(
+        store
+            .record_storage_mount_result(&running, &receipt, None, Some(&fresh), 1000)
+            .unwrap(),
+        JobState::PreconditionChanged
+    );
+    assert_eq!(locks(&store, &job.id), 0);
+    drop(store);
+    let store = Store::open(&dir.path().join("core.sqlite")).unwrap();
+    assert_eq!(
+        store.storage_mount_job(&principal, &job.id).unwrap().state,
+        JobState::PreconditionChanged
+    );
+    assert_eq!(locks(&store, &job.id), 0);
+}
+
+#[test]
 fn queued_cancel_and_revoked_principal_cannot_dispatch_or_list_private_paths() {
     let (_dir, mut store, principal, current) = setup();
     let (_, _, job) = queued(&mut store, &principal, &current);

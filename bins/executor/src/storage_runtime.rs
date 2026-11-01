@@ -2,7 +2,7 @@
 //! Only protected selection, genuine admission and owned helper termination can
 //! reach execution/terminal receipt states. Wire facts cannot reconstruct them.
 use crate::storage_mount_admission::{self, MountAdmission};
-use crate::storage_mount_supervision::GatedMountHelper;
+use crate::storage_mount_supervision::{GatedMountHelper, MountHelperRelease};
 use limeos_contracts::{RPC_DEADLINE, VERSION, read_frame, write_frame};
 use limeos_domain::{
     Error, ErrorCode, MountExecutionState, Result, StorageMountEffectPlan, StorageMountReceipt,
@@ -217,20 +217,22 @@ async fn execute(
         Err(error) => return Err(map_failure(error)),
     };
     receipt = bound;
-    if policy()
+    let completion = if policy()
         .and_then(|ceiling| ceiling.authorize_plan(uid, plan, now()?))
         .is_err()
         || cancelled()
     {
         drop(permit);
-        drop(gated);
-        return unknown(&mut journal, &receipt);
-    }
-    let running = match gated.release(permit, cancelled).await {
-        Ok(helper) => helper,
-        Err(_) => return unknown(&mut journal, &receipt),
+        gated.abort().await
+    } else {
+        let authorize = || policy()?.authorize_plan(uid, plan, now()?);
+        match gated.release(permit, cancelled, &authorize).await {
+            Ok(MountHelperRelease::Running(helper)) => (*helper).await_quiescence(cancelled).await,
+            Ok(MountHelperRelease::Refused(proof)) => Ok(proof),
+            Err(error) => Err(error),
+        }
     };
-    let quiescence = match running.await_quiescence(cancelled).await {
+    let quiescence = match completion {
         Ok(proof) => proof,
         Err(_) => return unknown(&mut journal, &receipt),
     };
@@ -241,7 +243,7 @@ async fn execute(
     journal.record(&receipt, &stopped).map_err(map_failure)?;
     receipt = stopped;
     if !receipt.quiescence.succeeded() {
-        return reconcile_quiescent(&mut journal, &receipt, cancelled).await;
+        return reconcile_quiescent(uid, &mut journal, &receipt, cancelled).await;
     }
     // A real mount covers the original empty target. Do not revalidate the
     // unmounted/empty named inode after the effect. Fresh independent mounted
@@ -271,6 +273,7 @@ async fn execute(
 }
 
 async fn reconcile_quiescent(
+    uid: u32,
     journal: &mut MountJournal,
     receipt: &StorageMountReceipt,
     cancelled: &dyn Fn() -> bool,
@@ -278,6 +281,7 @@ async fn reconcile_quiescent(
     if !receipt.quiescence.is_quiescent() {
         return unknown(journal, receipt);
     }
+    authorize_reconciliation(uid, &receipt.plan)?;
     let current =
         match storage_mount_admission::inspect_unmounted(&receipt.plan, journal, cancelled).await {
             Ok(value) => value,
@@ -286,6 +290,7 @@ async fn reconcile_quiescent(
     if receipt.plan.check_reconciliation(&current, now()?).is_err() {
         return unknown(journal, receipt);
     }
+    authorize_reconciliation(uid, &receipt.plan)?;
     let mut no_effect = receipt.clone();
     no_effect.state = MountExecutionState::PreconditionChanged;
     no_effect.after = None;
@@ -303,10 +308,15 @@ async fn reconcile_accepted(
         .lookup(action, Some(digest))
         .map_err(map_failure)?
         .ok_or(Error(ErrorCode::NotFound))?;
-    // Terminal lookup is idempotent; Pending/Unknown/Prepared are never promoted
-    // by an absent mount, a caller-supplied fact, or this narrow refinement.
-    if receipt.state == MountExecutionState::Verified {
+    // No pending helper is promoted from absence or caller-supplied facts.
+    if matches!(
+        receipt.state,
+        MountExecutionState::Verified | MountExecutionState::PreconditionChanged
+    ) {
         return Ok(receipt);
+    }
+    if receipt.can_reconcile_unmounted() {
+        return reconcile_quiescent(uid, &mut journal, &receipt, cancelled).await;
     }
     if receipt.state != MountExecutionState::EffectAccepted
         || !receipt.quiescence.succeeded()

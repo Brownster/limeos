@@ -219,6 +219,42 @@ fn pending_helper_never_proves_success_or_no_effect() {
 }
 
 #[test]
+fn never_started_is_reaped_non_success_and_only_selects_fresh_no_effect_reconciliation() {
+    let mut value = receipt();
+    if let MountEffectQuiescence::Reaped { outcome, .. } = &mut value.quiescence {
+        *outcome = MountHelperOutcome::NotStarted {};
+    }
+    assert!(value.validate().is_err()); // Cannot support a successful mount.
+    assert!(!value.quiescence.succeeded());
+    assert!(value.quiescence.is_quiescent());
+    value.after = None;
+    for state in [
+        MountExecutionState::Prepared,
+        MountExecutionState::OutcomeUnknown,
+    ] {
+        value.state = state;
+        value.validate().unwrap();
+        assert!(value.can_reconcile_unmounted());
+        let bytes = serde_json::to_vec(&value).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<StorageMountReceipt>(&bytes).unwrap(),
+            value
+        );
+    }
+    value.state = MountExecutionState::PreconditionChanged;
+    value.validate().unwrap();
+    assert!(!value.can_reconcile_unmounted());
+    value.state = MountExecutionState::OutcomeUnknown;
+    value.quiescence = MountEffectQuiescence::Pending { helper: None };
+    assert!(!value.can_reconcile_unmounted());
+    let mut success = receipt();
+    assert!(!success.can_reconcile_unmounted());
+    success.state = MountExecutionState::OutcomeUnknown;
+    success.after = None;
+    assert!(!success.can_reconcile_unmounted());
+}
+
+#[test]
 fn independent_identity_and_helper_result_are_required_even_after_plan_expiry() {
     let accepted = receipt();
     let after = accepted.after.as_ref().unwrap();

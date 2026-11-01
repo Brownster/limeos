@@ -241,6 +241,7 @@ pub struct MountHelperIdentity {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
 pub enum MountHelperOutcome {
+    NotStarted {},
     Exited { code: i32 },
     Signaled { signal: i32 },
 }
@@ -263,6 +264,7 @@ impl MountEffectQuiescence {
             Self::Pending { helper } => helper.as_ref(),
             Self::Reaped { helper, outcome } => {
                 valid(match outcome {
+                    MountHelperOutcome::NotStarted {} => true,
                     MountHelperOutcome::Exited { code } => (0..=255).contains(code),
                     MountHelperOutcome::Signaled { signal } => (1..=64).contains(signal),
                 })?;
@@ -304,6 +306,16 @@ pub struct StorageMountReceipt {
     pub after: Option<StorageMountedSnapshot>,
 }
 impl StorageMountReceipt {
+    /// A selector for authenticated past receipt facts, never termination proof
+    /// or permission to execute. A fresh unmounted inspection is still required.
+    pub fn can_reconcile_unmounted(&self) -> bool {
+        matches!(
+            self.state,
+            MountExecutionState::Prepared | MountExecutionState::OutcomeUnknown
+        ) && self.after.is_none()
+            && self.quiescence.is_quiescent()
+            && !self.quiescence.succeeded()
+    }
     pub fn validate(&self) -> Result<()> {
         self.plan.validate(self.plan.created_at)?;
         valid(opaque_id(&self.digest))?;

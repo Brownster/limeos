@@ -885,6 +885,19 @@
         {
           "type": "object",
           "properties": {
+            "status": {
+              "type": "string",
+              "const": "not_started"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
             "code": {
               "type": "integer",
               "format": "int32"

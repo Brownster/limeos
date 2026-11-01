@@ -46,6 +46,10 @@ impl Core {
             _ => "other",
         };
         tokio::time::timeout(deadline, async {
+            let expected_uid = 0;
+            // Private task-scoped native RPC fixtures; absent in production.
+            #[cfg(test)]
+            let expected_uid = tests::ROOT_UID.try_with(|uid| *uid).unwrap_or(expected_uid);
             let mut stream = UnixStream::connect(self.storage_mount_socket.as_ref())
                 .await
                 .map_err(|_| rpc_failure(operation, "connect", Error(ErrorCode::Unavailable)))?;
@@ -55,7 +59,7 @@ impl Core {
                     rpc_failure(operation, "peer_credentials", Error(ErrorCode::Unavailable))
                 })?
                 .uid()
-                != 0
+                != expected_uid
             {
                 return Err(rpc_failure(
                     operation,
@@ -325,9 +329,11 @@ impl Core {
             return self.mark_mount(&job, JobState::NeedsIntervention).await;
         };
         // A crash may leave a durable accepted/reaped receipt before the root
-        // verifier persisted Verified. This protected refinement cannot launch
-        // another helper. Prepared, pending and unknown effects remain barriers.
-        if receipt.state == MountExecutionState::EffectAccepted
+        // verifier persisted Verified, or after a genuine non-success reap but
+        // before fresh unmounted proof. Pending quiescence remains a barrier.
+        // This protected refinement cannot launch another helper.
+        if (receipt.state == MountExecutionState::EffectAccepted
+            || receipt.can_reconcile_unmounted())
             && receipt.plan == job.plan.effect
             && receipt.validate().is_ok()
         {

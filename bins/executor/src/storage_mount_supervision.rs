@@ -22,7 +22,7 @@ use std::{
             process::{CommandExt, ExitStatusExt},
         },
     },
-    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+    process::{Child, ChildStdin, Command, Stdio},
     thread,
     time::{Duration, Instant},
 };
@@ -41,6 +41,11 @@ fn error() -> Error {
 
 /// A wire receipt cannot construct this token. It owns only a past actual
 /// termination fact, never a permission to launch or retry.
+///
+/// ```compile_fail
+/// let _: limeos_executor::storage_mount_supervision::MountHelperQuiescence =
+///     serde_json::from_str("{}").unwrap();
+/// ```
 pub struct MountHelperQuiescence {
     facts: MountEffectQuiescence,
 }
@@ -56,13 +61,20 @@ pub struct GatedMountHelper {
 pub struct RunningMountHelper {
     owned: Option<Owned>,
 }
+pub enum MountHelperRelease {
+    Running(Box<RunningMountHelper>),
+    Refused(MountHelperQuiescence),
+}
 struct Owned {
-    child: Child,
-    input: Option<ChildStdin>,
-    output: ChildStdout,
-    _pidfd: OwnedFd,
+    process: Process,
     _image: File,
     _admission: MountAdmission,
+}
+struct Process {
+    child: Child,
+    input: Option<ChildStdin>,
+    output: File,
+    _pidfd: OwnedFd,
     identity: MountHelperIdentity,
     action: String,
     digest: String,
@@ -143,7 +155,7 @@ impl GatedMountHelper {
         admission.remaining_window()?;
         let mut child = command.spawn().map_err(|_| error())?;
         let input = child.stdin.take().ok_or_else(error)?;
-        let output = child.stdout.take().ok_or_else(error)?;
+        let output = File::from(OwnedFd::from(child.stdout.take().ok_or_else(error)?));
         // Child exists but remains gated. Every later failure closes the gate
         // and preserves original descriptors until the guardian is truly reaped.
         let pid = Pid::from_raw(child.id() as i32).ok_or_else(error)?;
@@ -162,41 +174,56 @@ impl GatedMountHelper {
             image_digest,
         };
         let mut owned = Owned {
-            child,
-            input: Some(input),
-            output,
-            _pidfd: pidfd,
+            process: Process {
+                child,
+                input: Some(input),
+                output,
+                _pidfd: pidfd,
+                identity: pending_identity,
+                action: action.into(),
+                digest: digest.into(),
+                bytes: Vec::new(),
+            },
             _image: image,
             _admission: admission,
-            identity: pending_identity,
-            action: action.into(),
-            digest: digest.into(),
-            bytes: Vec::new(),
         };
         let result = async {
-            nonblocking(&owned.output)?;
-            while owned.bytes.len() < READY.len() {
+            nonblocking(&owned.process.output)?;
+            while owned.process.bytes.len() < READY.len() {
                 if cancelled() {
                     return Err(Error(ErrorCode::Expired));
                 }
                 owned._admission.remaining_window()?;
-                pump(&mut owned.output, &mut owned.bytes, READY.len())?;
-                if owned.child.try_wait().map_err(|_| error())?.is_some() {
+                pump(
+                    &mut owned.process.output,
+                    &mut owned.process.bytes,
+                    READY.len(),
+                )?;
+                if owned
+                    .process
+                    .child
+                    .try_wait()
+                    .map_err(|_| error())?
+                    .is_some()
+                {
                     return Err(error());
                 }
-                if owned.bytes.len() < READY.len() {
+                if owned.process.bytes.len() < READY.len() {
                     tokio::time::sleep(TICK).await;
                 }
             }
-            if owned.bytes.as_slice() != READY {
+            if owned.process.bytes.as_slice() != READY {
                 return Err(error());
             }
-            owned.bytes.clear();
-            let identity = identity(owned.child.id(), &owned.identity.image_digest)?;
+            owned.process.bytes.clear();
+            let identity = identity(
+                owned.process.child.id(),
+                &owned.process.identity.image_digest,
+            )?;
             if identity.mount_namespace_inode != owned._admission.target().namespace_inode() {
                 return Err(error());
             }
-            owned.identity = identity;
+            owned.process.identity = identity;
             owned._admission.guardian_capacity()?;
             Ok(())
         }
@@ -208,16 +235,59 @@ impl GatedMountHelper {
         Ok(Self { owned: Some(owned) })
     }
     pub fn identity(&self) -> &MountHelperIdentity {
-        &self.owned.as_ref().expect("owned gated helper").identity
+        &self
+            .owned
+            .as_ref()
+            .expect("owned gated helper")
+            .process
+            .identity
     }
     pub async fn release(
         mut self,
         permit: MountLaunchPermit,
         cancelled: &dyn Fn() -> bool,
-    ) -> Result<RunningMountHelper> {
+        authorize: &dyn Fn() -> Result<()>,
+    ) -> Result<MountHelperRelease> {
+        let bytes = match self.go_bytes(&permit, cancelled).await {
+            Ok(bytes) => bytes,
+            Err(_) => return self.abort().await.map(MountHelperRelease::Refused),
+        };
+        let owned = self.owned.as_mut().expect("owned gated helper");
+        let deadline_ticks = owned._admission.deadline_ticks();
+        let live = || {
+            if cancelled()
+                || now()? >= permit.expires_at()
+                || uptime_ticks()?.saturating_add(1) >= deadline_ticks
+            {
+                Err(Error(ErrorCode::Expired))
+            } else {
+                Ok(())
+            }
+        };
+        // Trusted composition-root policy, after all awaited revalidation.
+        match release_process(&mut owned.process, &bytes, authorize, &live).await? {
+            ProcessRelease::Sent => Ok(MountHelperRelease::Running(Box::new(RunningMountHelper {
+                owned: self.owned.take(),
+            }))),
+            ProcessRelease::Refused(proof) => {
+                self.owned.take();
+                Ok(MountHelperRelease::Refused(proof))
+            }
+        }
+    }
+    async fn go_bytes(
+        &mut self,
+        permit: &MountLaunchPermit,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Vec<u8>> {
         let owned = self.owned.as_mut().expect("owned gated helper");
         permit
-            .check_binding(&owned.action, &owned.digest, &owned.identity, now()?)
+            .check_binding(
+                &owned.process.action,
+                &owned.process.digest,
+                &owned.process.identity,
+                now()?,
+            )
             .map_err(|_| Error(ErrorCode::Conflict))?;
         owned._admission.revalidate(cancelled).await?;
         if cancelled()
@@ -226,12 +296,16 @@ impl GatedMountHelper {
         {
             return Err(Error(ErrorCode::Expired));
         }
-        if identity(owned.identity.pid, &owned.identity.image_digest)? != owned.identity {
+        if identity(
+            owned.process.identity.pid,
+            &owned.process.identity.image_digest,
+        )? != owned.process.identity
+        {
             return Err(Error(ErrorCode::Conflict));
         }
         let go = Go {
-            action: owned.action.clone(),
-            digest: owned.digest.clone(),
+            action: owned.process.action.clone(),
+            digest: owned.process.digest.clone(),
             expires_at: permit.expires_at(),
             deadline_ticks: owned._admission.deadline_ticks(),
         };
@@ -239,15 +313,15 @@ impl GatedMountHelper {
         if bytes.len() > MAX_FRAME {
             return Err(error());
         }
-        let input = owned.input.as_mut().ok_or_else(error)?;
-        input
-            .write_all(&(bytes.len() as u32).to_be_bytes())
-            .and_then(|()| input.write_all(&bytes))
-            .and_then(|()| input.flush())
-            .map_err(|_| error())?;
-        Ok(RunningMountHelper {
-            owned: self.owned.take(),
-        })
+        Ok(bytes)
+    }
+    /// Close an unreleased gate, then require an authenticated never-started
+    /// ACK and actual child reaping. An error preserves the retained owner.
+    pub async fn abort(mut self) -> Result<MountHelperQuiescence> {
+        let process = &mut self.owned.as_mut().expect("owned gated helper").process;
+        let proof = abort_process(process).await?;
+        self.owned.take();
+        Ok(proof)
     }
 }
 impl RunningMountHelper {
@@ -255,26 +329,10 @@ impl RunningMountHelper {
         mut self,
         cancelled: &dyn Fn() -> bool,
     ) -> Result<MountHelperQuiescence> {
-        let owned = self.owned.as_mut().expect("owned running helper");
-        let started = Instant::now();
-        loop {
-            if cancelled() || started.elapsed() >= DEADLINE {
-                owned.input.take();
-            }
-            pump(&mut owned.output, &mut owned.bytes, MAX_FRAME)?;
-            if let Some(exit) = owned.child.try_wait().map_err(|_| error())? {
-                pump(&mut owned.output, &mut owned.bytes, MAX_FRAME)?;
-                let token = finish(owned, exit.success())?;
-                self.owned.take();
-                return Ok(token);
-            }
-            // Deadline is a refusal to continue the caller, not proof of exit.
-            // Drop transfers all live ownership to a cleanup monitor.
-            if started.elapsed() >= DEADLINE + Duration::from_millis(250) {
-                return Err(error());
-            }
-            tokio::time::sleep(TICK).await;
-        }
+        let process = &mut self.owned.as_mut().expect("owned running helper").process;
+        let proof = wait_process(process, cancelled, false).await?;
+        self.owned.take();
+        Ok(proof)
     }
 }
 impl Drop for GatedMountHelper {
@@ -291,27 +349,89 @@ impl Drop for RunningMountHelper {
         }
     }
 }
-fn finish(owned: &Owned, success: bool) -> Result<MountHelperQuiescence> {
-    if !success || owned.bytes.len() < 4 {
+async fn abort_process(process: &mut Process) -> Result<MountHelperQuiescence> {
+    process.input.take();
+    wait_process(process, &|| false, true).await
+}
+enum ProcessRelease {
+    Sent,
+    Refused(MountHelperQuiescence),
+}
+async fn release_process(
+    process: &mut Process,
+    bytes: &[u8],
+    authorize: &dyn Fn() -> Result<()>,
+    live: &dyn Fn() -> Result<()>,
+) -> Result<ProcessRelease> {
+    if authorize().and_then(|()| live()).is_err() || bytes.len() > MAX_FRAME - 4 {
+        return abort_process(process).await.map(ProcessRelease::Refused);
+    }
+    let input = process.input.as_mut().ok_or_else(error)?;
+    // No await after final policy/deadline checks. From this first write attempt,
+    // failure may mean delivered GO and cannot take the gated-abort shortcut.
+    input
+        .write_all(&(bytes.len() as u32).to_be_bytes())
+        .and_then(|()| input.write_all(bytes))
+        .and_then(|()| input.flush())
+        .map_err(|_| error())?;
+    Ok(ProcessRelease::Sent)
+}
+async fn wait_process(
+    process: &mut Process,
+    cancelled: &dyn Fn() -> bool,
+    only_not_started: bool,
+) -> Result<MountHelperQuiescence> {
+    let started = Instant::now();
+    loop {
+        if cancelled() || started.elapsed() >= DEADLINE {
+            process.input.take();
+        }
+        pump(&mut process.output, &mut process.bytes, MAX_FRAME)?;
+        if let Some(exit) = process.child.try_wait().map_err(|_| error())? {
+            pump(&mut process.output, &mut process.bytes, MAX_FRAME)?;
+            let token = finish(process, exit.success())?;
+            if only_not_started
+                && !matches!(
+                    token.facts,
+                    MountEffectQuiescence::Reaped {
+                        outcome: MountHelperOutcome::NotStarted {},
+                        ..
+                    }
+                )
+            {
+                return Err(error());
+            }
+            return Ok(token);
+        }
+        // Time alone is no termination proof. The containing owner transfers
+        // to conservative cleanup if this observation is cancelled or refuses.
+        if started.elapsed() >= DEADLINE + Duration::from_millis(250) {
+            return Err(error());
+        }
+        tokio::time::sleep(TICK).await;
+    }
+}
+fn finish(process: &Process, success: bool) -> Result<MountHelperQuiescence> {
+    if !success || process.bytes.len() < 4 {
         return Err(error());
     }
-    let size = u32::from_be_bytes(owned.bytes[..4].try_into().map_err(|_| error())?) as usize;
-    if size > MAX_FRAME - 4 || owned.bytes.len() != size + 4 {
+    let size = u32::from_be_bytes(process.bytes[..4].try_into().map_err(|_| error())?) as usize;
+    if size > MAX_FRAME - 4 || process.bytes.len() != size + 4 {
         return Err(error());
     }
-    let ack: Ack = serde_json::from_slice(&owned.bytes[4..]).map_err(|_| error())?;
-    if ack.action != owned.action || ack.digest != owned.digest {
+    let ack: Ack = serde_json::from_slice(&process.bytes[4..]).map_err(|_| error())?;
+    if ack.action != process.action || ack.digest != process.digest {
         return Err(error());
     }
     let facts = MountEffectQuiescence::Reaped {
-        helper: owned.identity.clone(),
+        helper: process.identity.clone(),
         outcome: ack.outcome,
     };
     facts.validate()?;
     Ok(MountHelperQuiescence { facts })
 }
 fn abandon(mut owned: Owned) {
-    owned.input.take();
+    owned.process.input.take();
     // A failed monitor creation leaks the retained owner/flight rather than
     // silently disarming unknown work. No further operation can acquire it.
     let retained = Box::leak(Box::new(owned));
@@ -319,9 +439,13 @@ fn abandon(mut owned: Owned) {
         .name("mount-cleanup".into())
         .spawn(move || {
             loop {
-                let _ = pump(&mut retained.output, &mut retained.bytes, MAX_FRAME);
-                match retained.child.try_wait() {
-                    Ok(Some(exit)) if finish(retained, exit.success()).is_ok() => break,
+                let _ = pump(
+                    &mut retained.process.output,
+                    &mut retained.process.bytes,
+                    MAX_FRAME,
+                );
+                match retained.process.child.try_wait() {
+                    Ok(Some(exit)) if finish(&retained.process, exit.success()).is_ok() => break,
                     Ok(Some(_)) | Err(_) => loop {
                         thread::park();
                     },
@@ -336,7 +460,7 @@ fn abandon(mut owned: Owned) {
 fn abandon_unidentified(
     child: Child,
     input: ChildStdin,
-    output: ChildStdout,
+    output: File,
     admission: MountAdmission,
     image: File,
 ) {
@@ -615,6 +739,93 @@ pub fn guardian() -> Result<()> {
         .write_all(READY)
         .and_then(|()| io::stdout().lock().flush())
         .map_err(|_| error())?;
+    let readiness = (|| {
+        let go = receive_go(&mut input, &action, &digest, deadline)?;
+        if parent_gone(&mut input)? {
+            return Err(Error(ErrorCode::Expired));
+        }
+        host_namespace(namespace)?;
+        Ok(go)
+    })();
+    let go = match readiness {
+        Ok(go) => go,
+        Err(_) => {
+            return acknowledge(
+                &mut io::stdout().lock(),
+                action,
+                digest,
+                MountHelperOutcome::NotStarted {},
+            );
+        }
+    };
+    let me = std::process::id();
+    let mut command = Command::new(format!("/proc/{me}/fd/{}", program.as_raw_fd()));
+    command
+        .arg0("/usr/bin/mount")
+        .args([
+            "--no-canonicalize",
+            "--no-mtab",
+            "--internal-only",
+            "--types",
+            "ext4",
+            "--options",
+            "rw,nosuid,nodev",
+            "--source",
+        ])
+        .arg(format!("/proc/{me}/fd/{}", source.as_raw_fd()))
+        .arg("--target")
+        .arg(format!("/proc/{me}/fd/{}", target.as_raw_fd()))
+        .env_clear()
+        .env("LC_ALL", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0);
+    // Check both the original collection gate and plan expiry at launch. The
+    // helper may subsequently block in-kernel; expiry never proves its death.
+    let final_check = (|| {
+        check_go(&go, &action, &digest, deadline, now()?, uptime_ticks()?)?;
+        if parent_gone(&mut input)? {
+            return Err(Error(ErrorCode::Expired));
+        }
+        Ok(())
+    })();
+    if final_check.is_err() {
+        return acknowledge(
+            &mut io::stdout().lock(),
+            action,
+            digest,
+            MountHelperOutcome::NotStarted {},
+        );
+    }
+    // From the first spawn attempt, refusal cannot claim never-started. Only
+    // the actual child's exit and complete descendant cleanup may acknowledge.
+    let mut child = command.spawn().map_err(|_| error())?;
+    let started = Instant::now();
+    let outcome = loop {
+        if let Some(exit) = child.try_wait().map_err(|_| error())? {
+            break if let Some(code) = exit.code() {
+                MountHelperOutcome::Exited { code }
+            } else {
+                MountHelperOutcome::Signaled {
+                    signal: exit.signal().ok_or_else(error)?,
+                }
+            };
+        }
+        if started.elapsed() >= DEADLINE || parent_gone(&mut input).unwrap_or(true) {
+            cleanup();
+            let exit = child.wait().map_err(|_| error());
+            // wait() may see ECHILD because cleanup reaped the child; without
+            // its actual exit status no authenticated Reaped ACK is emitted.
+            return exit.and(Err(error()));
+        }
+        thread::sleep(TICK);
+    };
+    cleanup();
+    acknowledge(&mut io::stdout().lock(), action, digest, outcome)
+}
+
+fn receive_go(input: &mut impl Read, action: &str, digest: &str, deadline: u64) -> Result<Go> {
     let mut frame = Vec::new();
     let go = loop {
         if uptime_ticks()?.saturating_add(1) >= deadline {
@@ -647,62 +858,16 @@ pub fn guardian() -> Result<()> {
         }
         thread::sleep(TICK);
     };
-    check_go(&go, &action, &digest, deadline, now()?, uptime_ticks()?)?;
-    if parent_gone(&mut input)? {
-        return Err(Error(ErrorCode::Expired));
-    }
-    host_namespace(namespace)?;
-    let me = std::process::id();
-    let mut command = Command::new(format!("/proc/{me}/fd/{}", program.as_raw_fd()));
-    command
-        .arg0("/usr/bin/mount")
-        .args([
-            "--no-canonicalize",
-            "--no-mtab",
-            "--internal-only",
-            "--types",
-            "ext4",
-            "--options",
-            "rw,nosuid,nodev",
-            "--source",
-        ])
-        .arg(format!("/proc/{me}/fd/{}", source.as_raw_fd()))
-        .arg("--target")
-        .arg(format!("/proc/{me}/fd/{}", target.as_raw_fd()))
-        .env_clear()
-        .env("LC_ALL", "C")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .process_group(0);
-    // Check both the original collection gate and plan expiry at launch. The
-    // helper may subsequently block in-kernel; expiry never proves its death.
-    check_go(&go, &action, &digest, deadline, now()?, uptime_ticks()?)?;
-    if parent_gone(&mut input)? {
-        return Err(Error(ErrorCode::Expired));
-    }
-    let mut child = command.spawn().map_err(|_| error())?;
-    let started = Instant::now();
-    let outcome = loop {
-        if let Some(exit) = child.try_wait().map_err(|_| error())? {
-            break if let Some(code) = exit.code() {
-                MountHelperOutcome::Exited { code }
-            } else {
-                MountHelperOutcome::Signaled {
-                    signal: exit.signal().ok_or_else(error)?,
-                }
-            };
-        }
-        if started.elapsed() >= DEADLINE || parent_gone(&mut input).unwrap_or(true) {
-            cleanup();
-            let exit = child.wait().map_err(|_| error());
-            // wait() may see ECHILD because cleanup reaped the child; without
-            // its actual exit status no authenticated Reaped ACK is emitted.
-            return exit.and(Err(error()));
-        }
-        thread::sleep(TICK);
-    };
-    cleanup();
+    check_go(&go, action, digest, deadline, now()?, uptime_ticks()?)?;
+    Ok(go)
+}
+
+fn acknowledge(
+    output: &mut impl Write,
+    action: String,
+    digest: String,
+    outcome: MountHelperOutcome,
+) -> Result<()> {
     let ack = serde_json::to_vec(&Ack {
         action,
         digest,
@@ -712,13 +877,13 @@ pub fn guardian() -> Result<()> {
     if ack.len() > MAX_FRAME - 4 {
         return Err(error());
     }
-    let mut output = io::stdout().lock();
     output
         .write_all(&(ack.len() as u32).to_be_bytes())
         .and_then(|()| output.write_all(&ack))
         .and_then(|()| output.flush())
         .map_err(|_| error())
 }
+
 fn env_number(key: &str) -> Result<u64> {
     let value = std::env::var(key).map_err(|_| error())?;
     if value.is_empty() || value.len() > 20 || !value.bytes().all(|b| b.is_ascii_digit()) {
@@ -846,6 +1011,7 @@ fn check_go(
 #[cfg(test)]
 mod tests {
     use super::*;
+    mod process_protocol;
     #[test]
     fn guardian_gate_binds_operation_and_both_original_deadlines() {
         let go = Go {

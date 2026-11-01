@@ -264,6 +264,59 @@ fn unknown_with_pending_helper_cannot_become_no_effect() {
 }
 
 #[test]
+fn never_started_reap_survives_reopen_without_releasing_claims_or_reminting_launch() {
+    let (directory, mut journal) = fixture();
+    let effect = plan();
+    let prepared = journal.begin(&effect, 100).unwrap();
+    let pending = journal.arm(&prepared).unwrap();
+    let (bound, permit) = journal.bind_helper(&pending, helper()).unwrap();
+    drop(permit);
+    // Explicit synthetic journal facts; the native supervisor tests separately
+    // obtain the actual owned-process token. This is not effect authority.
+    let mut stopped = bound.clone();
+    stopped.quiescence = MountEffectQuiescence::Reaped {
+        helper: helper(),
+        outcome: limeos_domain::MountHelperOutcome::NotStarted {},
+    };
+    let mut wrong = stopped.clone();
+    if let MountEffectQuiescence::Reaped { helper, .. } = &mut wrong.quiescence {
+        helper.pid += 1;
+    }
+    assert_eq!(journal.record(&bound, &wrong), Err(Failure::Conflict));
+    journal.record(&bound, &stopped).unwrap();
+    let mut unknown = stopped.clone();
+    unknown.state = MountExecutionState::OutcomeUnknown;
+    journal.record(&stopped, &unknown).unwrap();
+    drop(journal);
+    let mut journal = reopen(directory.path()).unwrap();
+    assert_eq!(journal.begin(&effect, 1000).unwrap(), unknown);
+    assert_eq!(journal.arm(&unknown), Err(Failure::Conflict));
+    assert_eq!(
+        journal
+            .conn
+            .query_row("SELECT count(*) FROM locks", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        effect.resources().len() as i64
+    );
+    // Orchestration supplies separately verified current absence before this
+    // trusted journal transition. Reopening or replay alone did not settle it.
+    let mut terminal = unknown.clone();
+    terminal.state = MountExecutionState::PreconditionChanged;
+    journal.record(&unknown, &terminal).unwrap();
+    assert_eq!(
+        journal
+            .conn
+            .query_row("SELECT count(*) FROM locks", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+    drop(journal);
+    let mut journal = reopen(directory.path()).unwrap();
+    assert_eq!(journal.begin(&effect, 1001).unwrap(), terminal);
+    assert!(journal.bind_helper(&terminal, helper()).is_err());
+}
+
+#[test]
 fn claimed_device_target_and_configuration_cannot_dispatch_twice() {
     let (_directory, mut journal) = fixture();
     let effect = plan();

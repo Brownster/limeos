@@ -1,6 +1,8 @@
 use super::*;
 use limeos_api::Backend;
 use std::os::unix::fs::MetadataExt;
+tokio::task_local! { pub(super) static ROOT_UID: u32; }
+mod recovery;
 
 async fn fixture(
     role: limeos_domain::Role,
