@@ -19,6 +19,7 @@ struct RouteStub {
 }
 fn row() -> ScheduleView {
     ScheduleView {
+        runtime: None,
         schedule: Schedule {
             id: "d".repeat(64),
             revision: 1,

@@ -53,6 +53,7 @@ async fn observations_and_history_use_current_resource_grants_and_reject_revocat
         }],
     });
     let core = Core {
+        automation_status: Default::default(),
         db,
         observations: cache,
         telemetry: None,
@@ -93,6 +94,7 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
     let fixtures: serde_json::Value =
         serde_json::from_str(include_str!("../../../tests/fixtures/werkzeug-hashes.json")).unwrap();
     let core = Core {
+        automation_status: Default::default(),
         db,
         password_workers: Arc::new(Semaphore::new(2)),
         dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),

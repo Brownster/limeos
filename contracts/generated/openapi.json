@@ -1671,6 +1671,34 @@
         ],
         "type": "object"
       },
+      "ObservationPhase": {
+        "enum": [
+          "waiting",
+          "checking",
+          "partial",
+          "unavailable"
+        ],
+        "type": "string"
+      },
+      "ObservationRuntimeView": {
+        "additionalProperties": false,
+        "properties": {
+          "last_attempt": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "phase": {
+            "$ref": "#/components/schemas/ObservationPhase"
+          }
+        },
+        "required": [
+          "phase"
+        ],
+        "type": "object"
+      },
       "OccurrenceKey": {
         "additionalProperties": false,
         "properties": {
@@ -2020,6 +2048,7 @@
       "ScheduleStatus": {
         "enum": [
           "awaiting_producer",
+          "scheduled",
           "authority_suspended",
           "paused",
           "blocked"
@@ -2033,6 +2062,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/OccurrenceView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runtime": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservationRuntimeView"
               },
               {
                 "type": "null"
@@ -3067,7 +3106,7 @@
   "paths": {
     "/api/v1/auth/capabilities/observe-health/enable": {
       "post": {
-        "description": "Reverify the current user's password (1–1024 UTF-8 bytes) and enable only that user's exact ObserveHealth management grant. Current IdentityManage and host-read grants are required. A changed grant invalidates prior sessions/tasks and requires a new login; an existing exact grant is a write-free no-op. Does not start automation.",
+        "description": "Reverify the current user's password (1–1024 UTF-8 bytes) and enable only that user's exact ObserveHealth management grant. Current IdentityManage and host-read grants are required. A changed grant invalidates prior sessions/tasks and requires a new login; an existing exact grant is a write-free no-op. Does not create or resume schedules.",
         "parameters": [
           {
             "in": "header",
@@ -4579,7 +4618,7 @@
         ]
       },
       "post": {
-        "description": "Replace owned policy by expected revision with current session, Origin, CSRF, host-read and narrow health-automation management grants. Preserves literal mounts and silence metadata; no credential or resource authority. Lost replies may have committed: reconcile by GET before any explicit retry. The production collector and supervisor remain unavailable.",
+        "description": "Replace owned policy by expected revision with current session, Origin, CSRF, host-read and narrow health-automation management grants. Preserves literal mounts and silence metadata; no credential or resource authority. Lost replies may have committed: reconcile by GET before any explicit retry. Registered automatic container checks remain globally partial.",
         "parameters": [
           {
             "in": "header",
@@ -5444,7 +5483,7 @@
     },
     "/api/v1/automation/schedules": {
       "get": {
-        "description": "Read at most 32 owned ObserveHealth schedules within 64 KiB. Metadata only: AwaitingProducer is not running; AuthoritySuspended requires explicit current-authority resume. Reads do not revise authority, advance watermarks or invoke a collector.",
+        "description": "Read at most 32 owned ObserveHealth schedules within 64 KiB. Scheduled includes bounded historical partial/unavailable runtime diagnostics while the owned Core producer runs. AwaitingProducer is not running; AuthoritySuspended requires explicit current-authority resume. Reads do not revise authority, advance watermarks or invoke a collector.",
         "parameters": [
           {
             "in": "query",
@@ -5696,7 +5735,7 @@
         ]
       },
       "post": {
-        "description": "Create fixed ObserveHealth metadata with current literal management and host-read grants. Owner, operation and anchor are server-owned. No timer, job, producer or effect is started. A lost create response must be reconciled through the owned list; do not automatically retry.",
+        "description": "Create fixed ObserveHealth metadata with current literal management and host-read grants. Owner, operation and anchor are server-owned. The owned Core producer later admits due container observations under current authority; this request commits metadata only. A lost create response must be reconciled through the owned list; do not automatically retry.",
         "parameters": [
           {
             "in": "header",
@@ -5779,6 +5818,16 @@
                         }
                       ]
                     },
+                    "runtime": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/ObservationRuntimeView"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "schedule": {
                       "$ref": "#/components/schemas/Schedule"
                     },
@@ -5795,7 +5844,7 @@
                 }
               }
             },
-            "description": "Durable schedule metadata, awaiting a genuine producer"
+            "description": "Durable schedule metadata with current partial observation registration"
           },
           "400": {
             "content": {
@@ -6073,6 +6122,16 @@
                       "anyOf": [
                         {
                           "$ref": "#/components/schemas/OccurrenceView"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "runtime": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/ObservationRuntimeView"
                         },
                         {
                           "type": "null"

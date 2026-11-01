@@ -39,6 +39,7 @@ impl Backend for Stub {
 }
 fn view() -> ScheduleView {
     ScheduleView {
+        runtime: None,
         schedule: Schedule {
             id: "health".into(),
             revision: 1,

@@ -201,6 +201,7 @@ fn view(conn: &Connection, row: &Stored, actor: &Principal) -> Result<ScheduleVi
         }
     };
     let value = ScheduleView {
+        runtime: None,
         schedule: row.schedule.clone(),
         status,
         last_occurrence,
@@ -858,8 +859,9 @@ mod policy;
 pub(super) use completion::{ActiveObservation, PollWatermark};
 pub use completion::{
     ContainerReadAdmission, ContainerReadOutcome, ContainerReadPermit, HealthObservation,
-    InAppPublication, ObservationAdmission, ObservationLease, ObservationPollAdmission,
-    ObservationPollLease, ObservationPollOutcome, ObservationResult, ScopedHealthSignal,
+    InAppPublication, ObservationAdmission, ObservationLease, ObservationOwnerPage,
+    ObservationPollAdmission, ObservationPollLease, ObservationPollOutcome, ObservationResult,
+    ObservationWorkHint, ScopedHealthSignal,
 };
 
 #[cfg(test)]

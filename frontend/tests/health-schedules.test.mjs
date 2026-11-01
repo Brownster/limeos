@@ -93,6 +93,6 @@ test("schedule-only rendering retains honest producer status without unsupported
   const html = renderToStaticMarkup(React.createElement(AutomationView, { schedules: page, alerts: null, canManage: true, showAlerts: false, moreSchedules() {}, moreAlerts() {} }));
   assert.match(html, /Health schedules/); assert.doesNotMatch(html, /Active alerts|Alert data is unavailable/);
   const panel = renderToStaticMarkup(React.createElement(HealthSchedules, { principal: "owner", grantRevision: 1, csrf: "csrf", expired() {}, reauthenticate() {} }));
-  assert.match(panel, /Automatic health observations are not running yet/); assert.match(panel, /Current password/);
+  assert.match(panel, /Each schedule shows whether automatic container checks are enabled/); assert.match(panel, /Health coverage remains partial/); assert.match(panel, /Current password/);
   assert.doesNotMatch(panel, /Loading alerts|Loading notifications|No notifications/);
 });

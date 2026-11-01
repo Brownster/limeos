@@ -25,8 +25,12 @@ export function AutomationView({ schedules, alerts, canManage, create, pause, mo
     <div className="table-wrap" tabIndex={0} role="region" aria-label="Observation schedules"><table className="schedules-table"><caption>Observation schedules</caption><thead><tr><th scope="col">Schedule</th><th scope="col">Timing</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
       <tbody>{schedules?.items.map(row => <tr key={row.schedule.id}><th scope="row"><abbr title={row.schedule.id}>{scheduleReference(row.schedule.id)}</abbr><small>{row.schedule.definition.operation === "observe_health" ? "Health observations" : row.schedule.definition.operation.replaceAll("_", " ")}</small></th>
         <td>Every {row.schedule.definition.interval_seconds / 60} minutes<small>{row.schedule.definition.window ? `UTC ${clock(row.schedule.definition.window.start_minute)}–${clock(row.schedule.definition.window.end_minute)}` : "Any time · UTC"}</small></td>
-        <td><span className={`badge ${row.status === "blocked" || row.status === "authority_suspended" ? "warning" : ""}`}>{scheduleLabel(row)}</span>{row.status === "blocked" && <small>Operation adapter is unavailable.</small>}
+        <td><span className={`badge ${row.status === "blocked" || row.status === "authority_suspended" || row.status === "scheduled" ? "warning" : ""}`}>{scheduleLabel(row)}</span>{row.status === "blocked" && <small>Operation adapter is unavailable.</small>}
           {row.status === "awaiting_producer" && <small>Schedule saved. Automatic observations are not available yet.</small>}
+          {row.status === "scheduled" && <>
+            <small>{row.runtime?.phase === "unavailable" ? "Container checks are unavailable. Check service setup and current permissions." : "Automatic container checks are enabled."} Health coverage remains partial; other scheduled checks are unavailable.</small>
+            {row.runtime?.last_attempt !== null && row.runtime?.last_attempt !== undefined && <small>Last attempt · <time dateTime={new Date(row.runtime.last_attempt * 1000).toISOString()}>{new Date(row.runtime.last_attempt * 1000).toISOString()}</time></small>}
+          </>}
           {row.status === "authority_suspended" && <small>Scheduling permission needs renewal before this schedule can resume.</small>}
           {row.last_occurrence && <small>Latest occurrence · {new Date(row.last_occurrence.key.due * 1000).toISOString()}<br />{row.last_occurrence.outcome.outcome === "job" ? `Job ${row.last_occurrence.outcome.id} · ${row.last_occurrence.outcome.state.replaceAll("_", " ")}` : row.last_occurrence.outcome.outcome}</small>}</td>
         <td>{canManage && <button aria-label={`${row.schedule.paused ? "Resume" : "Pause"} ${row.schedule.id}`} disabled={blocked || !pause} onClick={() => { if (!blocked) pause?.(row); }}>{row.schedule.paused ? "Resume" : "Pause"} {scheduleReference(row.schedule.id)}</button>}</td>
@@ -60,6 +64,14 @@ function minute(value: string): number { const [hours, minutes] = value.split(":
 function scheduleLabel(row: ScheduleView): string {
   switch (row.status) {
     case "awaiting_producer": return "Waiting for observations";
+    case "scheduled": {
+      switch (row.runtime?.phase) {
+        case "checking": return "Checking containers";
+        case "partial": return "Last container check completed";
+        case "unavailable": return "Container checks unavailable";
+        default: return "Automatic checks enabled";
+      }
+    }
     case "authority_suspended": return "Permission needs renewal";
     case "paused": return "Paused";
     case "blocked": return "Blocked";

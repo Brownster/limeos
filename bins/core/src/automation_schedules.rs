@@ -11,11 +11,13 @@ impl Core {
         deadline: Instant,
     ) -> Result<AutomationPage<ScheduleView>> {
         let session = limeos_identity::digest(&token);
-        self.db
+        let page = self
+            .db
             .call(move |store| {
                 store.observe_health_schedule_page(&session, after.as_deref(), now, deadline)
             })
-            .await
+            .await?;
+        self.automation_status.project_page(page)
     }
 
     pub(super) async fn human_schedule_create(
@@ -30,11 +32,13 @@ impl Core {
         let input = CreateSchedule {
             definition: input.definition(),
         };
-        self.db
+        let view = self
+            .db
             .call(move |store| {
                 store.observe_health_schedule_create(&session, &csrf, &input, now, deadline)
             })
-            .await
+            .await?;
+        self.automation_status.project(view)
     }
 
     pub(super) async fn human_schedule_pause(
@@ -47,13 +51,15 @@ impl Core {
     ) -> Result<ScheduleView> {
         let session = limeos_identity::digest(&token);
         let csrf = limeos_identity::digest(&csrf);
-        self.db
+        let view = self
+            .db
             .call(move |store| {
                 store.observe_health_schedule_pause(&session, &csrf, &id, &input, now, deadline)
             })
-            .await
+            .await?;
+        self.automation_status.project(view)
     }
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

@@ -23,6 +23,41 @@ test("schedule metadata accepts truthful readiness from the fixed API", async ()
   } finally { globalThis.fetch = saved; }
 });
 
+test("registered partial runtime accepts only coherent bounded last-attempt states", async () => {
+  const saved = globalThis.fetch;
+  try {
+    for (const phase of ["waiting", "checking", "partial", "unavailable"]) {
+      const runtime = { phase, last_attempt: phase === "waiting" ? null : 1000 };
+      globalThis.fetch = async () => Response.json({ ...page([{ ...row, status: "scheduled", runtime }]), partial: true });
+      assert.deepEqual((await automationClient.schedules()).items[0].runtime, runtime);
+    }
+    for (const value of [
+      { ...row, status: "scheduled" },
+      { ...row, status: "scheduled", runtime: { phase: "partial", last_attempt: null } },
+      { ...row, status: "scheduled", runtime: { phase: "waiting", last_attempt: 1000 } },
+      { ...row, status: "scheduled", runtime: { phase: "healthy", last_attempt: 1000 } },
+      { ...row, status: "scheduled", runtime: { phase: "partial", last_attempt: 253_402_300_800 } },
+      { ...row, status: "scheduled", runtime: { phase: "partial", last_attempt: 1000, path: "/private" } },
+      { ...row, status: "paused", runtime: { phase: "partial", last_attempt: 1000 } },
+      { ...row, status: "scheduled", schedule: { ...row.schedule, paused: true }, runtime: { phase: "partial", last_attempt: 1000 } },
+    ]) {
+      globalThis.fetch = async () => Response.json(page([value]));
+      await assert.rejects(automationClient.schedules());
+    }
+  } finally { globalThis.fetch = saved; }
+});
+
+test("runtime rendering distinguishes historical partial checks from unavailable evidence", () => {
+  for (const [phase, label] of [["waiting", "Automatic checks enabled"], ["checking", "Checking containers"], ["partial", "Last container check completed"], ["unavailable", "Container checks unavailable"]]) {
+    const current = { ...row, status: "scheduled", runtime: { phase, last_attempt: phase === "waiting" ? null : 1000 } };
+    const html = render(AutomationView, { schedules: { ...page([current]), partial: true }, alerts: page([]), canManage: false, moreSchedules() {}, moreAlerts() {} });
+    assert.ok(html.includes(label)); assert.match(html, /Health coverage remains partial/);
+    assert.doesNotMatch(html, /Automatic observations are not available yet|Pause health|Create observation schedule/);
+    if (phase !== "waiting") assert.match(html, /<time dateTime="1970-01-01T00:16:40.000Z"/);
+    if (phase === "unavailable") assert.match(html, /Check service setup and current permissions/);
+  }
+});
+
 test("create submits the fixed API timing input without an owner or anchor", async () => {
   const saved = globalThis.fetch; let body;
   const input = { interval_seconds: 60, grace_seconds: 10, missed: "coalesce_latest", window: null };

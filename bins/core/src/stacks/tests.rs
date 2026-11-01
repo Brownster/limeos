@@ -75,6 +75,7 @@ async fn setup(role: Role, resources: Vec<String>) -> (tempfile::TempDir, Core, 
         .await
         .unwrap();
     let core = Core {
+        automation_status: Default::default(),
         db,
         password_workers: Arc::new(Semaphore::new(1)),
         dummy_hash: "unused".into(),

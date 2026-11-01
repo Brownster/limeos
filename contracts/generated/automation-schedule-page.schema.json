@@ -71,6 +71,34 @@
         "skip"
       ]
     },
+    "ObservationPhase": {
+      "type": "string",
+      "enum": [
+        "waiting",
+        "checking",
+        "partial",
+        "unavailable"
+      ]
+    },
+    "ObservationRuntimeView": {
+      "type": "object",
+      "properties": {
+        "last_attempt": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "phase": {
+          "$ref": "#/$defs/ObservationPhase"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "phase"
+      ]
+    },
     "OccurrenceKey": {
       "type": "object",
       "properties": {
@@ -240,6 +268,7 @@
       "type": "string",
       "enum": [
         "awaiting_producer",
+        "scheduled",
         "authority_suspended",
         "paused",
         "blocked"
@@ -252,6 +281,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/OccurrenceView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runtime": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObservationRuntimeView"
             },
             {
               "type": "null"

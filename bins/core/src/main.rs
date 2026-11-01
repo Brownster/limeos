@@ -17,6 +17,7 @@ use tokio::{
     sync::Semaphore,
 };
 mod automation_history;
+mod automation_runtime;
 mod automation_schedules;
 pub mod automation_store;
 mod compose;
@@ -37,6 +38,7 @@ fn now() -> i64 {
 }
 #[derive(Clone)]
 struct Core {
+    automation_status: automation_runtime::Status,
     db: Database,
     password_workers: Arc<Semaphore>,
     dummy_hash: Arc<str>,
@@ -911,6 +913,7 @@ async fn run() -> Result<()> {
         telemetry.clone(),
     );
     let mut core = Core {
+        automation_status: automation_runtime::Status::default(),
         stacks: limeos_observations::stacks::start_proxy(config.storage_socket.clone().into()),
         db,
         password_workers: Arc::new(Semaphore::new(2)),
@@ -938,10 +941,19 @@ async fn run() -> Result<()> {
     tracing::info!(generation = core.db.generation, "core ready");
     let app = limeos_api::router(core.clone(), config.origin);
     let dispatcher = core.clone();
+    let automation = automation_runtime::ObservationRuntime::new(
+        automation_store::ObservationStoreBridge::new(core.db.clone()),
+        health_collection::HealthReader::new(
+            (*core.storage_socket).clone(),
+            core.storage_readers.clone(),
+        ),
+        core.automation_status.clone(),
+    );
     tokio::select! {
         result=limeos_api::serve(http,app)=>result.map_err(|_|Error(ErrorCode::Unavailable)),
         result=rpc_server(core,rpc)=>result.map_err(|_|Error(ErrorCode::Unavailable)),
         _=dispatcher.dispatcher()=>Err(Error(ErrorCode::Unavailable)),
+        result=automation.run()=>result,
         _=tokio::signal::ctrl_c()=>Ok(()),
         _=async {if let Ok(mut signal)=tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()){signal.recv().await;}}=>Ok(()),
     }

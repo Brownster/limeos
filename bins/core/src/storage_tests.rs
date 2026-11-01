@@ -43,6 +43,7 @@ async fn core_owned_container_sockets_cannot_forge_storage_declarations() {
     let socket = dir.path().join("container.sock");
     let listener = UnixListener::bind(&socket).unwrap();
     let core = Core {
+        automation_status: Default::default(),
         db: Database::open(&dir.path().join("core.sqlite")).unwrap(),
         container_socket: Arc::new(socket),
         storage_socket: Arc::new("/unused".into()),
@@ -97,6 +98,7 @@ async fn storage_authority_is_checked_before_contacting_a_reader_and_tasks_canno
         .await
         .unwrap();
         let core = Core {
+            automation_status: Default::default(),
             db,
             storage_socket: Arc::new("/unreachable".into()),
             storage_target_socket: Arc::new("/unused-targets".into()),
@@ -162,6 +164,7 @@ async fn an_unprivileged_reader_socket_cannot_forge_storage_evidence() {
     let path = dir.path().join("reader.sock");
     let listener = UnixListener::bind(&path).unwrap();
     let core = Core {
+        automation_status: Default::default(),
         db: Database::open(&dir.path().join("core.sqlite")).unwrap(),
         storage_socket: Arc::new(path),
         storage_target_socket: Arc::new("/unused-targets".into()),

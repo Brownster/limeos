@@ -319,6 +319,8 @@ fn main() {
     ts!(limeos_domain::automation::Schedule);
     ts!(limeos_domain::automation::PauseSchedule);
     ts!(limeos_domain::automation::ScheduleStatus);
+    ts!(limeos_domain::automation::ObservationPhase);
+    ts!(limeos_domain::automation::ObservationRuntimeView);
     ts!(limeos_domain::automation::OccurrenceOutcome);
     ts!(limeos_domain::automation::OccurrenceView);
     ts!(limeos_domain::automation::ScheduleView);
@@ -401,7 +403,7 @@ fn main() {
     }});
     openapi["paths"]["/api/v1/auth/capabilities/observe-health/enable"] = serde_json::json!({"post":{
         "security":[{"session":[]}],
-        "description":"Reverify the current user's password (1–1024 UTF-8 bytes) and enable only that user's exact ObserveHealth management grant. Current IdentityManage and host-read grants are required. A changed grant invalidates prior sessions/tasks and requires a new login; an existing exact grant is a write-free no-op. Does not start automation.",
+        "description":"Reverify the current user's password (1–1024 UTF-8 bytes) and enable only that user's exact ObserveHealth management grant. Current IdentityManage and host-read grants are required. A changed grant invalidates prior sessions/tasks and requires a new login; an existing exact grant is a write-free no-op. Does not create or resume schedules.",
         "parameters":[
             {"name":"Origin","in":"header","required":true,"schema":{"type":"string"}},
             {"name":"X-CSRF-Token","in":"header","required":true,"schema":{"type":"string","minLength":64,"maxLength":64}}
@@ -412,19 +414,19 @@ fn main() {
     openapi["paths"]["/api/v1/automation/schedules"] = serde_json::json!({
         "get": {
             "security":[{"session":[]}],
-            "description":"Read at most 32 owned ObserveHealth schedules within 64 KiB. Metadata only: AwaitingProducer is not running; AuthoritySuspended requires explicit current-authority resume. Reads do not revise authority, advance watermarks or invoke a collector.",
+            "description":"Read at most 32 owned ObserveHealth schedules within 64 KiB. Scheduled includes bounded historical partial/unavailable runtime diagnostics while the owned Core producer runs. AwaitingProducer is not running; AuthoritySuspended requires explicit current-authority resume. Reads do not revise authority, advance watermarks or invoke a collector.",
             "parameters":[{"name":"after","in":"query","schema":{"type":"string","pattern":"^[a-f0-9]{64}$"}}],
             "responses":{"200":{"description":"Owned schedule metadata and current readiness","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::AutomationPage<limeos_domain::automation::ScheduleView>)}}}}
         },
         "post": {
             "security":[{"session":[]}],
-            "description":"Create fixed ObserveHealth metadata with current literal management and host-read grants. Owner, operation and anchor are server-owned. No timer, job, producer or effect is started. A lost create response must be reconciled through the owned list; do not automatically retry.",
+            "description":"Create fixed ObserveHealth metadata with current literal management and host-read grants. Owner, operation and anchor are server-owned. The owned Core producer later admits due container observations under current authority; this request commits metadata only. A lost create response must be reconciled through the owned list; do not automatically retry.",
             "parameters":[
                 {"name":"Origin","in":"header","required":true,"schema":{"type":"string"}},
                 {"name":"X-CSRF-Token","in":"header","required":true,"schema":{"type":"string","minLength":64,"maxLength":64}}
             ],
             "requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_contracts::ObserveHealthScheduleInput)}}},
-            "responses":{"201":{"description":"Durable schedule metadata, awaiting a genuine producer","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::ScheduleView)}}}}
+            "responses":{"201":{"description":"Durable schedule metadata with current partial observation registration","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::ScheduleView)}}}}
         }
     });
     openapi["paths"]["/api/v1/automation/schedules/{id}/pause"] = serde_json::json!({"post":{
@@ -445,7 +447,7 @@ fn main() {
     }});
     openapi["paths"]["/api/v1/automation/health-policy"] = serde_json::json!({
         "get":{"security":[{"session":[]}],"description":"Read current owned policy with host-read and narrow health-automation management grants. Implicit revision zero creates no rows. No collection or delivery.","responses":{"200":{"description":"Current owned configuration","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::HealthPolicyView)}}}}},
-        "post":{"security":[{"session":[]}],"description":"Replace owned policy by expected revision with current session, Origin, CSRF, host-read and narrow health-automation management grants. Preserves literal mounts and silence metadata; no credential or resource authority. Lost replies may have committed: reconcile by GET before any explicit retry. The production collector and supervisor remain unavailable.","parameters":[{"name":"Origin","in":"header","required":true,"schema":{"type":"string"}},{"name":"X-CSRF-Token","in":"header","required":true,"schema":{"type":"string","minLength":64,"maxLength":64}}],"requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_domain::automation::ReplaceHealthPolicy)}}},"responses":{"200":{"description":"Committed explicit policy revision","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::HealthPolicyView)}}}}}
+        "post":{"security":[{"session":[]}],"description":"Replace owned policy by expected revision with current session, Origin, CSRF, host-read and narrow health-automation management grants. Preserves literal mounts and silence metadata; no credential or resource authority. Lost replies may have committed: reconcile by GET before any explicit retry. Registered automatic container checks remain globally partial.","parameters":[{"name":"Origin","in":"header","required":true,"schema":{"type":"string"}},{"name":"X-CSRF-Token","in":"header","required":true,"schema":{"type":"string","minLength":64,"maxLength":64}}],"requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_domain::automation::ReplaceHealthPolicy)}}},"responses":{"200":{"description":"Committed explicit policy revision","content":{"application/json":{"schema":schema_for!(limeos_domain::automation::HealthPolicyView)}}}}}
     });
     openapi["paths"]["/api/v1/automation/notifications"] = serde_json::json!({"get":{
         "security":[{"session":[]}],

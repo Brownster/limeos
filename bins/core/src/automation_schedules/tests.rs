@@ -4,8 +4,9 @@ use limeos_domain::automation::{MissedRunPolicy, ScheduleStatus};
 use rusqlite::{Connection, OpenFlags};
 use std::time::Duration;
 
-fn core(db: Database) -> Core {
+pub(crate) fn core(db: Database) -> Core {
     Core {
+        automation_status: Default::default(),
         db,
         password_workers: Arc::new(Semaphore::new(2)),
         dummy_hash: "unused".into(),

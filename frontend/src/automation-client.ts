@@ -40,6 +40,14 @@ function schedule(value: unknown): value is ScheduleView {
   const row = value.schedule; const definition = row.definition as Record<string, unknown>;
   const window = definition.window;
   const occurrence = value.last_occurrence;
+  const runtime = value.runtime;
+  if (value.status === "scheduled") {
+    if (definition.operation !== "observe_health" || row.paused !== false || !object(runtime) ||
+      Object.keys(runtime).some(key => !["phase", "last_attempt"].includes(key)) ||
+      !["waiting", "checking", "partial", "unavailable"].includes(String(runtime.phase)) ||
+      !(runtime.last_attempt === null || time(runtime.last_attempt)) ||
+      (runtime.phase === "waiting") !== (runtime.last_attempt === null)) return false;
+  } else if (runtime !== undefined && runtime !== null) return false;
   if (occurrence !== null) {
     if (!object(occurrence) || !object(occurrence.key) || !object(occurrence.outcome) || !text(occurrence.key.schedule, 128) || !integer(occurrence.key.revision, 1) || !time(occurrence.key.due)) return false;
     if (!["blocked", "skipped", "job"].includes(String(occurrence.outcome.outcome))) return false;
@@ -48,7 +56,7 @@ function schedule(value: unknown): value is ScheduleView {
   if (!(window === null || (object(window) && integer(window.start_minute, 0, 1439) && integer(window.end_minute, 0, 1439) && window.start_minute !== window.end_minute))) return false;
   return text(row.id, 128) && integer(row.revision, 1) && typeof row.paused === "boolean" && (row.settled_through === null || time(row.settled_through)) &&
     operations.includes(String(definition.operation)) && time(definition.anchor) && integer(definition.interval_seconds, 30, 2_678_400) && integer(definition.grace_seconds, 0, 86400) && definition.grace_seconds < definition.interval_seconds && ["coalesce_latest", "skip"].includes(String(definition.missed)) &&
-    ["awaiting_producer", "authority_suspended", "paused", "blocked"].includes(String(value.status));
+    ["awaiting_producer", "scheduled", "authority_suspended", "paused", "blocked"].includes(String(value.status));
 }
 function alert(value: unknown): value is AlertState {
   if (!object(value) || !object(value.incident) || !text(value.key, 256) || !kinds.includes(String(value.kind)) || !integer(value.last_sequence)) return false;

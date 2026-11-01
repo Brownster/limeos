@@ -140,10 +140,12 @@ export type Schedule = { id: string, revision: number, paused: boolean, definiti
  */
 settled_through: number | null, };
 export type PauseSchedule = { revision: number, paused: boolean, };
-export type ScheduleStatus = "awaiting_producer" | "authority_suspended" | "paused" | "blocked";
+export type ScheduleStatus = "awaiting_producer" | "scheduled" | "authority_suspended" | "paused" | "blocked";
+export type ObservationPhase = "waiting" | "checking" | "partial" | "unavailable";
+export type ObservationRuntimeView = { phase: ObservationPhase, last_attempt: number | null, };
 export type OccurrenceOutcome = { "outcome": "job", id: string, state: JobState, } | { "outcome": "blocked" } | { "outcome": "skipped" };
 export type OccurrenceView = { key: OccurrenceKey, outcome: OccurrenceOutcome, };
-export type ScheduleView = { schedule: Schedule, status: ScheduleStatus, last_occurrence: OccurrenceView | null, };
+export type ScheduleView = { schedule: Schedule, status: ScheduleStatus, last_occurrence: OccurrenceView | null, runtime?: ObservationRuntimeView | null, };
 export type AlertKind = "container" | "smart" | "mount" | "snapraid" | "host";
 export type AutomationSeverity = "warning" | "critical";
 export type SignalStatus = "healthy" | "failing" | "unavailable";

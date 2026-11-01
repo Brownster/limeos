@@ -12,6 +12,19 @@ use limeos_persistence::{
 use std::{sync::Arc, time::Instant};
 
 type Clock = Arc<dyn Fn() -> i64 + Send + Sync>;
+mod runtime;
+
+pub(crate) fn observation_retryable(error: &Error) -> bool {
+    matches!(
+        error.0,
+        ErrorCode::Expired
+            | ErrorCode::Forbidden
+            | ErrorCode::Conflict
+            | ErrorCode::Overloaded
+            | ErrorCode::NotFound
+            | ErrorCode::Unavailable
+    )
+}
 
 /// Uses the sole database worker; it has no independent authority or queue.
 #[derive(Clone)]
@@ -177,12 +190,7 @@ impl ObservationStoreBridge {
         schedule: String,
         deadline: Instant,
     ) -> Result<Option<ObservationPollOutcome>> {
-        let clock = self.clock.clone();
-        let admission = self
-            .call(deadline, move |store| {
-                store.automation_container_poll_begin(&schedule, || clock(), deadline)
-            })
-            .await?;
+        let admission = self.prepare_container_poll(schedule, deadline).await?;
         let ContainerReadAdmission::Read(permit) = admission else {
             return Ok(None);
         };
@@ -200,26 +208,15 @@ impl ObservationStoreBridge {
         job: ObservationJob,
         deadline: Instant,
     ) -> Result<ObservationResult> {
-        let selected = job.clone();
-        let clock = self.clock.clone();
-        let admission = self
-            .call(deadline, move |store| {
-                store.automation_container_job_begin(&selected, || clock(), deadline)
-            })
-            .await;
-        match admission {
-            Ok(ContainerReadAdmission::Existing(receipt)) => Ok(receipt),
-            Ok(ContainerReadAdmission::Read(permit)) => {
+        match self.prepare_container_job(job, deadline).await? {
+            ContainerReadAdmission::Existing(receipt) => Ok(receipt),
+            ContainerReadAdmission::Read(permit) => {
                 match self.collect_containers(reader, *permit).await? {
                     ContainerReadOutcome::Queued(receipt) => Ok(receipt),
                     ContainerReadOutcome::Poll(_) => Err(Error(ErrorCode::StateNotDurable)),
                 }
             }
-            Err(Error(ErrorCode::Expired | ErrorCode::Forbidden)) => {
-                self.discard(job, deadline).await
-            }
-            Err(error) => Err(error),
-            Ok(_) => Err(Error(ErrorCode::StateNotDurable)),
+            _ => Err(Error(ErrorCode::StateNotDurable)),
         }
     }
 

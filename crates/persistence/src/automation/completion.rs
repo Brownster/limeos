@@ -7,10 +7,12 @@ mod check;
 mod container_read;
 mod in_app;
 mod polling;
+mod runtime_hints;
 pub use container_read::{ContainerReadAdmission, ContainerReadOutcome, ContainerReadPermit};
 pub use in_app::InAppPublication;
 pub(crate) use polling::PollWatermark;
 pub use polling::{ObservationPollAdmission, ObservationPollLease, ObservationPollOutcome};
+pub use runtime_hints::{ObservationOwnerPage, ObservationWorkHint};
 
 const ROW_BYTES: usize = 4096;
 const RESOURCE_BYTES: usize = 512;
@@ -513,22 +515,7 @@ impl Store {
             let intent = intent
                 .as_str()
                 .map_err(|_| Error(ErrorCode::StateNotDurable))?;
-            if !limeos_domain::opaque_id(id) || intent.len() > DEFINITION_BYTES {
-                return Err(Error(ErrorCode::StateNotDurable));
-            }
-            let Intent::AutomationObserveHealth { occurrence } = parse(intent)? else {
-                return Err(Error(ErrorCode::StateNotDurable));
-            };
-            if !limeos_domain::opaque_id(&occurrence.schedule)
-                || !(1..=MAX_REVISION).contains(&occurrence.revision)
-                || !(0..=MAX_TIME).contains(&occurrence.due)
-            {
-                return Err(Error(ErrorCode::StateNotDurable));
-            }
-            items.push(ObservationJob {
-                id: id.into(),
-                occurrence,
-            });
+            items.push(queued_hint(id, intent)?);
         }
         Ok(AutomationPage {
             items,
@@ -766,6 +753,25 @@ impl Store {
             .retain(|_, entry| entry.job.as_deref() != Some(job.id.as_str()));
         Ok(receipt)
     }
+}
+
+fn queued_hint(id: &str, intent: &str) -> Result<ObservationJob> {
+    if !limeos_domain::opaque_id(id) || intent.len() > DEFINITION_BYTES {
+        return Err(Error(ErrorCode::StateNotDurable));
+    }
+    let Intent::AutomationObserveHealth { occurrence } = parse(intent)? else {
+        return Err(Error(ErrorCode::StateNotDurable));
+    };
+    if !limeos_domain::opaque_id(&occurrence.schedule)
+        || !(1..=MAX_REVISION).contains(&occurrence.revision)
+        || !(0..=MAX_TIME).contains(&occurrence.due)
+    {
+        return Err(Error(ErrorCode::StateNotDurable));
+    }
+    Ok(ObservationJob {
+        id: id.into(),
+        occurrence,
+    })
 }
 
 pub(super) fn check(conn: &Connection) -> Result<()> {

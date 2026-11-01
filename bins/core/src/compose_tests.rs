@@ -54,6 +54,7 @@ async fn fixture(
     .await
     .unwrap();
     let core = Core {
+        automation_status: Default::default(),
         db,
         compose_catalog: Some(Arc::new(catalog)),
         container_socket: Arc::new("/unreachable".into()),

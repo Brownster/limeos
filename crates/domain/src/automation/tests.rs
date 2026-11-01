@@ -30,6 +30,7 @@ fn signal(status: SignalStatus) -> AlertSignal {
 #[test]
 fn readiness_validates_shape_without_claiming_current_authority() {
     let mut view = ScheduleView {
+        runtime: None,
         schedule: schedule(),
         status: ScheduleStatus::AwaitingProducer,
         last_occurrence: None,
@@ -49,6 +50,60 @@ fn readiness_validates_shape_without_claiming_current_authority() {
     assert!(view.validate().is_ok());
     view.status = ScheduleStatus::AwaitingProducer;
     assert!(view.validate().is_err());
+}
+
+#[test]
+fn scheduled_runtime_is_partial_diagnostic_shape_and_requires_coherent_attempt_time() {
+    let mut view = ScheduleView {
+        schedule: schedule(),
+        status: ScheduleStatus::Scheduled,
+        last_occurrence: None,
+        runtime: None,
+    };
+    assert!(view.validate().is_err());
+    for phase in [
+        ObservationPhase::Waiting,
+        ObservationPhase::Checking,
+        ObservationPhase::Partial,
+        ObservationPhase::Unavailable,
+    ] {
+        view.runtime = Some(ObservationRuntimeView {
+            phase,
+            last_attempt: if phase == ObservationPhase::Waiting {
+                None
+            } else {
+                Some(100)
+            },
+        });
+        view.validate().unwrap();
+        let decoded: ScheduleView =
+            serde_json::from_str(&serde_json::to_string(&view).unwrap()).unwrap();
+        assert_eq!(decoded, view);
+    }
+    view.status = ScheduleStatus::AuthoritySuspended;
+    assert!(view.validate().is_err());
+    view.status = ScheduleStatus::Scheduled;
+    view.runtime = Some(ObservationRuntimeView {
+        phase: ObservationPhase::Partial,
+        last_attempt: None,
+    });
+    assert!(view.validate().is_err());
+    view.runtime = Some(ObservationRuntimeView {
+        phase: ObservationPhase::Waiting,
+        last_attempt: Some(100),
+    });
+    assert!(view.validate().is_err());
+    view.runtime = Some(ObservationRuntimeView {
+        phase: ObservationPhase::Partial,
+        last_attempt: Some(MAX_TIME + 1),
+    });
+    assert!(view.validate().is_err());
+    assert!(
+        serde_json::from_str::<ObservationRuntimeView>(
+            r#"{"phase":"partial","last_attempt":100,"path":"/private"}"#
+        )
+        .is_err()
+    );
 }
 fn notification(channel: DeliveryChannel) -> Notification {
     Notification {

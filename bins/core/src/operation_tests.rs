@@ -218,6 +218,7 @@ async fn fixture() -> (
         }
     });
     let core = Core {
+        automation_status: Default::default(),
         db,
         password_workers: Arc::new(Semaphore::new(2)),
         dummy_hash: "unused".into(),

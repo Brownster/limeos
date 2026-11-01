@@ -104,6 +104,15 @@ impl Socket {
     }
 }
 impl HealthReader {
+    #[cfg(test)]
+    pub(crate) fn for_test(socket: PathBuf, gate: Arc<Semaphore>, clock: Clock) -> Self {
+        let uid = rustix::process::geteuid().as_raw();
+        let mut reader = Self::new(socket, gate);
+        reader.clock = clock;
+        reader.test_socket_uid = Some(uid);
+        reader.test_peer_uid = Some(uid);
+        reader
+    }
     /// Trusted package/configuration path and the existing Core read gate, never HTTP input.
     pub fn new(socket: PathBuf, gate: Arc<Semaphore>) -> Self {
         Self {

@@ -36,7 +36,7 @@ function OwnedHealthSchedules({ csrf, expired, reauthenticate }: { csrf: string;
   const fresh = state.schedules.page !== null && !state.schedules.loading && !state.schedules.stale && !state.schedules.error;
   const saving = state.mutations.schedules.pending;
   return <div id="health-schedules-panel">
-    <p className="notice">You can save or pause schedules. Automatic health observations are not running yet.</p>
+    <p className="notice">Save or pause schedules here. Each schedule shows whether automatic container checks are enabled. Health coverage remains partial.</p>
     <button disabled={state.schedules.loading || permission.pending} onClick={() => { void schedules.refresh(); }}>Refresh schedules</button>
     <AutomationReadStatus state={state} kinds={["schedules"]} />
     <AutomationView showAlerts={false} schedules={state.schedules.page} alerts={null} canManage={true}
