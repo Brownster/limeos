@@ -430,3 +430,44 @@ installed/current ARM64/Pi/package/return/footprint/soak and P05/P06 remain open
 A1/B1/P04 and all defect gates remain open, including the existing inventory
 performance failure. Holly's Pi, real Docker and frozen app were untouched;
 nothing was pushed.
+
+## 1 November: authenticated mount-gate refusal recovery
+
+Source `5c10736` registers
+[gated refusal and fresh no-effect recovery](../../p04-a1-gated-refusal-recovery-handoff.md).
+The fixed guardian can acknowledge that its mount child never started. Parent
+acceptance requires original action/digest binding, complete bounded framing,
+successful actual exit and reaping. Current protected write policy is rechecked
+after awaited admission/identity validation, followed by original deadlines
+immediately before GO. First-write ambiguity, malformed/missing completion and
+pending helpers retain their existing barriers.
+
+Root persists genuine non-success quiescence before requiring fresh exact
+unmounted evidence and current read policy to settle no-effect. Core requires
+its own independent fresh proof before releasing claims. Read-only recovery
+retains original action identity and expiry, never replaying execution. Existing
+pending receipts gain no historical missing proof. Every complete-consumer
+comparison and resource/service ceiling remains unchanged.
+
+The [local packet](2026-11-01-a1-gated-refusal-recovery/README.md) binds 1,736
+workspace runtime passes, 55 compile-fail doctests, strict all-target Clippy,
+actual contract drift, 244 frontend tests/checked build and repository checks
+to 740 committed inputs across six matching final guards. Native owned child
+pipes/pidfds exercise the real protocol/wait/publication code with a fixture
+marker; identity facts and Core RPC credentials are private unit fixtures,
+not installed root trust. Real journal/Store reopen preserves claims until
+separate fresh verification. All eighteen guards and an earlier refused memory
+admission remain retained, including two fixture compilation failures and the
+corrected large release-enum lint. All 81 recorded original processes are absent.
+Scratch remains on repository disk with one Cargo job/test thread and the
+unchanged sampled 3-GiB stop floor. Memory recovered without stopping the emulator.
+
+Two generated contracts add the never-started outcome; SQL schema 14 and Root
+journal schema 1 remain unchanged. Older closed readers refuse that outcome,
+so return needs matching binary/contracts and Core/Root journal before-images,
+even when SQL versions match. Fresh installed package/VM, genuine root-policy/
+image/effect/API/UI/replay/restart and whole-service resource qualification remain
+required. Normal host task/FD churn reliability, A1/B1/P04 and P05/P06 cutover
+remain open, along with ARM64/Pi/return/soak and the existing performance failure.
+No Pi, VM, real host mount, existing uncertain-action repair, service activation,
+external send or push ran.

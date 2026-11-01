@@ -1,5 +1,17 @@
 # A1 installed namespace progress, 20 October 2026
 
+November 1 recovery follow-up: source `5c10736` implements
+[authenticated gated refusal and no-effect recovery](p04-a1-gated-refusal-recovery-handoff.md).
+The fixed guardian can report that its mount child never started; the parent
+requires a bound ACK and actual successful reaping. Root/Core still need separate
+fresh unmounted proofs before releasing claims. Final write authorization now
+runs after awaited admission revalidation and immediately before GO. Local
+acceptance covers 1,736 workspace runtime tests, 55 compile-fail doctests, strict
+Clippy, contract drift and 244 frontend tests/build. No installed outcome is
+added: old pending receipts gain no missing proof, normal complete-consumer
+reliability under churn remains open, and a fresh disposable package/VM must
+exercise the new path. Every existing comparison and resource ceiling remains.
+
 October 30 transport follow-up: [the scoped positive-flow HTTP session is qualified locally](rewrite-evidence/p04/2026-10-30-a1-api-session-isolation/README.md)
 at `97b117e`; all 102 native reference cases pass, including real HTTP socket
 lifetime and fatal/no-retry cases. The installed guest completed negative cases
