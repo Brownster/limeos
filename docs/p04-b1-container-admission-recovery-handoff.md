@@ -71,3 +71,9 @@ current packages/upgrades/return, ARM64/Pi, resource/performance and real idle
 soak acceptance are still required. A1/B1, wider A/B/P04 and P05/P06 cutover stay
 open. No Pi, real Docker, external recipient, frozen app or service was touched;
 nothing was pushed.
+
+Follow-up `d1ba5f0` registers
+[fair owned Core supervision and runtime status](p04-b1-observation-supervisor-handoff.md).
+Its separate local packet qualifies the producer and authenticated partial/
+unavailable projection. It supersedes the timer/supervision gap above; remaining
+sources, installed acceptance and wider cutover gates stay open.

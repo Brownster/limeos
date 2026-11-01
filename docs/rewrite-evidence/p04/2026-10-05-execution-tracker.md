@@ -393,3 +393,40 @@ installed/current ARM64/Pi/package/return/soak and P05/P06 remain required.
 A1/B1/P04 and all defect gates stay open, including the historical inventory
 performance failure. No Pi, real Docker, external send, service activation,
 frozen-app mutation or push ran.
+
+## 1 November: fair owned observation supervision and schedule status
+
+Source `d1ba5f0` registers the
+[owned Core observation producer](../../p04-b1-observation-supervisor-handoff.md).
+Query-only hints rotate pages of 32 owners and each owner's next schedule, with
+original queued jobs first. One fresh protected cohort serves a bounded pass;
+each owner retains separate current-authority completion under the same original
+read deadline. In-app publication/retention progress before collection. Stable
+polls create no new durable sample ledger, unsupported effects stay blocked and
+fatal persistence errors stop the batch/producer/Core. Authenticated schedule
+views expose revision-bound waiting/checking/partial/unavailable diagnostics;
+the UI and generated contracts distinguish registered partial checks from an
+absent producer. Paused/suspended schedules expose no runtime diagnostics.
+
+The [local packet](2026-11-01-b1-observation-supervisor/README.md) binds 1,727
+workspace runtime passes, 54 compile-fail doctests, strict all-target Clippy,
+actual contract drift, 244 frontend passes/checked build and closed desktop/
+mobile browser fixtures to 738 committed inputs across eight matching guards.
+All fifteen attempts remain retained, including immutable-job and wrong-cookie
+fixture failures corrected without weakening production guards. The actual Core
+binary starts/restarts and reports partial/unavailable checks while refusing an
+unprivileged reader before request frames; successful installed root-positive
+collection remains unqualified. The browser records exact served UI hashes.
+Thirty-two stable runtime passes advance 960 simulated seconds with unchanged
+DB/WAL bytes and zero process write-byte delta, without claiming an installed
+24-hour soak. All 34 recorded original processes are absent. Scratch remains on
+repository disk with one Cargo job/test thread and the unchanged sampled 3-GiB floor.
+
+SQL schema 14, dependencies, package policies and service ceilings are unchanged;
+the four changed generated contracts describe schedule runtime status. Root
+services and concrete grants are not auto-enabled. Remaining health sources,
+reviewed replacement/retirement, compaction, ordinary external channels,
+installed/current ARM64/Pi/package/return/footprint/soak and P05/P06 remain open.
+A1/B1/P04 and all defect gates remain open, including the existing inventory
+performance failure. Holly's Pi, real Docker and frozen app were untouched;
+nothing was pushed.

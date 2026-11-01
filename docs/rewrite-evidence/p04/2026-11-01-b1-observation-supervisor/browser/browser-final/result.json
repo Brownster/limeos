@@ -1,0 +1,178 @@
+{
+  "scope": "closed browser fixture; no real API/Store/host acceptance",
+  "browser": "150.0.7871.46",
+  "served_ui": {
+    "frontend/dist/index.html": "0d537e0b22108f0dbacdb02ebb1a97f632c1ae35967654b43749cb2aabbe927f",
+    "frontend/dist/assets/index-B1NhXBpB.js": "2f79a13fe674d8a5fe8c6fc36f11d5ff8f748aabb98526817e17521a836a575f",
+    "frontend/dist/assets/index-DqMXDWU-.css": "fa440797a210247991800a0d27db738d33f3c5b318bfc05802a1a227864f423b"
+  },
+  "checks": [
+    "mounted despite unavailable Overview",
+    "permission refusal remains visible",
+    "fixed password enablement and reauthentication",
+    "credential input cleared",
+    "UTC cross-midnight schedule creation",
+    "revision-checked pause/resume",
+    "unavailable disables writes",
+    "forbidden clears private rows",
+    "no unsupported reads or automatic POST retry",
+    "runtime waiting/checking/partial/unavailable phases",
+    "historical attempt time and partial coverage",
+    "desktop/mobile render"
+  ],
+  "calls": [
+    {
+      "path": "/api/v1/auth/session",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/overview",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/system/history",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/observations/stream",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/overview",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/automation/schedules",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/automation/schedules",
+      "method": "POST",
+      "keys": [
+        "grace_seconds",
+        "interval_seconds",
+        "missed",
+        "window"
+      ]
+    },
+    {
+      "path": "/api/v1/automation/schedules",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/auth/capabilities/observe-health/enable",
+      "method": "POST",
+      "keys": [
+        "password"
+      ]
+    },
+    {
+      "path": "/api/v1/auth/login",
+      "method": "POST",
+      "keys": [
+        "password",
+        "username"
+      ]
+    },
+    {
+      "path": "/api/v1/overview",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/system/history",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/observations/stream",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/overview",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/automation/schedules",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/automation/schedules",
+      "method": "POST",
+      "keys": [
+        "grace_seconds",
+        "interval_seconds",
+        "missed",
+        "window"
+      ]
+    },
+    {
+      "path": "/api/v1/automation/schedules",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/automation/schedules/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/pause",
+      "method": "POST",
+      "keys": [
+        "paused",
+        "revision"
+      ]
+    },
+    {
+      "path": "/api/v1/automation/schedules",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/automation/schedules/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/pause",
+      "method": "POST",
+      "keys": [
+        "paused",
+        "revision"
+      ]
+    },
+    {
+      "path": "/api/v1/automation/schedules",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/automation/schedules",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/automation/schedules",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/automation/schedules",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/automation/schedules",
+      "method": "GET",
+      "keys": []
+    },
+    {
+      "path": "/api/v1/automation/schedules",
+      "method": "GET",
+      "keys": []
+    }
+  ],
+  "page_errors": [],
+  "live_host_operations": 0
+}
