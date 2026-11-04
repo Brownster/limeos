@@ -71,11 +71,25 @@ browser fixtures use exact built assets, with desktop/mobile visual review;
 they establish no installed API/UI journey.
 
 SQL schema 14, dependencies, package policies and service ceilings are unchanged.
+The [4 November installed attempt](rewrite-evidence/p04/2026-11-04-b1-installed-observation/README.md)
+adds a standalone fixture at `f3be3b3` with 18 passing scoped reference cases and
+lint/format/repository checks. It reuses the source-bound `e417751` packages with
+all 740 product inputs unchanged and exactly two new fixture/test files. The
+real default root reader answers Core-UID storage inventory, and the actual
+authenticated API creates a registered observation schedule. The first incident
+wait times out with no occurrence/job/result/alert/notification. This supplies
+no successful container-health, crash/restart or notification acceptance.
+The failure packet cannot yet separate protected health collection from Core
+admission/completion: add bounded final runtime and independent Core-UID health
+reply observations before choosing a product fix. All seven recorded original
+processes and VM scratch are absent, with no sampled memory stop. The installed
+reader's policy and resource ceilings remain unchanged.
+
 The existing package return requirement still includes policy before-images with
 the matching pre-schema-14 database and package assets. Remaining host/SMART/
 mount/protection sources, reviewed replacement/retirement, safe history compaction,
 ordinary external channels and installed current-package/root-positive/API/UI/
 ARM64/Pi/return/footprint/soak acceptance remain open. A1/B1, wider A/B/P04 and
 P05/P06 cutover remain unfinished; the historical inventory-performance failure
-is unchanged. Holly's Pi, real Docker and the frozen app were untouched. Nothing
-was pushed.
+is unchanged. Holly's Pi and the frozen app were untouched. The later installed
+attempt changes only its disposable guest. Nothing was pushed.

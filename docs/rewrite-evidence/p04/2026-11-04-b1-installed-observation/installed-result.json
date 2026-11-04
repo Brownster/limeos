@@ -1,0 +1,141 @@
+{
+  "authority_schema": 14,
+  "binary_sha256": {
+    "limeos-core": "f4b5fae8a7b8bd44e7723f374af61ff1742d1ca9faf5d264b062596ca8c10a77",
+    "limeos-executor": "937783d65cee29c44a9d9843f02443abccaa8481a04b3f1021770b4799e25ceb",
+    "limeos-password-worker": "8e7eb4f529262b2716ffc947dad66ba86aaaa730bbaf8194133f3bb401a7d237",
+    "limeos-stack-read-worker": "0689a3a7c9e53048f6be7d3fca633ad27cf4b03ec41aa86298f4cc50079e794f",
+    "limeosctl": "0f5ed4d47c13c7b08a767bbcfb560663112a46ba8c0e12ec7bed42c111bf2d08"
+  },
+  "container_before": {
+    "Dead": false,
+    "Error": "",
+    "ExitCode": 0,
+    "FinishedAt": "0001-01-01T00:00:00Z",
+    "OOMKilled": false,
+    "Paused": false,
+    "Pid": 0,
+    "Restarting": false,
+    "Running": false,
+    "StartedAt": "0001-01-01T00:00:00Z",
+    "Status": "created"
+  },
+  "container_id": "69677b335c9cccff95158be083d6c890be34ee32a5960bacb03b2147b8ce41e0",
+  "created_schedule": {
+    "last_occurrence": null,
+    "runtime": {
+      "last_attempt": null,
+      "phase": "waiting"
+    },
+    "schedule": {
+      "definition": {
+        "anchor": 1793832288,
+        "grace_seconds": 29,
+        "interval_seconds": 30,
+        "missed": "coalesce_latest",
+        "operation": "observe_health",
+        "window": null
+      },
+      "id": "c99ce94b60051030d992da62a46f39b96433249419660fd67955c5faa99f7ecf",
+      "paused": false,
+      "revision": 1,
+      "settled_through": null
+    },
+    "status": "scheduled"
+  },
+  "docker": {
+    "declared_containers": [],
+    "docker_package_version": "20.10.24+dfsg1-1+deb12u1+b6",
+    "dockerd_sha256": "39ad7936d1af38671d2c4401df15e8c6610dadf38d7595bcb596b27ba30e74cc",
+    "id": "JQX3:3HGT:7KSB:NHYF:FFR4:OM4B:6BW5:INQL:X33R:B7QJ:J54D:NWQ4",
+    "initial_peer": {
+      "gid": 0,
+      "pid": 1,
+      "uid": 0
+    },
+    "listener_fixture": "real packaged dockerd-owned Unix socket; socket activation excluded",
+    "peer": {
+      "gid": 0,
+      "pid": 6060,
+      "uid": 0
+    },
+    "root": "/var/lib/docker",
+    "server_version": "20.10.24+dfsg1",
+    "unit": "limeos-a1-real-docker"
+  },
+  "error": "AssertionError: Timed out waiting for disposable-host state",
+  "fixture_sha256": "f6d3b3984f5aa892f6b5d7f008ac009284c7bc93a30e1fe03dfdbcaa63071c20",
+  "history_after_failure": {
+    "alerts": [],
+    "jobs": [],
+    "notifications": [],
+    "occurrences": [],
+    "results": [],
+    "schedules": [
+      [
+        "c99ce94b60051030d992da62a46f39b96433249419660fd67955c5faa99f7ecf",
+        1,
+        0,
+        null
+      ]
+    ]
+  },
+  "limitations": [
+    "AMD64 installed API/runtime fixture; no browser, ARM64/Pi, upgrade/return or soak acceptance",
+    "Container-only partial observation; no mount, deployment or external notification effect"
+  ],
+  "package_sha256": {
+    "limeos-shadow_0.4.12+gateabort.1_amd64.deb": "d74e83b52a943fb219bc9faa065424504e607460cff0739ee8f02431eab06ceb",
+    "limeos_0.4.12+gateabort.1_amd64.deb": "b7c56f1c2e49a58dd580d81e65edd0b235c224f2694a4cb6c0e5dd5b74b6d175"
+  },
+  "package_version": "0.4.12+gateabort.1",
+  "passed": [
+    "signed current package installation and independently sourced authority schema",
+    "actual password enablement, relogin and permission/CSRF/Origin refusals preserve history"
+  ],
+  "policy": {
+    "definition": {
+      "disabled": [],
+      "fail_threshold": 1,
+      "required_mounts": [],
+      "silences": []
+    },
+    "revision": 1,
+    "updated": 1793832288
+  },
+  "reader_policy": {
+    "allow_container_health_read": true,
+    "allow_health": true,
+    "allow_stack_read": true,
+    "allow_storage_read": true,
+    "core_uid": 104,
+    "managed_containers": [],
+    "version": 1
+  },
+  "reader_policy_sha256": "ce4eebb5f05270c1b4e215d254bb3a74d351b92ff0e1aa4ebb350989a926d89d",
+  "reader_ready": {
+    "elapsed_seconds": 0.17804309399998886,
+    "observations": [
+      {
+        "error": "overloaded",
+        "ready": false
+      },
+      {
+        "error": null,
+        "ready": true
+      }
+    ],
+    "scope": "read-only fixture startup; no effect or admission authority"
+  },
+  "reader_unit": {
+    "ControlGroup": "/system.slice/limeos-storage-reader.service",
+    "KillMode": "control-group",
+    "LimitNOFILE": "256",
+    "MainPID": "6144",
+    "MemoryMax": "67108864",
+    "TasksMax": "16"
+  },
+  "stage": "incident",
+  "summary": "fail",
+  "unit_diagnostics": "Starting limeos-core.service - LimeOS core...\nStarted limeos-core.service - LimeOS core.\n{\"timestamp\":\"2026-11-04T22:43:24.194976Z\",\"level\":\"INFO\",\"fields\":{\"message\":\"core ready\",\"generation\":1}}\nStarting limeos-storage-reader.service - LimeOS fresh storage inventory (read only)...\nStarted limeos-storage-reader.service - LimeOS fresh storage inventory (read only).\n"
+}

@@ -503,3 +503,34 @@ uncertain-action barrier remains. A1/B1/P04, current ARM64/Pi, upgrade/return,
 installed UI/footprint/soak and P05/P06 stay open, along with the historical
 inventory-performance failure. Holly's Pi and frozen app were untouched;
 nothing was pushed.
+
+## 4 November: installed B1 schedule reaches no first observation settlement
+
+Fixture `f3be3b3` implements the
+[standalone installed observation design](../../plans/2026-11-04-b1-installed-observation-qualification-design.md).
+The [source-bound packet](2026-11-04-b1-installed-observation/README.md) records
+18 scoped reference passes plus Ruff, formatting and repository checks. The
+first guarded lint failure is retained. Standard/shadow packages remain the
+original `e417751` build: all 740 product inputs match, and the 742-input fixture
+map adds only the guest scenario and its native reference file.
+
+The canonical 1,024-MiB guest installs the signed package, independently verifies
+schema 14, uses a real root daemon-owned Docker socket and passes actual password
+enablement/relogin and permission/CSRF/Origin/authentication refusal checks. The
+default dormant reader answers Core-UID storage inventory within its unchanged
+capability and service ceilings. The authenticated schedule POST returns 201
+and registered/waiting status with real 30-second timing. The first incident
+wait times out; the read-only failure snapshot has no occurrence/job/result/
+alert/notification. Storage inventory readiness does not prove health collection.
+Core SIGKILL/restart, incident/recovery, acknowledgment and pause are not reached.
+
+No final runtime view or independent Core-UID container-health reply was retained,
+so the collection versus Core admission/completion boundary remains unresolved.
+Add bounded read-only failure observations before choosing a runtime correction;
+do not attribute this failure to A1's separate task churn or relax predicates.
+The original guard completes 22:42:56–22:46:04 UTC, exit 1, unchanged inputs and
+no sampled memory stop. All seven unique recorded qualification PIDs and VM
+scratch are absent. No unrelated process was stopped; scratch remains on
+repository disk. A1/B1/P04, current ARM64/Pi, installed API/UI/restart, package
+return/footprint/soak and P05/P06 remain open, along with the existing inventory
+performance failure. Holly's Pi and frozen app were untouched; nothing was pushed.

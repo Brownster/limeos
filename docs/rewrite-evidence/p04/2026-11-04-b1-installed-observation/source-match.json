@@ -1,0 +1,47 @@
+{
+  "fixture_source": "f3be3b3de1a34d1aec05e9ae120a5c1f3864e987",
+  "product_source": "e417751ba57a3945fb47e60d513c087f75d5da7b",
+  "product_inputs_unchanged": 740,
+  "fixture_inputs_match_committed_source": 742,
+  "test_only_changes_since_package_build": {
+    "tests/privileged_vm/p04_automation_guest.py": {
+      "before": null,
+      "after": "f6d3b3984f5aa892f6b5d7f008ac009284c7bc93a30e1fe03dfdbcaa63071c20"
+    },
+    "tests/reference/test_p04_automation_guest.py": {
+      "before": null,
+      "after": "408152683f1e321029bb12973326d8241e4a0455edebbbf4e58d51519d4a662e"
+    }
+  },
+  "guest_modules": 30,
+  "guest_memory_mib": 1024,
+  "canonical_runner_unchanged": true,
+  "native_reference_cases": 18,
+  "native_precommit_head": "e204146dbaf07063d12883ffdb4bc5689dbb7354",
+  "native": {
+    "started": "2026-11-04T22:41:21.597051+00:00",
+    "ended": "2026-11-04T22:41:22.962066+00:00",
+    "exit_code": 0,
+    "minimum_available_bytes": 10017177600,
+    "guard_triggered": false,
+    "inputs_unchanged": true
+  },
+  "vm": {
+    "started": "2026-11-04T22:42:56.158551+00:00",
+    "ended": "2026-11-04T22:46:04.028820+00:00",
+    "exit_code": 1,
+    "minimum_available_bytes": 7850192896,
+    "guard_triggered": false,
+    "inputs_unchanged": true
+  },
+  "stage": "incident",
+  "installed_scenario_passed": false,
+  "all_recorded_original_processes_absent": true,
+  "recorded_unique_pids": 7,
+  "vm_scratch_removed": true,
+  "b1_milestone_complete": false,
+  "installed_ui_qualified": false,
+  "arm64_pi_qualified": false,
+  "upgrade_return_soak_qualified": false,
+  "private_keys_packages_binaries_or_disks_archived": false
+}
