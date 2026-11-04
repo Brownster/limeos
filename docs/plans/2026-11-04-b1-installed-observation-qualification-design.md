@@ -77,3 +77,35 @@ installed browser interaction, current ARM64/Pi, upgrade/return, 24-hour soak,
 remaining health sources, external channels, reviewed retirement/compaction,
 full RW-042/044/045, A1/P04 or P05/P06 completion. Those gates remain required for
 replacing Holly's frozen application. No production host is accessed.
+
+## Read-only failure boundary observations
+
+The [first installed attempt](../rewrite-evidence/p04/2026-11-04-b1-installed-observation/README.md)
+creates the schedule but reaches no first settlement. Its storage inventory
+probe cannot identify the container-health boundary. Keep the original timer,
+75-second incident wait, setup, policy and every acceptance assertion unchanged.
+Add observations only after the original failure and before whole-VM disposal.
+
+Capture one authenticated schedule GET, preserving final runtime phase/attempt
+time, followed by one independent `ContainerHealth` RPC under the actual kernel
+Core UID and host-access group. The latter uses a fresh random nonce, the fixed
+installed reader socket, an authenticated root peer, at most one 64-KiB frame
+and an original four-second absolute deadline, with a five-second subprocess
+ceiling. Frame fragmentation, early EOF, oversized lengths and late reads must
+refuse. It is a later observation; it cannot establish the timer's historical
+reply, freshness, admission or settlement. Never copy its cohort into Core or
+retry a mutation. No root/clock/image override is added to a product binary.
+
+Independently capture selected Core/reader unit properties, process identity,
+status and FD counts plus bounded cgroup memory/task counters. Missing,
+over-budget or refused sections explicitly report unavailable and preserve
+the other sections and original exception. Do not stop collectors to obtain a
+reply. Credentials and passwords are excluded. Limit the whole new observation
+to 96 KiB and print it separately from the main failure packet so aggregate
+failure-output fallback cannot silently discard the boundary evidence.
+
+Native cases exercise fixed framing/deadline/peer checks with private mocked
+I/O, per-section isolation, output bounds and unchanged original error behavior.
+They establish no installed root trust. Freeze the changed fixture separately
+from the unchanged package build, retain the first failed attempt and run one
+distinct source-bound disposable guest before deciding on a product correction.
