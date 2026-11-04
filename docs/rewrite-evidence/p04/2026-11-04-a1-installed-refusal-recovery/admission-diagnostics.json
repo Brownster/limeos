@@ -1,0 +1,30 @@
+[
+  {
+    "level": "WARN",
+    "event": "storage_mount_consumer_tasks_changed",
+    "phase": "scan.recheck.user_tasks",
+    "sample_limit": 4,
+    "removed_count": 0,
+    "added_count": 1,
+    "removed": [
+      null,
+      null,
+      null,
+      null
+    ],
+    "added": [
+      {
+        "pid": 7055,
+        "tid": 8386,
+        "start": 27194,
+        "namespace": [
+          4,
+          4026531841
+        ]
+      },
+      null,
+      null,
+      null
+    ]
+  }
+]

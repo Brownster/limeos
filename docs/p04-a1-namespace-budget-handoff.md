@@ -1,5 +1,17 @@
 # A1 installed namespace progress, 20 October 2026
 
+November 4 current-package follow-up: [fresh packages retain the Docker task-churn barrier](rewrite-evidence/p04/2026-11-04-a1-installed-refusal-recovery/README.md).
+Source `e417751`, all 740 committed inputs and canonical 1,024-MiB guest modules
+match packages `0.4.12+gateabort.1`. Fresh frontend tests/build, all five Debian
+executables, signed installation and 50 predecessor checkpoints pass. After
+three negative mount API cases, positive plan creation refuses on a new task
+under the authenticated Docker daemon PID. No positive job or guardian is
+reached; the new never-started recovery outcome remains installed-unproven.
+Original qualification processes and VM scratch are gone, with no memory stop.
+Keep every production comparison and deadline. Normal complete-consumer
+admission under task/FD churn needs a structural design before another candidate;
+additional arbitrary startup settling is not acceptance. A1 remains open.
+
 November 1 recovery follow-up: source `5c10736` implements
 [authenticated gated refusal and no-effect recovery](p04-a1-gated-refusal-recovery-handoff.md).
 The fixed guardian can report that its mount child never started; the parent

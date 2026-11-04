@@ -2,7 +2,7 @@
 
 Source `5c10736` implements the
 [recovery design](plans/2026-11-01-a1-gated-refusal-recovery-design.md)
-addresses future pre-launch refusals identified while investigating the
+for future pre-launch refusals identified while investigating the
 [installed A1 barrier](rewrite-evidence/p04/2026-10-30-a1-core-fd-refusal/README.md).
 That older run durably bound a guardian and retained pending quiescence with
 matching Root/Core claims. Its historical GO/termination state remains unknown;
@@ -69,9 +69,20 @@ All eighteen guard attempts and the earlier refused memory admission are
 retained. The 81 recorded original guard/command/native-child PIDs are absent.
 Scratch stays on repository disk with one Cargo job/test thread and the
 unchanged sampled three-GiB stop floor.
-It establishes no genuine installed root-image/admission/effect path. A fresh
-disposable-VM package must exercise the new outcome and whole-service cleanup,
-resource, API/UI, replay/restart and policy behavior before installed acceptance.
+It establishes no genuine installed root-image/admission/effect path.
+
+The [4 November installed attempt](rewrite-evidence/p04/2026-11-04-a1-installed-refusal-recovery/README.md)
+builds fresh source `e417751` packages `0.4.12+gateabort.1` against the same 740
+committed inputs. The frontend's 244 tests/build and all five Debian executables
+pass. A canonical 1,024-MiB guest passes 50 prerequisite checkpoints and three
+negative mount API cases, then refuses the positive plan on one new task under
+the authenticated Docker daemon PID. No positive job or guardian execution is
+reached. This qualifies current package installation and the recorded predecessor
+checks, while the new outcome remains installed-unproven. All eight recorded
+qualification PIDs, the owned build container and VM scratch are absent; no
+sampled memory stop occurred. Normal task/FD churn needs a structural design
+before another candidate. Genuine mount effect/no-effect, current policy,
+whole-service resources, API/UI and replay/restart remain required.
 
 The additive outcome changes the executor receipt schema and generated types.
 SQL schema 14 and Root journal schema 1, dependencies, service/resource ceilings
@@ -84,5 +95,6 @@ Normal complete-consumer reliability under host task/FD churn remains open.
 This corrects refusal recovery, without establishing accepted mount parity or
 weakening its safety conditions. A1, B1, wider A/B/P04 and P05/P06 remain open,
 along with current package/return, installed ARM64/Pi, footprint and soak gates.
-No Pi, VM, real host mount, existing uncertain-action repair, package/service
-activation, external send or push ran.
+The native source qualification ran no VM or package activation. The subsequent
+4 November run activated services only inside its disposable AMD64 guest.
+No Pi, real host mount, existing uncertain-action repair, external send or push ran.

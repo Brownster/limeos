@@ -471,3 +471,35 @@ required. Normal host task/FD churn reliability, A1/B1/P04 and P05/P06 cutover
 remain open, along with ARM64/Pi/return/soak and the existing performance failure.
 No Pi, VM, real host mount, existing uncertain-action repair, service activation,
 external send or push ran.
+
+## 4 November: current packages retain the Docker task-churn barrier
+
+The [fresh installed packet](2026-11-04-a1-installed-refusal-recovery/README.md)
+binds standard/shadow AMD64 packages `0.4.12+gateabort.1` to source `e417751`
+and 740 unchanged committed product inputs. The fresh frontend qualification
+passes 244 tests and a checked build. All five executables build in the offline
+Debian container, pass library checks and preserve both sealed-image 8-MiB
+limits. The disposable repository signature is independently verified.
+
+The exact canonical 1,024-MiB guest passes signed installation and 50 predecessor
+checkpoints, including schema-14 readers, planning/target preparation, durable
+claims, real executor/Core interruption, independent reconciliation and shadow
+removal. All three negative mount API cases then pass without effect. Positive
+plan creation returns HTTP 409: Root observes one new task, PID 7055/TID 8386,
+whose PID matches the real Docker socket's authenticated root peer. The scoped
+HTTP session makes one request without reconnecting. No positive mount plan,
+approval, action or job is recorded, so the new guardian outcome and mount
+verification/replay/restart remain unexercised.
+
+The original VM guard completes 22:23:24–22:28:00 UTC, exit 1, with unchanged
+inputs and no sampled memory stop. All eight unique recorded qualification
+PIDs, the build container and VM scratch are absent; no matching signer remains.
+Scratch stays on repository disk, with serial phases and the unchanged sampled
+3-GiB stop floor. No unrelated process is stopped.
+
+Normal complete-consumer admission under task/FD churn needs a structural design
+before another installed candidate. Every comparison, original deadline and
+uncertain-action barrier remains. A1/B1/P04, current ARM64/Pi, upgrade/return,
+installed UI/footprint/soak and P05/P06 stay open, along with the historical
+inventory-performance failure. Holly's Pi and frozen app were untouched;
+nothing was pushed.
