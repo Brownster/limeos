@@ -85,10 +85,23 @@ reply observations before choosing a product fix. All seven recorded original
 processes and VM scratch are absent, with no sampled memory stop. The installed
 reader's policy and resource ceilings remain unchanged.
 
+The [subsequent boundary-observation guest](rewrite-evidence/p04/2026-11-04-b1-observation-boundary/README.md)
+at fixture `0705a79` passes 22 scoped reference cases and preserves the same
+packages/production inputs. The ordinary incident wait still reaches no
+settlement; the final authenticated schedule view reports unavailable. One later
+independent read under actual Core UID 104 returns the genuine expected health
+cohort in 69 ms, with matching nonce, Engine and full-ID member. This establishes
+that installed root-reader path, while normal Core read/admission/completion
+remains unresolved. The cohort is never inserted into Core or credited to its
+timer. Five original native qualification PIDs and VM scratch are absent, with
+no sampled memory stop. Core's `RestrictSUIDSGID=yes` versus its protected
+`openat2` socket lookup is now a specific profile hypothesis; verify it under
+the exact Core profile before changing confinement. No Core errno was captured.
+
 The existing package return requirement still includes policy before-images with
 the matching pre-schema-14 database and package assets. Remaining host/SMART/
 mount/protection sources, reviewed replacement/retirement, safe history compaction,
-ordinary external channels and installed current-package/root-positive/API/UI/
+ordinary external channels and successful normal-timer/current-package/API/UI/
 ARM64/Pi/return/footprint/soak acceptance remain open. A1/B1, wider A/B/P04 and
 P05/P06 cutover remain unfinished; the historical inventory-performance failure
 is unchanged. Holly's Pi and the frozen app were untouched. The later installed

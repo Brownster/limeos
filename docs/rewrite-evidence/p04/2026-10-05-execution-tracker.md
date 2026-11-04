@@ -534,3 +534,37 @@ scratch are absent. No unrelated process was stopped; scratch remains on
 repository disk. A1/B1/P04, current ARM64/Pi, installed API/UI/restart, package
 return/footprint/soak and P05/P06 remain open, along with the existing inventory
 performance failure. Holly's Pi and frozen app were untouched; nothing was pushed.
+
+## 4 November: genuine root health read narrows the B1 boundary
+
+Fixture `0705a79` adds the
+[bounded post-failure observations](2026-11-04-b1-observation-boundary/README.md).
+All 22 scoped reference cases plus Ruff/format/repository checks pass. The
+expected-red missing-helper guard remains retained with its sandbox PID scope.
+The same `e417751` packages retain all 740 product inputs; only the two fixture/
+reference files differ in the 742-input source map. Thirty guest modules and
+the canonical 1,024-MiB runner are frozen. No product predicate or service changes.
+
+The original incident wait still times out with no occurrence/job/result/alert/
+notification. The final authenticated schedule view reports unavailable. One
+independent subsequent RPC under actual Core UID 104 receives a genuine
+nonce-bound health cohort in 69 ms from the actual root reader PID 6146. Engine
+identity and the full-ID stopped member match, with the expected failing signal.
+This qualifies that installed protected read, not the timer's historical reply,
+admission or completion. Overall health stays partial; no cohort is supplied to
+Core and no incident/recovery or restart/publication acceptance is added.
+
+Core's current `RestrictSUIDSGID=yes` and protected `openat2` lookup suggest a
+specific confinement hypothesis, supported by the earlier reader-profile
+diagnostic but not a Core errno in this run. Test the fixed lookup under the
+exact Core profile and one-variable guest-only variants before changing it.
+Preserve authority/socket checks and original deadlines; the A1 task-churn
+failure remains independent.
+
+The original VM guard completes 22:57:00–23:00:14 UTC, exit 1, unchanged inputs,
+no sampled memory stop and minimum host availability 8,567,963,648 bytes. All
+five recorded native qualification PIDs and VM scratch are absent. No unrelated
+process is stopped; scratch remains on repository disk. A1/B1/P04, normal timer/
+API/UI/restart, remaining parity/current ARM64/Pi/return/footprint/soak and P05/P06
+remain open, along with the historical inventory performance failure. Holly's
+Pi and frozen app were untouched; nothing was pushed.

@@ -1,0 +1,54 @@
+{
+  "fixture_source": "0705a79173c8d12e79276c6f45e47c083dbce3c6",
+  "product_source": "e417751ba57a3945fb47e60d513c087f75d5da7b",
+  "product_inputs_unchanged": 740,
+  "fixture_inputs_match_committed_source": 742,
+  "test_only_changes_since_package_build": {
+    "tests/privileged_vm/p04_automation_guest.py": {
+      "before": null,
+      "after": "1e949d86fced4ed390cbaf4300ddd8869f8bd8df60a6ef2a65fd10d6bbd91e6d"
+    },
+    "tests/reference/test_p04_automation_guest.py": {
+      "before": null,
+      "after": "d258a880d5881e159c92a5fe7145f57d735928232a43ff2d5c043d6e3033ce80"
+    }
+  },
+  "guest_modules": 30,
+  "guest_memory_mib": 1024,
+  "canonical_runner_unchanged": true,
+  "native_reference_cases": 22,
+  "native_precommit_head": "b550cf929a6313f1c2619c5026fde528382f3607",
+  "native": {
+    "started": "2026-11-04T22:55:18.048929+00:00",
+    "ended": "2026-11-04T22:55:19.809860+00:00",
+    "exit_code": 0,
+    "minimum_available_bytes": 9645801472,
+    "guard_triggered": false,
+    "inputs_unchanged": true
+  },
+  "vm": {
+    "started": "2026-11-04T22:57:00.630535+00:00",
+    "ended": "2026-11-04T23:00:14.542344+00:00",
+    "exit_code": 1,
+    "minimum_available_bytes": 8567963648,
+    "guard_triggered": false,
+    "inputs_unchanged": true
+  },
+  "stage": "incident",
+  "installed_scenario_passed": false,
+  "all_recorded_original_processes_absent": true,
+  "recorded_unique_pids": 5,
+  "vm_scratch_removed": true,
+  "b1_milestone_complete": false,
+  "installed_ui_qualified": false,
+  "arm64_pi_qualified": false,
+  "upgrade_return_soak_qualified": false,
+  "private_keys_packages_binaries_or_disks_archived": false,
+  "expected_red_tool_session": {
+    "session_id": 63287,
+    "terminal_exit_code": 1,
+    "native_pid_absence_claimed": false,
+    "scope": "sandbox PID namespace"
+  },
+  "standalone_boundary_observation_count": 1
+}
