@@ -5,6 +5,7 @@ import json
 import os
 import signal
 import sqlite3
+import subprocess
 import sys
 import tarfile
 import time
@@ -20,6 +21,190 @@ DB = Path("/var/lib/limeos/core/core.sqlite")
 BASE = "/api/v1/automation"
 run = engine_fixture.run
 require = engine_fixture.require
+
+# Fixed guest-only observer. It has no source, socket, UID or clock override.
+HEALTH_PROBE = r"""import json, os, pwd, socket, struct, sys, time
+started = time.monotonic()
+deadline = started + 4
+nonce = sys.argv[1]
+if len(nonce) != 64 or any(c not in '0123456789abcdef' for c in nonce):
+    raise ValueError('invalid observation nonce')
+uid = os.geteuid()
+if uid != pwd.getpwnam('limeos-core').pw_uid:
+    raise PermissionError('real Core UID required')
+def remaining():
+    value = deadline - time.monotonic()
+    if value <= 0:
+        raise TimeoutError('original probe deadline expired')
+    return value
+with socket.socket(socket.AF_UNIX) as stream:
+    stream.settimeout(remaining())
+    stream.connect('/run/limeos-storage-reader/executor.sock')
+    pid, peer_uid, gid = struct.unpack('3i', stream.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+    if pid <= 1 or peer_uid != 0:
+        raise PermissionError('real root reader peer required')
+    body = json.dumps({'operation': 'container_health', 'version': 1, 'nonce': nonce}).encode()
+    stream.settimeout(remaining())
+    stream.sendall(struct.pack('!I', len(body)) + body)
+    def receive(size):
+        result = bytearray()
+        while len(result) < size:
+            stream.settimeout(remaining())
+            part = stream.recv(size - len(result))
+            if not part:
+                raise EOFError('incomplete reader frame')
+            result.extend(part)
+        remaining()
+        return result
+    size = struct.unpack('!I', receive(4))[0]
+    if not 0 < size <= 65536:
+        raise ValueError('reader frame exceeds bound')
+    reply = json.loads(receive(size))
+    remaining()
+    print(json.dumps({'reply': reply, 'client_uid': uid, 'peer': {'pid': pid, 'uid': peer_uid, 'gid': gid}, 'nonce': nonce, 'elapsed_seconds': time.monotonic() - started}))
+"""
+
+OBSERVATION_ERRORS = (
+    OSError,
+    ValueError,
+    TypeError,
+    KeyError,
+    RecursionError,
+    RuntimeError,
+    sqlite3.Error,
+    subprocess.SubprocessError,
+)
+
+
+def health_probe():
+    """One later independent read; never a timer response or settlement input."""
+    nonce = os.urandom(32).hex()
+    value = run(
+        "runuser",
+        "-u",
+        "limeos-core",
+        "-g",
+        "limeos-host-access",
+        "--",
+        "python3",
+        "-c",
+        HEALTH_PROBE,
+        nonce,
+        check=False,
+        timeout=5,
+    )
+    require(len(value.stdout.encode()) <= 64 * 1024, "probe stdout exceeds bound")
+    if value.returncode:
+        return {
+            "returncode": value.returncode,
+            "stderr": value.stderr[-2048:],
+            "nonce": nonce,
+        }
+    observed = json.loads(value.stdout)
+    require(observed["nonce"] == nonce, "observation nonce changed")
+    return {"returncode": 0, **observed}
+
+
+def read_bound(path, limit):
+    with Path(path).open("rb") as stream:
+        data = stream.read(limit + 1)
+    require(len(data) <= limit, "observation file exceeds bound")
+    return data.decode()
+
+
+def service_snapshot(name):
+    require(
+        name in ("limeos-core", "limeos-storage-reader"), "unexpected observed unit"
+    )
+    result = {"unit": unit(name)}
+    pid = int(result["unit"]["MainPID"])
+    require(pid > 1, "observed unit has no live process")
+    proc = Path("/proc") / str(pid)
+    raw = read_bound(proc / "stat", 4096)
+    result["pid"] = pid
+    result["start_ticks"] = int(raw[raw.rindex(")") + 1 :].split()[19])
+    selected = (
+        "Uid",
+        "Gid",
+        "CapEff",
+        "CapPrm",
+        "CapBnd",
+        "NoNewPrivs",
+        "Threads",
+        "VmRSS",
+        "VmHWM",
+    )
+    result["status"] = {
+        key: value.strip()
+        for line in read_bound(proc / "status", 8192).splitlines()
+        if ":" in line
+        for key, value in [line.split(":", 1)]
+        if key in selected
+    }
+    with os.scandir(proc / "fd") as entries:
+        count = 0
+        for _ in entries:
+            count += 1
+            require(count <= 4096, "FD count exceeds observation bound")
+    result["fd_count"] = count
+    expected = "/system.slice/" + name + ".service"
+    require(result["unit"]["ControlGroup"] == expected, "unexpected observation cgroup")
+    result["cgroup"] = {}
+    for field in (
+        "memory.current",
+        "memory.peak",
+        "memory.events",
+        "pids.current",
+        "pids.events",
+    ):
+        try:
+            result["cgroup"][field] = read_bound(
+                Path("/sys/fs/cgroup" + expected) / field, 4096
+            )
+        except OBSERVATION_ERRORS as error:
+            result["cgroup"][field] = {
+                "available": False,
+                "error_type": type(error).__name__,
+            }
+    return result
+
+
+def failure_snapshot():
+    disposable_guard()
+    result = {
+        "scope": "post-failure independent read-only observations, not the timer reply, an atomic snapshot or authority",
+        "observed_at": time.time(),
+    }
+
+    def capture(name, observe, limit):
+        try:
+            value = observe()
+            require(
+                len(json.dumps(value).encode()) <= limit,
+                "observation section exceeds bound",
+            )
+            result[name] = {"available": True, "value": value}
+        except OBSERVATION_ERRORS as error:
+            result[name] = {"available": False, "error_type": type(error).__name__}
+
+    capture("runtime", lambda: request("/schedules"), 16 * 1024)
+    capture("health", health_probe, 40 * 1024)
+    capture("core", lambda: service_snapshot("limeos-core"), 12 * 1024)
+    capture("reader", lambda: service_snapshot("limeos-storage-reader"), 12 * 1024)
+    require(
+        len(json.dumps(result).encode()) <= 96 * 1024,
+        "observation packet exceeds bound",
+    )
+    return result
+
+
+def record_failure_observation(evidence):
+    try:
+        value = failure_snapshot()
+    except OBSERVATION_ERRORS as error:
+        value = {"available": False, "error_type": type(error).__name__}
+    evidence["boundary_observations"] = value
+    print("B1_OBSERVATION " + json.dumps(value, sort_keys=True), flush=True)
 
 
 def disposable_guard():
@@ -473,6 +658,7 @@ def main(package_version=VERSION):
         )
     except Exception as error:
         evidence.update(summary="fail", error=f"{type(error).__name__}: {error}")
+        record_failure_observation(evidence)
         try:
             evidence["history_after_failure"] = history()
         except (OSError, sqlite3.Error, ValueError) as observation_error:
