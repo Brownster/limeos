@@ -958,6 +958,7 @@ mod tests {
                     operation,
                     principal: "alice".into(),
                     grant_revision: 1,
+                    catalog_stack: "registered".into(),
                     expected,
                     created_at: 100,
                     expires_at: 400,

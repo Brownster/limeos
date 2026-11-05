@@ -26,6 +26,7 @@ fn request_for(operation: ContainerAction, members: Vec<ContainerSnapshot>) -> S
         operation,
         principal: "alice".into(),
         grant_revision: 1,
+        catalog_stack: "registered".into(),
         expected: StackSnapshot::new("media", members).unwrap(),
         created_at: 200,
         expires_at: 500,
@@ -358,6 +359,32 @@ async fn partial_failure_is_fail_stop_records_each_member_and_tolerates_partial_
     let after = engine.now();
     // a verifies and is released; b is proven by fresh inspection even though
     // its response was lost; c was never sent and stays so.
+    // First only a is proven: b is still unknown, so the stack stays locked.
+    let first = store
+        .verify_stack(
+            &engine,
+            &ceiling(),
+            1001,
+            &request.action,
+            &request.plan_digest,
+            &after[..1],
+        )
+        .await
+        .unwrap();
+    assert_eq!(first.state, ExecutionState::OutcomeUnknown);
+    let mut single = single_restart(&after[0]);
+    single.action = "9".repeat(64);
+    single.plan_digest = limeos_identity::digest(&encode(&single.plan).unwrap());
+    let mut next = request_for(ContainerAction::Restart, engine.now());
+    next.action = "5".repeat(64);
+    assert_eq!(
+        store
+            .execute_stack(&engine, &ceiling(), 1001, &next, || 201)
+            .await
+            .unwrap_err()
+            .0,
+        ErrorCode::Conflict
+    );
     let verified = store
         .verify_stack(
             &engine,
@@ -377,9 +404,85 @@ async fn partial_failure_is_fail_stop_records_each_member_and_tolerates_partial_
             ('c', ExecutionState::PreconditionChanged)
         ]
     );
-    // Not a success: a never-sent target keeps the stack uncertain and locked.
-    assert_eq!(verified.state, ExecutionState::OutcomeUnknown);
+    // Every sent member is proven and the rest were never sent: terminal, so
+    // the locks are released, but it is not a success.
+    assert_eq!(verified.state, ExecutionState::PartlyDone);
     assert_eq!(engine.calls().len(), 2);
+    let persisted = store
+        .stack_receipt(&request.action, &request.plan_digest)
+        .unwrap()
+        .unwrap();
+    assert_eq!(persisted, verified);
+    next.plan = {
+        let mut plan = next.plan.clone();
+        plan.expected = StackSnapshot::new("media", engine.now()).unwrap();
+        plan
+    };
+    next.plan_digest = limeos_identity::digest(&encode(&next.plan).unwrap());
+    let released = store
+        .execute_stack(&engine, &ceiling(), 1001, &next, || 201)
+        .await
+        .unwrap();
+    assert_eq!(released.members[0].state, ExecutionState::EffectAccepted);
+}
+
+/// Changes one member just before its own Engine call, like a concurrent
+/// operator action during a long stack run.
+struct Racing {
+    inner: StackEngine,
+    change_after: usize,
+    target: String,
+}
+impl Engine for Racing {
+    async fn inspect(&self, id: &str) -> Result<ContainerSnapshot> {
+        let mut value = self.inner.inspect(id).await?;
+        if self.inner.calls().len() >= self.change_after && id.starts_with(&self.target) {
+            value.started_at = "2026-10-05T08:30:00Z".into();
+        }
+        Ok(value)
+    }
+    async fn restart(&self, id: &str) -> Result<()> {
+        self.inner.restart(id).await
+    }
+    async fn project_members(&self, p: &str) -> Result<Vec<ContainerSnapshot>> {
+        self.inner.project_members(p).await
+    }
+}
+
+#[tokio::test]
+async fn a_target_that_changed_during_the_run_is_not_sent_and_ends_the_run() {
+    for (change_after, sent) in [(0, 0), (1, 1)] {
+        let dir = private_dir();
+        let mut store = ReceiptStore::open(dir.path()).unwrap();
+        let engine = Racing {
+            inner: StackEngine::new(),
+            change_after,
+            target: if change_after == 0 { "a" } else { "b" }.into(),
+        };
+        let request = request(ContainerAction::Restart);
+        let receipt = store
+            .execute_stack(&engine, &ceiling(), 1001, &request, || 201)
+            .await
+            .unwrap();
+        assert_eq!(engine.inner.calls().len(), sent);
+        assert_eq!(receipt.error, Some(ErrorCode::Conflict));
+        let moved = &receipt.members[sent];
+        assert_eq!(moved.state, ExecutionState::PreconditionChanged);
+        if sent == 0 {
+            // Nothing sent at all: terminal, no lock.
+            assert_eq!(receipt.state, ExecutionState::PreconditionChanged);
+        } else {
+            assert_eq!(receipt.members[0].state, ExecutionState::EffectAccepted);
+            assert_eq!(receipt.state, ExecutionState::OutcomeUnknown);
+        }
+        assert_eq!(
+            store
+                .stack_receipt(&request.action, &request.plan_digest)
+                .unwrap()
+                .unwrap(),
+            receipt
+        );
+    }
 }
 
 #[tokio::test]

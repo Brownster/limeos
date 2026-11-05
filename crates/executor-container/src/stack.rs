@@ -309,6 +309,30 @@ impl ReceiptStore {
                 .strip_prefix("container:")
                 .ok_or(Error(ErrorCode::InvalidInput))?
                 .to_owned();
+            // Each earlier effect takes time. Re-inspect this one target and
+            // refuse, fail-stop, if it no longer matches what the plan expected.
+            let expected = request
+                .plan
+                .expected
+                .members
+                .iter()
+                .find(|m| m.resource == receipt.members[index].resource)
+                .ok_or(Error(ErrorCode::StateNotDurable))?;
+            let current = tokio::time::timeout(Duration::from_secs(2), engine.inspect(&id)).await;
+            if !matches!(current, Ok(Ok(ref value)) if value == expected) {
+                let mut changed = Vec::new();
+                for later in &mut receipt.members[index..] {
+                    later.state = ExecutionState::PreconditionChanged;
+                    later.error = Some(ErrorCode::Conflict);
+                    changed.push(later.resource.clone());
+                }
+                receipt.error = Some(ErrorCode::Conflict);
+                receipt.state = aggregate_state(&receipt.members);
+                // Nothing was sent for these, so even a failed write is accurate;
+                // the Prepared rows remain and recovery treats them as uncertain.
+                let _ = self.write_stack(&receipt, &changed, false);
+                return Ok(receipt);
+            }
             let result = tokio::time::timeout(budget, async {
                 match operation {
                     ContainerAction::Restart => engine.restart(&id).await,
