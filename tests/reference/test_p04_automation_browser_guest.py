@@ -115,9 +115,15 @@ class BrowserFixtureBoundaries(unittest.TestCase):
         path.read_text.return_value = (
             "low 1\nhigh 2\nmax 3\noom 0\noom_kill 0\noom_group_kill 0\n"
         )
-        self.assertEqual(
-            guest.oom_events(path), {"oom": 0, "oom_kill": 0, "oom_group_kill": 0}
-        )
+        self.assertEqual(guest.oom_events(path), {"oom_kill": 0})
+        with mock.patch.object(
+            guest.Path, "read_text", return_value="oom_kill 0\n"
+        ) as read:
+            self.assertEqual(guest.oom_events(), {"oom_kill": 0})
+        read.assert_called_once_with()
+        path.read_text.return_value = "pgfault 100\n"
+        with self.assertRaises(ValueError):
+            guest.oom_events(path)
 
     def test_original_failure_is_persisted_without_exception_secrets(self):
         with tempfile.TemporaryDirectory() as directory:

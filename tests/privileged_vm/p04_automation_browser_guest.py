@@ -73,13 +73,17 @@ def wait_for(observe, timeout=20):
     raise AssertionError("Installed browser observation deadline expired")
 
 
-def oom_events(path=Path("/sys/fs/cgroup/memory.events")):
-    return {
+def oom_events(path=Path("/proc/vmstat")):
+    # The root cgroup has no memory.events file. This kernel counter covers
+    # OOM kills throughout this disposable guest, including browser descendants.
+    events = {
         key: int(value)
         for line in path.read_text().splitlines()
         for key, value in [line.split()]
-        if key in ("oom", "oom_kill", "oom_group_kill")
+        if key == "oom_kill"
     }
+    require("oom_kill" in events, "guest-wide OOM counter is unavailable")
+    return events
 
 
 def screenshot(driver, evidence, name):
