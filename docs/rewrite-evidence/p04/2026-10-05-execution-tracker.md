@@ -596,3 +596,38 @@ captured, and ordinary B1 incident/recovery/publication/restart requires a fresh
 signed-package scenario. No A1/B1/P04, current ARM64/Pi, return/footprint/soak,
 performance or P05/P06 gate closes. Holly's Pi and frozen app were untouched;
 nothing was pushed.
+
+## 5 November: corrected Core profile passes ordinary B1 API/runtime flow
+
+Source `ce2e916` removes Core's SUID/SGID file-bit filter and explicitly permits
+the protected `openat2` lookup proven incompatible by the installed matrix.
+NoNewPrivileges, UID/groups, capabilities, every other confinement directive,
+resources, Root policy, schema/contracts and application code are preserved.
+The deliberate loss of the file-bit restriction is recorded separately from
+the retained exec privilege barrier.
+
+The [new source-bound packet](2026-11-05-b1-core-reader-profile/README.md) binds
+distinct signed standard/shadow `0.4.13+coreopen.1` packages and the ordinary
+standard guest to the same 747-input `ce2e916` map. Executable/UI source remains
+`e417751`: all original application inputs and payload hashes match, with only
+the Core unit changed among the old 740 inputs. An inherited manifest label
+describing seven test-only additions since the executable build is preserved
+with an explicit provenance correction. Thirty-four scoped reference cases,
+Ruff, formatting and repository checks pass.
+
+The real ordinary timer publishes one exact incident and preserves its history
+across actual Core SIGKILL/restart. Starting the same real fixture container
+produces one clear alert and one delivered recovery for the same generation.
+Acknowledgment, stale-pause refusal and paused state survive another real Core
+restart. Exactly two durable occurrences/jobs/results and two one-attempt
+notifications remain; the same human session works. No Core override, probe,
+clock/credential substitution or direct settlement is used. Health stays partial.
+
+The original canonical 1,024-MiB guest completes 15:27:32–15:29:34 UTC, exit 0,
+unchanged inputs, no sampled memory stop and minimum availability 9,246,121,984
+bytes. All seven original recorded native qualification PIDs and exact owned
+VM scratch are gone. Scratch remains on repository disk and unrelated processes
+are untouched. This accepts the covered standard AMD64 API/runtime flow; installed
+browser/UI, ARM64/Pi, upgrade/return, footprint/soak, remaining B1/other A/B/P04,
+independent A1 churn, performance and P05/P06 remain open. Holly's Pi and frozen
+application were untouched; nothing was pushed.

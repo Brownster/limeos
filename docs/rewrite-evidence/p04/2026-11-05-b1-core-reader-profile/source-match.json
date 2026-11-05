@@ -1,0 +1,82 @@
+{
+  "package_source": "ce2e9163a7a64ce57f0936034c81cfdf72c439d3",
+  "fixture_source": "ce2e9163a7a64ce57f0936034c81cfdf72c439d3",
+  "binary_source": "e417751ba57a3945fb47e60d513c087f75d5da7b",
+  "ui_source": "e417751ba57a3945fb47e60d513c087f75d5da7b",
+  "package_and_fixture_input_count": 747,
+  "original_binary_input_count": 740,
+  "application_inputs_unchanged": true,
+  "production_changes_since_binary_build": {
+    "packaging/systemd/limeos-core.service": {
+      "before": "210f1b1c611bf3b1c9b9a72e1659b6136b2c89fc0396501152f6323414492d72",
+      "after": "f74feeda16668e96f504ffe3e363a727d5d21c17b44e4569c80f698e11b65a7c"
+    }
+  },
+  "test_only_additions_since_binary_build": {
+    "tests/fixtures/automation/core-profile-baseline.service": {
+      "before": null,
+      "after": "210f1b1c611bf3b1c9b9a72e1659b6136b2c89fc0396501152f6323414492d72"
+    },
+    "tests/privileged_vm/p04_automation_guest.py": {
+      "before": null,
+      "after": "1e949d86fced4ed390cbaf4300ddd8869f8bd8df60a6ef2a65fd10d6bbd91e6d"
+    },
+    "tests/privileged_vm/p04_core_lookup_probe.py": {
+      "before": null,
+      "after": "763cc3007a371fd80279c7c9149e96320ee2e5a873d655e967ce61561041d29f"
+    },
+    "tests/privileged_vm/p04_core_profile_guest.py": {
+      "before": null,
+      "after": "bf703d0b5c54c7ff918abc06297d0a62049eaea2569bd887404ce66348e1cc9f"
+    },
+    "tests/reference/test_core_reader_profile.py": {
+      "before": null,
+      "after": "026aa145d2de9a0ea1334cb8e8cff1151bc43b10b8b4a95bb9dc9faf42996b94"
+    },
+    "tests/reference/test_core_socket_profile.py": {
+      "before": null,
+      "after": "0f6a1a078e5c1b1909303d4644cef0cb6b905be4b3e9d0445392156ed640e801"
+    },
+    "tests/reference/test_p04_automation_guest.py": {
+      "before": null,
+      "after": "d258a880d5881e159c92a5fe7145f57d735928232a43ff2d5c043d6e3033ce80"
+    }
+  },
+  "test_only_changes_between_current_package_and_fixture": {},
+  "frozen_manifest_label_erratum_explicit": true,
+  "native_reference_cases": 34,
+  "guest_modules": 33,
+  "canonical_runner_unchanged": true,
+  "checks": {
+    "reference": {
+      "started": "2026-11-05T15:20:51.140961+00:00",
+      "ended": "2026-11-05T15:20:52.792235+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 10498457600,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "package": {
+      "started": "2026-11-05T15:24:56.377513+00:00",
+      "ended": "2026-11-05T15:25:35.391178+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 10271936512,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "vm": {
+      "started": "2026-11-05T15:27:32.954336+00:00",
+      "ended": "2026-11-05T15:29:34.613396+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 9246121984,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    }
+  },
+  "covered_ordinary_api_runtime_scenario_passed": true,
+  "installed_browser_ui_qualified": false,
+  "b1_complete": false,
+  "arm64_pi_upgrade_return_soak_qualified": false,
+  "recorded_original_native_pids_absent": 7,
+  "owned_vm_scratch_removed": true
+}

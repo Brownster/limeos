@@ -109,6 +109,22 @@ signed-package run. It is not the original timer's recorded errno or completed
 B1 acceptance. The packet explicitly records the missed original QEMU identity;
 four known native PIDs are absent and later inventory has no qualification VM.
 
+Source `ce2e916` now applies that narrow Core profile exception. The
+[5 November ordinary installed scenario](rewrite-evidence/p04/2026-11-05-b1-core-reader-profile/README.md)
+passes with distinct signed `0.4.13+coreopen.1` standard packages, actual Docker/
+Root reader and the normal timer, without a Core override or probe unit. One
+incident is delivered, the exact history survives actual Core SIGKILL/restart,
+the same container's recovery is delivered once, and acknowledgment/pause survive
+a second real restart. Exactly two occurrences/jobs/results and notifications
+remain. All 34 scoped reference cases pass. The packet separates current package/
+fixture source from reused unchanged `e417751` executable/UI bytes and explicitly
+corrects an inherited frozen-manifest field label without rewriting its inputs.
+Seven recorded native PIDs and exact owned VM scratch are gone; no memory stop.
+Every other Core setting and resource stays unchanged. This deliberately removes
+the SUID/SGID file-bit restriction; NoNewPrivileges remains its separate exec
+barrier. The covered standard AMD64 API/runtime flow passes, while installed
+browser/UI, current ARM64/Pi/return/soak and remaining B1 parity still need evidence.
+
 The existing package return requirement still includes policy before-images with
 the matching pre-schema-14 database and package assets. Remaining host/SMART/
 mount/protection sources, reviewed replacement/retirement, safe history compaction,

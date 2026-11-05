@@ -1,0 +1,16 @@
+{
+  "scope": "Correction of an inherited frozen-manifest field label; no run inputs or assertions changed",
+  "original_manifest": "inputs-1.json",
+  "original_manifest_preserved": true,
+  "misnamed_field": "test_only_changes_since_package_build",
+  "correct_interpretation": "Seven test-only additions since the e417751 original executable build, not since the ce2e916 current package build",
+  "package_source": "ce2e9163a7a64ce57f0936034c81cfdf72c439d3",
+  "fixture_source": "ce2e9163a7a64ce57f0936034c81cfdf72c439d3",
+  "binary_and_ui_source": "e417751ba57a3945fb47e60d513c087f75d5da7b",
+  "current_package_input_count": 747,
+  "current_fixture_input_count": 747,
+  "original_binary_build_input_count": 740,
+  "test_only_changes_between_current_package_and_fixture": {},
+  "production_change_since_binary_build": "packaging/systemd/limeos-core.service only",
+  "cached_guest_wrapper": "Independently hashed import/main call supplying the exact new package version; not a tracked product input"
+}
