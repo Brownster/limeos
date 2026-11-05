@@ -229,7 +229,9 @@ async fn run() -> std::io::Result<()> {
         allow_restart: ceiling.allow_restart,
         allow_start: ceiling.allow_start,
         allow_stop: ceiling.allow_stop,
+        allow_stack: ceiling.allow_stack,
         managed_containers: ceiling.managed_containers.clone(),
+        managed_stacks: ceiling.managed_stacks.clone(),
     });
     let receipts = if ceiling.can_write() {
         let directory = args
@@ -464,6 +466,84 @@ async fn run() -> std::io::Result<()> {
                         receipt.restart = Some(
                             store
                                 .verify(
+                                    &engine,
+                                    &restart_ceiling,
+                                    peer.uid(),
+                                    &action,
+                                    &digest,
+                                    &after,
+                                )
+                                .await?,
+                        );
+                    }
+                    Request::InspectStack { project, .. }
+                        if source == limeos_contracts::Source::Docker =>
+                    {
+                        let members = tokio::time::timeout(
+                            std::time::Duration::from_secs(5),
+                            engine.project_members(&project),
+                        )
+                        .await
+                        .map_err(|_| {
+                            limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
+                        })??;
+                        receipt.stack_members =
+                            Some(limeos_domain::StackSnapshot::new(&project, members)?);
+                    }
+                    Request::ExecuteStack { request, .. }
+                        if source == limeos_contracts::Source::Docker =>
+                    {
+                        let store = receipts
+                            .as_ref()
+                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
+                        // Do not wait behind another effect with an expiring plan.
+                        let mut store = store.try_lock().map_err(|_| {
+                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
+                        })?;
+                        receipt.stack = Some(
+                            store
+                                .execute_stack(
+                                    &engine,
+                                    &restart_ceiling,
+                                    peer.uid(),
+                                    &request,
+                                    clock,
+                                )
+                                .await?,
+                        );
+                    }
+                    Request::StackReceipt { action, digest, .. } => {
+                        let store = receipts
+                            .as_ref()
+                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
+                        let mut store = store.try_lock().map_err(|_| {
+                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
+                        })?;
+                        // Authorize from the pure lookup before any bookkeeping write.
+                        if let Some(value) = store.stack_receipt(&action, &digest)? {
+                            restart_ceiling.authorize_stack(
+                                peer.uid(),
+                                &value.before,
+                                value.operation,
+                            )?;
+                            receipt.stack = store.reconcile_stack(&action, &digest)?;
+                        }
+                    }
+                    Request::VerifyStack {
+                        action,
+                        digest,
+                        after,
+                        ..
+                    } => {
+                        let store = receipts
+                            .as_ref()
+                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
+                        let mut store = store.try_lock().map_err(|_| {
+                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
+                        })?;
+                        receipt.stack = Some(
+                            store
+                                .verify_stack(
                                     &engine,
                                     &restart_ceiling,
                                     peer.uid(),

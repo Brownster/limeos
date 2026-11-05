@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlannedStackAction",
+  "type": "object",
+  "properties": {
+    "digest": {
+      "type": "string"
+    },
+    "plan": {
+      "$ref": "#/$defs/StackPlan"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "plan",
+    "digest"
+  ],
+  "$defs": {
+    "ContainerAction": {
+      "type": "string",
+      "enum": [
+        "restart",
+        "start",
+        "stop"
+      ]
+    },
+    "ContainerSnapshot": {
+      "description": "Selected inspection evidence. Environment variables, labels and host paths\nnever enter a plan. The full ID, image and start timestamp identify an instance.",
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "resource": {
+          "type": "string"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "started_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "image",
+        "started_at",
+        "running"
+      ]
+    },
+    "StackPlan": {
+      "type": "object",
+      "properties": {
+        "catalog_stack": {
+          "description": "The registered catalog stack name; may differ from the Compose project.",
+          "type": "string"
+        },
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "expected": {
+          "$ref": "#/$defs/StackSnapshot"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "id": {
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/$defs/ContainerAction"
+        },
+        "principal": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "operation",
+        "principal",
+        "grant_revision",
+        "catalog_stack",
+        "expected",
+        "created_at",
+        "expires_at"
+      ]
+    },
+    "StackSnapshot": {
+      "description": "Every ordinary (non one-off) member, stopped or running, sorted by ID.",
+      "type": "object",
+      "properties": {
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContainerSnapshot"
+          }
+        },
+        "resource": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "members"
+      ]
+    }
+  }
+}

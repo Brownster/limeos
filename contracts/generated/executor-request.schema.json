@@ -520,6 +520,119 @@
         "digest",
         "after"
       ]
+    },
+    {
+      "description": "Fresh Engine listing of one Compose project's ordinary members.",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "inspect_stack"
+        },
+        "project": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version",
+        "project"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "execute_stack"
+        },
+        "request": {
+          "$ref": "#/$defs/StackRequest"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version",
+        "request"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string",
+          "const": "stack_receipt"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version",
+        "action",
+        "digest"
+      ]
+    },
+    {
+      "description": "Fresh inspections of the plan's targets; never launches an effect.",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "after": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContainerSnapshot"
+          }
+        },
+        "digest": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string",
+          "const": "verify_stack"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version",
+        "action",
+        "digest",
+        "after"
+      ]
     }
   ],
   "$defs": {
@@ -693,6 +806,97 @@
         "pools",
         "docker",
         "history"
+      ]
+    },
+    "StackPlan": {
+      "type": "object",
+      "properties": {
+        "catalog_stack": {
+          "description": "The registered catalog stack name; may differ from the Compose project.",
+          "type": "string"
+        },
+        "created_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "expected": {
+          "$ref": "#/$defs/StackSnapshot"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "id": {
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/$defs/ContainerAction"
+        },
+        "principal": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "operation",
+        "principal",
+        "grant_revision",
+        "catalog_stack",
+        "expected",
+        "created_at",
+        "expires_at"
+      ]
+    },
+    "StackRequest": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/$defs/StackPlan"
+        },
+        "plan_digest": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "plan_digest",
+        "plan"
+      ]
+    },
+    "StackSnapshot": {
+      "description": "Every ordinary (non one-off) member, stopped or running, sorted by ID.",
+      "type": "object",
+      "properties": {
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContainerSnapshot"
+          }
+        },
+        "resource": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "members"
       ]
     },
     "StorageBlockDevice": {

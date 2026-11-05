@@ -14,8 +14,22 @@ async function code(file) {
 }
 const clientURL = encode(await code("stack-inventory-client.ts"));
 const controllerURL = encode((await code("stack-inventory-controller.ts")).replace('"./stack-inventory-client"', JSON.stringify(clientURL)));
-const viewURL = encode((await code("StackManagement.tsx")).replace('"./stack-inventory-controller"', JSON.stringify(controllerURL)));
+// Whole-stack actions: the real flow controller and view, with the HTTP client
+// replaced by a test-controlled global and the dialog helpers stubbed.
+const apiURL = encode(`export class ApiError extends Error { constructor(detail) { super(detail.message); this.detail = detail; } }
+export const api = new Proxy({}, { get: (_, name) => (...args) => globalThis.__stackApi[name](...args) });`);
+const uiURL = encode(`export const message = error => error instanceof Error ? error.message : "unavailable";
+export const containFocus = () => {};`);
+const flowURL = encode(await code("stack-action-controller.ts"));
+const actionsURL = encode((await code("StackActions.tsx"))
+  .replace('"./api"', JSON.stringify(apiURL)).replace('"./operation-ui"', JSON.stringify(uiURL))
+  .replace('"./stack-action-controller"', JSON.stringify(flowURL)));
+const viewURL = encode((await code("StackManagement.tsx")).replace('"./stack-inventory-controller"', JSON.stringify(controllerURL))
+  .replace('"./StackActions"', JSON.stringify(actionsURL)));
 export const { decodeStackInventory, readStackInventory, inventoryStale, StackReadError } = await import(clientURL);
 export const { StackInventoryController } = await import(controllerURL);
 export const { StackManagement, StackPanel } = await import(viewURL);
+export const { StackActionController, stackTargets } = await import(flowURL);
+export const { stackAvailability, StackJobRow, StackReceiptView, isInterrupted, partlyDone } = await import(actionsURL);
+export const { ApiError } = await import(apiURL);
 export const wire = JSON.parse(await readFile(new URL("../../../tests/fixtures/deployment/discovery/wire.json", import.meta.url), "utf8"));

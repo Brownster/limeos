@@ -98,7 +98,9 @@ fn ceiling() -> RestartCeiling {
         allow_restart: true,
         allow_start: false,
         allow_stop: false,
+        allow_stack: false,
         managed_containers: vec!["a".repeat(64)],
+        managed_stacks: Vec::new(),
     }
 }
 #[derive(Clone, Copy)]
@@ -229,7 +231,7 @@ async fn v2_receipt_migration_retains_the_prepared_barrier_without_replay() {
         .unwrap();
     store
         .conn
-        .execute_batch("ALTER TABLE actions DROP COLUMN operation; PRAGMA user_version=2;")
+        .execute_batch("DROP TABLE stack_actions; ALTER TABLE actions DROP COLUMN operation; PRAGMA user_version=2;")
         .unwrap();
     drop(store);
     let mut store = ReceiptStore::open(directory.path()).unwrap();

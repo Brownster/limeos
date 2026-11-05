@@ -6,7 +6,7 @@ use limeos_executor_protocol::{Receipt, Request};
 use std::time::{Duration, Instant};
 
 impl Core {
-    async fn executor(&self, request: Request, deadline: Duration) -> Result<Receipt> {
+    pub(super) async fn executor(&self, request: Request, deadline: Duration) -> Result<Receipt> {
         tokio::time::timeout(deadline, async {
             let mut stream = UnixStream::connect(self.container_socket.as_ref())
                 .await
@@ -454,8 +454,10 @@ impl Core {
         let mut recovery = std::collections::HashMap::<String, Instant>::new();
         let mut target_recovery = std::collections::HashMap::<String, Instant>::new();
         let mut mount_recovery = std::collections::HashMap::<String, Instant>::new();
+        let mut stack_recovery = std::collections::HashMap::<String, Instant>::new();
         loop {
             tick.tick().await;
+            self.dispatch_stack_candidates(&mut stack_recovery).await;
             if let Ok(jobs) = self.db.call(|s| s.storage_target_candidates()).await {
                 target_recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));
                 for (principal, job) in jobs {

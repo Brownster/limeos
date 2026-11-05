@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 mod operations;
 pub use operations::*;
+mod stack_operations;
+pub use stack_operations::*;
 mod logs;
 pub use logs::*;
 mod compose;
@@ -275,6 +277,15 @@ pub enum Intent {
     ContainerStop {
         plan: ContainerPlan,
     },
+    StackRestart {
+        plan: StackPlan,
+    },
+    StackStart {
+        plan: StackPlan,
+    },
+    StackStop {
+        plan: StackPlan,
+    },
     StoragePrepareTargets {
         plan: Box<StorageTargetPlan>,
     },
@@ -293,6 +304,9 @@ impl Intent {
             Self::ContainerRestart { plan }
             | Self::ContainerStart { plan }
             | Self::ContainerStop { plan } => &plan.expected.resource,
+            Self::StackRestart { plan } | Self::StackStart { plan } | Self::StackStop { plan } => {
+                &plan.expected.resource
+            }
             Self::StoragePrepareTargets { .. } | Self::StorageMount { .. } => {
                 "storage:configuration"
             }
@@ -305,6 +319,25 @@ impl Intent {
             ContainerAction::Start => Self::ContainerStart { plan },
             ContainerAction::Stop => Self::ContainerStop { plan },
         }
+    }
+    pub fn stack(plan: StackPlan) -> Self {
+        match plan.operation {
+            ContainerAction::Restart => Self::StackRestart { plan },
+            ContainerAction::Start => Self::StackStart { plan },
+            ContainerAction::Stop => Self::StackStop { plan },
+        }
+    }
+    pub fn stack_plan(self) -> Result<StackPlan> {
+        let (expected, plan) = match self {
+            Self::StackRestart { plan } => (ContainerAction::Restart, plan),
+            Self::StackStart { plan } => (ContainerAction::Start, plan),
+            Self::StackStop { plan } => (ContainerAction::Stop, plan),
+            _ => return Err(Error(ErrorCode::InvalidInput)),
+        };
+        if plan.operation != expected {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
+        Ok(plan)
     }
     pub fn container_plan(self) -> Result<ContainerPlan> {
         let (expected, plan) = match self {

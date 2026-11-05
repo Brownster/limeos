@@ -1,13 +1,16 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Counts, FileStatus, RuntimeStatus, ServiceView, StackInventory } from "./stack-inventory-client";
 import { StackInventoryController } from "./stack-inventory-controller";
+import { StackActions, StackJobs } from "./StackActions";
 
 const runtimeLabels: Record<RuntimeStatus, string> = { unknown: "Unknown", no_containers: "No service containers", stopped: "Stopped", running: "Running", partial: "Partial", conflict: "Identity conflict" };
 const relationLabels = { not_registered: "Not registered", catalog_unknown: "Registration unknown", engine_mismatch: "Different Engine", identity_conflict: "Registration identity conflict", overlapping: "Overlaps a registered stack" };
 const sample = (at: number | null) => at === null ? "No sample" : new Date(at * 1000).toISOString();
 
-export function StackManagement({ value, loading = false, stale = false, error = "", refresh }: {
-  value: StackInventory | null; loading?: boolean; stale?: boolean; error?: string; refresh: () => void;
+/** Whole-stack lifecycle controls are mounted only for an authenticated session. */
+export interface StackOperations { csrf: string; revision: number; changed: () => void; expired: () => void }
+export function StackManagement({ value, loading = false, stale = false, error = "", refresh, operations }: {
+  value: StackInventory | null; loading?: boolean; stale?: boolean; error?: string; refresh: () => void; operations?: StackOperations;
 }) {
   return <section aria-labelledby="stack-management-heading" aria-busy={loading}>
     <p className="eyebrow">DEPLOYMENT</p><h2 id="stack-management-heading">Stacks and services</h2>
@@ -24,12 +27,14 @@ export function StackManagement({ value, loading = false, stale = false, error =
         {value.engine_matches_catalog === false && <p className="notice" role="status">The Engine identity differs from the registration. Runtime counts cannot be matched to these stacks.</p>}
       </div>
       <p className="notice">Compose files and storage dependencies need verification before whole-stack changes.</p>
+      {operations && <p>Whole-stack actions start, stop or restart the existing service containers one at a time. They never create, remove or edit anything.</p>}
       {value.stacks.length === 0 && <p>{value.catalog.state === "fresh" ? "No stacks are registered." : "Registered stacks could not be confirmed."}</p>}
       {value.stacks.map(stack => <article key={stack.stack} aria-label={`Stack ${stack.stack}`}>
         <h3>{stack.stack} <span className={`badge ${stale || stack.runtime !== "running" ? "warning" : ""}`}>{stale ? "Unknown" : runtimeLabels[stack.runtime]}</span></h3>
         <p>Project · {stack.project}<br /><code style={{ overflowWrap: "anywhere" }}>{stack.working_directory}</code></p>
         <CountsView counts={stale ? null : stack.counts} />
         {!stale && stack.missing_services !== null && stack.missing_services > 0 && <p className="notice">{stack.missing_services} declared {stack.missing_services === 1 ? "service has" : "services have"} no ordinary container.</p>}
+        {operations && <StackActions stack={stack} stale={stale} csrf={operations.csrf} changed={operations.changed} />}
         <FileDiagnostic value={stack.files} />
         {stack.issues.includes("identity_conflict") && <p className="error">Engine project labels differ from the registered directory or ordered Compose files.</p>}
         {stack.issues.includes("overlapping_project") && <p className="error">Another Engine project overlaps this stack. Membership counts are withheld.</p>}
@@ -47,6 +52,7 @@ export function StackManagement({ value, loading = false, stale = false, error =
         </details>)}</>}
       <p>{stale || value.standalone_containers === null ? "Current standalone-container count is unavailable." : `${value.standalone_containers} standalone containers observed outside Compose projects.`}</p>
     </>}
+    {operations && <StackJobs csrf={operations.csrf} revision={operations.revision} expired={operations.expired} />}
   </section>;
 }
 
@@ -73,11 +79,13 @@ function Services({ value, stale }: { value: ServiceView[]; stale: boolean }) {
 
 /** Mount with the shared authenticated principal/grant identity. */
 export function StackPanel({ principal, grantRevision, csrf, expired }: { principal: string; grantRevision: number; csrf:string; expired: () => void }) {
-  return <OwnedStackPanel key={JSON.stringify([principal,grantRevision,csrf])} expired={expired} />;
+  return <OwnedStackPanel key={JSON.stringify([principal,grantRevision,csrf])} csrf={csrf} expired={expired} />;
 }
 const useOwnerEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
-function OwnedStackPanel({ expired }: { expired:()=>void }) {
+function OwnedStackPanel({ csrf, expired }: { csrf:string; expired:()=>void }) {
+  const [revision, setRevision] = useState(0);
   const expiry = useRef(expired); expiry.current = expired;
+  const stableExpired = useCallback(() => expiry.current(), []);
   const controller = useMemo(() => new StackInventoryController(() => expiry.current()), []);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   useOwnerEffect(() => {
@@ -86,5 +94,7 @@ function OwnedStackPanel({ expired }: { expired:()=>void }) {
     return () => { window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); controller.dispose(); };
   }, [controller]);
   if (state.expired) return null;
-  return <StackManagement value={state.value} loading={state.loading} stale={state.stale} error={state.error} refresh={() => { void controller.refresh(); }} />;
+  const changed = () => { setRevision(value => value + 1); void controller.refresh(); };
+  return <StackManagement value={state.value} loading={state.loading} stale={state.stale} error={state.error} refresh={() => { void controller.refresh(); }}
+    operations={{ csrf, revision, changed, expired: stableExpired }} />;
 }
