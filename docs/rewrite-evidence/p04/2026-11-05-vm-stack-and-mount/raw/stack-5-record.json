@@ -1,0 +1,32 @@
+{
+  "label": "stack-5",
+  "guest_script": "tests/privileged_vm/p04_stack_lifecycle_guest.py",
+  "started": "2026-11-05T22:07:11.328174+00:00",
+  "available_at_admission": 22403829760,
+  "admit_threshold": 8589934592,
+  "floor": 3221225472,
+  "minimum_available": 21148012544,
+  "guard_triggered": false,
+  "head": "16ebe91b28eabb2a1eaeb2939c35cf2852bd14d0",
+  "flags": [],
+  "foreign_compiler_processes_at_admission": 0,
+  "admitted": true,
+  "command": [
+    "/usr/bin/python3",
+    "/home/marc/Documents/github/lime-os/.claude/worktrees/agent-a2af077393933c699/tests/privileged_vm/run.py",
+    "--image",
+    "/home/marc/Documents/github/lime-os/.cache/p01-vm/debian-12-genericcloud-amd64.qcow2",
+    "--checksums",
+    "/home/marc/Documents/github/lime-os/.cache/p01-vm/SHA512SUMS",
+    "--repository",
+    "/home/marc/Documents/github/lime-os/.claude/worktrees/agent-a2af077393933c699/.cache/q/candidate/repository",
+    "--guest-script",
+    "/home/marc/Documents/github/lime-os/.claude/worktrees/agent-a2af077393933c699/tests/privileged_vm/p04_stack_lifecycle_guest.py",
+    "--output",
+    "/home/marc/Documents/github/lime-os/.claude/worktrees/agent-a2af077393933c699/.cache/q/runs/stack-5/result.json"
+  ],
+  "exit_code": 1,
+  "ended": "2026-11-05T22:18:07.131834+00:00",
+  "qemu_left": [],
+  "scratch_removed": true
+}

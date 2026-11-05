@@ -1,0 +1,35 @@
+{
+  "label": "mount-7",
+  "guest_script": ".cache/q/guest-a/mount_churn_wrapper.py",
+  "started": "2026-11-05T21:33:49.827635+00:00",
+  "available_at_admission": 22346903552,
+  "admit_threshold": 8589934592,
+  "floor": 3221225472,
+  "minimum_available": 21225885696,
+  "guard_triggered": false,
+  "head": "16ebe91b28eabb2a1eaeb2939c35cf2852bd14d0",
+  "flags": [
+    "--storage-disks"
+  ],
+  "foreign_compiler_processes_at_admission": 0,
+  "admitted": true,
+  "command": [
+    "/usr/bin/python3",
+    "/home/marc/Documents/github/lime-os/.claude/worktrees/agent-a2af077393933c699/tests/privileged_vm/run.py",
+    "--image",
+    "/home/marc/Documents/github/lime-os/.cache/p01-vm/debian-12-genericcloud-amd64.qcow2",
+    "--checksums",
+    "/home/marc/Documents/github/lime-os/.cache/p01-vm/SHA512SUMS",
+    "--repository",
+    "/home/marc/Documents/github/lime-os/.claude/worktrees/agent-a2af077393933c699/.cache/q/candidate/repository",
+    "--guest-script",
+    "/home/marc/Documents/github/lime-os/.claude/worktrees/agent-a2af077393933c699/.cache/q/guest-a/mount_churn_wrapper.py",
+    "--output",
+    "/home/marc/Documents/github/lime-os/.claude/worktrees/agent-a2af077393933c699/.cache/q/runs/mount-7/result.json",
+    "--storage-disks"
+  ],
+  "exit_code": 1,
+  "ended": "2026-11-05T21:38:04.263378+00:00",
+  "qemu_left": [],
+  "scratch_removed": true
+}
