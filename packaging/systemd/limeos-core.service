@@ -28,7 +28,10 @@ ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectKernelLogs=yes
 ProtectControlGroups=yes
-RestrictSUIDSGID=yes
+# Protected socket lookup uses openat2's indirect arguments. The SUID/SGID
+# file-bit filter rejects that syscall; NoNewPrivileges still blocks privilege
+# gains at exec. This explicitly removes the separate file-bit restriction.
+RestrictSUIDSGID=no
 RestrictRealtime=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
@@ -36,7 +39,7 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 CapabilityBoundingSet=
 AmbientCapabilities=
 SystemCallArchitectures=native
-SystemCallFilter=@system-service
+SystemCallFilter=@system-service openat2
 LimitNOFILE=1024
 TasksMax=32
 MemoryMax=128M
