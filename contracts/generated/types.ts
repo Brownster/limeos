@@ -123,7 +123,7 @@ export type PlanApproval = { token: string, expires_at: number, };
 export type ContainerJob = { id: string, state: JobState, plan: ContainerPlan, };
 export type ContainerRequest = { action: string, plan_digest: string, plan: ContainerPlan, };
 export type ContainerReceipt = { action: string, plan_digest: string, operation?: ContainerAction, before: ContainerSnapshot, state: ExecutionState, error: ErrorCode | null, };
-export type ExecutionState = "prepared" | "effect_accepted" | "verified" | "precondition_changed" | "outcome_unknown";
+export type ExecutionState = "prepared" | "effect_accepted" | "verified" | "precondition_changed" | "outcome_unknown" | "partly_done";
 export type EventKind = { "kind": "bootstrap_issued" } | { "kind": "administrator_enrolled" } | { "kind": "legacy_identity_imported" } | { "kind": "session_created" } | { "kind": "session_revoked" } | { "kind": "grants_revised" } | { "kind": "task_issued" } | { "kind": "task_revoked" } | { "kind": "job_queued" } | { "kind": "job_recovery_required" } | { "kind": "job_transition", state: JobState, } | { "kind": "plan_created", plan: string, } | { "kind": "plan_approved", plan: string, } | { "kind": "plan_canceled", plan: string, } | { "kind": "automation_schedule_created", schedule: string, } | { "kind": "automation_schedule_changed", schedule: string, revision: number, } | { "kind": "automation_occurrence_settled", schedule: string, revision: number, due: number, } | { "kind": "automation_observation_settled", sequence: number, complete: boolean, } | { "kind": "automation_observation_polled", digest: string, } | { "kind": "automation_notification_published", notification: string, } | { "kind": "automation_notification_created", notification: string, digest: string, } | { "kind": "automation_notification_pruned", notification: string, } | { "kind": "automation_notification_acknowledged", notification: string, } | { "kind": "automation_health_policy_changed", revision: number, digest: string, } | { "kind": "automation_notification_policy_checked", notification: string, revision: number, };
 export type Event = { cursor: number, principal: string | null, job: string | null, event: EventKind, created: number, };
 export type Login = { username: string, password: string, };
@@ -189,7 +189,11 @@ export type ApprovalInput = { digest: string, };
 export type QueueRestartInput = { proposal: PlannedContainerAction, approval: string, idempotency_key: string, };
 export type JobProgress = { job: ContainerJob, events: Array<Event>, };
 export type StackSnapshot = { resource: string, members: Array<ContainerSnapshot>, };
-export type StackPlan = { id: string, version: number, operation: ContainerAction, principal: string, grant_revision: number, expected: StackSnapshot, created_at: number, expires_at: number, };
+export type StackPlan = { id: string, version: number, operation: ContainerAction, principal: string, grant_revision: number,
+/**
+ * The registered catalog stack name; may differ from the Compose project.
+ */
+catalog_stack: string, expected: StackSnapshot, created_at: number, expires_at: number, };
 export type PlannedStackAction = { plan: StackPlan, digest: string, };
 export type StackJob = { id: string, state: JobState, plan: StackPlan, };
 export type StackRequest = { action: string, plan_digest: string, plan: StackPlan, };

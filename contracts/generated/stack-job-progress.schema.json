@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "StackJobProgress",
-  "description": "Owner-scoped progress. `receipt` carries the per-member outcomes recorded\nby the executor once any exist; `verification` is core's own fresh evidence.",
+  "description": "Owner-scoped progress. `receipt` carries the per-member outcomes recorded\nby the executor once any exist; it is absent before the job runs.",
   "type": "object",
   "properties": {
     "events": {
@@ -538,13 +538,22 @@
       ]
     },
     "ExecutionState": {
-      "type": "string",
-      "enum": [
-        "prepared",
-        "effect_accepted",
-        "verified",
-        "precondition_changed",
-        "outcome_unknown"
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "prepared",
+            "effect_accepted",
+            "verified",
+            "precondition_changed",
+            "outcome_unknown"
+          ]
+        },
+        {
+          "description": "Stack aggregate only: every sent member is verified and every other\nmember is provably unsent. Terminal; never reported as success.",
+          "type": "string",
+          "const": "partly_done"
+        }
       ]
     },
     "JobState": {
@@ -612,6 +621,10 @@
     "StackPlan": {
       "type": "object",
       "properties": {
+        "catalog_stack": {
+          "description": "The registered catalog stack name; may differ from the Compose project.",
+          "type": "string"
+        },
         "created_at": {
           "type": "integer",
           "format": "int64"
@@ -650,6 +663,7 @@
         "operation",
         "principal",
         "grant_revision",
+        "catalog_stack",
         "expected",
         "created_at",
         "expires_at"

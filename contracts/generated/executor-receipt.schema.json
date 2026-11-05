@@ -701,13 +701,22 @@
       ]
     },
     "ExecutionState": {
-      "type": "string",
-      "enum": [
-        "prepared",
-        "effect_accepted",
-        "verified",
-        "precondition_changed",
-        "outcome_unknown"
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "prepared",
+            "effect_accepted",
+            "verified",
+            "precondition_changed",
+            "outcome_unknown"
+          ]
+        },
+        {
+          "description": "Stack aggregate only: every sent member is verified and every other\nmember is provably unsent. Terminal; never reported as success.",
+          "type": "string",
+          "const": "partly_done"
+        }
       ]
     },
     "Freshness": {

@@ -52,6 +52,10 @@
     "StackPlan": {
       "type": "object",
       "properties": {
+        "catalog_stack": {
+          "description": "The registered catalog stack name; may differ from the Compose project.",
+          "type": "string"
+        },
         "created_at": {
           "type": "integer",
           "format": "int64"
@@ -90,6 +94,7 @@
         "operation",
         "principal",
         "grant_revision",
+        "catalog_stack",
         "expected",
         "created_at",
         "expires_at"

@@ -1330,14 +1330,23 @@
         ]
       },
       "ExecutionState": {
-        "enum": [
-          "prepared",
-          "effect_accepted",
-          "verified",
-          "precondition_changed",
-          "outcome_unknown"
-        ],
-        "type": "string"
+        "oneOf": [
+          {
+            "enum": [
+              "prepared",
+              "effect_accepted",
+              "verified",
+              "precondition_changed",
+              "outcome_unknown"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "partly_done",
+            "description": "Stack aggregate only: every sent member is verified and every other\nmember is provably unsent. Terminal; never reported as success.",
+            "type": "string"
+          }
+        ]
       },
       "Freshness": {
         "additionalProperties": false,
@@ -2335,6 +2344,10 @@
       "StackPlan": {
         "additionalProperties": false,
         "properties": {
+          "catalog_stack": {
+            "description": "The registered catalog stack name; may differ from the Compose project.",
+            "type": "string"
+          },
           "created_at": {
             "format": "int64",
             "type": "integer"
@@ -2372,6 +2385,7 @@
           "operation",
           "principal",
           "grant_revision",
+          "catalog_stack",
           "expected",
           "created_at",
           "expires_at"
@@ -13331,7 +13345,7 @@
                 "schema": {
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "additionalProperties": false,
-                  "description": "Owner-scoped progress. `receipt` carries the per-member outcomes recorded\nby the executor once any exist; `verification` is core's own fresh evidence.",
+                  "description": "Owner-scoped progress. `receipt` carries the per-member outcomes recorded\nby the executor once any exist; it is absent before the job runs.",
                   "properties": {
                     "events": {
                       "items": {
