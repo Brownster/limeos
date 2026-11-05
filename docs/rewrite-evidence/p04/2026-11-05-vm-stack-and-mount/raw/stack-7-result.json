@@ -1,0 +1,646 @@
+{
+  "summary": "pass",
+  "package_version": "0.4.15+stacklc.1",
+  "cases": {
+    "1 stop/start/restart: plan, approve, queue, verify, new StartedAt": {
+      "status": "pass",
+      "detail": {
+        "stop": {
+          "job": "e45296adb408c10ecaca60130a9fbb7ab706d14b95d4079a4d30b31f8ff21a7e",
+          "events": {
+            "8161ad2c15d3e09986cdcfd763a0891264e23c8a40bcface0a493f44e1a985d0": {
+              "kill": 1,
+              "die": 1,
+              "stop": 1
+            },
+            "ab1fefbdc87bb7a223c32d9682eea7444c6b9ebc96f7cf578a7c54b38627c3f7": {
+              "kill": 1,
+              "die": 1,
+              "stop": 1
+            },
+            "b835b589b9867936f9e551bb1edddf6e59f3e4331cf14f2380d8b70d5515db33": {
+              "kill": 1,
+              "die": 1,
+              "stop": 1
+            }
+          },
+          "receipt": "verified"
+        },
+        "start": {
+          "job": "05cd0b67228b82bbf59ac5a55f249cb880dfca0ad7ec1db7ff5a55da4cff4ce6",
+          "events": {
+            "8161ad2c15d3e09986cdcfd763a0891264e23c8a40bcface0a493f44e1a985d0": {
+              "start": 1
+            },
+            "ab1fefbdc87bb7a223c32d9682eea7444c6b9ebc96f7cf578a7c54b38627c3f7": {
+              "start": 1
+            },
+            "b835b589b9867936f9e551bb1edddf6e59f3e4331cf14f2380d8b70d5515db33": {
+              "start": 1
+            }
+          },
+          "receipt": "verified"
+        },
+        "restart": {
+          "job": "1d8e7bba59a625bb6e5f6a2f91eedcb4c4cf79b8049962d59cabd83ed0627883",
+          "events": {
+            "8161ad2c15d3e09986cdcfd763a0891264e23c8a40bcface0a493f44e1a985d0": {
+              "kill": 1,
+              "die": 1,
+              "stop": 1,
+              "start": 1,
+              "restart": 1
+            },
+            "ab1fefbdc87bb7a223c32d9682eea7444c6b9ebc96f7cf578a7c54b38627c3f7": {
+              "kill": 1,
+              "die": 1,
+              "stop": 1,
+              "start": 1,
+              "restart": 1
+            },
+            "b835b589b9867936f9e551bb1edddf6e59f3e4331cf14f2380d8b70d5515db33": {
+              "kill": 1,
+              "die": 1,
+              "stop": 1,
+              "start": 1,
+              "restart": 1
+            }
+          },
+          "receipt": "verified"
+        }
+      },
+      "seconds": 96.3
+    },
+    "2 idempotent replay returns same job with no Engine effect; second key conflicts": {
+      "status": "pass",
+      "detail": {
+        "replay_status": 202,
+        "second_key_status": 409,
+        "events": {
+          "8161ad2c15d3e09986cdcfd763a0891264e23c8a40bcface0a493f44e1a985d0": {},
+          "ab1fefbdc87bb7a223c32d9682eea7444c6b9ebc96f7cf578a7c54b38627c3f7": {},
+          "b835b589b9867936f9e551bb1edddf6e59f3e4331cf14f2380d8b70d5515db33": {}
+        }
+      },
+      "seconds": 5.4
+    },
+    "3 member drift between plan and queue is refused with no effect": {
+      "status": "pass",
+      "detail": {
+        "queue_status": 409,
+        "refusal": {
+          "code": "conflict",
+          "message": "The request conflicts with current state.",
+          "retry": false,
+          "audit_id": "http-2"
+        }
+      },
+      "seconds": 24.2
+    },
+    "3b drift after queue but before claim becomes precondition_changed with no effect": {
+      "status": "pass",
+      "detail": {
+        "final_state": "precondition_changed",
+        "events_after_drift": {
+          "2c2cee1c6e3a499577a14fef041b7c32a002b8bc8187457a6a4955b3df79a5a7": {},
+          "38fb4db0ec59882114e1d9781d117b84b77fc45259438f3b4e7541b0ee2383d2": {},
+          "973d07495a4d5d54173ca249254b38af7c10a701e50e81da8558cb886608006c": {}
+        }
+      },
+      "seconds": 39.8
+    },
+    "4a Core SIGKILL immediately after queueing: no member acted on twice": {
+      "status": "pass",
+      "detail": {
+        "killed_core_pid": 5411,
+        "state": "succeeded",
+        "events": {
+          "6fd350accb0c7da52ee7213c2817e859bbae4a1a784805e5f2a5d009d80c41c9": {
+            "kill": 1,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "7793f7c5b700516969c433c0e3c93b24fc008fd50238698742426fcbfbf04193": {
+            "kill": 1,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "decf866960df7106723710dc61cc766ac870d6bdcc796ebd751b6e57edd03473": {
+            "kill": 1,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          }
+        },
+        "receipts": {
+          "stack": [
+            [
+              "verified",
+              "restart"
+            ]
+          ],
+          "member_rows": []
+        }
+      },
+      "seconds": 58.3
+    },
+    "4a' Core SIGKILL while executor is mid-restart: recovered by receipt, one effect each": {
+      "status": "pass",
+      "detail": {
+        "killed_core_pid": 25226,
+        "state": "succeeded",
+        "events": {
+          "1ceaaf1cb802cc082b9b3423e0185e35d51cf476ab297ac096a607f0c53614cc": {
+            "kill": 2,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "292692be921a19c56fbe18c2ec14114c55a70f711c99e162c8482abdc41c8b19": {
+            "kill": 2,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "7fa096d8c8a86e869c6a91800857e117580313c8c6b9b3cfdb95b3ea8a95dade": {
+            "kill": 2,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          }
+        },
+        "receipts": {
+          "stack": [
+            [
+              "verified",
+              "restart"
+            ]
+          ],
+          "member_rows": []
+        }
+      },
+      "seconds": 71.0
+    },
+    "4b executor SIGKILL during a multi-member restart: defined state, no member twice": {
+      "status": "pass",
+      "detail": {
+        "killed_executor_pid": 28481,
+        "state": "needs_intervention",
+        "events": {
+          "0b493fc530c2320c74fd46988ea794d86e5226348c4048fc17f62ae7d59743c4": {
+            "kill": 2,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "9c32da26dbd8aef7e118fb7b76a5466d242cf330adca3867ebc98e86a23c698f": {
+            "kill": 2,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "a97fbbc1aff0e9cc18f2d0fab79f9edd31183dbe5021f375f9a0cde1be5ea6f8": {}
+        },
+        "locks": [
+          [
+            "container:0b493fc530c2320c74fd46988ea794d86e5226348c4048fc17f62ae7d59743c4",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "container:9c32da26dbd8aef7e118fb7b76a5466d242cf330adca3867ebc98e86a23c698f",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "container:a97fbbc1aff0e9cc18f2d0fab79f9edd31183dbe5021f375f9a0cde1be5ea6f8",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "stack:sl5",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ]
+        ],
+        "progress": {
+          "job": {
+            "id": "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "state": "needs_intervention",
+            "plan": {
+              "id": "2653e4e27a2d8865e31c3d653b6e8f642e4144f1bc0f6aa6313514b84d8d6399",
+              "version": 1,
+              "operation": "restart",
+              "principal": "7a2ecb0cfa896d26055ff50a46d52344aa6f4b5e03c2b8ee850b8774601e9fe9",
+              "grant_revision": 1,
+              "catalog_stack": "sl5",
+              "expected": {
+                "resource": "stack:sl5",
+                "members": [
+                  {
+                    "resource": "container:0b493fc530c2320c74fd46988ea794d86e5226348c4048fc17f62ae7d59743c4",
+                    "image": "sha256:bdf223e83909da8b08ab4f6229ea7497b9ac84cf37d56fd5d6981fe5a15f93df",
+                    "started_at": "2026-11-05T22:38:04.444503087Z",
+                    "running": true
+                  },
+                  {
+                    "resource": "container:9c32da26dbd8aef7e118fb7b76a5466d242cf330adca3867ebc98e86a23c698f",
+                    "image": "sha256:bdf223e83909da8b08ab4f6229ea7497b9ac84cf37d56fd5d6981fe5a15f93df",
+                    "started_at": "2026-11-05T22:38:04.694466585Z",
+                    "running": true
+                  },
+                  {
+                    "resource": "container:a97fbbc1aff0e9cc18f2d0fab79f9edd31183dbe5021f375f9a0cde1be5ea6f8",
+                    "image": "sha256:bdf223e83909da8b08ab4f6229ea7497b9ac84cf37d56fd5d6981fe5a15f93df",
+                    "started_at": "2026-11-05T22:38:04.969642Z",
+                    "running": true
+                  }
+                ]
+              },
+              "created_at": 1793918297,
+              "expires_at": 1793918597
+            }
+          },
+          "events": [
+            {
+              "cursor": 48,
+              "principal": "7a2ecb0cfa896d26055ff50a46d52344aa6f4b5e03c2b8ee850b8774601e9fe9",
+              "job": "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+              "event": {
+                "kind": "job_queued"
+              },
+              "created": 1793918298
+            },
+            {
+              "cursor": 49,
+              "principal": "7a2ecb0cfa896d26055ff50a46d52344aa6f4b5e03c2b8ee850b8774601e9fe9",
+              "job": "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+              "event": {
+                "kind": "job_transition",
+                "state": "running"
+              },
+              "created": 1793918299
+            },
+            {
+              "cursor": 50,
+              "principal": "7a2ecb0cfa896d26055ff50a46d52344aa6f4b5e03c2b8ee850b8774601e9fe9",
+              "job": "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+              "event": {
+                "kind": "job_transition",
+                "state": "needs_intervention"
+              },
+              "created": 1793918309
+            }
+          ],
+          "receipt": {
+            "action": "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "plan_digest": "87708367c1b6ce9436658a95b43b7bde99b72c371242363c4594ef25af66cc04",
+            "operation": "restart",
+            "before": {
+              "resource": "stack:sl5",
+              "members": [
+                {
+                  "resource": "container:0b493fc530c2320c74fd46988ea794d86e5226348c4048fc17f62ae7d59743c4",
+                  "image": "sha256:bdf223e83909da8b08ab4f6229ea7497b9ac84cf37d56fd5d6981fe5a15f93df",
+                  "started_at": "2026-11-05T22:38:04.444503087Z",
+                  "running": true
+                },
+                {
+                  "resource": "container:9c32da26dbd8aef7e118fb7b76a5466d242cf330adca3867ebc98e86a23c698f",
+                  "image": "sha256:bdf223e83909da8b08ab4f6229ea7497b9ac84cf37d56fd5d6981fe5a15f93df",
+                  "started_at": "2026-11-05T22:38:04.694466585Z",
+                  "running": true
+                },
+                {
+                  "resource": "container:a97fbbc1aff0e9cc18f2d0fab79f9edd31183dbe5021f375f9a0cde1be5ea6f8",
+                  "image": "sha256:bdf223e83909da8b08ab4f6229ea7497b9ac84cf37d56fd5d6981fe5a15f93df",
+                  "started_at": "2026-11-05T22:38:04.969642Z",
+                  "running": true
+                }
+              ]
+            },
+            "state": "outcome_unknown",
+            "members": [
+              {
+                "resource": "container:0b493fc530c2320c74fd46988ea794d86e5226348c4048fc17f62ae7d59743c4",
+                "state": "verified",
+                "error": null
+              },
+              {
+                "resource": "container:9c32da26dbd8aef7e118fb7b76a5466d242cf330adca3867ebc98e86a23c698f",
+                "state": "verified",
+                "error": null
+              },
+              {
+                "resource": "container:a97fbbc1aff0e9cc18f2d0fab79f9edd31183dbe5021f375f9a0cde1be5ea6f8",
+                "state": "outcome_unknown",
+                "error": "state_not_durable"
+              }
+            ],
+            "error": null
+          }
+        },
+        "receipts": {
+          "stack": [
+            [
+              "outcome_unknown",
+              "restart"
+            ]
+          ],
+          "member_rows": []
+        }
+      },
+      "seconds": 69.4
+    },
+    "5a single-container job on a member is excluded while a stack job holds it": {
+      "status": "pass",
+      "detail": {
+        "queue_status": 202,
+        "stack_locks": [
+          [
+            "container:0b493fc530c2320c74fd46988ea794d86e5226348c4048fc17f62ae7d59743c4",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "container:9c32da26dbd8aef7e118fb7b76a5466d242cf330adca3867ebc98e86a23c698f",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "container:a97fbbc1aff0e9cc18f2d0fab79f9edd31183dbe5021f375f9a0cde1be5ea6f8",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "stack:sl5",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ]
+        ]
+      },
+      "seconds": 23.0
+    },
+    "5b stack job is excluded while a single-container job holds a member": {
+      "status": "pass",
+      "detail": {
+        "held_member_job": "a4edafaea6b75e4718c96c4e364f4f72ea16cb13029d1daa741e458ec83a8a05",
+        "locks": [
+          [
+            "container:0b493fc530c2320c74fd46988ea794d86e5226348c4048fc17f62ae7d59743c4",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "container:9c32da26dbd8aef7e118fb7b76a5466d242cf330adca3867ebc98e86a23c698f",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "container:a97fbbc1aff0e9cc18f2d0fab79f9edd31183dbe5021f375f9a0cde1be5ea6f8",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "stack:sl5",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "container:cc0e15e3fdf458774fd27b1d6a0fc335793ff9d8420c6309d1f4288de8c9ec2e",
+            "a4edafaea6b75e4718c96c4e364f4f72ea16cb13029d1daa741e458ec83a8a05",
+            "needs_intervention"
+          ]
+        ]
+      },
+      "seconds": 64.5
+    },
+    "6 shadow package, task token and under-privileged human cannot execute a stack action": {
+      "status": "pass",
+      "detail": {
+        "shadow_executor_result": "exit-code",
+        "shadow_plan_status": 503,
+        "task_propose_stack": "invalid_input",
+        "task_queue_stack": "invalid_input",
+        "task_approve_stack": "invalid_input",
+        "scoped_human_plan_status": 403
+      },
+      "seconds": 37.6
+    },
+    "7 member that cannot start: per-member outcomes, never success, no second attempt": {
+      "status": "pass",
+      "detail": {
+        "state": "needs_intervention",
+        "outcomes": {
+          "container:7357d1b269f366eaa9316930a5d2b7ea5ef6dc85a3127340b6d854dc1ccfda79": "verified",
+          "container:b1505c0a632918b5f604699d2ab62c2c02a80a4d536ab94942909aa7060846d9": "outcome_unknown",
+          "container:c96c39bf273a5119cae3544540a4086ca121a81b4ef2ec29615308046588fc46": "precondition_changed"
+        },
+        "member_errors": {
+          "container:7357d1b269f366eaa9316930a5d2b7ea5ef6dc85a3127340b6d854dc1ccfda79": null,
+          "container:b1505c0a632918b5f604699d2ab62c2c02a80a4d536ab94942909aa7060846d9": "unavailable",
+          "container:c96c39bf273a5119cae3544540a4086ca121a81b4ef2ec29615308046588fc46": "conflict"
+        },
+        "engine_state": {
+          "7357d1b269f366eaa9316930a5d2b7ea5ef6dc85a3127340b6d854dc1ccfda79": {
+            "status": "running",
+            "error": "",
+            "exit_code": 0,
+            "finished_at": "0001-01-01T00:00:00Z",
+            "started_at": "2026-11-05T22:41:49.356528653Z"
+          },
+          "b1505c0a632918b5f604699d2ab62c2c02a80a4d536ab94942909aa7060846d9": {
+            "status": "created",
+            "error": "failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: exec: \"/bin/limeos-no-such-binary\": stat /bin/limeos-no-such-binary: no such file or directory: unknown",
+            "exit_code": 127,
+            "finished_at": "0001-01-01T00:00:00Z",
+            "started_at": "0001-01-01T00:00:00Z"
+          },
+          "c96c39bf273a5119cae3544540a4086ca121a81b4ef2ec29615308046588fc46": {
+            "status": "created",
+            "error": "",
+            "exit_code": 0,
+            "finished_at": "0001-01-01T00:00:00Z",
+            "started_at": "0001-01-01T00:00:00Z"
+          }
+        },
+        "events": {
+          "7357d1b269f366eaa9316930a5d2b7ea5ef6dc85a3127340b6d854dc1ccfda79": {
+            "start": 1
+          },
+          "b1505c0a632918b5f604699d2ab62c2c02a80a4d536ab94942909aa7060846d9": {},
+          "c96c39bf273a5119cae3544540a4086ca121a81b4ef2ec29615308046588fc46": {}
+        },
+        "locks": [
+          [
+            "container:0b493fc530c2320c74fd46988ea794d86e5226348c4048fc17f62ae7d59743c4",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "container:9c32da26dbd8aef7e118fb7b76a5466d242cf330adca3867ebc98e86a23c698f",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "container:a97fbbc1aff0e9cc18f2d0fab79f9edd31183dbe5021f375f9a0cde1be5ea6f8",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "stack:sl5",
+            "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+            "needs_intervention"
+          ],
+          [
+            "container:cc0e15e3fdf458774fd27b1d6a0fc335793ff9d8420c6309d1f4288de8c9ec2e",
+            "a4edafaea6b75e4718c96c4e364f4f72ea16cb13029d1daa741e458ec83a8a05",
+            "needs_intervention"
+          ],
+          [
+            "container:7357d1b269f366eaa9316930a5d2b7ea5ef6dc85a3127340b6d854dc1ccfda79",
+            "adb6fd9133992c6c2e88c8dadd8539bbdb67cfe6d7058d231d1a8840344e6e16",
+            "needs_intervention"
+          ],
+          [
+            "container:b1505c0a632918b5f604699d2ab62c2c02a80a4d536ab94942909aa7060846d9",
+            "adb6fd9133992c6c2e88c8dadd8539bbdb67cfe6d7058d231d1a8840344e6e16",
+            "needs_intervention"
+          ],
+          [
+            "container:c96c39bf273a5119cae3544540a4086ca121a81b4ef2ec29615308046588fc46",
+            "adb6fd9133992c6c2e88c8dadd8539bbdb67cfe6d7058d231d1a8840344e6e16",
+            "needs_intervention"
+          ],
+          [
+            "stack:sl7",
+            "adb6fd9133992c6c2e88c8dadd8539bbdb67cfe6d7058d231d1a8840344e6e16",
+            "needs_intervention"
+          ]
+        ],
+        "receipts": {
+          "stack": [
+            [
+              "outcome_unknown",
+              "start"
+            ]
+          ],
+          "member_rows": []
+        }
+      },
+      "seconds": 77.1
+    }
+  },
+  "facts": {
+    "engine_id": "3UUC:SLV2:UZ3E:O7N4:YQG7:SD63:XOLR:UQNL:DQLY:BQI2:4G7O:IVXT",
+    "engine_fixture": {
+      "peer": {
+        "pid": 6454,
+        "uid": 0,
+        "gid": 0
+      },
+      "unit": "limeos-a1-real-docker",
+      "docker_package_version": "20.10.24+dfsg1-1+deb12u1+b6",
+      "server_version": "20.10.24+dfsg1"
+    },
+    "docker_version": "20.10.24+dfsg1",
+    "memory_before": {
+      "limeos-core": {
+        "pss_kib": 9391,
+        "swap_kib": 0
+      },
+      "limeos-containerd": {
+        "pss_kib": 3136,
+        "swap_kib": 0
+      },
+      "limeos-storage-reader": {
+        "pss_kib": 1753,
+        "swap_kib": 0
+      },
+      "guest_mem_available_kib": 654980,
+      "guest_mem_total_kib": 996368
+    },
+    "setup_seconds": 105.7,
+    "memory_after": {
+      "limeos-core": {
+        "pss_kib": 9992,
+        "swap_kib": 0
+      },
+      "limeos-containerd": {
+        "pss_kib": 3467,
+        "swap_kib": 0
+      },
+      "limeos-storage-reader": {
+        "pss_kib": 1691,
+        "swap_kib": 0
+      },
+      "guest_mem_available_kib": 598996,
+      "guest_mem_total_kib": 996368
+    },
+    "binary_sha256": {
+      "limeos-core": "665b97b13ad9a7207d1cb0fec78c284ab6d0660c7b9f53336215f8ef8b87975d",
+      "limeos-executor": "dfc0f66952e2bbe53879ee4c0338c6ea20b532204e80ba71c9cb49dfa2a24f1c",
+      "limeosctl": "58649d3fcd8cdbabb81caa443186b702137ed8fc85a33867a8363429af3ef447",
+      "limeos-password-worker": "8e7eb4f529262b2716ffc947dad66ba86aaaa730bbaf8194133f3bb401a7d237",
+      "limeos-stack-read-worker": "dea88fa62509134d4dffb422073d7425d7b38b27f28b25c3aa0937951072007c"
+    },
+    "final_locks": [
+      [
+        "container:0b493fc530c2320c74fd46988ea794d86e5226348c4048fc17f62ae7d59743c4",
+        "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+        "needs_intervention"
+      ],
+      [
+        "container:9c32da26dbd8aef7e118fb7b76a5466d242cf330adca3867ebc98e86a23c698f",
+        "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+        "needs_intervention"
+      ],
+      [
+        "container:a97fbbc1aff0e9cc18f2d0fab79f9edd31183dbe5021f375f9a0cde1be5ea6f8",
+        "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+        "needs_intervention"
+      ],
+      [
+        "stack:sl5",
+        "35f2c05998ec10d429e48fbf06cab2e87761adacf48b86965be1d1b0a8692d30",
+        "needs_intervention"
+      ],
+      [
+        "container:cc0e15e3fdf458774fd27b1d6a0fc335793ff9d8420c6309d1f4288de8c9ec2e",
+        "a4edafaea6b75e4718c96c4e364f4f72ea16cb13029d1daa741e458ec83a8a05",
+        "needs_intervention"
+      ],
+      [
+        "container:7357d1b269f366eaa9316930a5d2b7ea5ef6dc85a3127340b6d854dc1ccfda79",
+        "adb6fd9133992c6c2e88c8dadd8539bbdb67cfe6d7058d231d1a8840344e6e16",
+        "needs_intervention"
+      ],
+      [
+        "container:b1505c0a632918b5f604699d2ab62c2c02a80a4d536ab94942909aa7060846d9",
+        "adb6fd9133992c6c2e88c8dadd8539bbdb67cfe6d7058d231d1a8840344e6e16",
+        "needs_intervention"
+      ],
+      [
+        "container:c96c39bf273a5119cae3544540a4086ca121a81b4ef2ec29615308046588fc46",
+        "adb6fd9133992c6c2e88c8dadd8539bbdb67cfe6d7058d231d1a8840344e6e16",
+        "needs_intervention"
+      ],
+      [
+        "stack:sl7",
+        "adb6fd9133992c6c2e88c8dadd8539bbdb67cfe6d7058d231d1a8840344e6e16",
+        "needs_intervention"
+      ]
+    ],
+    "docker_events_total": 218
+  }
+}

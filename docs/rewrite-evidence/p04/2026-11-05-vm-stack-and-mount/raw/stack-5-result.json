@@ -1,0 +1,521 @@
+{
+  "summary": "fail",
+  "package_version": "0.4.15+stacklc.1",
+  "cases": {
+    "1 stop/start/restart: plan, approve, queue, verify, new StartedAt": {
+      "status": "pass",
+      "detail": {
+        "stop": {
+          "job": "480dfb25a0dcbbea58f13649ea5ba89eb5b6dd162cc17bb5940bd4e98be62e2d",
+          "events": {
+            "039b58c9b6cf7822f1721dcf039139e1a40ba9df0b77698378f89d1b6eca40bc": {
+              "kill": 1,
+              "die": 1,
+              "stop": 1
+            },
+            "795a28f74e1f4dfdc847f7089f5b63263ab6ee7a0114a3a6a69fbea23ce2e914": {
+              "kill": 1,
+              "die": 1,
+              "stop": 1
+            },
+            "b05355bc41d944d9dfb4528061c6e0d5cbe42688bcd9898ea5b5604ba8a8fddf": {
+              "kill": 1,
+              "die": 1,
+              "stop": 1
+            }
+          },
+          "receipt": "verified"
+        },
+        "start": {
+          "job": "c795c42a8e2e3e1a35a37f42336f2a8b73051fd764ad6e58e7c8bd50d48bce88",
+          "events": {
+            "039b58c9b6cf7822f1721dcf039139e1a40ba9df0b77698378f89d1b6eca40bc": {
+              "start": 1
+            },
+            "795a28f74e1f4dfdc847f7089f5b63263ab6ee7a0114a3a6a69fbea23ce2e914": {
+              "start": 1
+            },
+            "b05355bc41d944d9dfb4528061c6e0d5cbe42688bcd9898ea5b5604ba8a8fddf": {
+              "start": 1
+            }
+          },
+          "receipt": "verified"
+        },
+        "restart": {
+          "job": "1dd835dd1fedf066e08c86fa0cbd49d5721fd4729d29565bca75b0050eba14f2",
+          "events": {
+            "039b58c9b6cf7822f1721dcf039139e1a40ba9df0b77698378f89d1b6eca40bc": {
+              "kill": 1,
+              "die": 1,
+              "stop": 1,
+              "start": 1,
+              "restart": 1
+            },
+            "795a28f74e1f4dfdc847f7089f5b63263ab6ee7a0114a3a6a69fbea23ce2e914": {
+              "kill": 1,
+              "die": 1,
+              "stop": 1,
+              "start": 1,
+              "restart": 1
+            },
+            "b05355bc41d944d9dfb4528061c6e0d5cbe42688bcd9898ea5b5604ba8a8fddf": {
+              "kill": 1,
+              "die": 1,
+              "stop": 1,
+              "start": 1,
+              "restart": 1
+            }
+          },
+          "receipt": "verified"
+        }
+      },
+      "seconds": 96.6
+    },
+    "2 idempotent replay returns same job with no Engine effect; second key conflicts": {
+      "status": "pass",
+      "detail": {
+        "replay_status": 202,
+        "second_key_status": 409,
+        "events": {
+          "039b58c9b6cf7822f1721dcf039139e1a40ba9df0b77698378f89d1b6eca40bc": {},
+          "795a28f74e1f4dfdc847f7089f5b63263ab6ee7a0114a3a6a69fbea23ce2e914": {},
+          "b05355bc41d944d9dfb4528061c6e0d5cbe42688bcd9898ea5b5604ba8a8fddf": {}
+        }
+      },
+      "seconds": 5.4
+    },
+    "3 member drift between plan and queue is refused with no effect": {
+      "status": "pass",
+      "detail": {
+        "queue_status": 409,
+        "refusal": {
+          "code": "conflict",
+          "message": "The request conflicts with current state.",
+          "retry": false,
+          "audit_id": "http-2"
+        }
+      },
+      "seconds": 24.7
+    },
+    "3b drift after queue but before claim becomes precondition_changed with no effect": {
+      "status": "pass",
+      "detail": {
+        "final_state": "precondition_changed",
+        "events_after_drift": {
+          "742b79032e31e649b1676bbe532b6f87bd0fa1ef1911f6b4c7222cbb24714e54": {},
+          "77ad50c8cb294c162f7166a2e411cae79786b8f21d6f237b12c8831043380bc7": {},
+          "86b34339fe1f9c9e0e5790d3752337403b84542437b14870fae30aba439f2171": {}
+        }
+      },
+      "seconds": 39.0
+    },
+    "4a Core SIGKILL immediately after queueing: no member acted on twice": {
+      "status": "pass",
+      "detail": {
+        "killed_core_pid": 5418,
+        "state": "succeeded",
+        "events": {
+          "0fde73e61f8bc29b16d5396b832d16858d60bac97dad25a53c00e32d4739ccfd": {
+            "kill": 1,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "46e44795a0202a084e4264e72dfd9756c2ed9f1f6e50c4b18cf949eaf06ed597": {
+            "kill": 1,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "fa85f9dece61e0531c3508d78d38353409f253c1119f8a7053f3f447f521041c": {
+            "kill": 1,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          }
+        },
+        "receipts": {
+          "stack": [
+            [
+              "verified",
+              "restart"
+            ]
+          ],
+          "member_rows": []
+        }
+      },
+      "seconds": 58.6
+    },
+    "4a' Core SIGKILL while executor is mid-restart: recovered by receipt, one effect each": {
+      "status": "pass",
+      "detail": {
+        "killed_core_pid": 25425,
+        "state": "succeeded",
+        "events": {
+          "37131019dcbc41e91690f98c65fcedb1c7355045f27af6c3add38e1e4666eb51": {
+            "kill": 2,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "e8831725203d03f725e40b3a46f29dce6d6e7443839c73da3f1a1ee6fbd51d0a": {
+            "kill": 2,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "edf1dbdf9d2bf3dd431e305411f248666963d318eef5c9f38523cdbdaa2c8941": {
+            "kill": 2,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          }
+        },
+        "receipts": {
+          "stack": [
+            [
+              "verified",
+              "restart"
+            ]
+          ],
+          "member_rows": []
+        }
+      },
+      "seconds": 70.7
+    },
+    "4b executor SIGKILL during a multi-member restart: defined state, no member twice": {
+      "status": "pass",
+      "detail": {
+        "killed_executor_pid": 28663,
+        "state": "needs_intervention",
+        "events": {
+          "2d836df4413d8cac9d578d222a877d9e6b066795054cee2dcf20aece1edc03c1": {
+            "kill": 2,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "b00c850982d996b8f164bedbe62f4bfa8dde3ecbb414817361d83175ae523bb3": {
+            "kill": 2,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "e58f3bbe3add894bae88356c6d08fa1ad3012ea4bfc69b8506523e80cdcd6dd8": {}
+        },
+        "locks": [
+          [
+            "container:2d836df4413d8cac9d578d222a877d9e6b066795054cee2dcf20aece1edc03c1",
+            "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+            "needs_intervention"
+          ],
+          [
+            "container:b00c850982d996b8f164bedbe62f4bfa8dde3ecbb414817361d83175ae523bb3",
+            "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+            "needs_intervention"
+          ],
+          [
+            "container:e58f3bbe3add894bae88356c6d08fa1ad3012ea4bfc69b8506523e80cdcd6dd8",
+            "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+            "needs_intervention"
+          ],
+          [
+            "stack:sl5",
+            "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+            "needs_intervention"
+          ]
+        ],
+        "progress": {
+          "job": {
+            "id": "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+            "state": "needs_intervention",
+            "plan": {
+              "id": "7287476351f1d8c8ae42d524bf57d3d7596f591d876d0f3dab2b0fa56f6cdba9",
+              "version": 1,
+              "operation": "restart",
+              "principal": "9c0a34f403fff355afb49065fb77409248583d1b9a4cfe4059dc698d9386cccb",
+              "grant_revision": 1,
+              "catalog_stack": "sl5",
+              "expected": {
+                "resource": "stack:sl5",
+                "members": [
+                  {
+                    "resource": "container:2d836df4413d8cac9d578d222a877d9e6b066795054cee2dcf20aece1edc03c1",
+                    "image": "sha256:227846fd4274eb853f484c6dd6001a4d455aee5eb79aeb14811a54bcd1736237",
+                    "started_at": "2026-11-05T22:14:37.166565082Z",
+                    "running": true
+                  },
+                  {
+                    "resource": "container:b00c850982d996b8f164bedbe62f4bfa8dde3ecbb414817361d83175ae523bb3",
+                    "image": "sha256:227846fd4274eb853f484c6dd6001a4d455aee5eb79aeb14811a54bcd1736237",
+                    "started_at": "2026-11-05T22:14:37.411828517Z",
+                    "running": true
+                  },
+                  {
+                    "resource": "container:e58f3bbe3add894bae88356c6d08fa1ad3012ea4bfc69b8506523e80cdcd6dd8",
+                    "image": "sha256:227846fd4274eb853f484c6dd6001a4d455aee5eb79aeb14811a54bcd1736237",
+                    "started_at": "2026-11-05T22:14:37.65316376Z",
+                    "running": true
+                  }
+                ]
+              },
+              "created_at": 1793916889,
+              "expires_at": 1793917189
+            }
+          },
+          "events": [
+            {
+              "cursor": 48,
+              "principal": "9c0a34f403fff355afb49065fb77409248583d1b9a4cfe4059dc698d9386cccb",
+              "job": "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+              "event": {
+                "kind": "job_queued"
+              },
+              "created": 1793916891
+            },
+            {
+              "cursor": 49,
+              "principal": "9c0a34f403fff355afb49065fb77409248583d1b9a4cfe4059dc698d9386cccb",
+              "job": "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+              "event": {
+                "kind": "job_transition",
+                "state": "running"
+              },
+              "created": 1793916891
+            },
+            {
+              "cursor": 50,
+              "principal": "9c0a34f403fff355afb49065fb77409248583d1b9a4cfe4059dc698d9386cccb",
+              "job": "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+              "event": {
+                "kind": "job_transition",
+                "state": "needs_intervention"
+              },
+              "created": 1793916902
+            }
+          ],
+          "receipt": {
+            "action": "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+            "plan_digest": "080dca826298199d645d189efa7e983d7907d68b1eb5c08533f3b2061fcc7764",
+            "operation": "restart",
+            "before": {
+              "resource": "stack:sl5",
+              "members": [
+                {
+                  "resource": "container:2d836df4413d8cac9d578d222a877d9e6b066795054cee2dcf20aece1edc03c1",
+                  "image": "sha256:227846fd4274eb853f484c6dd6001a4d455aee5eb79aeb14811a54bcd1736237",
+                  "started_at": "2026-11-05T22:14:37.166565082Z",
+                  "running": true
+                },
+                {
+                  "resource": "container:b00c850982d996b8f164bedbe62f4bfa8dde3ecbb414817361d83175ae523bb3",
+                  "image": "sha256:227846fd4274eb853f484c6dd6001a4d455aee5eb79aeb14811a54bcd1736237",
+                  "started_at": "2026-11-05T22:14:37.411828517Z",
+                  "running": true
+                },
+                {
+                  "resource": "container:e58f3bbe3add894bae88356c6d08fa1ad3012ea4bfc69b8506523e80cdcd6dd8",
+                  "image": "sha256:227846fd4274eb853f484c6dd6001a4d455aee5eb79aeb14811a54bcd1736237",
+                  "started_at": "2026-11-05T22:14:37.65316376Z",
+                  "running": true
+                }
+              ]
+            },
+            "state": "outcome_unknown",
+            "members": [
+              {
+                "resource": "container:2d836df4413d8cac9d578d222a877d9e6b066795054cee2dcf20aece1edc03c1",
+                "state": "verified",
+                "error": null
+              },
+              {
+                "resource": "container:b00c850982d996b8f164bedbe62f4bfa8dde3ecbb414817361d83175ae523bb3",
+                "state": "verified",
+                "error": null
+              },
+              {
+                "resource": "container:e58f3bbe3add894bae88356c6d08fa1ad3012ea4bfc69b8506523e80cdcd6dd8",
+                "state": "outcome_unknown",
+                "error": "state_not_durable"
+              }
+            ],
+            "error": null
+          }
+        },
+        "receipts": {
+          "stack": [
+            [
+              "outcome_unknown",
+              "restart"
+            ]
+          ],
+          "member_rows": []
+        }
+      },
+      "seconds": 69.4
+    },
+    "5a single-container job on a member is excluded while a stack job holds it": {
+      "status": "pass",
+      "detail": {
+        "queue_status": 202,
+        "stack_locks": [
+          [
+            "container:2d836df4413d8cac9d578d222a877d9e6b066795054cee2dcf20aece1edc03c1",
+            "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+            "needs_intervention"
+          ],
+          [
+            "container:b00c850982d996b8f164bedbe62f4bfa8dde3ecbb414817361d83175ae523bb3",
+            "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+            "needs_intervention"
+          ],
+          [
+            "container:e58f3bbe3add894bae88356c6d08fa1ad3012ea4bfc69b8506523e80cdcd6dd8",
+            "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+            "needs_intervention"
+          ],
+          [
+            "stack:sl5",
+            "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+            "needs_intervention"
+          ]
+        ]
+      },
+      "seconds": 23.1
+    },
+    "5b stack job is excluded while a single-container job holds a member": {
+      "status": "fail",
+      "error": "AssertionError('restart plan on sl6 refused {\"status\": 409, \"body\": {\"code\": \"conflict\", \"message\": \"The request conflicts with current state.\", \"retry\": false, \"audit_id\": \"http-1\"}}')",
+      "trace": "Traceback (most recent call last):\n  File \"/root/p04_stack_lifecycle_guest.py\", line 62, in run\n    detail = function() or {}\n             ^^^^^^^^^^\n  File \"/root/p04_stack_lifecycle_guest.py\", line 692, in locks_container_holds\n    plan, token = approved_plan(\"sl6\", \"restart\", ids)\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/p04_stack_lifecycle_guest.py\", line 269, in approved_plan\n    check(status == 201, f\"{operation} plan on {project} refused\", status=status, body=proposal)\n  File \"/root/p04_stack_lifecycle_guest.py\", line 54, in check\n    raise AssertionError(message + (\" \" + json.dumps(facts, default=str)[:1500] if facts else \"\"))\nAssertionError: restart plan on sl6 refused {\"status\": 409, \"body\": {\"code\": \"conflict\", \"message\": \"The request conflicts with current state.\", \"retry\": false, \"audit_id\": \"http-1\"}}\n",
+      "seconds": 27.6
+    },
+    "6 shadow package, task token and under-privileged human cannot execute a stack action": {
+      "status": "pass",
+      "detail": {
+        "shadow_executor_result": "exit-code",
+        "shadow_plan_status": 503,
+        "task_propose_stack": "invalid_input",
+        "task_queue_stack": "invalid_input",
+        "task_approve_stack": "invalid_input",
+        "scoped_human_plan_status": 403
+      },
+      "seconds": 14.2
+    },
+    "7 member that cannot start: per-member outcomes, never success, no second attempt": {
+      "status": "fail",
+      "error": "AssertionError('Engine start-attempt counts differ {\"errors\": {\"03caa93b3e15277e9e3328907b7577cbc2cdd32b05a86995e2ac3c1548101236\": 0, \"0e333efabf2e592ab9e8dd5c86356a8e1434ca8d4eb1728f18486f1b8390df68\": 0, \"d71abcfe688b4bc84c76954e4e61677e7c1242291f9cf21515097db432165bf8\": 0}}')",
+      "trace": "Traceback (most recent call last):\n  File \"/root/p04_stack_lifecycle_guest.py\", line 62, in run\n    detail = function() or {}\n             ^^^^^^^^^^\n  File \"/root/p04_stack_lifecycle_guest.py\", line 804, in failing_member\n    check(errors == {ids[0]: 0, ids[1]: 1, ids[2]: 0}, \"Engine start-attempt counts differ\", errors=errors)\n  File \"/root/p04_stack_lifecycle_guest.py\", line 54, in check\n    raise AssertionError(message + (\" \" + json.dumps(facts, default=str)[:1500] if facts else \"\"))\nAssertionError: Engine start-attempt counts differ {\"errors\": {\"03caa93b3e15277e9e3328907b7577cbc2cdd32b05a86995e2ac3c1548101236\": 0, \"0e333efabf2e592ab9e8dd5c86356a8e1434ca8d4eb1728f18486f1b8390df68\": 0, \"d71abcfe688b4bc84c76954e4e61677e7c1242291f9cf21515097db432165bf8\": 0}}\n",
+      "seconds": 74.3
+    }
+  },
+  "facts": {
+    "engine_id": "6ROX:Q525:WOZX:O66M:WUE3:LZ7O:JKCP:TQPN:BBTK:C2WF:VBOR:J3XC",
+    "engine_fixture": {
+      "peer": {
+        "pid": 6465,
+        "uid": 0,
+        "gid": 0
+      },
+      "unit": "limeos-a1-real-docker",
+      "docker_package_version": "20.10.24+dfsg1-1+deb12u1+b6",
+      "server_version": "20.10.24+dfsg1"
+    },
+    "docker_version": "20.10.24+dfsg1",
+    "memory_before": {
+      "limeos-core": {
+        "pss_kib": 9337,
+        "swap_kib": 0
+      },
+      "limeos-containerd": {
+        "pss_kib": 3078,
+        "swap_kib": 0
+      },
+      "limeos-storage-reader": {
+        "pss_kib": 1733,
+        "swap_kib": 0
+      },
+      "guest_mem_available_kib": 656032,
+      "guest_mem_total_kib": 996368
+    },
+    "setup_seconds": 137.0,
+    "memory_after": {
+      "limeos-core": {
+        "pss_kib": 10047,
+        "swap_kib": 0
+      },
+      "limeos-containerd": {
+        "pss_kib": 3462,
+        "swap_kib": 0
+      },
+      "limeos-storage-reader": {
+        "pss_kib": 1668,
+        "swap_kib": 0
+      },
+      "guest_mem_available_kib": 603800,
+      "guest_mem_total_kib": 996368
+    },
+    "binary_sha256": {
+      "limeos-core": "665b97b13ad9a7207d1cb0fec78c284ab6d0660c7b9f53336215f8ef8b87975d",
+      "limeos-executor": "dfc0f66952e2bbe53879ee4c0338c6ea20b532204e80ba71c9cb49dfa2a24f1c",
+      "limeosctl": "58649d3fcd8cdbabb81caa443186b702137ed8fc85a33867a8363429af3ef447",
+      "limeos-password-worker": "8e7eb4f529262b2716ffc947dad66ba86aaaa730bbaf8194133f3bb401a7d237",
+      "limeos-stack-read-worker": "dea88fa62509134d4dffb422073d7425d7b38b27f28b25c3aa0937951072007c"
+    },
+    "final_locks": [
+      [
+        "container:2d836df4413d8cac9d578d222a877d9e6b066795054cee2dcf20aece1edc03c1",
+        "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+        "needs_intervention"
+      ],
+      [
+        "container:b00c850982d996b8f164bedbe62f4bfa8dde3ecbb414817361d83175ae523bb3",
+        "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+        "needs_intervention"
+      ],
+      [
+        "container:e58f3bbe3add894bae88356c6d08fa1ad3012ea4bfc69b8506523e80cdcd6dd8",
+        "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+        "needs_intervention"
+      ],
+      [
+        "stack:sl5",
+        "67a7c8e712cb3b7e590d060277678d258dfca9177f09e617fa379870e033193c",
+        "needs_intervention"
+      ],
+      [
+        "container:44c5919842d2b6232fc67793f63098f6156f3879cff60773b993a155599188d9",
+        "5a77ff86858d3c3d6feef9488c5f0b97e0c033adcc3959d0df5c1e5ecce905d3",
+        "needs_intervention"
+      ],
+      [
+        "container:03caa93b3e15277e9e3328907b7577cbc2cdd32b05a86995e2ac3c1548101236",
+        "9c93d7514d3bc1f2785b3f46311e4124114f91008150ef8e357a01149fb8b9a2",
+        "needs_intervention"
+      ],
+      [
+        "container:0e333efabf2e592ab9e8dd5c86356a8e1434ca8d4eb1728f18486f1b8390df68",
+        "9c93d7514d3bc1f2785b3f46311e4124114f91008150ef8e357a01149fb8b9a2",
+        "needs_intervention"
+      ],
+      [
+        "container:d71abcfe688b4bc84c76954e4e61677e7c1242291f9cf21515097db432165bf8",
+        "9c93d7514d3bc1f2785b3f46311e4124114f91008150ef8e357a01149fb8b9a2",
+        "needs_intervention"
+      ],
+      [
+        "stack:sl7",
+        "9c93d7514d3bc1f2785b3f46311e4124114f91008150ef8e357a01149fb8b9a2",
+        "needs_intervention"
+      ]
+    ],
+    "docker_events_total": 318
+  }
+}
