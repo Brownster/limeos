@@ -12,3 +12,4 @@ __pycache__/
 *.sqlite*
 
 frontend/.test-build/
+.claude/
