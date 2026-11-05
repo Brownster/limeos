@@ -24,6 +24,7 @@ mod compose;
 pub mod health_collection;
 mod identity_enablement;
 mod operations;
+mod stack_operations;
 mod stacks;
 mod storage;
 mod storage_mounts;
@@ -709,6 +710,52 @@ impl Backend for Core {
             })
             .await
     }
+    async fn plan_stack(
+        &self,
+        token: String,
+        csrf: String,
+        input: limeos_contracts::StackInput,
+    ) -> Result<limeos_domain::PlannedStackAction> {
+        self.propose_stack(token, csrf, input.project, input.operation)
+            .await
+    }
+    async fn approve_stack(
+        &self,
+        token: String,
+        csrf: String,
+        id: String,
+        plan_digest: String,
+    ) -> Result<limeos_domain::PlanApproval> {
+        self.approve_stack_plan(token, csrf, id, plan_digest).await
+    }
+    async fn queue_stack(
+        &self,
+        token: String,
+        csrf: String,
+        input: limeos_contracts::QueueStackInput,
+    ) -> Result<limeos_domain::StackJob> {
+        self.submit_stack(token, csrf, input).await
+    }
+    async fn stack_job_progress(
+        &self,
+        token: String,
+        id: String,
+        after: i64,
+    ) -> Result<limeos_contracts::StackJobProgress> {
+        self.stack_progress(token, id, after).await
+    }
+    async fn stack_jobs(&self, token: String) -> Result<Vec<limeos_domain::StackJob>> {
+        self.stack_job_list(token).await
+    }
+    async fn cancel_stack_action(
+        &self,
+        token: String,
+        csrf: String,
+        id: String,
+        plan: bool,
+    ) -> Result<()> {
+        self.cancel_stack(token, csrf, id, plan).await
+    }
 }
 async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
     let peer = stream
@@ -963,6 +1010,8 @@ async fn run() -> Result<()> {
 mod compose_tests;
 #[cfg(test)]
 mod operation_tests;
+#[cfg(test)]
+mod stack_operation_tests;
 #[cfg(test)]
 mod storage_tests;
 #[cfg(test)]

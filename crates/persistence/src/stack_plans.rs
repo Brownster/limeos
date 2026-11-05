@@ -207,7 +207,7 @@ impl Store {
     }
 
     /// A stack grant never reaches a member the principal could not manage.
-    fn authorize_stack(&self, principal: &Principal, expected: &StackSnapshot) -> Result<()> {
+    pub fn authorize_stack(&self, principal: &Principal, expected: &StackSnapshot) -> Result<()> {
         let grants = self.grants(principal)?;
         expected
             .scopes()

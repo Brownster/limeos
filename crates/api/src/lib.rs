@@ -28,6 +28,7 @@ mod operations;
 #[cfg(test)]
 mod read_tests;
 mod reads;
+mod stack_operations;
 mod stacks;
 mod storage;
 mod storage_mounts;
@@ -422,6 +423,54 @@ pub trait Backend: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<()>> + Send {
         async { Err(Error(ErrorCode::Unavailable)) }
     }
+    fn plan_stack(
+        &self,
+        _token: String,
+        _csrf: String,
+        _input: limeos_contracts::StackInput,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStackAction>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn approve_stack(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+        _digest: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn queue_stack(
+        &self,
+        _token: String,
+        _csrf: String,
+        _input: limeos_contracts::QueueStackInput,
+    ) -> impl Future<Output = Result<limeos_domain::StackJob>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn stack_job_progress(
+        &self,
+        _token: String,
+        _id: String,
+        _after: i64,
+    ) -> impl Future<Output = Result<limeos_contracts::StackJobProgress>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn stack_jobs(
+        &self,
+        _token: String,
+    ) -> impl Future<Output = Result<Vec<limeos_domain::StackJob>>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    fn cancel_stack_action(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+        _plan: bool,
+    ) -> impl Future<Output = Result<()>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
 }
 #[derive(Clone)]
 struct App<B> {
@@ -607,6 +656,27 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
         .route(
             "/api/v1/container/restart/jobs/{id}/cancel",
             post(operations::cancel_job::<B>),
+        )
+        .route("/api/v1/stack/plans", post(stack_operations::plan::<B>))
+        .route(
+            "/api/v1/stack/plans/{id}/approval",
+            post(stack_operations::approve::<B>),
+        )
+        .route(
+            "/api/v1/stack/plans/{id}/cancel",
+            post(stack_operations::cancel_plan::<B>),
+        )
+        .route(
+            "/api/v1/stack/jobs",
+            post(stack_operations::queue::<B>).get(stack_operations::jobs::<B>),
+        )
+        .route(
+            "/api/v1/stack/jobs/{id}",
+            get(stack_operations::progress::<B>),
+        )
+        .route(
+            "/api/v1/stack/jobs/{id}/cancel",
+            post(stack_operations::cancel_job::<B>),
         )
         .merge(automation_schedules::routes::<B>())
         .merge(automation_history::routes::<B>())
