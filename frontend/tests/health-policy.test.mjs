@@ -81,7 +81,11 @@ test("one outstanding save excludes refresh and duplicate writes; stale and forb
   const controller = new HealthPolicyController(() => {}, { read: async () => { reads++; return view(); }, replace: async () => { writes++; return held.promise; } });
   await controller.refresh(); const save = controller.save(definition(), "csrf");
   await controller.refresh(); await controller.save(definition(), "csrf"); assert.equal(reads, 1); assert.equal(writes, 1);
-  held.resolve(view(1)); await save; assert.equal(controller.getSnapshot().pending, false); controller.dispose();
+  held.resolve(view(1)); await save; assert.equal(controller.getSnapshot().pending, false);
+  assert.match(controller.getSnapshot().notice, /Health settings saved/);
+  assert.match(controller.getSnapshot().notice, /Health coverage remains partial/);
+  assert.doesNotMatch(controller.getSnapshot().notice, /automatic observations are not available yet/);
+  controller.dispose();
   let failure = false;
   const denied = new HealthPolicyController(() => {}, { read: async () => { if (failure) throw error("forbidden"); return view(1); }, replace: async () => { assert.fail("denied mutation"); } });
   await denied.refresh(); failure = true; await denied.refresh();
@@ -105,5 +109,8 @@ test("policy form preserves metadata as escaped text and owner identity fences m
   const markup = renderToStaticMarkup(React.createElement(HealthPolicyForm, { value: view(1, { ...definition(), required_mounts: ["/mnt/Media", "/mnt/media"], silences: [{ ...silence(), reason: "<script>fixture</script>" }] }), disabled: true, pending: false, save() { assert.fail("render mutation"); } }));
   assert.match(markup, /2026-10-20T12:00:00.123456Z/); assert.match(markup, /mount:\/mnt\/Media/); assert.match(markup, /&lt;script&gt;/); assert.doesNotMatch(markup, /<script>/);
   assert.match(markup, /<fieldset disabled/); assert.match(markup, /Case and spelling are preserved/); assert.match(markup, /Save health settings/);
-  assert.match(renderToStaticMarkup(React.createElement(HealthPolicy, props)), /New automatic observations are not available yet/);
+  const policy = renderToStaticMarkup(React.createElement(HealthPolicy, props));
+  assert.match(policy, /Set check intervals in health schedules/);
+  assert.match(policy, /Health coverage remains partial/);
+  assert.doesNotMatch(policy, /automatic observations are not available yet/);
 });

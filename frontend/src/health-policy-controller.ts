@@ -30,7 +30,7 @@ export class HealthPolicyController {
     this.update({ pending: true, error: "", notice: "" });
     try {
       const value = await this.client.replace({ revision, definition }, csrf, abort.signal);
-      if (this.current(epoch)) this.update({ value, pending: false, stale: false, notice: "Health settings saved. New automatic observations are not available yet." });
+      if (this.current(epoch)) this.update({ value, pending: false, stale: false, notice: "Health settings saved. Health coverage remains partial." });
     } catch (error) {
       if (!this.current(epoch)) return;
       this.update({ pending: false, stale: true, notice: "The save was not confirmed. Check refreshed saved settings before saving again." }); this.failure(error);

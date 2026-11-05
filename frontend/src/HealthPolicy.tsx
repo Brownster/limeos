@@ -21,7 +21,7 @@ function OwnedHealthPolicy({ csrf, expired }: { csrf: string; expired: () => voi
   if (state.expired) return null;
   return <section id="health-policy-panel" aria-labelledby="health-policy-heading">
     <p className="eyebrow">HEALTH SETTINGS</p><h2 id="health-policy-heading">Alert policy</h2>
-    <p className="notice">These settings apply to your health schedules and notifications. New automatic observations are not available yet. Poll timing is managed in health schedules.</p>
+    <p className="notice">These settings apply to your health schedules and notifications. Set check intervals in health schedules. Health coverage remains partial.</p>
     <button disabled={state.loading || state.pending} onClick={() => { void controller.refresh(); }}>Refresh health settings</button>
     {state.loading && <p role="status">Reading saved health settings…</p>}
     {state.error && <p role="alert" className="error">{state.error}</p>}

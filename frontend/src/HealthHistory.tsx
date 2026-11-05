@@ -31,7 +31,7 @@ function OwnedHistory({ csrf, expired }: { csrf: string; expired: () => void }) 
   const mutation = state.mutations.notifications;
   const fresh = notes.page !== null && !notes.loading && !notes.stale && !notes.error;
   return <div id="health-history-panel">
-    <p className="notice">New automatic health observations are not available yet. This view shows recorded alerts and in-app notifications.</p>
+    <p className="notice">Recorded alerts and in-app notifications. Refresh to read the latest state. Health coverage remains partial.</p>
     <button disabled={state.alerts.loading && notes.loading} onClick={() => { void controller.refresh(); }}>Refresh alert history</button>
     <AutomationReadStatus state={state} kinds={["alerts", "notifications"]} />
     <RecordedAlerts value={state.alerts.page} busy={state.alerts.loading} more={() => { void controller.next("alerts"); }} />

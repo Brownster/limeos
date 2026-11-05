@@ -36,7 +36,9 @@ test("stored alert display preserves incomplete, clear-streak and unavailable di
   assert.match(clear, /No open incident/); assert.match(clear, /1 unsuccessful observation/); assert.doesNotMatch(clear, /Healthy/);
   const missing = render(RecordedAlerts, { value: null, more() {} });
   assert.match(missing, /Alert data is unavailable/); assert.doesNotMatch(missing, /No alert history/);
-  assert.match(render(HealthHistory, { principal: "owner", grantRevision: 1, csrf: "csrf", expired() {} }), /New automatic health observations are not available yet/);
+  const history = render(HealthHistory, { principal: "owner", grantRevision: 1, csrf: "csrf", expired() {} });
+  assert.match(history, /Health coverage remains partial/);
+  assert.doesNotMatch(history, /automatic health observations are not available yet/);
 });
 
 test("acknowledgment requires delivered state and stays one POST after an ambiguous reply", async () => {
