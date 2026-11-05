@@ -77,6 +77,13 @@ def load_build(path, repo=None):
             validate_build(Path(path), build, repo)
         except (KeyError, TypeError, IndexError, AttributeError) as error:
             raise ValueError("malformed CI build provenance") from error
+    elif kind == "local-cross-build":
+        from cross_build import validate_build
+
+        try:
+            validate_build(Path(path), build, repo)
+        except (KeyError, TypeError, IndexError, AttributeError) as error:
+            raise ValueError("malformed cross-build provenance") from error
     elif kind == "native-kvm":
         validate_native_gates(build)
     else:

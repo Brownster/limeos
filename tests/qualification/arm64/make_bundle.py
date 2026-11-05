@@ -70,7 +70,14 @@ def main():
         type=Path,
         help="Retained run.json, job.json, artifact.json and artifact.zip; reuse verified native CI UI bytes",
     )
+    parser.add_argument(
+        "--cross-build",
+        action="store_true",
+        help="Label the bundle for a locally cross-built candidate (frontend still built from the archive)",
+    )
     args = parser.parse_args()
+    if args.cross_build and args.ci_inputs:
+        parser.error("--cross-build and --ci-inputs are exclusive")
     logs = args.output.with_suffix(".frontend-logs")
     if args.output.exists() or args.manifest.exists() or logs.exists():
         parser.error(
@@ -171,6 +178,8 @@ def main():
                 "architecture": "arm64",
                 "qualification_kind": "native-ci-build-kvm-install"
                 if args.ci_inputs
+                else "local-cross-build-kvm-install"
+                if args.cross_build
                 else "native-kvm",
             },
             "runtime_source_sha256": source_files,
