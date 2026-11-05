@@ -196,12 +196,11 @@ fn parse_api_version(value: &Value) -> Result<String> {
     }
     Ok(format!("v1.{max}"))
 }
-impl Engine for Docker {
-    async fn inspect(&self, id: &str) -> Result<ContainerSnapshot> {
+impl Docker {
+    async fn inspect_value(&self, version: &str, id: &str) -> Result<Value> {
         if !opaque_id(id) {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        let version = self.version().await?;
         let value = self
             .json(format!("/{version}/containers/{id}/json"), 512 * 1024)
             .await?;
@@ -209,24 +208,76 @@ impl Engine for Docker {
         if value["Id"].as_str() != Some(id) {
             return Err(Error(ErrorCode::Unavailable));
         }
-        let snapshot = ContainerSnapshot {
-            resource: format!("container:{id}"),
-            image: value["Image"]
-                .as_str()
-                .ok_or(Error(ErrorCode::Unavailable))?
-                .into(),
-            started_at: value["State"]["StartedAt"]
-                .as_str()
-                .ok_or(Error(ErrorCode::Unavailable))?
-                .into(),
-            running: value["State"]["Running"]
-                .as_bool()
-                .ok_or(Error(ErrorCode::Unavailable))?,
-        };
-        snapshot
-            .validate()
-            .map_err(|_| Error(ErrorCode::Unavailable))?;
-        Ok(snapshot)
+        Ok(value)
+    }
+}
+fn selected_snapshot(id: &str, value: &Value) -> Result<ContainerSnapshot> {
+    let snapshot = ContainerSnapshot {
+        resource: format!("container:{id}"),
+        image: value["Image"]
+            .as_str()
+            .ok_or(Error(ErrorCode::Unavailable))?
+            .into(),
+        started_at: value["State"]["StartedAt"]
+            .as_str()
+            .ok_or(Error(ErrorCode::Unavailable))?
+            .into(),
+        running: value["State"]["Running"]
+            .as_bool()
+            .ok_or(Error(ErrorCode::Unavailable))?,
+    };
+    snapshot
+        .validate()
+        .map_err(|_| Error(ErrorCode::Unavailable))?;
+    Ok(snapshot)
+}
+impl Engine for Docker {
+    async fn inspect(&self, id: &str) -> Result<ContainerSnapshot> {
+        if !opaque_id(id) {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
+        let version = self.version().await?;
+        selected_snapshot(id, &self.inspect_value(&version, id).await?)
+    }
+    /// Engine-declared project label only; never a Compose file. One-off
+    /// containers are excluded. More than the stack bound is refused whole.
+    async fn project_members(&self, project: &str) -> Result<Vec<ContainerSnapshot>> {
+        if !limeos_domain::stack_project(project) {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
+        let version = self.version().await?;
+        let filter =
+            format!("%7B%22label%22%3A%5B%22com.docker.compose.project%3D{project}%22%5D%7D");
+        let listed = self
+            .json(
+                format!("/{version}/containers/json?all=1&filters={filter}"),
+                256 * 1024,
+            )
+            .await?;
+        let rows = listed.as_array().ok_or(Error(ErrorCode::Unavailable))?;
+        if rows.len() > 64 {
+            return Err(Error(ErrorCode::Unavailable));
+        }
+        let mut members = Vec::new();
+        for row in rows {
+            let id = row["Id"].as_str().ok_or(Error(ErrorCode::Unavailable))?;
+            let value = self.inspect_value(&version, id).await?;
+            let labels = &value["Config"]["Labels"];
+            if labels["com.docker.compose.project"].as_str() != Some(project) {
+                return Err(Error(ErrorCode::Unavailable));
+            }
+            match labels["com.docker.compose.oneoff"].as_str() {
+                Some("True") => continue,
+                Some("False") => {}
+                _ => return Err(Error(ErrorCode::Unavailable)),
+            }
+            members.push(selected_snapshot(id, &value)?);
+        }
+        if members.len() > limeos_domain::MAX_STACK_MEMBERS {
+            return Err(Error(ErrorCode::Unavailable));
+        }
+        members.sort_by(|a, b| a.resource.cmp(&b.resource));
+        Ok(members)
     }
     async fn restart(&self, id: &str) -> Result<()> {
         // Negotiate before POST. A lost/failed response is uncertainty, never a

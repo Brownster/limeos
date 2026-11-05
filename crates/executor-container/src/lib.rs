@@ -4,6 +4,7 @@ use fs2::FileExt;
 use limeos_domain::{ContainerAction, ContainerSnapshot, Error, ErrorCode, Result, opaque_id};
 pub use limeos_domain::{
     ContainerReceipt, ContainerRequest, ExecutionState, RestartReceipt, RestartRequest,
+    StackReceipt, StackRequest,
 };
 pub mod compose_files;
 pub mod compose_management;
@@ -11,8 +12,10 @@ pub mod compose_source;
 pub mod deployment;
 pub mod docker;
 mod logs;
+mod stack;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
+pub use stack::member_action;
 use std::{
     fs::{File, OpenOptions},
     future::Future,
@@ -32,7 +35,11 @@ pub struct ContainerCeiling {
     pub allow_start: bool,
     #[serde(default)]
     pub allow_stop: bool,
+    #[serde(default)]
+    pub allow_stack: bool,
     pub managed_containers: Vec<String>,
+    #[serde(default)]
+    pub managed_stacks: Vec<String>,
 }
 impl ContainerCeiling {
     pub fn authorize(
@@ -59,6 +66,33 @@ impl ContainerCeiling {
         Ok(())
     }
 }
+impl ContainerCeiling {
+    /// Defense in depth after the protocol ceiling: the project must be listed
+    /// and every target must independently pass the container ceiling.
+    pub fn authorize_stack(
+        &self,
+        peer_uid: u32,
+        expected: &limeos_domain::StackSnapshot,
+        operation: ContainerAction,
+    ) -> Result<()> {
+        expected.validate_for(operation)?;
+        let project = expected.project()?;
+        if !self.allow_stack
+            || self.managed_stacks.len() > 16
+            || self
+                .managed_stacks
+                .iter()
+                .any(|p| !limeos_domain::stack_project(p))
+            || !self.managed_stacks.iter().any(|allowed| allowed == project)
+        {
+            return Err(Error(ErrorCode::Forbidden));
+        }
+        for target in expected.targets(operation) {
+            self.authorize(peer_uid, &target.resource, operation)?;
+        }
+        Ok(())
+    }
+}
 pub type RestartCeiling = ContainerCeiling;
 
 pub trait Engine {
@@ -68,6 +102,14 @@ pub trait Engine {
         async { Err(Error(ErrorCode::Unavailable)) }
     }
     fn stop(&self, _id: &str) -> impl Future<Output = Result<()>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    /// Fresh listing of a Compose project's ordinary (non one-off) members,
+    /// each identified by full ID, image, start time and running state.
+    fn project_members(
+        &self,
+        _project: &str,
+    ) -> impl Future<Output = Result<Vec<ContainerSnapshot>>> + Send {
         async { Err(Error(ErrorCode::Unavailable)) }
     }
 }
@@ -136,7 +178,7 @@ impl ReceiptStore {
             0 => {
                 conn.execute_batch("BEGIN IMMEDIATE; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL); CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','outcome_unknown'); PRAGMA user_version=1; COMMIT;").map_err(durable)?;
             }
-            1..=3 => {}
+            1..=4 => {}
             _ => return Err(Error(ErrorCode::Conflict)),
         }
         if version < 2 {
@@ -144,6 +186,9 @@ impl ReceiptStore {
         }
         if version < 3 {
             conn.execute_batch("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN operation TEXT NOT NULL DEFAULT 'restart' CHECK(operation IN ('restart','start','stop')); PRAGMA user_version=3; COMMIT;").map_err(durable)?;
+        }
+        if version < 4 {
+            conn.execute_batch("BEGIN IMMEDIATE; CREATE TABLE stack_actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX stack_actions_lock ON stack_actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); PRAGMA user_version=4; COMMIT;").map_err(durable)?;
         }
         if conn
             .query_row("PRAGMA quick_check(1)", [], |r| r.get::<_, String>(0))
@@ -155,6 +200,11 @@ impl ReceiptStore {
         // Check the expected schema before any effect can be considered.
         let _ = conn
             .prepare("SELECT action,digest,resource,state,receipt,operation FROM actions LIMIT 0")
+            .map_err(durable)?;
+        let _ = conn
+            .prepare(
+                "SELECT action,digest,resource,state,receipt,operation FROM stack_actions LIMIT 0",
+            )
             .map_err(durable)?;
         File::open(directory)
             .and_then(|f| f.sync_all())
