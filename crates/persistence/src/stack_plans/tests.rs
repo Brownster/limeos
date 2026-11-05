@@ -32,7 +32,7 @@ fn approved(
     op: ContainerAction,
     at: i64,
 ) -> (PlannedStackAction, String) {
-    let proposal = store.plan_stack(p, op, &stack(), at).unwrap();
+    let proposal = store.plan_stack(p, op, "registered", &stack(), at).unwrap();
     let approval = store
         .approve_stack(p, &proposal.plan.id, &proposal.digest, at + 1)
         .unwrap();
@@ -97,8 +97,10 @@ fn approved_stack_job_locks_the_stack_and_every_member_then_verifies_each_target
     assert!(store.container_jobs(&p).unwrap().is_empty());
     let running = store.claim_stack(&p, &job.id, &stack(), 205).unwrap();
     assert_eq!(running.state, JobState::Running);
-    assert_eq!(locks(&store, &job.id).len(), 4);
+    assert_eq!(locks(&store, &job.id).len(), 5);
     assert!(locks(&store, &job.id).contains(&"stack:media".to_string()));
+    // The registered catalog stack is locked too, so deploy jobs exclude it.
+    assert!(locks(&store, &job.id).contains(&"stack:registered".to_string()));
     let after = restarted(&job);
     let done = receipt(&job, &[ExecutionState::Verified; 2]);
     // A missing or unproven member never succeeds.
@@ -151,7 +153,7 @@ fn partial_failure_keeps_per_member_evidence_and_all_locks() {
             .unwrap(),
         JobState::NeedsIntervention
     );
-    assert_eq!(locks(&store, &job.id).len(), 4);
+    assert_eq!(locks(&store, &job.id).len(), 5);
     let (stored, _) = store.stack_result(&p, &job.id).unwrap().unwrap();
     assert_eq!(stored.members[0].state, ExecutionState::Verified);
     assert_eq!(stored.members[1].error, Some(ErrorCode::Unavailable));
@@ -368,7 +370,13 @@ fn authorization_requires_the_stack_and_every_member_and_is_rechecked() {
     let stack_only = revise(&mut store, &[grant("stack:media")], 150);
     assert_eq!(
         store
-            .plan_stack(&stack_only, ContainerAction::Restart, &stack(), 200)
+            .plan_stack(
+                &stack_only,
+                ContainerAction::Restart,
+                "registered",
+                &stack(),
+                200
+            )
             .unwrap_err()
             .0,
         ErrorCode::Forbidden
@@ -385,16 +393,45 @@ fn authorization_requires_the_stack_and_every_member_and_is_rechecked() {
     );
     assert_eq!(
         store
-            .plan_stack(&members_only, ContainerAction::Restart, &stack(), 200)
+            .plan_stack(
+                &members_only,
+                ContainerAction::Restart,
+                "registered",
+                &stack(),
+                200
+            )
             .unwrap_err()
             .0,
         ErrorCode::Forbidden
     );
-    let mut all = vec![grant("stack:media")];
+    // The registered catalog stack must be granted as well as the project.
+    let mut no_catalog = vec![grant("stack:media")];
+    no_catalog.extend(stack().members.iter().map(|m| grant(&m.resource)));
+    let no_catalog = revise(&mut store, &no_catalog, 151);
+    assert_eq!(
+        store
+            .plan_stack(
+                &no_catalog,
+                ContainerAction::Restart,
+                "registered",
+                &stack(),
+                200
+            )
+            .unwrap_err()
+            .0,
+        ErrorCode::Forbidden
+    );
+    let mut all = vec![grant("stack:media"), grant("stack:registered")];
     all.extend(stack().members.iter().map(|m| grant(&m.resource)));
     let exact = revise(&mut store, &all, 152);
     let proposal = store
-        .plan_stack(&exact, ContainerAction::Restart, &stack(), 201)
+        .plan_stack(
+            &exact,
+            ContainerAction::Restart,
+            "registered",
+            &stack(),
+            201,
+        )
         .unwrap();
     let approval = store
         .approve_stack(&exact, &proposal.plan.id, &proposal.digest, 202)
@@ -422,7 +459,13 @@ fn authorization_requires_the_stack_and_every_member_and_is_rechecked() {
     };
     assert!(
         store
-            .plan_stack(&viewer, ContainerAction::Restart, &stack(), 207)
+            .plan_stack(
+                &viewer,
+                ContainerAction::Restart,
+                "registered",
+                &stack(),
+                207
+            )
             .is_err()
     );
     assert!(
@@ -436,7 +479,7 @@ fn authorization_requires_the_stack_and_every_member_and_is_rechecked() {
 fn approval_digest_cancel_and_in_flight_cancellation_follow_the_container_rules() {
     let (_dir, mut store, p) = setup();
     let proposal = store
-        .plan_stack(&p, ContainerAction::Stop, &stack(), 200)
+        .plan_stack(&p, ContainerAction::Stop, "registered", &stack(), 200)
         .unwrap();
     assert_eq!(
         store
@@ -461,7 +504,7 @@ fn approval_digest_cancel_and_in_flight_cancellation_follow_the_container_rules(
     let stopped = StackSnapshot::new("media", vec![member('a', false)]).unwrap();
     assert_eq!(
         store
-            .plan_stack(&p, ContainerAction::Restart, &stopped, 203)
+            .plan_stack(&p, ContainerAction::Restart, "registered", &stopped, 203)
             .unwrap_err()
             .0,
         ErrorCode::Conflict
@@ -491,7 +534,7 @@ fn restart_recovery_makes_interrupted_stack_jobs_uncertain_and_never_queued() {
     let candidates = store.stack_candidates().unwrap();
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].1.state, JobState::NeedsIntervention);
-    assert_eq!(locks(&store, &job.id).len(), 4);
+    assert_eq!(locks(&store, &job.id).len(), 5);
 }
 
 #[test]
@@ -516,6 +559,89 @@ fn schema_fourteen_upgrade_adds_stack_tables_and_preserves_container_plans() {
         container
     );
     store
-        .plan_stack(&p, ContainerAction::Restart, &stack(), 210)
+        .plan_stack(&p, ContainerAction::Restart, "registered", &stack(), 210)
         .unwrap();
+}
+
+#[test]
+fn partly_done_releases_locks_as_failed_never_succeeded_and_needs_proof_of_sent_members() {
+    let (_dir, mut store, p) = setup();
+    let job = queued(&mut store, &p, ContainerAction::Restart, "partly", 200);
+    store.claim_stack(&p, &job.id, &stack(), 205).unwrap();
+    let partly = receipt(
+        &job,
+        &[
+            ExecutionState::Verified,
+            ExecutionState::PreconditionChanged,
+        ],
+    );
+    assert_eq!(partly.state, ExecutionState::PartlyDone);
+    let after = restarted(&job);
+    // Without the sent member's own proof nothing is released.
+    assert_eq!(
+        store.record_stack_result(&job, &partly, None, 206).unwrap(),
+        JobState::NeedsIntervention
+    );
+    assert!(
+        store
+            .record_stack_result(&job, &partly, Some(&[]), 206)
+            .is_err()
+    );
+    assert_eq!(locks(&store, &job.id).len(), 5);
+    assert_eq!(
+        store
+            .record_stack_result(&job, &partly, Some(&after[..1]), 207)
+            .unwrap(),
+        JobState::Failed
+    );
+    assert_eq!(
+        store.stack_job(&p, &job.id).unwrap().state,
+        JobState::Failed
+    );
+    assert!(locks(&store, &job.id).is_empty());
+    let (stored, _) = store.stack_result(&p, &job.id).unwrap().unwrap();
+    assert_eq!(stored.state, ExecutionState::PartlyDone);
+    // An unknown sent member never reaches the terminal outcome.
+    let other = queued(&mut store, &p, ContainerAction::Restart, "unknown", 210);
+    store.claim_stack(&p, &other.id, &stack(), 215).unwrap();
+    let unknown = receipt(
+        &other,
+        &[
+            ExecutionState::OutcomeUnknown,
+            ExecutionState::PreconditionChanged,
+        ],
+    );
+    assert_eq!(
+        store
+            .record_stack_result(&other, &unknown, Some(&restarted(&other)), 216)
+            .unwrap(),
+        JobState::NeedsIntervention
+    );
+    assert_eq!(locks(&store, &other.id).len(), 5);
+}
+
+#[test]
+fn an_unsent_job_is_released_only_when_no_result_exists() {
+    let (_dir, mut store, p) = setup();
+    let job = queued(&mut store, &p, ContainerAction::Restart, "unsent", 200);
+    // Queued work cannot be declared unsent: it was never dispatched.
+    assert!(store.record_stack_unsent(&job, 201).is_err());
+    store.claim_stack(&p, &job.id, &stack(), 205).unwrap();
+    assert_eq!(locks(&store, &job.id).len(), 5);
+    store.record_stack_unsent(&job, 206).unwrap();
+    assert_eq!(
+        store.stack_job(&p, &job.id).unwrap().state,
+        JobState::PreconditionChanged
+    );
+    assert!(locks(&store, &job.id).is_empty());
+    store.record_stack_unsent(&job, 207).unwrap();
+    // Any recorded executor evidence forbids the release.
+    let sent = queued(&mut store, &p, ContainerAction::Restart, "sent", 210);
+    store.claim_stack(&p, &sent.id, &stack(), 215).unwrap();
+    let evidence = receipt(&sent, &[ExecutionState::OutcomeUnknown; 2]);
+    store
+        .record_stack_result(&sent, &evidence, None, 216)
+        .unwrap();
+    assert!(store.record_stack_unsent(&sent, 217).is_err());
+    assert_eq!(locks(&store, &sent.id).len(), 5);
 }

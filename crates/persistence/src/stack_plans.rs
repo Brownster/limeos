@@ -89,6 +89,12 @@ impl Store {
                 limeos_domain::verify_stack(receipt.operation, &receipt.before, afters)?;
                 JobState::Succeeded
             }
+            // Releases the locks without claiming success: the sent members
+            // are proven and the rest were never sent.
+            (ExecutionState::PartlyDone, Some(afters)) => {
+                limeos_domain::verify_partly_done(receipt, afters)?;
+                JobState::Failed
+            }
             (ExecutionState::PreconditionChanged, _) => JobState::PreconditionChanged,
             _ => JobState::NeedsIntervention,
         };
@@ -145,6 +151,56 @@ impl Store {
         })?;
         Ok(next)
     }
+    /// Nothing was sent: the executor holds no row for this action, and every
+    /// Engine call is preceded by a durable Prepared row. Releases the locks.
+    pub fn record_stack_unsent(&mut self, job: &StackJob, now: i64) -> Result<()> {
+        self.write(|tx| {
+            let (state, intent): (String, String) = tx
+                .query_row(
+                    "SELECT state,intent FROM jobs WHERE id=? AND principal=?",
+                    params![job.id, job.plan.principal],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .optional()
+                .map_err(durable)?
+                .ok_or(Error(ErrorCode::NotFound))?;
+            if parse::<Intent>(&intent)? != Intent::stack(job.plan.clone()) {
+                return Err(Error(ErrorCode::Conflict));
+            }
+            if state == JobState::PreconditionChanged.as_str() {
+                return Ok(());
+            }
+            let results: i64 = tx
+                .query_row(
+                    "SELECT count(*) FROM stack_results WHERE job=?",
+                    [&job.id],
+                    |r| r.get(0),
+                )
+                .map_err(durable)?;
+            if results != 0
+                || !matches!(
+                    state.as_str(),
+                    "running" | "verifying" | "outcome_unknown" | "needs_intervention"
+                )
+            {
+                return Err(Error(ErrorCode::Conflict));
+            }
+            tx.execute(
+                "UPDATE jobs SET state='precondition_changed' WHERE id=?",
+                [&job.id],
+            )
+            .map_err(durable)?;
+            event(
+                tx,
+                Some(&job.plan.principal),
+                Some(&job.id),
+                EventKind::JobTransition {
+                    state: JobState::PreconditionChanged,
+                },
+                now,
+            )
+        })
+    }
     /// The last recorded per-member evidence for a job, if any.
     #[allow(clippy::type_complexity)]
     pub fn stack_result(
@@ -175,17 +231,19 @@ impl Store {
         &mut self,
         principal: &Principal,
         operation: ContainerAction,
+        catalog_stack: &str,
         expected: &StackSnapshot,
         now: i64,
     ) -> Result<PlannedStackAction> {
         expected.validate_for(operation)?;
-        self.authorize_stack(principal, expected)?;
+        self.authorize_stack(principal, catalog_stack, expected)?;
         let plan = StackPlan {
             id: limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?,
             version: limeos_domain::STACK_VERSION,
             operation,
             principal: principal.id.clone(),
             grant_revision: principal.grant_revision,
+            catalog_stack: catalog_stack.into(),
             expected: expected.clone(),
             created_at: now,
             expires_at: now
@@ -206,11 +264,17 @@ impl Store {
         Ok(PlannedStackAction { plan, digest })
     }
 
-    /// A stack grant never reaches a member the principal could not manage.
-    pub fn authorize_stack(&self, principal: &Principal, expected: &StackSnapshot) -> Result<()> {
+    /// A stack grant never reaches a member the principal could not manage,
+    /// and the registered catalog stack is authorized as well as the project.
+    pub fn authorize_stack(
+        &self,
+        principal: &Principal,
+        catalog_stack: &str,
+        expected: &StackSnapshot,
+    ) -> Result<()> {
         let grants = self.grants(principal)?;
         expected
-            .scopes()
+            .scopes_for(catalog_stack)
             .iter()
             .try_for_each(|scope| limeos_policy::authorize(principal, &grants, scope))
     }
@@ -239,7 +303,7 @@ impl Store {
         if plan.grant_revision != principal.grant_revision {
             return Err(Error(ErrorCode::Expired));
         }
-        self.authorize_stack(principal, &plan.expected)?;
+        self.authorize_stack(principal, &plan.catalog_stack, &plan.expected)?;
         Ok(PlannedStackAction { plan, digest })
     }
 
@@ -339,11 +403,12 @@ impl Store {
                 ],
             )
             .map_err(durable)?;
-            // The primary stack resource is inserted by trigger; add every member.
-            for member in &stored.plan.expected.members {
+            // The primary project resource is inserted by trigger; add the
+            // catalog stack (if different) and every member.
+            for resource in stored.plan.resources().iter().skip(1) {
                 tx.execute(
                     "INSERT INTO job_resources VALUES(?,?)",
-                    params![id, member.resource],
+                    params![id, resource],
                 )
                 .map_err(durable)?;
             }
@@ -414,7 +479,7 @@ impl Store {
             .map_err(durable)?;
         let (intent, state) = row.ok_or(Error(ErrorCode::NotFound))?;
         let plan = parse::<Intent>(&intent)?.stack_plan()?;
-        self.authorize_stack(principal, &plan.expected)?;
+        self.authorize_stack(principal, &plan.catalog_stack, &plan.expected)?;
         Ok(StackJob {
             id: id.into(),
             plan,
