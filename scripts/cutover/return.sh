@@ -6,6 +6,7 @@
 set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
+# shellcheck source=lib.sh
 source "${SCRIPT_DIR}/lib.sh"
 
 SITE_NAME=limeos-cutover.caddy
@@ -57,6 +58,7 @@ fct_verify_hashes() {
     while read -r flag hash path; do
         [[ -n "${path}" ]] || continue
         line="$(awk -v p="${path}" '$3 == p { print; exit }' "${tmp}")"
+        # shellcheck disable=SC2034  # the flag field is not needed here
         read -r cur_flag cur_hash _ <<<"${line:-V ABSENT x}"
         if [[ "${flag}" == S ]]; then
             [[ "${cur_hash}" == "${hash}" ]] || fct_fail "state file changed: ${path}"

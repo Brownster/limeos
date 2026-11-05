@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034  # values here are used by the scripts that source this library
 # Shared helpers for the basic-cutover scripts (preflight, activate, return).
 # Sourced, never executed. Prints no secrets: state files are hashed, never read
 # for content, and only paths and verdicts reach the logs.
