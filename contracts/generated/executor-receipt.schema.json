@@ -86,10 +86,30 @@
         }
       ]
     },
+    "stack": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StackReceipt"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "stack_cohort": {
       "anyOf": [
         {
           "$ref": "#/$defs/DiscoveryCohort"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stack_members": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StackSnapshot"
         },
         {
           "type": "null"
@@ -1195,6 +1215,32 @@
         }
       ]
     },
+    "StackMemberReceipt": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resource": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/ExecutionState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "state"
+      ]
+    },
     "StackMembership": {
       "oneOf": [
         {
@@ -1266,6 +1312,72 @@
         "name",
         "working_directory",
         "config_files"
+      ]
+    },
+    "StackReceipt": {
+      "description": "`state` is always the aggregate of `members`, which lists exactly the\nplan's targets. A member that was never sent is `precondition_changed`.",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "before": {
+          "$ref": "#/$defs/StackSnapshot"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StackMemberReceipt"
+          }
+        },
+        "operation": {
+          "$ref": "#/$defs/ContainerAction"
+        },
+        "plan_digest": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/ExecutionState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "plan_digest",
+        "operation",
+        "before",
+        "state",
+        "members"
+      ]
+    },
+    "StackSnapshot": {
+      "description": "Every ordinary (non one-off) member, stopped or running, sorted by ID.",
+      "type": "object",
+      "properties": {
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContainerSnapshot"
+          }
+        },
+        "resource": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "members"
       ]
     },
     "StackUnsupportedSource": {

@@ -124,6 +124,11 @@ fn main() {
     emit!("container-input", limeos_contracts::ContainerInput);
     emit!("container-plan", limeos_domain::PlannedContainerAction);
     emit!("container-job", limeos_domain::ContainerJob);
+    emit!("stack-input", limeos_contracts::StackInput);
+    emit!("stack-plan", limeos_domain::PlannedStackAction);
+    emit!("stack-job", limeos_domain::StackJob);
+    emit!("queue-stack-input", limeos_contracts::QueueStackInput);
+    emit!("stack-job-progress", limeos_contracts::StackJobProgress);
     emit!("container-logs", limeos_domain::ContainerLogs);
     emit!("compose-catalog", limeos_domain::ComposeCatalog);
     emit!("compose-selection", limeos_domain::ComposeSelection);
@@ -366,6 +371,16 @@ fn main() {
     ts!(limeos_contracts::ApprovalInput);
     ts!(limeos_contracts::QueueRestartInput);
     ts!(limeos_contracts::JobProgress);
+    ts!(limeos_domain::StackSnapshot);
+    ts!(limeos_domain::StackPlan);
+    ts!(limeos_domain::PlannedStackAction);
+    ts!(limeos_domain::StackJob);
+    ts!(limeos_domain::StackRequest);
+    ts!(limeos_domain::StackMemberReceipt);
+    ts!(limeos_domain::StackReceipt);
+    ts!(limeos_contracts::StackInput);
+    ts!(limeos_contracts::QueueStackInput);
+    ts!(limeos_contracts::StackJobProgress);
     ts!(limeos_executor_protocol::Request);
     ts!(limeos_domain::deployment::discovery::StackInventory);
     ts!(limeos_domain::deployment::discovery::SourceStatus);
@@ -570,6 +585,24 @@ fn main() {
             serde_json::to_value(schema_for!(limeos_domain::RestartJob)).unwrap(),
             "202",
         ),
+        (
+            "/api/v1/stack/plans",
+            serde_json::to_value(schema_for!(limeos_contracts::StackInput)).unwrap(),
+            serde_json::to_value(schema_for!(limeos_domain::PlannedStackAction)).unwrap(),
+            "201",
+        ),
+        (
+            "/api/v1/stack/plans/{id}/approval",
+            serde_json::to_value(schema_for!(limeos_contracts::ApprovalInput)).unwrap(),
+            serde_json::to_value(schema_for!(limeos_domain::PlanApproval)).unwrap(),
+            "200",
+        ),
+        (
+            "/api/v1/stack/jobs",
+            serde_json::to_value(schema_for!(limeos_contracts::QueueStackInput)).unwrap(),
+            serde_json::to_value(schema_for!(limeos_domain::StackJob)).unwrap(),
+            "202",
+        ),
     ] {
         let mut operation = serde_json::json!({"security":[{"session":[]}],"parameters":[
             {"name":"Origin","in":"header","required":true,"schema":{"type":"string"}},
@@ -579,6 +612,11 @@ fn main() {
         openapi["paths"][path] = serde_json::json!({"post":operation});
     }
     openapi["paths"]["/api/v1/container/restart/jobs/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"parameters":[{"name":"after","in":"query","schema":{"type":"integer","minimum":0,"default":0}}],"responses":{"200":{"description":"Owner-scoped durable progress, at most 128 events","content":{"application/json":{"schema":schema_for!(limeos_contracts::JobProgress)}}}}}});
+    openapi["paths"]["/api/v1/stack/jobs/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"parameters":[{"name":"after","in":"query","schema":{"type":"integer","minimum":0,"default":0}}],"responses":{"200":{"description":"Owner-scoped durable progress, at most 128 events, with per-member executor outcomes once recorded","content":{"application/json":{"schema":schema_for!(limeos_contracts::StackJobProgress)}}}}}});
+    openapi["paths"]["/api/v1/stack/jobs"]["get"] = serde_json::json!({"security":[{"session":[]}],"responses":{"200":{"description":"Latest 32 owned, currently authorized whole-stack jobs","content":{"application/json":{"schema":schema_for!(Vec<limeos_domain::StackJob>)}}}}});
+    openapi["paths"]["/api/v1/stack/plans"]["post"]["description"] = serde_json::json!(
+        "Whole-stack start, stop or restart of a registered Compose project with fresh sources and no inventory issue. Binds the exact full member IDs and states, excluding one-off containers. Never up, down or recreate; no Compose file is read or written."
+    );
     openapi["paths"]["/api/v1/compose/plans/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"responses":{"200":{"description":"Current owner-scoped preview; no host effects or expiry refresh","content":{"application/json":{"schema":schema_for!(limeos_domain::PlannedCompose)}}}}}});
     openapi["paths"]["/api/v1/compose/plans"]["post"]["description"] = serde_json::json!(
         "Select from the protected catalog and persist a non-executable preview. Deployment requires a new P04 operation and fresh approval."
@@ -593,6 +631,8 @@ fn main() {
         "/api/v1/storage/plans/{id}/cancel",
         "/api/v1/container/restart/plans/{id}/cancel",
         "/api/v1/container/restart/jobs/{id}/cancel",
+        "/api/v1/stack/plans/{id}/cancel",
+        "/api/v1/stack/jobs/{id}/cancel",
     ] {
         openapi["paths"][path] = serde_json::json!({"post":{"security":[{"session":[]}],"parameters":[
             {"name":"Origin","in":"header","required":true,"schema":{"type":"string"}},

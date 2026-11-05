@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StackInput",
+  "description": "Whole-stack lifecycle: exact Compose project name and one of start, stop\nor restart. No path, file, service or container selection is accepted.",
+  "type": "object",
+  "properties": {
+    "operation": {
+      "$ref": "#/$defs/ContainerAction"
+    },
+    "project": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "project",
+    "operation"
+  ],
+  "$defs": {
+    "ContainerAction": {
+      "type": "string",
+      "enum": [
+        "restart",
+        "start",
+        "stop"
+      ]
+    }
+  }
+}

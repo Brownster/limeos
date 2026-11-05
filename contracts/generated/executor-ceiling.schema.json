@@ -26,6 +26,11 @@
       "type": "boolean",
       "default": false
     },
+    "allow_stack": {
+      "description": "Whole-stack start/stop/restart, still bounded by the per-action flags,\n`managed_stacks` and every target in `managed_containers`.",
+      "type": "boolean",
+      "default": false
+    },
     "allow_stack_read": {
       "type": "boolean",
       "default": false
@@ -48,6 +53,14 @@
       "minimum": 0
     },
     "managed_containers": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "managed_stacks": {
+      "description": "Compose project names.",
       "type": "array",
       "default": [],
       "items": {
