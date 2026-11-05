@@ -28,6 +28,8 @@ mod operations;
 #[cfg(test)]
 mod read_tests;
 mod reads;
+#[cfg(test)]
+mod stack_operation_tests;
 mod stack_operations;
 mod stacks;
 mod storage;
