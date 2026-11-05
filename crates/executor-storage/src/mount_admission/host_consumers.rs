@@ -7,6 +7,7 @@ use std::{collections::BTreeMap, io::Read, os::fd::AsRawFd};
 const TASKS: usize = 256;
 const NAMESPACES: usize = HOST_CONSUMER_NAMESPACE_LIMIT;
 const FDS_PER_PROCESS: usize = 256;
+const SCANS: usize = 6;
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub(super) struct Task {
     pid: u32,
@@ -324,7 +325,9 @@ impl HostConsumers {
         }
         let (tasks, namespaces, digest) = diagnosed(
             "scan.initial_collection",
-            collect(&proc, selected, physical, underlay, expires, cancelled),
+            stable(expires, cancelled, SCANS, || {
+                collect(&proc, selected, physical, underlay, expires, cancelled)
+            }),
         )?;
         let owner = Self {
             proc,
@@ -334,10 +337,7 @@ impl HostConsumers {
             expires,
             poisoned: Cell::new(false),
         };
-        diagnosed(
-            "scan.initial_recheck",
-            owner.revalidate(selected, physical, underlay, cancelled),
-        )?;
+        // The stable pair above is the initial recheck; later rechecks stay exact.
         Ok(owner)
     }
     pub(super) fn digest(&self) -> &str {
@@ -526,6 +526,48 @@ fn start(fd: &OwnedFd, tid: u32) -> Result<u64> {
         .ok_or_else(|| refusal("task.stat.start_field", Failure::Unavailable, 0, 0, 0))
 }
 type Collection = (Vec<Task>, BTreeMap<(u64, u64), Namespace>, String);
+fn same(a: &Collection, b: &Collection) -> bool {
+    a.0 == b.0
+        && a.2 == b.2
+        && a.1.len() == b.1.len()
+        && a.1
+            .iter()
+            .zip(&b.1)
+            .all(|(x, y)| x.0 == y.0 && x.1.digest == y.1.digest)
+}
+/// Read-only scans repeat inside the one existing window, at most `scans`
+/// times, until two consecutive complete scans are identical. A failed scan
+/// breaks the pair. Time-outs, cancellation and non-churn failures end at once.
+/// Nothing is filtered, extended or applied; no match refuses fail-closed.
+fn stable(
+    expires: Instant,
+    cancelled: &dyn Fn() -> bool,
+    scans: usize,
+    mut scan: impl FnMut() -> Result<Collection>,
+) -> Result<Collection> {
+    let mut previous: Option<Collection> = None;
+    let mut last = Failure::Conflict;
+    for _ in 0..scans {
+        diagnosed("scan.stable.window", poll(expires, cancelled))?;
+        match scan() {
+            Ok(current) => {
+                if previous.as_ref().is_some_and(|p| same(p, &current)) {
+                    return Ok(current);
+                }
+                last = Failure::Conflict;
+                previous = Some(current);
+            }
+            Err(
+                failure @ (Failure::Conflict | Failure::Unavailable | Failure::IdentityMismatch),
+            ) => {
+                last = failure;
+                previous = None;
+            }
+            Err(failure) => return Err(failure),
+        }
+    }
+    Err(refusal("scan.stable.exhausted", last, 0, scans, scans))
+}
 fn collect(
     proc: &OwnedFd,
     selected: &StorageDevice,
@@ -1699,5 +1741,112 @@ mod tests {
                 assert_eq!(kernel_marker(flags, &status), Err(Failure::Conflict));
             }
         }
+    }
+    fn scan(threads: &[u32], digest: &str) -> Collection {
+        let tasks = threads
+            .iter()
+            .map(|tid| Task {
+                pid: 7055,
+                tid: *tid,
+                start: 1,
+                namespace: (1, 2),
+            })
+            .collect();
+        let fd = OwnedFd::from(File::open("/dev/null").unwrap());
+        let namespaces = BTreeMap::from([(
+            (1, 2),
+            Namespace {
+                fd,
+                digest: digest.into(),
+            },
+        )]);
+        (tasks, namespaces, format!("inventory-{threads:?}"))
+    }
+    fn run(scans: Vec<Result<Collection>>, deadline: Duration) -> (Result<Collection>, usize) {
+        let mut scans = scans.into_iter();
+        let mut calls = 0;
+        let result = stable(Instant::now() + deadline, &|| false, SCANS, || {
+            calls += 1;
+            scans.next().unwrap_or(Err(Failure::Conflict))
+        });
+        (result, calls)
+    }
+    #[test]
+    fn churn_that_settles_is_admitted_on_the_first_identical_pair() {
+        let (result, calls) = run(
+            vec![
+                Ok(scan(&[1, 2], "a")),
+                Ok(scan(&[1, 2, 8386], "a")),
+                Err(Failure::Unavailable),
+                Ok(scan(&[1, 2, 8386], "a")),
+                Ok(scan(&[1, 2, 8386], "a")),
+            ],
+            Duration::from_secs(4),
+        );
+        assert_eq!(result.unwrap().0.len(), 3);
+        assert_eq!(calls, 5);
+    }
+    #[test]
+    fn continuous_churn_refuses_within_the_attempt_bound() {
+        let churn = (0..20).map(|n| Ok(scan(&[1, 100 + n], "a"))).collect();
+        let (result, calls) = run(churn, Duration::from_secs(4));
+        assert_eq!(result.err(), Some(Failure::Conflict));
+        assert_eq!(calls, SCANS);
+        let failing = (0..20).map(|_| Err(Failure::Conflict)).collect();
+        let (result, calls) = run(failing, Duration::from_secs(4));
+        assert_eq!(result.err(), Some(Failure::Conflict));
+        assert_eq!(calls, SCANS);
+    }
+    #[test]
+    fn a_failed_scan_or_changed_namespace_never_completes_a_pair() {
+        let (result, _) = run(
+            vec![
+                Ok(scan(&[1], "a")),
+                Err(Failure::Conflict),
+                Ok(scan(&[1], "a")),
+                Ok(scan(&[1], "b")),
+                Err(Failure::Conflict),
+                Ok(scan(&[1], "a")),
+            ],
+            Duration::from_secs(4),
+        );
+        assert_eq!(result.err(), Some(Failure::Conflict));
+        assert!(!same(&scan(&[1], "a"), &scan(&[1], "b")));
+        assert!(!same(&scan(&[1, 2], "a"), &scan(&[2, 1], "a")));
+        assert!(same(&scan(&[1], "a"), &scan(&[1], "a")));
+    }
+    #[test]
+    fn expired_window_or_cancellation_stops_before_any_scan() {
+        let (result, calls) = run(Vec::new(), Duration::ZERO);
+        assert_eq!(result.err(), Some(Failure::TimedOut));
+        assert_eq!(calls, 0);
+        let mut calls = 0;
+        let result = stable(Instant::now() + WINDOW, &|| true, SCANS, || {
+            calls += 1;
+            Ok(scan(&[1], "a"))
+        });
+        assert_eq!(result.err(), Some(Failure::TimedOut));
+        assert_eq!(calls, 0);
+    }
+    #[test]
+    fn deadline_passing_mid_sequence_ends_the_scan_loop() {
+        let expires = Instant::now() + Duration::from_millis(50);
+        let mut calls = 0;
+        let result = stable(expires, &|| false, SCANS, || {
+            calls += 1;
+            std::thread::sleep(Duration::from_millis(60));
+            Ok(scan(&[1, calls], "a"))
+        });
+        assert_eq!(result.err(), Some(Failure::TimedOut));
+        assert_eq!(calls, 1);
+    }
+    #[test]
+    fn non_churn_failures_are_not_retried() {
+        let (result, calls) = run(
+            vec![Err(Failure::WrongNamespace), Ok(scan(&[1], "a"))],
+            Duration::from_secs(4),
+        );
+        assert_eq!(result.err(), Some(Failure::WrongNamespace));
+        assert_eq!(calls, 1);
     }
 }
