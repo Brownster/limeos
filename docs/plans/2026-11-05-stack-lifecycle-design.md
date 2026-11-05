@@ -86,3 +86,39 @@ plan is checked once more immediately before the first Engine call.
 
 Not covered: Compose `depends_on` ordering, health waits, creating or removing
 containers, one-off handling beyond exclusion, unlocking `needs_intervention`.
+
+## Review follow-ups
+
+- **Unsent release.** If `ExecuteStack` errors (or a recovery lookup returns no
+  row), core does one `StackReceipt` lookup. A lookup that succeeds and finds no
+  row proves nothing was sent (a durable Prepared row precedes every Engine
+  call), so the job becomes `precondition_changed` and the locks are released.
+  A failed lookup, or any row, keeps `needs_intervention`.
+- **Partly done.** When every sent member is verified and every other member is
+  provably unsent, the stack aggregate is `partly_done`: terminal and
+  lock-releasing. The job state is `failed` (never `succeeded`) and the UI says
+  "Partly done, N of M members" with per-member outcomes. Any unknown or
+  unverified sent member stays `needs_intervention`.
+- **Catalog stack lock key.** The catalog `stack` name and the Compose `project`
+  can differ (compose and deploy jobs lock `stack:<stack>`). The plan records
+  `catalog_stack`; the job locks and authorizes both `stack:<project>` and
+  `stack:<stack>`.
+- **Per-target recheck.** Before each target's Engine call the executor
+  inspects that target and fail-stops, recording the rest not sent, if it no
+  longer matches the plan.
+- **A transient store error** while checking authorization at dispatch leaves
+  the job queued; only a definite refusal is treated as revocation.
+- **UI retry.** The "response was interrupted" notice and same-key retry apply
+  only to network or 5xx failures; a definite 4xx asks the operator to start
+  again.
+
+### Known limits
+
+- An operator unlock path for `needs_intervention` is still required and is not
+  built. Until then such jobs hold the stack and member locks.
+- If core loses the connection while the executor has not yet reached its
+  Prepared write, the lookup is serialized behind the executor's store lock, so
+  a still-running call makes the lookup fail and the stack stays held rather
+  than being released wrongly.
+- Two further review items (numbered 5 and 8 in the review request) were
+  deferred by instruction and are not implemented.
