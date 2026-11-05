@@ -1,5 +1,6 @@
 use limeos_contracts::{CoreRequest, CoreResponse, Enrollment, VERSION};
 use std::io::Read;
+mod migrate;
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     if let Err(e) = run().await {
@@ -19,22 +20,23 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         if !meta.is_file() || meta.uid() != 0 || meta.mode() & 0o022 != 0 || meta.len() > 65536 {
             return Err("Unsafe executor ceiling; preserve and repair the original file.".into());
         }
-        let ceiling: limeos_executor_protocol::Ceiling =
-            serde_json::from_slice(&std::fs::read(&args[1])?)
-                .map_err(|_| "Invalid executor ceiling; preserve and repair the original file.")?;
-        if !ceiling.configuration_valid() || ceiling.core_uid != args[2].parse::<u32>()? {
-            return Err(
-                "Executor ceiling identity/version mismatch; repair the original file.".into(),
-            );
-        }
-        return Ok(());
+        return check_ceiling(&std::fs::read(&args[1])?, args[2].parse::<u32>()?)
+            .map_err(Into::into);
     }
     if args.first().is_some_and(|s| s == "check-config") && args.len() == 2 {
         match limeos_persistence::config::read(std::path::Path::new(&args[1]))? {limeos_persistence::config::ConfigRead::Valid(_)=>return Ok(()),_=>return Err("Invalid or missing configuration. Repair /etc/limeos/core.json, then run dpkg --configure limeos. Original preserved.".into())}
     }
+    let (socket_flag, rest) = match args.as_slice() {
+        [flag, path, rest @ ..] if flag == "--socket" => (Some(path.as_str()), rest),
+        rest => (None, rest),
+    };
+    if rest.first().is_some_and(|s| s == "migrate") && !args.iter().any(|a| a == "--help") {
+        return migrate::run(socket_flag.unwrap_or(DEFAULT_SOCKET), &rest[1..]).await;
+    }
     if args.is_empty() || args.iter().any(|a| a == "--help" || a == "-h") {
         println!(
-            "Usage: limeosctl [--socket PATH] status|bootstrap|enroll\nbootstrap: root-only, one-use token valid for 15 minutes.\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments."
+            "Usage: limeosctl [--socket PATH] status|bootstrap|enroll\nbootstrap: root-only, one-use token valid for 15 minutes.\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\n{}",
+            migrate::USAGE
         );
         return Ok(());
     }
@@ -42,7 +44,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         if args.first().is_some_and(|s| s == "--socket") && args.len() == 3 {
             (&args[1], &args[2])
         } else if args.len() == 1 {
-            ("/run/limeos-core/core.sock", &args[0])
+            (DEFAULT_SOCKET, &args[0])
         } else {
             return Err("invalid arguments; run limeosctl --help".into());
         };
@@ -64,17 +66,37 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
         _ => return Err("unknown command; run limeosctl --help".into()),
     };
+    let response = rpc(socket, &request).await?;
+    println!("{}", serde_json::to_string(&response)?);
+    Ok(())
+}
+const DEFAULT_SOCKET: &str = "/run/limeos-core/core.sock";
+/// The ceiling bytes parse, are valid, and name the expected core uid.
+fn check_ceiling(bytes: &[u8], core_uid: u32) -> Result<(), &'static str> {
+    let ceiling: limeos_executor_protocol::Ceiling = serde_json::from_slice(bytes)
+        .map_err(|_| "Invalid executor ceiling; preserve and repair the original file.")?;
+    if !ceiling.configuration_valid() || ceiling.core_uid != core_uid {
+        return Err("Executor ceiling identity/version mismatch; repair the original file.");
+    }
+    Ok(())
+}
+#[cfg(test)]
+fn ceiling_acceptable(bytes: &[u8], core_uid: u32) -> bool {
+    check_ceiling(bytes, core_uid).is_ok()
+}
+async fn rpc(
+    socket: &str,
+    request: &CoreRequest,
+) -> Result<CoreResponse, Box<dyn std::error::Error>> {
     tokio::time::timeout(limeos_contracts::RPC_DEADLINE, async {
         let mut stream = tokio::net::UnixStream::connect(socket).await?;
-        limeos_contracts::write_frame(&mut stream, &request).await?;
+        limeos_contracts::write_frame(&mut stream, request).await?;
         let response: CoreResponse = limeos_contracts::read_frame(&mut stream).await?;
         if let CoreResponse::Error(error) = response {
             return Err(error.message.into());
         }
-        println!("{}", serde_json::to_string(&response)?);
-        Ok::<_, Box<dyn std::error::Error>>(())
+        Ok::<_, Box<dyn std::error::Error>>(response)
     })
     .await
-    .map_err(|_| "local request timed out")??;
-    Ok(())
+    .map_err(|_| "local request timed out")?
 }

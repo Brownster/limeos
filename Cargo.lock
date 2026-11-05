@@ -965,10 +965,16 @@ dependencies = [
 name = "limeosctl"
 version = "0.2.0"
 dependencies = [
+ "hex",
  "limeos-contracts",
+ "limeos-domain",
  "limeos-executor-protocol",
  "limeos-persistence",
+ "rustix",
+ "serde",
  "serde_json",
+ "sha2",
+ "tempfile",
  "tokio",
 ]
 
