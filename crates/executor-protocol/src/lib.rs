@@ -28,8 +28,15 @@ pub struct Ceiling {
     pub allow_stop: bool,
     #[serde(default)]
     pub allow_container_logs: bool,
+    /// Whole-stack start/stop/restart, still bounded by the per-action flags,
+    /// `managed_stacks` and every target in `managed_containers`.
+    #[serde(default)]
+    pub allow_stack: bool,
     #[serde(default)]
     pub managed_containers: Vec<String>,
+    /// Compose project names.
+    #[serde(default)]
+    pub managed_stacks: Vec<String>,
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
@@ -124,6 +131,27 @@ pub enum Request {
         digest: String,
         after: limeos_domain::ContainerSnapshot,
     },
+    /// Fresh Engine listing of one Compose project's ordinary members.
+    InspectStack {
+        version: u16,
+        project: String,
+    },
+    ExecuteStack {
+        version: u16,
+        request: limeos_domain::StackRequest,
+    },
+    StackReceipt {
+        version: u16,
+        action: String,
+        digest: String,
+    },
+    /// Fresh inspections of the plan's targets; never launches an effect.
+    VerifyStack {
+        version: u16,
+        action: String,
+        digest: String,
+        after: Vec<limeos_domain::ContainerSnapshot>,
+    },
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
@@ -148,6 +176,10 @@ pub struct Receipt {
     pub inspection: Option<limeos_domain::ContainerSnapshot>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub restart: Option<limeos_domain::RestartReceipt>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stack: Option<limeos_domain::StackReceipt>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stack_members: Option<limeos_domain::StackSnapshot>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logs: Option<limeos_domain::ContainerLogs>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -315,6 +347,12 @@ impl Ceiling {
                 .managed_containers
                 .iter()
                 .all(|id| limeos_domain::opaque_id(id))
+            && self.managed_stacks.len() <= 16
+            && self
+                .managed_stacks
+                .iter()
+                .all(|project| limeos_domain::stack_project(project))
+            && (!self.allow_stack || (self.allow_restart || self.allow_start || self.allow_stop))
             && (!(self.can_write() || self.allow_container_logs) || self.allow_container_read)
             && (!(self.allow_storage_read
                 || self.allow_stack_read
@@ -325,7 +363,7 @@ impl Ceiling {
                     && !self.allow_container_logs))
     }
     pub fn can_write(&self) -> bool {
-        self.allow_restart || self.allow_start || self.allow_stop
+        self.allow_restart || self.allow_start || self.allow_stop || self.allow_stack
     }
     pub fn validate(&self, peer_uid: u32, request: &Request) -> Result<Receipt> {
         if !self.configuration_valid() || peer_uid != self.core_uid {
@@ -353,25 +391,7 @@ impl Ceiling {
                 Ok(Receipt::empty())
             }
             Request::Health { version } if *version == VERSION && self.allow_health => {
-                Ok(Receipt {
-                    container_health: None,
-                    stack_cohort: None,
-                    storage_mount_catalog: None,
-                    storage_mount_inspection: None,
-                    storage_mount: None,
-                    mounted_storage: None,
-                    version: VERSION,
-                    ready: true,
-                    observations: None,
-                    inspection: None,
-                    restart: None,
-                    logs: None,
-                    error: None,
-                    storage: None,
-                    storage_targets: None,
-                    target_preparation: None,
-                    container_storage: None,
-                })
+                Ok(Receipt::empty())
             }
             Request::Observe {
                 version, source, ..
@@ -380,25 +400,7 @@ impl Ceiling {
                     || (*source == limeos_contracts::Source::Docker
                         && self.allow_container_read)) =>
             {
-                Ok(Receipt {
-                    container_health: None,
-                    stack_cohort: None,
-                    storage_mount_catalog: None,
-                    storage_mount_inspection: None,
-                    storage_mount: None,
-                    mounted_storage: None,
-                    version: VERSION,
-                    ready: true,
-                    observations: None,
-                    inspection: None,
-                    restart: None,
-                    logs: None,
-                    error: None,
-                    storage: None,
-                    storage_targets: None,
-                    target_preparation: None,
-                    container_storage: None,
-                })
+                Ok(Receipt::empty())
             }
             Request::Inspect { version, resource }
                 if *version == VERSION
@@ -443,6 +445,39 @@ impl Ceiling {
                 )?;
                 Ok(Receipt::empty())
             }
+            Request::InspectStack { version, project }
+                if *version == VERSION
+                    && self.allow_container_read
+                    && limeos_domain::stack_project(project) =>
+            {
+                Ok(Receipt::empty())
+            }
+            Request::ExecuteStack { version, request } if *version == VERSION => {
+                self.authorize_stack(peer_uid, &request.plan.expected, request.plan.operation)?;
+                Ok(Receipt::empty())
+            }
+            Request::StackReceipt {
+                version,
+                action,
+                digest,
+            }
+            | Request::VerifyStack {
+                version,
+                action,
+                digest,
+                ..
+            } if *version == VERSION
+                && self.allow_stack
+                && limeos_domain::opaque_id(action)
+                && limeos_domain::opaque_id(digest) =>
+            {
+                if let Request::VerifyStack { after, .. } = request
+                    && after.len() > limeos_domain::MAX_STACK_MEMBERS
+                {
+                    return Err(Error(ErrorCode::InvalidInput));
+                }
+                Ok(Receipt::empty())
+            }
             Request::RestartReceipt {
                 version,
                 action,
@@ -462,6 +497,27 @@ impl Ceiling {
             }
             _ => Err(Error(ErrorCode::InvalidInput)),
         }
+    }
+    /// Stack authority adds to, and never replaces, the container ceiling: the
+    /// project must be listed and every target must be an allowed container.
+    pub fn authorize_stack(
+        &self,
+        peer_uid: u32,
+        expected: &limeos_domain::StackSnapshot,
+        operation: limeos_domain::ContainerAction,
+    ) -> Result<()> {
+        if !self.configuration_valid() || peer_uid != self.core_uid || !self.allow_stack {
+            return Err(Error(ErrorCode::Forbidden));
+        }
+        expected.validate_for(operation)?;
+        let project = expected.project()?;
+        for target in expected.targets(operation) {
+            self.authorize_container(peer_uid, &target.resource, operation)?;
+        }
+        if !self.managed_stacks.iter().any(|allowed| allowed == project) {
+            return Err(Error(ErrorCode::Forbidden));
+        }
+        Ok(())
     }
     pub fn authorize_container(
         &self,
@@ -504,6 +560,8 @@ impl Receipt {
             observations: None,
             inspection: None,
             restart: None,
+            stack: None,
+            stack_members: None,
             logs: None,
             error: None,
             storage: None,
@@ -754,7 +812,9 @@ mod tests {
             allow_start: false,
             allow_stop: false,
             allow_container_logs: false,
+            allow_stack: false,
             managed_containers: vec![id.clone()],
+            managed_stacks: Vec::new(),
         };
         let request = Request::ContainerLogs {
             version: VERSION,
@@ -798,7 +858,9 @@ mod tests {
             allow_start: false,
             allow_stop: false,
             allow_container_logs: false,
+            allow_stack: false,
             managed_containers: Vec::new(),
+            managed_stacks: Vec::new(),
         };
         assert!(
             ceiling
@@ -866,5 +928,155 @@ mod tests {
             let raw = format!("{{\"operation\":\"health\",\"version\":1,\"{extra}\":\"attack\"}}");
             assert!(serde_json::from_str::<Request>(&raw).is_err());
         }
+    }
+    fn stack_member(n: char, running: bool) -> limeos_domain::ContainerSnapshot {
+        limeos_domain::ContainerSnapshot {
+            resource: format!("container:{}", n.to_string().repeat(64)),
+            image: format!("sha256:{}", "b".repeat(64)),
+            started_at: "2026-10-05T07:00:00.000000000Z".into(),
+            running,
+        }
+    }
+    fn stack_request(operation: limeos_domain::ContainerAction) -> Request {
+        let expected = limeos_domain::StackSnapshot::new(
+            "media",
+            vec![
+                stack_member('a', true),
+                stack_member('b', false),
+                stack_member('c', true),
+            ],
+        )
+        .unwrap();
+        Request::ExecuteStack {
+            version: VERSION,
+            request: limeos_domain::StackRequest {
+                action: "d".repeat(64),
+                plan_digest: "e".repeat(64),
+                plan: limeos_domain::StackPlan {
+                    id: "f".repeat(64),
+                    version: limeos_domain::STACK_VERSION,
+                    operation,
+                    principal: "alice".into(),
+                    grant_revision: 1,
+                    expected,
+                    created_at: 100,
+                    expires_at: 400,
+                },
+            },
+        }
+    }
+    fn stack_ceiling() -> Ceiling {
+        serde_json::from_value(serde_json::json!({
+            "version": 1, "core_uid": 1001, "allow_health": true,
+            "allow_container_read": true, "allow_restart": true, "allow_stop": true,
+            "allow_stack": true,
+            "managed_containers": ["a".repeat(64), "b".repeat(64), "c".repeat(64)],
+            "managed_stacks": ["media"]
+        }))
+        .unwrap()
+    }
+    #[test]
+    fn stack_authority_needs_flag_action_project_peer_and_every_target() {
+        use limeos_domain::ContainerAction::*;
+        let ceiling = stack_ceiling();
+        assert!(ceiling.configuration_valid() && ceiling.can_write());
+        assert!(ceiling.validate(1001, &stack_request(Restart)).is_ok());
+        assert!(ceiling.validate(1001, &stack_request(Stop)).is_ok());
+        assert!(ceiling.validate(1002, &stack_request(Restart)).is_err());
+        // Start is not enabled even though the stack itself is.
+        assert!(ceiling.validate(1001, &stack_request(Start)).is_err());
+        let change = |f: &dyn Fn(&mut Ceiling)| {
+            let mut c = stack_ceiling();
+            f(&mut c);
+            c
+        };
+        for denied in [
+            change(&|c| c.allow_stack = false),
+            change(&|c| c.managed_stacks = vec!["other".into()]),
+            change(&|c| c.managed_stacks.clear()),
+            change(&|c| c.allow_restart = false),
+            // A running target missing from the container allowlist.
+            change(&|c| c.managed_containers.retain(|id| !id.starts_with('c'))),
+        ] {
+            assert!(denied.validate(1001, &stack_request(Restart)).is_err());
+        }
+        // Start acts only on the stopped member, so only that ID is required.
+        let mut start = stack_ceiling();
+        start.allow_start = true;
+        start.managed_containers = vec!["b".repeat(64)];
+        assert!(start.validate(1001, &stack_request(Start)).is_ok());
+        // An unmanaged non-target member does not block, an unmanaged target does.
+        let mut other = start.clone();
+        other.managed_containers = vec!["a".repeat(64)];
+        assert!(other.validate(1001, &stack_request(Start)).is_err());
+    }
+    #[test]
+    fn stack_configuration_is_closed_and_shadow_visible_as_a_write_capability() {
+        let mut c = stack_ceiling();
+        c.allow_restart = false;
+        c.allow_stop = false;
+        assert!(!c.configuration_valid());
+        for bad in ["Media", "../x", "", "a b", &"a".repeat(65)] {
+            let mut c = stack_ceiling();
+            c.managed_stacks = vec![bad.into()];
+            assert!(!c.configuration_valid(), "{bad:?}");
+        }
+        let mut many = stack_ceiling();
+        many.managed_stacks = (0..17).map(|i| format!("s{i}")).collect();
+        assert!(!many.configuration_valid());
+        // The read-only shadow refuses a ceiling for which can_write() is true.
+        let mut flag_only: Ceiling = serde_json::from_str(
+            r#"{"version":1,"core_uid":1001,"allow_health":true,"allow_container_read":true}"#,
+        )
+        .unwrap();
+        assert!(!flag_only.can_write());
+        flag_only.allow_stack = true;
+        assert!(flag_only.can_write());
+        // Defaults keep older policy files read-only for stacks.
+        assert!(
+            !serde_json::from_str::<Ceiling>(r#"{"version":1,"core_uid":1,"allow_health":true}"#)
+                .unwrap()
+                .allow_stack
+        );
+    }
+    #[test]
+    fn stack_reads_receipts_and_verification_are_independent_bounded_and_closed() {
+        let ceiling = stack_ceiling();
+        let receipt = |version| Request::StackReceipt {
+            version,
+            action: "d".repeat(64),
+            digest: "e".repeat(64),
+        };
+        assert!(ceiling.validate(1001, &receipt(VERSION)).is_ok());
+        assert!(ceiling.validate(1001, &receipt(2)).is_err());
+        assert!(ceiling.validate(1002, &receipt(VERSION)).is_err());
+        let mut off = stack_ceiling();
+        off.allow_stack = false;
+        assert!(off.validate(1001, &receipt(VERSION)).is_err());
+        let verify = |n: usize| Request::VerifyStack {
+            version: VERSION,
+            action: "d".repeat(64),
+            digest: "e".repeat(64),
+            after: vec![stack_member('a', true); n],
+        };
+        assert!(ceiling.validate(1001, &verify(2)).is_ok());
+        assert!(ceiling.validate(1001, &verify(17)).is_err());
+        let inspect = |project: &str| Request::InspectStack {
+            version: VERSION,
+            project: project.into(),
+        };
+        assert!(ceiling.validate(1001, &inspect("media")).is_ok());
+        assert!(ceiling.validate(1001, &inspect("../media")).is_err());
+        let mut no_read = stack_ceiling();
+        no_read.allow_container_read = false;
+        no_read.allow_restart = false;
+        no_read.allow_stop = false;
+        no_read.allow_stack = false;
+        assert!(no_read.validate(1001, &inspect("media")).is_err());
+        let mut wire =
+            serde_json::to_value(stack_request(limeos_domain::ContainerAction::Stop)).unwrap();
+        assert_eq!(wire["operation"], "execute_stack");
+        wire["request"]["compose_file"] = serde_json::json!("/x");
+        assert!(serde_json::from_value::<Request>(wire).is_err());
     }
 }
