@@ -1,0 +1,353 @@
+{
+  "summary": "pass",
+  "stage": "complete",
+  "package_version": "0.4.12+gateabort.1",
+  "variants": {
+    "baseline": {
+      "unit": "[Unit]\nDescription=LimeOS core\nAfter=network.target limeos-containerd.service limeos-storaged.service\nWants=limeos-containerd.service limeos-storaged.service\n[Service]\nType=exec\nUser=limeos-core\nGroup=limeos-rpc\nSupplementaryGroups=limeos-host-access limeos-container-access\nExecStart=/usr/bin/python3 /usr/lib/limeos-profile-fixture/core-lookup-probe.py\nRuntimeDirectory=limeos-b1-core-lookup-baseline\nRuntimeDirectoryMode=0750\nUMask=0077\nLimitCORE=0\nMemorySwapMax=0\nProtectProc=invisible\nRestart=no\nRestartSec=2s\nTimeoutStartSec=15s\nTimeoutStopSec=15s\nNoNewPrivileges=yes\nPrivateTmp=yes\nPrivateDevices=yes\nProtectSystem=strict\nProtectHome=yes\nReadWritePaths=/var/lib/limeos/core\nProtectKernelTunables=yes\nProtectKernelModules=yes\nProtectKernelLogs=yes\nProtectControlGroups=yes\nRestrictSUIDSGID=yes\nRestrictRealtime=yes\nLockPersonality=yes\nMemoryDenyWriteExecute=yes\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nCapabilityBoundingSet=\nAmbientCapabilities=\nSystemCallArchitectures=native\nSystemCallFilter=@system-service\nLimitNOFILE=1024\nTasksMax=32\nMemoryMax=128M\nCPUQuota=200%\n[Install]\nWantedBy=multi-user.target\n",
+      "properties": {
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainStatus": "0",
+        "MemoryMax": "134217728",
+        "TasksMax": "32",
+        "LimitNOFILE": "1024",
+        "CapabilityBoundingSet": "",
+        "AmbientCapabilities": "",
+        "User": "limeos-core",
+        "Group": "limeos-rpc",
+        "SupplementaryGroups": "limeos-host-access limeos-container-access",
+        "ReadWritePaths": "/var/lib/limeos/core",
+        "PrivateTmp": "yes",
+        "PrivateDevices": "yes",
+        "ProtectKernelTunables": "yes",
+        "ProtectKernelModules": "yes",
+        "ProtectKernelLogs": "yes",
+        "ProtectControlGroups": "yes",
+        "ProtectHome": "yes",
+        "ProtectSystem": "strict",
+        "NoNewPrivileges": "yes",
+        "SystemCallFilter": "_llseek _newselect accept accept4 access add_key alarm arch_prctl arm_fadvise64_64 bind brk cacheflush capget capset chdir chmod chown chown32 clock_getres clock_getres_time64 clock_gettime clock_gettime64 clock_nanosleep clock_nanosleep_time64 clone clone3 close close_range connect copy_file_range creat dup dup2 dup3 epoll_create epoll_create1 epoll_ctl epoll_ctl_old epoll_pwait epoll_pwait2 epoll_wait epoll_wait_old eventfd eventfd2 execve execveat exit exit_group faccessat faccessat2 fadvise64 fadvise64_64 fallocate fchdir fchmod fchmodat fchmodat2 fchown fchown32 fchownat fcntl fcntl64 fdatasync fgetxattr flistxattr flock fork fremovexattr fsetxattr fstat fstat64 fstatat64 fstatfs fstatfs64 fsync ftruncate ftruncate64 futex futex_time64 futex_waitv futimesat get_mempolicy get_robust_list get_thread_area getcpu getcwd getdents getdents64 getegid getegid32 geteuid geteuid32 getgid getgid32 getgroups getgroups32 getitimer getpeername getpgid getpgrp getpid getppid getpriority getrandom getresgid getresgid32 getresuid getresuid32 getrlimit getrusage getsid getsockname getsockopt gettid gettimeofday getuid getuid32 getxattr inotify_add_watch inotify_init inotify_init1 inotify_rm_watch io_cancel io_destroy io_getevents io_pgetevents io_pgetevents_time64 io_setup io_submit io_uring_enter io_uring_register io_uring_setup ioctl ioprio_get ioprio_set ipc kcmp keyctl kill lchown lchown32 lgetxattr link linkat listen listxattr llistxattr lremovexattr lseek lsetxattr lstat lstat64 madvise mbind membarrier memfd_create migrate_pages mkdir mkdirat mknod mknodat mlock mlock2 mlockall mmap mmap2 move_pages mprotect mq_getsetattr mq_notify mq_open mq_timedreceive mq_timedreceive_time64 mq_timedsend mq_timedsend_time64 mq_unlink mremap msgctl msgget msgrcv msgsnd msync munlock munlockall munmap name_to_handle_at nanosleep newfstatat nice oldfstat oldlstat oldolduname oldstat olduname open openat openat2 pause personality pidfd_open pidfd_send_signal pipe pipe2 poll ppoll ppoll_time64 prctl pread64 preadv preadv2 prlimit64 process_madvise process_vm_readv process_vm_writev pselect6 pselect6_time64 pwrite64 pwritev pwritev2 read readahead readdir readlink readlinkat readv recv recvfrom recvmmsg recvmmsg_time64 recvmsg remap_file_pages removexattr rename renameat renameat2 request_key restart_syscall riscv_flush_icache rmdir rseq rt_sigaction rt_sigpending rt_sigprocmask rt_sigqueueinfo rt_sigreturn rt_sigsuspend rt_sigtimedwait rt_sigtimedwait_time64 rt_tgsigqueueinfo sched_get_priority_max sched_get_priority_min sched_getaffinity sched_getattr sched_getparam sched_getscheduler sched_rr_get_interval sched_rr_get_interval_time64 sched_setaffinity sched_setattr sched_setparam sched_setscheduler sched_yield select semctl semget semop semtimedop semtimedop_time64 send sendfile sendfile64 sendmmsg sendmsg sendto set_mempolicy set_mempolicy_home_node set_robust_list set_thread_area set_tid_address set_tls setfsgid setfsgid32 setfsuid setfsuid32 setgid setgid32 setgroups setgroups32 setitimer setns setpgid setpriority setregid setregid32 setresgid setresgid32 setresuid setresuid32 setreuid setreuid32 setrlimit setsid setsockopt setuid setuid32 setxattr shmat shmctl shmdt shmget shutdown sigaction sigaltstack signal signalfd signalfd4 sigpending sigprocmask sigreturn sigsuspend socket socketcall socketpair splice stat stat64 statfs statfs64 statx swapcontext symlink symlinkat sync sync_file_range sync_file_range2 syncfs sysinfo tee tgkill time timer_create timer_delete timer_getoverrun timer_gettime timer_gettime64 timer_settime timer_settime64 timerfd_create timerfd_gettime timerfd_gettime64 timerfd_settime timerfd_settime64 times tkill truncate truncate64 ugetrlimit umask uname unlink unlinkat unshare userfaultfd utime utimensat utimensat_time64 utimes vfork vmsplice wait4 waitid waitpid write writev",
+        "SystemCallArchitectures": "native",
+        "RestrictAddressFamilies": "AF_INET AF_INET6 AF_UNIX",
+        "MemoryDenyWriteExecute": "yes",
+        "RestrictSUIDSGID": "yes",
+        "ProtectProc": "invisible",
+        "ActiveState": "inactive",
+        "SubState": "dead"
+      },
+      "probe": {
+        "gid": 112,
+        "groups": [
+          112,
+          113,
+          114
+        ],
+        "nofile": [
+          1024,
+          1024
+        ],
+        "openat2_errno": 38,
+        "pid": 1005,
+        "status": {
+          "CapBnd": "0000000000000000",
+          "CapEff": "0000000000000000",
+          "CapPrm": "0000000000000000",
+          "NoNewPrivs": "1",
+          "Seccomp": "2",
+          "Threads": "1"
+        },
+        "uid": 104
+      }
+    },
+    "no-suid": {
+      "unit": "[Unit]\nDescription=LimeOS core\nAfter=network.target limeos-containerd.service limeos-storaged.service\nWants=limeos-containerd.service limeos-storaged.service\n[Service]\nType=exec\nUser=limeos-core\nGroup=limeos-rpc\nSupplementaryGroups=limeos-host-access limeos-container-access\nExecStart=/usr/bin/python3 /usr/lib/limeos-profile-fixture/core-lookup-probe.py\nRuntimeDirectory=limeos-b1-core-lookup-no-suid\nRuntimeDirectoryMode=0750\nUMask=0077\nLimitCORE=0\nMemorySwapMax=0\nProtectProc=invisible\nRestart=no\nRestartSec=2s\nTimeoutStartSec=15s\nTimeoutStopSec=15s\nNoNewPrivileges=yes\nPrivateTmp=yes\nPrivateDevices=yes\nProtectSystem=strict\nProtectHome=yes\nReadWritePaths=/var/lib/limeos/core\nProtectKernelTunables=yes\nProtectKernelModules=yes\nProtectKernelLogs=yes\nProtectControlGroups=yes\nRestrictSUIDSGID=no\nRestrictRealtime=yes\nLockPersonality=yes\nMemoryDenyWriteExecute=yes\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nCapabilityBoundingSet=\nAmbientCapabilities=\nSystemCallArchitectures=native\nSystemCallFilter=@system-service\nLimitNOFILE=1024\nTasksMax=32\nMemoryMax=128M\nCPUQuota=200%\n[Install]\nWantedBy=multi-user.target\n",
+      "properties": {
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainStatus": "0",
+        "MemoryMax": "134217728",
+        "TasksMax": "32",
+        "LimitNOFILE": "1024",
+        "CapabilityBoundingSet": "",
+        "AmbientCapabilities": "",
+        "User": "limeos-core",
+        "Group": "limeos-rpc",
+        "SupplementaryGroups": "limeos-host-access limeos-container-access",
+        "ReadWritePaths": "/var/lib/limeos/core",
+        "PrivateTmp": "yes",
+        "PrivateDevices": "yes",
+        "ProtectKernelTunables": "yes",
+        "ProtectKernelModules": "yes",
+        "ProtectKernelLogs": "yes",
+        "ProtectControlGroups": "yes",
+        "ProtectHome": "yes",
+        "ProtectSystem": "strict",
+        "NoNewPrivileges": "yes",
+        "SystemCallFilter": "_llseek _newselect accept accept4 access add_key alarm arch_prctl arm_fadvise64_64 bind brk cacheflush capget capset chdir chmod chown chown32 clock_getres clock_getres_time64 clock_gettime clock_gettime64 clock_nanosleep clock_nanosleep_time64 clone clone3 close close_range connect copy_file_range creat dup dup2 dup3 epoll_create epoll_create1 epoll_ctl epoll_ctl_old epoll_pwait epoll_pwait2 epoll_wait epoll_wait_old eventfd eventfd2 execve execveat exit exit_group faccessat faccessat2 fadvise64 fadvise64_64 fallocate fchdir fchmod fchmodat fchmodat2 fchown fchown32 fchownat fcntl fcntl64 fdatasync fgetxattr flistxattr flock fork fremovexattr fsetxattr fstat fstat64 fstatat64 fstatfs fstatfs64 fsync ftruncate ftruncate64 futex futex_time64 futex_waitv futimesat get_mempolicy get_robust_list get_thread_area getcpu getcwd getdents getdents64 getegid getegid32 geteuid geteuid32 getgid getgid32 getgroups getgroups32 getitimer getpeername getpgid getpgrp getpid getppid getpriority getrandom getresgid getresgid32 getresuid getresuid32 getrlimit getrusage getsid getsockname getsockopt gettid gettimeofday getuid getuid32 getxattr inotify_add_watch inotify_init inotify_init1 inotify_rm_watch io_cancel io_destroy io_getevents io_pgetevents io_pgetevents_time64 io_setup io_submit io_uring_enter io_uring_register io_uring_setup ioctl ioprio_get ioprio_set ipc kcmp keyctl kill lchown lchown32 lgetxattr link linkat listen listxattr llistxattr lremovexattr lseek lsetxattr lstat lstat64 madvise mbind membarrier memfd_create migrate_pages mkdir mkdirat mknod mknodat mlock mlock2 mlockall mmap mmap2 move_pages mprotect mq_getsetattr mq_notify mq_open mq_timedreceive mq_timedreceive_time64 mq_timedsend mq_timedsend_time64 mq_unlink mremap msgctl msgget msgrcv msgsnd msync munlock munlockall munmap name_to_handle_at nanosleep newfstatat nice oldfstat oldlstat oldolduname oldstat olduname open openat openat2 pause personality pidfd_open pidfd_send_signal pipe pipe2 poll ppoll ppoll_time64 prctl pread64 preadv preadv2 prlimit64 process_madvise process_vm_readv process_vm_writev pselect6 pselect6_time64 pwrite64 pwritev pwritev2 read readahead readdir readlink readlinkat readv recv recvfrom recvmmsg recvmmsg_time64 recvmsg remap_file_pages removexattr rename renameat renameat2 request_key restart_syscall riscv_flush_icache rmdir rseq rt_sigaction rt_sigpending rt_sigprocmask rt_sigqueueinfo rt_sigreturn rt_sigsuspend rt_sigtimedwait rt_sigtimedwait_time64 rt_tgsigqueueinfo sched_get_priority_max sched_get_priority_min sched_getaffinity sched_getattr sched_getparam sched_getscheduler sched_rr_get_interval sched_rr_get_interval_time64 sched_setaffinity sched_setattr sched_setparam sched_setscheduler sched_yield select semctl semget semop semtimedop semtimedop_time64 send sendfile sendfile64 sendmmsg sendmsg sendto set_mempolicy set_mempolicy_home_node set_robust_list set_thread_area set_tid_address set_tls setfsgid setfsgid32 setfsuid setfsuid32 setgid setgid32 setgroups setgroups32 setitimer setns setpgid setpriority setregid setregid32 setresgid setresgid32 setresuid setresuid32 setreuid setreuid32 setrlimit setsid setsockopt setuid setuid32 setxattr shmat shmctl shmdt shmget shutdown sigaction sigaltstack signal signalfd signalfd4 sigpending sigprocmask sigreturn sigsuspend socket socketcall socketpair splice stat stat64 statfs statfs64 statx swapcontext symlink symlinkat sync sync_file_range sync_file_range2 syncfs sysinfo tee tgkill time timer_create timer_delete timer_getoverrun timer_gettime timer_gettime64 timer_settime timer_settime64 timerfd_create timerfd_gettime timerfd_gettime64 timerfd_settime timerfd_settime64 times tkill truncate truncate64 ugetrlimit umask uname unlink unlinkat unshare userfaultfd utime utimensat utimensat_time64 utimes vfork vmsplice wait4 waitid waitpid write writev",
+        "SystemCallArchitectures": "native",
+        "RestrictAddressFamilies": "AF_INET AF_INET6 AF_UNIX",
+        "MemoryDenyWriteExecute": "yes",
+        "RestrictSUIDSGID": "no",
+        "ProtectProc": "invisible",
+        "ActiveState": "inactive",
+        "SubState": "dead"
+      },
+      "probe": {
+        "gid": 112,
+        "groups": [
+          112,
+          113,
+          114
+        ],
+        "nofile": [
+          1024,
+          1024
+        ],
+        "openat2_errno": 0,
+        "pid": 1034,
+        "socket": {
+          "device": 23,
+          "gid": 113,
+          "inode": 1068,
+          "links": 1,
+          "mode": 49584,
+          "uid": 0
+        },
+        "status": {
+          "CapBnd": "0000000000000000",
+          "CapEff": "0000000000000000",
+          "CapPrm": "0000000000000000",
+          "NoNewPrivs": "1",
+          "Seccomp": "2",
+          "Threads": "1"
+        },
+        "uid": 104
+      }
+    },
+    "explicit": {
+      "unit": "[Unit]\nDescription=LimeOS core\nAfter=network.target limeos-containerd.service limeos-storaged.service\nWants=limeos-containerd.service limeos-storaged.service\n[Service]\nType=exec\nUser=limeos-core\nGroup=limeos-rpc\nSupplementaryGroups=limeos-host-access limeos-container-access\nExecStart=/usr/bin/python3 /usr/lib/limeos-profile-fixture/core-lookup-probe.py\nRuntimeDirectory=limeos-b1-core-lookup-explicit\nRuntimeDirectoryMode=0750\nUMask=0077\nLimitCORE=0\nMemorySwapMax=0\nProtectProc=invisible\nRestart=no\nRestartSec=2s\nTimeoutStartSec=15s\nTimeoutStopSec=15s\nNoNewPrivileges=yes\nPrivateTmp=yes\nPrivateDevices=yes\nProtectSystem=strict\nProtectHome=yes\nReadWritePaths=/var/lib/limeos/core\nProtectKernelTunables=yes\nProtectKernelModules=yes\nProtectKernelLogs=yes\nProtectControlGroups=yes\nRestrictSUIDSGID=yes\nRestrictRealtime=yes\nLockPersonality=yes\nMemoryDenyWriteExecute=yes\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nCapabilityBoundingSet=\nAmbientCapabilities=\nSystemCallArchitectures=native\nSystemCallFilter=@system-service openat2\nLimitNOFILE=1024\nTasksMax=32\nMemoryMax=128M\nCPUQuota=200%\n[Install]\nWantedBy=multi-user.target\n",
+      "properties": {
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainStatus": "0",
+        "MemoryMax": "134217728",
+        "TasksMax": "32",
+        "LimitNOFILE": "1024",
+        "CapabilityBoundingSet": "",
+        "AmbientCapabilities": "",
+        "User": "limeos-core",
+        "Group": "limeos-rpc",
+        "SupplementaryGroups": "limeos-host-access limeos-container-access",
+        "ReadWritePaths": "/var/lib/limeos/core",
+        "PrivateTmp": "yes",
+        "PrivateDevices": "yes",
+        "ProtectKernelTunables": "yes",
+        "ProtectKernelModules": "yes",
+        "ProtectKernelLogs": "yes",
+        "ProtectControlGroups": "yes",
+        "ProtectHome": "yes",
+        "ProtectSystem": "strict",
+        "NoNewPrivileges": "yes",
+        "SystemCallFilter": "_llseek _newselect accept accept4 access add_key alarm arch_prctl arm_fadvise64_64 bind brk cacheflush capget capset chdir chmod chown chown32 clock_getres clock_getres_time64 clock_gettime clock_gettime64 clock_nanosleep clock_nanosleep_time64 clone clone3 close close_range connect copy_file_range creat dup dup2 dup3 epoll_create epoll_create1 epoll_ctl epoll_ctl_old epoll_pwait epoll_pwait2 epoll_wait epoll_wait_old eventfd eventfd2 execve execveat exit exit_group faccessat faccessat2 fadvise64 fadvise64_64 fallocate fchdir fchmod fchmodat fchmodat2 fchown fchown32 fchownat fcntl fcntl64 fdatasync fgetxattr flistxattr flock fork fremovexattr fsetxattr fstat fstat64 fstatat64 fstatfs fstatfs64 fsync ftruncate ftruncate64 futex futex_time64 futex_waitv futimesat get_mempolicy get_robust_list get_thread_area getcpu getcwd getdents getdents64 getegid getegid32 geteuid geteuid32 getgid getgid32 getgroups getgroups32 getitimer getpeername getpgid getpgrp getpid getppid getpriority getrandom getresgid getresgid32 getresuid getresuid32 getrlimit getrusage getsid getsockname getsockopt gettid gettimeofday getuid getuid32 getxattr inotify_add_watch inotify_init inotify_init1 inotify_rm_watch io_cancel io_destroy io_getevents io_pgetevents io_pgetevents_time64 io_setup io_submit io_uring_enter io_uring_register io_uring_setup ioctl ioprio_get ioprio_set ipc kcmp keyctl kill lchown lchown32 lgetxattr link linkat listen listxattr llistxattr lremovexattr lseek lsetxattr lstat lstat64 madvise mbind membarrier memfd_create migrate_pages mkdir mkdirat mknod mknodat mlock mlock2 mlockall mmap mmap2 move_pages mprotect mq_getsetattr mq_notify mq_open mq_timedreceive mq_timedreceive_time64 mq_timedsend mq_timedsend_time64 mq_unlink mremap msgctl msgget msgrcv msgsnd msync munlock munlockall munmap name_to_handle_at nanosleep newfstatat nice oldfstat oldlstat oldolduname oldstat olduname open openat openat2 pause personality pidfd_open pidfd_send_signal pipe pipe2 poll ppoll ppoll_time64 prctl pread64 preadv preadv2 prlimit64 process_madvise process_vm_readv process_vm_writev pselect6 pselect6_time64 pwrite64 pwritev pwritev2 read readahead readdir readlink readlinkat readv recv recvfrom recvmmsg recvmmsg_time64 recvmsg remap_file_pages removexattr rename renameat renameat2 request_key restart_syscall riscv_flush_icache rmdir rseq rt_sigaction rt_sigpending rt_sigprocmask rt_sigqueueinfo rt_sigreturn rt_sigsuspend rt_sigtimedwait rt_sigtimedwait_time64 rt_tgsigqueueinfo sched_get_priority_max sched_get_priority_min sched_getaffinity sched_getattr sched_getparam sched_getscheduler sched_rr_get_interval sched_rr_get_interval_time64 sched_setaffinity sched_setattr sched_setparam sched_setscheduler sched_yield select semctl semget semop semtimedop semtimedop_time64 send sendfile sendfile64 sendmmsg sendmsg sendto set_mempolicy set_mempolicy_home_node set_robust_list set_thread_area set_tid_address set_tls setfsgid setfsgid32 setfsuid setfsuid32 setgid setgid32 setgroups setgroups32 setitimer setns setpgid setpriority setregid setregid32 setresgid setresgid32 setresuid setresuid32 setreuid setreuid32 setrlimit setsid setsockopt setuid setuid32 setxattr shmat shmctl shmdt shmget shutdown sigaction sigaltstack signal signalfd signalfd4 sigpending sigprocmask sigreturn sigsuspend socket socketcall socketpair splice stat stat64 statfs statfs64 statx swapcontext symlink symlinkat sync sync_file_range sync_file_range2 syncfs sysinfo tee tgkill time timer_create timer_delete timer_getoverrun timer_gettime timer_gettime64 timer_settime timer_settime64 timerfd_create timerfd_gettime timerfd_gettime64 timerfd_settime timerfd_settime64 times tkill truncate truncate64 ugetrlimit umask uname unlink unlinkat unshare userfaultfd utime utimensat utimensat_time64 utimes vfork vmsplice wait4 waitid waitpid write writev",
+        "SystemCallArchitectures": "native",
+        "RestrictAddressFamilies": "AF_INET AF_INET6 AF_UNIX",
+        "MemoryDenyWriteExecute": "yes",
+        "RestrictSUIDSGID": "yes",
+        "ProtectProc": "invisible",
+        "ActiveState": "inactive",
+        "SubState": "dead"
+      },
+      "probe": {
+        "gid": 112,
+        "groups": [
+          112,
+          113,
+          114
+        ],
+        "nofile": [
+          1024,
+          1024
+        ],
+        "openat2_errno": 38,
+        "pid": 1063,
+        "status": {
+          "CapBnd": "0000000000000000",
+          "CapEff": "0000000000000000",
+          "CapPrm": "0000000000000000",
+          "NoNewPrivs": "1",
+          "Seccomp": "2",
+          "Threads": "1"
+        },
+        "uid": 104
+      }
+    },
+    "both": {
+      "unit": "[Unit]\nDescription=LimeOS core\nAfter=network.target limeos-containerd.service limeos-storaged.service\nWants=limeos-containerd.service limeos-storaged.service\n[Service]\nType=exec\nUser=limeos-core\nGroup=limeos-rpc\nSupplementaryGroups=limeos-host-access limeos-container-access\nExecStart=/usr/bin/python3 /usr/lib/limeos-profile-fixture/core-lookup-probe.py\nRuntimeDirectory=limeos-b1-core-lookup-both\nRuntimeDirectoryMode=0750\nUMask=0077\nLimitCORE=0\nMemorySwapMax=0\nProtectProc=invisible\nRestart=no\nRestartSec=2s\nTimeoutStartSec=15s\nTimeoutStopSec=15s\nNoNewPrivileges=yes\nPrivateTmp=yes\nPrivateDevices=yes\nProtectSystem=strict\nProtectHome=yes\nReadWritePaths=/var/lib/limeos/core\nProtectKernelTunables=yes\nProtectKernelModules=yes\nProtectKernelLogs=yes\nProtectControlGroups=yes\nRestrictSUIDSGID=no\nRestrictRealtime=yes\nLockPersonality=yes\nMemoryDenyWriteExecute=yes\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nCapabilityBoundingSet=\nAmbientCapabilities=\nSystemCallArchitectures=native\nSystemCallFilter=@system-service openat2\nLimitNOFILE=1024\nTasksMax=32\nMemoryMax=128M\nCPUQuota=200%\n[Install]\nWantedBy=multi-user.target\n",
+      "properties": {
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainStatus": "0",
+        "MemoryMax": "134217728",
+        "TasksMax": "32",
+        "LimitNOFILE": "1024",
+        "CapabilityBoundingSet": "",
+        "AmbientCapabilities": "",
+        "User": "limeos-core",
+        "Group": "limeos-rpc",
+        "SupplementaryGroups": "limeos-host-access limeos-container-access",
+        "ReadWritePaths": "/var/lib/limeos/core",
+        "PrivateTmp": "yes",
+        "PrivateDevices": "yes",
+        "ProtectKernelTunables": "yes",
+        "ProtectKernelModules": "yes",
+        "ProtectKernelLogs": "yes",
+        "ProtectControlGroups": "yes",
+        "ProtectHome": "yes",
+        "ProtectSystem": "strict",
+        "NoNewPrivileges": "yes",
+        "SystemCallFilter": "_llseek _newselect accept accept4 access add_key alarm arch_prctl arm_fadvise64_64 bind brk cacheflush capget capset chdir chmod chown chown32 clock_getres clock_getres_time64 clock_gettime clock_gettime64 clock_nanosleep clock_nanosleep_time64 clone clone3 close close_range connect copy_file_range creat dup dup2 dup3 epoll_create epoll_create1 epoll_ctl epoll_ctl_old epoll_pwait epoll_pwait2 epoll_wait epoll_wait_old eventfd eventfd2 execve execveat exit exit_group faccessat faccessat2 fadvise64 fadvise64_64 fallocate fchdir fchmod fchmodat fchmodat2 fchown fchown32 fchownat fcntl fcntl64 fdatasync fgetxattr flistxattr flock fork fremovexattr fsetxattr fstat fstat64 fstatat64 fstatfs fstatfs64 fsync ftruncate ftruncate64 futex futex_time64 futex_waitv futimesat get_mempolicy get_robust_list get_thread_area getcpu getcwd getdents getdents64 getegid getegid32 geteuid geteuid32 getgid getgid32 getgroups getgroups32 getitimer getpeername getpgid getpgrp getpid getppid getpriority getrandom getresgid getresgid32 getresuid getresuid32 getrlimit getrusage getsid getsockname getsockopt gettid gettimeofday getuid getuid32 getxattr inotify_add_watch inotify_init inotify_init1 inotify_rm_watch io_cancel io_destroy io_getevents io_pgetevents io_pgetevents_time64 io_setup io_submit io_uring_enter io_uring_register io_uring_setup ioctl ioprio_get ioprio_set ipc kcmp keyctl kill lchown lchown32 lgetxattr link linkat listen listxattr llistxattr lremovexattr lseek lsetxattr lstat lstat64 madvise mbind membarrier memfd_create migrate_pages mkdir mkdirat mknod mknodat mlock mlock2 mlockall mmap mmap2 move_pages mprotect mq_getsetattr mq_notify mq_open mq_timedreceive mq_timedreceive_time64 mq_timedsend mq_timedsend_time64 mq_unlink mremap msgctl msgget msgrcv msgsnd msync munlock munlockall munmap name_to_handle_at nanosleep newfstatat nice oldfstat oldlstat oldolduname oldstat olduname open openat openat2 pause personality pidfd_open pidfd_send_signal pipe pipe2 poll ppoll ppoll_time64 prctl pread64 preadv preadv2 prlimit64 process_madvise process_vm_readv process_vm_writev pselect6 pselect6_time64 pwrite64 pwritev pwritev2 read readahead readdir readlink readlinkat readv recv recvfrom recvmmsg recvmmsg_time64 recvmsg remap_file_pages removexattr rename renameat renameat2 request_key restart_syscall riscv_flush_icache rmdir rseq rt_sigaction rt_sigpending rt_sigprocmask rt_sigqueueinfo rt_sigreturn rt_sigsuspend rt_sigtimedwait rt_sigtimedwait_time64 rt_tgsigqueueinfo sched_get_priority_max sched_get_priority_min sched_getaffinity sched_getattr sched_getparam sched_getscheduler sched_rr_get_interval sched_rr_get_interval_time64 sched_setaffinity sched_setattr sched_setparam sched_setscheduler sched_yield select semctl semget semop semtimedop semtimedop_time64 send sendfile sendfile64 sendmmsg sendmsg sendto set_mempolicy set_mempolicy_home_node set_robust_list set_thread_area set_tid_address set_tls setfsgid setfsgid32 setfsuid setfsuid32 setgid setgid32 setgroups setgroups32 setitimer setns setpgid setpriority setregid setregid32 setresgid setresgid32 setresuid setresuid32 setreuid setreuid32 setrlimit setsid setsockopt setuid setuid32 setxattr shmat shmctl shmdt shmget shutdown sigaction sigaltstack signal signalfd signalfd4 sigpending sigprocmask sigreturn sigsuspend socket socketcall socketpair splice stat stat64 statfs statfs64 statx swapcontext symlink symlinkat sync sync_file_range sync_file_range2 syncfs sysinfo tee tgkill time timer_create timer_delete timer_getoverrun timer_gettime timer_gettime64 timer_settime timer_settime64 timerfd_create timerfd_gettime timerfd_gettime64 timerfd_settime timerfd_settime64 times tkill truncate truncate64 ugetrlimit umask uname unlink unlinkat unshare userfaultfd utime utimensat utimensat_time64 utimes vfork vmsplice wait4 waitid waitpid write writev",
+        "SystemCallArchitectures": "native",
+        "RestrictAddressFamilies": "AF_INET AF_INET6 AF_UNIX",
+        "MemoryDenyWriteExecute": "yes",
+        "RestrictSUIDSGID": "no",
+        "ProtectProc": "invisible",
+        "ActiveState": "inactive",
+        "SubState": "dead"
+      },
+      "probe": {
+        "gid": 112,
+        "groups": [
+          112,
+          113,
+          114
+        ],
+        "nofile": [
+          1024,
+          1024
+        ],
+        "openat2_errno": 0,
+        "pid": 1092,
+        "socket": {
+          "device": 23,
+          "gid": 113,
+          "inode": 1068,
+          "links": 1,
+          "mode": 49584,
+          "uid": 0
+        },
+        "status": {
+          "CapBnd": "0000000000000000",
+          "CapEff": "0000000000000000",
+          "CapPrm": "0000000000000000",
+          "NoNewPrivs": "1",
+          "Seccomp": "2",
+          "Threads": "1"
+        },
+        "uid": 104
+      }
+    }
+  },
+  "scope": "Disposable AMD64 Core-UID fixed lookup matrix; not a timer, effect or installed UI qualification",
+  "authority_schema": 14,
+  "binary_sha256": {
+    "limeos-core": "f4b5fae8a7b8bd44e7723f374af61ff1742d1ca9faf5d264b062596ca8c10a77",
+    "limeos-executor": "937783d65cee29c44a9d9843f02443abccaa8481a04b3f1021770b4799e25ceb",
+    "limeos-stack-read-worker": "0689a3a7c9e53048f6be7d3fca633ad27cf4b03ec41aa86298f4cc50079e794f",
+    "limeos-password-worker": "8e7eb4f529262b2716ffc947dad66ba86aaaa730bbaf8194133f3bb401a7d237",
+    "limeosctl": "0f5ed4d47c13c7b08a767bbcfb560663112a46ba8c0e12ec7bed42c111bf2d08"
+  },
+  "package_sha256": {
+    "limeos-shadow_0.4.12+gateabort.1_amd64.deb": "d74e83b52a943fb219bc9faa065424504e607460cff0739ee8f02431eab06ceb",
+    "limeos_0.4.12+gateabort.1_amd64.deb": "b7c56f1c2e49a58dd580d81e65edd0b235c224f2694a4cb6c0e5dd5b74b6d175"
+  },
+  "fixture_sha256": "bf703d0b5c54c7ff918abc06297d0a62049eaea2569bd887404ce66348e1cc9f",
+  "probe_sha256": "763cc3007a371fd80279c7c9149e96320ee2e5a873d655e967ce61561041d29f",
+  "systemd_version": "systemd 252 (252.39-1~deb12u2)\n+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified\n",
+  "before": {
+    "unit_sha256": "210f1b1c611bf3b1c9b9a72e1659b6136b2c89fc0396501152f6323414492d72",
+    "core": {
+      "MainPID": "957",
+      "ControlGroup": "/system.slice/limeos-core.service",
+      "MemoryMax": "134217728",
+      "TasksMax": "32",
+      "LimitNOFILE": "1024",
+      "KillMode": "control-group"
+    },
+    "authority": {
+      "schema": 14,
+      "generation": 1,
+      "users": 0,
+      "jobs": 0,
+      "schedules": 0
+    }
+  },
+  "socket": {
+    "device": 23,
+    "inode": 1068,
+    "uid": 0,
+    "gid": 113,
+    "mode": 49584,
+    "links": 1
+  },
+  "core_uid": 104,
+  "rpc_gid": 112,
+  "supplementary_gids": [
+    113,
+    114
+  ],
+  "control": {
+    "gid": 112,
+    "groups": [
+      112,
+      113,
+      114
+    ],
+    "nofile": [
+      1024,
+      1048576
+    ],
+    "openat2_errno": 0,
+    "pid": 981,
+    "socket": {
+      "device": 23,
+      "gid": 113,
+      "inode": 1068,
+      "links": 1,
+      "mode": 49584,
+      "uid": 0
+    },
+    "status": {
+      "CapBnd": "000001ffffffffff",
+      "CapEff": "0000000000000000",
+      "CapPrm": "0000000000000000",
+      "NoNewPrivs": "0",
+      "Seccomp": "0",
+      "Threads": "1"
+    },
+    "uid": 104
+  },
+  "installed_unit": "[Unit]\nDescription=LimeOS core\nAfter=network.target limeos-containerd.service limeos-storaged.service\nWants=limeos-containerd.service limeos-storaged.service\n[Service]\nType=exec\nUser=limeos-core\nGroup=limeos-rpc\nSupplementaryGroups=limeos-host-access limeos-container-access\nExecStart=/usr/lib/limeos/limeos-core\nRuntimeDirectory=limeos-core\nRuntimeDirectoryMode=0750\nUMask=0077\nLimitCORE=0\nMemorySwapMax=0\nProtectProc=invisible\nRestart=on-failure\nRestartSec=2s\nTimeoutStartSec=15s\nTimeoutStopSec=15s\nNoNewPrivileges=yes\nPrivateTmp=yes\nPrivateDevices=yes\nProtectSystem=strict\nProtectHome=yes\nReadWritePaths=/var/lib/limeos/core\nProtectKernelTunables=yes\nProtectKernelModules=yes\nProtectKernelLogs=yes\nProtectControlGroups=yes\nRestrictSUIDSGID=yes\nRestrictRealtime=yes\nLockPersonality=yes\nMemoryDenyWriteExecute=yes\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nCapabilityBoundingSet=\nAmbientCapabilities=\nSystemCallArchitectures=native\nSystemCallFilter=@system-service\nLimitNOFILE=1024\nTasksMax=32\nMemoryMax=128M\nCPUQuota=200%\n[Install]\nWantedBy=multi-user.target\n",
+  "after": {
+    "unit_sha256": "210f1b1c611bf3b1c9b9a72e1659b6136b2c89fc0396501152f6323414492d72",
+    "core": {
+      "MainPID": "957",
+      "ControlGroup": "/system.slice/limeos-core.service",
+      "MemoryMax": "134217728",
+      "TasksMax": "32",
+      "LimitNOFILE": "1024",
+      "KillMode": "control-group"
+    },
+    "authority": {
+      "schema": 14,
+      "generation": 1,
+      "users": 0,
+      "jobs": 0,
+      "schedules": 0
+    }
+  },
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "dc0d7b526a3a9a9265142fe8e903984c03f8d605ac4ba6f14d15d27988a69581fb05fc06cd2a6d79f6eaf68ba9725f2eb38b5ddd64ad166faadad279af776c9e"
+  }
+}

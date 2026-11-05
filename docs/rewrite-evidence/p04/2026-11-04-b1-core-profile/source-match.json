@@ -1,0 +1,59 @@
+{
+  "fixture_source": "afc7a43f813544e19a72b66c9eba688510f1f3a7",
+  "product_source": "e417751ba57a3945fb47e60d513c087f75d5da7b",
+  "original_product_inputs_unchanged": 740,
+  "fixture_inputs_match_commit": 746,
+  "test_only_changes_since_package_build": {
+    "tests/fixtures/automation/core-profile-baseline.service": {
+      "before": null,
+      "after": "210f1b1c611bf3b1c9b9a72e1659b6136b2c89fc0396501152f6323414492d72"
+    },
+    "tests/privileged_vm/p04_automation_guest.py": {
+      "before": null,
+      "after": "1e949d86fced4ed390cbaf4300ddd8869f8bd8df60a6ef2a65fd10d6bbd91e6d"
+    },
+    "tests/privileged_vm/p04_core_lookup_probe.py": {
+      "before": null,
+      "after": "763cc3007a371fd80279c7c9149e96320ee2e5a873d655e967ce61561041d29f"
+    },
+    "tests/privileged_vm/p04_core_profile_guest.py": {
+      "before": null,
+      "after": "bf703d0b5c54c7ff918abc06297d0a62049eaea2569bd887404ce66348e1cc9f"
+    },
+    "tests/reference/test_core_socket_profile.py": {
+      "before": null,
+      "after": "0f6a1a078e5c1b1909303d4644cef0cb6b905be4b3e9d0445392156ed640e801"
+    },
+    "tests/reference/test_p04_automation_guest.py": {
+      "before": null,
+      "after": "d258a880d5881e159c92a5fe7145f57d735928232a43ff2d5c043d6e3033ce80"
+    }
+  },
+  "native_reference_cases": 27,
+  "native_precommit_head": "546fc9f8320a9ec946bcfee00c0416ea180aa79d",
+  "guest_modules": 32,
+  "canonical_runner_unchanged": true,
+  "vm": {
+    "started": "2026-11-04T23:14:43.007977+00:00",
+    "ended": "2026-11-04T23:15:34.834598+00:00",
+    "exit_code": 0,
+    "minimum_available_bytes": 9594650624,
+    "guard_triggered": false,
+    "inputs_unchanged": true
+  },
+  "matrix_errno": {
+    "baseline": 38,
+    "no-suid": 0,
+    "explicit": 38,
+    "both": 0
+  },
+  "real_core_unit_pid_authority_unchanged": true,
+  "recorded_native_pids_absent": 4,
+  "original_qemu_identity_captured": false,
+  "canonical_runner_returned_after_wait_and_temp_cleanup": true,
+  "later_matching_qemu_inventory": [],
+  "older_unattributed_scratch_preserved": 7,
+  "ordinary_timer_accepted": false,
+  "b1_complete": false,
+  "arm64_pi_qualified": false
+}

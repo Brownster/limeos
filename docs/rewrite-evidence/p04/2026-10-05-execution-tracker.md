@@ -568,3 +568,31 @@ process is stopped; scratch remains on repository disk. A1/B1/P04, normal timer/
 API/UI/restart, remaining parity/current ARM64/Pi/return/footprint/soak and P05/P06
 remain open, along with the historical inventory performance failure. Holly's
 Pi and frozen app were untouched; nothing was pushed.
+
+## 4 November: Core profile experiment confirms protected-lookup incompatibility
+
+The [installed matrix](2026-11-04-b1-core-profile/README.md) at fixture `afc7a43`
+copies the entire standard Core profile into four separately named fixed
+read-only probes under actual Core UID/groups. Direct invocation succeeds.
+Current and explicit-allow-only profiles return `ENOSYS`; removing only the
+SUID/SGID restriction or applying both changes opens the exact original socket.
+Every unit probe retains empty capabilities, NoNewPrivileges, 128 MiB, 32 tasks
+and 1024 soft/hard descriptors. The running Core's unit hash, PID and authority
+counts remain identical. No product confinement has changed yet.
+
+Twenty-seven scoped reference cases plus Ruff/format/repository checks pass.
+The original source-bound canonical guest completes 23:14:43–23:15:34 UTC, exit 0,
+746 inputs unchanged, no sampled stop and minimum host availability
+9,594,650,624 bytes. The unchanged `e417751` packages retain all 740 product
+inputs; six test files are explicitly added. The observer missed the short VM's
+original QEMU identity; four known native PIDs are absent and later inventory
+has no matching qualification QEMU. Seven older unattributed scratch directories
+are preserved. Canonical runner completion includes its wait/temp cleanup.
+
+The narrow Core profile exception is now justified with its explicit loss of
+the SUID/SGID file-bit restriction; preserve all remaining confinement, protected
+lookup, peer/authority checks and resources. The original timer's errno is not
+captured, and ordinary B1 incident/recovery/publication/restart requires a fresh
+signed-package scenario. No A1/B1/P04, current ARM64/Pi, return/footprint/soak,
+performance or P05/P06 gate closes. Holly's Pi and frozen app were untouched;
+nothing was pushed.

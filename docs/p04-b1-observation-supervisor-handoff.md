@@ -98,6 +98,17 @@ no sampled memory stop. Core's `RestrictSUIDSGID=yes` versus its protected
 `openat2` socket lookup is now a specific profile hypothesis; verify it under
 the exact Core profile before changing confinement. No Core errno was captured.
 
+The [installed Core-profile matrix](rewrite-evidence/p04/2026-11-04-b1-core-profile/README.md)
+at fixture `afc7a43` now confirms that incompatibility under the complete copied
+Core profile and actual UID/groups. The direct control and no-restriction/both
+variants open the exact socket; current and explicit-allow-only profiles return
+`ENOSYS`. The running Core unit hash/PID/authority counts stay unchanged. All 27
+scoped reference cases and the canonical guest pass. This justifies the narrow
+Core profile exception in the design, while the normal timer still needs a fresh
+signed-package run. It is not the original timer's recorded errno or completed
+B1 acceptance. The packet explicitly records the missed original QEMU identity;
+four known native PIDs are absent and later inventory has no qualification VM.
+
 The existing package return requirement still includes policy before-images with
 the matching pre-schema-14 database and package assets. Remaining host/SMART/
 mount/protection sources, reviewed replacement/retirement, safe history compaction,
