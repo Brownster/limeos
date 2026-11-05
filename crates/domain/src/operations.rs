@@ -203,6 +203,9 @@ pub enum ExecutionState {
     Verified,
     PreconditionChanged,
     OutcomeUnknown,
+    /// Stack aggregate only: every sent member is verified and every other
+    /// member is provably unsent. Terminal; never reported as success.
+    PartlyDone,
 }
 impl ExecutionState {
     pub fn as_str(self) -> &'static str {
@@ -212,6 +215,7 @@ impl ExecutionState {
             Self::Verified => "verified",
             Self::PreconditionChanged => "precondition_changed",
             Self::OutcomeUnknown => "outcome_unknown",
+            Self::PartlyDone => "partly_done",
         }
     }
 }

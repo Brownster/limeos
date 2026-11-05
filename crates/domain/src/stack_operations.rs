@@ -114,16 +114,24 @@ impl StackSnapshot {
             resource: self.resource.clone(),
         }
     }
-    /// The stack itself, then every member: no member is reachable through the
-    /// stack grant alone.
-    pub fn scopes(&self) -> Vec<Scope> {
-        std::iter::once(self.scope())
-            .chain(self.members.iter().map(ContainerSnapshot::scope))
+    /// The Compose project, the registered catalog stack (deploy jobs lock
+    /// `stack:<stack>`, which may differ from the project), then every member:
+    /// no member is reachable through a stack grant alone.
+    pub fn scopes_for(&self, catalog_stack: &str) -> Vec<Scope> {
+        self.resources_for(catalog_stack)
+            .into_iter()
+            .map(|resource| Scope {
+                operation: STACK_RESTART.permission,
+                resource,
+            })
             .collect()
     }
-    /// Stack first (job primary resource), then every member's lock.
-    pub fn resources(&self) -> Vec<String> {
+    /// Project first (job primary resource), the catalog stack if it differs,
+    /// then every member's lock.
+    pub fn resources_for(&self, catalog_stack: &str) -> Vec<String> {
+        let catalog = stack_resource(catalog_stack);
         std::iter::once(self.resource.clone())
+            .chain((catalog != self.resource).then_some(catalog))
             .chain(self.members.iter().map(|m| m.resource.clone()))
             .collect()
     }
@@ -138,6 +146,8 @@ pub struct StackPlan {
     pub principal: String,
     #[ts(type = "number")]
     pub grant_revision: i64,
+    /// The registered catalog stack name; may differ from the Compose project.
+    pub catalog_stack: String,
     pub expected: StackSnapshot,
     #[ts(type = "number")]
     pub created_at: i64,
@@ -149,6 +159,7 @@ impl StackPlan {
         if self.version != STACK_VERSION
             || !opaque_id(&self.id)
             || !identifier(&self.principal)
+            || !identifier(&self.catalog_stack)
             || self.grant_revision < 1
             || self.created_at < 0
             || self.expires_at <= self.created_at
@@ -176,7 +187,10 @@ impl StackPlan {
         self.expected.targets(self.operation)
     }
     pub fn resources(&self) -> Vec<String> {
-        self.expected.resources()
+        self.expected.resources_for(&self.catalog_stack)
+    }
+    pub fn scopes(&self) -> Vec<Scope> {
+        self.expected.scopes_for(&self.catalog_stack)
     }
 }
 
@@ -245,7 +259,8 @@ impl StackReceipt {
 }
 
 /// Verified only when all are; unsent only when none were sent; accepted when
-/// every member is accepted or already verified; any other mix is uncertain.
+/// every member is accepted or already verified; partly done when only
+/// verified and provably unsent members remain; any other mix is uncertain.
 pub fn aggregate_state(members: &[StackMemberReceipt]) -> ExecutionState {
     use ExecutionState::*;
     let all = |f: fn(ExecutionState) -> bool| members.iter().all(|m| f(m.state));
@@ -259,6 +274,9 @@ pub fn aggregate_state(members: &[StackMemberReceipt]) -> ExecutionState {
         Prepared
     } else if all(|s| matches!(s, EffectAccepted | Verified)) {
         EffectAccepted
+    } else if all(|s| matches!(s, Verified | PreconditionChanged)) {
+        // Sent members are all proven; the rest were never sent.
+        PartlyDone
     } else {
         OutcomeUnknown
     }
@@ -289,6 +307,33 @@ pub fn verify_stack(
     Ok(())
 }
 
+/// Terminal partial outcome: every member the receipt says was sent must prove
+/// its own post-state. Unsent members are not inspected.
+pub fn verify_partly_done(receipt: &StackReceipt, afters: &[ContainerSnapshot]) -> Result<()> {
+    receipt.validate()?;
+    if receipt.state != ExecutionState::PartlyDone {
+        return Err(Error(ErrorCode::Conflict));
+    }
+    for member in receipt
+        .members
+        .iter()
+        .filter(|m| m.state == ExecutionState::Verified)
+    {
+        let before = receipt
+            .before
+            .members
+            .iter()
+            .find(|b| b.resource == member.resource)
+            .ok_or(Error(ErrorCode::Conflict))?;
+        let after = afters
+            .iter()
+            .find(|a| a.resource == member.resource)
+            .ok_or(Error(ErrorCode::Conflict))?;
+        verify_stack_member(receipt.operation, before, after)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -310,6 +355,7 @@ mod tests {
             operation,
             principal: "user".into(),
             grant_revision: 1,
+            catalog_stack: "registered".into(),
             expected,
             created_at: 100,
             expires_at: 400,
@@ -369,9 +415,14 @@ mod tests {
         };
         assert!(unsorted.validate().is_err());
         let s = stack(vec![member('b', true), member('a', true)]);
-        assert_eq!(s.resources()[0], "stack:media");
-        assert_eq!(s.resources().len(), 3);
-        assert_eq!(s.scopes().len(), 3);
+        assert_eq!(s.resources_for("media")[0], "stack:media");
+        assert_eq!(s.resources_for("media").len(), 3);
+        assert_eq!(s.scopes_for("media").len(), 3);
+        // A catalog stack that differs from the project is locked and authorized too.
+        let both = s.resources_for("registered");
+        assert_eq!(both[..2], ["stack:media", "stack:registered"]);
+        assert_eq!(both.len(), 4);
+        assert_eq!(s.scopes_for("registered").len(), 4);
     }
     #[test]
     fn any_member_change_expiry_or_addition_refuses_the_plan() {
@@ -441,6 +492,7 @@ mod tests {
             ([EffectAccepted, Verified], EffectAccepted),
             ([Verified, OutcomeUnknown], OutcomeUnknown),
             ([EffectAccepted, PreconditionChanged], OutcomeUnknown),
+            ([Verified, PreconditionChanged], PartlyDone),
             (
                 [PreconditionChanged, PreconditionChanged],
                 PreconditionChanged,
@@ -500,5 +552,57 @@ mod tests {
         let extra = text.replacen('{', "{\"compose_file\":\"x\",", 1);
         assert!(serde_json::from_str::<StackPlan>(&extra).is_err());
         assert_eq!(stack_definition(ContainerAction::Start).name, "stack.start");
+    }
+    #[test]
+    fn partly_done_needs_every_sent_member_proven_and_every_other_member_unsent() {
+        use ExecutionState::*;
+        let s = stack(vec![
+            member('a', true),
+            member('b', true),
+            member('c', true),
+        ]);
+        let rows = |states: [ExecutionState; 3]| -> StackReceipt {
+            let members: Vec<_> = s
+                .members
+                .iter()
+                .zip(states)
+                .map(|(m, state)| StackMemberReceipt {
+                    resource: m.resource.clone(),
+                    state,
+                    error: None,
+                })
+                .collect();
+            StackReceipt {
+                action: "d".repeat(64),
+                plan_digest: "e".repeat(64),
+                operation: ContainerAction::Restart,
+                before: s.clone(),
+                state: aggregate_state(&members),
+                members,
+                error: None,
+            }
+        };
+        let later = |m: &ContainerSnapshot| ContainerSnapshot {
+            started_at: "2026-10-05T07:01:00Z".into(),
+            ..m.clone()
+        };
+        let partly = rows([Verified, PreconditionChanged, PreconditionChanged]);
+        assert_eq!(partly.state, PartlyDone);
+        verify_partly_done(&partly, &[later(&s.members[0])]).unwrap();
+        // The verified member must actually prove its end state.
+        assert!(verify_partly_done(&partly, &[s.members[0].clone()]).is_err());
+        assert!(verify_partly_done(&partly, &[]).is_err());
+        // Any unknown or merely accepted sent member keeps the stack uncertain.
+        for states in [
+            [Verified, OutcomeUnknown, PreconditionChanged],
+            [Verified, EffectAccepted, PreconditionChanged],
+            [Verified, Prepared, PreconditionChanged],
+        ] {
+            let uncertain = rows(states);
+            assert_eq!(uncertain.state, OutcomeUnknown);
+            assert!(verify_partly_done(&uncertain, &[later(&s.members[0])]).is_err());
+        }
+        assert_eq!(rows([Verified; 3]).state, Verified);
+        assert_eq!(rows([PreconditionChanged; 3]).state, PreconditionChanged);
     }
 }
