@@ -207,7 +207,7 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
                 } else {
                     (ExecutionState::EffectAccepted, None)
                 };
-                if !sent && !(state.fail_without_effect && state.fail_at == Some(index)) {
+                if !(sent || state.fail_without_effect && state.fail_at == Some(index)) {
                     let live = state
                         .members
                         .iter_mut()
