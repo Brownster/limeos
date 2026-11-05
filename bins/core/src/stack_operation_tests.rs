@@ -42,6 +42,15 @@ fn ordinary() -> Vec<ContainerSnapshot> {
     vec![snap('a', true), snap('b', true), snap('c', false)]
 }
 fn cohort(members: &[ContainerSnapshot], declared: &[&str]) -> DiscoveryCohort {
+    crowded_cohort(members, declared, 0)
+}
+/// The registered project's members plus `unrelated` other containers spread over
+/// two other projects and standalone containers, all in the same Engine.
+fn crowded_cohort(
+    members: &[ContainerSnapshot],
+    declared: &[&str],
+    unrelated: usize,
+) -> DiscoveryCohort {
     let project = ProjectIdentity {
         name: "media".into(),
         working_directory: "/opt/Media".into(),
@@ -70,6 +79,27 @@ fn cohort(members: &[ContainerSnapshot], declared: &[&str]) -> DiscoveryCohort {
         service: "web".into(),
         one_off: true,
     });
+    for i in 0..unrelated {
+        let container = ContainerSnapshot {
+            resource: format!("container:{:064x}", 0x1000 + i),
+            image: format!("sha256:{}", "c".repeat(64)),
+            started_at: "2026-10-05T07:00:00Z".into(),
+            running: i % 3 != 0,
+        };
+        engine.push(match i % 4 {
+            0 | 1 => Membership::Compose {
+                container,
+                project: ProjectIdentity {
+                    name: format!("other-{}", i % 2),
+                    working_directory: format!("/opt/Other{}", i % 2),
+                    config_files: vec![format!("/opt/Other{}/compose.yaml", i % 2)],
+                },
+                service: format!("svc-{i}"),
+                one_off: false,
+            },
+            _ => Membership::Standalone { container },
+        });
+    }
     DiscoveryCohort::new(
         Some(CatalogFacts {
             engine_id: "engine".into(),
@@ -969,4 +999,53 @@ async fn the_catalog_stack_name_is_locked_and_authorized_beside_the_compose_proj
         ErrorCode::Forbidden
     );
     f.task.abort();
+}
+
+#[tokio::test]
+async fn a_stack_among_forty_unrelated_containers_plans_approves_queues_and_runs() {
+    // 3 members + 1 one-off of the registered project, 36 more containers in two
+    // other projects and standalone: 40 in total, well over the 16-member stack bound.
+    let mut f = admin().await;
+    f.core.stacks = Default::default();
+    let members = f.engine.lock().unwrap().members.clone();
+    f.core
+        .stacks
+        .update(&crowded_cohort(&members, &["web", "db"], 36))
+        .unwrap();
+    let cohort = f.core.stacks.cohort().unwrap();
+    assert_eq!(cohort.engine().unwrap().members.len(), 40);
+    let inventory = cohort.project(now()).unwrap();
+    assert_eq!(
+        inventory.engine.state,
+        limeos_domain::deployment::discovery::SourceState::Fresh
+    );
+    assert_eq!(inventory.other_projects.len(), 2);
+    let input = f.approved(ContainerAction::Restart, "crowded").await;
+    assert_eq!(input.proposal.plan.expected.members.len(), 3);
+    assert_eq!(input.proposal.plan.targets().len(), 2);
+    let job = f
+        .core
+        .queue_stack(f.token.clone(), f.csrf.clone(), input)
+        .await
+        .unwrap();
+    f.core
+        .dispatch_stack(f.principal().await, job.clone())
+        .await
+        .unwrap();
+    let progress = f
+        .core
+        .stack_job_progress(f.token.clone(), job.id, 0)
+        .await
+        .unwrap();
+    assert_eq!(progress.job.state, JobState::Succeeded);
+    assert_eq!(f.engine.lock().unwrap().executes, 1);
+    f.task.abort();
+}
+
+#[test]
+fn the_engine_bound_is_exactly_sixty_four_containers() {
+    let members = ordinary();
+    // 3 + 1 one-off + 60 = 64 is the whole-Engine bound; one more is refused.
+    let at_bound = crowded_cohort(&members, &["web"], 60);
+    assert_eq!(at_bound.engine().unwrap().members.len(), 64);
 }
