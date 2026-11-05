@@ -337,7 +337,7 @@ def inspect_ci(root, source):
     return {"observations": observations, "packages": packages}, standard_runtime
 
 
-def verify_bundle(bundle, manifest):
+def verify_bundle(bundle, manifest, ci_pipeline=True):
     require(sha(bundle) == manifest["bundle_sha256"], "source bundle SHA-256 differs")
     expected = {
         "source/" + n: d
@@ -396,6 +396,8 @@ def verify_bundle(bundle, manifest):
         "bundle authority schema differs",
     )
     source = manifest["runtime_source_sha256"]
+    if not ci_pipeline:
+        return
     require(
         source.get(".github/workflows/ci.yml") == WORKFLOW_SHA256
         and source.get("packaging/Containerfile") == CONTAINERFILE_SHA256,

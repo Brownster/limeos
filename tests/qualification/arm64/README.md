@@ -124,6 +124,62 @@ upgrade. The [October 13 handoff](../../../docs/rewrite-evidence/arm64/2026-10-1
 records the currently prepared input. No host window or installed qualification
 is granted by local preparation.
 
+## Pi night run of a locally cross-built candidate
+
+For a candidate built off the Pi (the October 13 run stopped because Rust was
+compiled inside a guest on the Pi), `cross_build.py` records build kind
+`local-cross-build`: workstation-compiled aarch64 binaries, packaged by the
+bundle's own `packaging/build.py` and signed into a disposable repository.
+Guests re-validate it offline (`load_build`). It carries no native test totals
+or lint gates and says so (`limitations`). Build with `make_bundle.py
+--cross-build`; the scripts that produced the November 5 candidate are in
+`docs/rewrite-evidence/arm64/2026-11-05-pi-night-prep/harness/`.
+
+`run_pi_night.py` runs the whole night from the workstation. The default is a
+check with no SSH; `--execute` contacts the host. It needs a recorded
+authorization (the operator writes it; this tool never does):
+
+```json
+{"version": 1, "host": "holly@wybie", "not_before": "2026-11-05T21:00:00Z",
+ "not_after": "2026-11-06T06:00:00Z", "authorized_by": "...", "reference": "...", "scope": "..."}
+```
+
+```bash
+uv run tests/qualification/arm64/run_pi_night.py --host holly@wybie \
+  --authorization AUTH.json --deadline 2026-11-06T05:30:00Z \
+  --candidate .cache/arm64-qual/2026-11-05-cross/candidate \
+  --run-dir .cache/arm64-qual/night-2026-11-05 [--execute]
+```
+
+Order: read-only pre-snapshot (packages, manual set, running units, container
+names/IDs/uptimes, `ss -tlnp`, memory/swap/load/temperature, boot id) ->
+refusals -> guard -> detached host watchdog -> QEMU install with
+`--no-install-recommends` (simulated first; any upgrade or removal refuses) ->
+image staging (SHA-512 checked) -> suites `install`, `container`, `stack`,
+`scale` in fresh guests, one at a time (2 vCPU, 1536 MiB, nice 19, ionice idle,
+host-owned deadline supervisor from `native_vm.py`) -> teardown purging exactly
+the packages that appeared since the pre-snapshot (purge simulated first; it
+may not remove anything else) -> post-snapshot diff. LimeOS is never installed
+on the host; the tool never runs `docker`, touches `/opt/stacks`, or restarts a
+service (a command filter refuses those words).
+
+Refusals and guard (`pi_night_host.py`, evaluated on the host): refuse to start
+any guest when a container is not running, a qemu/supervisor process exists,
+MemAvailable < 3 GiB, swap used > 90% of swap or > 450 MiB (the previous run's
+absolute guard), or 1/5-minute load > 2. The watchdog (5 s) aborts and stops
+only the harness's own qemu when a baseline container stops, vanishes, is
+recreated or restarts, MemAvailable < 2 GiB, swap over the same limits, a new
+OOM kill, 75 C, or a reboot. On a container stop it writes timestamped events,
+`abort.json` and bounded attribution evidence (docker events, `ss -xpn`,
+process list, docker journal, dmesg OOM lines), and restarts nothing.
+
+Exit codes: 0 all suites passed and the host is identical afterwards; 1 a suite
+failed; 2 usage or local input error; 3 refused to start; 4 watchdog abort,
+teardown problem or host differs afterwards. After a crashed workstation, run
+the same command with `--teardown-only --execute` and the old `--run-dir`
+(needs a still-valid authorization). `stack_guest.py --suite lifecycle|scale`
+wraps the unchanged `p04_stack_lifecycle_guest.py` / `p04_stack_scale_guest.py`.
+
 ## Production host authorization and guest deadlines
 
 `--host` still rejects production hosts by default: `wybie` by name, and any
