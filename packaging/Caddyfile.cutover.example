@@ -1,0 +1,33 @@
+# LimeOS basic-cutover site. activate.sh renders this file: it replaces the two
+# upper-case tokens in the site address and tls line below (each wrapped in
+# at-signs) from its flags. Caddy is installed separately by the operator.
+#   SITE  https://HOST:PORT (PORT defaults to 8002 so bookmarks keep working;
+#         Caddy may bind it only after the frozen app has stopped)
+#   TLS   "internal"                      Caddy local CA; every browser must
+#                                          trust that CA once
+#         "/path/cert.pem /path/key.pem"  operator-provided certificate
+# core.json "origin" must equal the exact SITE value.
+# Decision OPEN for the operator: TLS mode and public port
+# (see docs/p06-cutover-runbook.md).
+@SITE@ {
+    tls @TLS@
+    encode zstd gzip
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        -Server
+    }
+    @api path /api/*
+    handle @api {
+        reverse_proxy 127.0.0.1:8003 {
+            header_up X-Forwarded-Proto https
+            header_up Host {host}
+        }
+    }
+    handle {
+        root * /usr/lib/limeos/ui
+        try_files {path} /index.html
+        file_server
+        header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'"
+    }
+}
