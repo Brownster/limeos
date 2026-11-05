@@ -86,7 +86,12 @@ def oom_events(path=Path("/proc/vmstat")):
     return events
 
 
-def screenshot(driver, evidence, name):
+def screenshot(driver, evidence, name, selector):
+    require(
+        selector
+        in ("#health-history-panel", "#health-schedules-panel", "#health-policy-panel"),
+        "unsupported screenshot target",
+    )
     require(
         all(
             not field.get_attribute("value")
@@ -94,11 +99,27 @@ def screenshot(driver, evidence, name):
         ),
         "password field must be empty before screenshot",
     )
-    data = driver.get_screenshot_as_png()
+    target = driver.find_element("css selector", selector)
+    geometry = driver.execute_script(
+        """const box=arguments[0].getBoundingClientRect();
+        return {viewport_width:innerWidth,viewport_height:innerHeight,
+          page_width:document.documentElement.scrollWidth,
+          target_width:box.width,target_height:box.height,
+          tables:[...arguments[0].querySelectorAll('.table-wrap')].map(e=>({
+            label:e.getAttribute('aria-label'),width:e.clientWidth,scroll_width:e.scrollWidth}))};""",
+        target,
+    )
+    require(
+        geometry["page_width"] <= geometry["viewport_width"] + 1,
+        "page overflows outside its scrolling table regions",
+    )
+    data = target.screenshot_as_png
     require(len(data) <= 512 * 1024, "screenshot exceeds bound")
     evidence.setdefault("screenshots", {})[name] = {
         "sha256": hashlib.sha256(data).hexdigest(),
         "png_base64": base64.b64encode(data).decode("ascii"),
+        "selector": selector,
+        "geometry": geometry,
     }
 
 
@@ -220,6 +241,16 @@ def browser_flow(driver, password, identifier, evidence):
     fill("#health-fail-threshold", "1")
     button("Save health settings").click()
     ready("#health-policy-panel", "Health settings saved.")
+    require(
+        "Health coverage remains partial" in element("#health-policy-panel").text,
+        "policy coverage notice missing",
+    )
+    require(
+        "New automatic observations are not available yet"
+        not in element("#health-policy-panel").text,
+        "policy still denies automatic checks",
+    )
+    screenshot(driver, evidence, "policy-desktop", "#health-policy-panel")
     button("Manage health schedules").click()
     fill("#observation-interval", "1")
     button("Create observation schedule").click()
@@ -237,7 +268,12 @@ def browser_flow(driver, password, identifier, evidence):
     fixture.assert_identities(original)
     require(len(original["jobs"]) == 1, "incident did not settle exactly once")
     evidence["before_restart"] = original
-    screenshot(driver, evidence, "incident-desktop")
+    require(
+        "New automatic health observations are not available yet"
+        not in element("#health-history-panel").text,
+        "history still denies automatic checks",
+    )
+    screenshot(driver, evidence, "incident-desktop", "#health-history-panel")
     evidence["restarts"] = [restart_core()]
     stable_until = time.monotonic() + 8
     while time.monotonic() < stable_until:
@@ -270,7 +306,7 @@ def browser_flow(driver, password, identifier, evidence):
         "recovery did not settle exactly once",
     )
     ready("#health-history-panel", "No open incident")
-    screenshot(driver, evidence, "recovery-desktop")
+    screenshot(driver, evidence, "recovery-desktop", "#health-history-panel")
     element(
         f'button[aria-label="Acknowledge incident for container:{identifier}"]'
     ).click()
@@ -306,14 +342,16 @@ def browser_flow(driver, password, identifier, evidence):
             "browser mutation count/status differs: " + path,
         )
     driver.set_window_size(390, 844)
-    screenshot(driver, evidence, "paused-mobile")
+    screenshot(driver, evidence, "acknowledged-mobile", "#health-history-panel")
+    screenshot(driver, evidence, "paused-mobile", "#health-schedules-panel")
+    evidence["availability_copy_verified"] = True
     evidence["final_history"] = fixture.history()
     evidence["passed"].append(
         "same-container recovery, UI acknowledgment and UI pause persist after a second Core crash"
     )
 
 
-def main(package_version="0.4.13+coreopen.1"):
+def main(package_version="0.4.14+healthui.1"):
     fixture.disposable_guard()
     repo, output = map(Path, sys.argv[1:])
     evidence = {
@@ -324,7 +362,7 @@ def main(package_version="0.4.13+coreopen.1"):
             "AMD64 installed browser flow; ARM64/Pi, upgrade/return, soak and full B1/P04 remain open",
             "Container-only partial health coverage; no application storage/deployment/external delivery effect",
             "Disposable local certificate accepted and Chromium runs without sandbox inside the throwaway VM; production TLS/browser hardening not qualified",
-            "Existing history/policy/save notices incorrectly say automatic observations are unavailable; truthful-status UI acceptance remains open",
+            "Covered status copy and target panels only; complete UI/mobile layout acceptance remains open",
         ],
     }
     driver = None

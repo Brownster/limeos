@@ -93,22 +93,37 @@ class BrowserFixtureBoundaries(unittest.TestCase):
         driver.find_elements.return_value = [mock.Mock()]
         driver.find_elements.return_value[0].get_attribute.return_value = "private"
         with self.assertRaises(ValueError):
-            guest.screenshot(driver, {}, "forbidden")
-        driver.get_screenshot_as_png.assert_not_called()
+            guest.screenshot(driver, {}, "forbidden", "#health-history-panel")
+        driver.find_element.assert_not_called()
 
     def test_screenshot_bound_and_exact_roundtrip(self):
         driver = mock.Mock()
         driver.find_elements.return_value = []
-        driver.get_screenshot_as_png.return_value = b"fixture pixels"
+        driver.find_element.return_value.screenshot_as_png = b"fixture pixels"
+        driver.execute_script.return_value = {"page_width": 390, "viewport_width": 390}
         evidence = {}
-        guest.screenshot(driver, evidence, "safe")
+        guest.screenshot(driver, evidence, "safe", "#health-history-panel")
         value = evidence["screenshots"]["safe"]
         self.assertEqual(base64.b64decode(value["png_base64"]), b"fixture pixels")
         self.assertEqual(len(value["sha256"]), 64)
-        driver.get_screenshot_as_png.return_value = b"x" * (512 * 1024 + 1)
+        self.assertEqual(value["selector"], "#health-history-panel")
+        driver.find_element.return_value.screenshot_as_png = b"x" * (512 * 1024 + 1)
         with self.assertRaises(ValueError):
-            guest.screenshot(driver, evidence, "large")
+            guest.screenshot(driver, evidence, "large", "#health-history-panel")
         self.assertNotIn("large", evidence["screenshots"])
+
+    def test_capture_rejects_page_overflow_and_unapproved_targets(self):
+        driver = mock.Mock()
+        driver.find_elements.return_value = []
+        driver.execute_script.return_value = {"page_width": 470, "viewport_width": 390}
+        evidence = {}
+        with self.assertRaises(ValueError):
+            guest.screenshot(driver, evidence, "overflow", "#health-history-panel")
+        self.assertNotIn("screenshots", evidence)
+        driver.reset_mock()
+        with self.assertRaises(ValueError):
+            guest.screenshot(driver, evidence, "private", "#password")
+        driver.find_element.assert_not_called()
 
     def test_oom_observer_keeps_only_explicit_counters(self):
         path = mock.Mock()
