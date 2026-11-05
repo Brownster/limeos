@@ -83,8 +83,8 @@ pub(super) fn parse_storage_container_ids_with_admission(
     mut admission: Option<&mut super::read_admission::Scope>,
 ) -> Result<Vec<String>> {
     let list = value.as_array().ok_or_else(unavailable)?;
-    let limit = if admission.is_some() {
-        super::read_admission::CONSUMERS
+    let limit = if let Some(scope) = &admission {
+        scope.limits().consumers
     } else {
         CONTAINER_STORAGE_MAX_CONTAINERS
     };

@@ -121,7 +121,7 @@ async fn start_and_stop_use_only_the_fixed_selected_endpoints() {
     task.abort();
 }
 
-type Row = (char, &'static str, bool, &'static str);
+type Row = (usize, &'static str, bool, &'static str);
 async fn project_server(
     rows: Vec<Row>,
 ) -> (
@@ -161,15 +161,15 @@ async fn project_server(
             } else if line.contains("/containers/json") {
                 serde_json::Value::Array(
                     rows.iter()
-                        .map(|(c, ..)| serde_json::json!({"Id": c.to_string().repeat(64)}))
+                        .map(|(c, ..)| serde_json::json!({"Id": format!("{c:064x}")}))
                         .collect(),
                 )
             } else {
                 let (c, project, one_off, started) = rows
                     .iter()
-                    .find(|(c, ..)| line.contains(&c.to_string().repeat(64)))
+                    .find(|(c, ..)| line.contains(&format!("{c:064x}")))
                     .unwrap();
-                serde_json::json!({"Id":c.to_string().repeat(64),"Image":format!("sha256:{}","b".repeat(64)),"State":{"Running":true,"StartedAt":started},"Config":{"Env":["SECRET=private"],"Labels":{"com.docker.compose.project":project,"com.docker.compose.oneoff":if *one_off {"True"} else {"False"}}}})
+                serde_json::json!({"Id":format!("{c:064x}"),"Image":format!("sha256:{}","b".repeat(64)),"State":{"Running":true,"StartedAt":started},"Config":{"Env":["SECRET=private"],"Labels":{"com.docker.compose.project":project,"com.docker.compose.oneoff":if *one_off {"True"} else {"False"}}}})
             }
             .to_string();
             stream
@@ -191,9 +191,9 @@ async fn project_server(
 async fn project_members_use_only_the_project_label_exclude_one_offs_and_sort_by_id() {
     let started = "2026-10-05T07:00:00Z";
     let (_dir, engine, calls, task) = project_server(vec![
-        ('c', "media", false, started),
-        ('a', "media", false, started),
-        ('d', "media", true, started),
+        (0xc, "media", false, started),
+        (0xa, "media", false, started),
+        (0xd, "media", true, started),
     ])
     .await;
     assert!(engine.project_members("../media").await.is_err());
@@ -202,7 +202,7 @@ async fn project_members_use_only_the_project_label_exclude_one_offs_and_sort_by
     let members = engine.project_members("media").await.unwrap();
     let ids: Vec<_> = members
         .iter()
-        .map(|m| m.resource[10..11].to_owned())
+        .map(|m| m.resource[m.resource.len() - 1..].to_owned())
         .collect();
     assert_eq!(ids, ["a", "c"]);
     assert!(!serde_json::to_string(&members).unwrap().contains("SECRET"));
@@ -216,14 +216,41 @@ async fn project_members_use_only_the_project_label_exclude_one_offs_and_sort_by
 #[tokio::test]
 async fn project_members_refuse_label_mismatch_and_oversized_projects() {
     let started = "2026-10-05T07:00:00Z";
-    let (_dir, engine, _calls, task) = project_server(vec![('a', "other", false, started)]).await;
+    let (_dir, engine, _calls, task) = project_server(vec![(0xa, "other", false, started)]).await;
     assert!(engine.project_members("media").await.is_err());
     task.abort();
-    let many = "0123456789abcdef0"
-        .chars()
+    let many = (0..=limeos_domain::MAX_STACK_MEMBERS)
         .map(|c| (c, "media", false, started))
         .collect::<Vec<_>>();
     let (_dir, engine, _calls, task) = project_server(many).await;
     assert!(engine.project_members("media").await.is_err());
+    task.abort();
+}
+#[tokio::test]
+async fn project_listing_bound_is_the_engine_bound_not_the_stack_bound() {
+    use limeos_domain::{MAX_STACK_MEMBERS, deployment::discovery::MAX_ENGINE_CONTAINERS};
+    let started = "2026-10-05T07:00:00Z";
+    // Exactly the Engine bound of rows: a full 16-member stack plus 48 one-offs
+    // is accepted, because one-offs are not members and rows <= Engine bound.
+    let rows = (0..MAX_ENGINE_CONTAINERS)
+        .map(|i| (i, "media", i >= MAX_STACK_MEMBERS, started))
+        .collect::<Vec<_>>();
+    let (_dir, engine, _calls, task) = project_server(rows).await;
+    let members = engine.project_members("media").await.unwrap();
+    assert_eq!(members.len(), MAX_STACK_MEMBERS);
+    task.abort();
+    // One row over the Engine bound is refused whole before any inspect.
+    let rows = (0..=MAX_ENGINE_CONTAINERS)
+        .map(|i| (i, "media", true, started))
+        .collect::<Vec<_>>();
+    let (_dir, engine, calls, task) = project_server(rows).await;
+    assert!(engine.project_members("media").await.is_err());
+    assert!(
+        calls
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|line| !line.contains(&format!("{:064x}", 0)))
+    );
     task.abort();
 }

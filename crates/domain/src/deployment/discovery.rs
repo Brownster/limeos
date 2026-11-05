@@ -9,7 +9,13 @@ pub use cohort::{CatalogFacts, DiscoveryCohort, EngineFacts};
 
 pub const MAX_STACKS: usize = 8;
 pub const MAX_SERVICES: usize = 16;
-pub const MAX_MEMBERS: usize = 16;
+/// Whole-Engine container bound (all projects, standalone, stopped, one-off).
+/// Not a per-stack bound: a stack's own members stay at `MAX_STACK_MEMBERS`.
+pub const MAX_ENGINE_CONTAINERS: usize = 64;
+const _: () = assert!(
+    MAX_ENGINE_CONTAINERS == crate::CONTAINER_STORAGE_MAX_CONTAINERS
+        && MAX_ENGINE_CONTAINERS > crate::MAX_STACK_MEMBERS
+);
 pub const MAX_INPUT_TEXT: usize = 48 * 1024;
 pub const MAX_REPORT_BYTES: usize = 64 * 1024;
 pub const MAX_AGE_SECONDS: i64 = 90;
@@ -342,7 +348,7 @@ fn admit(catalog: Option<&CatalogInput<'_>>, engine: Option<&EngineInput<'_>>) -
         }
     }
     if let Some(engine) = engine {
-        if engine.members.len() > MAX_MEMBERS {
+        if engine.members.len() > MAX_ENGINE_CONTAINERS {
             return Err(limit());
         }
         if engine.engine_id.is_empty()

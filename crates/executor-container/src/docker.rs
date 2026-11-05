@@ -255,7 +255,7 @@ impl Engine for Docker {
             )
             .await?;
         let rows = listed.as_array().ok_or(Error(ErrorCode::Unavailable))?;
-        if rows.len() > 64 {
+        if rows.len() > limeos_domain::deployment::discovery::MAX_ENGINE_CONTAINERS {
             return Err(Error(ErrorCode::Unavailable));
         }
         let mut members = Vec::new();

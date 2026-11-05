@@ -376,7 +376,7 @@ fn aggregate_text_budget_rejects_large_valid_fields() {
             files: FileStatus::NotInspected,
         })
         .collect();
-    let members: Vec<_> = (0..MAX_MEMBERS)
+    let members: Vec<_> = (0..MAX_ENGINE_CONTAINERS)
         .map(|i| {
             let mut member = member(i, "web", true, false);
             if let Membership::Compose { project, .. } = &mut member {
@@ -423,7 +423,7 @@ fn bounds_are_explicit_and_report_size_is_streamed() {
         .0,
         ErrorCode::Unavailable
     );
-    let members: Vec<_> = (0..=MAX_MEMBERS)
+    let members: Vec<_> = (0..=MAX_ENGINE_CONTAINERS)
         .map(|i| member(i, "web", true, false))
         .collect();
     assert_eq!(
@@ -479,4 +479,99 @@ fn sample_time_boundary_is_inclusive_and_reads_preserve_sample_times() {
     )
     .unwrap();
     assert_eq!(report.stacks[0].runtime, RuntimeStatus::Unknown);
+}
+
+fn standalone(index: usize) -> Membership {
+    Membership::Standalone {
+        container: ContainerSnapshot {
+            resource: format!("container:{index:064x}"),
+            image: format!("sha256:{}", "b".repeat(64)),
+            started_at: "2026-10-15T00:00:00Z".into(),
+            running: index % 2 == 0,
+        },
+    }
+}
+/// `count` containers: one registered 16-member stack, two unrelated 16-member
+/// projects, then standalone containers. Engine total is not a stack bound.
+fn engine(count: usize) -> Vec<Membership> {
+    (0..count)
+        .map(|i| match i / 16 {
+            0 => member(i, "web", true, false),
+            n @ (1 | 2) => {
+                let mut other = member(i, "app", i % 3 != 0, false);
+                if let Membership::Compose { project, .. } = &mut other {
+                    project.name = format!("other-{n}");
+                    project.working_directory = format!("/opt/stacks/other-{n}");
+                    project.config_files = vec![format!("/opt/stacks/other-{n}/compose.yaml")];
+                }
+                other
+            }
+            _ => standalone(i),
+        })
+        .collect()
+}
+fn engine_report(members: &[Membership]) -> Result<StackInventory> {
+    discover(
+        101,
+        Some(CatalogInput {
+            engine_id: "engine",
+            sampled_at: 100,
+            stacks: &[declaration()],
+        }),
+        Some(EngineInput {
+            engine_id: "engine",
+            sampled_at: 100,
+            members,
+        }),
+    )
+}
+
+#[test]
+fn engine_wide_bound_is_64_and_larger_than_every_stack_bound() {
+    assert_eq!(MAX_ENGINE_CONTAINERS, 64);
+    assert!(MAX_ENGINE_CONTAINERS > MAX_SERVICES);
+    // Exactly at the bound: fresh, counts intact, everything fits the byte bounds.
+    let members = engine(MAX_ENGINE_CONTAINERS);
+    let report = engine_report(&members).unwrap();
+    assert_eq!(report.engine.state, SourceState::Fresh);
+    assert_eq!(report.standalone_containers, Some(16));
+    assert_eq!(report.stacks[0].counts.unwrap().ordinary, 16);
+    assert_eq!(report.other_projects.len(), 2);
+    report.check_size().unwrap();
+    let cohort = DiscoveryCohort::new(
+        None,
+        Some(EngineFacts {
+            engine_id: "engine".into(),
+            sampled_at: 100,
+            members: members.clone(),
+        }),
+    )
+    .unwrap();
+    cohort.check_size().unwrap();
+    let bytes = serde_json::to_vec(&cohort).unwrap();
+    assert!(bytes.len() < MAX_REPORT_BYTES / 2, "{}", bytes.len());
+    assert_eq!(
+        serde_json::to_vec(&DiscoveryCohort::decode(&bytes).unwrap()).unwrap(),
+        bytes
+    );
+    // One more refuses whole, in every constructor and in the wire decoder.
+    let over = engine(MAX_ENGINE_CONTAINERS + 1);
+    assert_eq!(engine_report(&over).unwrap_err().0, ErrorCode::Unavailable);
+    assert!(
+        DiscoveryCohort::new(
+            None,
+            Some(EngineFacts {
+                engine_id: "engine".into(),
+                sampled_at: 100,
+                members: over.clone(),
+            })
+        )
+        .is_err()
+    );
+    let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let rows = value["engine"]["members"].as_array_mut().unwrap();
+    let extra = rows[0].clone();
+    rows.push(extra);
+    let tampered = serde_json::to_vec(&value).unwrap();
+    assert!(DiscoveryCohort::decode(&tampered).is_err());
 }

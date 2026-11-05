@@ -28,6 +28,69 @@ const STRING: usize = 16 * 1024;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EngineReadProfile {
     CombinedV1,
+    /// Engine-wide Compose membership for stack inventory. Admits a whole Engine
+    /// of up to `limeos_domain::deployment::discovery::MAX_ENGINE_CONTAINERS` containers. The per-stack
+    /// member bound (`MAX_STACK_MEMBERS`) is enforced separately and unchanged.
+    EngineWideV1,
+}
+
+/// Closed numeric limits of one profile. Never derived from caller input.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Limits {
+    pub(super) consumers: usize,
+    pub(super) running: usize,
+    /// Selected (non-tmpfs) mounts across the whole Engine.
+    pub(super) mounts_total: usize,
+    /// Selected mounts of one container on revalidation.
+    pub(super) mounts_each: usize,
+    pub(super) response: usize,
+    pub(super) list_response: usize,
+    pub(super) body: usize,
+    pub(super) live: usize,
+    pub(super) nodes: usize,
+    pub(super) strings: usize,
+    /// Streamed (never allocated) size ceiling of the retained evidence report.
+    pub(super) report: usize,
+}
+impl EngineReadProfile {
+    pub(super) const fn limits(self) -> Limits {
+        match self {
+            Self::CombinedV1 => Limits {
+                consumers: CONSUMERS,
+                running: RUNNING,
+                mounts_total: MOUNTS,
+                mounts_each: MOUNTS,
+                response: RESPONSE,
+                list_response: RESPONSE,
+                body: BODY_BYTES,
+                live: LIVE_BYTES,
+                nodes: NODES,
+                strings: STRINGS,
+                report: 48 * 1024,
+            },
+            // Sized for 64 containers: one list row is at most a few KiB, so the
+            // list may use 256 KiB; the 7x scratch model then charges 1.8 MiB
+            // of a 4 MiB live ledger. Every inspect keeps the 64 KiB response cap
+            // and 128 inspect bodies (two passes) fit the 4 MiB body allowance at
+            // 32 KiB average. This projection scans no container processes, so
+            // running containers share the consumer bound.
+            Self::EngineWideV1 => Limits {
+                consumers: limeos_domain::deployment::discovery::MAX_ENGINE_CONTAINERS,
+                running: limeos_domain::deployment::discovery::MAX_ENGINE_CONTAINERS,
+                mounts_total: limeos_domain::CONTAINER_STORAGE_MAX_TOTAL_MOUNTS,
+                mounts_each: limeos_domain::CONTAINER_STORAGE_MAX_MOUNTS,
+                response: RESPONSE,
+                list_response: 256 * 1024,
+                body: 4 * 1024 * 1024,
+                live: 4 * 1024 * 1024,
+                nodes: 8192,
+                strings: 256 * 1024,
+                // 64 containers x (selected facts + Compose identity) plus up to
+                // 256 selected mounts, counted by a streaming writer.
+                report: 256 * 1024,
+            },
+        }
+    }
 }
 
 /// Retained selected projections cannot recover after a failed or abandoned
@@ -92,6 +155,7 @@ fn refused() -> Error {
 #[derive(Clone)]
 pub(super) struct Admission(Arc<State>);
 struct State {
+    limits: Limits,
     body: AtomicUsize,
     live: AtomicUsize,
     collecting: AtomicBool,
@@ -101,12 +165,17 @@ impl Admission {
     pub(super) fn remaining_live(&self) -> usize {
         self.0.live.load(Ordering::Relaxed)
     }
-    pub(super) fn new(_: EngineReadProfile) -> Self {
+    pub(super) fn new(profile: EngineReadProfile) -> Self {
+        let limits = profile.limits();
         Self(Arc::new(State {
-            body: AtomicUsize::new(BODY_BYTES),
-            live: AtomicUsize::new(LIVE_BYTES),
+            limits,
+            body: AtomicUsize::new(limits.body),
+            live: AtomicUsize::new(limits.live),
             collecting: AtomicBool::new(false),
         }))
+    }
+    pub(super) fn limits(&self) -> Limits {
+        self.0.limits
     }
     pub(super) fn consume(&self, bytes: usize) -> Result<()> {
         let previous = self
@@ -163,6 +232,9 @@ pub(super) struct Scope {
     bytes: usize,
 }
 impl Scope {
+    pub(super) fn limits(&self) -> Limits {
+        self.admission.limits()
+    }
     pub(super) fn charge(&mut self, bytes: usize) -> Result<()> {
         let total = self.bytes.checked_add(bytes).ok_or_else(refused)?;
         self.admission
@@ -246,8 +318,10 @@ impl Json {
         Self::decode_mode(bytes, scope, list, true)
     }
     fn decode_mode(bytes: &[u8], mut scope: Scope, list: bool, unique: bool) -> Result<Self> {
+        let limits = scope.admission.limits();
         let mut decoder = serde_json::Deserializer::from_slice(bytes);
         let mut state = Decode {
+            limits,
             scope: &mut scope,
             nodes: 0,
             strings: 0,
@@ -256,7 +330,7 @@ impl Json {
         let value = Seed {
             state: &mut state,
             depth: 0,
-            array_limit: if list { CONSUMERS } else { ITEMS },
+            array_limit: if list { limits.consumers } else { ITEMS },
         }
         .deserialize(&mut decoder)
         .map_err(|_| refused())?;
@@ -268,6 +342,7 @@ impl Json {
     }
 }
 struct Decode<'a> {
+    limits: Limits,
     scope: &'a mut Scope,
     nodes: usize,
     strings: usize,
@@ -275,7 +350,7 @@ struct Decode<'a> {
 }
 impl Decode<'_> {
     fn node(&mut self, depth: usize) -> std::result::Result<(), &'static str> {
-        if depth > DEPTH || self.nodes >= NODES {
+        if depth > DEPTH || self.nodes >= self.limits.nodes {
             return Err("JSON structural admission");
         }
         self.nodes += 1;
@@ -286,7 +361,7 @@ impl Decode<'_> {
             .strings
             .checked_add(text.len())
             .ok_or("JSON string admission")?;
-        if text.len() > STRING || total > STRINGS {
+        if text.len() > STRING || total > self.limits.strings {
             return Err("JSON string admission");
         }
         self.strings = total;

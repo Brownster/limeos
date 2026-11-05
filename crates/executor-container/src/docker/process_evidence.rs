@@ -5,7 +5,7 @@ use super::{
     compose_evidence::{self, EngineComposeSnapshot},
     health_evidence::{self, EngineHealthSnapshot},
     parse_api_version,
-    read_admission::{self, Admission, Json, Scope},
+    read_admission::{Admission, Json, Scope},
 };
 use limeos_domain::{
     CONTAINER_STORAGE_MAX_AGE_SECONDS, CONTAINER_STORAGE_MAX_TOTAL_MOUNTS, ContainerSnapshot,
@@ -238,7 +238,7 @@ pub(super) async fn inspect_compose(
         docker,
         policy,
         TimeSource::default(),
-        Some(Admission::new(EngineReadProfile::CombinedV1)),
+        Some(Admission::new(EngineReadProfile::EngineWideV1)),
         true,
     )
     .await
@@ -312,17 +312,23 @@ async fn inspect_projection(
         declarations: collected.declarations,
         running: collected.running,
     };
-    check_report(&snapshot)?;
+    let report_limit = admission
+        .as_ref()
+        .map_or(MAX_REPORT_BYTES, |a| a.limits().report);
+    check_report(&snapshot, report_limit)?;
     if let Some(compose) = &collected.compose {
         #[derive(Serialize)]
         struct Report<'a> {
             storage: &'a EngineStorageProcessSnapshot,
             compose: &'a EngineComposeSnapshot,
         }
-        check_report(&Report {
-            storage: &snapshot,
-            compose,
-        })?;
+        check_report(
+            &Report {
+                storage: &snapshot,
+                compose,
+            },
+            report_limit,
+        )?;
     }
     if let Some(health) = &collected.health {
         #[derive(Serialize)]
@@ -330,10 +336,13 @@ async fn inspect_projection(
             storage: &'a EngineStorageProcessSnapshot,
             health: &'a EngineHealthSnapshot,
         }
-        check_report(&Report {
-            storage: &snapshot,
-            health,
-        })?;
+        check_report(
+            &Report {
+                storage: &snapshot,
+                health,
+            },
+            report_limit,
+        )?;
     }
     lifetime.check()?;
     Ok(EngineStorageProcessEvidence {
@@ -443,14 +452,14 @@ impl AuthenticatedEngine {
         if let Some(admission) = admission {
             admission.ensure_body()?;
         }
-        let limit = if admission.is_some() {
-            limit.min(read_admission::RESPONSE)
-        } else {
-            limit
+        let list = path.ends_with("/containers/json?all=1");
+        let limit = match admission {
+            Some(a) if list => limit.min(a.limits().list_response),
+            Some(a) => limit.min(a.limits().response),
+            None => limit,
         };
         // Reserve body/decoder/HTTP scratch before the transport or serde can grow.
         let scope = admission.map(|a| a.response_scope(limit)).transpose()?;
-        let list = path.ends_with("/containers/json?all=1");
         let value = tokio::time::timeout(Duration::from_secs(REQUEST_SECONDS), async {
             let (status, bytes, _) = self
                 .docker
@@ -625,14 +634,16 @@ async fn collect(
             let value = get(format!("/{version}/containers/{id}/json"), 512 * 1024).await?;
             if admission.is_some() && value["State"]["Running"].as_bool() == Some(true) {
                 running_count += 1;
-                if running_count > read_admission::RUNNING {
+                if running_count > admission.map_or(0, |a| a.limits().running) {
                     return Err(unavailable());
                 }
             }
             let consumer = super::storage::parse_storage_container_with_admission(
                 &value,
                 id,
-                read_admission::MOUNTS.saturating_sub(total_mounts),
+                admission
+                    .map_or(0, |a| a.limits().mounts_total)
+                    .saturating_sub(total_mounts),
                 scope.as_mut(),
             )?;
             let pid = container_pid(&value, &consumer)?;
@@ -688,7 +699,7 @@ async fn collect(
             let after = super::storage::parse_storage_container_with_admission(
                 &value,
                 id,
-                read_admission::MOUNTS,
+                admission.map_or(0, |a| a.limits().mounts_each),
                 comparison.as_mut(),
             )?;
             if after != *before || container_pid(&value, &after)? != pid {
@@ -812,14 +823,14 @@ fn container_pid(value: &Value, consumer: &ContainerStorageConsumer) -> Result<u
     }
     Ok(pid as u32)
 }
-fn check_report(snapshot: &impl Serialize) -> Result<()> {
-    struct Size(usize);
+fn check_report(snapshot: &impl Serialize, limit: usize) -> Result<()> {
+    struct Size(usize, usize);
     impl Write for Size {
         fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
             self.0 = self
                 .0
                 .checked_add(bytes.len())
-                .filter(|&size| size <= MAX_REPORT_BYTES)
+                .filter(|&size| size <= self.1)
                 .ok_or_else(|| std::io::Error::other("bounded evidence report exceeded"))?;
             Ok(bytes.len())
         }
@@ -827,7 +838,7 @@ fn check_report(snapshot: &impl Serialize) -> Result<()> {
             Ok(())
         }
     }
-    serde_json::to_writer(Size(0), snapshot).map_err(|_| unavailable())
+    serde_json::to_writer(Size(0, limit), snapshot).map_err(|_| unavailable())
 }
 
 #[cfg(test)]

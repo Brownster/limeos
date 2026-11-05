@@ -282,7 +282,7 @@ struct CatalogWire {
 struct EngineWire {
     engine_id: Text<128>,
     sampled_at: i64,
-    #[serde(deserialize_with = "bounded::<_, MembershipWire, MAX_MEMBERS>")]
+    #[serde(deserialize_with = "bounded::<_, MembershipWire, MAX_ENGINE_CONTAINERS>")]
     members: Vec<MembershipWire>,
 }
 #[derive(Deserialize)]

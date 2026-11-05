@@ -108,6 +108,7 @@ fn exact_string_map_sequence_limits_and_unknown_node_amplification() {
     let admission = Admission::new(EngineReadProfile::CombinedV1);
     let mut scope = admission.response_scope(RESPONSE).unwrap();
     let mut state = Decode {
+        limits: EngineReadProfile::CombinedV1.limits(),
         scope: &mut scope,
         nodes: 0,
         strings: 0,
@@ -218,6 +219,7 @@ fn excess_nested_item_or_escaped_key_is_not_read_by_decoder() {
             count: &count,
         });
         let mut state = Decode {
+            limits: EngineReadProfile::CombinedV1.limits(),
             scope: &mut scope,
             nodes: 0,
             strings: 0,
@@ -262,5 +264,38 @@ fn compose_unique_mode_allows_equal_key_names_in_distinct_objects() {
     assert_eq!(
         *Json::decode_unique(text, admission.response_scope(RESPONSE).unwrap(), false).unwrap(),
         serde_json::from_slice::<Value>(text).unwrap()
+    );
+}
+
+#[test]
+fn engine_wide_profile_list_bound_is_64_and_leaves_combined_unchanged() {
+    let wide = Admission::new(EngineReadProfile::EngineWideV1);
+    let limits = wide.limits();
+    assert_eq!(limits.consumers, 64);
+    let rows = |n: usize| {
+        serde_json::to_vec(
+            &(0..n)
+                .map(|i| serde_json::json!({"Id": format!("{i:064x}"), "Names": ["/x"]}))
+                .collect::<Vec<_>>(),
+        )
+        .unwrap()
+    };
+    let scope = wide.response_scope(limits.list_response).unwrap();
+    assert!(Json::decode(&rows(64), scope, true).is_ok());
+    let scope = wide.response_scope(limits.list_response).unwrap();
+    assert!(Json::decode(&rows(65), scope, true).is_err());
+    assert_eq!(wide.0.live.load(Ordering::Relaxed), limits.live);
+    // The 7x list scratch plus a large retained share still fits the ledger.
+    let mut retained = wide.scope();
+    retained.charge(1024 * 1024).unwrap();
+    assert!(wide.response_scope(limits.list_response).is_ok());
+    let combined = EngineReadProfile::CombinedV1.limits();
+    assert_eq!(
+        (combined.consumers, combined.running, combined.mounts_total),
+        (16, 8, 32)
+    );
+    assert_eq!(
+        (combined.list_response, combined.live),
+        (RESPONSE, LIVE_BYTES)
     );
 }

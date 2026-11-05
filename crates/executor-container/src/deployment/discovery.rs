@@ -129,7 +129,7 @@ fn catalog_facts(catalog: &ManagementCatalog, sampled_at: i64) -> Result<Catalog
 }
 
 fn engine_facts(engine: &EngineComposeSnapshot) -> Result<EngineFacts> {
-    if engine.version != 1 || engine.containers.len() > model::MAX_MEMBERS {
+    if engine.version != 1 || engine.containers.len() > model::MAX_ENGINE_CONTAINERS {
         return Err(Error(ErrorCode::Unavailable));
     }
     let members: Vec<_> = engine
@@ -233,5 +233,53 @@ mod tests {
         assert_eq!(report.stacks[0].counts, None);
         engine.version = 2;
         assert!(project(&catalog(false), 100, &engine, 101).is_err());
+    }
+    fn snapshot(count: usize) -> EngineComposeSnapshot {
+        use crate::docker::compose_evidence::{ComposeContainerMembership, ComposeProjectIdentity};
+        EngineComposeSnapshot {
+            version: 1,
+            engine_id: "engine-a".into(),
+            containers_observed_at: 100,
+            containers: (0..count)
+                .map(|i| ComposeContainerMembership {
+                    container: limeos_domain::ContainerSnapshot {
+                        resource: format!("container:{i:064x}"),
+                        image: format!("sha256:{}", "a".repeat(64)),
+                        started_at: "2026-10-15T00:00:00Z".into(),
+                        running: i % 2 == 0,
+                    },
+                    ownership: if i < 16 {
+                        ComposeOwnership::Compose {
+                            project: ComposeProjectIdentity {
+                                name: "media".into(),
+                                working_directory: "/opt/stacks/Media".into(),
+                                config_files: vec!["/opt/stacks/Media/docker-compose.yml".into()],
+                            },
+                            service: format!("svc-{i}"),
+                            one_off: false,
+                        }
+                    } else {
+                        ComposeOwnership::NonCompose
+                    },
+                })
+                .collect(),
+        }
+    }
+    #[test]
+    fn engine_wide_bound_admits_64_containers_and_refuses_65_whole() {
+        let at_bound = engine_facts(&snapshot(model::MAX_ENGINE_CONTAINERS)).unwrap();
+        assert_eq!(at_bound.members.len(), 64);
+        let report = project(&catalog(false), 100, &snapshot(64), 101).unwrap();
+        assert_eq!(report.engine.state, model::SourceState::Fresh);
+        assert_eq!(report.standalone_containers, Some(48));
+        // 16 stack members among 48 unrelated containers is plannable input.
+        assert_eq!(report.stacks[0].counts.unwrap().ordinary, 16);
+        assert_eq!(
+            engine_facts(&snapshot(model::MAX_ENGINE_CONTAINERS + 1))
+                .unwrap_err()
+                .0,
+            ErrorCode::Unavailable
+        );
+        assert!(project(&catalog(false), 100, &snapshot(65), 101).is_err());
     }
 }

@@ -15,16 +15,23 @@ fn config() -> Config {
         ..Config::default()
     }
 }
-async fn inspect(fixture: &Fixture) -> Result<EngineComposeEvidence> {
+async fn inspect_profile_for(
+    fixture: &Fixture,
+    profile: EngineReadProfile,
+) -> Result<EngineComposeEvidence> {
     let inner = inspect_selected(
         &fixture.docker,
         fixture.policy,
         TimeSource::default(),
-        Some(Admission::new(EngineReadProfile::CombinedV1)),
+        Some(Admission::new(profile)),
         true,
     )
     .await?;
     EngineComposeEvidence::from_storage(inner)
+}
+/// The production stack-inventory profile.
+async fn inspect(fixture: &Fixture) -> Result<EngineComposeEvidence> {
+    inspect_profile_for(fixture, EngineReadProfile::EngineWideV1).await
 }
 async fn timed(fixture: &Fixture, clock: TimeSource) -> Result<EngineComposeEvidence> {
     let inner = inspect_selected(
@@ -284,7 +291,7 @@ async fn simultaneous_validation_refuses_both_results_without_restoring_admissio
     assert_eq!(fixture.requests().len(), before);
 }
 #[tokio::test]
-async fn complete_count_running_and_selected_mount_ceilings_are_unchanged() {
+async fn combined_profile_count_running_and_selected_mount_ceilings_are_unchanged() {
     let fixture = fixture(Config {
         count: 16,
         running_count: Some(8),
@@ -292,7 +299,9 @@ async fn complete_count_running_and_selected_mount_ceilings_are_unchanged() {
         ..config()
     })
     .await;
-    let owner = inspect(&fixture).await.unwrap();
+    let owner = inspect_profile_for(&fixture, EngineReadProfile::CombinedV1)
+        .await
+        .unwrap();
     assert_eq!(owner.snapshot().containers.len(), 16);
     for config in [
         Config {
@@ -313,7 +322,7 @@ async fn complete_count_running_and_selected_mount_ceilings_are_unchanged() {
     ] {
         let fixture = super::fixture(config).await;
         assert!(matches!(
-            inspect(&fixture).await,
+            inspect_profile_for(&fixture, EngineReadProfile::CombinedV1).await,
             Err(Error(ErrorCode::Unavailable))
         ));
     }
@@ -339,7 +348,7 @@ async fn total_storage_and_compose_report_refuses_without_raising_the_original_c
     .await;
     assert!(fixture.inspect_combined().await.is_ok());
     assert!(matches!(
-        inspect(&fixture).await,
+        inspect_profile_for(&fixture, EngineReadProfile::CombinedV1).await,
         Err(Error(ErrorCode::Unavailable))
     ));
 }
@@ -353,7 +362,9 @@ async fn lifetime_http_allowance_never_renews_and_payload_returns_after_owner_dr
         ..config()
     })
     .await;
-    let owner = inspect(&fixture).await.unwrap();
+    let owner = inspect_profile_for(&fixture, EngineReadProfile::CombinedV1)
+        .await
+        .unwrap();
     let admission = owner.storage().admission.clone().unwrap();
     let mut successes = 0;
     loop {
@@ -374,4 +385,49 @@ async fn lifetime_http_allowance_never_renews_and_payload_returns_after_owner_dr
     assert_eq!(fixture.requests().len(), before);
     drop(owner);
     assert_eq!(admission.remaining_live(), 2 * 1024 * 1024);
+}
+
+#[tokio::test]
+async fn engine_wide_profile_admits_exactly_sixty_four_containers_of_any_state() {
+    // 64 containers, 40 running (more than CombinedV1's 8), mounts at the
+    // 4-per-container share of the 256 Engine-wide selected-mount ceiling.
+    let fixture = fixture(Config {
+        count: 64,
+        running_count: Some(40),
+        mounts: 4,
+        ..config()
+    })
+    .await;
+    let owner = inspect(&fixture).await.unwrap();
+    assert_eq!(owner.snapshot().containers.len(), 64);
+    assert_eq!(owner.storage().running().len(), 40);
+    owner.revalidate().await.unwrap();
+    for config in [
+        Config {
+            count: 65,
+            ..config()
+        },
+        Config {
+            count: 64,
+            mounts: 5,
+            ..config()
+        },
+    ] {
+        let fixture = super::fixture(config).await;
+        assert!(matches!(
+            inspect(&fixture).await,
+            Err(Error(ErrorCode::Unavailable))
+        ));
+    }
+    // The storage-dependency profile keeps its own, smaller ceilings.
+    let narrow = super::fixture(Config {
+        count: 17,
+        ..config()
+    })
+    .await;
+    assert!(
+        inspect_profile_for(&narrow, EngineReadProfile::CombinedV1)
+            .await
+            .is_err()
+    );
 }

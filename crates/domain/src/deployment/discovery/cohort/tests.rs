@@ -61,7 +61,6 @@ fn refuses_nested_cardinality_text_and_cross_source_identity_defects() {
         "/catalog/stacks/0/config_files",
         "/engine/members/0/project/config_files",
         "/catalog/stacks",
-        "/engine/members",
     ] {
         let mut value = fixture();
         let rows = value.pointer_mut(pointer).unwrap().as_array_mut().unwrap();
