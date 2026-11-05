@@ -68,6 +68,34 @@
       ]
     },
     {
+      "description": "Root-peer only, like `Enroll`. All-or-nothing and idempotent.",
+      "type": "object",
+      "properties": {
+        "request": {
+          "type": "string",
+          "const": "import_legacy_users"
+        },
+        "users": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LegacyUser"
+          }
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version",
+        "users"
+      ]
+    },
+    {
       "type": "object",
       "properties": {
         "operation": {
@@ -417,6 +445,23 @@
         "token",
         "username",
         "password"
+      ]
+    },
+    "LegacyUser": {
+      "description": "One legacy user as read from the frozen app's env file. The hash is secret\nmaterial: no `Debug`, and it never appears in errors or logs.",
+      "type": "object",
+      "properties": {
+        "password_hash": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "username",
+        "password_hash"
       ]
     },
     "LogOptions": {

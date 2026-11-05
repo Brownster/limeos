@@ -135,30 +135,54 @@ impl Store {
             if exists {
                 return Err(Error(ErrorCode::Conflict));
             }
-            tx.execute(
-                "INSERT INTO users VALUES (?,?,?, ?,1)",
-                params![id, username, encoded, json(&Role::Administrator)?],
-            )
-            .map_err(durable)?;
-            for op in [
-                Operation::HealthRead,
-                Operation::MediaRequest,
-                Operation::ContainerManage,
-                Operation::StorageManage,
-                Operation::IdentityManage,
-            ] {
-                tx.execute(
-                    "INSERT INTO grants VALUES (?,?, '*')",
-                    params![id, json(&op)?],
-                )
-                .map_err(durable)?;
-            }
-            event(tx, Some(&id), None, EventKind::LegacyIdentityImported, now)?;
-            Ok(Principal {
-                id,
-                role: Role::Administrator,
-                grant_revision: 1,
+            insert_legacy(tx, id, username, encoded, now)
+        })
+    }
+    /// All-or-nothing batch for the cutover importer. A user already stored with
+    /// the identical hash is counted, not rewritten; any other existing user
+    /// refuses the whole batch. Returns (newly imported, already imported).
+    pub fn import_legacy_users(
+        &mut self,
+        users: &[(String, String)],
+        now: i64,
+    ) -> Result<(u32, u32)> {
+        let mut seen = std::collections::BTreeSet::new();
+        if users.is_empty()
+            || users.len() > 32
+            || users.iter().any(|(name, encoded)| {
+                !limeos_domain::identifier(name)
+                    || name.len() > 64
+                    || !limeos_identity::supported_legacy(encoded)
+                    || !seen.insert(name.as_str())
             })
+        {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
+        let ids = users
+            .iter()
+            .map(|_| limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable)))
+            .collect::<Result<Vec<_>>>()?;
+        self.write(|tx| {
+            let (mut imported, mut already) = (0, 0);
+            for ((username, encoded), id) in users.iter().zip(ids) {
+                let stored: Option<String> = tx
+                    .query_row(
+                        "SELECT password_hash FROM users WHERE username=?",
+                        [username],
+                        |r| r.get(0),
+                    )
+                    .optional()
+                    .map_err(durable)?;
+                match stored {
+                    Some(stored) if stored == *encoded => already += 1,
+                    Some(_) => return Err(Error(ErrorCode::Conflict)),
+                    None => {
+                        insert_legacy(tx, id, username, encoded, now)?;
+                        imported += 1;
+                    }
+                }
+            }
+            Ok((imported, already))
         })
     }
     pub fn login_record(&self, username: &str) -> Result<Option<LoginRecord>> {
@@ -341,4 +365,37 @@ impl Store {
             event(tx, None, None, EventKind::TaskRevoked, now)
         })
     }
+}
+
+fn insert_legacy(
+    tx: &Transaction<'_>,
+    id: String,
+    username: &str,
+    encoded: &str,
+    now: i64,
+) -> Result<Principal> {
+    tx.execute(
+        "INSERT INTO users VALUES (?,?,?, ?,1)",
+        params![id, username, encoded, json(&Role::Administrator)?],
+    )
+    .map_err(durable)?;
+    for op in [
+        Operation::HealthRead,
+        Operation::MediaRequest,
+        Operation::ContainerManage,
+        Operation::StorageManage,
+        Operation::IdentityManage,
+    ] {
+        tx.execute(
+            "INSERT INTO grants VALUES (?,?, '*')",
+            params![id, json(&op)?],
+        )
+        .map_err(durable)?;
+    }
+    event(tx, Some(&id), None, EventKind::LegacyIdentityImported, now)?;
+    Ok(Principal {
+        id,
+        role: Role::Administrator,
+        grant_revision: 1,
+    })
 }

@@ -129,6 +129,20 @@ impl Core {
             .call(move |s| s.enroll(&digest, &input.username, &hash, now()))
             .await
     }
+    /// Hashes are validated and stored as-is; nothing is rehashed until the user
+    /// next logs in.
+    async fn import_legacy_users(
+        &self,
+        users: Vec<limeos_contracts::LegacyUser>,
+    ) -> Result<(u32, u32)> {
+        let users: Vec<_> = users
+            .into_iter()
+            .map(|u| (u.username, u.password_hash))
+            .collect();
+        self.db
+            .call(move |s| s.import_legacy_users(&users, now()))
+            .await
+    }
 }
 impl Backend for Core {
     async fn observe_health_policy(
@@ -735,6 +749,15 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
             } if version == VERSION && peer.uid() == 0 => {
                 core.enroll(enrollment).await?;
                 CoreResponse::Enrolled
+            }
+            CoreRequest::ImportLegacyUsers { version, users }
+                if version == VERSION && peer.uid() == 0 =>
+            {
+                let (imported, already_imported) = core.import_legacy_users(users).await?;
+                CoreResponse::LegacyUsersImported {
+                    imported,
+                    already_imported,
+                }
             }
             CoreRequest::CheckTask {
                 version,

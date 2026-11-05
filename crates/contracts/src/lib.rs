@@ -57,6 +57,14 @@ pub struct Enrollment {
     pub username: String,
     pub password: String,
 }
+/// One legacy user as read from the frozen app's env file. The hash is secret
+/// material: no `Debug`, and it never appears in errors or logs.
+#[derive(Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct LegacyUser {
+    pub username: String,
+    pub password_hash: String,
+}
 #[derive(Clone, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct SessionView {
@@ -111,6 +119,11 @@ pub enum CoreRequest {
     Enroll {
         version: u16,
         enrollment: Enrollment,
+    },
+    /// Root-peer only, like `Enroll`. All-or-nothing and idempotent.
+    ImportLegacyUsers {
+        version: u16,
+        users: Vec<LegacyUser>,
     },
     CheckTask {
         version: u16,
@@ -168,6 +181,10 @@ pub enum CoreResponse {
         expires_at: i64,
     },
     Enrolled,
+    LegacyUsersImported {
+        imported: u32,
+        already_imported: u32,
+    },
     Authorized,
     RestartPlan(limeos_domain::PlannedRestart),
     RestartJob(limeos_domain::RestartJob),

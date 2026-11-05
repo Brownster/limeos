@@ -403,3 +403,57 @@ fn symlinked_database_lock_is_refused_on_every_architecture() {
     assert!(Store::open(&d.path().join("core.sqlite")).is_err());
     assert!(!elsewhere.exists());
 }
+const SCRYPT: &str = "scrypt:32768:8:1$vdYT4OKICpm89RVk$04c86b2538e3f92ba1e4d2b9a2423d3f75bda2c7be27d67f30cda40d7638089134fee1f549b2968273fe31fbf30da2b9b3f0a4d5560077b0376cfca0ab2f2397";
+const PBKDF2: &str = "pbkdf2:sha256:1000000$IgjABokZwwl2gggv$686315920b24fb807abeb0a436ce6385be3f3026e35d934ffbaf15be1a0e7ce1";
+#[test]
+fn legacy_batch_is_atomic_idempotent_and_never_overwrites() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = Store::open(&d.path().join("core.sqlite")).unwrap();
+    let both = [
+        ("holly".to_owned(), SCRYPT.to_owned()),
+        ("bob".to_owned(), PBKDF2.to_owned()),
+    ];
+    assert_eq!(s.import_legacy_users(&both, 10).unwrap(), (2, 0));
+    assert_eq!(s.import_legacy_users(&both, 11).unwrap(), (0, 2));
+    let count = |s: &Store, table: &str| -> i64 {
+        s.conn
+            .query_row(&format!("SELECT count(*) FROM {table}"), [], |r| r.get(0))
+            .unwrap()
+    };
+    assert_eq!(count(&s, "users"), 2);
+    assert_eq!(count(&s, "grants"), 10);
+    let events = count(&s, "events");
+    // A mixed batch (one new, one conflicting) changes nothing.
+    let mixed = [
+        ("carol".to_owned(), SCRYPT.to_owned()),
+        ("bob".to_owned(), SCRYPT.to_owned()),
+    ];
+    assert_eq!(
+        s.import_legacy_users(&mixed, 12).unwrap_err().0,
+        ErrorCode::Conflict
+    );
+    assert!(s.login_record("carol").unwrap().is_none());
+    assert_eq!(
+        s.login_record("bob").unwrap().unwrap().password_hash,
+        PBKDF2
+    );
+    assert_eq!(count(&s, "users"), 2);
+    assert_eq!(count(&s, "events"), events);
+    // Invalid, duplicate and empty batches are refused before any write.
+    for bad in [
+        vec![],
+        vec![("a".to_owned(), "plaintext".to_owned())],
+        vec![(String::new(), SCRYPT.to_owned())],
+        vec![("a".to_owned(), SCRYPT.to_owned()); 2],
+        vec![
+            ("good".to_owned(), SCRYPT.to_owned()),
+            ("bad name".to_owned(), SCRYPT.to_owned()),
+        ],
+    ] {
+        assert_eq!(
+            s.import_legacy_users(&bad, 13).unwrap_err().0,
+            ErrorCode::InvalidInput
+        );
+    }
+    assert_eq!(count(&s, "users"), 2);
+}

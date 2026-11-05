@@ -156,3 +156,118 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
         assert!(core.session(issued.token, None).await.is_err());
     }
 }
+#[tokio::test]
+async fn batch_imported_legacy_users_log_in_and_rerun_changes_nothing() {
+    use limeos_contracts::LegacyUser;
+    let dir = tempfile::tempdir().unwrap();
+    let db = Database::open(&dir.path().join("core.sqlite")).unwrap();
+    let fixtures: serde_json::Value =
+        serde_json::from_str(include_str!("../../../tests/fixtures/werkzeug-hashes.json")).unwrap();
+    let core = Core {
+        automation_status: Default::default(),
+        db,
+        password_workers: Arc::new(Semaphore::new(2)),
+        dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),
+        observations: limeos_observations::Cache::default(),
+        telemetry: None,
+        container_socket: Arc::new("/unused".into()),
+        storage_socket: Arc::new("/unused".into()),
+        storage_target_socket: Arc::new("/unused-targets".into()),
+        storage_mount_socket: Arc::new("/unused-mounts".into()),
+        storage_readers: Arc::new(Semaphore::new(1)),
+        stacks: Default::default(),
+        compose_catalog: None,
+    };
+    let users = || -> Vec<LegacyUser> {
+        fixtures
+            .as_array()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(|(i, f)| LegacyUser {
+                username: format!("legacy-{i}"),
+                password_hash: f["hash"].as_str().unwrap().into(),
+            })
+            .collect()
+    };
+    assert_eq!(core.import_legacy_users(users()).await.unwrap(), (2, 0));
+    for (i, fixture) in fixtures.as_array().unwrap().iter().enumerate() {
+        let username = format!("legacy-{i}");
+        let wrong = core
+            .login(Login {
+                username: username.clone(),
+                password: "wrong-password".into(),
+            })
+            .await;
+        assert_eq!(wrong.err().unwrap().0, ErrorCode::Unauthenticated);
+        core.login(Login {
+            username: username.clone(),
+            password: fixture["password"].as_str().unwrap().into(),
+        })
+        .await
+        .unwrap();
+        let stored = core
+            .db
+            .call(move |s| Ok(s.login_record(&username)?.unwrap().password_hash))
+            .await
+            .unwrap();
+        assert!(stored.starts_with("$argon2id$"));
+    }
+    // After the first login upgrades the hash, a re-run refuses rather than overwrites.
+    assert_eq!(
+        core.import_legacy_users(users()).await.unwrap_err().0,
+        ErrorCode::Conflict
+    );
+}
+#[tokio::test]
+async fn legacy_import_request_is_refused_for_a_non_root_peer_and_writes_nothing() {
+    if rustix::process::getuid().is_root() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let db = Database::open(&dir.path().join("core.sqlite")).unwrap();
+    let core = Core {
+        automation_status: Default::default(),
+        db,
+        password_workers: Arc::new(Semaphore::new(2)),
+        dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),
+        observations: limeos_observations::Cache::default(),
+        telemetry: None,
+        container_socket: Arc::new("/unused".into()),
+        storage_socket: Arc::new("/unused".into()),
+        storage_target_socket: Arc::new("/unused-targets".into()),
+        storage_mount_socket: Arc::new("/unused-mounts".into()),
+        storage_readers: Arc::new(Semaphore::new(1)),
+        stacks: Default::default(),
+        compose_catalog: None,
+    };
+    let db = core.db.clone();
+    let (mut client, server) = UnixStream::pair().unwrap();
+    let worker = tokio::spawn(handle_rpc(core, server));
+    let fixtures: serde_json::Value =
+        serde_json::from_str(include_str!("../../../tests/fixtures/werkzeug-hashes.json")).unwrap();
+    limeos_contracts::write_frame(
+        &mut client,
+        &CoreRequest::ImportLegacyUsers {
+            version: VERSION,
+            users: vec![limeos_contracts::LegacyUser {
+                username: "holly".into(),
+                password_hash: fixtures[0]["hash"].as_str().unwrap().into(),
+            }],
+        },
+    )
+    .await
+    .unwrap();
+    let response: CoreResponse = limeos_contracts::read_frame(&mut client).await.unwrap();
+    let CoreResponse::Error(error) = response else {
+        panic!("non-root peer was served");
+    };
+    assert_eq!(error.code, ErrorCode::Forbidden);
+    let _ = worker.await;
+    assert!(
+        db.call(|s| s.login_record("holly"))
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
