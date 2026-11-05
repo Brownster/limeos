@@ -9,8 +9,8 @@ The operator approved one relaxation of the earlier no-retry rule, for the
 read-only census scan only. `HostConsumers::capture` repeats the complete scan
 inside its existing four-second window until two consecutive scans are
 identical (tasks with start ticks and namespaces, namespace digests, inventory
-digest). That second scan becomes the baseline and replaces the former
-`scan.initial_recheck`. A scan that fails with a churn symptom
+digest). That second scan becomes the baseline, and the exact
+`scan.initial_recheck` still runs against it. A scan that fails with a churn symptom
 (`Conflict`, `Unavailable`, `IdentityMismatch`) breaks the pair and is not
 compared; time-out, cancellation and any other failure end the capture.
 

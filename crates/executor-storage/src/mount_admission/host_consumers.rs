@@ -337,7 +337,10 @@ impl HostConsumers {
             expires,
             poisoned: Cell::new(false),
         };
-        // The stable pair above is the initial recheck; later rechecks stay exact.
+        diagnosed(
+            "scan.initial_recheck",
+            owner.revalidate(selected, physical, underlay, cancelled),
+        )?;
         Ok(owner)
     }
     pub(super) fn digest(&self) -> &str {
