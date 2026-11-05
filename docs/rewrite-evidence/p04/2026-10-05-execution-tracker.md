@@ -2,16 +2,19 @@
 
 Status: local implementation started after P03's 62-group representative-layout suite passed. The operator authorized continuing P03 then P04 on 2026-10-05. All implementation happens in this Rust repository; the Python checkout is frozen. Mutation tests use disposable VMs. The earlier corrected 0.4.2 payload has separate native ARM64 qualification; current payload and reference-host measurement gates remain open.
 
-Latest acceptance, 5 November: [installed B1 status and panel evidence](2026-11-05-b1-status-panels/README.md).
-The standard package's real browser control flow, ordinary timer notifications,
-acknowledgment and pause survive actual Core crashes without duplicate work.
-New UI assets correct stale availability copy and narrow account-text overflow;
-244 frontend cases/build, 19 scoped fixture/profile cases and both installed runs
-pass. Current ARM64/Pi, upgrade/return, broader A/B runtime and P05/P06 cutover
-remain open. A1's current positive mount plan still refuses normal Docker task
-churn; its safety comparisons have not been relaxed. Holly's Pi and the frozen
-application remain unchanged by these local runs. Historical sections below
-retain their original source and qualification scope.
+Latest acceptance, 5 November: [installed Stack API/UI evidence](2026-11-05-b2-installed-stack-ui/README.md).
+The current standard package passes empty/mixed/maximal cardinality layouts with
+eight registrations, sixteen real containers, eight running and thirty-two bind
+declarations, unsafe-catalog refusal/recovery, actual Core/reader restarts and
+browser logout/relogin. The complete reader cgroup peaks at 6,250,496 bytes under
+unchanged limits. Four installed checkpoint groups and 26 scoped reference cases
+pass; desktop displayed states pass review. Narrow member-table readability and
+its clipped-heading capture remain open. The [B1 evidence](2026-11-05-b1-status-panels/README.md)
+separately covers real timer notifications, acknowledgment/pause and crash dedup.
+Current ARM64/Pi, upgrade/return, broader A/B runtime and P05/P06 cutover remain
+open. A1's positive mount plan still refuses normal Docker task churn; its safety
+comparisons have not been relaxed. Holly's Pi and the frozen application remain
+unchanged. Historical sections retain their original source/qualification scope.
 
 Estimate: forty implementer days (320 hours) for RW-040 through RW-045, including their API/UI screens and regression evidence. Review the cutover scope at 480 hours. Allocation: 72 hours for storage identities, mount planning, boot exclusion and mount-loss safety; 64 for pools/protection/remote mounts/shares/prerequisites; 64 for catalog/Compose/media paths and tools; 48 for encrypted backup/restore and recovery; 32 for package/container update transitions; 40 for schedules/alerts/notifications and restart recovery. Record actual agent work and approval waits separately; neither is a measured human implementer-day figure.
 
@@ -21,7 +24,7 @@ The first slice ports the frozen storage contract into typed, generated domain c
 | --- | --- |
 | RW-040 — Storage identities, contracts and mounts | Installed A1 prerequisites and negative API cases pass, but the current positive mount plan still refuses normal Docker task churn. Authenticated never-started refusal recovery is implemented and locally qualified; genuine current mount effects/recovery, unmount/runtime loss and native ARM64 acceptance remain open. Earlier accepted empty-target and dependency evidence retains its original scope below. |
 | RW-041 — Pools, protection, remote mounts and shares | Pure pool/SnapRAID planning/imports, retained protection-source and planning-configuration libraries, Samba planning and the configured dependency graph are integrated locally. Actual pool/share state, combined installed protected collection, executable operations, schedules and remote mounts remain pending. |
-| RW-042 — Catalog, Compose and media deployment | Registered stack inventory has local API/UI qualification and earlier installed genuine catalog/Engine read evidence. Current installed UI/max-layout qualification, protected Compose inspection/review binding, whole-stack/catalog/media execution and recovery remain open. |
+| RW-042 — Catalog, Compose and media deployment | Current installed Stack read API/UI cardinality scenarios pass, including source refusal and actual restarts. Narrow member-table readability/capture, full resource/failure matrices, protected Compose inspection/review binding, whole-stack/catalog/media execution and recovery remain open. |
 | RW-043 — Backup, restore and recovery | Bounded archive inspector and pure admission planner integrated. Manifest v2 coalesces exact inert legacy repeats; 22 inspector tests pass locally and on native AMD64/ARM64 CI. Restore executor, production inventory limits, backup creation and recovery remain pending; BKP-001 stays open. |
 | RW-044 — Package/container updates and host prerequisites | Typed package/update/prerequisite libraries are integrated; registered effects, safe version transitions and installed acceptance remain pending. |
 | RW-045 — Schedules, alerts and notifications | Registered container-only observation schedules, configured policy and in-app notification API/UI now pass genuine installed timer/restart scenarios. Other sources/channels, recurring effect adapters, replacement/retirement/compaction and broad qualification remain open. |

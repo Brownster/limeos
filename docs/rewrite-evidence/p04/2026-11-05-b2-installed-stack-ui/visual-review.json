@@ -1,0 +1,12 @@
+{
+  "method": "Direct inspection of all five archived PNGs",
+  "desktop_displayed_states_accepted": true,
+  "page_width_geometry_checks_passed": true,
+  "mobile_visual_acceptance": false,
+  "remaining_findings": [
+    "The narrow member table wraps four columns heavily and is hard to read",
+    "The maximum-mobile CDP image clips part of the Stack heading despite matching the requested rectangle dimensions; capture reflow needs another check"
+  ],
+  "scope": "Desktop shown read states only; no complete mobile, accessibility, grant-replacement or production browser-hardening acceptance",
+  "production_ui_changed_in_this_slice": false
+}

@@ -1,5 +1,15 @@
 # Registered stack inventory: local runtime handoff
 
+Current acceptance, 5 November: the [installed Stack API/UI packet](rewrite-evidence/p04/2026-11-05-b2-installed-stack-ui/README.md)
+passes the signed standard package with eight registrations, sixteen real
+containers, eight running and thirty-two bind declarations. Empty/mixed/maximal
+cardinality layouts, unsafe-source refusal/recovery, actual Core crash and reader
+restart, and browser logout/relogin pass. The complete reader cgroup peaks at
+6,250,496 bytes under unchanged limits. Desktop displayed states pass review;
+narrow member-table readability and a clipped mobile heading remain open.
+This is current AMD64 read-flow evidence, not complete B2/P04 or Pi qualification.
+The sections below retain their original source and historical scope.
+
 Source `e5e45caa31db2062ef118e28ce2ad419a944000c`, based on local main `3190286`.
 The [runtime design](plans/2026-10-20-stack-inventory-runtime-design.md) now has
 registered collection, transport, caching, authorization and a mounted Stacks
@@ -125,9 +135,10 @@ preserved alongside the passing result.
 
 ## Next acceptance work
 
-Extend installed catalog/Engine scenarios to maximum layouts and actual UI
-ownership with the same immutable source/package discipline. Measure the complete service cgroup,
-including image capture and failure paths, within unchanged limits. Exercise
+The 5 November packet covers the current installed cardinality/API/UI flow and
+whole-service cgroup observations. Correct narrow member-table readability and
+recheck its capture. Extend resource qualification to worst-byte inputs and
+failure paths within unchanged limits. Exercise
 worker/guardian/manager death, cancellation, deadline, late output and cleanup
 barriers through the registered path. Add installed principal/grant replacement
 and interrupted browser ownership scenarios. Run native ARM64 qualification on
@@ -136,8 +147,10 @@ that candidate; the old `477b81f` CI result does not qualify this source.
 The Engine's unsupported PID-1/socket-activation case remains explicit. Real
 Compose filename/YAML/environment/include diagnostics and file/review binding
 still need protected collection. Whole-stack lifecycle, shared claims/approval,
-verified shutdown and recovery remain subsequent B2/B3 work. B1 still needs a
-genuine durable observation producer, alerts and notification runtime. A1's
+verified shutdown and recovery remain subsequent B2/B3 work. B1's genuine
+container-only observation producer and in-app notification flow now pass
+[installed timer/crash evidence](rewrite-evidence/p04/2026-11-05-b1-status-panels/README.md);
+other sources/channels and recurring effects remain open. A1's
 [userspace-task revalidation failure](p04-a1-namespace-budget-handoff.md) remains
 open. A source audit also found the absolute-root assumption in the bounded
 storage mount parser; that separate Stream A path needs its own regression and
