@@ -4,6 +4,7 @@ import base64
 import importlib.util
 import io
 import json
+import struct
 import sys
 import tempfile
 import unittest
@@ -99,18 +100,36 @@ class BrowserFixtureBoundaries(unittest.TestCase):
     def test_screenshot_bound_and_exact_roundtrip(self):
         driver = mock.Mock()
         driver.find_elements.return_value = []
-        driver.find_element.return_value.screenshot_as_png = b"fixture pixels"
-        driver.execute_script.return_value = {"page_width": 390, "viewport_width": 390}
+        pixels = b"\x89PNG\r\n\x1a\n" + b"\0" * 8 + struct.pack("!II", 335, 1400)
+        driver.execute_cdp_cmd.return_value = {
+            "data": base64.b64encode(pixels).decode()
+        }
+        driver.execute_script.return_value = {
+            "page_width": 390,
+            "viewport_width": 390,
+            "target_width": 335,
+            "target_height": 1400,
+            "target_x": 20,
+            "target_y": 1000,
+        }
         evidence = {}
         guest.screenshot(driver, evidence, "safe", "#health-history-panel")
         value = evidence["screenshots"]["safe"]
-        self.assertEqual(base64.b64decode(value["png_base64"]), b"fixture pixels")
+        self.assertEqual(base64.b64decode(value["png_base64"]), pixels)
         self.assertEqual(len(value["sha256"]), 64)
         self.assertEqual(value["selector"], "#health-history-panel")
-        driver.find_element.return_value.screenshot_as_png = b"x" * (512 * 1024 + 1)
+        driver.execute_cdp_cmd.return_value = {
+            "data": base64.b64encode(b"x" * (512 * 1024 + 1)).decode()
+        }
         with self.assertRaises(ValueError):
             guest.screenshot(driver, evidence, "large", "#health-history-panel")
         self.assertNotIn("large", evidence["screenshots"])
+        driver.execute_cdp_cmd.return_value = {
+            "data": base64.b64encode(pixels[:20] + struct.pack("!I", 701)).decode()
+        }
+        with self.assertRaises(ValueError):
+            guest.screenshot(driver, evidence, "clipped", "#health-history-panel")
+        self.assertNotIn("clipped", evidence["screenshots"])
 
     def test_capture_rejects_page_overflow_and_unapproved_targets(self):
         driver = mock.Mock()

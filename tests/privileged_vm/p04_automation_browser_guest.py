@@ -7,6 +7,7 @@ import os
 import secrets
 import signal
 import sqlite3
+import struct
 import sys
 import tarfile
 import time
@@ -104,17 +105,53 @@ def screenshot(driver, evidence, name, selector):
         """const box=arguments[0].getBoundingClientRect();
         return {viewport_width:innerWidth,viewport_height:innerHeight,
           page_width:document.documentElement.scrollWidth,
+          target_x:box.left+scrollX,target_y:box.top+scrollY,
           target_width:box.width,target_height:box.height,
           tables:[...arguments[0].querySelectorAll('.table-wrap')].map(e=>({
-            label:e.getAttribute('aria-label'),width:e.clientWidth,scroll_width:e.scrollWidth}))};""",
+            label:e.getAttribute('aria-label'),width:e.clientWidth,scroll_width:e.scrollWidth,scroll_left:e.scrollLeft}))};""",
         target,
     )
     require(
         geometry["page_width"] <= geometry["viewport_width"] + 1,
         "page overflows outside its scrolling table regions",
     )
-    data = target.screenshot_as_png
+    require(
+        0 < geometry["target_width"] <= 1600
+        and 0 < geometry["target_height"] <= 4096
+        and 0 <= geometry["target_x"] <= 1600
+        and 0 <= geometry["target_y"] <= 100000,
+        "screenshot target geometry exceeds bound",
+    )
+    # WebDriver's element screenshot clips tall elements to the current viewport.
+    # Capture the exact bounded document rectangle without scrolling application
+    # controls into a different state or changing its DOM/styles.
+    captured = driver.execute_cdp_cmd(
+        "Page.captureScreenshot",
+        {
+            "format": "png",
+            "captureBeyondViewport": True,
+            "fromSurface": True,
+            "clip": {
+                "x": geometry["target_x"],
+                "y": geometry["target_y"],
+                "width": geometry["target_width"],
+                "height": geometry["target_height"],
+                "scale": 1,
+            },
+        },
+    )
+    data = base64.b64decode(captured["data"], validate=True)
     require(len(data) <= 512 * 1024, "screenshot exceeds bound")
+    require(
+        data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24,
+        "invalid screenshot PNG header",
+    )
+    width, height = struct.unpack("!II", data[16:24])
+    require(
+        abs(width - geometry["target_width"]) <= 1
+        and abs(height - geometry["target_height"]) <= 1,
+        "screenshot clipped the target rectangle",
+    )
     evidence.setdefault("screenshots", {})[name] = {
         "sha256": hashlib.sha256(data).hexdigest(),
         "png_base64": base64.b64encode(data).decode("ascii"),
@@ -343,6 +380,12 @@ def browser_flow(driver, password, identifier, evidence):
         )
     driver.set_window_size(390, 844)
     screenshot(driver, evidence, "acknowledged-mobile", "#health-history-panel")
+    # Exercise the existing scroll region's other edge, retaining narrow layout.
+    delivery = element(
+        '#health-history-panel [aria-label="Recorded notification delivery"]'
+    )
+    driver.execute_script("arguments[0].scrollLeft=arguments[0].scrollWidth;", delivery)
+    screenshot(driver, evidence, "acknowledged-mobile-right", "#health-history-panel")
     screenshot(driver, evidence, "paused-mobile", "#health-schedules-panel")
     evidence["availability_copy_verified"] = True
     evidence["final_history"] = fixture.history()
