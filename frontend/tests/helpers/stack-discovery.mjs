@@ -30,5 +30,6 @@ export const { decodeStackInventory, readStackInventory, inventoryStale, StackRe
 export const { StackInventoryController } = await import(controllerURL);
 export const { StackManagement, StackPanel } = await import(viewURL);
 export const { StackActionController, stackTargets } = await import(flowURL);
-export const { stackAvailability, StackJobRow, StackReceiptView } = await import(actionsURL);
+export const { stackAvailability, StackJobRow, StackReceiptView, isInterrupted, partlyDone } = await import(actionsURL);
+export const { ApiError } = await import(apiURL);
 export const wire = JSON.parse(await readFile(new URL("../../../tests/fixtures/deployment/discovery/wire.json", import.meta.url), "utf8"));

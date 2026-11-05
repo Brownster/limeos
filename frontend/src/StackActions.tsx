@@ -19,6 +19,25 @@ import {
 } from "./stack-action-controller";
 import type { StackView } from "./stack-inventory-client";
 
+/**
+ * Network failures and 5xx may have reached the host, so the same request is
+ * retried. A definite 4xx refusal means the plan or approval is dead.
+ */
+export function isInterrupted(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return true;
+  const definite = [
+    "invalid_input",
+    "unauthenticated",
+    "forbidden",
+    "conflict",
+    "expired",
+    "not_found",
+  ];
+  return (
+    !definite.includes(error.detail.code) &&
+    !/^http-4\d\d$/.test(error.detail.audit_id)
+  );
+}
 const labels: Record<ContainerAction, string> = {
   restart: "Restart",
   start: "Start",
@@ -74,6 +93,7 @@ export function StackActions({
         client,
         () => latest.current(),
         message,
+        isInterrupted,
       ),
     [stack.project, csrf],
   );
@@ -180,7 +200,13 @@ export function StackActions({
             {state.error}
           </p>
         )}
-        {state.retained && (
+        {state.error && !state.proposal && !state.pending && state.action && (
+          <p className="notice">
+            This request was refused and cannot be repeated. Close this dialog
+            and start again to preview a fresh plan.
+          </p>
+        )}
+        {state.retained && state.interrupted && (
           <p className="notice">
             The response was interrupted. Check recent operations or retry this
             same request; it retains its original request key.
@@ -218,6 +244,14 @@ export function StackReceiptView({ receipt }: { receipt: StackReceipt }) {
     </ul>
   );
 }
+/** Verified members of a partly-done run, out of all acted-on members. */
+export function partlyDone(receipt?: StackReceipt | null) {
+  if (!receipt || receipt.state !== "partly_done") return null;
+  return {
+    done: receipt.members.filter((m) => m.state === "verified").length,
+    total: receipt.members.length,
+  };
+}
 export function StackJobRow({
   job,
   receipt,
@@ -238,7 +272,11 @@ export function StackJobRow({
           {labels[job.plan.operation]} stack ·{" "}
           {job.plan.expected.resource.slice(6)}
         </strong>
-        <p role="status">{outcome(job.state)}</p>
+        <p role="status">
+          {partlyDone(receipt)
+            ? `Partly done, ${partlyDone(receipt)!.done} of ${partlyDone(receipt)!.total} members. Not a success: the rest were not changed.`
+            : outcome(job.state)}
+        </p>
         {job.state === "needs_intervention" && (
           <p className="notice">
             The outcome needs inspection. The stack and its containers remain
@@ -275,6 +313,9 @@ export function StackJobs({
   expired: () => void;
 }) {
   const [jobs, setJobs] = useState<StackJob[]>([]);
+  // A failed job is a partly-done run: its per-member receipt is needed to say so.
+  const [receipts, setReceipts] = useState<Record<string, StackReceipt | null>>({});
+  const requested = useRef(new Set<string>());
   const [error, setError] = useState("");
   const [shown, setShown] = useState<{
     id: string;
@@ -293,6 +334,16 @@ export function StackJobs({
         if (!active) return;
         setJobs(next);
         setError("");
+        for (const job of next) {
+          if (job.state !== "failed" || requested.current.has(job.id)) continue;
+          requested.current.add(job.id);
+          api
+            .stackProgress(job.id)
+            .then((p) => {
+              if (active) setReceipts((all) => ({ ...all, [job.id]: p.receipt }));
+            })
+            .catch(() => requested.current.delete(job.id));
+        }
         if (
           next.some((job) =>
             ["queued", "running", "verifying"].includes(job.state),
@@ -353,7 +404,7 @@ export function StackJobs({
           key={job.id}
           job={job}
           labels={shown?.id === job.id ? shown.labels : undefined}
-          receipt={shown?.id === job.id ? shown.receipt : undefined}
+          receipt={shown?.id === job.id ? shown.receipt : receipts[job.id]}
           cancel={() => void cancel(job.id)}
           details={() => void details(job.id)}
         />

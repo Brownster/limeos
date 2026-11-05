@@ -31,6 +31,8 @@ export interface StackActionState {
   error: string;
   /** An approval exists and the same request will be retried. */
   retained: boolean;
+  /** The last failure may have reached the host (network, 5xx); retry is safe. */
+  interrupted: boolean;
   /** The job was queued; the dialog can close. */
   queued: boolean;
 }
@@ -40,6 +42,7 @@ const idle: StackActionState = {
   pending: false,
   error: "",
   retained: false,
+  interrupted: false,
   queued: false,
 };
 
@@ -69,6 +72,8 @@ export class StackActionController {
     private readonly client: StackActionClient,
     private readonly changed: () => void,
     private readonly describe: (error: unknown) => string,
+    /** True for network/5xx failures; a definite 4xx refusal is not retried. */
+    private readonly isInterrupted: (error: unknown) => boolean = () => true,
     private readonly newKey: () => string = () => crypto.randomUUID(),
   ) {}
   subscribe = (listener: () => void) => {
@@ -128,9 +133,22 @@ export class StackActionController {
       await this.client.queue(approved, approval, key, this.csrf);
       this.submission = null;
       this.changed();
-      if (mine === this.serial) this.set({ queued: true, retained: false });
+      if (mine === this.serial) this.set({ queued: true, retained: false, interrupted: false });
     } catch (e) {
-      if (mine === this.serial) this.set({ error: this.describe(e) });
+      if (this.isInterrupted(e)) {
+        if (mine === this.serial)
+          this.set({ error: this.describe(e), interrupted: true });
+      } else {
+        // A definite refusal: the request cannot be repeated. Start again.
+        this.submission = null;
+        if (mine === this.serial)
+          this.set({
+            error: this.describe(e),
+            interrupted: false,
+            retained: false,
+            proposal: null,
+          });
+      }
       this.changed();
     } finally {
       if (mine === this.serial) this.set({ pending: false });

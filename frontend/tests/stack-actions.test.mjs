@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { StackActionController, stackTargets, stackAvailability, StackJobRow, StackManagement, wire } from "./helpers/stack-discovery.mjs";
+import { StackActionController, stackTargets, stackAvailability, StackJobRow, StackManagement, isInterrupted, partlyDone, ApiError, wire } from "./helpers/stack-discovery.mjs";
 
 const clone = () => structuredClone(wire);
 const operations = { csrf: "c".repeat(64), revision: 0, changed() {}, expired() {} };
@@ -23,7 +23,7 @@ function harness(overrides = {}) {
     ...overrides,
   };
   let changes = 0, serial = 0;
-  const controller = new StackActionController("media", "csrf", client, () => { changes += 1; }, e => e.message, () => `key-${++serial}`);
+  const controller = new StackActionController("media", "csrf", client, () => { changes += 1; }, e => e.message, overrides.interrupted ?? (() => true), () => `key-${++serial}`);
   return { controller, calls, changes: () => changes };
 }
 
@@ -165,4 +165,42 @@ test("job rows show per-container outcomes, intervention warnings and cancel onl
   assert.doesNotMatch(html, /Cancel queued/);
   const queued = renderToStaticMarkup(React.createElement(StackJobRow, { job: job("queued"), cancel() {}, details() {} }));
   assert.match(queued, /Cancel queued restart stack/);
+});
+
+test("only network and server failures keep a request key; a definite refusal asks to start again", async () => {
+  const refusal = code => new ApiError({ code, message: "No.", retry: false, audit_id: "a-1" });
+  for (const error of [new Error("network"), new ApiError({ code: "unavailable", message: "x", retry: true, audit_id: "a" }),
+    new ApiError({ code: "state_not_durable", message: "x", retry: true, audit_id: "a" }), new ApiError({ code: "unavailable", message: "x", retry: true, audit_id: "http-502" })])
+    assert.equal(isInterrupted(error), true);
+  for (const error of [refusal("conflict"), refusal("forbidden"), refusal("expired"), refusal("invalid_input"),
+    new ApiError({ code: "unavailable", message: "x", retry: true, audit_id: "http-404" })])
+    assert.equal(isInterrupted(error), false);
+  const { controller, calls, changes } = harness({ interrupted: isInterrupted, queue: async (...args) => { calls.push(["queue", ...args]); throw refusal("conflict"); } });
+  await controller.preview("restart");
+  await controller.confirm();
+  const state = controller.getSnapshot();
+  assert.equal(state.retained, false); assert.equal(state.interrupted, false); assert.equal(state.proposal, null);
+  assert.match(state.error, /No\./); assert.equal(changes(), 1);
+  await controller.confirm();
+  assert.equal(calls.filter(c => c[0] === "queue").length, 1);
+  await controller.preview("restart");
+  await controller.confirm();
+  assert.equal(calls.filter(c => c[0] === "approve").length, 2);
+  // An interrupted response keeps the key and says so.
+  const kept = harness({ interrupted: isInterrupted, queue: async () => { throw new Error("network"); } });
+  await kept.controller.preview("stop"); await kept.controller.confirm();
+  assert.equal(kept.controller.getSnapshot().interrupted, true); assert.equal(kept.controller.getSnapshot().retained, true);
+});
+
+test("a failed job with a partly-done receipt is labelled with verified out of total and never as success", () => {
+  const plan = proposal("restart").plan;
+  const rows = [{ resource: member("a", true).resource, state: "verified", error: null }, { resource: member("c", true).resource, state: "precondition_changed", error: "conflict" }];
+  const receipt = { action: "j".repeat(64), plan_digest: "d".repeat(64), operation: "restart", before: plan.expected, state: "partly_done", error: "conflict", members: rows };
+  assert.deepEqual(partlyDone(receipt), { done: 1, total: 2 });
+  assert.equal(partlyDone({ ...receipt, state: "outcome_unknown" }), null);
+  const html = renderToStaticMarkup(React.createElement(StackJobRow, { job: { id: "j".repeat(64), state: "failed", plan }, receipt, cancel() {}, details() {} }));
+  assert.match(html, /Partly done, 1 of 2 members/); assert.doesNotMatch(html, /succeeded/);
+  assert.match(html, /verified/); assert.match(html, /not attempted \(conflict\)/);
+  const plain = renderToStaticMarkup(React.createElement(StackJobRow, { job: { id: "j".repeat(64), state: "failed", plan }, cancel() {}, details() {} }));
+  assert.doesNotMatch(plain, /Partly done/); assert.match(plain, />failed</);
 });
