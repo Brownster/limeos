@@ -40,16 +40,18 @@ impl Core {
             return Err(Error(ErrorCode::Conflict));
         }
         // One-off containers are never members of a lifecycle action.
-        StackSnapshot::new(
-            project,
-            stack
-                .services
-                .iter()
-                .flat_map(|service| &service.members)
-                .filter(|member| !member.one_off)
-                .map(|member| member.container.clone())
-                .collect(),
-        )
+        let members: Vec<_> = stack
+            .services
+            .iter()
+            .flat_map(|service| &service.members)
+            .filter(|member| !member.one_off)
+            .map(|member| member.container.clone())
+            .collect();
+        // A registered stack without service containers has nothing to act on.
+        if members.is_empty() {
+            return Err(Error(ErrorCode::Conflict));
+        }
+        StackSnapshot::new(project, members)
     }
     /// A fresh Engine listing through the container executor.
     pub(super) async fn inspect_stack(&self, project: &str) -> Result<StackSnapshot> {

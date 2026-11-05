@@ -475,12 +475,13 @@ async fn crash_after_prepared_recovers_by_lookup_and_fresh_verification_only() {
         .dispatch_stack(f.principal().await, current)
         .await
         .unwrap();
-    let engine = f.engine.lock().unwrap();
-    assert_eq!(engine.executes, 1);
-    assert_eq!(engine.receipts, 1);
-    assert_eq!(engine.verifies, 1);
-    let receipt = engine.receipt.clone().unwrap();
-    drop(engine);
+    let receipt = {
+        let engine = f.engine.lock().unwrap();
+        assert_eq!(engine.executes, 1);
+        assert_eq!(engine.receipts, 1);
+        assert_eq!(engine.verifies, 1);
+        engine.receipt.clone().unwrap()
+    };
     assert_eq!(receipt.members[0].state, ExecutionState::Verified);
     assert_ne!(receipt.members[1].state, ExecutionState::Verified);
     assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
@@ -702,9 +703,7 @@ async fn an_active_container_job_on_a_member_holds_the_stack_job_in_the_queue() 
         .await
         .unwrap();
     // The member moved on, so the stack's plan is stale and is refused whole.
-    let mut engine = f.engine.lock().unwrap();
-    engine.members[0].started_at = "2026-10-05T07:05:00Z".into();
-    drop(engine);
+    f.engine.lock().unwrap().members[0].started_at = "2026-10-05T07:05:00Z".into();
     f.core.dispatch_stack(principal, job.clone()).await.unwrap();
     assert_eq!(f.state(&job).await, JobState::PreconditionChanged);
     assert_eq!(f.engine.lock().unwrap().executes, 0);
@@ -763,5 +762,18 @@ async fn cancel_is_allowed_only_before_dispatch_and_progress_is_owner_scoped() {
             .await
             .is_err()
     );
+    f.task.abort();
+}
+
+#[tokio::test]
+async fn a_registered_stack_with_only_one_off_containers_has_nothing_to_act_on() {
+    let mut f = admin().await;
+    f.core.stacks = Default::default();
+    f.core.stacks.update(&cohort(&[], &["web", "db"])).unwrap();
+    assert_eq!(
+        f.plan(ContainerAction::Stop).await.unwrap_err().0,
+        ErrorCode::Conflict
+    );
+    assert_eq!(f.engine.lock().unwrap().inspects, 0);
     f.task.abort();
 }
