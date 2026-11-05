@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# T6: return to the frozen app. Stops the Rust services and the proxy site,
+# restores the frozen units to their snapshot state, then verifies state hashes,
+# container IDs and the frozen port. Idempotent; best effort, then verified.
+# The package stays installed (removal is the operator's separate decision).
+set -Eeuo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+source "${SCRIPT_DIR}/lib.sh"
+
+SITE_NAME=limeos-cutover.caddy
+FAILURES=0
+
+fct_usage() {
+    cat <<'USAGE'
+Usage: return.sh SNAPSHOT_DIR [--site-dir DIR] [--dry-run] [--help]
+
+Restores the frozen app from a preflight snapshot. Safe to run repeatedly.
+Exit 0 only when hashes, container IDs and the frozen port all verify.
+USAGE
+}
+
+fct_fail() { FAILURES=$(( FAILURES + 1 )); printf 'FAIL: %s\n' "$*" >&2; }
+
+# Run a step; record a failure and keep going so one error cannot block the rest.
+fct_step() {
+    if ! fct_run "$@"; then fct_fail "command failed: $*"; fi
+}
+
+fct_stop_proxy() {
+    local site_file="${1}" caddy_state="${2}"
+    fct_step rm -f -- "${site_file}"
+    if [[ "${caddy_state}" == active ]]; then
+        # Caddy served other sites before the cutover: reload without our site.
+        if [[ "$(fct_unit_active caddy.service)" == active ]]; then fct_step systemctl reload caddy.service; fi
+    else
+        fct_step systemctl stop caddy.service
+        if [[ "${caddy_enabled}" != enabled ]]; then fct_step systemctl disable caddy.service; fi
+    fi
+}
+
+fct_restore_frozen() {
+    local snap="${1}" class unit active enabled
+    for unit in "${FROZEN_UNITS[@]}"; do
+        read -r class _ active enabled < <(grep -m1 -F "managed ${unit} " "${snap}/units.txt" || echo 'managed - inactive disabled')
+        [[ "${enabled}" == enabled ]] && fct_step systemctl enable "${unit}"
+        [[ "${active}" == active ]] && fct_step systemctl start "${unit}"
+    done
+    : "${class:-}"
+}
+
+fct_verify_hashes() {
+    local snap="${1}" tmp flag hash path line cur_flag cur_hash baseline
+    tmp="$(mktemp)"
+    fct_state_hashes >"${tmp}"
+    baseline="${snap}/state.poststop.sha256"
+    while read -r flag hash path; do
+        [[ -n "${path}" ]] || continue
+        line="$(awk -v p="${path}" '$3 == p { print; exit }' "${tmp}")"
+        read -r cur_flag cur_hash _ <<<"${line:-V ABSENT x}"
+        if [[ "${flag}" == S ]]; then
+            [[ "${cur_hash}" == "${hash}" ]] || fct_fail "state file changed: ${path}"
+        elif [[ "${cur_hash}" != "${hash}" ]]; then
+            # Live databases may change before the writers stop; compare to the
+            # post-stop baseline when activate recorded one.
+            if [[ -f "${baseline}" ]] && ! grep -qxF "${flag} ${cur_hash} ${path}" "${baseline}"; then
+                fct_fail "live state file changed after the writers stopped: ${path}"
+            elif [[ ! -f "${baseline}" ]]; then
+                fct_warn "live state file differs from the snapshot (writers may have run): ${path}"
+            fi
+        fi
+    done <"${snap}/state.sha256"
+    rm -f -- "${tmp}"
+}
+
+fct_verify_docker() {
+    local snap="${1}"
+    if [[ "$(fct_docker_ids)" != "$(cat -- "${snap}/docker-ps.txt")" ]]; then fct_fail 'docker ps IDs differ from the snapshot'; fi
+    if [[ "$(fct_docker_started)" != "$(cat -- "${snap}/docker-started.txt")" ]]; then fct_fail 'container StartedAt differs from the snapshot (a restart happened)'; fi
+}
+
+fct_verify_port() {
+    local port="${1}" attempt code=''
+    for (( attempt=0; attempt<20; attempt++ )); do
+        code="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${port}/" 2>/dev/null || true)"
+        case "${code}" in 200|301|302|303|307|308|401) return 0 ;; esac
+        (( DRY_RUN )) && return 0
+        sleep 1
+    done
+    fct_fail "port ${port} does not serve the frozen app over HTTP (last code: ${code:-none})"
+}
+
+fct_verify_untouched() {
+    local snap="${1}" class unit active enabled now
+    while read -r class unit active enabled; do
+        [[ "${class}" == untouched ]] || continue
+        now="$(fct_unit_active "${unit}")"
+        [[ "${now}" == "${active}" ]] || fct_fail "untouched unit changed state: ${unit}"
+    done <"${snap}/units.txt"
+}
+
+fct_main() {
+    local snap='' site_dir='/etc/caddy/conf.d'
+    while (( $# )); do
+        case "${1}" in
+            --dry-run) DRY_RUN=1; shift ;;
+            --site-dir) site_dir="${2:?--site-dir needs a directory}"; shift 2 ;;
+            -h|--help) fct_usage; return 0 ;;
+            -*) fct_usage >&2; fct_die "unknown argument: ${1}" ;;
+            *) [[ -z "${snap}" ]] || fct_die 'only one snapshot directory is accepted'; snap="${1}"; shift ;;
+        esac
+    done
+    [[ -n "${snap}" ]] || { fct_usage >&2; fct_die 'a snapshot directory is required'; }
+    fct_require_root
+    fct_snapshot_check "${snap}" 0
+    local port caddy_state caddy_enabled class unit active enabled
+    port="$(fct_meta_get "${snap}/meta.env" frozen_port)"
+    read -r class unit caddy_state caddy_enabled < <(grep -m1 -F 'managed caddy.service ' "${snap}/units.txt" || echo 'managed caddy.service inactive disabled')
+
+    fct_log 'return: stopping the proxy site'
+    fct_stop_proxy "${CUTOVER_ROOT}${site_dir}/${SITE_NAME}" "${caddy_state}"
+    fct_log 'return: stopping the Rust services'
+    for unit in limeos-core.service limeos-containerd.service limeos-storaged.service; do
+        fct_step systemctl stop "${unit}"
+        fct_step systemctl disable "${unit}"
+    done
+    fct_log 'return: restoring the frozen units'
+    fct_restore_frozen "${snap}"
+
+    if (( DRY_RUN )); then fct_log 'dry-run: verification commands are skipped'; return 0; fi
+    fct_log 'return: verifying'
+    fct_verify_hashes "${snap}"
+    fct_verify_docker "${snap}"
+    fct_verify_untouched "${snap}"
+    fct_verify_port "${port}"
+    if (( FAILURES > 0 )); then fct_die "return finished with ${FAILURES} failure(s); do not retry cutover until resolved"; fi
+    fct_log 'return verified: frozen app serving, state and containers match the snapshot'
+}
+
+fct_main "$@"
