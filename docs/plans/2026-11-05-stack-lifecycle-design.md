@@ -41,7 +41,8 @@ minimum (metrics, containers, stacks with whole-stack lifecycle).
 - **Executor.** `ExecuteStack`, `StackReceipt`, `VerifyStack`, `InspectStack`.
   `execute_stack` authorizes (uid, ceiling), checks digest and expiry, lists the
   project fresh from the Engine and compares the full member list with the plan
-  (any drift: refuse, no receipt, no effect), then in ONE transaction writes the
+  (any drift: a terminal `precondition_changed` receipt, no effect, no lock),
+  then in ONE transaction writes the
   stack `Prepared` row and a `Prepared` row per target in the existing `actions`
   table (so executor-side single-container jobs on the same ID are excluded by
   the existing unique index). Only then are Engine calls issued, one target at a
@@ -67,7 +68,7 @@ minimum (metrics, containers, stacks with whole-stack lifecycle).
 | Event | Result |
 | --- | --- |
 | Grant revoked, plan expired, plan edited | refused or `precondition_changed`, no executor call |
-| Member added, removed, recreated, changed state before claim | core pre-check or executor re-list differs: `precondition_changed`, no effect |
+| Member added, removed, recreated, changed state before claim | core pre-check or executor re-list differs: `precondition_changed`, no effect (executor writes a terminal receipt) |
 | Another job holds a member or the stack | stays `queued`; executor unique index also refuses |
 | Executor ceiling disallows stack, action, project or any target | `forbidden`, nothing written |
 | Crash before Prepared transaction | no receipt; core marks `needs_intervention` (no replay) |
@@ -75,7 +76,13 @@ minimum (metrics, containers, stacks with whole-stack lifecycle).
 | Engine error or timeout on member k | k `outcome_unknown`, later targets `precondition_changed`, earlier verified independently, job `needs_intervention` |
 | Engine accepted but state not reached | not `verified`, job `needs_intervention` |
 | Queue response lost | replay by idempotency key + approval returns the same job without any Engine call |
-| Receipt store busy | `overloaded`, retried by the dispatcher |
+| Executor busy, unreachable or erroring after the claim | `needs_intervention` (as for containers); the dispatcher then only looks up the receipt |
+| Plan expires between the executor's listing and its Prepared write | terminal `precondition_changed` receipt, nothing sent |
+| Executor ceiling or digest check fails | error before any write; core marks `needs_intervention` after a claim |
+
+Human sessions only: task tokens cannot plan or submit stack actions in this
+slice. Plans expire after 300 s but a long run is not cut off at expiry; the
+plan is checked once more immediately before the first Engine call.
 
 Not covered: Compose `depends_on` ordering, health waits, creating or removing
 containers, one-off handling beyond exclusion, unlocking `needs_intervention`.
