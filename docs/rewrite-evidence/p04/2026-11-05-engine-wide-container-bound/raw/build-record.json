@@ -1,0 +1,27 @@
+{
+  "source": "5a57a9df8678b2b0077fff409feed87c5dd25581",
+  "image": "sha256:af684f63adae359e95f9082cc3235bcc76208baaa9cd1a48b553784e226d5ba5",
+  "exit_code": 0,
+  "binaries": {
+    "limeos-core": {
+      "sha256": "0c1b6e49f97541f66aabfbc48d21bcfa7fae9f70096fc1328b87bb15c236d9a8",
+      "bytes": 8072504
+    },
+    "limeos-executor": {
+      "sha256": "b365253ecde36bda655dfb6067a27022f051f28823c02965a1c763e7d6ac4802",
+      "bytes": 6261912
+    },
+    "limeos-password-worker": {
+      "sha256": "496e4c133ffc3dd22b307c410e981c9b14e945cfee20f6da03455e370f228236",
+      "bytes": 553760
+    },
+    "limeos-stack-read-worker": {
+      "sha256": "c83d8ba95e47b6b908a3008c58ba0aec4326ebeffabdc259907ad88d3b98ee49",
+      "bytes": 1278816
+    },
+    "limeosctl": {
+      "sha256": "858e184e826eae66d95af2eacd9151dcf87b7f48de7e37257ce267c242377d12",
+      "bytes": 1065824
+    }
+  }
+}

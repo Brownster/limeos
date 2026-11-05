@@ -1,0 +1,257 @@
+{
+  "summary": "pass",
+  "package_version": "0.4.15+stacklc.1",
+  "cases": {
+    "S1 stack restart among 30 containers (15 running, two multi-member projects, standalone)": {
+      "status": "pass",
+      "detail": {
+        "job": "d8a178309192bdc228755a0a7bee95e9408c0fb4f8c226a7f173893a6719e66a",
+        "receipt": "verified",
+        "events": {
+          "0dba08e9d3e1072d472071b2e0f3d580ddfb525bf4c9ecf14d54d50e09038795": {
+            "kill": 1,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "30b10f84232605553647aeda56184900387084b0b5bcd53e7a0171e1f82316ca": {
+            "kill": 1,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "5ed2bec9afb1fd6cd685b8e7c2bab8167c9b9d16277e6c6265552e7ccfc7eccc": {
+            "kill": 1,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          }
+        },
+        "total": 30,
+        "running": 15,
+        "standalone_reported": 24,
+        "other_projects": [],
+        "cgroup": {
+          "limits": {
+            "memory_bytes": 67108864,
+            "tasks": 16,
+            "nofile": 256
+          },
+          "memory.current": "2387968",
+          "memory.peak": "5459968",
+          "memory.max": "67108864",
+          "pids.current": "2",
+          "pids.peak": "5",
+          "pids.max": "16",
+          "memory.swap.current": "0",
+          "sampler": {
+            "samples": 3372,
+            "memory_current": 5013504,
+            "tasks": 5,
+            "fds_total": 35,
+            "fds_one_process": 17,
+            "processes": 3
+          }
+        }
+      },
+      "seconds": 37.5
+    },
+    "S2 exactly 64 containers: fresh, plans and restarts": {
+      "status": "pass",
+      "detail": {
+        "job": "862debf300beaf8c13f08f626b4c388a55274b89ba79d6380c8a607968bfae46",
+        "receipt": "verified",
+        "events": {
+          "0dba08e9d3e1072d472071b2e0f3d580ddfb525bf4c9ecf14d54d50e09038795": {
+            "kill": 1,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "30b10f84232605553647aeda56184900387084b0b5bcd53e7a0171e1f82316ca": {
+            "kill": 1,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          },
+          "5ed2bec9afb1fd6cd685b8e7c2bab8167c9b9d16277e6c6265552e7ccfc7eccc": {
+            "kill": 1,
+            "die": 1,
+            "stop": 1,
+            "start": 1,
+            "restart": 1
+          }
+        },
+        "total": 64,
+        "running": 12,
+        "standalone_reported": 24,
+        "cgroup": {
+          "limits": {
+            "memory_bytes": 67108864,
+            "tasks": 16,
+            "nofile": 256
+          },
+          "memory.current": "2375680",
+          "memory.peak": "5775360",
+          "memory.max": "67108864",
+          "pids.current": "1",
+          "pids.peak": "5",
+          "pids.max": "16",
+          "memory.swap.current": "0",
+          "sampler": {
+            "samples": 4877,
+            "memory_current": 5308416,
+            "tasks": 5,
+            "fds_total": 35,
+            "fds_one_process": 17,
+            "processes": 3
+          }
+        }
+      },
+      "seconds": 31.2
+    },
+    "S3 65 containers: inventory not fresh and plans refused (fail closed); recovers at 64": {
+      "status": "pass",
+      "detail": {
+        "closed": {
+          "status": 200,
+          "engine": "stale",
+          "plan": 503
+        },
+        "recovered_engine": "fresh",
+        "cgroup": {
+          "limits": {
+            "memory_bytes": 67108864,
+            "tasks": 16,
+            "nofile": 256
+          },
+          "memory.current": "2465792",
+          "memory.peak": "5881856",
+          "memory.max": "67108864",
+          "pids.current": "2",
+          "pids.peak": "5",
+          "pids.max": "16",
+          "memory.swap.current": "0",
+          "sampler": {
+            "samples": 7299,
+            "memory_current": 5582848,
+            "tasks": 5,
+            "fds_total": 35,
+            "fds_one_process": 17,
+            "processes": 3
+          }
+        }
+      },
+      "seconds": 51.1
+    }
+  },
+  "facts": {
+    "engine_id": "R6R7:LCVK:BKM5:67DR:VD7B:4W3Q:B5QS:55QV:UWMC:WG6H:HNYK:5DWZ",
+    "engine_fixture": {
+      "peer": {
+        "pid": 6464,
+        "uid": 0,
+        "gid": 0
+      },
+      "unit": "limeos-a1-real-docker",
+      "docker_package_version": "20.10.24+dfsg1-1+deb12u1+b6",
+      "server_version": "20.10.24+dfsg1"
+    },
+    "docker_version": "20.10.24+dfsg1",
+    "memory_before": {
+      "limeos-core": {
+        "pss_kib": 9293,
+        "swap_kib": 0
+      },
+      "limeos-containerd": {
+        "pss_kib": 3146,
+        "swap_kib": 0
+      },
+      "limeos-storage-reader": {
+        "pss_kib": 1772,
+        "swap_kib": 0
+      },
+      "guest_mem_available_kib": 673080,
+      "guest_mem_total_kib": 996368,
+      "reader_cgroup": {
+        "limits": {
+          "memory_bytes": 67108864,
+          "tasks": 16,
+          "nofile": 256
+        },
+        "memory.current": "2539520",
+        "memory.peak": "5029888",
+        "memory.max": "67108864",
+        "pids.current": "2",
+        "pids.peak": "5",
+        "pids.max": "16",
+        "memory.swap.current": "0",
+        "sampler": {
+          "samples": 1591,
+          "memory_current": 5013504,
+          "tasks": 5,
+          "fds_total": 35,
+          "fds_one_process": 17,
+          "processes": 3
+        }
+      }
+    },
+    "setup_seconds": 105.2,
+    "memory_after": {
+      "limeos-core": {
+        "pss_kib": 9873,
+        "swap_kib": 0
+      },
+      "limeos-containerd": {
+        "pss_kib": 3640,
+        "swap_kib": 0
+      },
+      "limeos-storage-reader": {
+        "pss_kib": 1784,
+        "swap_kib": 0
+      },
+      "guest_mem_available_kib": 489956,
+      "guest_mem_total_kib": 996368,
+      "reader_cgroup": {
+        "limits": {
+          "memory_bytes": 67108864,
+          "tasks": 16,
+          "nofile": 256
+        },
+        "memory.current": "2465792",
+        "memory.peak": "5881856",
+        "memory.max": "67108864",
+        "pids.current": "2",
+        "pids.peak": "5",
+        "pids.max": "16",
+        "memory.swap.current": "0",
+        "sampler": {
+          "samples": 7302,
+          "memory_current": 5582848,
+          "tasks": 5,
+          "fds_total": 35,
+          "fds_one_process": 17,
+          "processes": 3
+        }
+      }
+    },
+    "binary_sha256": {
+      "limeos-core": "0c1b6e49f97541f66aabfbc48d21bcfa7fae9f70096fc1328b87bb15c236d9a8",
+      "limeos-executor": "b365253ecde36bda655dfb6067a27022f051f28823c02965a1c763e7d6ac4802",
+      "limeosctl": "858e184e826eae66d95af2eacd9151dcf87b7f48de7e37257ce267c242377d12",
+      "limeos-password-worker": "496e4c133ffc3dd22b307c410e981c9b14e945cfee20f6da03455e370f228236",
+      "limeos-stack-read-worker": "c83d8ba95e47b6b908a3008c58ba0aec4326ebeffabdc259907ad88d3b98ee49"
+    },
+    "final_locks": [],
+    "docker_events_total": 123
+  },
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "3d94c9dd66d8a283fde060b8810373b7ae04038b956ee00d553d1ae564f6fbdeaa2fd6e7404e87e53348b5a9509170f3ea7c0731ba737590c5c4cb8d559a47f8"
+  }
+}

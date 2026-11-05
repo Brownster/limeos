@@ -1,0 +1,32 @@
+{
+  "label": "scale-1",
+  "guest_script": "tests/privileged_vm/p04_stack_scale_guest.py",
+  "started": "2026-11-05T23:11:55.889179+00:00",
+  "available_at_admission": 22300844032,
+  "admit_threshold": 8589934592,
+  "floor": 3221225472,
+  "minimum_available": 21209763840,
+  "guard_triggered": false,
+  "head": "5a57a9df8678b2b0077fff409feed87c5dd25581",
+  "flags": [],
+  "foreign_compiler_processes_at_admission": 0,
+  "admitted": true,
+  "command": [
+    "/usr/bin/python3",
+    "/home/marc/Documents/github/lime-os/.claude/worktrees/agent-aa5b8ffa6a9a2a296/tests/privileged_vm/run.py",
+    "--image",
+    "/home/marc/Documents/github/lime-os/.cache/p01-vm/debian-12-genericcloud-amd64.qcow2",
+    "--checksums",
+    "/home/marc/Documents/github/lime-os/.cache/p01-vm/SHA512SUMS",
+    "--repository",
+    "/home/marc/Documents/github/lime-os/.claude/worktrees/agent-aa5b8ffa6a9a2a296/.cache/q/candidate/repository",
+    "--guest-script",
+    "/home/marc/Documents/github/lime-os/.claude/worktrees/agent-aa5b8ffa6a9a2a296/tests/privileged_vm/p04_stack_scale_guest.py",
+    "--output",
+    "/home/marc/Documents/github/lime-os/.claude/worktrees/agent-aa5b8ffa6a9a2a296/.cache/q/runs/scale-1/result.json"
+  ],
+  "exit_code": 0,
+  "ended": "2026-11-05T23:17:01.248369+00:00",
+  "qemu_left": [],
+  "scratch_removed": true
+}

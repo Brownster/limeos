@@ -1,0 +1,44 @@
+{
+  "source": "5a57a9df8678b2b0077fff409feed87c5dd25581",
+  "version": "0.4.15+stacklc.1",
+  "signing_fingerprint": "8101392BFD88C2CF9C41618EE3255F6AF5CB3411",
+  "packages": {
+    "limeos-shadow_0.4.15+stacklc.1_amd64.deb": "91611cbc9e216297ad59f4e9ca538226fe6bbc4b5167118e9bf07ff6b201931a",
+    "limeos_0.4.15+stacklc.1_amd64.deb": "343294b888b2450378d498bff285a08f360853677474d3940ee7d5150aef33f5"
+  },
+  "binaries": {
+    "limeos-core": {
+      "sha256": "0c1b6e49f97541f66aabfbc48d21bcfa7fae9f70096fc1328b87bb15c236d9a8",
+      "bytes": 8072504
+    },
+    "limeos-executor": {
+      "sha256": "b365253ecde36bda655dfb6067a27022f051f28823c02965a1c763e7d6ac4802",
+      "bytes": 6261912
+    },
+    "limeos-password-worker": {
+      "sha256": "496e4c133ffc3dd22b307c410e981c9b14e945cfee20f6da03455e370f228236",
+      "bytes": 553760
+    },
+    "limeos-stack-read-worker": {
+      "sha256": "c83d8ba95e47b6b908a3008c58ba0aec4326ebeffabdc259907ad88d3b98ee49",
+      "bytes": 1278816
+    },
+    "limeosctl": {
+      "sha256": "858e184e826eae66d95af2eacd9151dcf87b7f48de7e37257ce267c242377d12",
+      "bytes": 1065824
+    }
+  },
+  "ui_note": "frontend/dist copied from the shared checkout (untracked build output); UI is not under test",
+  "repository": {
+    "dists/stable/InRelease": "633cbc96d469ac59936302377adbe71134c8d1a099198582cc59b64db17ca588",
+    "dists/stable/Release": "fcb2e7350ecd6561e346e055ad8ba1cc393aec3f8bdc468d7809d3b6fef1b420",
+    "dists/stable/Release.gpg": "7713296241ffb80109dce2189dad2a733938b883539168e9b084e834f4c4bf77",
+    "dists/stable/main/binary-amd64/Packages": "488ad4bdae0d3cb03d2c3a8e305e690122d8458e3f470dc9422989851506a57f",
+    "dists/stable/main/binary-amd64/Packages.gz": "646df0aae8aa1a1a4b6ca4d609e9671b564011f4d120ea181440b1ea73d26700",
+    "dists/stable/main/binary-arm64/Packages": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "dists/stable/main/binary-arm64/Packages.gz": "59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2",
+    "limeos-archive-keyring.gpg": "619dd1e86e5a7767fba873a66e8cc66859e954f166563be4a8baf95cc03deeb7",
+    "pool/main/limeos-shadow_0.4.15+stacklc.1_amd64.deb": "91611cbc9e216297ad59f4e9ca538226fe6bbc4b5167118e9bf07ff6b201931a",
+    "pool/main/limeos_0.4.15+stacklc.1_amd64.deb": "343294b888b2450378d498bff285a08f360853677474d3940ee7d5150aef33f5"
+  }
+}
