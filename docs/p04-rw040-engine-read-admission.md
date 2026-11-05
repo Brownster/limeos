@@ -23,3 +23,18 @@ Vec/String output reservations are fallible and refuse a surprising reported cap
 The [source-bound evidence](rewrite-evidence/p04/rw040-engine-admission/README.md) records 17 new tests, 62 crate tests and 392 unit/integration plus two compile-fail workspace tests. Isolated Unix listeners cover exact and next-member boundaries, lifetime byte spending, production peer rejection before HTTP, retained-owner concurrent refusal/cancellation and standard 64-consumer/advisory compatibility. These fixtures do not qualify an installed root Engine or combined collector.
 
 The integrator estimate remains 16 human engineering hours with scope review at 24; P04 remains 320/480. Agent activity, tool waits and human effort were not independently timed. Bounded storage/process/source adapters, retained composition, independently supervised synchronous reads, parent/descendant cleanup, installed resource qualification and namespace-destination binding remain prerequisites. No runtime route, RPC, schema, command, service allowance or effect changes. DSK-001, MNT-001/MNT-002, RT-001 and BKP-001 remain open; the historical 61.401 ms inventory result still fails 20 ms.
+
+## EngineWideV1 (stack inventory)
+
+The Compose projection used by stack inventory reads with `EngineReadProfile::EngineWideV1`; `CombinedV1` above is unchanged and still serves the storage-process path. The first profile bounded the whole Engine at 16 containers, which is the per-stack size, so a host with more containers could not plan any stack action.
+
+| EngineWideV1 bound | Value | Reason |
+|---|---|---|
+| Consumers / running | 64 / 64 | `MAX_ENGINE_CONTAINERS`, equal to the storage consumer bound; no process scan in this projection |
+| Selected mounts | 256 total, 64 each | `CONTAINER_STORAGE_MAX_TOTAL_MOUNTS` / `_MAX_MOUNTS` |
+| List response | 256 KiB (inspect, version, info stay 64 KiB) | 64 rows of a few KiB; 7x scratch charge 1.8 MiB |
+| Body / live ledger | 4 MiB / 4 MiB | 128 inspect bodies at 32 KiB average; one list scratch plus retained facts |
+| Nodes / decoded string bytes | 8,192 / 256 KiB per response | list of 64 rows |
+| Retained report (streamed count) | 256 KiB (CombinedV1: 48 KiB) | storage plus Compose snapshot of 64 containers |
+
+The wire cohort (64 KiB) and aggregate input text (48 KiB) are unchanged: a 64-member realistic cohort serializes to under 32 KiB. The reader service allowances (64 MiB, 16 tasks, 256 FDs, worker 20 MiB RSS, 67 FDs) are unchanged; descriptors do not scale with container count because requests are sequential.

@@ -41,7 +41,9 @@ enabled and no storage or host mutation occurs.
   identity cleanup and clears private data on 401/403. Late reads cannot restore
   an old session's view. Error messages from bounded server envelopes survive.
 
-Domain bounds: 8 declarations, 16 services each, 16 Engine members, 4 ordered
+Domain bounds: 8 declarations, 16 services each, 64 Engine containers in total
+(`MAX_ENGINE_CONTAINERS`, any project, standalone, stopped or one-off; a stack
+itself stays at 16 members, `MAX_STACK_MEMBERS`), 4 ordered
 configuration files, 64-byte names, 512-byte literal paths, 48 KiB aggregate input
 text and 64 KiB serialized report. Input DTO Deserialize derives are convenience
 for plain facts/fixtures, not bounded IPC admission or evidence constructors.
