@@ -175,16 +175,23 @@ def check_report(value, declared, members):
         require(row["runtime"] == runtime, "Stack runtime status differs")
 
 
-def authority_counts():
+def authority_counts(path=fixture.DB):
     with closing(
-        sqlite3.connect(fixture.DB.as_uri() + "?mode=ro", uri=True, timeout=2)
+        sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
     ) as conn:
         conn.execute("PRAGMA query_only=ON").close()
         return {
             table: conn.execute("SELECT count(*) FROM " + table).fetchone()[0]
             for table in (
                 "jobs",
-                "approvals",
+                "container_plans",
+                "compose_plans",
+                "storage_plans",
+                "storage_target_plans",
+                "storage_mount_plans",
+                "backup_preparation_plans",
+                "job_resources",
+                "resource_locks",
                 "automation_schedules",
                 "automation_occurrences",
                 "automation_notifications",

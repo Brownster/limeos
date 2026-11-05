@@ -4,6 +4,7 @@ import copy
 import importlib.util
 import io
 import json
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -67,6 +68,23 @@ def empty_report(declared):
 
 
 class StackFixtureBoundaries(unittest.TestCase):
+    def test_authority_observer_uses_real_migrated_schema_without_writes(self):
+        schema = SOURCE.parents[2] / "crates/persistence/src"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "core.sqlite"
+            with sqlite3.connect(path) as conn:
+                conn.executescript((schema / "schema.sql").read_text())
+                for version in range(2, 15):
+                    conn.executescript(
+                        (schema / f"migration-v{version}.sql").read_text()
+                    )
+            before = path.read_bytes()
+            value = guest.authority_counts(path)
+            self.assertTrue(all(count == 0 for count in value.values()))
+            self.assertIn("container_plans", value)
+            self.assertIn("compose_plans", value)
+            self.assertEqual(path.read_bytes(), before)
+
     def declaration(self, maximum=False):
         with mock.patch.object(guest.fixture, "sha", return_value="a" * 64):
             return guest.catalog("genuine-fixture-engine", maximum=maximum)
