@@ -183,7 +183,7 @@ pub enum CoreResponse {
     Enrolled,
     LegacyUsersImported {
         imported: u32,
-        already_imported: u32,
+        skipped_existing: Vec<String>,
     },
     Authorized,
     RestartPlan(limeos_domain::PlannedRestart),

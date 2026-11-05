@@ -138,14 +138,15 @@ impl Store {
             insert_legacy(tx, id, username, encoded, now)
         })
     }
-    /// All-or-nothing batch for the cutover importer. A user already stored with
-    /// the identical hash is counted, not rewritten; any other existing user
-    /// refuses the whole batch. Returns (newly imported, already imported).
+    /// All-or-nothing batch for the cutover importer: any invalid entry writes
+    /// nothing. A username that already exists is skipped, never overwritten or
+    /// compared (its hash may have upgraded since). Returns (newly imported,
+    /// skipped existing usernames).
     pub fn import_legacy_users(
         &mut self,
         users: &[(String, String)],
         now: i64,
-    ) -> Result<(u32, u32)> {
+    ) -> Result<(u32, Vec<String>)> {
         let mut seen = std::collections::BTreeSet::new();
         if users.is_empty()
             || users.len() > 32
@@ -163,26 +164,23 @@ impl Store {
             .map(|_| limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable)))
             .collect::<Result<Vec<_>>>()?;
         self.write(|tx| {
-            let (mut imported, mut already) = (0, 0);
+            let (mut imported, mut skipped) = (0, Vec::new());
             for ((username, encoded), id) in users.iter().zip(ids) {
-                let stored: Option<String> = tx
+                let exists: bool = tx
                     .query_row(
-                        "SELECT password_hash FROM users WHERE username=?",
+                        "SELECT EXISTS(SELECT 1 FROM users WHERE username=?)",
                         [username],
                         |r| r.get(0),
                     )
-                    .optional()
                     .map_err(durable)?;
-                match stored {
-                    Some(stored) if stored == *encoded => already += 1,
-                    Some(_) => return Err(Error(ErrorCode::Conflict)),
-                    None => {
-                        insert_legacy(tx, id, username, encoded, now)?;
-                        imported += 1;
-                    }
+                if exists {
+                    skipped.push(username.clone());
+                } else {
+                    insert_legacy(tx, id, username, encoded, now)?;
+                    imported += 1;
                 }
             }
-            Ok((imported, already))
+            Ok((imported, skipped))
         })
     }
     pub fn login_record(&self, username: &str) -> Result<Option<LoginRecord>> {

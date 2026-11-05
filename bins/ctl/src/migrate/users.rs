@@ -135,14 +135,18 @@ pub async fn run(socket: &str, args: &[String]) -> Result<(), Box<dyn std::error
     .await?;
     let CoreResponse::LegacyUsersImported {
         imported,
-        already_imported,
+        skipped_existing,
     } = response
     else {
         return Err("unexpected response from the core".into());
     };
     println!("users: {}", names.join(", "));
     println!("imported: {imported}");
-    println!("already imported: {already_imported}");
+    println!(
+        "skipped existing: {} ({})",
+        skipped_existing.len(),
+        skipped_existing.join(", ")
+    );
     if imported == 0 {
         println!("nothing changed");
     }

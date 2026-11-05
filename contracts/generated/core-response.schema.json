@@ -75,11 +75,6 @@
     {
       "type": "object",
       "properties": {
-        "already_imported": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
         "imported": {
           "type": "integer",
           "format": "uint32",
@@ -88,13 +83,19 @@
         "response": {
           "type": "string",
           "const": "legacy_users_imported"
+        },
+        "skipped_existing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false,
       "required": [
         "response",
         "imported",
-        "already_imported"
+        "skipped_existing"
       ]
     },
     {

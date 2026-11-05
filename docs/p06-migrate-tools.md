@@ -25,11 +25,11 @@ Root-only, and the core accepts the request only from a root peer. Reads
 `PIHEALTH_USERS` (or `PIHEALTH_USER` + `PIHEALTH_PASSWORD_HASH`) with the frozen
 app's rules: empty or duplicate names and a plaintext `PIHEALTH_PASSWORD` are
 refused. Hashes go over the core socket, never argv or logs. One transaction:
-any bad entry or any existing user with a different hash imports nothing. A
-re-run with identical hashes reports `already imported` and changes nothing.
-Imported users are administrators; the hash upgrades to Argon2id at first login.
-After that login a re-run is refused (the stored hash no longer matches), which
-is safe: nothing is overwritten.
+any invalid entry imports nothing. A username that already exists is skipped,
+never overwritten or compared, and reported as `skipped existing` with its name;
+the rest of the batch still imports. A safe re-run (even after users logged in
+and their hashes upgraded to Argon2id) therefore changes nothing. Imported users
+are administrators.
 
 ## `limeosctl migrate propose-ceiling`
 
@@ -38,5 +38,6 @@ is safe: nothing is overwritten.
 and the stacks directory. It writes a container ceiling with every `allow_*`
 false and `managed_containers` set to the listed IDs, refuses to overwrite, and
 prints ID/name and stack lists. Review it, install it root-owned, then set only
-the flags you intend; `limeosctl check-ceiling` must accept it. The ceiling has
-no stack fields yet, so stacks are reported but not written.
+the flags you intend; `limeosctl check-ceiling` must accept it.
+`managed_stacks` lists the stack directories that hold a Compose file (valid
+Compose project names only, at most 16) and `allow_stack` is false.

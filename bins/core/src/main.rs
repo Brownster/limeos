@@ -135,7 +135,7 @@ impl Core {
     async fn import_legacy_users(
         &self,
         users: Vec<limeos_contracts::LegacyUser>,
-    ) -> Result<(u32, u32)> {
+    ) -> Result<(u32, Vec<String>)> {
         let users: Vec<_> = users
             .into_iter()
             .map(|u| (u.username, u.password_hash))
@@ -800,10 +800,10 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
             CoreRequest::ImportLegacyUsers { version, users }
                 if version == VERSION && peer.uid() == 0 =>
             {
-                let (imported, already_imported) = core.import_legacy_users(users).await?;
+                let (imported, skipped_existing) = core.import_legacy_users(users).await?;
                 CoreResponse::LegacyUsersImported {
                     imported,
-                    already_imported,
+                    skipped_existing,
                 }
             }
             CoreRequest::CheckTask {

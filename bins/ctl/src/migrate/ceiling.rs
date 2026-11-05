@@ -111,8 +111,15 @@ pub fn propose(
         allow_start: false,
         allow_stop: false,
         allow_container_logs: false,
+        allow_stack: false,
         managed_containers: containers.iter().map(|c| c.id.clone()).collect(),
+        managed_stacks: stacks.clone(),
     };
+    if let Some(bad) = stacks.iter().find(|s| !limeos_domain::stack_project(s)) {
+        return Err(format!(
+            "stack directory {bad:?} is not a valid Compose project name; rename or remove it"
+        ));
+    }
     if !ceiling.configuration_valid() {
         return Err("the proposed ceiling is not valid".into());
     }
@@ -191,7 +198,7 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         println!("stack {s}");
     }
     println!(
-        "wrote {out}: {} containers, {} stacks seen, every allow_* false. Review it, then install it root-owned and set only the flags you intend.",
+        "wrote {out}: {} containers, {} stacks, every allow_* (incl. allow_stack) false. Review it, then install it root-owned and set only the flags you intend.",
         proposal.containers.len(),
         proposal.stacks.len()
     );
@@ -239,7 +246,7 @@ mod tests {
     fn the_fourteen_wybie_containers_yield_a_deny_by_default_ceiling_that_check_ceiling_accepts() {
         let containers = parse_docker_ps(&docker_ps()).unwrap();
         assert_eq!(containers.len(), 14);
-        let p = propose(1001, containers, vec!["media".into()]).unwrap();
+        let p = propose(1001, containers, vec!["media".into(), "mattermost".into()]).unwrap();
         assert!(crate::ceiling_acceptable(p.json.as_bytes(), 1001));
         assert!(!crate::ceiling_acceptable(p.json.as_bytes(), 1002));
         let value: serde_json::Value = serde_json::from_str(&p.json).unwrap();
@@ -248,7 +255,19 @@ mod tests {
             .iter()
             .filter(|(k, _)| k.starts_with("allow_"))
             .collect();
-        assert_eq!(allows.len(), 10);
+        assert_eq!(allows.len(), 11);
+        assert_eq!(
+            object["managed_stacks"],
+            serde_json::json!(["media", "mattermost"])
+        );
+        assert!(
+            propose(
+                1001,
+                parse_docker_ps(&docker_ps()).unwrap(),
+                vec!["Bad Name".into()]
+            )
+            .is_err()
+        );
         assert!(
             allows
                 .iter()

@@ -190,7 +190,10 @@ async fn batch_imported_legacy_users_log_in_and_rerun_changes_nothing() {
             })
             .collect()
     };
-    assert_eq!(core.import_legacy_users(users()).await.unwrap(), (2, 0));
+    assert_eq!(
+        core.import_legacy_users(users()).await.unwrap(),
+        (2, vec![])
+    );
     for (i, fixture) in fixtures.as_array().unwrap().iter().enumerate() {
         let username = format!("legacy-{i}");
         let wrong = core
@@ -213,10 +216,42 @@ async fn batch_imported_legacy_users_log_in_and_rerun_changes_nothing() {
             .unwrap();
         assert!(stored.starts_with("$argon2id$"));
     }
-    // After the first login upgrades the hash, a re-run refuses rather than overwrites.
+    // After login upgraded the hashes, a re-run skips both users and changes nothing.
+    let before = core
+        .db
+        .call(|s| {
+            Ok((
+                s.login_record("legacy-0")?.unwrap().password_hash,
+                s.login_record("legacy-1")?.unwrap().password_hash,
+            ))
+        })
+        .await
+        .unwrap();
     assert_eq!(
-        core.import_legacy_users(users()).await.unwrap_err().0,
-        ErrorCode::Conflict
+        core.import_legacy_users(users()).await.unwrap(),
+        (0, vec!["legacy-0".to_owned(), "legacy-1".to_owned()])
+    );
+    let after = core
+        .db
+        .call(|s| {
+            Ok((
+                s.login_record("legacy-0")?.unwrap().password_hash,
+                s.login_record("legacy-1")?.unwrap().password_hash,
+            ))
+        })
+        .await
+        .unwrap();
+    assert_eq!(before, after);
+    // A mixed batch imports only the new user.
+    let mut mixed = users();
+    mixed.truncate(1);
+    mixed.push(limeos_contracts::LegacyUser {
+        username: "legacy-new".into(),
+        password_hash: fixtures[1]["hash"].as_str().unwrap().into(),
+    });
+    assert_eq!(
+        core.import_legacy_users(mixed).await.unwrap(),
+        (1, vec!["legacy-0".to_owned()])
     );
 }
 #[tokio::test]

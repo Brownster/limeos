@@ -413,8 +413,11 @@ fn legacy_batch_is_atomic_idempotent_and_never_overwrites() {
         ("holly".to_owned(), SCRYPT.to_owned()),
         ("bob".to_owned(), PBKDF2.to_owned()),
     ];
-    assert_eq!(s.import_legacy_users(&both, 10).unwrap(), (2, 0));
-    assert_eq!(s.import_legacy_users(&both, 11).unwrap(), (0, 2));
+    assert_eq!(s.import_legacy_users(&both, 10).unwrap(), (2, vec![]));
+    assert_eq!(
+        s.import_legacy_users(&both, 11).unwrap(),
+        (0, vec!["holly".to_owned(), "bob".to_owned()])
+    );
     let count = |s: &Store, table: &str| -> i64 {
         s.conn
             .query_row(&format!("SELECT count(*) FROM {table}"), [], |r| r.get(0))
@@ -422,22 +425,34 @@ fn legacy_batch_is_atomic_idempotent_and_never_overwrites() {
     };
     assert_eq!(count(&s, "users"), 2);
     assert_eq!(count(&s, "grants"), 10);
-    let events = count(&s, "events");
-    // A mixed batch (one new, one conflicting) changes nothing.
+    // A mixed batch imports only the new user and never touches the existing one.
     let mixed = [
         ("carol".to_owned(), SCRYPT.to_owned()),
         ("bob".to_owned(), SCRYPT.to_owned()),
     ];
     assert_eq!(
-        s.import_legacy_users(&mixed, 12).unwrap_err().0,
-        ErrorCode::Conflict
+        s.import_legacy_users(&mixed, 12).unwrap(),
+        (1, vec!["bob".to_owned()])
     );
-    assert!(s.login_record("carol").unwrap().is_none());
+    assert_eq!(
+        s.login_record("carol").unwrap().unwrap().password_hash,
+        SCRYPT
+    );
     assert_eq!(
         s.login_record("bob").unwrap().unwrap().password_hash,
         PBKDF2
     );
-    assert_eq!(count(&s, "users"), 2);
+    assert_eq!(count(&s, "users"), 3);
+    // An invalid entry anywhere aborts the whole batch.
+    let events = count(&s, "events");
+    let tainted = [
+        ("dave".to_owned(), SCRYPT.to_owned()),
+        ("eve".to_owned(), "plaintext".to_owned()),
+    ];
+    assert_eq!(
+        s.import_legacy_users(&tainted, 13).unwrap_err().0,
+        ErrorCode::InvalidInput
+    );
     assert_eq!(count(&s, "events"), events);
     // Invalid, duplicate and empty batches are refused before any write.
     for bad in [
@@ -455,5 +470,5 @@ fn legacy_batch_is_atomic_idempotent_and_never_overwrites() {
             ErrorCode::InvalidInput
         );
     }
-    assert_eq!(count(&s, "users"), 2);
+    assert_eq!(count(&s, "users"), 3);
 }
