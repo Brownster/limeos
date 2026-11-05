@@ -90,7 +90,14 @@ def oom_events(path=Path("/proc/vmstat")):
 def screenshot(driver, evidence, name, selector):
     require(
         selector
-        in ("#health-history-panel", "#health-schedules-panel", "#health-policy-panel"),
+        in (
+            "#health-history-panel",
+            "#health-schedules-panel",
+            "#health-policy-panel",
+            'article[aria-label="Stack fixture0"]',
+            'article[aria-label="Stack fixture2"]',
+            'article[aria-label="Stack fixture7"]',
+        ),
         "unsupported screenshot target",
     )
     require(
