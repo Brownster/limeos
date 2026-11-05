@@ -13,6 +13,9 @@ import type {
   JobProgress,
   ContainerAction,
   ContainerLogs,
+  PlannedStackAction,
+  StackJob,
+  StackJobProgress,
 } from "../../contracts/generated/types";
 export class ApiError extends Error {
   readonly detail: ErrorEnvelope;
@@ -90,6 +93,37 @@ export const api = {
     request<JobProgress>(`/container/jobs/${id}?after=${after}`),
   cancelRestart: (id: string, csrf: string, plan = false) =>
     request<void>(`/container/${plan ? "plans" : "jobs"}/${id}/cancel`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrf },
+    }),
+  planStack: (project: string, operation: ContainerAction, csrf: string) =>
+    request<PlannedStackAction>("/stack/plans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ project, operation }),
+    }),
+  approveStack: (proposal: PlannedStackAction, csrf: string) =>
+    request<PlanApproval>(`/stack/plans/${proposal.plan.id}/approval`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ digest: proposal.digest }),
+    }),
+  queueStack: (
+    proposal: PlannedStackAction,
+    approval: string,
+    key: string,
+    csrf: string,
+  ) =>
+    request<StackJob>("/stack/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ proposal, approval, idempotency_key: key }),
+    }),
+  stackJobs: () => request<StackJob[]>("/stack/jobs"),
+  stackProgress: (id: string, after = 0) =>
+    request<StackJobProgress>(`/stack/jobs/${id}?after=${after}`),
+  cancelStack: (id: string, csrf: string, plan = false) =>
+    request<void>(`/stack/${plan ? "plans" : "jobs"}/${id}/cancel`, {
       method: "POST",
       headers: { "X-CSRF-Token": csrf },
     }),
