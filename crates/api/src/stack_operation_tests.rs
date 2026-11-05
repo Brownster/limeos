@@ -23,6 +23,7 @@ fn plan() -> limeos_domain::PlannedStackAction {
             operation: ContainerAction::Restart,
             principal: "admin".into(),
             grant_revision: 1,
+            catalog_stack: "registered".into(),
             expected: StackSnapshot::new("media", vec![member('a'), member('b')]).unwrap(),
             created_at: 100,
             expires_at: 400,

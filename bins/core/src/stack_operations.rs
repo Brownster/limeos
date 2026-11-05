@@ -15,7 +15,7 @@ impl Core {
     /// The protected inventory cohort decides eligibility and supplies the
     /// planned member list. A stack that is not registered, has any issue, or
     /// whose sources are not both fresh and matching is never planned.
-    pub(super) fn cohort_stack(&self, project: &str) -> Result<StackSnapshot> {
+    pub(super) fn cohort_stack(&self, project: &str) -> Result<(String, StackSnapshot)> {
         if !stack_project(project) {
             return Err(Error(ErrorCode::InvalidInput));
         }
@@ -51,7 +51,9 @@ impl Core {
         if members.is_empty() {
             return Err(Error(ErrorCode::Conflict));
         }
-        StackSnapshot::new(project, members)
+        // The catalog's stack name and the Compose project may differ; deploy
+        // jobs lock `stack:<stack>`, so lifecycle jobs lock and authorize it too.
+        Ok((stack.stack.clone(), StackSnapshot::new(project, members)?))
     }
     /// A fresh Engine listing through the container executor.
     pub(super) async fn inspect_stack(&self, project: &str) -> Result<StackSnapshot> {
@@ -86,13 +88,13 @@ impl Core {
             .session(token.clone(), Some(csrf.clone()))
             .await?
             .principal;
-        let planned = self.cohort_stack(&project)?;
+        let (catalog_stack, planned) = self.cohort_stack(&project)?;
         planned.validate_for(operation)?;
         // Refuse before any executor contact if the grants do not reach the
         // stack and every member.
-        let (p, s) = (principal.clone(), planned.clone());
+        let (p, s, c) = (principal.clone(), planned.clone(), catalog_stack.clone());
         self.db
-            .call(move |store| store.authorize_stack(&p, &s))
+            .call(move |store| store.authorize_stack(&p, &c, &s))
             .await?;
         // The cache can lag the Engine. Fail now rather than at queue time.
         if self.inspect_stack(&project).await? != planned {
@@ -103,7 +105,7 @@ impl Core {
         self.db
             .call(move |s| {
                 let principal = s.authenticate(&digest, Some(&csrf), now())?;
-                s.plan_stack(&principal, operation, &planned, now())
+                s.plan_stack(&principal, operation, &catalog_stack, &planned, now())
             })
             .await
     }
@@ -212,6 +214,32 @@ impl Core {
             .await
     }
 
+    /// After a failed ExecuteStack call, one receipt lookup decides. A lookup
+    /// that succeeds and finds no row proves nothing was sent; the locks are
+    /// released as `precondition_changed`. A failed lookup, or any row, keeps
+    /// the stack held for reconciliation.
+    async fn release_if_unsent(&self, job: &StackJob, digest: &str) -> Result<()> {
+        let lookup = self
+            .executor(
+                Request::StackReceipt {
+                    version: VERSION,
+                    action: job.id.clone(),
+                    digest: digest.to_owned(),
+                },
+                limeos_contracts::RPC_DEADLINE,
+            )
+            .await;
+        match lookup {
+            Ok(value) if value.stack.is_none() => {
+                let unsent = job.clone();
+                self.db
+                    .call(move |s| s.record_stack_unsent(&unsent, now()))
+                    .await
+            }
+            _ => self.mark_stack(job, JobState::NeedsIntervention).await,
+        }
+    }
+
     pub(super) async fn dispatch_stack(
         &self,
         principal: Principal,
@@ -221,12 +249,19 @@ impl Core {
             &serde_json::to_string(&job.plan).map_err(|_| Error(ErrorCode::InvalidInput))?,
         );
         let project = job.plan.expected.project()?.to_owned();
+        let recovering = job.state != JobState::Queued;
         let receipt = if job.state == JobState::Queued {
             // Revocation, expiry and member drift are all decided before the
             // durable dispatch intent. A held lock leaves this job queued.
             let (p, id) = (principal.clone(), job.id.clone());
-            let authorized = self.db.call(move |s| s.stack_job(&p, &id)).await.is_ok();
-            if !authorized
+            // Only a definite refusal is revocation. A transient store error
+            // leaves the job queued for the next tick.
+            let revoked = match self.db.call(move |s| s.stack_job(&p, &id)).await {
+                Ok(_) => false,
+                Err(Error(ErrorCode::Forbidden | ErrorCode::Expired | ErrorCode::NotFound)) => true,
+                Err(e) => return Err(e),
+            };
+            if revoked
                 || job.plan.grant_revision != principal.grant_revision
                 || job.plan.validate(now()).is_err()
             {
@@ -262,8 +297,8 @@ impl Core {
             {
                 Ok(value) => value.stack,
                 Err(_) => {
-                    self.mark_stack(&job, JobState::NeedsIntervention).await?;
-                    return Ok(());
+                    // The executor may have failed before writing any row.
+                    return self.release_if_unsent(&job, &digest).await;
                 }
             }
         } else {
@@ -280,6 +315,16 @@ impl Core {
             .stack
         };
         let Some(mut receipt) = receipt else {
+            if recovering {
+                // The lookup succeeded and the executor holds no row: nothing
+                // was ever sent, since a durable Prepared row precedes every
+                // Engine call.
+                let unsent = job.clone();
+                self.db
+                    .call(move |s| s.record_stack_unsent(&unsent, now()))
+                    .await?;
+                return Ok(());
+            }
             self.mark_stack(&job, JobState::NeedsIntervention).await?;
             return Ok(());
         };

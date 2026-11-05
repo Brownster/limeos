@@ -61,7 +61,7 @@ pub struct QueueStackInput {
     pub idempotency_key: String,
 }
 /// Owner-scoped progress. `receipt` carries the per-member outcomes recorded
-/// by the executor once any exist; `verification` is core's own fresh evidence.
+/// by the executor once any exist; it is absent before the job runs.
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct StackJobProgress {

@@ -23,6 +23,12 @@ struct Engine {
     fail_at: Option<usize>,
     /// Write Prepared receipts, apply the first effect and then drop the call.
     crash_after_prepare: bool,
+    /// ExecuteStack fails before any row is written.
+    execute_error: Option<ErrorCode>,
+    /// Receipt lookups fail.
+    lookup_unavailable: bool,
+    /// The failing target's effect is lost: nothing proves it later.
+    fail_without_effect: bool,
 }
 fn snap(c: char, running: bool) -> ContainerSnapshot {
     ContainerSnapshot {
@@ -179,6 +185,11 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
         }
         Request::ExecuteStack { request, .. } => {
             state.executes += 1;
+            if let Some(code) = state.execute_error {
+                response.ready = false;
+                response.error = Some(code);
+                return Some(response);
+            }
             let operation = request.plan.operation;
             let mut members = Vec::new();
             for (index, target) in request.plan.targets().into_iter().enumerate() {
@@ -196,7 +207,7 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
                 } else {
                     (ExecutionState::EffectAccepted, None)
                 };
-                if !sent {
+                if !sent && !(state.fail_without_effect && state.fail_at == Some(index)) {
                     let live = state
                         .members
                         .iter_mut()
@@ -227,6 +238,11 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
         }
         Request::StackReceipt { .. } => {
             state.receipts += 1;
+            if state.lookup_unavailable {
+                response.ready = false;
+                response.error = Some(ErrorCode::Unavailable);
+                return Some(response);
+            }
             // The real executor turns unresolved Prepared rows into uncertainty.
             if let Some(receipt) = state.receipt.as_mut() {
                 for member in &mut receipt.members {
@@ -423,34 +439,24 @@ async fn partial_failure_is_recorded_per_member_and_recovery_never_resends() {
         .stack_job_progress(f.token.clone(), job.id.clone(), 0)
         .await
         .unwrap();
-    // The lost first response is proven by fresh inspection; the second target
-    // was never sent, so the stack stays uncertain and locked.
-    assert_eq!(progress.job.state, JobState::NeedsIntervention);
+    // The lost first response is proven by fresh inspection and the second
+    // target was never sent: terminal and lock-releasing, but not a success.
+    assert_eq!(progress.job.state, JobState::Failed);
     let receipt = progress.receipt.unwrap();
+    assert_eq!(receipt.state, ExecutionState::PartlyDone);
     assert_eq!(receipt.members[0].state, ExecutionState::Verified);
     assert_eq!(
         receipt.members[1].state,
         ExecutionState::PreconditionChanged
     );
     assert_eq!(f.engine.lock().unwrap().executes, 1);
-    // Periodic recovery only looks the receipt up again.
-    let current = f.current(&job).await;
-    for _ in 0..2 {
-        f.core
-            .dispatch_stack(f.principal().await, current.clone())
-            .await
-            .unwrap();
-    }
-    assert_eq!(f.engine.lock().unwrap().executes, 1);
-    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
-    assert_eq!(
+    assert!(
         f.core
             .db
             .call(|s| s.stack_candidates())
             .await
             .unwrap()
-            .len(),
-        1
+            .is_empty()
     );
     f.task.abort();
 }
@@ -478,13 +484,18 @@ async fn crash_after_prepared_recovers_by_lookup_and_fresh_verification_only() {
     let receipt = {
         let engine = f.engine.lock().unwrap();
         assert_eq!(engine.executes, 1);
-        assert_eq!(engine.receipts, 1);
+        assert_eq!(engine.receipts, 2);
         assert_eq!(engine.verifies, 1);
         engine.receipt.clone().unwrap()
     };
     assert_eq!(receipt.members[0].state, ExecutionState::Verified);
-    assert_ne!(receipt.members[1].state, ExecutionState::Verified);
-    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    assert_eq!(
+        receipt.members[1].state,
+        ExecutionState::PreconditionChanged
+    );
+    // The sent member is proven and the other was never sent: terminal, not success.
+    assert_eq!(receipt.state, ExecutionState::PartlyDone);
+    assert_eq!(f.state(&job).await, JobState::Failed);
     f.task.abort();
 }
 
@@ -557,7 +568,7 @@ async fn revoked_grants_and_ineligible_stacks_stop_work_before_the_executor() {
     let all: Vec<_> = ordinary()
         .iter()
         .map(|m| m.resource.clone())
-        .chain(["stack:media".to_owned()])
+        .chain(["stack:media".to_owned(), "stack:registered".to_owned()])
         .map(|resource| Scope {
             operation: limeos_domain::Operation::ContainerManage,
             resource,
@@ -775,5 +786,187 @@ async fn a_registered_stack_with_only_one_off_containers_has_nothing_to_act_on()
         ErrorCode::Conflict
     );
     assert_eq!(f.engine.lock().unwrap().inspects, 0);
+    f.task.abort();
+}
+
+#[tokio::test]
+async fn an_unproven_sent_member_keeps_the_stack_held_even_with_unsent_peers() {
+    let f = admin().await;
+    {
+        let mut engine = f.engine.lock().unwrap();
+        engine.fail_at = Some(1);
+        engine.fail_without_effect = true;
+    }
+    let job = f.queued(ContainerAction::Restart, "unproven").await;
+    f.core
+        .dispatch_stack(f.principal().await, job.clone())
+        .await
+        .unwrap();
+    let progress = f
+        .core
+        .stack_job_progress(f.token.clone(), job.id.clone(), 0)
+        .await
+        .unwrap();
+    assert_eq!(progress.job.state, JobState::NeedsIntervention);
+    let receipt = progress.receipt.unwrap();
+    assert_eq!(receipt.members[0].state, ExecutionState::Verified);
+    assert_eq!(receipt.members[1].state, ExecutionState::OutcomeUnknown);
+    assert_eq!(receipt.state, ExecutionState::OutcomeUnknown);
+    assert_eq!(
+        f.core
+            .db
+            .call(|s| s.stack_candidates())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    f.task.abort();
+}
+
+#[tokio::test]
+async fn an_executor_failure_before_any_row_releases_the_locks_as_unsent() {
+    for code in [
+        ErrorCode::Expired,
+        ErrorCode::Unavailable,
+        ErrorCode::Overloaded,
+        ErrorCode::Conflict,
+        ErrorCode::StateNotDurable,
+    ] {
+        let f = admin().await;
+        f.engine.lock().unwrap().execute_error = Some(code);
+        let job = f.queued(ContainerAction::Restart, "prewrite").await;
+        f.core
+            .dispatch_stack(f.principal().await, job.clone())
+            .await
+            .unwrap();
+        assert_eq!(
+            f.state(&job).await,
+            JobState::PreconditionChanged,
+            "{code:?}"
+        );
+        {
+            let engine = f.engine.lock().unwrap();
+            assert_eq!((engine.executes, engine.receipts), (1, 1));
+        }
+        assert!(
+            f.core
+                .db
+                .call(|s| s.stack_candidates())
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        // The released members are usable by a single-container job again.
+        let member = snap('a', true);
+        let principal = f.principal().await;
+        let claimed = f
+            .core
+            .db
+            .call(move |s| {
+                let plan =
+                    s.plan_container(&principal, ContainerAction::Restart, &member, now())?;
+                let approval =
+                    s.approve_container(&principal, &plan.plan.id, &plan.digest, now())?;
+                let queued =
+                    s.queue_container(&principal, "after", &plan, &approval.token, &member, now())?;
+                s.claim_container(&principal, &queued.id, &member, now())
+            })
+            .await;
+        assert!(claimed.is_ok(), "{code:?}");
+        f.task.abort();
+    }
+}
+
+#[tokio::test]
+async fn when_the_lookup_cannot_prove_nothing_was_sent_the_stack_stays_held_until_it_can() {
+    let f = admin().await;
+    {
+        let mut engine = f.engine.lock().unwrap();
+        engine.execute_error = Some(ErrorCode::Unavailable);
+        engine.lookup_unavailable = true;
+    }
+    let job = f.queued(ContainerAction::Restart, "held").await;
+    f.core
+        .dispatch_stack(f.principal().await, job.clone())
+        .await
+        .unwrap();
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    assert_eq!(
+        f.core
+            .db
+            .call(|s| s.stack_candidates())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    // Recovery with the lookup still failing keeps it held and sends nothing.
+    let current = f.current(&job).await;
+    assert!(
+        f.core
+            .dispatch_stack(f.principal().await, current.clone())
+            .await
+            .is_err()
+    );
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    // A later lookup that succeeds and finds no row proves nothing was sent.
+    f.engine.lock().unwrap().lookup_unavailable = false;
+    f.core
+        .dispatch_stack(f.principal().await, current)
+        .await
+        .unwrap();
+    assert_eq!(f.state(&job).await, JobState::PreconditionChanged);
+    assert_eq!(f.engine.lock().unwrap().executes, 1);
+    f.task.abort();
+}
+
+#[tokio::test]
+async fn a_row_found_after_an_executor_failure_never_releases_the_stack() {
+    let f = admin().await;
+    f.engine.lock().unwrap().crash_after_prepare = true;
+    let job = f.queued(ContainerAction::Restart, "row").await;
+    f.core
+        .dispatch_stack(f.principal().await, job.clone())
+        .await
+        .unwrap();
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    assert_eq!(
+        f.core
+            .db
+            .call(|s| s.stack_candidates())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    f.task.abort();
+}
+
+#[tokio::test]
+async fn the_catalog_stack_name_is_locked_and_authorized_beside_the_compose_project() {
+    // The registered stack ("registered") and the Compose project ("media") differ.
+    let f = admin().await;
+    let input = f.approved(ContainerAction::Restart, "catalog").await;
+    assert_eq!(input.proposal.plan.catalog_stack, "registered");
+    assert_eq!(input.proposal.plan.expected.resource, "stack:media");
+    let resources = input.proposal.plan.resources();
+    assert_eq!(resources[..2], ["stack:media", "stack:registered"]);
+    f.task.abort();
+    let scopes = [
+        "stack:media".to_owned(),
+        "container:".to_owned() + &"a".repeat(64),
+        "container:".to_owned() + &"b".repeat(64),
+        "container:".to_owned() + &"c".repeat(64),
+    ]
+    .map(|resource| Scope {
+        operation: limeos_domain::Operation::ContainerManage,
+        resource,
+    });
+    let f = fixture(limeos_domain::Role::Administrator, Some(scopes.to_vec())).await;
+    assert_eq!(
+        f.plan(ContainerAction::Restart).await.unwrap_err().0,
+        ErrorCode::Forbidden
+    );
     f.task.abort();
 }
