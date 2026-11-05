@@ -12,7 +12,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 14;
+pub const SCHEMA_VERSION: u32 = 15;
 pub const QUEUE_CAPACITY: usize = 64;
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
@@ -133,7 +133,7 @@ impl Store {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(durable)?;
         match version {
-            0..=13 => {
+            0..=14 => {
                 if version < 1 {
                     tx.execute_batch(include_str!("schema.sql"))
                         .map_err(durable)?;
@@ -186,7 +186,11 @@ impl Store {
                     tx.execute_batch(include_str!("migration-v13.sql"))
                         .map_err(durable)?;
                 }
-                tx.execute_batch(include_str!("migration-v14.sql"))
+                if version < 14 {
+                    tx.execute_batch(include_str!("migration-v14.sql"))
+                        .map_err(durable)?;
+                }
+                tx.execute_batch(include_str!("migration-v15.sql"))
                     .map_err(durable)?;
             }
             SCHEMA_VERSION => {}
@@ -282,6 +286,7 @@ mod identity_store;
 mod jobs;
 mod plans;
 mod resources;
+mod stack_plans;
 mod storage;
 mod storage_mounts;
 mod storage_targets;
@@ -299,6 +304,8 @@ fn remove_v10_schema(conn: &Connection) {
 #[cfg(test)]
 fn remove_v11_schema(conn: &Connection) {
     // Legacy migration fixtures must remove every later schema addition.
+    conn.execute_batch("DROP TABLE IF EXISTS stack_results; DROP TABLE IF EXISTS stack_plans;")
+        .unwrap();
     conn.execute_batch("DROP TABLE IF EXISTS automation_poll_origins;")
         .unwrap();
     conn.execute_batch("DROP TABLE IF EXISTS automation_health_policies;")

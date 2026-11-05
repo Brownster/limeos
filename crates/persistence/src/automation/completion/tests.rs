@@ -815,6 +815,8 @@ fn migration_from_compiled_schema_eleven_preserves_queued_and_canceled_jobs() {
         }
     }
     for table in [
+        "stack_results",
+        "stack_plans",
         "automation_poll_origins",
         "automation_notifications",
         "automation_alerts",

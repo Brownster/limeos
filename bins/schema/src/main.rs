@@ -799,6 +799,15 @@ fn main() {
     )
     .unwrap();
     std::fs::write(
+        dir.join("authority-v15.sql"),
+        format!(
+            "{}{}",
+            std::fs::read_to_string(dir.join("authority-v14.sql")).unwrap(),
+            include_str!("../../../crates/persistence/src/migration-v15.sql")
+        ),
+    )
+    .unwrap();
+    std::fs::write(
         dir.join("openapi.json"),
         serde_json::to_string_pretty(&openapi).unwrap() + "\n",
     )
