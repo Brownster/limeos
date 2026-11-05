@@ -458,6 +458,22 @@ class NightTests(unittest.TestCase):
             self.assertEqual(n.verdict["problems"], [])
 
 
+class TeardownOnlyTests(unittest.TestCase):
+    def test_recovers_a_crashed_run_by_purging_only_the_difference(self):
+        with tempfile.TemporaryDirectory() as d:
+            n, host, vm = make_night(d)
+            (n.run_dir / "host-pre.json").write_text(json.dumps(snapshot()))
+            host.state["packages"].update({"qemu-utils": "1", "libfoo": "1"})
+            state = Path(d) / "state"
+            (state / "night-install").mkdir(parents=True)
+            (state / "night-install" / "guest.json").write_text("{}")
+            with patch.object(night.native_vm, "STATE", state):
+                self.assertEqual(n.teardown_only(), 0, n.verdict)
+            self.assertEqual(n.verdict["added_packages"], ["libfoo", "qemu-utils"])
+            self.assertEqual(host.state["packages"], {"bash": "5", "curl": "8"})
+            self.assertEqual([c[0] for c in vm.calls], ["stop"])
+
+
 class WatchdogTests(unittest.TestCase):
     def run_watchdog(self, directory, containers, available_kib=6 * GIB):
         base = Path(directory)

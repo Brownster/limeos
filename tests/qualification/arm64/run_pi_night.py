@@ -366,9 +366,10 @@ class Night:
         if done.returncode:
             raise Refused(f"snapshot failed: {done.stderr[-300:]}")
         data = json.loads(done.stdout)
-        (self.run_dir / f"host-{name}.json").write_text(
-            json.dumps(data, indent=2) + "\n"
-        )
+        target = self.run_dir / f"host-{name}.json"
+        if target.exists():
+            target = target.with_name(f"host-{name}-{int(time.time())}.json")
+        target.write_text(json.dumps(data, indent=2) + "\n")
         return data
 
     def aborted(self):
@@ -403,8 +404,6 @@ class Night:
         if remote != [local_hash]:
             raise Refused("staged host helper hash differs")
         self.guard()
-        self.install_qemu()
-        self.stage_image()
         baseline = self.run_dir / "host-pre.json"
         self.host.push(baseline, f"{NIGHT}/baseline.json")
         deadline_epoch = self.deadline.timestamp()
@@ -420,6 +419,8 @@ class Night:
             or self.aborted()
         ):
             raise Refused("watchdog did not start cleanly")
+        self.install_qemu()
+        self.stage_image()
 
     def install_qemu(self):
         names = " ".join(QEMU_PACKAGES)
@@ -480,28 +481,25 @@ class Night:
             )
 
     def prepare_guest(self, name):
+        """Bundle, build record and repository reach the guest once each (the bundle is ~57 MB)."""
         cand = self.args.candidate
+        call = self.vm.call
         steps = [
-            ("mkdir", lambda: self.vm.call("exec", name, "mkdir -p /root/qual")),
+            ("mkdir", lambda: call("exec", name, "mkdir -p /root/qual")),
             (
-                "bundle",
-                lambda: self.vm.call(
-                    "push",
-                    name,
-                    str(cand / "inputs/source.tar.gz"),
-                    "/root/qual/source.tar.gz",
-                ),
+                "inputs",
+                lambda: call("push", name, str(cand / "inputs"), "/root/qual/inputs"),
             ),
             (
                 "extract",
-                lambda: self.vm.call(
-                    "exec", name, "cd /root/qual && tar -xzf source.tar.gz"
+                lambda: call(
+                    "exec", name, "cd /root/qual && tar -xzf inputs/source.tar.gz"
                 ),
             ),
             # The external manifest (with bundle hash) replaces the internal copy.
             (
                 "manifest",
-                lambda: self.vm.call(
+                lambda: call(
                     "push",
                     name,
                     str(cand / "inputs/source-manifest.json"),
@@ -510,7 +508,7 @@ class Night:
             ),
             (
                 "build-result",
-                lambda: self.vm.call(
+                lambda: call(
                     "push",
                     name,
                     str(cand / "build-result.json"),
@@ -518,20 +516,14 @@ class Night:
                 ),
             ),
             (
-                "inputs",
-                lambda: self.vm.call(
-                    "push", name, str(cand / "inputs"), "/root/qual/inputs"
-                ),
-            ),
-            (
                 "repo",
-                lambda: self.vm.call(
-                    "push", name, str(cand / "inputs/repo"), "/opt/limeos-repo"
+                lambda: call(
+                    "exec", name, "cp -a /root/qual/inputs/repo /opt/limeos-repo"
                 ),
             ),
             (
                 "hashes",
-                lambda: self.vm.call(
+                lambda: call(
                     "exec",
                     name,
                     "cp /root/qual/source/tests/fixtures/werkzeug-hashes.json /root/werkzeug-hashes.json",
@@ -692,6 +684,23 @@ class Night:
             problems += compare_snapshots(self.pre, self.snapshot("post"))
         self.save()
 
+    def teardown_only(self):
+        """Recover after a crashed workstation: guests, packages and staging, then the diff."""
+        self.pre = json.loads((self.run_dir / "host-pre.json").read_text())
+        previous = self.run_dir / "verdict.json"
+        if previous.is_file():
+            self.staging_existed = json.loads(previous.read_text()).get(
+                "staging_existed", True
+            )
+        self.watchdog_started = True
+        for guest in sorted(native_vm.STATE.glob("night-*")):
+            if (guest / "guest.json").is_file():
+                self.vm.call("stop", guest.name, timeout=300)
+        self.teardown()
+        self.verdict["exit"] = 4 if self.verdict["problems"] else 0
+        self.save()
+        return self.verdict["exit"]
+
     def execute(self):
         code = 0
         try:
@@ -795,11 +804,18 @@ def main(argv=None):
         action="store_true",
         help="contact the host; the default only validates",
     )
+    parser.add_argument(
+        "--teardown-only",
+        action="store_true",
+        help="with --execute and an existing --run-dir: stop leftover night guests, purge exactly "
+        "the packages added since that run's host-pre.json and diff the host; for a crashed run",
+    )
     args = parser.parse_args(argv)
     try:
         deadline = parse_deadline(args.deadline)
         authorization = native_vm.load_authorization(args.authorization, args.host)
-        check_deadline(deadline, authorization)
+        if not args.teardown_only:
+            check_deadline(deadline, authorization)
     except (ValueError, Refused) as error:
         print(f"refused: {error}", file=sys.stderr)
         return 3 if isinstance(error, Refused) else 2
@@ -837,6 +853,16 @@ def main(argv=None):
             file=sys.stderr,
         )
         return 0
+    if args.teardown_only:
+        if not (args.run_dir / "host-pre.json").is_file():
+            print(
+                "--teardown-only needs a run directory holding host-pre.json",
+                file=sys.stderr,
+            )
+            return 2
+        host = Host(args.host, args.authorization, args.run_dir)
+        vm = Vm(args.host, args.authorization, args.run_dir)
+        return Night(args, host, vm, deadline, authorization).teardown_only()
     if args.run_dir.exists():
         print("run directory exists; use a new one", file=sys.stderr)
         return 2
