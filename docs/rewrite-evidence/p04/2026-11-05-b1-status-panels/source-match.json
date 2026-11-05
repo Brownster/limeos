@@ -1,0 +1,109 @@
+{
+  "fixture_source": "4a165707d5630828c864418ecb86a196f135609f",
+  "package_source": "4a165707d5630828c864418ecb86a196f135609f",
+  "ui_source": "4a165707d5630828c864418ecb86a196f135609f",
+  "binary_source": "e417751ba57a3945fb47e60d513c087f75d5da7b",
+  "package_and_fixture_inputs": 749,
+  "original_binary_inputs": 740,
+  "production_changes_since_binary_build": {
+    "frontend/src/HealthHistory.tsx": {
+      "before": "264e2d49d06065b0b8eb3089ca72c29504097d5b671192a7f83c300c4a989a94",
+      "after": "2b2f7e205d40ff29d02693f6595603f578ed8486129d17fa755c184af9b09259"
+    },
+    "frontend/src/HealthPolicy.tsx": {
+      "before": "09cb556d669e8588e6d71fda7b462dc347d1fae3064fc9684bd3a330da86c878",
+      "after": "720b0fad7005b4ea428559403ed350cb0bdf869b5864aff62aebacd9fff25075"
+    },
+    "frontend/src/health-policy-controller.ts": {
+      "before": "99956755a70b70f8cd3d57df547ce2a503a70a31d97c0eb16c83a8cb7ca341bd",
+      "after": "37856a2ec03a6c8c4fbb6c500ae1ea5567367c697e47a631b62239cc42ebed1d"
+    },
+    "frontend/src/style.css": {
+      "before": "bb436cce12e8f93a5a6e802764d815e6719f0a656818f17e58d5891bdf0a31a3",
+      "after": "4986603e824d4148a5f3bbc1d66f8aad84bdfdd46de1d1a68e1b035d8eb545fb"
+    },
+    "packaging/systemd/limeos-core.service": {
+      "before": "210f1b1c611bf3b1c9b9a72e1659b6136b2c89fc0396501152f6323414492d72",
+      "after": "f74feeda16668e96f504ffe3e363a727d5d21c17b44e4569c80f698e11b65a7c"
+    }
+  },
+  "test_changes_since_binary_build": {
+    "frontend/tests/health-history.test.mjs": {
+      "before": "6beadc83743337986fcce7f167b79f65bb16d730226675747363884a2d23b605",
+      "after": "0e3fe9f5bb165f418a7206082dc767f564b93a47d618dae65a4aa04fc6613eb1"
+    },
+    "frontend/tests/health-policy.test.mjs": {
+      "before": "1fec01115a103aca12d57434e42af36f0f44841472c2d00cb899f9018fb1bf2a",
+      "after": "b87a2cc5a8f70c0ba36c72ae08761a592f36034734d0babc3f64597067ef2b05"
+    }
+  },
+  "test_only_additions_since_binary_build": {
+    "tests/fixtures/automation/core-profile-baseline.service": "210f1b1c611bf3b1c9b9a72e1659b6136b2c89fc0396501152f6323414492d72",
+    "tests/privileged_vm/p04_automation_browser_guest.py": "8e214bd92a0efe9ddf22dfe9d1bed78cdc6d07655a84a77d648b9a1627d53025",
+    "tests/privileged_vm/p04_automation_guest.py": "1e949d86fced4ed390cbaf4300ddd8869f8bd8df60a6ef2a65fd10d6bbd91e6d",
+    "tests/privileged_vm/p04_core_lookup_probe.py": "763cc3007a371fd80279c7c9149e96320ee2e5a873d655e967ce61561041d29f",
+    "tests/privileged_vm/p04_core_profile_guest.py": "bf703d0b5c54c7ff918abc06297d0a62049eaea2569bd887404ce66348e1cc9f",
+    "tests/reference/test_core_reader_profile.py": "026aa145d2de9a0ea1334cb8e8cff1151bc43b10b8b4a95bb9dc9faf42996b94",
+    "tests/reference/test_core_socket_profile.py": "0f6a1a078e5c1b1909303d4644cef0cb6b905be4b3e9d0445392156ed640e801",
+    "tests/reference/test_p04_automation_browser_guest.py": "44a66142d17f63747a694e6cbd50b950d5df8907ae31319584408486a2813fc1",
+    "tests/reference/test_p04_automation_guest.py": "d258a880d5881e159c92a5fe7145f57d735928232a43ff2d5c043d6e3033ce80"
+  },
+  "native_reference_cases": 19,
+  "frontend_cases": 244,
+  "canonical_runner_unchanged": true,
+  "guest_modules": 34,
+  "covered_browser_status_and_geometry_flow_passed": true,
+  "full_b1_p04_cutover_qualified": false,
+  "checks": {
+    "diagnostic-1": {
+      "started": "2026-11-05T16:15:24.280486+00:00",
+      "ended": "2026-11-05T16:15:29.153134+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 10129436672,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "diagnostic-2": {
+      "started": "2026-11-05T16:16:23.814801+00:00",
+      "ended": "2026-11-05T16:16:26.209428+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 10004819968,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "frontend-1": {
+      "started": "2026-11-05T16:19:05.360689+00:00",
+      "ended": "2026-11-05T16:19:24.154299+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 9801601024,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "reference-1": {
+      "started": "2026-11-05T16:19:45.293756+00:00",
+      "ended": "2026-11-05T16:19:46.339502+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 9987309568,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "package-1": {
+      "started": "2026-11-05T16:20:04.424582+00:00",
+      "ended": "2026-11-05T16:20:39.422885+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 9910939648,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "vm-1": {
+      "started": "2026-11-05T16:21:08.002761+00:00",
+      "ended": "2026-11-05T16:25:19.473235+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 8941129728,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    }
+  },
+  "original_native_pids_absent": 13,
+  "owned_vm_scratch_removed": true
+}

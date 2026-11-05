@@ -1,0 +1,44 @@
+{
+  "fixture_source": "23eeaa552fd286245086e1ca09aa33042499fb14",
+  "package_source": "4a165707d5630828c864418ecb86a196f135609f",
+  "ui_source": "4a165707d5630828c864418ecb86a196f135609f",
+  "binary_source": "e417751ba57a3945fb47e60d513c087f75d5da7b",
+  "fixture_inputs": 749,
+  "package_inputs": 749,
+  "test_only_changes_between_package_and_fixture": {
+    "tests/privileged_vm/p04_automation_browser_guest.py": {
+      "before": "8e214bd92a0efe9ddf22dfe9d1bed78cdc6d07655a84a77d648b9a1627d53025",
+      "after": "55553bab2e8d17c2984e3e307784986204ca1ac2670c18cdab53b1806a3aa406"
+    },
+    "tests/reference/test_p04_automation_browser_guest.py": {
+      "before": "44a66142d17f63747a694e6cbd50b950d5df8907ae31319584408486a2813fc1",
+      "after": "517929d7c80af4cab6c3e7d2a21a723a084c0e03a415b7d0cfc06d41755f6471"
+    }
+  },
+  "native_reference_cases": 19,
+  "frontend_cases_reused_on_unchanged_ui": 244,
+  "canonical_runner_unchanged": true,
+  "checks": {
+    "reference-2": {
+      "started": "2026-11-05T16:28:40.367344+00:00",
+      "ended": "2026-11-05T16:28:41.375857+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 10043146240,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "vm-2": {
+      "started": "2026-11-05T16:29:06.814868+00:00",
+      "ended": "2026-11-05T16:34:37.324552+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 9003905024,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    }
+  },
+  "original_native_pids_absent": 18,
+  "owned_vm_scratch_removed": 2,
+  "full_target_dimensions_verified": true,
+  "narrow_page_overflow_absent": true,
+  "full_b1_p04_cutover_qualified": false
+}

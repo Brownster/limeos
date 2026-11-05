@@ -2,16 +2,16 @@
 
 Status: local implementation started after P03's 62-group representative-layout suite passed. The operator authorized continuing P03 then P04 on 2026-10-05. All implementation happens in this Rust repository; the Python checkout is frozen. Mutation tests use disposable VMs. The earlier corrected 0.4.2 payload has separate native ARM64 qualification; current payload and reference-host measurement gates remain open.
 
-Latest local acceptance: [October 13 destination composition](2026-10-13-container-destinations/README.md),
-589 Rust cases and 61 local ARM64 harness tests. A borrowed read-only owner now
-checks flat running destinations against genuine process/physical parents and
-retains same-object O_PATH descriptors under the original leases. The earlier
-retained planning files and configured graph remain separate inputs. Whole-worker
-admission/supervision, Engine/configuration integration, nested and unselected
-physical consumers, actual pool/share state, installed namespace qualification
-and effect authority remain open. The operator deferred
-the proposed Pi replacement; continue rewrite work and report readiness later.
-No new overnight host window is authorized.
+Latest acceptance, 5 November: [installed B1 status and panel evidence](2026-11-05-b1-status-panels/README.md).
+The standard package's real browser control flow, ordinary timer notifications,
+acknowledgment and pause survive actual Core crashes without duplicate work.
+New UI assets correct stale availability copy and narrow account-text overflow;
+244 frontend cases/build, 19 scoped fixture/profile cases and both installed runs
+pass. Current ARM64/Pi, upgrade/return, broader A/B runtime and P05/P06 cutover
+remain open. A1's current positive mount plan still refuses normal Docker task
+churn; its safety comparisons have not been relaxed. Holly's Pi and the frozen
+application remain unchanged by these local runs. Historical sections below
+retain their original source and qualification scope.
 
 Estimate: forty implementer days (320 hours) for RW-040 through RW-045, including their API/UI screens and regression evidence. Review the cutover scope at 480 hours. Allocation: 72 hours for storage identities, mount planning, boot exclusion and mount-loss safety; 64 for pools/protection/remote mounts/shares/prerequisites; 64 for catalog/Compose/media paths and tools; 48 for encrypted backup/restore and recovery; 32 for package/container update transitions; 40 for schedules/alerts/notifications and restart recovery. Record actual agent work and approval waits separately; neither is a measured human implementer-day figure.
 
@@ -19,12 +19,12 @@ The first slice ports the frozen storage contract into typed, generated domain c
 
 | Work package | Current status |
 | --- | --- |
-| RW-040 — Storage identities, contracts and mounts | Approved empty target jobs, complete core claims and explicit recovery qualify in frozen AMD64 0.4.4 packages. Fresh Docker declarations qualify in frozen 0.4.6 packages with 49 installed groups. The retained-source library has 250 passing local/native tests; subsequent fresh UUID/backing binding has 21 further regressions and 271 passing local workspace tests. Combined installed collection, running namespaces, pool/protection/share dependencies, mount/fstab effects, unmount/loss handling, guided UI and current installed native qualification remain pending. |
+| RW-040 — Storage identities, contracts and mounts | Installed A1 prerequisites and negative API cases pass, but the current positive mount plan still refuses normal Docker task churn. Authenticated never-started refusal recovery is implemented and locally qualified; genuine current mount effects/recovery, unmount/runtime loss and native ARM64 acceptance remain open. Earlier accepted empty-target and dependency evidence retains its original scope below. |
 | RW-041 — Pools, protection, remote mounts and shares | Pure pool/SnapRAID planning/imports, retained protection-source and planning-configuration libraries, Samba planning and the configured dependency graph are integrated locally. Actual pool/share state, combined installed protected collection, executable operations, schedules and remote mounts remain pending. |
-| RW-042 — Catalog, Compose and media deployment | P03 preview foundation exists; deployment execution, live imports and UI remain pending. |
+| RW-042 — Catalog, Compose and media deployment | Registered stack inventory has local API/UI qualification and earlier installed genuine catalog/Engine read evidence. Current installed UI/max-layout qualification, protected Compose inspection/review binding, whole-stack/catalog/media execution and recovery remain open. |
 | RW-043 — Backup, restore and recovery | Bounded archive inspector and pure admission planner integrated. Manifest v2 coalesces exact inert legacy repeats; 22 inspector tests pass locally and on native AMD64/ARM64 CI. Restore executor, production inventory limits, backup creation and recovery remain pending; BKP-001 stays open. |
-| RW-044 — Package/container updates and host prerequisites | Pending. |
-| RW-045 — Schedules, alerts and notifications | Pending. |
+| RW-044 — Package/container updates and host prerequisites | Typed package/update/prerequisite libraries are integrated; registered effects, safe version transitions and installed acceptance remain pending. |
+| RW-045 — Schedules, alerts and notifications | Registered container-only observation schedules, configured policy and in-app notification API/UI now pass genuine installed timer/restart scenarios. Other sources/channels, recurring effect adapters, replacement/retirement/compaction and broad qualification remain open. |
 
 Representative capture found a literal Navidrome `/data"` bind target beside an anonymous `/data` volume, case-sensitive `/mnt/storage/TV` and `/mnt/storage/Movies` paths, and VPN capabilities/shared network namespaces. Import/deployment must report and preserve unsupported or malformed settings rather than silently flatten them. No correction was made on wybie.
 
@@ -665,3 +665,37 @@ acceptance/browser sandbox settings are not production browser/TLS qualification
 Current ARM64/Pi/upgrade/return/footprint/soak, remaining B1/A/B/P04, independent
 A1 churn, performance and P05/P06 remain open. Holly's Pi and the frozen app were
 untouched; nothing was pushed.
+
+## 5 November: truthful B1 status and narrow panel evidence
+
+The [status/panel packet](2026-11-05-b1-status-panels/README.md) binds product
+correction `473544b`, package/UI source `4a16570` and capture follow-up fixture
+`23eeaa5` to signed `0.4.14+healthui.1` packages. Original executable source stays
+`e417751`; all Rust/protocol/schema inputs and five executable hashes match.
+Runtime/UI changes, changed frontend tests and added fixture files are separated
+in the source maps. Actual standard/shadow package payloads and signatures pass;
+only standard is installed. Fresh UI tests/build pass 244 cases, with 19 scoped
+fixture/profile cases on both fixture versions plus lint/repository checks.
+
+The full account ID reproduced 470-pixel page width in a 390-pixel viewport.
+Wrapping that text restores page width while retaining the table's own horizontal
+scrolling. Stale global producer-unavailable history/policy/save notices become
+partial-coverage guidance; current schedule availability remains explicit.
+Both actual browser scenarios pass normal authentication/permission refusal,
+password enablement/relogin, policy/schedule forms, real timer incident/recovery,
+acknowledgment and pause across two Core SIGKILL/automatic restarts. Each retains
+exactly two occurrences/jobs/results and notifications, with zero OOM kills.
+
+The first element screenshots clip tall panels and remain preserved. The corrected
+fixture captures bounded document rectangles and rejects clipped PNG dimensions.
+Six reviewed follow-up images now show the actual policy, incident, recovery,
+paused schedule and both narrow notification-table edges with acknowledgment.
+The shown states and page-width regression pass; broader UI/mobile parity remains
+open. Full requested-rectangle capture does not establish a pixel-perfect audit.
+
+Both canonical 1,024-MiB/two-vCPU VMs complete with unchanged inputs and no sampled
+stop: 16:21:08–16:25:19 and 16:29:06–16:34:37 UTC, minimum host availability
+8,941,129,728 and 9,003,905,024 bytes. All 18 original recorded native PIDs and
+both exact VM directories are gone. No unrelated process stopped. Remaining B1,
+A/B/P04, A1 task/FD churn, current ARM64/Pi/upgrade/return/footprint/soak,
+performance and P05/P06 remain open. No Pi, frozen-app change or push occurred.

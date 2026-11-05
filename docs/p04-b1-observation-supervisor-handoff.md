@@ -143,10 +143,25 @@ overflow acceptance remains open. Correct that copy and qualify the resulting
 new packaged assets next. The browser's disposable certificate/sandbox setup is
 explicitly scoped; it adds no product configuration or confinement exception.
 
+The [status and panel follow-up](rewrite-evidence/p04/2026-11-05-b1-status-panels/README.md)
+now corrects that stale copy and the measured full-account-ID page overflow.
+Signed `0.4.14+healthui.1` packages use new UI source `4a16570` and unchanged
+`e417751` executables. All 244 frontend cases/build and 19 scoped reference cases
+pass. Both real installed browser runs retain two exact occurrences/jobs/results/
+notifications across two Core crashes, with unchanged application configuration,
+no OOM kill and no sampled stop. The first element shots clipped tall panels;
+their originals remain uncredited for complete visual coverage. Fixture `23eeaa5`
+corrects capture only, with exactly two test-file changes from the package map.
+Its six bounded document-rectangle images now show policy/save notices, incident,
+recovery, narrow pause and both notification-table edges including acknowledgment.
+Requested PNG dimensions and page/table geometry are verified; the shown states
+pass visual inspection. Full UI/mobile parity remains open. All 18 recorded
+native PIDs and both exact owned VM directories are gone. No Pi or push occurred.
+
 The existing package return requirement still includes policy before-images with
 the matching pre-schema-14 database and package assets. Remaining host/SMART/
 mount/protection sources, reviewed replacement/retirement, safe history compaction,
-ordinary external channels, remaining UI/status/visual coverage and current
+ordinary external channels, broader UI/runtime coverage and current
 ARM64/Pi/return/footprint/soak acceptance remain open. A1/B1, wider A/B/P04 and
 P05/P06 cutover remain unfinished; the historical inventory-performance failure
 is unchanged. Holly's Pi and the frozen app were untouched. The later installed

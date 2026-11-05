@@ -1,0 +1,1345 @@
+{
+  "stage": "complete",
+  "package_version": "0.4.14+healthui.1",
+  "passed": [
+    "actual browser login, refused create, password enablement and reauthentication",
+    "UI-created real timer incident is delivered once and survives actual Core crash with the same session",
+    "same-container recovery, UI acknowledgment and UI pause persist after a second Core crash"
+  ],
+  "limitations": [
+    "AMD64 installed browser flow; ARM64/Pi, upgrade/return, soak and full B1/P04 remain open",
+    "Container-only partial health coverage; no application storage/deployment/external delivery effect",
+    "Disposable local certificate accepted and Chromium runs without sandbox inside the throwaway VM; production TLS/browser hardening not qualified",
+    "Covered status copy and target panels only; complete UI/mobile layout acceptance remains open"
+  ],
+  "oom_before": {
+    "oom_kill": 0
+  },
+  "authority_schema": 14,
+  "binary_sha256": {
+    "limeos-core": "f4b5fae8a7b8bd44e7723f374af61ff1742d1ca9faf5d264b062596ca8c10a77",
+    "limeos-executor": "937783d65cee29c44a9d9843f02443abccaa8481a04b3f1021770b4799e25ceb",
+    "limeos-password-worker": "8e7eb4f529262b2716ffc947dad66ba86aaaa730bbaf8194133f3bb401a7d237",
+    "limeos-stack-read-worker": "0689a3a7c9e53048f6be7d3fca633ad27cf4b03ec41aa86298f4cc50079e794f",
+    "limeosctl": "0f5ed4d47c13c7b08a767bbcfb560663112a46ba8c0e12ec7bed42c111bf2d08"
+  },
+  "ui_sha256": {
+    "assets/index-BvZTi7fD.js": "1ed9d56dde3b66c4a7c591e1ca9d00d4318b7817e1d5b623d59b55d34be227c1",
+    "assets/index-CJmPPZq_.css": "004d7a4733b6469479518d11b6fff282dd7a12f20ac4024b2c9db8cbbfffdf60",
+    "index.html": "2d147d21c5404bce3dc979cec60a06d0e1ca5db46b94fb7e3a65151eb0883e9e"
+  },
+  "package_sha256": {
+    "limeos-shadow_0.4.14+healthui.1_amd64.deb": "17de12f85d42ec36f7761789535e6e647be1cb01ee63dc6ec94bba28d3d193b5",
+    "limeos_0.4.14+healthui.1_amd64.deb": "40264798f797857f30560f608da8cbb07f19c46be4144afdedaca148c4fa1a73"
+  },
+  "fixture_sha256": "8e214bd92a0efe9ddf22dfe9d1bed78cdc6d07655a84a77d648b9a1627d53025",
+  "immutable_before": {
+    "/etc/limeos/core.json": "7576e647f8842f8d9221c9772930f718c56bdbf8bea7489c9da34408beb40e2b",
+    "/etc/limeos/system-policy/storage.json": "ce4eebb5f05270c1b4e215d254bb3a74d351b92ff0e1aa4ebb350989a926d89d",
+    "/lib/systemd/system/limeos-core.service": "f74feeda16668e96f504ffe3e363a727d5d21c17b44e4569c80f698e11b65a7c",
+    "/lib/systemd/system/limeos-storage-reader.service": "b4737cdb0a4ea31d8db2d0c66d45d3b4d58ec019d0537cad27d9cd9fe44259ab"
+  },
+  "docker": {
+    "peer": {
+      "pid": 8156,
+      "uid": 0,
+      "gid": 0
+    },
+    "initial_peer": {
+      "pid": 1,
+      "uid": 0,
+      "gid": 0
+    },
+    "unit": "limeos-a1-real-docker",
+    "dockerd_sha256": "39ad7936d1af38671d2c4401df15e8c6610dadf38d7595bcb596b27ba30e74cc",
+    "docker_package_version": "20.10.24+dfsg1-1+deb12u1+b6",
+    "listener_fixture": "real packaged dockerd-owned Unix socket; socket activation excluded",
+    "id": "YWOY:UAU7:EWOZ:PNBC:A2MH:I6FI:QOQF:EQMH:EEPZ:TUAX:SXV6:3WSW",
+    "root": "/var/lib/docker",
+    "server_version": "20.10.24+dfsg1",
+    "declared_containers": []
+  },
+  "container_id": "6d495702de3f4396afc7ad8bffb1e51b68c00b345fc3ab3ba3f0499014ec6ba9",
+  "reader_ready": {
+    "scope": "read-only fixture startup; no effect or admission authority",
+    "elapsed_seconds": 0.1483194209999965,
+    "observations": [
+      {
+        "ready": false,
+        "error": "overloaded"
+      },
+      {
+        "ready": true,
+        "error": null
+      }
+    ]
+  },
+  "dependencies": "caddy 2.6.2-5\nchromium 156.0.8078.79-1~deb12u1\nchromium-driver 156.0.8078.79-1~deb12u1\npython3-selenium 4.8.3+dfsg-1\n",
+  "browser_version": "156.0.8078.79",
+  "http": [
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/index-CJmPPZq_.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/index-BvZTi7fD.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/session",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "path": "/favicon.ico",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/overview",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observations/stream",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/targets",
+      "status": 503
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/container/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/schedules",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/automation/schedules",
+      "status": 403
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/schedules",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/capabilities/observe-health/enable",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observations/stream",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/overview",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/targets",
+      "status": 503
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/container/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/health-policy",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/automation/health-policy",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/schedules",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/automation/schedules",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/schedules",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/overview",
+      "status": 502
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observations/stream",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/index-CJmPPZq_.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/index-BvZTi7fD.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/session",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/favicon.ico",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/overview",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observations/stream",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/targets",
+      "status": 503
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/container/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/overview",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observations/stream",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/overview",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/overview",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observations/stream",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/automation/notifications/8dbd2b966dc0dc947365fcd9465670db232528f0881a2532b27c856701e0794e/acknowledgment",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/schedules",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/automation/schedules/888faca45ac06b764a4246c95c62aad9e5b35b126c97272636ab5e81ecc52625/pause",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/schedules",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/overview",
+      "status": 502
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 502
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/index-CJmPPZq_.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/index-BvZTi7fD.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/session",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/favicon.ico",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/overview",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observations/stream",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/targets",
+      "status": 503
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/mounts/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/container/jobs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/schedules",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/alerts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/automation/notifications",
+      "status": 200
+    }
+  ],
+  "screenshots": {
+    "policy-desktop": {
+      "selector": "#health-policy-panel",
+      "geometry": {
+        "page_width": 1085,
+        "tables": [],
+        "target_height": 1622.765625,
+        "target_width": 1045,
+        "viewport_height": 757,
+        "viewport_width": 1100
+      },
+      "sha256": "3eb67ead78e42b2a12df5af290b144314da283774db7a997fb821bfb6e2f2d53",
+      "width": 1045,
+      "height": 757,
+      "file": "screenshots/policy-desktop.png"
+    },
+    "incident-desktop": {
+      "selector": "#health-history-panel",
+      "geometry": {
+        "page_width": 1085,
+        "tables": [
+          {
+            "label": "Recorded alert states",
+            "scroll_width": 1043,
+            "width": 1043
+          },
+          {
+            "label": "Recorded notification delivery",
+            "scroll_width": 1043,
+            "width": 1043
+          }
+        ],
+        "target_height": 1029.40625,
+        "target_width": 1045,
+        "viewport_height": 757,
+        "viewport_width": 1100
+      },
+      "sha256": "9ad80e5617485e91140785d91b79be02b642dce32d761c4665e395cbdcccaecd",
+      "width": 1045,
+      "height": 114,
+      "file": "screenshots/incident-desktop.png"
+    },
+    "recovery-desktop": {
+      "selector": "#health-history-panel",
+      "geometry": {
+        "page_width": 1085,
+        "tables": [
+          {
+            "label": "Recorded alert states",
+            "scroll_width": 1043,
+            "width": 1043
+          },
+          {
+            "label": "Recorded notification delivery",
+            "scroll_width": 1043,
+            "width": 1043
+          }
+        ],
+        "target_height": 1139.40625,
+        "target_width": 1045,
+        "viewport_height": 757,
+        "viewport_width": 1100
+      },
+      "sha256": "89debaa02e0401834641388259b40167f4407c07dc7bdb11fefb8584ba98dab9",
+      "width": 1045,
+      "height": 153,
+      "file": "screenshots/recovery-desktop.png"
+    },
+    "acknowledged-mobile": {
+      "selector": "#health-history-panel",
+      "geometry": {
+        "page_width": 375,
+        "tables": [
+          {
+            "label": "Recorded alert states",
+            "scroll_width": 448,
+            "width": 333
+          },
+          {
+            "label": "Recorded notification delivery",
+            "scroll_width": 608,
+            "width": 333
+          }
+        ],
+        "target_height": 1462.5625,
+        "target_width": 335,
+        "viewport_height": 701,
+        "viewport_width": 390
+      },
+      "sha256": "b5cd87193a34447d5b560517e5e54eac80f3965e73f97751b09b6b82c35ec562",
+      "width": 335,
+      "height": 701,
+      "file": "screenshots/acknowledged-mobile.png"
+    },
+    "paused-mobile": {
+      "selector": "#health-schedules-panel",
+      "geometry": {
+        "page_width": 375,
+        "tables": [
+          {
+            "label": "Observation schedules",
+            "scroll_width": 640,
+            "width": 333
+          }
+        ],
+        "target_height": 1411.03125,
+        "target_width": 335,
+        "viewport_height": 701,
+        "viewport_width": 390
+      },
+      "sha256": "300a9aa8fba789b93b33886f77bb6d7c9a782fd7e9675eab2d2ed24c3c9f2dc3",
+      "width": 335,
+      "height": 701,
+      "file": "screenshots/paused-mobile.png"
+    }
+  },
+  "schedule_id": "888faca45ac06b764a4246c95c62aad9e5b35b126c97272636ab5e81ecc52625",
+  "opening": {
+    "id": "8dbd2b966dc0dc947365fcd9465670db232528f0881a2532b27c856701e0794e",
+    "revision": 3,
+    "event": {
+      "key": "container:6d495702de3f4396afc7ad8bffb1e51b68c00b345fc3ab3ba3f0499014ec6ba9",
+      "generation": 1,
+      "event": "incident",
+      "kind": "container",
+      "severity": "warning",
+      "summary": "limeos-b1-browser is not running",
+      "at": 1793895851
+    },
+    "channel": "in_app",
+    "delivery": {
+      "state": "delivered",
+      "at": 1793895852
+    },
+    "attempts": 1,
+    "acknowledged_at": null
+  },
+  "before_restart": {
+    "schedules": [
+      [
+        "888faca45ac06b764a4246c95c62aad9e5b35b126c97272636ab5e81ecc52625",
+        1,
+        0,
+        1793895851
+      ]
+    ],
+    "occurrences": [
+      [
+        "888faca45ac06b764a4246c95c62aad9e5b35b126c97272636ab5e81ecc52625",
+        1,
+        1793895851,
+        "84e0838c445572b5e7e876b392db3255c954dcf1aa64a51d7c7337a428e1c9f2"
+      ]
+    ],
+    "jobs": [
+      [
+        "84e0838c445572b5e7e876b392db3255c954dcf1aa64a51d7c7337a428e1c9f2",
+        "succeeded",
+        "478a5736c46e40e4f0ba04f81286d546cee032fe379157bb243485c15cc49b23"
+      ]
+    ],
+    "results": [
+      [
+        "84e0838c445572b5e7e876b392db3255c954dcf1aa64a51d7c7337a428e1c9f2",
+        "succeeded",
+        "observed",
+        1,
+        0
+      ]
+    ],
+    "alerts": [
+      [
+        "container:6d495702de3f4396afc7ad8bffb1e51b68c00b345fc3ab3ba3f0499014ec6ba9",
+        "{\"key\":\"container:6d495702de3f4396afc7ad8bffb1e51b68c00b345fc3ab3ba3f0499014ec6ba9\",\"kind\":\"container\",\"last_sequence\":1,\"incident\":{\"phase\":\"open\",\"generation\":1,\"severity\":\"warning\",\"summary\":\"limeos-b1-browser is not running\",\"announced\":true}}"
+      ]
+    ],
+    "notifications": [
+      [
+        "8dbd2b966dc0dc947365fcd9465670db232528f0881a2532b27c856701e0794e",
+        "84e0838c445572b5e7e876b392db3255c954dcf1aa64a51d7c7337a428e1c9f2",
+        "{\"id\":\"8dbd2b966dc0dc947365fcd9465670db232528f0881a2532b27c856701e0794e\",\"revision\":3,\"event\":{\"key\":\"container:6d495702de3f4396afc7ad8bffb1e51b68c00b345fc3ab3ba3f0499014ec6ba9\",\"generation\":1,\"event\":\"incident\",\"kind\":\"container\",\"severity\":\"warning\",\"summary\":\"limeos-b1-browser is not running\",\"at\":1793895851},\"channel\":\"in_app\",\"delivery\":{\"state\":\"delivered\",\"at\":1793895852},\"attempts\":1,\"acknowledged_at\":null}"
+      ]
+    ]
+  },
+  "restarts": [
+    {
+      "before_pid": 2837,
+      "after": {
+        "MainPID": "8550",
+        "ControlGroup": "/system.slice/limeos-core.service",
+        "MemoryMax": "134217728",
+        "TasksMax": "32",
+        "LimitNOFILE": "1024",
+        "KillMode": "control-group"
+      }
+    },
+    {
+      "before_pid": 8550,
+      "after": {
+        "MainPID": "8988",
+        "ControlGroup": "/system.slice/limeos-core.service",
+        "MemoryMax": "134217728",
+        "TasksMax": "32",
+        "LimitNOFILE": "1024",
+        "KillMode": "control-group"
+      }
+    }
+  ],
+  "after_restart": {
+    "schedules": [
+      [
+        "888faca45ac06b764a4246c95c62aad9e5b35b126c97272636ab5e81ecc52625",
+        1,
+        0,
+        1793895851
+      ]
+    ],
+    "occurrences": [
+      [
+        "888faca45ac06b764a4246c95c62aad9e5b35b126c97272636ab5e81ecc52625",
+        1,
+        1793895851,
+        "84e0838c445572b5e7e876b392db3255c954dcf1aa64a51d7c7337a428e1c9f2"
+      ]
+    ],
+    "jobs": [
+      [
+        "84e0838c445572b5e7e876b392db3255c954dcf1aa64a51d7c7337a428e1c9f2",
+        "succeeded",
+        "478a5736c46e40e4f0ba04f81286d546cee032fe379157bb243485c15cc49b23"
+      ]
+    ],
+    "results": [
+      [
+        "84e0838c445572b5e7e876b392db3255c954dcf1aa64a51d7c7337a428e1c9f2",
+        "succeeded",
+        "observed",
+        1,
+        0
+      ]
+    ],
+    "alerts": [
+      [
+        "container:6d495702de3f4396afc7ad8bffb1e51b68c00b345fc3ab3ba3f0499014ec6ba9",
+        "{\"key\":\"container:6d495702de3f4396afc7ad8bffb1e51b68c00b345fc3ab3ba3f0499014ec6ba9\",\"kind\":\"container\",\"last_sequence\":1,\"incident\":{\"phase\":\"open\",\"generation\":1,\"severity\":\"warning\",\"summary\":\"limeos-b1-browser is not running\",\"announced\":true}}"
+      ]
+    ],
+    "notifications": [
+      [
+        "8dbd2b966dc0dc947365fcd9465670db232528f0881a2532b27c856701e0794e",
+        "84e0838c445572b5e7e876b392db3255c954dcf1aa64a51d7c7337a428e1c9f2",
+        "{\"id\":\"8dbd2b966dc0dc947365fcd9465670db232528f0881a2532b27c856701e0794e\",\"revision\":3,\"event\":{\"key\":\"container:6d495702de3f4396afc7ad8bffb1e51b68c00b345fc3ab3ba3f0499014ec6ba9\",\"generation\":1,\"event\":\"incident\",\"kind\":\"container\",\"severity\":\"warning\",\"summary\":\"limeos-b1-browser is not running\",\"at\":1793895851},\"channel\":\"in_app\",\"delivery\":{\"state\":\"delivered\",\"at\":1793895852},\"attempts\":1,\"acknowledged_at\":null}"
+      ]
+    ]
+  },
+  "recovery": {
+    "id": "18fa835c2af111b0ee892d42d53d17964dc05fe30c7ef662d3ae06ebdc1c1f52",
+    "revision": 3,
+    "event": {
+      "key": "container:6d495702de3f4396afc7ad8bffb1e51b68c00b345fc3ab3ba3f0499014ec6ba9",
+      "generation": 1,
+      "event": "recovery",
+      "kind": "container",
+      "severity": "warning",
+      "summary": "limeos-b1-browser is healthy",
+      "at": 1793895911
+    },
+    "channel": "in_app",
+    "delivery": {
+      "state": "delivered",
+      "at": 1793895912
+    },
+    "attempts": 1,
+    "acknowledged_at": null
+  },
+  "availability_copy_verified": true,
+  "final_history": {
+    "schedules": [
+      [
+        "888faca45ac06b764a4246c95c62aad9e5b35b126c97272636ab5e81ecc52625",
+        2,
+        1,
+        null
+      ]
+    ],
+    "occurrences": [
+      [
+        "888faca45ac06b764a4246c95c62aad9e5b35b126c97272636ab5e81ecc52625",
+        1,
+        1793895851,
+        "84e0838c445572b5e7e876b392db3255c954dcf1aa64a51d7c7337a428e1c9f2"
+      ],
+      [
+        "888faca45ac06b764a4246c95c62aad9e5b35b126c97272636ab5e81ecc52625",
+        1,
+        1793895911,
+        "87118c2f1867052fcb83545ac1c0d03818e457c05323ad4e3fb18c6a67e9c482"
+      ]
+    ],
+    "jobs": [
+      [
+        "84e0838c445572b5e7e876b392db3255c954dcf1aa64a51d7c7337a428e1c9f2",
+        "succeeded",
+        "478a5736c46e40e4f0ba04f81286d546cee032fe379157bb243485c15cc49b23"
+      ],
+      [
+        "87118c2f1867052fcb83545ac1c0d03818e457c05323ad4e3fb18c6a67e9c482",
+        "succeeded",
+        "d9eabb95e116b1947a9a260722db9e9c2e30504d395679ffc087f6822200ea8d"
+      ]
+    ],
+    "results": [
+      [
+        "84e0838c445572b5e7e876b392db3255c954dcf1aa64a51d7c7337a428e1c9f2",
+        "succeeded",
+        "observed",
+        1,
+        0
+      ],
+      [
+        "87118c2f1867052fcb83545ac1c0d03818e457c05323ad4e3fb18c6a67e9c482",
+        "succeeded",
+        "observed",
+        2,
+        0
+      ]
+    ],
+    "alerts": [
+      [
+        "container:6d495702de3f4396afc7ad8bffb1e51b68c00b345fc3ab3ba3f0499014ec6ba9",
+        "{\"key\":\"container:6d495702de3f4396afc7ad8bffb1e51b68c00b345fc3ab3ba3f0499014ec6ba9\",\"kind\":\"container\",\"last_sequence\":2,\"incident\":{\"phase\":\"clear\",\"failures\":0}}"
+      ]
+    ],
+    "notifications": [
+      [
+        "18fa835c2af111b0ee892d42d53d17964dc05fe30c7ef662d3ae06ebdc1c1f52",
+        "87118c2f1867052fcb83545ac1c0d03818e457c05323ad4e3fb18c6a67e9c482",
+        "{\"id\":\"18fa835c2af111b0ee892d42d53d17964dc05fe30c7ef662d3ae06ebdc1c1f52\",\"revision\":3,\"event\":{\"key\":\"container:6d495702de3f4396afc7ad8bffb1e51b68c00b345fc3ab3ba3f0499014ec6ba9\",\"generation\":1,\"event\":\"recovery\",\"kind\":\"container\",\"severity\":\"warning\",\"summary\":\"limeos-b1-browser is healthy\",\"at\":1793895911},\"channel\":\"in_app\",\"delivery\":{\"state\":\"delivered\",\"at\":1793895912},\"attempts\":1,\"acknowledged_at\":null}"
+      ],
+      [
+        "8dbd2b966dc0dc947365fcd9465670db232528f0881a2532b27c856701e0794e",
+        "84e0838c445572b5e7e876b392db3255c954dcf1aa64a51d7c7337a428e1c9f2",
+        "{\"id\":\"8dbd2b966dc0dc947365fcd9465670db232528f0881a2532b27c856701e0794e\",\"revision\":4,\"event\":{\"key\":\"container:6d495702de3f4396afc7ad8bffb1e51b68c00b345fc3ab3ba3f0499014ec6ba9\",\"generation\":1,\"event\":\"incident\",\"kind\":\"container\",\"severity\":\"warning\",\"summary\":\"limeos-b1-browser is not running\",\"at\":1793895851},\"channel\":\"in_app\",\"delivery\":{\"state\":\"delivered\",\"at\":1793895852},\"attempts\":1,\"acknowledged_at\":1793895913}"
+      ]
+    ]
+  },
+  "immutable_after": {
+    "/etc/limeos/core.json": "7576e647f8842f8d9221c9772930f718c56bdbf8bea7489c9da34408beb40e2b",
+    "/etc/limeos/system-policy/storage.json": "ce4eebb5f05270c1b4e215d254bb3a74d351b92ff0e1aa4ebb350989a926d89d",
+    "/lib/systemd/system/limeos-core.service": "f74feeda16668e96f504ffe3e363a727d5d21c17b44e4569c80f698e11b65a7c",
+    "/lib/systemd/system/limeos-storage-reader.service": "b4737cdb0a4ea31d8db2d0c66d45d3b4d58ec019d0537cad27d9cd9fe44259ab"
+  },
+  "services": {
+    "limeos-core": {
+      "unit": {
+        "MainPID": "8988",
+        "ControlGroup": "/system.slice/limeos-core.service",
+        "MemoryMax": "134217728",
+        "TasksMax": "32",
+        "LimitNOFILE": "1024",
+        "KillMode": "control-group"
+      },
+      "pid": 8988,
+      "start_ticks": 24574,
+      "status": {
+        "Uid": "104\t104\t104\t104",
+        "Gid": "112\t112\t112\t112",
+        "VmHWM": "8588 kB",
+        "VmRSS": "8320 kB",
+        "Threads": "5",
+        "CapPrm": "0000000000000000",
+        "CapEff": "0000000000000000",
+        "CapBnd": "0000000000000000",
+        "NoNewPrivs": "1"
+      },
+      "fd_count": 20,
+      "cgroup": {
+        "memory.current": "3796992\n",
+        "memory.peak": "23973888\n",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+        "pids.current": "5\n",
+        "pids.events": "max 0\n"
+      }
+    },
+    "limeos-storage-reader": {
+      "unit": {
+        "MainPID": "8233",
+        "ControlGroup": "/system.slice/limeos-storage-reader.service",
+        "MemoryMax": "67108864",
+        "TasksMax": "16",
+        "LimitNOFILE": "256",
+        "KillMode": "control-group"
+      },
+      "pid": 8233,
+      "start_ticks": 17399,
+      "status": {
+        "Uid": "0\t0\t0\t0",
+        "Gid": "113\t113\t113\t113",
+        "VmHWM": "5720 kB",
+        "VmRSS": "4000 kB",
+        "Threads": "2",
+        "CapPrm": "0000000000000000",
+        "CapEff": "0000000000000000",
+        "CapBnd": "0000000000000000",
+        "NoNewPrivs": "1"
+      },
+      "fd_count": 10,
+      "cgroup": {
+        "memory.current": "3125248\n",
+        "memory.peak": "6746112\n",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+        "pids.current": "2\n",
+        "pids.events": "max 0\n"
+      }
+    }
+  },
+  "oom_after": {
+    "oom_kill": 0
+  },
+  "summary": "pass",
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "dc0d7b526a3a9a9265142fe8e903984c03f8d605ac4ba6f14d15d27988a69581fb05fc06cd2a6d79f6eaf68ba9725f2eb38b5ddd64ad166faadad279af776c9e"
+  }
+}

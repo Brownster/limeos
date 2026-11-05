@@ -1,0 +1,23 @@
+{
+  "method": "Direct inspection of all five original clipped PNGs and all six corrected document-rectangle PNGs",
+  "original_fixture": "4a165707d5630828c864418ecb86a196f135609f",
+  "original_capture_result": "Functional status/geometry checks pass; WebDriver clips tall panels and does not establish complete panel appearance",
+  "corrected_fixture": "23eeaa552fd286245086e1ca09aa33042499fb14",
+  "corrected_capture_checks": {
+    "policy-desktop": "Correct partial-coverage guidance and save confirmation, threshold one and full form visible",
+    "incident-desktop": "Open warning, one delivered incident, acknowledgment control visible",
+    "recovery-desktop": "Clear alert and two delivered incident/recovery rows visible",
+    "acknowledged-mobile": "Narrow transition/history content visible; horizontal table overflow stays within its region",
+    "acknowledged-mobile-right": "Right edge shows both delivered states and persisted incident acknowledgment; cell labels wrap",
+    "paused-mobile": "Paused schedule, creation controls and empty password field visible"
+  },
+  "requested_png_dimensions_match_recorded_target": true,
+  "covered_states_visual_acceptance": true,
+  "narrow_page_overflow_regression_passed": true,
+  "limits": [
+    "Table content is intentionally viewed at separate horizontal scroll positions",
+    "Chromium scrollbar/reflow can change adjacent spacing between captures",
+    "This is not a pixel-perfect audit of all views or complete mobile/UI parity",
+    "Production TLS trust and browser sandbox hardening are outside the disposable fixture"
+  ]
+}
