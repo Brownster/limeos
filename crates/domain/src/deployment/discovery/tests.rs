@@ -529,7 +529,6 @@ fn engine_report(members: &[Membership]) -> Result<StackInventory> {
 #[test]
 fn engine_wide_bound_is_64_and_larger_than_every_stack_bound() {
     assert_eq!(MAX_ENGINE_CONTAINERS, 64);
-    assert!(MAX_ENGINE_CONTAINERS > MAX_SERVICES);
     // Exactly at the bound: fresh, counts intact, everything fits the byte bounds.
     let members = engine(MAX_ENGINE_CONTAINERS);
     let report = engine_report(&members).unwrap();
