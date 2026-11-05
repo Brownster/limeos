@@ -1,0 +1,22 @@
+{
+  "method": "Direct visual inspection of all three original PNG viewports",
+  "incident-desktop": {
+    "dimensions": [1100, 757],
+    "observed": "Schedule form, empty permission password field, history toggle and inaccurate automatic-observation availability notice",
+    "notification_rows_visible": false
+  },
+  "recovery-desktop": {
+    "dimensions": [1100, 757],
+    "observed": "Authenticated dashboard, resource navigation, history toggle and the same inaccurate availability notice",
+    "notification_rows_visible": false
+  },
+  "paused-mobile": {
+    "dimensions": [390, 701],
+    "observed": "Paused schedule, horizontally scrolling schedule table and creation controls; horizontal page overflow remains to review",
+    "notification_rows_visible": false
+  },
+  "incident_recovery_and_acknowledgment_visual_acceptance": false,
+  "complete_mobile_layout_acceptance": false,
+  "functional_control_flow_evidence": "Actual browser DOM assertions joined to real HTTP statuses and independent SQLite history",
+  "follow_up": "Correct availability copy and capture the actual target panels when qualifying new package assets"
+}

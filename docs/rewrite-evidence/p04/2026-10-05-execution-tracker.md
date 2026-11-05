@@ -631,3 +631,37 @@ are untouched. This accepts the covered standard AMD64 API/runtime flow; install
 browser/UI, ARM64/Pi, upgrade/return, footprint/soak, remaining B1/other A/B/P04,
 independent A1 churn, performance and P05/P06 remain open. Holly's Pi and frozen
 application were untouched; nothing was pushed.
+
+## 5 November: actual installed B1 browser controls pass
+
+The [installed browser packet](2026-11-05-b1-installed-browser/README.md) binds
+fixture `a652a7b` (749 inputs) to the same signed `0.4.13+coreopen.1` package
+source `ce2e916` (747 inputs), with exactly two new test files. All executable/UI
+bytes still match source `e417751`. The canonical 1,024-MiB/two-vCPU runner and
+application origin/configuration/reader policy/unit files are unchanged.
+
+Chromium uses actual package assets through Caddy HTTPS and the real API. Browser
+login, permission refusal, password enablement/relogin, policy save and schedule
+creation receive the expected real statuses. The ordinary timer publishes one
+incident; exact history and the same browser session survive Core SIGKILL and
+automatic restart. Starting the same actual container produces one recovery.
+UI acknowledgment and pause persist after another Core crash/reload. Exactly two
+occurrences/jobs/results and notifications remain. The guest-wide OOM-kill counter
+stays zero; coverage remains container-only and partial.
+
+Eighteen scoped current-source cases, Ruff/format/repository/diff checks pass.
+The first native wrong-exception expectations and first installed pre-install
+OOM-counter-path failure remain archived. That fixture error was corrected before
+the fresh successful guest; no application action was retried. The successful
+original VM completes 16:04:08–16:07:28 UTC, exit zero, unchanged 749 inputs,
+no sampled stop and minimum availability 9,391,218,688 bytes. All 16 original
+recorded native qualification PIDs and both exact VM scratch directories are gone.
+
+This accepts the covered installed UI control flow. Inaccurate history/policy/save
+copy still says automatic observations are unavailable. Phase viewport screenshots
+do not show the notification rows; targeted captures/mobile overflow review stay
+open. Correct the copy and qualify the new assets next. Disposable local-certificate
+acceptance/browser sandbox settings are not production browser/TLS qualification.
+Current ARM64/Pi/upgrade/return/footprint/soak, remaining B1/A/B/P04, independent
+A1 churn, performance and P05/P06 remain open. Holly's Pi and the frozen app were
+untouched; nothing was pushed.

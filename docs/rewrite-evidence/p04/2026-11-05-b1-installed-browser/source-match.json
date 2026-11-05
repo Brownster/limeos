@@ -1,0 +1,47 @@
+{
+  "fixture_source": "a652a7b4b3345676dd3f89971f17f774a0be1a99",
+  "package_source": "ce2e9163a7a64ce57f0936034c81cfdf72c439d3",
+  "binary_source": "e417751ba57a3945fb47e60d513c087f75d5da7b",
+  "ui_source": "e417751ba57a3945fb47e60d513c087f75d5da7b",
+  "fixture_input_count": 749,
+  "package_input_count": 747,
+  "original_binary_input_count": 740,
+  "application_inputs_unchanged": true,
+  "test_only_additions_since_current_package": {
+    "tests/privileged_vm/p04_automation_browser_guest.py": "0c9950a8722980bbafcdf5d0959d1651414989566d07258ca265ddff005a8487",
+    "tests/reference/test_p04_automation_browser_guest.py": "3b0a8713a513d1102105eaa87a2a1aad4407fd9bcefd4a9567bd0ec48033ff9d"
+  },
+  "production_changes_since_binary_build": {
+    "packaging/systemd/limeos-core.service": {
+      "before": "210f1b1c611bf3b1c9b9a72e1659b6136b2c89fc0396501152f6323414492d72",
+      "after": "f74feeda16668e96f504ffe3e363a727d5d21c17b44e4569c80f698e11b65a7c"
+    }
+  },
+  "native_reference_cases": 18,
+  "canonical_runner_unchanged": true,
+  "guest_modules_per_attempt": 34,
+  "installed_browser_control_flow_passed": true,
+  "truthful_status_copy_complete": false,
+  "b1_complete": false,
+  "arm64_pi_upgrade_return_soak_qualified": false,
+  "checks": {
+    "reference5": {
+      "started": "2026-11-05T16:03:24.768890+00:00",
+      "ended": "2026-11-05T16:03:25.612917+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 10152833024,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    },
+    "vm2": {
+      "started": "2026-11-05T16:04:08.032802+00:00",
+      "ended": "2026-11-05T16:07:28.811720+00:00",
+      "exit_code": 0,
+      "minimum_available_bytes": 9391218688,
+      "guard_triggered": false,
+      "inputs_unchanged": true
+    }
+  },
+  "original_native_pids_absent": 16,
+  "owned_vm_scratch_removed": 2
+}

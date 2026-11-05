@@ -125,10 +125,28 @@ the SUID/SGID file-bit restriction; NoNewPrivileges remains its separate exec
 barrier. The covered standard AMD64 API/runtime flow passes, while installed
 browser/UI, current ARM64/Pi/return/soak and remaining B1 parity still need evidence.
 
+The [installed browser journey](rewrite-evidence/p04/2026-11-05-b1-installed-browser/README.md)
+at fixture `a652a7b` now passes the real standard-package UI control flow against
+those same package bytes. Chromium/Caddy use actual authentication, password
+enablement/relogin, policy and schedule forms, real timer incident/recovery,
+acknowledgment and pause. Passive HTTP status/count records and independent SQLite
+snapshots bind each change. Exact history and the same browser session survive
+two actual Core crashes; exactly two occurrences/jobs/results and notifications
+remain. Eighteen scoped current-source cases pass. Both original disposable VMs
+and 16 recorded native PIDs are gone, with no OOM kill or sampled memory stop.
+The pre-install OOM-observer failure and native development failures are retained.
+The current fixture adds two test files to the 747 package inputs; executable/UI
+source remains `e417751`. This accepts the covered browser controls, while stale
+history/policy/save notices still incorrectly deny automatic observations.
+Phase screenshots do not capture the notification rows; targeted visual/mobile
+overflow acceptance remains open. Correct that copy and qualify the resulting
+new packaged assets next. The browser's disposable certificate/sandbox setup is
+explicitly scoped; it adds no product configuration or confinement exception.
+
 The existing package return requirement still includes policy before-images with
 the matching pre-schema-14 database and package assets. Remaining host/SMART/
 mount/protection sources, reviewed replacement/retirement, safe history compaction,
-ordinary external channels and successful normal-timer/current-package/API/UI/
+ordinary external channels, remaining UI/status/visual coverage and current
 ARM64/Pi/return/footprint/soak acceptance remain open. A1/B1, wider A/B/P04 and
 P05/P06 cutover remain unfinished; the historical inventory-performance failure
 is unchanged. Holly's Pi and the frozen app were untouched. The later installed
