@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ResolutionController, validateReason, disabledReason, asView, isJobId, NeedsAttention, ResolutionBody, restoreFocus } from "./helpers/resolution.mjs";
+import { ResolutionController, validateReason, disabledReason, asView, isJobId, NeedsAttention, mergeAttention, ResolutionBody, restoreFocus } from "./helpers/resolution.mjs";
 
 const job = "e".repeat(64);
 const evidence = "9f".repeat(32);
@@ -300,6 +300,42 @@ test("the banner is information for everyone and a resolve button only for admin
   assert.match(other, /Needs attention/); assert.match(other, /Ask an administrator to review/);
   assert.doesNotMatch(other, /<button/);
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(NeedsAttention, { jobs: [], admin: true, ...props })), /attention|<button|<section/i);
+});
+
+const listed = (id, over = {}) => ({
+  job: id.repeat(64), owner: "bob", kind: "container", operation: "restart", state: "needs_intervention",
+  resource: `container:${container("a")}`, targets: [`container:${container("a")}`], created_at: 100, ...over,
+});
+test("administrators merge their own stuck jobs with the listing, once each, naming other owners", () => {
+  const own = [{ id: "1".repeat(64), title: "Restart · aaaaaaaaaaaa" }];
+  const all = [
+    listed("1", { owner: "alice" }), // the same job as the own entry
+    listed("2"),
+    listed("3", { kind: "stack", operation: "stop", resource: "stack:media" }),
+    listed("2"), // repeated by a racing refresh
+  ];
+  assert.deepEqual(mergeAttention(own, all, "container"), [
+    own[0], { id: "2".repeat(64), title: "Restart · aaaaaaaaaaaa", owner: "bob" },
+  ]);
+  assert.deepEqual(mergeAttention([], all, "stack"), [
+    { id: "3".repeat(64), title: "Stop stack · media", owner: "bob" },
+  ]);
+  assert.deepEqual(mergeAttention(own, [], "container"), own);
+  const props = { admin: true, csrf: "c", expired() {}, changed() {} };
+  const html = renderToStaticMarkup(React.createElement(NeedsAttention, { jobs: mergeAttention(own, all, "container"), ...props }));
+  assert.match(html, /Needs attention · 2 operations/);
+  assert.match(html, /Review and resolve Restart · aaaaaaaaaaaa/);
+  assert.equal([...html.matchAll(/owned by bob/g)].length, 1);
+  assert.doesNotMatch(html, /owned by alice/);
+});
+
+test("a viewer without the listing sees the unchanged banner with no owner labels", () => {
+  const own = [{ id: job, title: "Restart · aaaaaaaaaaaa" }];
+  const merged = mergeAttention(own, [], "container");
+  assert.deepEqual(merged, own);
+  const html = renderToStaticMarkup(React.createElement(NeedsAttention, { jobs: merged, admin: false, csrf: "c", expired() {}, changed() {} }));
+  assert.match(html, /Ask an administrator to review/);
+  assert.doesNotMatch(html, /owned by|<button/);
 });
 
 test("two banners on one page (containers and stacks) never share an element id", () => {

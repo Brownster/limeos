@@ -5,11 +5,12 @@ import type {
   PlannedRestart,
   Resource,
   RestartJob,
+  NeedsAttentionJob,
   ContainerAction,
   ContainerLogs,
 } from "../../contracts/generated/types";
 import { api, ApiError } from "./api";
-import { NeedsAttention } from "./ResolutionPanel";
+import { mergeAttention, NeedsAttention } from "./ResolutionPanel";
 
 function message(error: unknown): string {
   return error instanceof ApiError
@@ -296,6 +297,8 @@ export function ContainerJobs({
   changed?: () => void;
 }) {
   const [jobs, setJobs] = useState<RestartJob[]>([]);
+  // Other principals' stuck jobs, for administrators only.
+  const [listed, setListed] = useState<NeedsAttentionJob[]>([]);
   const [error, setError] = useState("");
   const [events, setEvents] = useState<{ id: string; labels: string[] } | null>(
     null,
@@ -311,6 +314,12 @@ export function ContainerJobs({
         const next = await api.restartJobs();
         if (!active) return;
         setJobs(next);
+        // Read-only and best effort: the banner falls back to the own jobs.
+        if (admin)
+          api
+            .needsAttention()
+            .then((all) => active && setListed(all))
+            .catch(() => active && setListed([]));
         setError("");
         if (
           next.some((job) =>
@@ -333,7 +342,7 @@ export function ContainerJobs({
       active = false;
       clearTimeout(timer);
     };
-  }, [revision, expired]);
+  }, [revision, expired, admin]);
   async function cancel(id: string) {
     try {
       await api.cancelRestart(id, csrf);
@@ -357,7 +366,17 @@ export function ContainerJobs({
       setError(message(e));
     }
   }
-  if (!jobs.length && !error) return null;
+  const attention = mergeAttention(
+    jobs
+      .filter((job) => job.state === "needs_intervention")
+      .map((job) => ({
+        id: job.id,
+        title: `${labels[job.plan.operation ?? "restart"]} · ${job.plan.expected.resource.slice(10, 22)}`,
+      })),
+    listed,
+    "container",
+  );
+  if (!jobs.length && !attention.length && !error) return null;
   return (
     <section className="operations" aria-labelledby="operations-heading">
       <h2 id="operations-heading">Recent container operations</h2>
@@ -367,12 +386,7 @@ export function ContainerJobs({
         </p>
       )}
       <NeedsAttention
-        jobs={jobs
-          .filter((job) => job.state === "needs_intervention")
-          .map((job) => ({
-            id: job.id,
-            title: `${labels[job.plan.operation ?? "restart"]} · ${job.plan.expected.resource.slice(10, 22)}`,
-          }))}
+        jobs={attention}
         admin={admin}
         csrf={csrf}
         expired={expired}

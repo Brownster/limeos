@@ -16,6 +16,7 @@ import type {
   PlannedStackAction,
   StackJob,
   StackJobProgress,
+  NeedsAttentionJob,
 } from "../../contracts/generated/types";
 export class ApiError extends Error {
   readonly detail: ErrorEnvelope;
@@ -120,6 +121,8 @@ export const api = {
       body: JSON.stringify({ proposal, approval, idempotency_key: key }),
     }),
   stackJobs: () => request<StackJob[]>("/stack/jobs"),
+  /** Administrators only: every principal's stuck container and stack jobs. */
+  needsAttention: () => request<NeedsAttentionJob[]>("/jobs/needs-attention"),
   stackProgress: (id: string, after = 0) =>
     request<StackJobProgress>(`/stack/jobs/${id}?after=${after}`),
   cancelStack: (id: string, csrf: string, plan = false) =>

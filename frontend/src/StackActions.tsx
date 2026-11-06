@@ -7,12 +7,13 @@ import {
 } from "react";
 import type {
   ContainerAction,
+  NeedsAttentionJob,
   StackJob,
   StackReceipt,
 } from "../../contracts/generated/types";
 import { api, ApiError } from "./api";
 import { containFocus, message } from "./operation-ui";
-import { NeedsAttention } from "./ResolutionPanel";
+import { mergeAttention, NeedsAttention } from "./ResolutionPanel";
 import {
   StackActionController,
   stackTargets,
@@ -319,6 +320,8 @@ export function StackJobs({
   changed?: () => void;
 }) {
   const [jobs, setJobs] = useState<StackJob[]>([]);
+  // Other principals' stuck jobs, for administrators only.
+  const [listed, setListed] = useState<NeedsAttentionJob[]>([]);
   // A failed job is a partly-done run: its per-member receipt is needed to say so.
   const [receipts, setReceipts] = useState<Record<string, StackReceipt | null>>({});
   const requested = useRef(new Set<string>());
@@ -339,6 +342,12 @@ export function StackJobs({
         const next = await api.stackJobs();
         if (!active) return;
         setJobs(next);
+        // Read-only and best effort: the banner falls back to the own jobs.
+        if (admin)
+          api
+            .needsAttention()
+            .then((all) => active && setListed(all))
+            .catch(() => active && setListed([]));
         setError("");
         for (const job of next) {
           if (job.state !== "failed" || requested.current.has(job.id)) continue;
@@ -371,7 +380,7 @@ export function StackJobs({
       active = false;
       clearTimeout(timer);
     };
-  }, [revision, expired]);
+  }, [revision, expired, admin]);
   async function cancel(id: string) {
     try {
       await api.cancelStack(id, csrf);
@@ -396,7 +405,17 @@ export function StackJobs({
       setError(message(e));
     }
   }
-  if (!jobs.length && !error) return null;
+  const attention = mergeAttention(
+    jobs
+      .filter((job) => job.state === "needs_intervention")
+      .map((job) => ({
+        id: job.id,
+        title: `${labels[job.plan.operation]} stack · ${job.plan.expected.resource.slice(6)}`,
+      })),
+    listed,
+    "stack",
+  );
+  if (!jobs.length && !attention.length && !error) return null;
   return (
     <section className="operations" aria-labelledby="stack-operations-heading">
       <h3 id="stack-operations-heading">Recent stack operations</h3>
@@ -406,12 +425,7 @@ export function StackJobs({
         </p>
       )}
       <NeedsAttention
-        jobs={jobs
-          .filter((job) => job.state === "needs_intervention")
-          .map((job) => ({
-            id: job.id,
-            title: `${labels[job.plan.operation]} stack · ${job.plan.expected.resource.slice(6)}`,
-          }))}
+        jobs={attention}
         admin={admin}
         csrf={csrf}
         expired={expired}

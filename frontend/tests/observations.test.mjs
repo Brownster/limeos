@@ -39,7 +39,7 @@ const actions = moduleCode(
 ).replace(
   '"./ResolutionPanel"',
   JSON.stringify(
-    `data:text/javascript,${encodeURIComponent("export const NeedsAttention = () => null;")}`,
+    `data:text/javascript,${encodeURIComponent("export const NeedsAttention = () => null; export const mergeAttention = (own) => own;")}`,
   ),
 );
 const actionsURL = `data:text/javascript;base64,${Buffer.from(actions).toString("base64")}`;

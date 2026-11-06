@@ -8,8 +8,11 @@ import {
   type Ref,
 } from "react";
 import type {
+  ContainerAction,
   ContainerSnapshot,
   DeclaredOutcome,
+  NeedsAttentionJob,
+  ResolveKind,
   ResolutionTargetView,
   ResolutionView,
 } from "../../contracts/generated/types";
@@ -29,6 +32,39 @@ import {
 export interface AttentionJob {
   id: string;
   title: string;
+  /** Username of another principal's job; absent for the viewer's own. */
+  owner?: string;
+}
+
+const operationLabels: Record<ContainerAction, string> = {
+  restart: "Restart",
+  start: "Start",
+  stop: "Stop",
+};
+/** Same wording as the job rows, so one job reads the same from either list. */
+function listedTitle(job: NeedsAttentionJob): string {
+  return job.kind === "stack"
+    ? `${operationLabels[job.operation]} stack · ${job.resource.slice(6)}`
+    : `${operationLabels[job.operation]} · ${job.resource.slice(10, 22)}`;
+}
+/**
+ * The viewer's own stuck jobs plus the administrator listing for this kind,
+ * once each. An own job keeps its own entry and no owner label; every other
+ * entry names its owner.
+ */
+export function mergeAttention(
+  own: AttentionJob[],
+  listed: NeedsAttentionJob[],
+  kind: ResolveKind,
+): AttentionJob[] {
+  const seen = new Set(own.map((job) => job.id));
+  const others: AttentionJob[] = [];
+  for (const job of listed) {
+    if (job.kind !== kind || seen.has(job.job)) continue;
+    seen.add(job.job);
+    others.push({ id: job.job, title: listedTitle(job), owner: job.owner });
+  }
+  return [...own, ...others];
 }
 
 const meaning: Record<DeclaredOutcome, string> = {
@@ -117,6 +153,9 @@ export function NeedsAttention({
         {jobs.map((job) => (
           <li key={job.id}>
             {job.title}
+            {job.owner !== undefined && (
+              <span className="badge"> owned by {job.owner}</span>
+            )}
             {admin && (
               <button
                 className="quiet"

@@ -84,6 +84,30 @@ Headers: `Origin`, `X-CSRF-Token`, `Content-Type: application/json`. Body, no ot
 
 A browser or proxy deadline does not interrupt a decision that was already recorded; the executor step and completion continue, and GET shows the outcome.
 
+## Finding other principals' stuck jobs
+
+`GET /api/v1/container/jobs` and `/api/v1/stack/jobs` list only the caller's own jobs, so an operator's stuck job would be invisible to an administrator, while its locks block everyone. `GET /api/v1/jobs/needs-attention` is the administrator's read-only view of all of them. Same credential rule as the evidence route: session cookie only, any `Authorization` or `X-API-Key` header is 403, 401 without a session, 403 for a non-administrator (who keep seeing only their own jobs). A GET, so no CSRF.
+
+```json
+[
+  {
+    "job": "e5…",
+    "owner": "bob",
+    "kind": "container",
+    "operation": "restart",
+    "state": "needs_intervention",
+    "resource": "container:aaaa…",
+    "targets": ["container:aaaa…"],
+    "created_at": 1762400000
+  }
+]
+```
+
+- Lists `needs_intervention` container and stack jobs of every principal, plus `running`/`verifying` jobs from an earlier core generation (the same test that lets `POST` accept them). Live jobs of the current core are never listed.
+- Oldest first, at most 64. `owner` is a username. `resource` is `container:<id>` or `stack:<name>`; `targets` are the `container:<id>` resources the action touches. `created_at` is the job's first recorded event, in Unix seconds (0 if none survives).
+- It carries no evidence. Use `GET`/`POST /api/v1/jobs/{id}/resolution` on the listed `job`; both already work for any principal's job when called by an administrator.
+- The UI merges this list into the container and stack "Needs attention" banners for administrators, once per job, with `owned by <username>` on other principals' jobs. Operators and viewers see the banner for their own jobs only, as read-only text.
+
 ## Order and crash safety
 
 1. Core inspects the targets read-only, checks the digest and that the evidence supports `declared`, then durably records the request (`job_resolutions`). The job stays locked.

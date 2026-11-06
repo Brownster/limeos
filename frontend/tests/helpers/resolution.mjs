@@ -21,4 +21,4 @@ const panelURL = encode((await code("ResolutionPanel.tsx"))
   .replace('"./resolution-client"', JSON.stringify(clientURL))
   .replace('"./operation-ui"', JSON.stringify(uiURL)));
 export const { ResolutionController, validateReason, disabledReason, asView, isJobId, declarations } = await import(controllerURL);
-export const { NeedsAttention, ResolutionBody, restoreFocus } = await import(panelURL);
+export const { NeedsAttention, ResolutionBody, restoreFocus, mergeAttention } = await import(panelURL);
