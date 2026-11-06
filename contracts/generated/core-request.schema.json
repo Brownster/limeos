@@ -96,6 +96,76 @@
       ]
     },
     {
+      "description": "Root-peer only. Read-only evidence for a stuck job, as the named\nadministrator would see it over HTTP. `admin` is a username; core\nrefuses anyone who is not currently an administrator.",
+      "type": "object",
+      "properties": {
+        "admin": {
+          "type": "string"
+        },
+        "job": {
+          "type": "string"
+        },
+        "request": {
+          "type": "string",
+          "const": "read_resolution"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version",
+        "admin",
+        "job"
+      ]
+    },
+    {
+      "description": "Root-peer only. The root peer is the re-authentication, so no password\nis sent. Core stores `admin` as the resolving principal and marks the\nreason as entered through `limeosctl`.",
+      "type": "object",
+      "properties": {
+        "admin": {
+          "type": "string"
+        },
+        "declared": {
+          "$ref": "#/$defs/DeclaredOutcome"
+        },
+        "evidence_digest": {
+          "type": "string"
+        },
+        "job": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "request": {
+          "type": "string",
+          "const": "resolve_job"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version",
+        "admin",
+        "job",
+        "declared",
+        "reason",
+        "evidence_digest"
+      ]
+    },
+    {
       "type": "object",
       "properties": {
         "operation": {
@@ -427,6 +497,26 @@
         "running"
       ]
     },
+    "DeclaredOutcome": {
+      "description": "What the administrator declares about the job. Only `AcceptedDivergence`\nrests on the operator's word; the other two are checked against evidence.",
+      "oneOf": [
+        {
+          "description": "The intended end state is present on every target.",
+          "type": "string",
+          "const": "verified_done"
+        },
+        {
+          "description": "Nothing took effect: every target still equals the plan's `expected`.",
+          "type": "string",
+          "const": "not_done"
+        },
+        {
+          "description": "The present state differs from both before and intended; accepted.",
+          "type": "string",
+          "const": "accepted_divergence"
+        }
+      ]
+    },
     "Enrollment": {
       "type": "object",
       "properties": {
@@ -478,16 +568,25 @@
       "additionalProperties": false
     },
     "Operation": {
-      "type": "string",
-      "enum": [
-        "health_read",
-        "media_request",
-        "container_manage",
-        "deployment_manage",
-        "deployment_elevated",
-        "storage_manage",
-        "identity_manage",
-        "automation_manage"
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "health_read",
+            "media_request",
+            "container_manage",
+            "deployment_manage",
+            "deployment_elevated",
+            "storage_manage",
+            "identity_manage",
+            "automation_manage"
+          ]
+        },
+        {
+          "description": "Administrator-only settlement of a `needs_intervention` job. Never\ngrantable to a task token, API key or wildcard scope.",
+          "type": "string",
+          "const": "job_resolve"
+        }
       ]
     },
     "PlannedContainerAction": {

@@ -692,6 +692,26 @@
           }
         ]
       },
+      "DeclaredOutcome": {
+        "description": "What the administrator declares about the job. Only `AcceptedDivergence`\nrests on the operator's word; the other two are checked against evidence.",
+        "oneOf": [
+          {
+            "const": "verified_done",
+            "description": "The intended end state is present on every target.",
+            "type": "string"
+          },
+          {
+            "const": "not_done",
+            "description": "Nothing took effect: every target still equals the plan's `expected`.",
+            "type": "string"
+          },
+          {
+            "const": "accepted_divergence",
+            "description": "The present state differs from both before and intended; accepted.",
+            "type": "string"
+          }
+        ]
+      },
       "DeliveryChannel": {
         "enum": [
           "in_app",
@@ -1052,6 +1072,53 @@
             "required": [
               "kind",
               "state"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "declared": {
+                "$ref": "#/components/schemas/DeclaredOutcome"
+              },
+              "kind": {
+                "const": "job_resolution_requested",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "declared"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "job_resolution_withdrawn",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "declared": {
+                "$ref": "#/components/schemas/DeclaredOutcome"
+              },
+              "kind": {
+                "const": "job_resolved",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "declared"
             ],
             "type": "object"
           },
@@ -1560,21 +1627,73 @@
           }
         ]
       },
-      "JobState": {
-        "enum": [
-          "planned",
-          "waiting_approval",
-          "queued",
-          "running",
-          "verifying",
-          "succeeded",
-          "failed",
-          "canceled",
-          "precondition_changed",
-          "outcome_unknown",
-          "needs_intervention"
+      "JobResolution": {
+        "additionalProperties": false,
+        "description": "The completed audit record (step 3). Additional to, never replacing, the\njob's `outcome_unknown`/`needs_intervention` history.",
+        "properties": {
+          "declared": {
+            "$ref": "#/components/schemas/DeclaredOutcome"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/ResolutionEvidence"
+          },
+          "evidence_digest": {
+            "type": "string"
+          },
+          "job": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "resolved_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "resolved_by": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "job",
+          "resolved_by",
+          "declared",
+          "reason",
+          "evidence",
+          "evidence_digest",
+          "requested_at",
+          "resolved_at"
         ],
-        "type": "string"
+        "type": "object"
+      },
+      "JobState": {
+        "oneOf": [
+          {
+            "enum": [
+              "planned",
+              "waiting_approval",
+              "queued",
+              "running",
+              "verifying",
+              "succeeded",
+              "failed",
+              "canceled",
+              "precondition_changed",
+              "outcome_unknown",
+              "needs_intervention"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "resolved",
+            "description": "An administrator settled an uncertain job on evidence. Terminal and\nlock-releasing; the original job, plan and receipts stay unchanged.",
+            "type": "string"
+          }
+        ]
       },
       "MaintenanceWindow": {
         "additionalProperties": false,
@@ -1898,6 +2017,256 @@
           "grant_revision"
         ],
         "type": "object"
+      },
+      "ResolutionEvidence": {
+        "additionalProperties": false,
+        "description": "Evidence for exactly the job's targets, sorted by container ID. Core and\nexecutor build it with the same function so their digests agree.",
+        "properties": {
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/ResolutionTarget"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "targets"
+        ],
+        "type": "object"
+      },
+      "ResolutionMember": {
+        "additionalProperties": false,
+        "description": "One target's outcome as the executor recorded it in the job's receipt. For\na container job there is exactly one; for a stack, one per member.",
+        "properties": {
+          "container": {
+            "description": "Full container ID, without the `container:` prefix.",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/ExecutionState"
+          }
+        },
+        "required": [
+          "container",
+          "state"
+        ],
+        "type": "object"
+      },
+      "ResolutionRequest": {
+        "additionalProperties": false,
+        "description": "A recorded request (step 1). The job stays locked until the executor has\nconfirmed and core has completed it.",
+        "properties": {
+          "declared": {
+            "$ref": "#/components/schemas/DeclaredOutcome"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/ResolutionEvidence"
+          },
+          "evidence_digest": {
+            "type": "string"
+          },
+          "job": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "resolved_by": {
+            "description": "Administrator principal ID.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job",
+          "resolved_by",
+          "declared",
+          "reason",
+          "evidence",
+          "evidence_digest",
+          "requested_at"
+        ],
+        "type": "object"
+      },
+      "ResolutionTarget": {
+        "additionalProperties": false,
+        "description": "One target's fresh, read-only measurement against the plan. A container\nthat no longer exists is recorded with empty `image` and `started_at`,\n`running` false and both flags false (see `is_absent`).",
+        "properties": {
+          "container": {
+            "description": "Full container ID, without the `container:` prefix.",
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "intended_state_reached": {
+            "description": "The plan's action is proven by this target's post-state.",
+            "type": "boolean"
+          },
+          "matches_expected": {
+            "description": "ID, start time, image and running state all equal the plan's `expected`.",
+            "type": "boolean"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "started_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "container",
+          "running",
+          "started_at",
+          "image",
+          "matches_expected",
+          "intended_state_reached"
+        ],
+        "type": "object"
+      },
+      "ResolutionTargetView": {
+        "additionalProperties": false,
+        "description": "One target, plan against fresh measurement.",
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/ContainerSnapshot",
+            "description": "What the plan expected before the action."
+          },
+          "measured": {
+            "$ref": "#/components/schemas/ResolutionTarget",
+            "description": "What a read-only inspection found just now."
+          }
+        },
+        "required": [
+          "expected",
+          "measured"
+        ],
+        "type": "object"
+      },
+      "ResolutionView": {
+        "additionalProperties": false,
+        "description": "`GET /api/v1/jobs/{id}/resolution`. Evidence is fresh on every read and its\ndigest binds a later decision to exactly what was shown.",
+        "properties": {
+          "allowed": {
+            "description": "Declarations the evidence supports now. `accepted_divergence` is always\nlisted while the job is awaiting resolution.",
+            "items": {
+              "$ref": "#/components/schemas/DeclaredOutcome"
+            },
+            "type": "array"
+          },
+          "evidence_digest": {
+            "description": "Present exactly when `targets` is. Send it back unchanged in the POST.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "job": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ResolveKind"
+          },
+          "members": {
+            "description": "The executor's recorded per-target outcomes; absent before any receipt.",
+            "items": {
+              "$ref": "#/components/schemas/ResolutionMember"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "operation": {
+            "$ref": "#/components/schemas/ContainerAction"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResolutionRequest"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A request that is recorded but not yet completed."
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobResolution"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The completed record, once resolved."
+          },
+          "state": {
+            "$ref": "#/components/schemas/JobState"
+          },
+          "targets": {
+            "description": "Empty when the job is not awaiting resolution or is already resolved.",
+            "items": {
+              "$ref": "#/components/schemas/ResolutionTargetView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "job",
+          "state",
+          "kind",
+          "operation",
+          "targets",
+          "allowed"
+        ],
+        "type": "object"
+      },
+      "ResolveKind": {
+        "description": "Which executor table holds the action: one container or a whole stack.",
+        "enum": [
+          "container",
+          "stack"
+        ],
+        "type": "string"
+      },
+      "ResolveStatus": {
+        "oneOf": [
+          {
+            "const": "resolved",
+            "description": "HTTP 200. The executor and core both released the job.",
+            "type": "string"
+          },
+          {
+            "const": "pending",
+            "description": "HTTP 202. The request is recorded and the job stays held; the executor\nwas unreachable or its answer was lost. Core retries on its own, and the\nsame POST may be repeated.",
+            "type": "string"
+          },
+          {
+            "const": "stale_evidence",
+            "description": "HTTP 409. The state changed since the evidence was shown. Nothing is\nheld; `view` carries the fresh evidence.",
+            "type": "string"
+          },
+          {
+            "const": "unsupported_declaration",
+            "description": "HTTP 409. The evidence does not support `declared`; `blocking` names the\ntargets that differ and `view` carries the evidence.",
+            "type": "string"
+          }
+        ]
       },
       "Resource": {
         "additionalProperties": false,
@@ -3680,37 +4049,7 @@
             "description": "Structured safe error"
           },
           "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "audit_id": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "$ref": "#/components/schemas/ErrorCode"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "retry": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "retry",
-                    "audit_id"
-                  ],
-                  "title": "ErrorEnvelope",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Structured safe error"
+            "description": "Authentication failed"
           },
           "403": {
             "content": {
@@ -11595,70 +11934,10 @@
             "description": "Structured safe error"
           },
           "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "audit_id": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "$ref": "#/components/schemas/ErrorCode"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "retry": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "retry",
-                    "audit_id"
-                  ],
-                  "title": "ErrorEnvelope",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Structured safe error"
+            "description": "Session expired or revoked"
           },
           "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "audit_id": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "$ref": "#/components/schemas/ErrorCode"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "retry": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "retry",
-                    "audit_id"
-                  ],
-                  "title": "ErrorEnvelope",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Structured safe error"
+            "description": "Complete inventory is outside current grants"
           },
           "409": {
             "content": {
@@ -11727,37 +12006,7 @@
             "description": "Structured safe error"
           },
           "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "audit_id": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "$ref": "#/components/schemas/ErrorCode"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "retry": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "retry",
-                    "audit_id"
-                  ],
-                  "title": "ErrorEnvelope",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Structured safe error"
+            "description": "Bounded inventory is unavailable"
           }
         },
         "security": [
@@ -12008,6 +12257,716 @@
             "description": "Structured safe error"
           }
         }
+      }
+    },
+    "/api/v1/jobs/{id}/resolution": {
+      "get": {
+        "description": "Administrator session only; a token, API key or any Authorization header is refused with 403. Fresh read-only inspection of exactly the job's targets (never a start, stop or restart): plan against measurement per target, the receipt's per-member outcomes, the evidence digest to send back, and any pending request or completed record. 503 when the executor cannot be read.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "`GET /api/v1/jobs/{id}/resolution`. Evidence is fresh on every read and its\ndigest binds a later decision to exactly what was shown.",
+                  "properties": {
+                    "allowed": {
+                      "description": "Declarations the evidence supports now. `accepted_divergence` is always\nlisted while the job is awaiting resolution.",
+                      "items": {
+                        "$ref": "#/components/schemas/DeclaredOutcome"
+                      },
+                      "type": "array"
+                    },
+                    "evidence_digest": {
+                      "description": "Present exactly when `targets` is. Send it back unchanged in the POST.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "job": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "$ref": "#/components/schemas/ResolveKind"
+                    },
+                    "members": {
+                      "description": "The executor's recorded per-target outcomes; absent before any receipt.",
+                      "items": {
+                        "$ref": "#/components/schemas/ResolutionMember"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
+                    "operation": {
+                      "$ref": "#/components/schemas/ContainerAction"
+                    },
+                    "pending": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/ResolutionRequest"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "A request that is recorded but not yet completed."
+                    },
+                    "resolution": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/JobResolution"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The completed record, once resolved."
+                    },
+                    "state": {
+                      "$ref": "#/components/schemas/JobState"
+                    },
+                    "targets": {
+                      "description": "Empty when the job is not awaiting resolution or is already resolved.",
+                      "items": {
+                        "$ref": "#/components/schemas/ResolutionTargetView"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "job",
+                    "state",
+                    "kind",
+                    "operation",
+                    "targets",
+                    "allowed"
+                  ],
+                  "title": "ResolutionView",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Evidence and any existing record"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "description": "Administrator session with CSRF, the Origin rule and the administrator's own password (fresh re-authentication; wrong password is 401 unauthenticated, attempts share the login rate limit, 429). Records the decision, asks the executor to resolve its own rows, then releases the job, in that order. 200 resolved; 202 pending (recorded, job still held, core retries, repeating the same POST is safe); 409 with status stale_evidence (re-fetch) or unsupported_declaration (blocking lists the differing containers); other 409 when another request is open or the job is not awaiting resolution; 403 for a non-administrator.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "description": "`POST /api/v1/jobs/{id}/resolution`.",
+                "properties": {
+                  "declared": {
+                    "$ref": "#/components/schemas/DeclaredOutcome"
+                  },
+                  "evidence_digest": {
+                    "description": "The `evidence_digest` of the `ResolutionView` the administrator saw.",
+                    "type": "string"
+                  },
+                  "password": {
+                    "description": "The administrator's own password: fresh re-authentication.",
+                    "type": "string"
+                  },
+                  "reason": {
+                    "description": "1 to 500 characters, no control characters; at least 20 for\n`accepted_divergence`.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "declared",
+                  "reason",
+                  "evidence_digest",
+                  "password"
+                ],
+                "title": "ResolveJobInput",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "blocking": {
+                      "description": "Container IDs whose measured state blocks the declaration.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "resolution": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/JobResolution"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "$ref": "#/components/schemas/ResolveStatus"
+                    },
+                    "view": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/ResolutionView"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "blocking"
+                  ],
+                  "title": "ResolveJobResponse",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Resolved"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "blocking": {
+                      "description": "Container IDs whose measured state blocks the declaration.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "resolution": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/JobResolution"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "$ref": "#/components/schemas/ResolveStatus"
+                    },
+                    "view": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/ResolutionView"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "blocking"
+                  ],
+                  "title": "ResolveJobResponse",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Recorded and held; the executor could not confirm"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "blocking": {
+                      "description": "Container IDs whose measured state blocks the declaration.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "resolution": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/JobResolution"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "$ref": "#/components/schemas/ResolveStatus"
+                    },
+                    "view": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/ResolutionView"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "blocking"
+                  ],
+                  "title": "ResolveJobResponse",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "stale_evidence or unsupported_declaration (this body), or a structured safe error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "audit_id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "$ref": "#/components/schemas/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retry",
+                    "audit_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured safe error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
       }
     },
     "/api/v1/observations/stream": {
@@ -14728,70 +15687,10 @@
             "description": "Structured safe error"
           },
           "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "audit_id": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "$ref": "#/components/schemas/ErrorCode"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "retry": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "retry",
-                    "audit_id"
-                  ],
-                  "title": "ErrorEnvelope",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Structured safe error"
+            "description": "Storage authority is required"
           },
           "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "audit_id": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "$ref": "#/components/schemas/ErrorCode"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "retry": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "retry",
-                    "audit_id"
-                  ],
-                  "title": "ErrorEnvelope",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Structured safe error"
+            "description": "Collection changed or expired"
           },
           "429": {
             "content": {
@@ -14827,37 +15726,7 @@
             "description": "Structured safe error"
           },
           "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "additionalProperties": false,
-                  "properties": {
-                    "audit_id": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "$ref": "#/components/schemas/ErrorCode"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "retry": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "retry",
-                    "audit_id"
-                  ],
-                  "title": "ErrorEnvelope",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Structured safe error"
+            "description": "Complete live evidence is unavailable"
           }
         },
         "security": [

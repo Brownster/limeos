@@ -129,6 +129,9 @@ fn main() {
     emit!("stack-job", limeos_domain::StackJob);
     emit!("queue-stack-input", limeos_contracts::QueueStackInput);
     emit!("stack-job-progress", limeos_contracts::StackJobProgress);
+    emit!("resolution-view", limeos_contracts::ResolutionView);
+    emit!("resolve-job-input", limeos_contracts::ResolveJobInput);
+    emit!("resolve-job-response", limeos_contracts::ResolveJobResponse);
     emit!("container-logs", limeos_domain::ContainerLogs);
     emit!("compose-catalog", limeos_domain::ComposeCatalog);
     emit!("compose-selection", limeos_domain::ComposeSelection);
@@ -382,6 +385,19 @@ fn main() {
     ts!(limeos_contracts::StackInput);
     ts!(limeos_contracts::QueueStackInput);
     ts!(limeos_contracts::StackJobProgress);
+    ts!(limeos_domain::DeclaredOutcome);
+    ts!(limeos_domain::ResolveKind);
+    ts!(limeos_domain::ResolutionTarget);
+    ts!(limeos_domain::ResolutionEvidence);
+    ts!(limeos_domain::ResolutionMember);
+    ts!(limeos_domain::ResolutionRequest);
+    ts!(limeos_domain::ResolveReceipt);
+    ts!(limeos_domain::JobResolution);
+    ts!(limeos_contracts::ResolutionTargetView);
+    ts!(limeos_contracts::ResolutionView);
+    ts!(limeos_contracts::ResolveJobInput);
+    ts!(limeos_contracts::ResolveStatus);
+    ts!(limeos_contracts::ResolveJobResponse);
     ts!(limeos_executor_protocol::Request);
     ts!(limeos_domain::deployment::discovery::StackInventory);
     ts!(limeos_domain::deployment::discovery::SourceStatus);
@@ -614,7 +630,27 @@ fn main() {
     }
     openapi["paths"]["/api/v1/container/restart/jobs/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"parameters":[{"name":"after","in":"query","schema":{"type":"integer","minimum":0,"default":0}}],"responses":{"200":{"description":"Owner-scoped durable progress, at most 128 events","content":{"application/json":{"schema":schema_for!(limeos_contracts::JobProgress)}}}}}});
     openapi["paths"]["/api/v1/stack/jobs/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"parameters":[{"name":"after","in":"query","schema":{"type":"integer","minimum":0,"default":0}}],"responses":{"200":{"description":"Owner-scoped durable progress, at most 128 events, with per-member executor outcomes once recorded","content":{"application/json":{"schema":schema_for!(limeos_contracts::StackJobProgress)}}}}}});
-    openapi["paths"]["/api/v1/stack/jobs"]["get"] = serde_json::json!({"security":[{"session":[]}],"responses":{"200":{"description":"Latest 32 owned, currently authorized whole-stack jobs","content":{"application/json":{"schema":schema_for!(Vec<limeos_domain::StackJob>)}}}}});
+    openapi["paths"]["/api/v1/jobs/{id}/resolution"] = serde_json::json!({
+        "get":{"security":[{"session":[]}],
+            "description":"Administrator session only; a token, API key or any Authorization header is refused with 403. Fresh read-only inspection of exactly the job's targets (never a start, stop or restart): plan against measurement per target, the receipt's per-member outcomes, the evidence digest to send back, and any pending request or completed record. 503 when the executor cannot be read.",
+            "responses":{"200":{"description":"Evidence and any existing record","content":{"application/json":{"schema":schema_for!(limeos_contracts::ResolutionView)}}}}},
+        "post":{"security":[{"session":[]}],
+            "description":"Administrator session with CSRF, the Origin rule and the administrator's own password (fresh re-authentication; wrong password is 401 unauthenticated, attempts share the login rate limit, 429). Records the decision, asks the executor to resolve its own rows, then releases the job, in that order. 200 resolved; 202 pending (recorded, job still held, core retries, repeating the same POST is safe); 409 with status stale_evidence (re-fetch) or unsupported_declaration (blocking lists the differing containers); other 409 when another request is open or the job is not awaiting resolution; 403 for a non-administrator.",
+            "parameters":[
+                {"name":"Origin","in":"header","required":true,"schema":{"type":"string"}},
+                {"name":"X-CSRF-Token","in":"header","required":true,"schema":{"type":"string","minLength":64,"maxLength":64}}
+            ],
+            "requestBody":{"required":true,"content":{"application/json":{"schema":schema_for!(limeos_contracts::ResolveJobInput)}}},
+            "responses":{
+                "200":{"description":"Resolved","content":{"application/json":{"schema":schema_for!(limeos_contracts::ResolveJobResponse)}}},
+                "202":{"description":"Recorded and held; the executor could not confirm","content":{"application/json":{"schema":schema_for!(limeos_contracts::ResolveJobResponse)}}}}
+        }
+    });
+    openapi["paths"]["/api/v1/jobs/{id}/resolution"]["post"]["responses"]["409"] = serde_json::json!({
+        "description":"stale_evidence or unsupported_declaration (this body), or a structured safe error",
+        "content":{"application/json":{"schema":schema_for!(limeos_contracts::ResolveJobResponse)}}
+    });
+    openapi["paths"]["/api/v1/stack/jobs"]["get"] =serde_json::json!({"security":[{"session":[]}],"responses":{"200":{"description":"Latest 32 owned, currently authorized whole-stack jobs","content":{"application/json":{"schema":schema_for!(Vec<limeos_domain::StackJob>)}}}}});
     openapi["paths"]["/api/v1/stack/plans"]["post"]["description"] = serde_json::json!(
         "Whole-stack start, stop or restart of a registered Compose project with fresh sources and no inventory issue. Binds the exact full member IDs and states, excluding one-off containers. Never up, down or recreate; no Compose file is read or written."
     );
@@ -697,6 +733,10 @@ fn main() {
     for path in openapi["paths"].as_object_mut().unwrap().values_mut() {
         for operation in path.as_object_mut().unwrap().values_mut() {
             for code in ["400", "401", "403", "409", "429", "503"] {
+                // A route may document its own body for a code (resolution 409).
+                if operation["responses"].get(code).is_some() {
+                    continue;
+                }
                 operation["responses"][code] = serde_json::json!({
                     "description":"Structured safe error", "content":{"application/json":{"schema":schema_for!(limeos_contracts::ErrorEnvelope)}}
                 });
@@ -845,6 +885,15 @@ fn main() {
             "{}{}",
             std::fs::read_to_string(dir.join("authority-v14.sql")).unwrap(),
             include_str!("../../../crates/persistence/src/migration-v15.sql")
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("authority-v16.sql"),
+        format!(
+            "{}{}",
+            std::fs::read_to_string(dir.join("authority-v15.sql")).unwrap(),
+            include_str!("../../../crates/persistence/src/migration-v16.sql")
         ),
     )
     .unwrap();

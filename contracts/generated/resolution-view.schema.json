@@ -1,0 +1,386 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ResolutionView",
+  "description": "`GET /api/v1/jobs/{id}/resolution`. Evidence is fresh on every read and its\ndigest binds a later decision to exactly what was shown.",
+  "type": "object",
+  "properties": {
+    "allowed": {
+      "description": "Declarations the evidence supports now. `accepted_divergence` is always\nlisted while the job is awaiting resolution.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DeclaredOutcome"
+      }
+    },
+    "evidence_digest": {
+      "description": "Present exactly when `targets` is. Send it back unchanged in the POST.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "job": {
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/ResolveKind"
+    },
+    "members": {
+      "description": "The executor's recorded per-target outcomes; absent before any receipt.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/$defs/ResolutionMember"
+      }
+    },
+    "operation": {
+      "$ref": "#/$defs/ContainerAction"
+    },
+    "pending": {
+      "description": "A request that is recorded but not yet completed.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ResolutionRequest"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resolution": {
+      "description": "The completed record, once resolved.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/JobResolution"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "state": {
+      "$ref": "#/$defs/JobState"
+    },
+    "targets": {
+      "description": "Empty when the job is not awaiting resolution or is already resolved.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ResolutionTargetView"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "job",
+    "state",
+    "kind",
+    "operation",
+    "targets",
+    "allowed"
+  ],
+  "$defs": {
+    "ContainerAction": {
+      "type": "string",
+      "enum": [
+        "restart",
+        "start",
+        "stop"
+      ]
+    },
+    "ContainerSnapshot": {
+      "description": "Selected inspection evidence. Environment variables, labels and host paths\nnever enter a plan. The full ID, image and start timestamp identify an instance.",
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "resource": {
+          "type": "string"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "started_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "image",
+        "started_at",
+        "running"
+      ]
+    },
+    "DeclaredOutcome": {
+      "description": "What the administrator declares about the job. Only `AcceptedDivergence`\nrests on the operator's word; the other two are checked against evidence.",
+      "oneOf": [
+        {
+          "description": "The intended end state is present on every target.",
+          "type": "string",
+          "const": "verified_done"
+        },
+        {
+          "description": "Nothing took effect: every target still equals the plan's `expected`.",
+          "type": "string",
+          "const": "not_done"
+        },
+        {
+          "description": "The present state differs from both before and intended; accepted.",
+          "type": "string",
+          "const": "accepted_divergence"
+        }
+      ]
+    },
+    "ErrorCode": {
+      "type": "string",
+      "enum": [
+        "invalid_input",
+        "unauthenticated",
+        "forbidden",
+        "conflict",
+        "expired",
+        "overloaded",
+        "unavailable",
+        "storage_mount_limit",
+        "corrupt_configuration",
+        "state_not_durable",
+        "not_found"
+      ]
+    },
+    "ExecutionState": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "prepared",
+            "effect_accepted",
+            "verified",
+            "precondition_changed",
+            "outcome_unknown"
+          ]
+        },
+        {
+          "description": "Stack aggregate only: every sent member is verified and every other\nmember is provably unsent. Terminal; never reported as success.",
+          "type": "string",
+          "const": "partly_done"
+        }
+      ]
+    },
+    "JobResolution": {
+      "description": "The completed audit record (step 3). Additional to, never replacing, the\njob's `outcome_unknown`/`needs_intervention` history.",
+      "type": "object",
+      "properties": {
+        "declared": {
+          "$ref": "#/$defs/DeclaredOutcome"
+        },
+        "evidence": {
+          "$ref": "#/$defs/ResolutionEvidence"
+        },
+        "evidence_digest": {
+          "type": "string"
+        },
+        "job": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "requested_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "resolved_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "resolved_by": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "job",
+        "resolved_by",
+        "declared",
+        "reason",
+        "evidence",
+        "evidence_digest",
+        "requested_at",
+        "resolved_at"
+      ]
+    },
+    "JobState": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "planned",
+            "waiting_approval",
+            "queued",
+            "running",
+            "verifying",
+            "succeeded",
+            "failed",
+            "canceled",
+            "precondition_changed",
+            "outcome_unknown",
+            "needs_intervention"
+          ]
+        },
+        {
+          "description": "An administrator settled an uncertain job on evidence. Terminal and\nlock-releasing; the original job, plan and receipts stay unchanged.",
+          "type": "string",
+          "const": "resolved"
+        }
+      ]
+    },
+    "ResolutionEvidence": {
+      "description": "Evidence for exactly the job's targets, sorted by container ID. Core and\nexecutor build it with the same function so their digests agree.",
+      "type": "object",
+      "properties": {
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResolutionTarget"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "targets"
+      ]
+    },
+    "ResolutionMember": {
+      "description": "One target's outcome as the executor recorded it in the job's receipt. For\na container job there is exactly one; for a stack, one per member.",
+      "type": "object",
+      "properties": {
+        "container": {
+          "description": "Full container ID, without the `container:` prefix.",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/ExecutionState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "container",
+        "state"
+      ]
+    },
+    "ResolutionRequest": {
+      "description": "A recorded request (step 1). The job stays locked until the executor has\nconfirmed and core has completed it.",
+      "type": "object",
+      "properties": {
+        "declared": {
+          "$ref": "#/$defs/DeclaredOutcome"
+        },
+        "evidence": {
+          "$ref": "#/$defs/ResolutionEvidence"
+        },
+        "evidence_digest": {
+          "type": "string"
+        },
+        "job": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "requested_at": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "resolved_by": {
+          "description": "Administrator principal ID.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "job",
+        "resolved_by",
+        "declared",
+        "reason",
+        "evidence",
+        "evidence_digest",
+        "requested_at"
+      ]
+    },
+    "ResolutionTarget": {
+      "description": "One target's fresh, read-only measurement against the plan. A container\nthat no longer exists is recorded with empty `image` and `started_at`,\n`running` false and both flags false (see `is_absent`).",
+      "type": "object",
+      "properties": {
+        "container": {
+          "description": "Full container ID, without the `container:` prefix.",
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "intended_state_reached": {
+          "description": "The plan's action is proven by this target's post-state.",
+          "type": "boolean"
+        },
+        "matches_expected": {
+          "description": "ID, start time, image and running state all equal the plan's `expected`.",
+          "type": "boolean"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "started_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "container",
+        "running",
+        "started_at",
+        "image",
+        "matches_expected",
+        "intended_state_reached"
+      ]
+    },
+    "ResolutionTargetView": {
+      "description": "One target, plan against fresh measurement.",
+      "type": "object",
+      "properties": {
+        "expected": {
+          "description": "What the plan expected before the action.",
+          "$ref": "#/$defs/ContainerSnapshot"
+        },
+        "measured": {
+          "description": "What a read-only inspection found just now.",
+          "$ref": "#/$defs/ResolutionTarget"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "expected",
+        "measured"
+      ]
+    },
+    "ResolveKind": {
+      "description": "Which executor table holds the action: one container or a whole stack.",
+      "type": "string",
+      "enum": [
+        "container",
+        "stack"
+      ]
+    }
+  }
+}

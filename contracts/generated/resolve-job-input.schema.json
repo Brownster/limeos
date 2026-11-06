@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ResolveJobInput",
+  "description": "`POST /api/v1/jobs/{id}/resolution`.",
+  "type": "object",
+  "properties": {
+    "declared": {
+      "$ref": "#/$defs/DeclaredOutcome"
+    },
+    "evidence_digest": {
+      "description": "The `evidence_digest` of the `ResolutionView` the administrator saw.",
+      "type": "string"
+    },
+    "password": {
+      "description": "The administrator's own password: fresh re-authentication.",
+      "type": "string"
+    },
+    "reason": {
+      "description": "1 to 500 characters, no control characters; at least 20 for\n`accepted_divergence`.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "declared",
+    "reason",
+    "evidence_digest",
+    "password"
+  ],
+  "$defs": {
+    "DeclaredOutcome": {
+      "description": "What the administrator declares about the job. Only `AcceptedDivergence`\nrests on the operator's word; the other two are checked against evidence.",
+      "oneOf": [
+        {
+          "description": "The intended end state is present on every target.",
+          "type": "string",
+          "const": "verified_done"
+        },
+        {
+          "description": "Nothing took effect: every target still equals the plan's `expected`.",
+          "type": "string",
+          "const": "not_done"
+        },
+        {
+          "description": "The present state differs from both before and intended; accepted.",
+          "type": "string",
+          "const": "accepted_divergence"
+        }
+      ]
+    }
+  }
+}

@@ -63,6 +63,26 @@
         "running"
       ]
     },
+    "DeclaredOutcome": {
+      "description": "What the administrator declares about the job. Only `AcceptedDivergence`\nrests on the operator's word; the other two are checked against evidence.",
+      "oneOf": [
+        {
+          "description": "The intended end state is present on every target.",
+          "type": "string",
+          "const": "verified_done"
+        },
+        {
+          "description": "Nothing took effect: every target still equals the plan's `expected`.",
+          "type": "string",
+          "const": "not_done"
+        },
+        {
+          "description": "The present state differs from both before and intended; accepted.",
+          "type": "string",
+          "const": "accepted_divergence"
+        }
+      ]
+    },
     "ErrorCode": {
       "type": "string",
       "enum": [
@@ -261,6 +281,53 @@
           "required": [
             "kind",
             "state"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "declared": {
+              "$ref": "#/$defs/DeclaredOutcome"
+            },
+            "kind": {
+              "type": "string",
+              "const": "job_resolution_requested"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "declared"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "job_resolution_withdrawn"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "declared": {
+              "$ref": "#/$defs/DeclaredOutcome"
+            },
+            "kind": {
+              "type": "string",
+              "const": "job_resolved"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "declared"
           ]
         },
         {
@@ -557,19 +624,28 @@
       ]
     },
     "JobState": {
-      "type": "string",
-      "enum": [
-        "planned",
-        "waiting_approval",
-        "queued",
-        "running",
-        "verifying",
-        "succeeded",
-        "failed",
-        "canceled",
-        "precondition_changed",
-        "outcome_unknown",
-        "needs_intervention"
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "planned",
+            "waiting_approval",
+            "queued",
+            "running",
+            "verifying",
+            "succeeded",
+            "failed",
+            "canceled",
+            "precondition_changed",
+            "outcome_unknown",
+            "needs_intervention"
+          ]
+        },
+        {
+          "description": "An administrator settled an uncertain job on evidence. Terminal and\nlock-releasing; the original job, plan and receipts stay unchanged.",
+          "type": "string",
+          "const": "resolved"
+        }
       ]
     },
     "StackJob": {

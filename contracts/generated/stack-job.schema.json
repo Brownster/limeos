@@ -54,19 +54,28 @@
       ]
     },
     "JobState": {
-      "type": "string",
-      "enum": [
-        "planned",
-        "waiting_approval",
-        "queued",
-        "running",
-        "verifying",
-        "succeeded",
-        "failed",
-        "canceled",
-        "precondition_changed",
-        "outcome_unknown",
-        "needs_intervention"
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "planned",
+            "waiting_approval",
+            "queued",
+            "running",
+            "verifying",
+            "succeeded",
+            "failed",
+            "canceled",
+            "precondition_changed",
+            "outcome_unknown",
+            "needs_intervention"
+          ]
+        },
+        {
+          "description": "An administrator settled an uncertain job on evidence. Terminal and\nlock-releasing; the original job, plan and receipts stay unchanged.",
+          "type": "string",
+          "const": "resolved"
+        }
       ]
     },
     "StackPlan": {

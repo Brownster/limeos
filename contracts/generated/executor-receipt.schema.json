@@ -76,6 +76,16 @@
     "ready": {
       "type": "boolean"
     },
+    "resolution": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ResolveReceipt"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "restart": {
       "anyOf": [
         {
@@ -555,6 +565,26 @@
         }
       ]
     },
+    "DeclaredOutcome": {
+      "description": "What the administrator declares about the job. Only `AcceptedDivergence`\nrests on the operator's word; the other two are checked against evidence.",
+      "oneOf": [
+        {
+          "description": "The intended end state is present on every target.",
+          "type": "string",
+          "const": "verified_done"
+        },
+        {
+          "description": "Nothing took effect: every target still equals the plan's `expected`.",
+          "type": "string",
+          "const": "not_done"
+        },
+        {
+          "description": "The present state differs from both before and intended; accepted.",
+          "type": "string",
+          "const": "accepted_divergence"
+        }
+      ]
+    },
     "DirectoryIdentity": {
       "type": "object",
       "properties": {
@@ -1001,6 +1031,43 @@
         "verified",
         "precondition_changed",
         "outcome_unknown"
+      ]
+    },
+    "ResolveKind": {
+      "description": "Which executor table holds the action: one container or a whole stack.",
+      "type": "string",
+      "enum": [
+        "container",
+        "stack"
+      ]
+    },
+    "ResolveReceipt": {
+      "description": "The executor's confirmation that its row is `resolved` and its unique-index\nslot is free. Returned for the original request and for every repeat.",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "declared": {
+          "$ref": "#/$defs/DeclaredOutcome"
+        },
+        "evidence_digest": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ResolveKind"
+        },
+        "resolved_by": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "action",
+        "evidence_digest",
+        "declared",
+        "resolved_by"
       ]
     },
     "Resource": {
