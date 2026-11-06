@@ -1,0 +1,510 @@
+{
+  "summary": "pass",
+  "package_version": "0.4.17+cutover.1",
+  "cases": {
+    "0 fixture: frozen app serving 8002 as holly, bystanders, 6 running + 1 stopped container, Caddy installed but inactive": {
+      "status": "pass",
+      "detail": {
+        "docker": "20.10.24+dfsg1",
+        "caddy": "2.6.2",
+        "docker_socket_peer(pid,uid,gid)": "(1, 0, 0)",
+        "containers": {
+          "airsonic-advanced": {
+            "running": false,
+            "id": "6f2a57208bce"
+          },
+          "jellyfin": {
+            "running": true,
+            "id": "af924bdb51b4"
+          },
+          "radarr": {
+            "running": true,
+            "id": "f73a038f25e7"
+          },
+          "sonarr": {
+            "running": true,
+            "id": "be62bc41734d"
+          },
+          "transmission": {
+            "running": true,
+            "id": "2140b877d918"
+          },
+          "vpn": {
+            "running": true,
+            "id": "50f907986ef2"
+          },
+          "watchtower": {
+            "running": true,
+            "id": "9dd1c3def922"
+          }
+        },
+        "bystanders": {
+          "limeops-actuatord.service": {
+            "MainPID": "5642",
+            "ActiveState": "active",
+            "UnitFileState": "enabled",
+            "ActiveEnterTimestampMonotonic": "63751455",
+            "InvocationID": "1caea29117e34c428cd585a923d3b306"
+          },
+          "limeops-worker.service": {
+            "MainPID": "5643",
+            "ActiveState": "active",
+            "UnitFileState": "enabled",
+            "ActiveEnterTimestampMonotonic": "63754917",
+            "InvocationID": "bc1183101a7e45428c58e4aff55c788b"
+          },
+          "limeos-agent.service": {
+            "MainPID": "5644",
+            "ActiveState": "active",
+            "UnitFileState": "enabled",
+            "ActiveEnterTimestampMonotonic": "63784569",
+            "InvocationID": "468cb962d7b84e9599585db12ac68243"
+          },
+          "flask-shutdown.service": {
+            "MainPID": "5645",
+            "ActiveState": "active",
+            "UnitFileState": "enabled",
+            "ActiveEnterTimestampMonotonic": "63787725",
+            "InvocationID": "2a692c09699844cd86c54e2bd9111994"
+          }
+        }
+      },
+      "seconds": 0.6
+    },
+    "1 package install (apt, pinned version) with frozen app untouched": {
+      "status": "pass",
+      "detail": {
+        "version": "0.4.17+cutover.1"
+      },
+      "seconds": 2.8
+    },
+    "2 migrate scan: names every state source, redacted, originals unchanged": {
+      "status": "pass",
+      "detail": {
+        "classes_mentioned": {
+          "imported": 2,
+          "deferred": 7,
+          "unsupported": 29
+        },
+        "report_lines": 42,
+        "report_head": [
+          "limeosctl migrate scan (report schema 1)",
+          "location etc /etc/limeos scanned",
+          "location state /var/lib/limeos scanned",
+          "location stacks /opt/stacks scanned",
+          "location checkout /home/holly/pi-health scanned",
+          "[unsupported] etc/agent-policy.json file size=52 owner=0:0 mode=0644 sha256=489472857bf4c18d9beb1f9c5fa2712ac93cd73e431d9c5ec147d74c08302abc (no import rule)",
+          "[unsupported] etc/core.json file size=87 owner=0:0 mode=0644 sha256=9e5b367f48668044fd476cdfd561d7736ca63298a73218ca8fa701c6ae299e37 (no import rule)",
+          "[imported]  etc/credentials.env file size=341 mode=0640 (users: limeosctl migrate import-users)",
+          "[unsupported] etc/management-catalog.json file size=415 owner=0:0 mode=0644 sha256=516e0bf582ba7f0ec618555cdc43f02d3991bd9c611b8ebc121d48f5bf98d3a7 (no import rule)",
+          "[unsupported] etc/policy-backups/agent-policy-20261000T010203Z.json file size=14 owner=0:0 mode=0644 sha256=843cf171254a7b2c1e9d583dc8d41a4493528899237c3281d98c992a6bd4793c (no import rule)",
+          "[unsupported] etc/policy-backups/agent-policy-20261001T010203Z.json file size=14 owner=0:0 mode=0644 sha256=2dd75926937acb8ea438e481bf816083ea9411ffdcc4ab40f33426129d61883a (no import rule)",
+          "[unsupported] etc/policy-backups/agent-policy-20261002T010203Z.json file size=14 owner=0:0 mode=0644 sha256=f12fdd0097481fbbf087894c913b54b72c16ce04475656043be5019c40890160 (no import rule)"
+        ]
+      },
+      "seconds": 0.0
+    },
+    "3 import-users: Werkzeug scrypt and PBKDF2 hashes imported; login works; hash upgrades; idempotent; bad entry imports nothing": {
+      "status": "pass",
+      "detail": {
+        "first": "$ /usr/lib/limeos/limeosctl migrate import-users --env-file /etc/limeos/credentials.env\nusers: holly, bob\nimported: 2\nskipped existing: 0 ()\n\n[exit 0]\n",
+        "upgraded_prefix": "$argon2id$",
+        "bob_still": "pbkdf2:sha"
+      },
+      "seconds": 0.2
+    },
+    "4 propose-ceiling: deny-by-default, accepted by check-ceiling; operator enable step; ceiling installed": {
+      "status": "pass",
+      "detail": {
+        "denied_plan_status": 400,
+        "proposal_listing": [
+          "container 50f907986ef2 vpn",
+          "container 9dd1c3def922 watchtower",
+          "container 2140b877d918 transmission",
+          "container be62bc41734d sonarr",
+          "container f73a038f25e7 radarr",
+          "container af924bdb51b4 jellyfin",
+          "stack media",
+          "wrote /root/container-proposed.json: 6 containers, 1 stacks, every allow_* (incl. allow_stack) false. Review it, then install it root-owned and set only the flags you intend."
+        ],
+        "managed": 6,
+        "stacks": [
+          "media"
+        ],
+        "enabled": [
+          "allow_health",
+          "allow_container_read",
+          "allow_restart",
+          "allow_start",
+          "allow_stop",
+          "allow_container_logs",
+          "allow_stack"
+        ]
+      },
+      "seconds": 3.3
+    },
+    "5 preflight refusals leave everything unchanged (stopped managed container; active playback)": {
+      "status": "pass",
+      "detail": {
+        "stopped": [
+          "REFUSED: managed container not running: airsonic-advanced",
+          "ERROR: preflight refused; nothing was changed"
+        ],
+        "playback": [
+          "REFUSED: Jellyfin has active playback",
+          "ERROR: preflight refused; nothing was changed"
+        ],
+        "activate_on_refused": [
+          "ERROR: snapshot records a refused preflight"
+        ]
+      },
+      "seconds": 2.1
+    },
+    "6 cycle 1: preflight, dry-run (no change), activate; invariants; HTTPS login, container list/status/logs": {
+      "status": "pass",
+      "detail": {
+        "activate_seconds": 4.6,
+        "activate_output_tail": [
+          "ok: docker ps and StartedAt identical to the snapshot",
+          "ok: untouched units unchanged",
+          "activate complete: https://wybie.lan:8002",
+          "Removed \"/etc/systemd/system/multi-user.target.wants/pihealth-helper.service\".",
+          "Removed \"/etc/systemd/system/multi-user.target.wants/pi-health.service\".",
+          "Removed \"/etc/systemd/system/timers.target.wants/limeos-metrics-collector.timer\".",
+          "Removed \"/etc/systemd/system/timers.target.wants/limeos-package-reconcile.timer\".",
+          "{\"level\":\"info\",\"ts\":1793971941.3088691,\"msg\":\"using provided configuration\",\"config_file\":\"/etc/caddy/Caddyfile\",\"config_adapter\":\"caddyfile\"}",
+          "{\"level\":\"info\",\"ts\":1793971941.3104033,\"logger\":\"tls.cache.maintenance\",\"msg\":\"started background certificate maintenance\",\"cache\":\"0xc0002d1dc0\"}",
+          "{\"level\":\"info\",\"ts\":1793971941.310753,\"logger\":\"http\",\"msg\":\"enabling automatic HTTP->HTTPS redirects\",\"server_name\":\"srv0\"}",
+          "{\"level\":\"info\",\"ts\":1793971941.311225,\"logger\":\"tls.cache.maintenance\",\"msg\":\"stopped background certificate maintenance\",\"cache\":\"0xc0002d1dc0\"}",
+          "Created symlink /etc/systemd/system/multi-user.target.wants/caddy.service \u2192 /lib/systemd/system/caddy.service."
+        ],
+        "poststop_baseline": true,
+        "listeners": "LISTEN 0      4096      127.0.0.54:53    0.0.0.0:* users:((\"systemd-resolve\",pid=418,fd=20))\nLISTEN 0      4096         0.0.0.0:5355  0.0.0.0:* users:((\"systemd-resolve\",pid=418,fd=12))\nLISTEN 0      4096   127.0.0.53%lo:53    0.0.0.0:* users:((\"systemd-resolve\",pid=418,fd=18))\nLISTEN 0      4096         0.0.0.0:8096  0.0.0.0:* users:((\"docker-proxy\",pid=5700,fd=4))   \nLISTEN 0      4096       127.0.0.1:45615 0.0.0.0:* users:((\"containerd\",pid=979,fd=9))      \nLISTEN 0      128          0.0.0.0:22    0.0.0.0:* users:((\"sshd\",pid=521,fd=3))            \nLISTEN 0      128        127.0.0.1:8003  0.0.0.0:* users:((\"limeos-core\",pid=8339,fd=16))   \nLISTEN 0      4096       127.0.0.1:2019  0.0.0.0:* users:((\"caddy\",pid=8500,fd=3))          \nLISTEN 0      4096            [::]:5355     [::]:* users:((\"systemd-resolve\",pid=418,fd=14))\nLISTEN 0      4096            [::]:8096     [::]:* users:((\"docker-proxy\",pid=5708,fd=4))   \nLISTEN 0      4096               *:8002        *:* users:((\"caddy\",pid=8500,fd=7))          \nLISTEN 0      128             [::]:22       [::]:* users:((\"sshd\",pid=521,fd=4))            \nLISTEN 0      4096               *:80          *:* users:((\"caddy\",pid=8500,fd=9))          \n"
+      },
+      "seconds": 53.4
+    },
+    "7 cycle 1 (activated): HTTPS login with the internal CA; list/status/logs; stack view; host metrics": {
+      "status": "pass",
+      "detail": {
+        "overview_kinds": [
+          "container",
+          "disk",
+          "partition",
+          "stack"
+        ],
+        "overview_keys": [
+          "generated_at",
+          "host",
+          "resources",
+          "revision",
+          "sources"
+        ],
+        "containers_listed": 7,
+        "log_first_line": [
+          "2026-11-06T13:31:42.378718041Z jellyfin ready"
+        ],
+        "unmanaged_logs": 403,
+        "stacks_status": 200,
+        "stacks": "{'version': 1, 'generated_at': 1793971969, 'catalog': {'state': 'unavailable', 'sampled_at': None, 'max_age_seconds': 90, 'valid_for_millis': 0}, 'engine': {'state': 'unavailable', 'sampled_at': None, 'max_age_seconds': 90, 'valid_for_millis': 0}, 'engine_matches_catalog': None, 'stacks': [], 'other_projects': [], 'standalone_containers': None}",
+        "resources_status": 200,
+        "resources": "{'revision': 3, 'items': [{'id': 'container:2140b877d9186ad1788edf6682828640037743701cb0e367ddbb39a14724aa16', 'kind': 'container', 'name': 'transmission', 'status': 'running', 'source': 'docker', 'parent': 'stack:media', 'identity': None, 'filesystem': None, 'mountpoint': None, 'size_bytes': None, 'image': 'limeos-cutover:local', 'health': None, 'cpu_percent': None, 'memory_percent': None}, {'id': 'container:50f907986ef23b08f2b4aa5f9c6c81fac6cd3cd7c195dab88fa3d03ee6cb97d7', 'kind': 'container', 'name': 'vpn', 'status': 'running', 'source': 'docker', 'parent': None, 'identity': None, 'filesyst"
+      },
+      "seconds": 0.5
+    },
+    "8 cycle 1: return.sh restores the frozen app; containers/hashes/bystanders identical to the preflight snapshot; idempotent": {
+      "status": "pass",
+      "detail": {
+        "first": [
+          "Removed \"/etc/systemd/system/multi-user.target.wants/limeos-containerd.service\".",
+          "Removed \"/etc/systemd/system/multi-user.target.wants/limeos-storaged.service\".",
+          "Created symlink /etc/systemd/system/multi-user.target.wants/pihealth-helper.service \u2192 /etc/systemd/system/pihealth-helper.service.",
+          "Created symlink /etc/systemd/system/multi-user.target.wants/pi-health.service \u2192 /etc/systemd/system/pi-health.service.",
+          "Created symlink /etc/systemd/system/timers.target.wants/limeos-metrics-collector.timer \u2192 /etc/systemd/system/limeos-metrics-collector.timer.",
+          "Created symlink /etc/systemd/system/timers.target.wants/limeos-package-reconcile.timer \u2192 /etc/systemd/system/limeos-package-reconcile.timer."
+        ],
+        "second": [
+          "return: verifying",
+          "return verified: frozen app serving, state and containers match the snapshot",
+          "WARN: live state file differs from the snapshot (frozen writers are running): /var/lib/limeos/metrics/metrics.sqlite"
+        ],
+        "sqlite": [
+          {
+            "rows": 4,
+            "integrity": "ok"
+          },
+          {
+            "rows": 4,
+            "integrity": "ok"
+          }
+        ]
+      },
+      "seconds": 5.0
+    },
+    "9 cycle 2: preflight + activate again (package already installed, users already imported)": {
+      "status": "pass",
+      "detail": {
+        "tail": [
+          "{\"level\":\"info\",\"ts\":1793971977.5019908,\"logger\":\"tls.cache.maintenance\",\"msg\":\"started background certificate maintenance\",\"cache\":\"0xc0002a3d50\"}",
+          "{\"level\":\"info\",\"ts\":1793971977.5021613,\"logger\":\"http\",\"msg\":\"enabling automatic HTTP->HTTPS redirects\",\"server_name\":\"srv0\"}",
+          "{\"level\":\"info\",\"ts\":1793971977.5025938,\"logger\":\"tls.cache.maintenance\",\"msg\":\"stopped background certificate maintenance\",\"cache\":\"0xc0002a3d50\"}",
+          "Created symlink /etc/systemd/system/multi-user.target.wants/caddy.service \u2192 /lib/systemd/system/caddy.service."
+        ]
+      },
+      "seconds": 4.5
+    },
+    "10 approved container restart through the HTTPS API: exactly one container restarted, nothing else": {
+      "status": "pass",
+      "detail": {
+        "job": "65892df87dcfddb52d384b1e098fc63cd74cee33f34f732dcda924a31eafdbd2",
+        "events": [
+          [
+            "radarr",
+            "kill"
+          ],
+          [
+            "radarr",
+            "die"
+          ],
+          [
+            "radarr",
+            "stop"
+          ],
+          [
+            "radarr",
+            "start"
+          ],
+          [
+            "radarr",
+            "restart"
+          ]
+        ]
+      },
+      "seconds": 5.6
+    },
+    "11 whole-stack restart (media) through the HTTPS API: only the four running members, ID order, stopped member untouched": {
+      "status": "pass",
+      "detail": {
+        "job": "fbcb025e7e3d618e7d8a079c79a8c436fc3ad48131408980439b74f14054a432",
+        "reader_before": "inactive",
+        "events": [
+          [
+            "transmission",
+            "kill"
+          ],
+          [
+            "transmission",
+            "die"
+          ],
+          [
+            "transmission",
+            "stop"
+          ],
+          [
+            "transmission",
+            "start"
+          ],
+          [
+            "transmission",
+            "restart"
+          ],
+          [
+            "jellyfin",
+            "kill"
+          ],
+          [
+            "jellyfin",
+            "die"
+          ],
+          [
+            "jellyfin",
+            "stop"
+          ],
+          [
+            "jellyfin",
+            "start"
+          ],
+          [
+            "jellyfin",
+            "restart"
+          ],
+          [
+            "sonarr",
+            "kill"
+          ],
+          [
+            "sonarr",
+            "die"
+          ],
+          [
+            "sonarr",
+            "stop"
+          ],
+          [
+            "sonarr",
+            "start"
+          ],
+          [
+            "sonarr",
+            "restart"
+          ],
+          [
+            "radarr",
+            "kill"
+          ],
+          [
+            "radarr",
+            "die"
+          ],
+          [
+            "radarr",
+            "stop"
+          ],
+          [
+            "radarr",
+            "start"
+          ],
+          [
+            "radarr",
+            "restart"
+          ]
+        ]
+      },
+      "seconds": 12.0
+    },
+    "12 return.sh after approved restarts reports the changed StartedAt (it detects, still restores the frozen app)": {
+      "status": "pass",
+      "detail": {
+        "tail": [
+          "Created symlink /etc/systemd/system/multi-user.target.wants/pi-health.service \u2192 /etc/systemd/system/pi-health.service.",
+          "Created symlink /etc/systemd/system/timers.target.wants/limeos-metrics-collector.timer \u2192 /etc/systemd/system/limeos-metrics-collector.timer.",
+          "Created symlink /etc/systemd/system/timers.target.wants/limeos-package-reconcile.timer \u2192 /etc/systemd/system/limeos-package-reconcile.timer.",
+          "FAIL: container StartedAt differs from the snapshot (a restart happened)",
+          "ERROR: return finished with 1 failure(s); do not retry cutover until resolved"
+        ]
+      },
+      "seconds": 2.2
+    },
+    "13 failed activation (proxy cannot reach the core: health check fails): automatic rollback, frozen app serving, return.sh idempotent": {
+      "status": "pass",
+      "detail": {
+        "activate_tail": [
+          "+ systemctl enable pihealth-helper.service",
+          "Created symlink /etc/systemd/system/multi-user.target.wants/pihealth-helper.service \u2192 /etc/systemd/system/pihealth-helper.service.",
+          "+ systemctl start pihealth-helper.service",
+          "+ systemctl enable pi-health.service",
+          "Created symlink /etc/systemd/system/multi-user.target.wants/pi-health.service \u2192 /etc/systemd/system/pi-health.service.",
+          "+ systemctl start pi-health.service",
+          "+ systemctl enable limeos-metrics-collector.timer",
+          "Created symlink /etc/systemd/system/timers.target.wants/limeos-metrics-collector.timer \u2192 /etc/systemd/system/limeos-metrics-collector.timer.",
+          "+ systemctl start limeos-metrics-collector.timer",
+          "+ systemctl enable limeos-package-reconcile.timer",
+          "Created symlink /etc/systemd/system/timers.target.wants/limeos-package-reconcile.timer \u2192 /etc/systemd/system/limeos-package-reconcile.timer.",
+          "+ systemctl start limeos-package-reconcile.timer",
+          "return: verifying",
+          "return verified: frozen app serving, state and containers match the snapshot"
+        ],
+        "return_again_tail": [
+          "return: verifying",
+          "return verified: frozen app serving, state and containers match the snapshot",
+          "WARN: live state file differs from the snapshot (frozen writers are running): /var/lib/limeos/metrics/metrics.sqlite"
+        ]
+      },
+      "seconds": 39.5
+    },
+    "14 failed activation (wrong --expected-version after the package step): automatic rollback, frozen app serving": {
+      "status": "pass",
+      "detail": {
+        "activate_tail": [
+          "+ systemctl enable pihealth-helper.service",
+          "Created symlink /etc/systemd/system/multi-user.target.wants/pihealth-helper.service \u2192 /etc/systemd/system/pihealth-helper.service.",
+          "+ systemctl start pihealth-helper.service",
+          "+ systemctl enable pi-health.service",
+          "Created symlink /etc/systemd/system/multi-user.target.wants/pi-health.service \u2192 /etc/systemd/system/pi-health.service.",
+          "+ systemctl start pi-health.service",
+          "+ systemctl enable limeos-metrics-collector.timer",
+          "Created symlink /etc/systemd/system/timers.target.wants/limeos-metrics-collector.timer \u2192 /etc/systemd/system/limeos-metrics-collector.timer.",
+          "+ systemctl start limeos-metrics-collector.timer",
+          "+ systemctl enable limeos-package-reconcile.timer",
+          "Created symlink /etc/systemd/system/timers.target.wants/limeos-package-reconcile.timer \u2192 /etc/systemd/system/limeos-package-reconcile.timer.",
+          "+ systemctl start limeos-package-reconcile.timer",
+          "return: verifying",
+          "return verified: frozen app serving, state and containers match the snapshot"
+        ],
+        "return_again_tail": [
+          "return: verifying",
+          "return verified: frozen app serving, state and containers match the snapshot",
+          "WARN: live state file differs from the snapshot (frozen writers are running): /var/lib/limeos/metrics/metrics.sqlite"
+        ]
+      },
+      "seconds": 7.2
+    },
+    "15 negative: activate refuses without approval, with a stale snapshot, with the wrong origin; changes nothing": {
+      "status": "pass",
+      "detail": {
+        "no_approval": "ERROR: refusing without --yes-i-have-operator-approval",
+        "wrong_origin": "ERROR: core.json origin must be https://other.lan:8002",
+        "stale": "ERROR: snapshot is stale (1793972044s old, limit 1800s); run preflight again"
+      },
+      "seconds": 1.0
+    }
+  },
+  "notes": [
+    "limeos-storage-reader after activate.sh: inactive"
+  ],
+  "facts": {
+    "docker": "20.10.24+dfsg1",
+    "caddy": "2.6.2",
+    "docker_socket_peer_pid_uid_gid": "(1, 0, 0)",
+    "page_size": "4096",
+    "kernel": "6.1.0-53-cloud-amd64",
+    "setup_seconds": 197.4,
+    "binary_sha256": {
+      "limeos-core": "e7f7b74ffbe4d6e3021f8dac692ec7019a218b2855fd5b5a46376c7767a34bba",
+      "limeos-executor": "429b1e9f8faf71429170a893b027ebe5ccb5bfe9be8bf3eb9a359bea823a1651",
+      "limeosctl": "7eabdd986420992fa4ee1583656a3ae490d7afdd3afd056acaa0dfedce914672",
+      "limeos-password-worker": "b3a88d9cccc42b110c6e80ef4f436bf221495ff3217d676235eda9466714dc2b"
+    },
+    "script_sha256": {
+      "lib.sh": "8db3f02fb276439a123e6eaee04ba6437374dcbf482c2efc51d97d26ab1de012",
+      "preflight.sh": "7f738811e779dfa548de5f4b9aa50b4db20b32150a62fe43abf773a832b215f2",
+      "activate.sh": "6d51b930062fbc5ed1cf7a6cdd88b051214cb678f56737609bf18474c6f59dac",
+      "return.sh": "943cececeeb09ceb485c81c0229639354cc94a2a3cbfdd78a8710f7d61f47bcb"
+    }
+  },
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "3d94c9dd66d8a283fde060b8810373b7ae04038b956ee00d553d1ae564f6fbdeaa2fd6e7404e87e53348b5a9509170f3ea7c0731ba737590c5c4cb8d559a47f8"
+  },
+  "logs": {
+    "apt-fixture": "raw/logs/apt-fixture.log",
+    "enable-fixture": "raw/logs/enable-fixture.log",
+    "apt-install-limeos": "raw/logs/apt-install-limeos.log",
+    "migrate-scan": "raw/logs/migrate-scan.log",
+    "migrate-scan-json": "raw/logs/migrate-scan-json.log",
+    "import-users-1": "raw/logs/import-users-1.log",
+    "import-users-2": "raw/logs/import-users-2.log",
+    "import-users-bad": "raw/logs/import-users-bad.log",
+    "propose-ceiling": "raw/logs/propose-ceiling.log",
+    "preflight-refused-stopped": "raw/logs/preflight-refused-stopped.log",
+    "preflight-refused-playback": "raw/logs/preflight-refused-playback.log",
+    "activate-refused-snapshot": "raw/logs/activate-refused-snapshot.log",
+    "preflight-snap1": "raw/logs/preflight-snap1.log",
+    "activate-dry-run": "raw/logs/activate-dry-run.log",
+    "activate-1": "raw/logs/activate-1.log",
+    "return-1": "raw/logs/return-1.log",
+    "return-1-again": "raw/logs/return-1-again.log",
+    "preflight-snap2": "raw/logs/preflight-snap2.log",
+    "activate-2": "raw/logs/activate-2.log",
+    "return-2": "raw/logs/return-2.log",
+    "preflight-snap3": "raw/logs/preflight-snap3.log",
+    "activate-failed-health": "raw/logs/activate-failed-health.log",
+    "return-failed-health-again": "raw/logs/return-failed-health-again.log",
+    "preflight-snap4": "raw/logs/preflight-snap4.log",
+    "activate-failed-version": "raw/logs/activate-failed-version.log",
+    "return-failed-version-again": "raw/logs/return-failed-version-again.log",
+    "preflight-snap5": "raw/logs/preflight-snap5.log",
+    "activate-no-approval": "raw/logs/activate-no-approval.log",
+    "activate-wrong-origin": "raw/logs/activate-wrong-origin.log",
+    "activate-stale": "raw/logs/activate-stale.log"
+  }
+}

@@ -1,0 +1,34 @@
+$ /root/limeos-src/scripts/cutover/return.sh /var/lib/limeos-cutover/snap1
+return: stopping the proxy site
++ rm -f -- /etc/caddy/conf.d/limeos-cutover.caddy
++ systemctl stop caddy.service
++ systemctl disable caddy.service
+return: stopping the Rust services
++ systemctl stop limeos-core.service
++ systemctl disable limeos-core.service
++ systemctl stop limeos-containerd.service
++ systemctl disable limeos-containerd.service
++ systemctl stop limeos-storaged.service
++ systemctl disable limeos-storaged.service
+return: verifying state files
+return: restoring the frozen units
++ systemctl enable pihealth-helper.service
++ systemctl start pihealth-helper.service
++ systemctl enable pi-health.service
++ systemctl start pi-health.service
++ systemctl enable limeos-metrics-collector.timer
++ systemctl start limeos-metrics-collector.timer
++ systemctl enable limeos-package-reconcile.timer
++ systemctl start limeos-package-reconcile.timer
+return: verifying
+return verified: frozen app serving, state and containers match the snapshot
+Removed "/etc/systemd/system/multi-user.target.wants/caddy.service".
+Removed "/etc/systemd/system/multi-user.target.wants/limeos-core.service".
+Removed "/etc/systemd/system/multi-user.target.wants/limeos-containerd.service".
+Removed "/etc/systemd/system/multi-user.target.wants/limeos-storaged.service".
+Created symlink /etc/systemd/system/multi-user.target.wants/pihealth-helper.service → /etc/systemd/system/pihealth-helper.service.
+Created symlink /etc/systemd/system/multi-user.target.wants/pi-health.service → /etc/systemd/system/pi-health.service.
+Created symlink /etc/systemd/system/timers.target.wants/limeos-metrics-collector.timer → /etc/systemd/system/limeos-metrics-collector.timer.
+Created symlink /etc/systemd/system/timers.target.wants/limeos-package-reconcile.timer → /etc/systemd/system/limeos-package-reconcile.timer.
+
+[exit 0]

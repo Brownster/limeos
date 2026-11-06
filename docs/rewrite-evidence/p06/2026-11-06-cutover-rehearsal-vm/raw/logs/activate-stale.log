@@ -1,0 +1,4 @@
+$ /root/limeos-src/scripts/cutover/activate.sh /root/stale-snap --yes-i-have-operator-approval --package /opt/limeos-repo/pool/main/limeos_0.4.17+cutover.1_amd64.deb --expected-version 0.4.17+cutover.1 --host wybie.lan --port 8002
+ERROR: snapshot is stale (1793972044s old, limit 1800s); run preflight again
+
+[exit 1]

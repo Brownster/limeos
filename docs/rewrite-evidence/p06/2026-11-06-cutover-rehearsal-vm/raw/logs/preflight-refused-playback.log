@@ -1,0 +1,6 @@
+$ /root/limeos-src/scripts/cutover/preflight.sh --out /var/lib/limeos-cutover/refused-playback --managed-file /root/managed-bad.txt --jellyfin-url http://127.0.0.1:18096/Sessions
+snapshot: /var/lib/limeos-cutover/refused-playback
+REFUSED: Jellyfin has active playback
+ERROR: preflight refused; nothing was changed
+
+[exit 1]

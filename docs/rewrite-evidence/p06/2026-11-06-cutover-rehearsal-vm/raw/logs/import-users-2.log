@@ -1,0 +1,7 @@
+$ /usr/lib/limeos/limeosctl migrate import-users --env-file /etc/limeos/credentials.env
+users: holly, bob
+imported: 0
+skipped existing: 2 (holly, bob)
+nothing changed
+
+[exit 0]

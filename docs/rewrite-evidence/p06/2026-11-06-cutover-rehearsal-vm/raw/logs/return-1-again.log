@@ -1,0 +1,27 @@
+$ /root/limeos-src/scripts/cutover/return.sh /var/lib/limeos-cutover/snap1
+return: stopping the proxy site
++ rm -f -- /etc/caddy/conf.d/limeos-cutover.caddy
++ systemctl stop caddy.service
++ systemctl disable caddy.service
+return: stopping the Rust services
++ systemctl stop limeos-core.service
++ systemctl disable limeos-core.service
++ systemctl stop limeos-containerd.service
++ systemctl disable limeos-containerd.service
++ systemctl stop limeos-storaged.service
++ systemctl disable limeos-storaged.service
+return: verifying state files
+return: restoring the frozen units
++ systemctl enable pihealth-helper.service
++ systemctl start pihealth-helper.service
++ systemctl enable pi-health.service
++ systemctl start pi-health.service
++ systemctl enable limeos-metrics-collector.timer
++ systemctl start limeos-metrics-collector.timer
++ systemctl enable limeos-package-reconcile.timer
++ systemctl start limeos-package-reconcile.timer
+return: verifying
+return verified: frozen app serving, state and containers match the snapshot
+WARN: live state file differs from the snapshot (frozen writers are running): /var/lib/limeos/metrics/metrics.sqlite
+
+[exit 0]
