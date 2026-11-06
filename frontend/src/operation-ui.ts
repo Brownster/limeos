@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from "react";
 import { ApiError } from "./api";
+import { wrapTarget } from "./focus-ring";
 
 export function message(error: unknown): string {
   return error instanceof ApiError
@@ -21,11 +22,9 @@ export function containFocus(event: KeyboardEvent<HTMLDialogElement>) {
     event.currentTarget.focus();
     return;
   }
-  if (event.shiftKey && document.activeElement === first) {
+  const target = wrapTarget(controls, document.activeElement, event.shiftKey);
+  if (target) {
     event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
+    target.focus();
   }
 }

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ResolutionController, validateReason, disabledReason, asView, isJobId, NeedsAttention, ResolutionBody } from "./helpers/resolution.mjs";
+import { ResolutionController, validateReason, disabledReason, asView, isJobId, NeedsAttention, ResolutionBody, restoreFocus } from "./helpers/resolution.mjs";
 
 const job = "e".repeat(64);
 const evidence = "9f".repeat(32);
@@ -299,5 +299,26 @@ test("the banner is information for everyone and a resolve button only for admin
   const other = renderToStaticMarkup(React.createElement(NeedsAttention, { jobs, admin: false, ...props }));
   assert.match(other, /Needs attention/); assert.match(other, /Ask an administrator to review/);
   assert.doesNotMatch(other, /<button/);
-  assert.equal(renderToStaticMarkup(React.createElement(NeedsAttention, { jobs: [], admin: true, ...props })), "");
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(NeedsAttention, { jobs: [], admin: true, ...props })), /attention|<button|<section/i);
+});
+
+test("two banners on one page (containers and stacks) never share an element id", () => {
+  const jobs = [{ id: job, title: "Restart · aaaaaaaaaaaa" }];
+  const props = { jobs, admin: true, csrf: "c", expired() {}, changed() {} };
+  const page = renderToStaticMarkup(React.createElement("div", null, React.createElement(NeedsAttention, props), React.createElement(NeedsAttention, props)));
+  const ids = [...page.matchAll(/ id="([^"]+)"/g)].map(m => m[1]);
+  assert.equal(ids.length, 2); assert.notEqual(ids[0], ids[1]);
+  assert.deepEqual([...page.matchAll(/aria-labelledby="([^"]+)"/g)].map(m => m[1]), ids);
+});
+
+test("closing the dialog returns focus to its opener, or to the fallback once the opener has left the page", () => {
+  const element = connected => { const e = { isConnected: connected, focused: 0, attrs: {}, focus() { this.focused += 1; }, hasAttribute(n) { return n in this.attrs; }, setAttribute(n, v) { this.attrs[n] = v; } }; return e; };
+  const opener = element(true), spare = element(true);
+  assert.equal(restoreFocus(opener, () => spare), "opener");
+  assert.deepEqual([opener.focused, spare.focused], [1, 0]);
+  const gone = element(false), banner = element(true);
+  assert.equal(restoreFocus(gone, () => banner), "fallback");
+  assert.deepEqual([gone.focused, banner.focused, banner.attrs.tabindex], [0, 1, "-1"]);
+  assert.equal(restoreFocus(null, () => spare), "fallback");
+  assert.equal(restoreFocus(gone, () => null), "none");
 });

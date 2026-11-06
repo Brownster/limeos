@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -38,6 +39,25 @@ const meaning: Record<DeclaredOutcome, string> = {
   accepted_divergence:
     "The present state differs from both the plan and the intended result, and you accept it as it is. The lock is released and the next plan starts from this state.",
 };
+/**
+ * Give focus back when the dialog closes: to the control that opened it, or,
+ * when that control left the page (its job was resolved and its banner entry
+ * went away), to the fallback, so focus is never dropped on the document body.
+ */
+export function restoreFocus(
+  opener: { isConnected: boolean; focus(): void } | null,
+  fallback: () => HTMLElement | null,
+): "opener" | "fallback" | "none" {
+  if (opener && opener.isConnected && typeof opener.focus === "function") {
+    opener.focus();
+    return "opener";
+  }
+  const target = fallback();
+  if (!target) return "none";
+  if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+  target.focus();
+  return "fallback";
+}
 const outcome = (state: string) => state.replaceAll("_", " ");
 const shortId = (id: string) => id.slice(0, 12);
 
@@ -59,6 +79,14 @@ export function NeedsAttention({
   changed: () => void;
 }) {
   const [open, setOpen] = useState<AttentionJob | null>(null);
+  // Two banners can be on one page (containers and stacks): ids must not repeat.
+  const headingId = useId();
+  const heading = useRef<HTMLHeadingElement>(null);
+  const anchor = useRef<HTMLSpanElement>(null);
+  const fallback = () =>
+    heading.current ??
+    anchor.current?.parentElement?.querySelector<HTMLElement>("h2, h3") ??
+    null;
   // The dialog outlives the list entry so the resolved record can be read.
   const dialog = admin && open && (
     <ResolutionDialog
@@ -67,13 +95,15 @@ export function NeedsAttention({
       csrf={csrf}
       expired={expired}
       changed={changed}
+      fallback={fallback}
       onClose={() => setOpen(null)}
     />
   );
   return (
     <>
-    {jobs.length > 0 && <section className="attention" aria-labelledby="attention-heading">
-      <h3 id="attention-heading">
+    <span ref={anchor} hidden />
+    {jobs.length > 0 && <section className="attention" aria-labelledby={headingId}>
+      <h3 id={headingId} tabIndex={-1} ref={heading}>
         Needs attention · {jobs.length}{" "}
         {jobs.length === 1 ? "operation" : "operations"}
       </h3>
@@ -110,18 +140,23 @@ export function ResolutionDialog({
   csrf,
   expired,
   changed,
+  fallback = () => null,
   onClose,
 }: {
   job: AttentionJob;
   csrf: string;
   expired: () => void;
   changed: () => void;
+  /** Where focus goes when the opener has left the page. */
+  fallback?: () => HTMLElement | null;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const opener = useRef<Element | null>(null);
   const latest = useRef({ changed, expired });
   latest.current = { changed, expired };
+  const focusFallback = useRef(fallback);
+  focusFallback.current = fallback;
   const controller = useMemo(
     () =>
       new ResolutionController(
@@ -147,8 +182,7 @@ export function ResolutionDialog({
     return () => {
       controller.dispose();
       dialog.current?.close();
-      if (opener.current instanceof HTMLElement && opener.current.isConnected)
-        opener.current.focus();
+      restoreFocus(opener.current as HTMLElement | null, () => focusFallback.current());
     };
   }, [controller]);
   // Move focus to the new step's heading so screen readers announce it.
