@@ -47,6 +47,32 @@ installed verbatim, the executor refuses even its health probe. The operator ste
 at least `allow_health`, `allow_container_read` and, for the approved actions,
 `allow_container_logs`, `allow_restart`, `allow_start`, `allow_stop` and `allow_stack`.
 Stack status and whole-stack actions also need a root-owned
-`/etc/limeos/management-catalog.json` (1 to 8 registered stacks, each with the SHA-256 of
-its Compose file); no tool writes it, see
+`/etc/limeos/management-catalog.json`: use `propose-catalog` below, see
 [the stack inventory handoff](p04-stack-inventory-runtime-handoff.md).
+
+## `limeosctl migrate propose-catalog`
+
+`--out FILE [--stacks DIR] [--install]`. Root-only; read-only against Docker (`docker info`,
+`ps -a -q`, `inspect`, found at `/usr/bin/docker`, `/usr/local/bin/docker` or `/bin/docker`, or
+`--docker PATH`; `inspect` emits JSON on every Docker version, so there is no `--format json`
+caveat) and the stacks root (default `/opt/stacks`). Offline form for review or tests:
+`--docker-inspect FILE --engine-id ID`. It writes a new catalog file (refuses to overwrite) and
+prints, per stack, `stack NAME (project P) DIR/COMPOSE services=...`, then every `refused ...`
+with its reason, and how many containers it ignored.
+
+- A project is registered when its running or stopped, non-one-off containers carry the Compose
+  labels and the working directory is directly under the root. `stack` is the directory name
+  and `project` the Compose project label; they may differ. The Compose file (one of the four
+  standard names, a regular file of at most 64 KiB, never a symlink) is hashed; an existing
+  `limeos.override.json` is recorded with its hash, otherwise `managed` is absent. Services
+  are the distinct service labels, so a service that has never had a container is missing:
+  create the stack with Compose first.
+- Refused with a reason: projects outside the root (wybie's `docker`), several Compose files,
+  names the catalog cannot hold (uppercase directory, non-matching project), more than 16
+  services, directories with a Compose file but no containers, and any stack past the eighth
+  (the first eight by name are kept). If nothing can be registered it exits non-zero and writes
+  nothing. One-off containers and containers without a Compose project are ignored and counted.
+- Without `--install` it only writes `--out`; install it with `install -o root -g root -m 0644
+  FILE /etc/limeos/management-catalog.json`. With `--install` it also links it into place as
+  root-owned 0644 after checking `/etc/limeos` is root-owned and closed to others; an existing
+  catalog is never replaced.

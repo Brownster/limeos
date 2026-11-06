@@ -28,10 +28,16 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
 
 1. Read-only checks: `limeosctl migrate scan`, then `import-users` and
    `propose-ceiling` per [migrate tools](p06-migrate-tools.md). Install the
-   ceiling and the `.deb` set; choose the pinned version.
+   ceiling and the `.deb` set; choose the pinned version. Generate and review the
+   stack catalog: `limeosctl migrate propose-catalog --out
+   /root/management-catalog.proposed.json`, read its `stack ...` / `refused ...` lines (a
+   Compose project outside `/opt/stacks`, such as wybie's one-container `docker`, is refused by
+   design), then `install -o root -g root -m 0644 /root/management-catalog.proposed.json
+   /etc/limeos/management-catalog.json` (or rerun with `--install`).
 2. `scripts/cutover/preflight.sh` (writes `/var/lib/limeos-cutover/<ts>/`, or
    `--out DIR`). It refuses on MemAvailable below 1.5 GiB, swap above 90 %, a
-   stopped managed container, or Jellyfin playback. Without Jellyfin credentials
+   stopped managed container, Jellyfin playback, or a missing/unsafe
+   `/etc/limeos/management-catalog.json` (the message names the command above). Without Jellyfin credentials
    it cannot see playback and warns: check the dashboard yourself.
 3. Rehearse: `scripts/cutover/activate.sh SNAP --dry-run --package PATH
    --expected-version V --host HOST` prints every command and changes nothing.
@@ -40,9 +46,11 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    --expected-version V --host HOST [--port 8002] [--tls-cert F --tls-key F]`.
    It stops and disables only `limeos-metrics-collector.timer`,
    `limeos-package-reconcile.timer`, `pi-health` and `pihealth-helper`; installs
-   the package; starts the Rust services; installs the Caddy site; then checks
+   the package; starts the Rust services and the read-only stack reader
+   (`limeos-storage-reader`, started but never enabled); installs the Caddy site; then checks
    core health and the login page through the proxy, `limeosctl status`, `docker
-   ps` IDs and StartedAt against the snapshot, and that `limeops-*`,
+   ps` IDs and StartedAt against the snapshot, that the reader is active, listening and not
+   restarting (twice, three seconds apart), and that `limeops-*`,
    `limeos-agent` and `flask-shutdown` are unchanged. Any failure runs
    `return.sh` and exits non-zero.
 5. Log in through the browser (trust the Caddy CA first under `internal`).
@@ -52,10 +60,11 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    StartedAt, and that port 8002 answers over plain HTTP. Safe to repeat. The
    package stays installed.
 
-Stack status needs the dormant `limeos-storage-reader.service` (root, read-only, no Install
-section): neither script starts it. If the operator wants stack status and whole-stack actions,
-start it by hand after `activate.sh` (and install the management catalog first);
-`return.sh` stops it again.
+Stack status and whole-stack start/stop/restart need the reader and the catalog; `activate.sh`
+starts the reader (it has no Install section, so it never starts at boot) and `return.sh` stops
+it. Log in and open the stacks page to confirm it is no longer `unavailable`. After a reboot the
+reader is not running: start it by hand (`systemctl start limeos-storage-reader`). Re-run `propose-catalog` and replace the catalog (as root, by hand) whenever a
+Compose file under `/opt/stacks` changes, since its hash is registered.
 
 ## Abort criteria
 
