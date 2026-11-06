@@ -9,6 +9,7 @@ import type {
   ContainerLogs,
 } from "../../contracts/generated/types";
 import { api, ApiError } from "./api";
+import { NeedsAttention } from "./ResolutionPanel";
 
 function message(error: unknown): string {
   return error instanceof ApiError
@@ -284,10 +285,15 @@ export function ContainerJobs({
   csrf,
   revision,
   expired,
+  admin = false,
+  changed = () => {},
 }: {
   csrf: string;
   revision: number;
   expired: () => void;
+  /** Only administrators may resolve; others see the banner as information. */
+  admin?: boolean;
+  changed?: () => void;
 }) {
   const [jobs, setJobs] = useState<RestartJob[]>([]);
   const [error, setError] = useState("");
@@ -360,6 +366,18 @@ export function ContainerJobs({
           {error}
         </p>
       )}
+      <NeedsAttention
+        jobs={jobs
+          .filter((job) => job.state === "needs_intervention")
+          .map((job) => ({
+            id: job.id,
+            title: `${labels[job.plan.operation ?? "restart"]} · ${job.plan.expected.resource.slice(10, 22)}`,
+          }))}
+        admin={admin}
+        csrf={csrf}
+        expired={expired}
+        changed={changed}
+      />
       {jobs.slice(0, 8).map((job) => (
         <article key={job.id} className="job-row">
           <div>

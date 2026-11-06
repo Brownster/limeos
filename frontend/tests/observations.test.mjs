@@ -36,6 +36,11 @@ const actions = moduleCode(
 ).replace(
   '"./api"',
   JSON.stringify(new URL("../src/api.ts", import.meta.url).href),
+).replace(
+  '"./ResolutionPanel"',
+  JSON.stringify(
+    `data:text/javascript,${encodeURIComponent("export const NeedsAttention = () => null;")}`,
+  ),
 );
 const actionsURL = `data:text/javascript;base64,${Buffer.from(actions).toString("base64")}`;
 const source = await readFile(

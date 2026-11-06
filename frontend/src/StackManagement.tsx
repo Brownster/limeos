@@ -8,7 +8,7 @@ const relationLabels = { not_registered: "Not registered", catalog_unknown: "Reg
 const sample = (at: number | null) => at === null ? "No sample" : new Date(at * 1000).toISOString();
 
 /** Whole-stack lifecycle controls are mounted only for an authenticated session. */
-export interface StackOperations { csrf: string; revision: number; changed: () => void; expired: () => void }
+export interface StackOperations { csrf: string; revision: number; changed: () => void; expired: () => void; admin?: boolean }
 export function StackManagement({ value, loading = false, stale = false, error = "", refresh, operations }: {
   value: StackInventory | null; loading?: boolean; stale?: boolean; error?: string; refresh: () => void; operations?: StackOperations;
 }) {
@@ -52,7 +52,7 @@ export function StackManagement({ value, loading = false, stale = false, error =
         </details>)}</>}
       <p>{stale || value.standalone_containers === null ? "Current standalone-container count is unavailable." : `${value.standalone_containers} standalone containers observed outside Compose projects.`}</p>
     </>}
-    {operations && <StackJobs csrf={operations.csrf} revision={operations.revision} expired={operations.expired} />}
+    {operations && <StackJobs csrf={operations.csrf} revision={operations.revision} expired={operations.expired} admin={operations.admin} changed={operations.changed} />}
   </section>;
 }
 
@@ -78,11 +78,11 @@ function Services({ value, stale }: { value: ServiceView[]; stale: boolean }) {
 }
 
 /** Mount with the shared authenticated principal/grant identity. */
-export function StackPanel({ principal, grantRevision, csrf, expired }: { principal: string; grantRevision: number; csrf:string; expired: () => void }) {
-  return <OwnedStackPanel key={JSON.stringify([principal,grantRevision,csrf])} csrf={csrf} expired={expired} />;
+export function StackPanel({ principal, grantRevision, csrf, expired, admin }: { principal: string; grantRevision: number; csrf:string; expired: () => void; admin?: boolean }) {
+  return <OwnedStackPanel key={JSON.stringify([principal,grantRevision,csrf])} csrf={csrf} expired={expired} admin={admin} />;
 }
 const useOwnerEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
-function OwnedStackPanel({ csrf, expired }: { csrf:string; expired:()=>void }) {
+function OwnedStackPanel({ csrf, expired, admin }: { csrf:string; expired:()=>void; admin?: boolean }) {
   const [revision, setRevision] = useState(0);
   const expiry = useRef(expired); expiry.current = expired;
   const stableExpired = useCallback(() => expiry.current(), []);
@@ -96,5 +96,5 @@ function OwnedStackPanel({ csrf, expired }: { csrf:string; expired:()=>void }) {
   if (state.expired) return null;
   const changed = () => { setRevision(value => value + 1); void controller.refresh(); };
   return <StackManagement value={state.value} loading={state.loading} stale={state.stale} error={state.error} refresh={() => { void controller.refresh(); }}
-    operations={{ csrf, revision, changed, expired: stableExpired }} />;
+    operations={{ csrf, revision, changed, expired: stableExpired, admin }} />;
 }

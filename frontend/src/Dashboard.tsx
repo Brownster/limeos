@@ -40,6 +40,7 @@ export function Dashboard({
   const canManage = ["operator", "administrator"].includes(
     session.principal.role,
   );
+  const isAdmin = session.principal.role === "administrator";
   const [value, setValue] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const [connected, setConnected] = useState(false);
@@ -176,7 +177,7 @@ export function Dashboard({
       </nav>
       {kind === "stack" && (
         <StackPanel principal={session.principal.id} grantRevision={session.principal.grant_revision}
-          csrf={session.csrf_token} expired={expired} />
+          csrf={session.csrf_token} expired={expired} admin={isAdmin} />
       )}
       <div>
         <button aria-expanded={schedulesOpen} aria-controls="health-schedules-panel" onClick={() => setSchedulesOpen(open => !open)}>
@@ -220,6 +221,8 @@ export function Dashboard({
               csrf={session.csrf_token}
               revision={operationsRevision}
               expired={expired}
+              admin={isAdmin}
+              changed={changed}
             />
           )}
           {canManage && <StorageMounts csrf={session.csrf_token} expired={expired} />}

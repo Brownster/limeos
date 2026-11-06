@@ -20,9 +20,10 @@ const apiURL = encode(`export class ApiError extends Error { constructor(detail)
 export const api = new Proxy({}, { get: (_, name) => (...args) => globalThis.__stackApi[name](...args) });`);
 const uiURL = encode(`export const message = error => error instanceof Error ? error.message : "unavailable";
 export const containFocus = () => {};`);
+const panelURL = encode("export const NeedsAttention = () => null;");
 const flowURL = encode(await code("stack-action-controller.ts"));
 const actionsURL = encode((await code("StackActions.tsx"))
-  .replace('"./api"', JSON.stringify(apiURL)).replace('"./operation-ui"', JSON.stringify(uiURL))
+  .replace('"./api"', JSON.stringify(apiURL)).replace('"./operation-ui"', JSON.stringify(uiURL)).replace('"./ResolutionPanel"', JSON.stringify(panelURL))
   .replace('"./stack-action-controller"', JSON.stringify(flowURL)));
 const viewURL = encode((await code("StackManagement.tsx")).replace('"./stack-inventory-controller"', JSON.stringify(controllerURL))
   .replace('"./StackActions"', JSON.stringify(actionsURL)));

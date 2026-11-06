@@ -12,6 +12,7 @@ import type {
 } from "../../contracts/generated/types";
 import { api, ApiError } from "./api";
 import { containFocus, message } from "./operation-ui";
+import { NeedsAttention } from "./ResolutionPanel";
 import {
   StackActionController,
   stackTargets,
@@ -307,10 +308,15 @@ export function StackJobs({
   csrf,
   revision,
   expired,
+  admin = false,
+  changed = () => {},
 }: {
   csrf: string;
   revision: number;
   expired: () => void;
+  /** Only administrators may resolve; others see the banner as information. */
+  admin?: boolean;
+  changed?: () => void;
 }) {
   const [jobs, setJobs] = useState<StackJob[]>([]);
   // A failed job is a partly-done run: its per-member receipt is needed to say so.
@@ -399,6 +405,18 @@ export function StackJobs({
           {error}
         </p>
       )}
+      <NeedsAttention
+        jobs={jobs
+          .filter((job) => job.state === "needs_intervention")
+          .map((job) => ({
+            id: job.id,
+            title: `${labels[job.plan.operation]} stack · ${job.plan.expected.resource.slice(6)}`,
+          }))}
+        admin={admin}
+        csrf={csrf}
+        expired={expired}
+        changed={changed}
+      />
       {jobs.slice(0, 8).map((job) => (
         <StackJobRow
           key={job.id}
