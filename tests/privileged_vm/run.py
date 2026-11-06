@@ -67,6 +67,11 @@ def main():
         help="Attach four empty 128 MiB disposable virtual disks for storage acceptance",
     )
     parser.add_argument(
+        "--memory-mb",
+        type=int,
+        help="Guest RAM in MiB (default 2048 with --build-bundle, else 1024)",
+    )
+    parser.add_argument(
         "--image",
         type=Path,
         default=ROOT / ".cache/p01-vm/debian-12-genericcloud-amd64.qcow2",
@@ -172,7 +177,7 @@ def main():
                     "-smp",
                     "2",
                     "-m",
-                    "2048" if args.build_bundle else "1024",
+                    str(args.memory_mb or (2048 if args.build_bundle else 1024)),
                     "-display",
                     "none",
                     "-serial",
@@ -281,6 +286,26 @@ def main():
                         str(ROOT / "tests/fixtures" / source),
                         "root@127.0.0.1:/root/" + destination,
                     )
+                # Cutover scripts and their Caddy template, at the relative layout
+                # the scripts expect (scripts/cutover, packaging/).
+                run(*ssh, "mkdir -p /root/limeos-src/scripts /root/limeos-src/packaging")
+                run(
+                    "scp",
+                    *common,
+                    "-P",
+                    str(port),
+                    "-r",
+                    str(ROOT / "scripts/cutover"),
+                    "root@127.0.0.1:/root/limeos-src/scripts/",
+                )
+                run(
+                    "scp",
+                    *common,
+                    "-P",
+                    str(port),
+                    str(ROOT / "packaging/Caddyfile.cutover.example"),
+                    "root@127.0.0.1:/root/limeos-src/packaging/",
+                )
                 if args.build_bundle:
                     if args.retain_previous_repository:
                         run(*ssh, "mv /opt/limeos-repo /opt/limeos-previous-repo")
@@ -347,6 +372,20 @@ def main():
                         + " /opt/limeos-repo /root/result.json",
                     )
                 except subprocess.CalledProcessError:
+                    # Keep whatever result the guest wrote before failing (case-by-case guests).
+                    args.output.parent.mkdir(parents=True, exist_ok=True)
+                    subprocess.run(
+                        [
+                            "scp",
+                            *common,
+                            "-P",
+                            str(port),
+                            "root@127.0.0.1:/root/result.json",
+                            str(args.output.with_name(args.output.stem + "-failed.json")),
+                        ],
+                        capture_output=True,
+                        check=False,
+                    )
                     diagnostics = subprocess.run(
                         [
                             *ssh,
