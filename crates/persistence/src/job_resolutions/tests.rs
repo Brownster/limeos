@@ -707,3 +707,71 @@ fn migration_from_version_15_widens_the_job_states_and_keeps_existing_rows() {
     drop(s);
     Store::open(&path).unwrap();
 }
+
+#[test]
+fn reauthentication_needs_a_live_administrator_session_with_its_csrf() {
+    let (_d, mut s, p) = setup();
+    let record = s.login_record("alice").unwrap().unwrap();
+    s.create_session(&record, None, "session", "csrf", 400)
+        .unwrap();
+    let found = s
+        .resolution_reauthentication("session", "csrf", 401)
+        .unwrap();
+    assert_eq!(found.principal, p);
+    assert_eq!(found.password_hash, "$argon2id$fixture");
+    assert_eq!(
+        s.resolution_reauthentication("session", "other", 401)
+            .err()
+            .unwrap(),
+        Error(ErrorCode::Forbidden)
+    );
+    assert_eq!(
+        s.resolution_reauthentication("missing", "csrf", 401)
+            .err()
+            .unwrap(),
+        Error(ErrorCode::Unauthenticated)
+    );
+    assert_eq!(
+        s.resolution_reauthentication("session", "csrf", 400 + 9 * 3600)
+            .err()
+            .unwrap(),
+        Error(ErrorCode::Unauthenticated)
+    );
+    s.conn
+        .execute("UPDATE users SET role='\"operator\"'", [])
+        .unwrap();
+    assert!(
+        s.resolution_reauthentication("session", "csrf", 401)
+            .is_err()
+    );
+}
+
+#[test]
+fn principal_lookup_and_member_outcomes_follow_the_stored_receipt() {
+    let (_d, mut s, p) = setup();
+    assert_eq!(s.resolution_principal(&p.id).unwrap(), p);
+    assert_eq!(
+        s.resolution_principal(&"f".repeat(32)).unwrap_err(),
+        Error(ErrorCode::NotFound)
+    );
+    let job = running(&mut s, &p, "a", "a");
+    assert_eq!(s.resolution_members(&p, &job.id).unwrap(), None);
+    let receipt = limeos_domain::RestartReceipt {
+        action: job.id.clone(),
+        plan_digest: limeos_identity::digest(&json(&job.plan).unwrap()),
+        operation: job.plan.operation,
+        before: job.plan.expected.clone(),
+        state: limeos_domain::ExecutionState::OutcomeUnknown,
+        error: Some(ErrorCode::Unavailable),
+    };
+    s.record_container_result(&job, &receipt, None, 250)
+        .unwrap();
+    let members = s.resolution_members(&p, &job.id).unwrap().unwrap();
+    assert_eq!(members.len(), 1);
+    assert_eq!(members[0].container, "a".repeat(64));
+    assert_eq!(
+        members[0].state,
+        limeos_domain::ExecutionState::OutcomeUnknown
+    );
+    assert_eq!(members[0].error, Some(ErrorCode::Unavailable));
+}

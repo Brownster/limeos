@@ -13,8 +13,9 @@
 //! result rows are never modified.
 use super::*;
 use limeos_domain::{
-    ContainerAction, ContainerSnapshot, DeclaredOutcome, JobResolution, ResolutionEvidence,
-    ResolutionRequest, ResolveKind, ResolveReceipt,
+    ContainerAction, ContainerReceipt, ContainerSnapshot, DeclaredOutcome, JobResolution,
+    ResolutionEvidence, ResolutionMember, ResolutionRequest, ResolveKind, ResolveReceipt,
+    StackReceipt,
 };
 
 /// What core needs to gather evidence and to address the executor.
@@ -122,6 +123,100 @@ impl Store {
             .map_err(durable)?
             .ok_or(Error(ErrorCode::NotFound))?;
         subject_of(job, &state, &intent)
+    }
+
+    /// The session's administrator and stored password hash, for the fresh
+    /// re-authentication that precedes a resolution. Core verifies the password;
+    /// nothing here proves it. The session, its CSRF binding and the role are
+    /// checked now.
+    pub fn resolution_reauthentication(
+        &self,
+        session: &str,
+        csrf: &str,
+        now: i64,
+    ) -> Result<LoginRecord> {
+        let principal = identity_store::authenticate(&self.conn, session, Some(csrf), now)?;
+        identity_store::current_grants(&self.conn, &principal)?;
+        limeos_policy::authorize_job_resolution(&principal)?;
+        let password_hash = self
+            .conn
+            .query_row(
+                "SELECT password_hash FROM users WHERE id=?",
+                [&principal.id],
+                |r| r.get(0),
+            )
+            .map_err(durable)?;
+        Ok(LoginRecord {
+            principal,
+            password_hash,
+        })
+    }
+
+    /// The current principal for a user ID, so a retry acts with today's role
+    /// and grant revision. Internal; no actor.
+    pub fn resolution_principal(&self, id: &str) -> Result<Principal> {
+        let (role, grant_revision): (String, i64) = self
+            .conn
+            .query_row(
+                "SELECT role,grant_revision FROM users WHERE id=?",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .map_err(durable)?
+            .ok_or(Error(ErrorCode::NotFound))?;
+        Ok(Principal {
+            id: id.into(),
+            role: parse(&role)?,
+            grant_revision,
+        })
+    }
+
+    /// The executor's recorded per-target outcomes for the job, whoever owns
+    /// it. `None` before any receipt exists. Administrator only.
+    pub fn resolution_members(
+        &self,
+        principal: &Principal,
+        job: &str,
+    ) -> Result<Option<Vec<ResolutionMember>>> {
+        let subject = self.resolution_subject(principal, job)?;
+        let id = |resource: &str| resource.trim_start_matches("container:").to_owned();
+        let table = match subject.kind {
+            ResolveKind::Container => "container_results",
+            ResolveKind::Stack => "stack_results",
+        };
+        let receipt: Option<String> = self
+            .conn
+            .query_row(
+                &format!("SELECT receipt FROM {table} WHERE job=?"),
+                [job],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(durable)?;
+        receipt
+            .map(|body| {
+                Ok(match subject.kind {
+                    ResolveKind::Container => {
+                        let r: ContainerReceipt = parse(&body)?;
+                        vec![ResolutionMember {
+                            container: id(&r.before.resource),
+                            state: r.state,
+                            error: r.error,
+                        }]
+                    }
+                    ResolveKind::Stack => parse::<StackReceipt>(&body)?
+                        .members
+                        .into_iter()
+                        .map(|m| ResolutionMember {
+                            container: id(&m.resource),
+                            state: m.state,
+                            error: m.error,
+                        })
+                        .collect(),
+                })
+            })
+            .transpose()
     }
 
     /// Step 1. `evidence` is the fresh executor measurement; `shown_digest` is

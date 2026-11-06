@@ -180,6 +180,17 @@ pub fn validate_reason(declared: DeclaredOutcome, reason: &str) -> Result<()> {
     Ok(())
 }
 
+/// One target's outcome as the executor recorded it in the job's receipt. For
+/// a container job there is exactly one; for a stack, one per member.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct ResolutionMember {
+    /// Full container ID, without the `container:` prefix.
+    pub container: String,
+    pub state: crate::ExecutionState,
+    pub error: Option<ErrorCode>,
+}
+
 /// A recorded request (step 1). The job stays locked until the executor has
 /// confirmed and core has completed it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
