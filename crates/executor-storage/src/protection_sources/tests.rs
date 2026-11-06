@@ -19,6 +19,17 @@ fn cases() -> Vec<serde_json::Value> {
         .unwrap()
         .clone()
 }
+/// Counts descriptors of this process that resolve inside the fixture tree.
+/// A process-wide count races with parallel tests opening unrelated fds; each
+/// fixture owns a private tempdir, so only code under test can add entries here.
+fn owned_fds(f: &Fixture) -> usize {
+    let root = fs::canonicalize(f.tree.path()).unwrap();
+    fs::read_dir("/proc/self/fd")
+        .unwrap()
+        .filter_map(|e| fs::read_link(e.ok()?.path()).ok())
+        .filter(|target| target.starts_with(&root))
+        .count()
+}
 struct Fixture {
     tree: TempDir,
     preview: SnapraidPreview,
@@ -557,9 +568,9 @@ fn bounds_refuse_and_configuration_identity_covers_complete_current_facts() {
 #[test]
 fn owned_descriptor_cost_and_drop_close_without_filesystem_writes() {
     let f = Fixture::new();
-    let before = fs::read_dir("/proc/self/fd").unwrap().count();
+    let before = owned_fds(&f);
     let paths = f.collect().unwrap();
-    let added = fs::read_dir("/proc/self/fd").unwrap().count() - before;
+    let added = owned_fds(&f) - before;
     let expected = 1 + paths
         .pinned
         .iter()
@@ -568,7 +579,7 @@ fn owned_descriptor_cost_and_drop_close_without_filesystem_writes() {
     assert_eq!(added, expected);
     assert!(added <= 128);
     drop(paths);
-    assert_eq!(fs::read_dir("/proc/self/fd").unwrap().count(), before);
+    assert_eq!(owned_fds(&f), before);
     for r in &f.preview.requirements {
         if matches!(
             r.kind,
@@ -617,7 +628,7 @@ fn cancelled_and_midcollection_io_failure_close_all_owned_handles() {
     }
     let f = Fixture::new();
     let expected = f.expected();
-    let before = fs::read_dir("/proc/self/fd").unwrap().count();
+    let before = owned_fds(&f);
     let broken = Broken {
         fixture: &f,
         calls: Cell::new(0),
@@ -626,7 +637,7 @@ fn cancelled_and_midcollection_io_failure_close_all_owned_handles() {
         matches!(collect_paths(f.root(), &f.preview, MountBindings { paths: &expected, host_root: 1 },
         limits(), Instant::now()+LIFETIME, &|| false, &broken), Err(SourceError::Io(e)) if e.raw_os_error()==Some(5))
     );
-    assert_eq!(fs::read_dir("/proc/self/fd").unwrap().count(), before);
+    assert_eq!(owned_fds(&f), before);
     assert!(matches!(
         collect_paths(
             f.root(),
@@ -642,7 +653,7 @@ fn cancelled_and_midcollection_io_failure_close_all_owned_handles() {
         ),
         Err(SourceError::Cancelled)
     ));
-    assert_eq!(fs::read_dir("/proc/self/fd").unwrap().count(), before);
+    assert_eq!(owned_fds(&f), before);
 }
 
 #[test]
