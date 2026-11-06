@@ -52,6 +52,7 @@ case "${tool}" in
                 done ;;
             enable) for u in "${args[@]}"; do set_unit "${u}" enabled enabled; done ;;
             disable) for u in "${args[@]}"; do set_unit "${u}" enabled disabled; done ;;
+            show) printf '%s\n' "$(get_unit "${args[-1]}" restarts 0)" ;;
             daemon-reload|reload) ;;
             *) printf 'stub systemctl: unsupported %s\n' "${verb}" >&2; exit 99 ;;
         esac ;;

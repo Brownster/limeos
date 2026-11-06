@@ -35,6 +35,9 @@ FROZEN = [
     "limeos-metrics-collector.timer", "limeos-package-reconcile.timer",
 ]
 RUST = ["limeos-storaged.service", "limeos-containerd.service", "limeos-core.service"]
+READER = "limeos-storage-reader.service"
+READER_SOCKET = "run/limeos-storage-reader/executor.sock"
+CATALOG = "etc/limeos/management-catalog.json"
 MUTATING_VERBS = {"stop", "start", "restart", "enable", "disable", "reload", "daemon-reload"}
 FREE_OK = (
     "              total        used        free      shared  buff/cache   available\n"
@@ -96,12 +99,15 @@ class Harness(unittest.TestCase):
         self._write("/var/lib/limeos/auto_update.json", "{}")
         self._write("/home/holly/pi-health/config/backup_config.json", '{"edited":1}')
         self._write("/home/holly/pi-health/config/media_paths.json", '{"m":1}')
+        self._write("/" + CATALOG, '{"version":1}\n')
+        (self.root / CATALOG).chmod(0o644)
+        self.reader_listens()
         self._write("/etc/caddy/Caddyfile", "import /etc/caddy/conf.d/*.caddy\n")
         self._write("/pkg/limeos_1.0.0_arm64.deb", "deb")
         for name in [*FROZEN, *UNTOUCHED]:
             self._unit(name)
         self._unit("caddy.service", "inactive", "disabled")
-        for name in RUST:
+        for name in [*RUST, READER]:
             self._unit(name, "inactive", "disabled")
         ids = [f"{i:064x}" for i in range(1, len(MANAGED) + 1)]
         (self.stub / "docker_ps.txt").write_text(
@@ -118,6 +124,19 @@ class Harness(unittest.TestCase):
             f"{SITE}/": "200 <html>",
             "http://127.0.0.1:8002/": "200",
         })
+
+    def reader_listens(self, listens=True):
+        """Starting the reader creates its socket (or, with listens=False, does not)."""
+        script = self.stub / f"hook-start-{READER}"
+        if not listens:
+            script.unlink(missing_ok=True)
+            return
+        sock = self.root / READER_SOCKET
+        script.write_text(
+            "#!/usr/bin/env bash\n"
+            f"mkdir -p '{sock.parent}' && rm -f '{sock}' && "
+            f"python3 -c \"import socket,sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])\" '{sock}'\n")
+        script.chmod(0o755)
 
     def set_curl(self, mapping):
         (self.stub / "curl.map").write_text("".join(f"{k} {v}\n" for k, v in mapping.items()))
@@ -218,6 +237,24 @@ class PreflightTests(Harness):
         (self.stub / "free_out").write_text(FREE_OK.replace("420000000", "510000000"))
         self.refused("swap use is above 90%")
 
+    def test_refuses_a_missing_catalog_with_the_exact_command(self):
+        (self.root / CATALOG).unlink()
+        result = self.preflight()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("REFUSED: stack management catalog: /etc/limeos/management-catalog.json is missing", result.stderr)
+        self.assertIn(f"{self.bin}/limeosctl migrate propose-catalog --out /root/management-catalog.proposed.json --install", result.stderr)
+        self.assertIn("install -o root -g root -m 0644", result.stderr)
+        self.assertEqual(self.mutating_calls(), [])
+
+    def test_refuses_a_catalog_that_is_a_symlink_or_writable_by_others(self):
+        path = self.root / CATALOG
+        path.chmod(0o666)
+        self.refused("not group/world writable")
+        path.unlink()
+        path.symlink_to("/etc/hostname")
+        shutil.rmtree(self.root / "var/lib/limeos-cutover")
+        self.refused("not a regular file")
+
     def test_refuses_stopped_managed_container(self):
         lines = (self.stub / "docker_ps.txt").read_text().splitlines()
         (self.stub / "docker_ps.txt").write_text("\n".join(l for l in lines if "radarr" not in l) + "\n")
@@ -294,6 +331,7 @@ class ActivateTests(Harness):
             "systemctl start limeos-storaged.service",
             "systemctl start limeos-containerd.service",
             "systemctl start limeos-core.service",
+            f"systemctl start {READER}",
             "caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile",
             "systemctl enable caddy.service",
             "systemctl start caddy.service",
@@ -311,6 +349,10 @@ class ActivateTests(Harness):
             self.assertEqual(self.unit_state(name), ("inactive", "disabled"))
         for name in RUST:
             self.assertEqual(self.unit_state(name), ("active", "enabled"))
+        # The reader is started but never enabled (it has no Install section).
+        self.assertEqual(self.unit_state(READER), ("active", "disabled"))
+        self.assertNotIn(f"systemctl enable {READER}", self.calls())
+        self.assertTrue((self.root / READER_SOCKET).is_socket())
         site = (self.root / "etc/caddy/conf.d/limeos-cutover.caddy").read_text()
         self.assertIn(f"{SITE} {{", site)
         self.assertIn("tls internal", site)
@@ -380,6 +422,7 @@ class ActivateTests(Harness):
             "systemctl enable limeos-core.service",
             "systemctl start limeos-containerd.service",
             "systemctl start limeos-core.service",
+            f"systemctl start {READER}",
             "caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile",
             "systemctl enable caddy.service",
             "systemctl start caddy.service",
@@ -405,6 +448,48 @@ class ActivateTests(Harness):
                 self.passing_snapshot()
                 self.set_curl({**base, key: value})
                 self.assert_rolled_back(self.approved())
+
+    def assert_reader_stopped_by_rollback(self, result):
+        self.assert_rolled_back(result)
+        self.assertEqual(self.unit_state(READER), ("inactive", "disabled"))
+        self.assertIn(f"systemctl stop {READER}", self.calls())
+
+    def test_reader_start_failure_rolls_back(self):
+        self.passing_snapshot()
+        self.inject(f"systemctl start {READER}")
+        result = self.approved()
+        self.assert_rolled_back(result)
+        self.assertIn(f"command failed: systemctl start {READER}", result.stderr)
+        self.assertEqual(self.unit_state(READER), ("inactive", "disabled"))
+
+    def test_reader_that_never_listens_rolls_back_and_is_stopped(self):
+        self.passing_snapshot()
+        self.reader_listens(False)
+        result = self.approved()
+        self.assertIn("health check failed: stack reader ready", result.stderr)
+        self.assert_reader_stopped_by_rollback(result)
+
+    def test_reader_that_crash_loops_rolls_back_and_is_stopped(self):
+        self.passing_snapshot()
+        (self.stub / "units" / f"{READER}.restarts").write_text("3\n")
+        result = self.approved()
+        self.assertIn("health check failed: stack reader ready", result.stderr)
+        self.assert_reader_stopped_by_rollback(result)
+
+    def test_missing_catalog_is_refused_before_any_change(self):
+        self.passing_snapshot()
+        (self.root / CATALOG).unlink()
+        result = self.approved()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("migrate propose-catalog --out", result.stderr)
+        self.assertEqual(self.mutating_calls(), [])
+
+    def test_dry_run_prints_the_reader_start_and_check(self):
+        self.passing_snapshot()
+        result = self.activate("--dry-run")
+        self.assertIn(f"[dry-run] systemctl start {READER}", result.stdout)
+        self.assertIn("[dry-run] check stack reader ready", result.stdout)
+        self.assertEqual(self.unit_state(READER), ("inactive", "disabled"))
 
     def test_version_mismatch_rolls_back(self):
         self.passing_snapshot()
@@ -443,17 +528,18 @@ class ReturnTests(Harness):
         starts = [l for l in self.calls() if l.startswith("systemctl start")]
         self.assertEqual(starts, [f"systemctl start {n}" for n in FROZEN])
 
-    def test_stops_a_hand_started_stack_reader_but_not_otherwise(self):
-        # Found in the VM rehearsal: stack status needs `systemctl start limeos-storage-reader`,
-        # which neither script does; return must not leave that root service running.
+    def test_stops_the_stack_reader_and_never_enables_it(self):
+        # activate.sh starts the reader; return must not leave that root service running.
         self.activated()
+        self.assertEqual(self.unit_state(READER), ("active", "disabled"))
         self.assertEqual(self.do_return().returncode, 0)
-        self.assertNotIn("systemctl stop limeos-storage-reader.service", self.calls())
-        self._unit("limeos-storage-reader.service", "active", "disabled")
-        result = self.do_return()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.unit_state("limeos-storage-reader.service"), ("inactive", "disabled"))
-        self.assertNotIn("systemctl enable limeos-storage-reader.service", self.calls())
+        self.assertIn(f"systemctl stop {READER}", self.calls())
+        self.assertEqual(self.unit_state(READER), ("inactive", "disabled"))
+        self.assertNotIn(f"systemctl enable {READER}", self.calls())
+        # A second return finds it stopped and does not touch it again.
+        (self.stub / "calls.log").write_text("")
+        self.assertEqual(self.do_return().returncode, 0)
+        self.assertNotIn(f"systemctl stop {READER}", self.calls())
 
     def test_idempotent(self):
         self.activated()

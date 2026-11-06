@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # T4: read-only pre-cutover snapshot. Writes only into the snapshot directory.
-# Refuses (exit 1) on memory pressure, high swap, a stopped managed container or
-# active Jellyfin playback. Hashes state files; never prints or stores contents.
+# Refuses (exit 1) on memory pressure, high swap, a stopped managed container,
+# active Jellyfin playback or a missing stack management catalog. Hashes state files; never prints or stores contents.
 set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
@@ -20,7 +20,9 @@ Read-only snapshot for the basic cutover. Default DIR is
 /var/lib/limeos-cutover/<UTC timestamp>/. --managed-file lists container names
 (one per line) that must be running; the default is the household set from
 docs/plans/2026-11-05-basic-cutover-tooling-scope.md.
-Exit 0: snapshot written and every check passed. Exit 1: refused or failed.
+The stack management catalog (/etc/limeos/management-catalog.json, from
+`limeosctl migrate propose-catalog`) must exist: activate.sh starts the stack reader
+with it. Exit 0: snapshot written and every check passed. Exit 1: refused or failed.
 USAGE
 }
 
@@ -96,6 +98,9 @@ fct_main() {
             refusals+=("swap use is above ${MAX_SWAP_PERCENT}% (${swap_used} of ${swap_total} bytes)")
         fi
     fi
+    local problem
+    problem="$(fct_catalog_problem)"
+    [[ -z "${problem}" ]] || refusals+=("stack management catalog: ${problem}")
     local running name
     running="$(docker ps --format '{{.Names}}' | sort)"
     for name in "${managed[@]}"; do

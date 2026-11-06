@@ -18,6 +18,10 @@ UNTOUCHED_FIXED=(limeos-agent.service flask-shutdown.service)
 RUST_UNITS=(limeos-storaged.service limeos-containerd.service limeos-core.service)
 DEFAULT_MANAGED=(jellyfin radarr sonarr sabnzbd transmission jackett vpn navidrome audiobookshelf rdtclient requestrr get_iplayer yt-to-jellyfin watchtower)
 FROZEN_PORT_DEFAULT=8002
+# Stack status and whole-stack actions: the dormant read-only reader (never enabled) loads this catalog.
+STACK_READER=limeos-storage-reader.service
+STACK_READER_SOCKET=/run/limeos-storage-reader/executor.sock
+CATALOG_PATH=/etc/limeos/management-catalog.json
 LIMEOSCTL="${LIMEOSCTL:-/usr/lib/limeos/limeosctl}"
 CORE_SOCKET="${CORE_SOCKET:-/run/limeos-core/core.sock}"
 
@@ -47,6 +51,23 @@ fct_meta_get() { # file key
     local line
     line="$(grep -m1 -E "^${2}=" "${1}" || true)"
     printf '%s\n' "${line#*=}"
+}
+
+# Empty when the management catalog is present, a regular root-owned file closed to
+# writers; otherwise one line naming the problem and the exact command that fixes it.
+fct_catalog_problem() {
+    local file="${CUTOVER_ROOT}${CATALOG_PATH}" owner mode
+    if [[ ! -e "${file}" && ! -L "${file}" ]]; then
+        printf '%s is missing; generate it with: %s migrate propose-catalog --out /root/management-catalog.proposed.json --install (or review the proposal, then: install -o root -g root -m 0644 /root/management-catalog.proposed.json %s)\n' \
+            "${CATALOG_PATH}" "${LIMEOSCTL}" "${CATALOG_PATH}"
+    elif [[ -L "${file}" || ! -f "${file}" ]]; then
+        printf '%s is not a regular file\n' "${CATALOG_PATH}"
+    else
+        read -r owner mode < <(stat -c '%u %a' -- "${file}")
+        if [[ "${CUTOVER_ALLOW_NONROOT:-0}" != 1 && "${owner}" != 0 ]] || (( 8#${mode} & 8#022 )); then
+            printf '%s must be owned by root and not group/world writable (is %s:%s)\n' "${CATALOG_PATH}" "${owner}" "${mode}"
+        fi
+    fi
 }
 
 fct_unit_active() { systemctl is-active "${1}" 2>/dev/null || true; }

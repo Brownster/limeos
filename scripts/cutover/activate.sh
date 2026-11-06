@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # T5: stop the frozen writers, install the pinned Rust package, start the Rust
-# services behind an HTTPS Caddy site, health-check, and roll back (return.sh)
-# automatically on any failed step. Never touches limeops-*, limeos-agent,
+# services and the read-only stack reader behind an HTTPS Caddy site, health-check,
+# and roll back (return.sh) automatically on any failed step. Never touches limeops-*, limeos-agent,
 # flask-shutdown, docker or containers. Needs explicit operator approval.
 set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -75,6 +75,12 @@ fct_render() { # template site tls -> stdout
 fct_port_free() { ! ss -H -ltn | grep -Eq "[:.]${1}[[:space:]]"; }
 fct_core_origin_ok() { tr -d ' \n' <"${CUTOVER_ROOT}/etc/limeos/core.json" | grep -qF "\"origin\":\"${1}\""; }
 fct_installed_version_ok() { [[ "$(dpkg-query -W -f='${Version}' limeos 2>/dev/null || true)" == "${1}" ]]; }
+# The stack reader (started, never enabled) is up, listening, and not crash-looping.
+fct_reader_ready() {
+    systemctl is-active --quiet "${STACK_READER}" || return 1
+    [[ -S "${CUTOVER_ROOT}${STACK_READER_SOCKET}" ]] || return 1
+    [[ "$(systemctl show -p NRestarts --value "${STACK_READER}" 2>/dev/null || echo 0)" == 0 ]]
+}
 fct_units_active() { local unit; for unit in "$@"; do systemctl is-active --quiet "${unit}" || return 1; done; }
 fct_docker_matches() {
     [[ "$(fct_docker_ids)" == "$(cat -- "${SNAP}/docker-ps.txt")" ]] \
@@ -131,6 +137,9 @@ fct_main() {
     fct_need 'caddy is not installed (install it separately first)' command -v caddy
     fct_need "${caddyfile} must contain: import ${SITE_DIR}/*.caddy" grep -Eqx "[[:space:]]*import[[:space:]]+${SITE_DIR}/\*(\.caddy)?" "${CUTOVER_ROOT}${caddyfile}"
     fct_need "core.json origin must be ${site}" fct_core_origin_ok "${site}"
+    local catalog_problem
+    catalog_problem="$(fct_catalog_problem)"
+    [[ -z "${catalog_problem}" ]] || fct_need "${catalog_problem}" false
     [[ -r "${template}" ]] || fct_die "site template not readable: ${template}"
 
     local rendered=''
@@ -179,6 +188,9 @@ fct_main() {
     for unit in "${RUST_UNITS[@]}"; do fct_do systemctl enable "${unit}"; done
     for unit in "${RUST_UNITS[@]}"; do fct_do systemctl start "${unit}"; done
     fct_retry 'Rust services active' fct_units_active "${RUST_UNITS[@]}"
+    # Stack status and whole-stack actions stay unavailable until the reader runs. It has no
+    # Install section on purpose: start it now, never enable it; return.sh stops it.
+    fct_do systemctl start "${STACK_READER}"
 
     # 3. HTTPS proxy on the public port, now that the frozen app has released it.
     fct_do install -d -m 0755 -- "${CUTOVER_ROOT}${SITE_DIR}"
@@ -204,6 +216,9 @@ fct_main() {
     fct_retry 'limeosctl status' "${LIMEOSCTL}" --socket "${CORE_SOCKET}" status
     fct_retry 'docker ps and StartedAt identical to the snapshot' fct_docker_matches
     fct_retry 'untouched units unchanged' fct_untouched_match
+    fct_retry 'stack reader ready' fct_reader_ready
+    if (( ! DRY_RUN )); then sleep 3; fi
+    fct_retry 'stack reader still ready after settling' fct_reader_ready
     fct_log "activate complete: ${site}"
 }
 

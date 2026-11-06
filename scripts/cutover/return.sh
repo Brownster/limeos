@@ -135,8 +135,8 @@ fct_main() {
     fct_log 'return: stopping the proxy site'
     fct_stop_proxy "${CUTOVER_ROOT}${site_dir}/${SITE_NAME}" "${caddy_state}"
     fct_log 'return: stopping the Rust services'
-    # The stack reader has no Install section and activate.sh never starts it; an operator
-    # who started it by hand for stack status gets it stopped here too (never enabled).
+    # The stack reader has no Install section: activate.sh starts it (never enables it) and
+    # it is stopped here, whoever started it.
     if [[ "$(fct_unit_active limeos-storage-reader.service)" == active ]]; then
         fct_step systemctl stop limeos-storage-reader.service
     fi
