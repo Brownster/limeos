@@ -14,8 +14,8 @@
 use super::*;
 use limeos_domain::{
     ContainerAction, ContainerReceipt, ContainerSnapshot, DeclaredOutcome, JobResolution,
-    ResolutionEvidence, ResolutionMember, ResolutionRequest, ResolveKind, ResolveReceipt,
-    StackReceipt,
+    NeedsAttentionJob, ResolutionEvidence, ResolutionMember, ResolutionRequest, ResolveKind,
+    ResolveReceipt, StackReceipt,
 };
 
 /// What core needs to gather evidence and to address the executor.
@@ -123,6 +123,73 @@ impl Store {
             .map_err(durable)?
             .ok_or(Error(ErrorCode::NotFound))?;
         subject_of(job, &state, &intent)
+    }
+
+    /// Every principal's container and stack jobs that hold locks until an
+    /// administrator settles them: `needs_intervention`, plus `running` or
+    /// `verifying` left by an earlier core generation (the same test as
+    /// `request_resolution`). Oldest first, at most 64. Read-only; administrator
+    /// only, so everyone else keeps seeing just their own jobs.
+    pub fn needs_attention_jobs(&self, principal: &Principal) -> Result<Vec<NeedsAttentionJob>> {
+        self.grants(principal)?;
+        limeos_policy::authorize_job_resolution(principal)?;
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT j.id,u.username,j.intent,j.state,COALESCE((SELECT min(created) FROM events WHERE job=j.id),0) \
+                 FROM jobs j JOIN users u ON u.id=j.principal \
+                 WHERE (j.state='needs_intervention' OR (j.state IN ('running','verifying') AND j.generation<?)) \
+                 AND json_extract(j.intent,'$.operation') IN ('container_restart','container_start','container_stop','stack_restart','stack_start','stack_stop') \
+                 ORDER BY j.rowid LIMIT 64",
+            )
+            .map_err(durable)?;
+        stmt.query_map([self.generation], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, i64>(4)?,
+            ))
+        })
+        .map_err(durable)?
+        .map(|row| {
+            let (job, owner, intent, state, created_at) = row.map_err(durable)?;
+            let state = parse::<JobState>(&format!("\"{state}\""))?;
+            let (kind, operation, resource, targets) = match parse::<Intent>(&intent)? {
+                Intent::ContainerRestart { plan }
+                | Intent::ContainerStart { plan }
+                | Intent::ContainerStop { plan } => (
+                    ResolveKind::Container,
+                    plan.operation,
+                    plan.expected.resource.clone(),
+                    vec![plan.expected.resource],
+                ),
+                Intent::StackRestart { plan }
+                | Intent::StackStart { plan }
+                | Intent::StackStop { plan } => (
+                    ResolveKind::Stack,
+                    plan.operation,
+                    plan.expected.resource.clone(),
+                    plan.targets()
+                        .into_iter()
+                        .map(|t| t.resource.clone())
+                        .collect(),
+                ),
+                _ => return Err(Error(ErrorCode::StateNotDurable)),
+            };
+            Ok(NeedsAttentionJob {
+                job,
+                owner,
+                kind,
+                operation,
+                state,
+                resource,
+                targets,
+                created_at,
+            })
+        })
+        .collect()
     }
 
     /// The session's administrator and stored password hash, for the fresh

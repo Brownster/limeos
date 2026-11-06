@@ -775,3 +775,163 @@ fn principal_lookup_and_member_outcomes_follow_the_stored_receipt() {
     );
     assert_eq!(members[0].error, Some(ErrorCode::Unavailable));
 }
+
+/// A second user with container rights but only the operator role.
+fn operator(store: &Store) -> Principal {
+    store
+        .conn
+        .execute(
+            "INSERT INTO users VALUES('bob','bob','$argon2id$fixture','\"operator\"',1)",
+            [],
+        )
+        .unwrap();
+    store
+        .conn
+        .execute(
+            "INSERT INTO grants VALUES('bob','\"container_manage\"','*')",
+            [],
+        )
+        .unwrap();
+    store.login_record("bob").unwrap().unwrap().principal
+}
+
+#[test]
+fn an_administrator_sees_every_principals_stuck_jobs_and_others_keep_their_own() {
+    let (_d, mut s, alice) = setup();
+    let bob = operator(&s);
+    let mine = running(&mut s, &alice, "a", "a");
+    let theirs = running(&mut s, &bob, "b", "b");
+    let live = running(&mut s, &bob, "c", "c");
+    uncertain(&mut s, &mine.id);
+    uncertain(&mut s, &theirs.id);
+    // `live` is running under the current core generation: not stuck.
+    let seen = s.needs_attention_jobs(&alice).unwrap();
+    assert_eq!(
+        seen.iter().map(|j| j.job.as_str()).collect::<Vec<_>>(),
+        [mine.id.as_str(), theirs.id.as_str()]
+    );
+    let other = &seen[1];
+    assert_eq!(other.owner, "bob");
+    assert_eq!(other.kind, ResolveKind::Container);
+    assert_eq!(other.operation, ContainerAction::Restart);
+    assert_eq!(other.state, JobState::NeedsIntervention);
+    assert_eq!(other.resource, theirs.plan.expected.resource);
+    assert_eq!(other.targets, [theirs.plan.expected.resource.clone()]);
+    assert!(other.created_at > 0);
+    assert!(seen.iter().all(|j| j.job != live.id));
+    // The operator is refused the listing and sees only their own jobs.
+    assert_eq!(
+        s.needs_attention_jobs(&bob).unwrap_err().0,
+        ErrorCode::Forbidden
+    );
+    let own: Vec<_> = s
+        .container_jobs(&bob)
+        .unwrap()
+        .into_iter()
+        .map(|j| j.id)
+        .collect();
+    assert!(own.contains(&theirs.id) && !own.contains(&mine.id));
+    // Role and grant revision are checked against the store.
+    for role in [Role::Operator, Role::Viewer, Role::MediaRequester] {
+        let demoted = Principal {
+            role,
+            ..alice.clone()
+        };
+        assert!(s.needs_attention_jobs(&demoted).is_err());
+    }
+    let stale = Principal {
+        grant_revision: alice.grant_revision + 1,
+        ..alice.clone()
+    };
+    assert!(s.needs_attention_jobs(&stale).is_err());
+    // An administrator can read and decide another principal's job.
+    let subject = s.resolution_subject(&alice, &theirs.id).unwrap();
+    assert_eq!(subject.targets, [theirs.plan.expected.clone()]);
+    let e = evidence(&theirs, &theirs.plan.expected);
+    let pending = request(
+        &mut s,
+        &alice,
+        &theirs.id,
+        DeclaredOutcome::NotDone,
+        "ok",
+        &e,
+    )
+    .unwrap();
+    s.complete_resolution(&theirs.id, &confirm(&pending), 320)
+        .unwrap();
+    assert_eq!(locks(&s, &theirs.id), 0);
+    let record = s.job_resolution(&alice, &theirs.id).unwrap().unwrap();
+    assert_eq!(record.resolved_by, alice.id);
+    let remaining = s.needs_attention_jobs(&alice).unwrap();
+    assert_eq!(remaining.len(), 1);
+    assert_eq!(remaining[0].job, mine.id);
+}
+
+#[test]
+fn the_listing_includes_jobs_left_running_by_an_earlier_generation_and_stack_jobs() {
+    let (_d, mut s, alice) = setup();
+    let bob = operator(&s);
+    let stale = running(&mut s, &bob, "d", "d");
+    // The same test `request_resolution` applies: an older generation.
+    s.conn
+        .execute("UPDATE jobs SET generation=0 WHERE id=?", [&stale.id])
+        .unwrap();
+    let seen = s.needs_attention_jobs(&alice).unwrap();
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].state, JobState::Running);
+    s.conn
+        .execute("UPDATE jobs SET state='verifying' WHERE id=?", [&stale.id])
+        .unwrap();
+    assert_eq!(
+        s.needs_attention_jobs(&alice).unwrap()[0].state,
+        JobState::Verifying
+    );
+    // A stack job lists the headline stack and only the members it acts on.
+    let proposal = s
+        .plan_stack(&bob, ContainerAction::Restart, "registered", &stack(), 200)
+        .unwrap();
+    let approval = s
+        .approve_stack(&bob, &proposal.plan.id, &proposal.digest, 201)
+        .unwrap();
+    let job = s
+        .queue_stack(&bob, "restart", &proposal, &approval.token, &stack(), 202)
+        .unwrap();
+    let job = s.claim_stack(&bob, &job.id, &stack(), 203).unwrap();
+    uncertain(&mut s, &job.id);
+    let seen = s.needs_attention_jobs(&alice).unwrap();
+    let listed = seen.iter().find(|j| j.job == job.id).unwrap();
+    assert_eq!(listed.kind, ResolveKind::Stack);
+    assert_eq!(listed.owner, "bob");
+    assert_eq!(listed.resource, job.plan.expected.resource);
+    assert_eq!(listed.targets.len(), 2);
+    assert!(s.stack_jobs(&alice).unwrap().is_empty());
+}
+
+#[test]
+fn the_listing_is_bounded() {
+    let (_d, mut s, alice) = setup();
+    let bob = operator(&s);
+    let mut first = String::new();
+    for n in 0..70 {
+        let before = ContainerSnapshot {
+            resource: format!("container:{n:064x}"),
+            ..snapshot("a")
+        };
+        let plan = s.plan_restart(&bob, &before, 200).unwrap();
+        let approval = s
+            .approve_container(&bob, &plan.plan.id, &plan.digest, 201)
+            .unwrap();
+        let job = s
+            .queue_container(&bob, &format!("k{n}"), &plan, &approval.token, &before, 202)
+            .unwrap();
+        let job = s.claim_container(&bob, &job.id, &before, 203).unwrap();
+        uncertain(&mut s, &job.id);
+        if n == 0 {
+            first = job.id;
+        }
+    }
+    let seen = s.needs_attention_jobs(&alice).unwrap();
+    assert_eq!(seen.len(), 64);
+    // Oldest first: the first job leads.
+    assert_eq!(seen[0].job, first);
+}

@@ -44,6 +44,27 @@ pub enum ResolveKind {
     Stack,
 }
 
+/// One stuck container or stack job in the administrator-wide attention list.
+/// Read-only: it names the job and its owner, never evidence or a decision.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct NeedsAttentionJob {
+    pub job: String,
+    /// Username of the principal that created the job.
+    pub owner: String,
+    pub kind: ResolveKind,
+    pub operation: ContainerAction,
+    /// `needs_intervention`, or `running`/`verifying` left by an earlier core.
+    pub state: crate::JobState,
+    /// The plan's headline resource: `container:<id>` or `stack:<name>`.
+    pub resource: String,
+    /// Resources the action would touch, as `container:<id>`.
+    pub targets: Vec<String>,
+    /// Unix seconds of the job's first recorded event; 0 when none survives.
+    #[ts(type = "number")]
+    pub created_at: i64,
+}
+
 /// One target's fresh, read-only measurement against the plan. A container
 /// that no longer exists is recorded with empty `image` and `started_at`,
 /// `running` false and both flags false (see `is_absent`).

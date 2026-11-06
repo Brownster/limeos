@@ -37,6 +37,25 @@ pub(super) async fn read<B: Backend>(
     }
 }
 
+/// Every principal's stuck jobs, for the administrator's banner. A GET: no
+/// CSRF, but the same cookie-only, administrator-only rule as the evidence.
+pub(super) async fn needs_attention<B: Backend>(
+    State(app): State<App<B>>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        cookie_only(&headers)?;
+        let token = cookie(&headers)?;
+        app.backend.session(token.clone(), None).await?;
+        app.backend.needs_attention_jobs(token).await
+    }
+    .await;
+    match result {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(e) => failure(e),
+    }
+}
+
 pub(super) async fn resolve<B: Backend>(
     State(app): State<App<B>>,
     Path(id): Path<String>,

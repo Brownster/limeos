@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Array_of_NeedsAttentionJob",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/NeedsAttentionJob"
+  },
+  "$defs": {
+    "ContainerAction": {
+      "type": "string",
+      "enum": [
+        "restart",
+        "start",
+        "stop"
+      ]
+    },
+    "JobState": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "planned",
+            "waiting_approval",
+            "queued",
+            "running",
+            "verifying",
+            "succeeded",
+            "failed",
+            "canceled",
+            "precondition_changed",
+            "outcome_unknown",
+            "needs_intervention"
+          ]
+        },
+        {
+          "description": "An administrator settled an uncertain job on evidence. Terminal and\nlock-releasing; the original job, plan and receipts stay unchanged.",
+          "type": "string",
+          "const": "resolved"
+        }
+      ]
+    },
+    "NeedsAttentionJob": {
+      "description": "One stuck container or stack job in the administrator-wide attention list.\nRead-only: it names the job and its owner, never evidence or a decision.",
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "description": "Unix seconds of the job's first recorded event; 0 when none survives.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "job": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ResolveKind"
+        },
+        "operation": {
+          "$ref": "#/$defs/ContainerAction"
+        },
+        "owner": {
+          "description": "Username of the principal that created the job.",
+          "type": "string"
+        },
+        "resource": {
+          "description": "The plan's headline resource: `container:<id>` or `stack:<name>`.",
+          "type": "string"
+        },
+        "state": {
+          "description": "`needs_intervention`, or `running`/`verifying` left by an earlier core.",
+          "$ref": "#/$defs/JobState"
+        },
+        "targets": {
+          "description": "Resources the action would touch, as `container:<id>`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "job",
+        "owner",
+        "kind",
+        "operation",
+        "state",
+        "resource",
+        "targets",
+        "created_at"
+      ]
+    },
+    "ResolveKind": {
+      "description": "Which executor table holds the action: one container or a whole stack.",
+      "type": "string",
+      "enum": [
+        "container",
+        "stack"
+      ]
+    }
+  }
+}

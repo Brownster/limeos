@@ -483,6 +483,14 @@ pub trait Backend: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<limeos_contracts::ResolutionView>> + Send {
         async { Err(Error(ErrorCode::Unavailable)) }
     }
+    /// Administrator session only. Read-only: every principal's container and
+    /// stack jobs that hold locks until resolved, at most 64.
+    fn needs_attention_jobs(
+        &self,
+        _token: String,
+    ) -> impl Future<Output = Result<Vec<limeos_domain::NeedsAttentionJob>>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
     /// Administrator session, CSRF and the administrator's password.
     fn resolve_job(
         &self,
@@ -699,6 +707,10 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
         .route(
             "/api/v1/stack/jobs/{id}/cancel",
             post(stack_operations::cancel_job::<B>),
+        )
+        .route(
+            "/api/v1/jobs/needs-attention",
+            get(job_resolution::needs_attention::<B>),
         )
         .route(
             "/api/v1/jobs/{id}/resolution",

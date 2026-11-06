@@ -64,6 +64,24 @@ impl Backend for Stub {
         assert_eq!(id, "e".repeat(64));
         (*self.answer.lock().unwrap()).map(|_| view())
     }
+    async fn needs_attention_jobs(
+        &self,
+        _: String,
+    ) -> Result<Vec<limeos_domain::NeedsAttentionJob>> {
+        self.reads.fetch_add(1, Ordering::SeqCst);
+        (*self.answer.lock().unwrap()).map(|_| {
+            vec![limeos_domain::NeedsAttentionJob {
+                job: "e".repeat(64),
+                owner: "bob".into(),
+                kind: ResolveKind::Container,
+                operation: ContainerAction::Restart,
+                state: JobState::NeedsIntervention,
+                resource: format!("container:{}", "a".repeat(64)),
+                targets: vec![format!("container:{}", "a".repeat(64))],
+                created_at: 100,
+            }]
+        })
+    }
     async fn resolve_job(
         &self,
         _: String,
@@ -297,4 +315,66 @@ async fn reads_are_cookie_gets_and_the_route_has_no_other_method() {
         );
     }
     assert_eq!(stub.decisions.load(Ordering::SeqCst), 0);
+}
+
+fn attention(cookie: bool) -> axum::http::request::Builder {
+    let r = Request::builder().uri("/api/v1/jobs/needs-attention");
+    if cookie {
+        r.header("cookie", format!("__Host-limeos={}", "a".repeat(64)))
+    } else {
+        r
+    }
+}
+
+#[tokio::test]
+async fn the_attention_listing_is_a_cookie_only_read_with_the_backends_verdict() {
+    let stub = Stub::new(Ok(ResolveStatus::Resolved));
+    let (status, json) = send(&stub, attention(true).body(Body::empty()).unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json[0]["owner"], "bob");
+    assert_eq!(json[0]["state"], "needs_intervention");
+    assert_eq!(json[0]["kind"], "container");
+    assert_eq!(stub.reads.load(Ordering::SeqCst), 1);
+    // No session cookie: unauthenticated, and the backend is not asked.
+    let none = attention(false).body(Body::empty()).unwrap();
+    assert_eq!(send(&stub, none).await.0, StatusCode::UNAUTHORIZED);
+    // Tokens and keys are refused whether or not a cookie comes with them.
+    for (name, value) in [
+        ("authorization", "Bearer tok"),
+        ("authorization", "Basic YTpi"),
+        ("x-api-key", "key"),
+    ] {
+        for cookie in [true, false] {
+            let mut get = attention(cookie).body(Body::empty()).unwrap();
+            get.headers_mut().insert(name, value.parse().unwrap());
+            assert_eq!(send(&stub, get).await.0, StatusCode::FORBIDDEN, "{name}");
+        }
+    }
+    // Reads only.
+    for method in ["POST", "PUT", "PATCH", "DELETE"] {
+        let req = attention(true).method(method).body(Body::empty()).unwrap();
+        assert_eq!(
+            send(&stub, req).await.0,
+            StatusCode::METHOD_NOT_ALLOWED,
+            "{method}"
+        );
+    }
+    assert_eq!(stub.reads.load(Ordering::SeqCst), 1);
+    // A non-administrator session is refused by the backend; so is no session.
+    for (answer, expected) in [
+        (Err(Error(ErrorCode::Forbidden)), StatusCode::FORBIDDEN),
+        (
+            Err(Error(ErrorCode::Unauthenticated)),
+            StatusCode::UNAUTHORIZED,
+        ),
+        (
+            Err(Error(ErrorCode::Unavailable)),
+            StatusCode::SERVICE_UNAVAILABLE,
+        ),
+    ] {
+        let stub = Stub::new(answer);
+        let (status, json) = send(&stub, attention(true).body(Body::empty()).unwrap()).await;
+        assert_eq!(status, expected);
+        assert!(json["code"].is_string());
+    }
 }

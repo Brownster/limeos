@@ -778,6 +778,12 @@ impl Backend for Core {
     ) -> Result<limeos_contracts::ResolutionView> {
         self.human_resolution_view(token, id).await
     }
+    async fn needs_attention_jobs(
+        &self,
+        token: String,
+    ) -> Result<Vec<limeos_domain::NeedsAttentionJob>> {
+        self.human_needs_attention(token).await
+    }
     async fn resolve_job(
         &self,
         token: String,

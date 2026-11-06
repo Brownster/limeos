@@ -266,6 +266,27 @@ pending: ResolutionRequest | null,
  * The completed record, once resolved.
  */
 resolution: JobResolution | null, };
+export type NeedsAttentionJob = { job: string,
+/**
+ * Username of the principal that created the job.
+ */
+owner: string, kind: ResolveKind, operation: ContainerAction,
+/**
+ * `needs_intervention`, or `running`/`verifying` left by an earlier core.
+ */
+state: JobState,
+/**
+ * The plan's headline resource: `container:<id>` or `stack:<name>`.
+ */
+resource: string,
+/**
+ * Resources the action would touch, as `container:<id>`.
+ */
+targets: Array<string>,
+/**
+ * Unix seconds of the job's first recorded event; 0 when none survives.
+ */
+created_at: number, };
 export type ResolveJobInput = { declared: DeclaredOutcome,
 /**
  * 1 to 500 characters, no control characters; at least 20 for

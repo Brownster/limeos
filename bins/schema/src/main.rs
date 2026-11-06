@@ -130,6 +130,10 @@ fn main() {
     emit!("queue-stack-input", limeos_contracts::QueueStackInput);
     emit!("stack-job-progress", limeos_contracts::StackJobProgress);
     emit!("resolution-view", limeos_contracts::ResolutionView);
+    emit!(
+        "needs-attention-jobs",
+        Vec<limeos_domain::NeedsAttentionJob>
+    );
     emit!("resolve-job-input", limeos_contracts::ResolveJobInput);
     emit!("resolve-job-response", limeos_contracts::ResolveJobResponse);
     emit!("container-logs", limeos_domain::ContainerLogs);
@@ -395,6 +399,7 @@ fn main() {
     ts!(limeos_domain::JobResolution);
     ts!(limeos_contracts::ResolutionTargetView);
     ts!(limeos_contracts::ResolutionView);
+    ts!(limeos_domain::NeedsAttentionJob);
     ts!(limeos_contracts::ResolveJobInput);
     ts!(limeos_contracts::ResolveStatus);
     ts!(limeos_contracts::ResolveJobResponse);
@@ -630,6 +635,9 @@ fn main() {
     }
     openapi["paths"]["/api/v1/container/restart/jobs/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"parameters":[{"name":"after","in":"query","schema":{"type":"integer","minimum":0,"default":0}}],"responses":{"200":{"description":"Owner-scoped durable progress, at most 128 events","content":{"application/json":{"schema":schema_for!(limeos_contracts::JobProgress)}}}}}});
     openapi["paths"]["/api/v1/stack/jobs/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"parameters":[{"name":"after","in":"query","schema":{"type":"integer","minimum":0,"default":0}}],"responses":{"200":{"description":"Owner-scoped durable progress, at most 128 events, with per-member executor outcomes once recorded","content":{"application/json":{"schema":schema_for!(limeos_contracts::StackJobProgress)}}}}}});
+    openapi["paths"]["/api/v1/jobs/needs-attention"] = serde_json::json!({"get":{"security":[{"session":[]}],
+        "description":"Administrator session only; a token, API key or any Authorization header is refused with 403, and an operator or viewer session gets 403. Read-only: every principal's container and stack jobs that hold locks until resolved (needs_intervention, plus running or verifying left behind by an earlier core generation), oldest first, at most 64, with the owner's username. Evidence and decisions stay on /api/v1/jobs/{id}/resolution.",
+        "responses":{"200":{"description":"Stuck jobs of all principals","content":{"application/json":{"schema":schema_for!(Vec<limeos_domain::NeedsAttentionJob>)}}}}}});
     openapi["paths"]["/api/v1/jobs/{id}/resolution"] = serde_json::json!({
         "get":{"security":[{"session":[]}],
             "description":"Administrator session only; a token, API key or any Authorization header is refused with 403. Fresh read-only inspection of exactly the job's targets (never a start, stop or restart): plan against measurement per target, the receipt's per-member outcomes, the evidence digest to send back, and any pending request or completed record. 503 when the executor cannot be read.",

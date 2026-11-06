@@ -340,6 +340,21 @@ impl Core {
         self.resolution_view(principal, job).await
     }
 
+    /// HTTP read: current administrator session, no CSRF (a GET). Persistence
+    /// authorizes again, so a role change since the session was made is seen.
+    pub(super) async fn human_needs_attention(
+        &self,
+        token: String,
+    ) -> Result<Vec<limeos_domain::NeedsAttentionJob>> {
+        let digest = limeos_identity::digest(&token);
+        self.db
+            .call(move |s| {
+                let principal = s.authenticate(&digest, None, now())?;
+                s.needs_attention_jobs(&principal)
+            })
+            .await
+    }
+
     /// HTTP decision: administrator session with its CSRF binding and a fresh
     /// password check. The password is verified before any executor contact.
     pub(super) async fn human_resolve(
