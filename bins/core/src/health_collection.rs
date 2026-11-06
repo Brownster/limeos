@@ -196,6 +196,7 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
         restart,
         stack,
         stack_members,
+        resolution,
         logs,
         error,
         storage,
@@ -216,6 +217,7 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
         || restart.is_some()
         || stack.is_some()
         || stack_members.is_some()
+        || resolution.is_some()
         || logs.is_some()
         || storage.is_some()
         || storage_targets.is_some()

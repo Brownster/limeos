@@ -6,6 +6,7 @@
 //! row and the stack aggregate in one transaction. Recovery only reads
 //! receipts and verifies by fresh inspection; no effect is ever resent.
 use super::*;
+use crate::resolution::RESOLVED;
 use limeos_domain::{
     StackMemberReceipt, StackReceipt, StackRequest, StackSnapshot, aggregate_state,
     verify_stack_member,
@@ -72,7 +73,7 @@ impl ReceiptStore {
         if receipt.action != action
             || receipt.plan_digest != digest
             || receipt.before.resource != resource
-            || state != receipt.state.as_str()
+            || (state != receipt.state.as_str() && state != RESOLVED)
             || operation != receipt.operation.as_str()
             || receipt.validate().is_err()
         {
@@ -96,6 +97,13 @@ impl ReceiptStore {
         let Some(mut receipt) = self.stack_receipt(action, digest)? else {
             return Ok(None);
         };
+        // Resolved rows are closed; nothing is converted or rewritten.
+        if self
+            .resolution(limeos_domain::ResolveKind::Stack, action)?
+            .is_some()
+        {
+            return Ok(Some(receipt));
+        }
         let pending: Vec<_> = receipt
             .members
             .iter()
@@ -117,7 +125,7 @@ impl ReceiptStore {
     }
 
     /// Insert (first write) or update, with member rows, in one transaction.
-    fn write_stack(
+    pub(crate) fn write_stack(
         &mut self,
         receipt: &StackReceipt,
         changed: &[String],
@@ -397,6 +405,12 @@ impl ReceiptStore {
             .ok_or(Error(ErrorCode::NotFound))?;
         // Authorize from the pure lookup before any bookkeeping write.
         ceiling.authorize_stack(peer_uid, &found.before, found.operation)?;
+        if self
+            .resolution(limeos_domain::ResolveKind::Stack, action)?
+            .is_some()
+        {
+            return Err(Error(ErrorCode::Conflict));
+        }
         let mut receipt = self
             .reconcile_stack(action, digest)?
             .ok_or(Error(ErrorCode::NotFound))?;

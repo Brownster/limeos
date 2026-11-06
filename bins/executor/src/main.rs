@@ -554,6 +554,38 @@ async fn run() -> std::io::Result<()> {
                                 .await?,
                         );
                     }
+                    Request::ResolveAction {
+                        kind,
+                        action,
+                        digest,
+                        evidence_digest,
+                        declared,
+                        resolved_by,
+                        ..
+                    } if source == limeos_contracts::Source::Docker => {
+                        let store = receipts
+                            .as_ref()
+                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
+                        let mut store = store.try_lock().map_err(|_| {
+                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
+                        })?;
+                        // Read-only re-verification; this arm never reaches an Engine effect.
+                        receipt.resolution = Some(
+                            store
+                                .resolve_action(
+                                    &engine,
+                                    &restart_ceiling,
+                                    peer.uid(),
+                                    kind,
+                                    &action,
+                                    &digest,
+                                    &evidence_digest,
+                                    declared,
+                                    &resolved_by,
+                                )
+                                .await?,
+                        );
+                    }
                     Request::Health { .. } => {}
                     _ => return Err(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden)),
                 }

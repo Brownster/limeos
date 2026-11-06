@@ -152,6 +152,22 @@ pub enum Request {
         digest: String,
         after: Vec<limeos_domain::ContainerSnapshot>,
     },
+    /// Operator resolution of a stuck action. The executor re-inspects the
+    /// action's targets read-only and, only if the result still hashes to
+    /// `evidence_digest`, moves its own rows to `resolved` so the resource
+    /// frees. Idempotent by action. Never issues an Engine start, stop or
+    /// restart.
+    ResolveAction {
+        version: u16,
+        kind: limeos_domain::ResolveKind,
+        action: String,
+        /// Digest of the stored plan, as for the receipt lookups.
+        digest: String,
+        evidence_digest: String,
+        declared: limeos_domain::DeclaredOutcome,
+        /// The resolving administrator's principal ID, recorded in the row.
+        resolved_by: String,
+    },
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
@@ -180,6 +196,8 @@ pub struct Receipt {
     pub stack: Option<limeos_domain::StackReceipt>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stack_members: Option<limeos_domain::StackSnapshot>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolution: Option<limeos_domain::ResolveReceipt>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logs: Option<limeos_domain::ContainerLogs>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -478,6 +496,25 @@ impl Ceiling {
                 }
                 Ok(Receipt::empty())
             }
+            Request::ResolveAction {
+                version,
+                kind,
+                action,
+                digest,
+                evidence_digest,
+                resolved_by,
+                ..
+            } if *version == VERSION
+                && match kind {
+                    limeos_domain::ResolveKind::Container => self.can_write(),
+                    limeos_domain::ResolveKind::Stack => self.allow_stack,
+                }
+                && [action, digest, evidence_digest, resolved_by]
+                    .into_iter()
+                    .all(|v| limeos_domain::opaque_id(v)) =>
+            {
+                Ok(Receipt::empty())
+            }
             Request::RestartReceipt {
                 version,
                 action,
@@ -562,6 +599,7 @@ impl Receipt {
             restart: None,
             stack: None,
             stack_members: None,
+            resolution: None,
             logs: None,
             error: None,
             storage: None,
@@ -1039,6 +1077,56 @@ mod tests {
                 .unwrap()
                 .allow_stack
         );
+    }
+    #[test]
+    fn resolve_action_needs_the_matching_write_authority_and_closed_fields() {
+        let resolve = |kind| Request::ResolveAction {
+            version: VERSION,
+            kind,
+            action: "d".repeat(64),
+            digest: "e".repeat(64),
+            evidence_digest: "f".repeat(64),
+            declared: limeos_domain::DeclaredOutcome::NotDone,
+            resolved_by: "a".repeat(64),
+        };
+        use limeos_domain::ResolveKind::{Container, Stack};
+        let ceiling = stack_ceiling();
+        assert!(ceiling.validate(1001, &resolve(Stack)).is_ok());
+        assert!(ceiling.validate(1001, &resolve(Container)).is_ok());
+        assert!(ceiling.validate(1002, &resolve(Stack)).is_err());
+        let mut no_stack = stack_ceiling();
+        no_stack.allow_stack = false;
+        assert!(no_stack.validate(1001, &resolve(Stack)).is_err());
+        assert!(no_stack.validate(1001, &resolve(Container)).is_ok());
+        let mut read_only = stack_ceiling();
+        read_only.allow_restart = false;
+        read_only.allow_stop = false;
+        read_only.allow_start = false;
+        read_only.allow_stack = false;
+        assert!(read_only.validate(1001, &resolve(Container)).is_err());
+        let mut wire = serde_json::to_value(resolve(Stack)).unwrap();
+        assert_eq!(wire["operation"], "resolve_action");
+        wire["force"] = serde_json::json!(true);
+        assert!(serde_json::from_value::<Request>(wire).is_err());
+        let Request::ResolveAction {
+            version,
+            kind,
+            declared,
+            ..
+        } = resolve(Stack)
+        else {
+            unreachable!()
+        };
+        let bad = Request::ResolveAction {
+            version,
+            kind,
+            action: "../x".into(),
+            digest: "e".repeat(64),
+            evidence_digest: "f".repeat(64),
+            declared,
+            resolved_by: "a".repeat(64),
+        };
+        assert!(ceiling.validate(1001, &bad).is_err());
     }
     #[test]
     fn stack_reads_receipts_and_verification_are_independent_bounded_and_closed() {
