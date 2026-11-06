@@ -62,7 +62,7 @@ impl Backend for Stub {
     async fn job_resolution(&self, _: String, id: String) -> Result<ResolutionView> {
         self.reads.fetch_add(1, Ordering::SeqCst);
         assert_eq!(id, "e".repeat(64));
-        self.answer.lock().unwrap().clone().map(|_| view())
+        (*self.answer.lock().unwrap()).map(|_| view())
     }
     async fn resolve_job(
         &self,
@@ -74,7 +74,7 @@ impl Backend for Stub {
         self.decisions.fetch_add(1, Ordering::SeqCst);
         assert_eq!(id, "e".repeat(64));
         assert_eq!(input.declared, DeclaredOutcome::NotDone);
-        let status = self.answer.lock().unwrap().clone()?;
+        let status = (*self.answer.lock().unwrap())?;
         Ok(ResolveJobResponse {
             status,
             message: "m".into(),
@@ -228,7 +228,7 @@ async fn backend_refusals_keep_their_status_and_the_four_outcomes_are_distinct()
             StatusCode::CONFLICT,
         ),
     ] {
-        let stub = Stub::new(answer.clone());
+        let stub = Stub::new(answer);
         let (status, json) = send(&stub, post(true)).await;
         assert_eq!(status, expected, "{answer:?}");
         if let Ok(status) = answer {

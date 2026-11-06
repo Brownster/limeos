@@ -1,8 +1,8 @@
 //! Operator resolution of `needs_intervention` container and stack jobs: the
 //! evidence view, the decision and the outcome. See `docs/p06-job-resolution.md`.
 use limeos_domain::{
-    ContainerAction, ContainerSnapshot, DeclaredOutcome, JobResolution, JobState,
-    ResolutionMember, ResolutionRequest, ResolutionTarget, ResolveKind,
+    ContainerAction, ContainerSnapshot, DeclaredOutcome, JobResolution, JobState, ResolutionMember,
+    ResolutionRequest, ResolutionTarget, ResolveKind,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

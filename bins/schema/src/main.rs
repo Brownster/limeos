@@ -650,7 +650,7 @@ fn main() {
         "description":"stale_evidence or unsupported_declaration (this body), or a structured safe error",
         "content":{"application/json":{"schema":schema_for!(limeos_contracts::ResolveJobResponse)}}
     });
-    openapi["paths"]["/api/v1/stack/jobs"]["get"] =serde_json::json!({"security":[{"session":[]}],"responses":{"200":{"description":"Latest 32 owned, currently authorized whole-stack jobs","content":{"application/json":{"schema":schema_for!(Vec<limeos_domain::StackJob>)}}}}});
+    openapi["paths"]["/api/v1/stack/jobs"]["get"] = serde_json::json!({"security":[{"session":[]}],"responses":{"200":{"description":"Latest 32 owned, currently authorized whole-stack jobs","content":{"application/json":{"schema":schema_for!(Vec<limeos_domain::StackJob>)}}}}});
     openapi["paths"]["/api/v1/stack/plans"]["post"]["description"] = serde_json::json!(
         "Whole-stack start, stop or restart of a registered Compose project with fresh sources and no inventory issue. Binds the exact full member IDs and states, excluding one-off containers. Never up, down or recreate; no Compose file is read or written."
     );
