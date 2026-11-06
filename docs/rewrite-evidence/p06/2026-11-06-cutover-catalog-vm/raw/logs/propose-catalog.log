@@ -1,0 +1,7 @@
+$ /usr/lib/limeos/limeosctl migrate propose-catalog --out /root/management-catalog.proposed.json
+stack media (project media) /opt/stacks/media/compose.yaml services=airsonic-advanced,jellyfin,radarr,sonarr,transmission
+ignored: 2 container(s) without a Compose project, 0 one-off container(s)
+wrote /root/management-catalog.proposed.json: 1 stack(s) registered, 0 refused.
+Review it, then: install -o root -g root -m 0644 /root/management-catalog.proposed.json /etc/limeos/management-catalog.json
+
+[exit 0]

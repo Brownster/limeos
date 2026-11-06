@@ -1,0 +1,39 @@
+$ /root/limeos-src/scripts/cutover/activate.sh /var/lib/limeos-cutover/snap1 --dry-run --package /opt/limeos-repo/pool/main/limeos_0.4.17+cutover.1_amd64.deb --expected-version 0.4.17+cutover.1 --host wybie.lan --port 8002
+/usr/bin/caddy
+[dry-run] render /root/limeos-src/scripts/cutover/../../packaging/Caddyfile.cutover.example -> /etc/caddy/conf.d/limeos-cutover.caddy (site https://wybie.lan:8002, tls internal)
+[dry-run] caddy validate --adapter caddyfile --config <rendered site>
+activate: frozen writers stop, Rust services start, HTTPS at https://wybie.lan:8002
+[dry-run] systemctl stop limeos-metrics-collector.timer limeos-package-reconcile.timer
+[dry-run] systemctl stop pi-health.service
+[dry-run] systemctl stop pihealth-helper.service
+[dry-run] systemctl disable pihealth-helper.service
+[dry-run] systemctl disable pi-health.service
+[dry-run] systemctl disable limeos-metrics-collector.timer
+[dry-run] systemctl disable limeos-package-reconcile.timer
+[dry-run] hash state files again and compare strict entries with the snapshot
+[dry-run] dpkg -i /opt/limeos-repo/pool/main/limeos_0.4.17+cutover.1_amd64.deb
+[dry-run] check installed limeos version is 0.4.17+cutover.1
+[dry-run] systemctl daemon-reload
+[dry-run] systemctl enable limeos-storaged.service
+[dry-run] systemctl enable limeos-containerd.service
+[dry-run] systemctl enable limeos-core.service
+[dry-run] systemctl start limeos-storaged.service
+[dry-run] systemctl start limeos-containerd.service
+[dry-run] systemctl start limeos-core.service
+[dry-run] check Rust services active: fct_units_active limeos-storaged.service limeos-containerd.service limeos-core.service
+[dry-run] systemctl start limeos-storage-reader.service
+[dry-run] install -d -m 0755 -- /etc/caddy/conf.d
+[dry-run] install -m 0644 <rendered site> /etc/caddy/conf.d/limeos-cutover.caddy
+[dry-run] caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile
+[dry-run] systemctl enable caddy.service
+[dry-run] systemctl start caddy.service
+[dry-run] check core health via the proxy: curl -fsS -k --max-time 5 --resolve wybie.lan:8002:127.0.0.1 -o /dev/null https://wybie.lan:8002/api/v1/health
+[dry-run] check login page via the proxy: curl -fsS -k --max-time 5 --resolve wybie.lan:8002:127.0.0.1 -o /dev/null https://wybie.lan:8002/
+[dry-run] check limeosctl status: /usr/lib/limeos/limeosctl --socket /run/limeos-core/core.sock status
+[dry-run] check docker ps and StartedAt identical to the snapshot: fct_docker_matches
+[dry-run] check untouched units unchanged: fct_untouched_match
+[dry-run] check stack reader ready: fct_reader_ready
+[dry-run] check stack reader still ready after settling: fct_reader_ready
+activate complete: https://wybie.lan:8002
+
+[exit 0]

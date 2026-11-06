@@ -1,0 +1,65 @@
+$ DEBIAN_FRONTEND=noninteractive apt-get install -y limeos=0.4.17+cutover.1
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following NEW packages will be installed:
+  limeos
+0 upgraded, 1 newly installed, 0 to remove and 16 not upgraded.
+Need to get 0 B/4181 kB of archives.
+After this operation, 0 B of additional disk space will be used.
+Get:1 file:/opt/limeos-repo stable/main amd64 limeos amd64 0.4.17+cutover.1 [4181 kB]
+Selecting previously unselected package limeos.
+(Reading database ... 
+(Reading database ... 5%
+(Reading database ... 10%
+(Reading database ... 15%
+(Reading database ... 20%
+(Reading database ... 25%
+(Reading database ... 30%
+(Reading database ... 35%
+(Reading database ... 40%
+(Reading database ... 45%
+(Reading database ... 50%
+(Reading database ... 55%
+(Reading database ... 60%
+(Reading database ... 65%
+(Reading database ... 70%
+(Reading database ... 75%
+(Reading database ... 80%
+(Reading database ... 85%
+(Reading database ... 90%
+(Reading database ... 95%
+(Reading database ... 100%
+(Reading database ... 27351 files and directories currently installed.)
+Preparing to unpack .../limeos_0.4.17+cutover.1_amd64.deb ...
+Unpacking limeos (0.4.17+cutover.1) ...
+Setting up limeos (0.4.17+cutover.1) ...
+adduser: Warning: The home dir /nonexistent you specified can't be accessed: No such file or directory
+Adding system user `limeos-core' (UID 104) ...
+Adding new group `limeos-core' (GID 110) ...
+Adding new user `limeos-core' (UID 104) with group `limeos-core' ...
+Not creating `/nonexistent'.
+adduser: Warning: The home dir /nonexistent you specified can't be accessed: No such file or directory
+Adding system user `limeos-containerd' (UID 105) ...
+Adding new group `limeos-containerd' (GID 111) ...
+Adding new user `limeos-containerd' (UID 105) with group `limeos-containerd' ...
+Not creating `/nonexistent'.
+adduser: Warning: The home dir /nonexistent you specified can't be accessed: No such file or directory
+Adding system user `limeos-assistant' (UID 106) ...
+Adding new group `limeos-assistant' (GID 112) ...
+Adding new user `limeos-assistant' (UID 106) with group `limeos-assistant' ...
+Not creating `/nonexistent'.
+Adding group `limeos-rpc' (GID 113) ...
+Done.
+Adding group `limeos-host-access' (GID 114) ...
+Done.
+Adding group `limeos-container-access' (GID 115) ...
+Done.
+Created symlink /etc/systemd/system/multi-user.target.wants/limeos-core.service → /lib/systemd/system/limeos-core.service.
+
+Created symlink /etc/systemd/system/multi-user.target.wants/limeos-containerd.service → /lib/systemd/system/limeos-containerd.service.
+
+Created symlink /etc/systemd/system/multi-user.target.wants/limeos-storaged.service → /lib/systemd/system/limeos-storaged.service.
+
+
+[exit 0]

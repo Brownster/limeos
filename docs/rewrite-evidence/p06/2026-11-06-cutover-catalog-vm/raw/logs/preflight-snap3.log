@@ -1,0 +1,6 @@
+$ /root/limeos-src/scripts/cutover/preflight.sh --out /var/lib/limeos-cutover/snap3 --managed-file /root/managed.txt
+snapshot: /var/lib/limeos-cutover/snap3
+preflight passed
+WARN: Jellyfin playback could not be checked without credentials (HTTP 000); check the dashboard by hand
+
+[exit 0]
