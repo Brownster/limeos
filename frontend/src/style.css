@@ -527,6 +527,9 @@ select {
   border-radius: 5px;
   font: inherit;
 }
+.resolution-dialog .summary {
+  padding: 0 14px;
+}
 .resolution-dialog .outcome.divergence,
 .resolution-dialog .summary.divergence {
   border-left: 3px solid #e0a15a;
