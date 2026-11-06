@@ -507,7 +507,8 @@ def expect_frozen_serving(label, rust_running=False):
     check(frozen_world() == {u: {"active": "active", "enabled": "enabled"} for u in FROZEN_UNITS}, f"{label}: frozen units not restored", world=frozen_world())
     ports = listeners()
     reader = (active("limeos-storage-reader"), enabled("limeos-storage-reader"))
-    check((reader[0] == "active") == rust_running and reader[1] != "enabled", f"{label}: stack reader state (activate starts it, return stops it, nothing enables it)", reader=reader)
+    # Only activate.sh starts it, only return.sh/rollback stops it, nothing enables it; no caller of this helper is activated.
+    check(reader[0] != "active" and reader[1] != "enabled", f"{label}: stack reader running or enabled", reader=reader)
     check(("127.0.0.1:8003" in ports) == rust_running, f"{label}: core listening state", ports=ports)
     owner = sh("ps -o user=,comm= -p $(systemctl show pi-health -p MainPID --value)")[1].split()
     check(owner[0] == "holly", f"{label}: frozen app owner", owner=owner)
