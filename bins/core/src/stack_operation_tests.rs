@@ -19,6 +19,7 @@ struct Engine {
     executes: usize,
     receipts: usize,
     verifies: usize,
+    resolves: usize,
     /// Fail (response lost, effect applied) at this target index.
     fail_at: Option<usize>,
     /// Write Prepared receipts, apply the first effect and then drop the call.
@@ -312,6 +313,33 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
             }
             receipt.state = aggregate_state(&receipt.members);
             response.stack = Some(receipt.clone());
+        }
+        Request::Inspect { resource, .. } => {
+            state.inspects += 1;
+            match state.members.iter().find(|m| m.resource == resource) {
+                Some(member) => response.inspection = Some(member.clone()),
+                None => {
+                    response.ready = false;
+                    response.error = Some(ErrorCode::NotFound);
+                }
+            }
+        }
+        Request::ResolveAction {
+            kind,
+            action,
+            evidence_digest,
+            declared,
+            resolved_by,
+            ..
+        } => {
+            state.resolves += 1;
+            response.resolution = Some(limeos_domain::ResolveReceipt {
+                kind,
+                action,
+                evidence_digest,
+                declared,
+                resolved_by,
+            });
         }
         _ => panic!("unexpected operation"),
     }
@@ -851,6 +879,84 @@ async fn an_unproven_sent_member_keeps_the_stack_held_even_with_unsent_peers() {
             .len(),
         1
     );
+    f.task.abort();
+}
+
+#[tokio::test]
+async fn a_held_stack_resolves_on_per_member_evidence_and_frees_every_member() {
+    use limeos_contracts::ResolveStatus;
+    use limeos_domain::DeclaredOutcome;
+    let f = admin().await;
+    {
+        let mut engine = f.engine.lock().unwrap();
+        engine.fail_at = Some(1);
+        engine.fail_without_effect = true;
+    }
+    let job = f.queued(ContainerAction::Restart, "resolve").await;
+    f.core
+        .dispatch_stack(f.principal().await, job.clone())
+        .await
+        .unwrap();
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    let admin = f.principal().await;
+    let view = f
+        .core
+        .resolution_view(admin.clone(), job.id.clone())
+        .await
+        .unwrap();
+    assert_eq!(view.kind, limeos_domain::ResolveKind::Stack);
+    // One member restarted, the other never was: neither claim holds for all.
+    assert_eq!(view.targets.len(), 2);
+    assert_eq!(
+        view.members
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|m| m.state)
+            .collect::<Vec<_>>(),
+        [ExecutionState::Verified, ExecutionState::OutcomeUnknown]
+    );
+    assert_eq!(view.allowed, [DeclaredOutcome::AcceptedDivergence]);
+    let digest = view.evidence_digest.unwrap();
+    let refused = f
+        .core
+        .resolve_as(
+            admin.clone(),
+            job.id.clone(),
+            DeclaredOutcome::NotDone,
+            "no".into(),
+            digest.clone(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        refused.status,
+        limeos_contracts::ResolveStatus::UnsupportedDeclaration
+    );
+    assert_eq!(refused.blocking.len(), 1);
+    let done = f
+        .core
+        .resolve_as(
+            admin,
+            job.id.clone(),
+            DeclaredOutcome::AcceptedDivergence,
+            "Restarted a by hand; b was never touched.".into(),
+            digest,
+        )
+        .await
+        .unwrap();
+    assert_eq!(done.status, ResolveStatus::Resolved);
+    assert_eq!(f.state(&job).await, JobState::Resolved);
+    assert!(
+        f.core
+            .db
+            .call(|s| s.stack_candidates())
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let engine = f.engine.lock().unwrap();
+    assert_eq!((engine.executes, engine.resolves), (1, 1));
     f.task.abort();
 }
 

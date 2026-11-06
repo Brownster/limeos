@@ -455,8 +455,12 @@ impl Core {
         let mut target_recovery = std::collections::HashMap::<String, Instant>::new();
         let mut mount_recovery = std::collections::HashMap::<String, Instant>::new();
         let mut stack_recovery = std::collections::HashMap::<String, Instant>::new();
+        let mut resolution_retry = std::collections::HashMap::<String, Instant>::new();
         loop {
+            // The first tick is immediate, which completes startup leftovers.
             tick.tick().await;
+            self.complete_pending_resolutions(&mut resolution_retry, 5)
+                .await;
             self.dispatch_stack_candidates(&mut stack_recovery).await;
             if let Ok(jobs) = self.db.call(|s| s.storage_target_candidates()).await {
                 target_recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));

@@ -22,6 +22,7 @@ mod automation_policy;
 mod automation_schedules;
 mod compose;
 mod identity_enablement;
+mod job_resolution;
 #[cfg(test)]
 mod operation_tests;
 mod operations;
@@ -473,6 +474,25 @@ pub trait Backend: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<()>> + Send {
         async { Err(Error(ErrorCode::Unavailable)) }
     }
+    /// Administrator session only. Fresh read-only inspection of the job's
+    /// targets; never an Engine effect.
+    fn job_resolution(
+        &self,
+        _token: String,
+        _id: String,
+    ) -> impl Future<Output = Result<limeos_contracts::ResolutionView>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
+    /// Administrator session, CSRF and the administrator's password.
+    fn resolve_job(
+        &self,
+        _token: String,
+        _csrf: String,
+        _id: String,
+        _input: limeos_contracts::ResolveJobInput,
+    ) -> impl Future<Output = Result<limeos_contracts::ResolveJobResponse>> + Send {
+        async { Err(Error(ErrorCode::Unavailable)) }
+    }
 }
 #[derive(Clone)]
 struct App<B> {
@@ -679,6 +699,10 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
         .route(
             "/api/v1/stack/jobs/{id}/cancel",
             post(stack_operations::cancel_job::<B>),
+        )
+        .route(
+            "/api/v1/jobs/{id}/resolution",
+            get(job_resolution::read::<B>).post(job_resolution::resolve::<B>),
         )
         .merge(automation_schedules::routes::<B>())
         .merge(automation_history::routes::<B>())

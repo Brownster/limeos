@@ -7,6 +7,8 @@ mod observations;
 pub use observations::*;
 mod operations;
 pub use operations::*;
+mod resolution;
+pub use resolution::*;
 
 pub const VERSION: u16 = 1;
 pub const FRAME_LIMIT: usize = 64 * 1024;
@@ -125,6 +127,25 @@ pub enum CoreRequest {
         version: u16,
         users: Vec<LegacyUser>,
     },
+    /// Root-peer only. Read-only evidence for a stuck job, as the named
+    /// administrator would see it over HTTP. `admin` is a username; core
+    /// refuses anyone who is not currently an administrator.
+    ReadResolution {
+        version: u16,
+        admin: String,
+        job: String,
+    },
+    /// Root-peer only. The root peer is the re-authentication, so no password
+    /// is sent. Core stores `admin` as the resolving principal and marks the
+    /// reason as entered through `limeosctl`.
+    ResolveJob {
+        version: u16,
+        admin: String,
+        job: String,
+        declared: limeos_domain::DeclaredOutcome,
+        reason: String,
+        evidence_digest: String,
+    },
     CheckTask {
         version: u16,
         token: String,
@@ -186,6 +207,8 @@ pub enum CoreResponse {
         skipped_existing: Vec<String>,
     },
     Authorized,
+    Resolution(ResolutionView),
+    Resolved(ResolveJobResponse),
     RestartPlan(limeos_domain::PlannedRestart),
     RestartJob(limeos_domain::RestartJob),
     ContainerPlan(limeos_domain::PlannedContainerAction),

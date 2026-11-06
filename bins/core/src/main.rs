@@ -23,6 +23,7 @@ pub mod automation_store;
 mod compose;
 pub mod health_collection;
 mod identity_enablement;
+mod job_resolution;
 mod operations;
 mod stack_operations;
 mod stacks;
@@ -770,6 +771,22 @@ impl Backend for Core {
     ) -> Result<()> {
         self.cancel_stack(token, csrf, id, plan).await
     }
+    async fn job_resolution(
+        &self,
+        token: String,
+        id: String,
+    ) -> Result<limeos_contracts::ResolutionView> {
+        self.human_resolution_view(token, id).await
+    }
+    async fn resolve_job(
+        &self,
+        token: String,
+        csrf: String,
+        id: String,
+        input: limeos_contracts::ResolveJobInput,
+    ) -> Result<limeos_contracts::ResolveJobResponse> {
+        self.human_resolve(token, csrf, id, input).await
+    }
 }
 async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
     let peer = stream
@@ -806,6 +823,24 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
                     skipped_existing,
                 }
             }
+            CoreRequest::ReadResolution {
+                version,
+                admin,
+                job,
+            } if version == VERSION && peer.uid() == 0 => {
+                CoreResponse::Resolution(core.rpc_resolution_view(admin, job).await?)
+            }
+            CoreRequest::ResolveJob {
+                version,
+                admin,
+                job,
+                declared,
+                reason,
+                evidence_digest,
+            } if version == VERSION && peer.uid() == 0 => CoreResponse::Resolved(
+                core.rpc_resolve(admin, job, declared, reason, evidence_digest)
+                    .await?,
+            ),
             CoreRequest::CheckTask {
                 version,
                 token,
