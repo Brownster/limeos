@@ -188,13 +188,11 @@ def start_refusals(snapshot):
             "docker state unreadable: " + snapshot["containers"]["stderr"].strip()
         )
     rows = ph.parse_containers(snapshot["containers"]["stdout"])
-    if not rows:
-        reasons.append("no containers visible; cannot baseline the watchdog")
-    reasons += [
-        f"container {r['name']} is {r['status']}, not running"
-        for r in rows.values()
-        if r["status"] != "running"
-    ]
+    # Containers already stopped when the snapshot was taken (for example the
+    # stopped Mattermost stack) are not part of the watchdog baseline; only
+    # running ones are protected. Refuse only when nothing is running.
+    if not any(r["status"] == "running" for r in rows.values()):
+        reasons.append("no running containers visible; cannot baseline the watchdog")
     if snapshot["qemu_processes"]:
         reasons.append("a qemu or supervisor process already exists")
     reasons += ph.guard_failures(snapshot["meminfo"], snapshot["loadavg"], "start")

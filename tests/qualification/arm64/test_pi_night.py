@@ -63,6 +63,8 @@ ROWS = "\n".join(
     ]
 )
 STOPPED = ROWS.replace("bbb|/mattermost|running", "bbb|/mattermost|exited")
+MIXED = STOPPED
+ALL_STOPPED = STOPPED.replace("|running|", "|exited|")
 
 
 class ContainerTests(unittest.TestCase):
@@ -135,10 +137,13 @@ def snapshot(
 class PureTests(unittest.TestCase):
     def test_start_refusals(self):
         self.assertEqual(night.start_refusals(snapshot()), [])
-        self.assertIn(
-            "container mattermost is exited, not running",
-            night.start_refusals(snapshot(containers=STOPPED)),
+        # A container that was already stopped before the run is not a refusal.
+        self.assertEqual(night.start_refusals(snapshot(containers=STOPPED)), [])
+        self.assertEqual(
+            night.start_refusals(snapshot(containers=MIXED)),
+            [],
         )
+        self.assertTrue(night.start_refusals(snapshot(containers=ALL_STOPPED)))
         self.assertTrue(night.start_refusals(snapshot(containers="")))
         self.assertTrue(night.start_refusals(snapshot(qemu=[{"pid": 1}])))
         self.assertTrue(night.start_refusals(snapshot(available=GIB)))
@@ -400,10 +405,17 @@ class NightTests(unittest.TestCase):
                 len([c for c in host.commands if "guard --phase start" in c]), 3
             )
 
-    def test_stopped_container_refuses_before_any_change(self):
+    def test_pre_stopped_container_does_not_refuse(self):
         with tempfile.TemporaryDirectory() as d:
             n, host, vm = make_night(d)
             host.state["containers"] = STOPPED
+            self.assertEqual(n.execute(), 0)
+            self.assertFalse(n.verdict["refusals"])
+
+    def test_no_running_container_refuses_before_any_change(self):
+        with tempfile.TemporaryDirectory() as d:
+            n, host, vm = make_night(d)
+            host.state["containers"] = ALL_STOPPED
             self.assertEqual(n.execute(), 3)
             self.assertFalse(
                 any("apt-get" in c and "apt-get -s" not in c for c in host.commands)
