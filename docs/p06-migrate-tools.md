@@ -34,10 +34,19 @@ are administrators.
 ## `limeosctl migrate propose-ceiling`
 
 `--docker-ps FILE --stacks DIR --core-uid UID --out FILE`. Offline: give it
-`docker ps --no-trunc --format json` output (full 64-character IDs are required)
+`docker ps --no-trunc --format '{{json .}}'` output (the plain `--format json` keyword needs Docker 23 or newer) (full 64-character IDs are required)
 and the stacks directory. It writes a container ceiling with every `allow_*`
 false and `managed_containers` set to the listed IDs, refuses to overwrite, and
 prints ID/name and stack lists. Review it, install it root-owned, then set only
 the flags you intend; `limeosctl check-ceiling` must accept it.
 `managed_stacks` lists the stack directories that hold a Compose file (valid
 Compose project names only, at most 16) and `allow_stack` is false.
+
+The proposal is deliberately inert, including `allow_health` and `allow_container_read`:
+installed verbatim, the executor refuses even its health probe. The operator step sets
+at least `allow_health`, `allow_container_read` and, for the approved actions,
+`allow_container_logs`, `allow_restart`, `allow_start`, `allow_stop` and `allow_stack`.
+Stack status and whole-stack actions also need a root-owned
+`/etc/limeos/management-catalog.json` (1 to 8 registered stacks, each with the SHA-256 of
+its Compose file); no tool writes it, see
+[the stack inventory handoff](p04-stack-inventory-runtime-handoff.md).

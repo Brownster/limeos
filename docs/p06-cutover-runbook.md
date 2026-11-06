@@ -2,7 +2,8 @@
 
 Scope and findings: [tooling scope](plans/2026-11-05-basic-cutover-tooling-scope.md).
 The scripts live in `scripts/cutover/`. Nothing here runs without the operator's
-go on a fresh window; the scripts were tested only against stubs.
+go on a fresh window; the scripts were tested against stubs and then rehearsed end to end in a disposable VM
+([evidence](rewrite-evidence/p06/2026-11-06-cutover-rehearsal-vm/README.md)).
 
 ## Open decisions (operator)
 
@@ -50,6 +51,11 @@ go on a fresh window; the scripts were tested only against stubs.
    units (helper, app, timers), then verifies state hashes, container IDs and
    StartedAt, and that port 8002 answers over plain HTTP. Safe to repeat. The
    package stays installed.
+
+Stack status needs the dormant `limeos-storage-reader.service` (root, read-only, no Install
+section): neither script starts it. If the operator wants stack status and whole-stack actions,
+start it by hand after `activate.sh` (and install the management catalog first);
+`return.sh` stops it again.
 
 ## Abort criteria
 

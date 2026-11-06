@@ -50,8 +50,19 @@ fct_restore_frozen() {
     : "${class:-}"
 }
 
+fct_frozen_writer_running() {
+    local unit
+    for unit in "${FROZEN_UNITS[@]}"; do
+        [[ "$(fct_unit_active "${unit}")" == active ]] && return 0
+    done
+    return 1
+}
+
 fct_verify_hashes() {
-    local snap="${1}" tmp flag hash path line cur_flag cur_hash baseline
+    local snap="${1}" tmp flag hash path line cur_flag cur_hash baseline writers=0
+    # A running frozen writer (the app, or a timer that fires at once) may legitimately
+    # rewrite its live databases, so their baseline comparison only applies while all stopped.
+    if fct_frozen_writer_running; then writers=1; fi
     tmp="$(mktemp)"
     fct_state_hashes >"${tmp}"
     baseline="${snap}/state.poststop.sha256"
@@ -65,7 +76,9 @@ fct_verify_hashes() {
         elif [[ "${cur_hash}" != "${hash}" ]]; then
             # Live databases may change before the writers stop; compare to the
             # post-stop baseline when activate recorded one.
-            if [[ -f "${baseline}" ]] && ! grep -qxF "${flag} ${cur_hash} ${path}" "${baseline}"; then
+            if (( writers )); then
+                fct_warn "live state file differs from the snapshot (frozen writers are running): ${path}"
+            elif [[ -f "${baseline}" ]] && ! grep -qxF "${flag} ${cur_hash} ${path}" "${baseline}"; then
                 fct_fail "live state file changed after the writers stopped: ${path}"
             elif [[ ! -f "${baseline}" ]]; then
                 fct_warn "live state file differs from the snapshot (writers may have run): ${path}"
@@ -122,16 +135,26 @@ fct_main() {
     fct_log 'return: stopping the proxy site'
     fct_stop_proxy "${CUTOVER_ROOT}${site_dir}/${SITE_NAME}" "${caddy_state}"
     fct_log 'return: stopping the Rust services'
+    # The stack reader has no Install section and activate.sh never starts it; an operator
+    # who started it by hand for stack status gets it stopped here too (never enabled).
+    if [[ "$(fct_unit_active limeos-storage-reader.service)" == active ]]; then
+        fct_step systemctl stop limeos-storage-reader.service
+    fi
     for unit in limeos-core.service limeos-containerd.service limeos-storaged.service; do
         fct_step systemctl stop "${unit}"
         fct_step systemctl disable "${unit}"
     done
+    # Hash the state before the frozen writers start again: a restored timer or app can
+    # rewrite its live files within seconds, which is not evidence of a late writer.
+    if (( ! DRY_RUN )); then
+        fct_log 'return: verifying state files'
+        fct_verify_hashes "${snap}"
+    fi
     fct_log 'return: restoring the frozen units'
     fct_restore_frozen "${snap}"
 
     if (( DRY_RUN )); then fct_log 'dry-run: verification commands are skipped'; return 0; fi
     fct_log 'return: verifying'
-    fct_verify_hashes "${snap}"
     fct_verify_docker "${snap}"
     fct_verify_untouched "${snap}"
     fct_verify_port "${port}"

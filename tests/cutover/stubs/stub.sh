@@ -47,6 +47,7 @@ case "${tool}" in
             start|restart)
                 for u in "${args[@]}"; do
                     set_unit "${u}" active active
+                    if [[ -x "${STUB_DIR}/hook-start-${u}" ]]; then "${STUB_DIR}/hook-start-${u}"; fi
                     if [[ "${u}" == pi-health.service ]]; then printf 'LISTEN 0 128 0.0.0.0:8002 0.0.0.0:*\n' >>"${STUB_DIR}/ss_out"; fi
                 done ;;
             enable) for u in "${args[@]}"; do set_unit "${u}" enabled enabled; done ;;

@@ -443,6 +443,18 @@ class ReturnTests(Harness):
         starts = [l for l in self.calls() if l.startswith("systemctl start")]
         self.assertEqual(starts, [f"systemctl start {n}" for n in FROZEN])
 
+    def test_stops_a_hand_started_stack_reader_but_not_otherwise(self):
+        # Found in the VM rehearsal: stack status needs `systemctl start limeos-storage-reader`,
+        # which neither script does; return must not leave that root service running.
+        self.activated()
+        self.assertEqual(self.do_return().returncode, 0)
+        self.assertNotIn("systemctl stop limeos-storage-reader.service", self.calls())
+        self._unit("limeos-storage-reader.service", "active", "disabled")
+        result = self.do_return()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.unit_state("limeos-storage-reader.service"), ("inactive", "disabled"))
+        self.assertNotIn("systemctl enable limeos-storage-reader.service", self.calls())
+
     def test_idempotent(self):
         self.activated()
         self.assertEqual(self.do_return().returncode, 0)
@@ -503,6 +515,27 @@ class ReturnTests(Harness):
     def test_live_database_change_is_flagged_against_post_stop_baseline(self):
         self.activated()
         self._write("/var/lib/limeos/metrics.db", "written-by-a-late-writer")
+        self.assertNotEqual(self.do_return().returncode, 0)
+
+    def test_hashes_are_verified_before_the_frozen_writers_restart(self):
+        # Found in the VM rehearsal: a restored timer fires at once and rewrites its SQLite file,
+        # which the old order (restore, then hash) reported as a late writer.
+        self.activated()
+        hook = self.stub / "hook-start-limeos-metrics-collector.timer"
+        hook.write_text(f"#!/usr/bin/env bash\nprintf 'collector ran' >'{self.root}/var/lib/limeos/metrics.db'\n")
+        hook.chmod(0o755)
+        result = self.do_return()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("return verified", result.stdout)
+
+    def test_second_return_tolerates_live_databases_but_not_strict_files(self):
+        self.activated()
+        self.assertEqual(self.do_return().returncode, 0)
+        self._write("/var/lib/limeos/metrics.db", "written-by-the-restored-app")
+        again = self.do_return()
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+        self.assertIn("frozen writers are running", again.stderr)
+        self._write("/etc/limeos/credentials.env", "PIHEALTH_USERS=holly:CHANGED\n")
         self.assertNotEqual(self.do_return().returncode, 0)
 
     def test_live_database_difference_only_warns_without_baseline(self):
