@@ -814,6 +814,7 @@ fn migration_from_compiled_schema_eleven_preserves_queued_and_canceled_jobs() {
             }
         }
     }
+    crate::remove_v16_schema(&store.conn);
     for table in [
         "stack_results",
         "stack_plans",

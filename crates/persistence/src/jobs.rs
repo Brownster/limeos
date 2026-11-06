@@ -78,6 +78,10 @@ impl Store {
         if !from.allows(to) {
             return Err(Error(ErrorCode::Conflict));
         }
+        // Resolution needs a recorded request and executor confirmation.
+        if to == JobState::Resolved {
+            return Err(Error(ErrorCode::Forbidden));
+        }
         let encoded: String = self
             .conn
             .query_row("SELECT intent FROM jobs WHERE id=?", [id], |r| r.get(0))

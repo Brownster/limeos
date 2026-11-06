@@ -501,6 +501,7 @@ fn schema_thirteen_upgrade_preserves_policy_history_and_legacy_queue() {
             r.get(0)
         })
         .unwrap();
+    crate::remove_v16_schema(&store.conn);
     store.conn.execute_batch("DROP TABLE stack_results; DROP TABLE stack_plans; DROP TRIGGER automation_polled_result; DROP TABLE automation_poll_origins; PRAGMA user_version=13").unwrap();
     let reference = Connection::open_in_memory().unwrap();
     reference

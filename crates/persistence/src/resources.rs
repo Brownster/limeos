@@ -22,7 +22,8 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             include_str!("migration-v12.sql"),
             include_str!("migration-v13.sql"),
             include_str!("migration-v14.sql"),
-            include_str!("migration-v15.sql")
+            include_str!("migration-v15.sql"),
+            include_str!("migration-v16.sql")
         ))
         .map_err(durable)?;
     let mut stmt = reference
@@ -61,6 +62,7 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         "automation_poll_origins",
         "stack_plans",
         "stack_results",
+        "job_resolutions",
     ] {
         let expected: String = reference
             .query_row(
@@ -95,6 +97,12 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             ) OR EXISTS(
                 SELECT 1 FROM resource_locks l JOIN jobs j ON j.id=l.job
                 WHERE j.state NOT IN ('running','verifying','outcome_unknown','needs_intervention')
+            ) OR EXISTS(
+                SELECT 1 FROM jobs j WHERE j.state='resolved' AND NOT EXISTS(
+                    SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND r.confirmation IS NOT NULL)
+            ) OR EXISTS(
+                SELECT 1 FROM job_resolutions r JOIN jobs j ON j.id=r.job
+                WHERE (r.confirmation IS NOT NULL) <> (j.state='resolved')
             ) OR EXISTS(SELECT 1 FROM pragma_foreign_key_check)",
             [],
             |r| r.get(0),

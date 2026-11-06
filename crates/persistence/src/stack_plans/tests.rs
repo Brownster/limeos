@@ -543,6 +543,7 @@ fn schema_fourteen_upgrade_adds_stack_tables_and_preserves_container_plans() {
     let container = store
         .plan_container(&p, ContainerAction::Restart, &member('a', true), 200)
         .unwrap();
+    crate::remove_v16_schema(&store.conn);
     store
         .conn
         .execute_batch("DROP TABLE stack_results; DROP TABLE stack_plans; PRAGMA user_version=14;")

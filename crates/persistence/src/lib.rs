@@ -12,7 +12,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 15;
+pub const SCHEMA_VERSION: u32 = 16;
 pub const QUEUE_CAPACITY: usize = 64;
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
@@ -133,7 +133,7 @@ impl Store {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(durable)?;
         match version {
-            0..=14 => {
+            0..=15 => {
                 if version < 1 {
                     tx.execute_batch(include_str!("schema.sql"))
                         .map_err(durable)?;
@@ -190,7 +190,11 @@ impl Store {
                     tx.execute_batch(include_str!("migration-v14.sql"))
                         .map_err(durable)?;
                 }
-                tx.execute_batch(include_str!("migration-v15.sql"))
+                if version < 15 {
+                    tx.execute_batch(include_str!("migration-v15.sql"))
+                        .map_err(durable)?;
+                }
+                tx.execute_batch(include_str!("migration-v16.sql"))
                     .map_err(durable)?;
             }
             SCHEMA_VERSION => {}
@@ -283,6 +287,7 @@ mod budgets;
 mod compose;
 mod identity_enablement;
 mod identity_store;
+mod job_resolutions;
 mod jobs;
 mod plans;
 mod resources;
@@ -293,6 +298,7 @@ mod storage_targets;
 pub use compose::{
     AuthenticatedComposePreview, ComposeAuthorityKind, ComposeAuthorityObservation, compose_scopes,
 };
+pub use job_resolutions::{PendingResolution, ResolutionSubject};
 pub use storage::storage_scope;
 
 #[cfg(test)]
@@ -302,8 +308,15 @@ fn remove_v10_schema(conn: &Connection) {
 }
 
 #[cfg(test)]
+fn remove_v16_schema(conn: &Connection) {
+    // Back to the version-15 jobs CHECK (no `resolved`) and no resolution table.
+    conn.execute_batch("DROP TRIGGER IF EXISTS jobs_resolved_update; DROP TRIGGER IF EXISTS jobs_resolved_insert; DROP TABLE IF EXISTS job_resolutions; PRAGMA writable_schema=ON; UPDATE sqlite_schema SET sql=replace(sql,',''resolved'')',')') WHERE type='table' AND name='jobs'; PRAGMA writable_schema=RESET;").unwrap();
+}
+
+#[cfg(test)]
 fn remove_v11_schema(conn: &Connection) {
     // Legacy migration fixtures must remove every later schema addition.
+    remove_v16_schema(conn);
     conn.execute_batch("DROP TABLE IF EXISTS stack_results; DROP TABLE IF EXISTS stack_plans;")
         .unwrap();
     conn.execute_batch("DROP TABLE IF EXISTS automation_poll_origins;")

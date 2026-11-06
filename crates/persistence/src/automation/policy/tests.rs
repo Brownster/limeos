@@ -458,6 +458,7 @@ fn schema_twelve_upgrade_preserves_default_history_pending_jobs_and_audit() {
         .unwrap();
     let queued = queue(&mut store, &actor, 210);
     let before = counts(&store);
+    crate::remove_v16_schema(&store.conn);
     store.conn.execute_batch("DROP TABLE stack_results; DROP TABLE stack_plans; DROP TRIGGER automation_polled_result; DROP TABLE automation_poll_origins; DROP TRIGGER automation_result_policy; DROP TABLE automation_health_policies; ALTER TABLE automation_occurrences DROP COLUMN policy_revision; ALTER TABLE automation_observation_results DROP COLUMN policy_revision; ALTER TABLE automation_streams DROP COLUMN policy_revision; PRAGMA user_version=12").unwrap();
     let reference = Connection::open_in_memory().unwrap();
     reference
