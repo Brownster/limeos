@@ -46,6 +46,7 @@ def main():
             "docs/p04-storage-readiness.md",
             "docs/p04-storage-planning.md",
             "docs/p04-storage-targets.md",
+            "docs/p04-storage-mounts-profile.md",
             "tests/privileged_vm",
             "tests/fixtures",
         ]:
