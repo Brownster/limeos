@@ -1,11 +1,12 @@
 //! Cutover tooling. Every subcommand is read-only against the frozen app.
+mod catalog;
 mod ceiling;
 mod scan;
 mod users;
 
 use std::path::{Path, PathBuf};
 
-pub const USAGE: &str = "migrate scan [--root DIR] [--etc-dir P] [--state-dir P] [--stacks-dir P] [--checkout P] [--json]\n  read-only, root-only inventory; classifies imported|deferred|unsupported.\nmigrate import-users --env-file PATH\n  root-only; hashes go to the core over its socket, never argv.\nmigrate propose-ceiling --docker-ps FILE --stacks DIR --core-uid UID --out FILE\n  offline; writes a deny-by-default container ceiling, never overwrites.";
+pub const USAGE: &str = "migrate scan [--root DIR] [--etc-dir P] [--state-dir P] [--stacks-dir P] [--checkout P] [--json]\n  read-only, root-only inventory; classifies imported|deferred|unsupported.\nmigrate import-users --env-file PATH\n  root-only; hashes go to the core over its socket, never argv.\nmigrate propose-ceiling --docker-ps FILE --stacks DIR --core-uid UID --out FILE\n  offline; writes a deny-by-default container ceiling, never overwrites.\nmigrate propose-catalog --out FILE [--stacks DIR] [--install]\n  root-only, read-only against Docker and DIR (default /opt/stacks); writes a PROPOSED\n  stack management catalog from Compose labels; --install also places it root-owned.";
 
 fn under(root: &Path, path: &str) -> PathBuf {
     root.join(path.trim_start_matches('/'))
@@ -76,6 +77,7 @@ pub async fn run(socket: &str, args: &[String]) -> Result<(), Box<dyn std::error
             users::run(socket, rest).await
         }
         Some((cmd, rest)) if cmd == "propose-ceiling" => ceiling::run(rest),
+        Some((cmd, rest)) if cmd == "propose-catalog" => catalog::run(rest),
         _ => Err(format!("usage:\n{USAGE}").into()),
     }
 }

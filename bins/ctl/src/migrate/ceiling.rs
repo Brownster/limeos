@@ -141,10 +141,13 @@ fn read_small(path: &Path) -> Result<String, String> {
 
 /// Refuses to replace anything, including a dangling symlink.
 pub fn write_new(path: &Path, json: &str) -> Result<(), String> {
+    write_new_with_mode(path, json, 0o644)
+}
+pub fn write_new_with_mode(path: &Path, json: &str, mode: u32) -> Result<(), String> {
     let mut file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
-        .mode(0o644)
+        .mode(mode)
         .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
         .open(path)
         .map_err(|e| {

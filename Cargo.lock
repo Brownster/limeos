@@ -970,6 +970,7 @@ dependencies = [
  "hex",
  "limeos-contracts",
  "limeos-domain",
+ "limeos-executor-container",
  "limeos-executor-protocol",
  "limeos-persistence",
  "rustix",
