@@ -1,5 +1,6 @@
 use limeos_contracts::{CoreRequest, CoreResponse, Enrollment, VERSION};
 use std::io::Read;
+mod job;
 mod migrate;
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -33,10 +34,15 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     if rest.first().is_some_and(|s| s == "migrate") && !args.iter().any(|a| a == "--help") {
         return migrate::run(socket_flag.unwrap_or(DEFAULT_SOCKET), &rest[1..]).await;
     }
+    if rest.first().is_some_and(|s| s == "job") && !args.iter().any(|a| a == "--help" || a == "-h")
+    {
+        return job::run(socket_flag.unwrap_or(DEFAULT_SOCKET), &rest[1..]).await;
+    }
     if args.is_empty() || args.iter().any(|a| a == "--help" || a == "-h") {
         println!(
-            "Usage: limeosctl [--socket PATH] status|bootstrap|enroll\nbootstrap: root-only, one-use token valid for 15 minutes.\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\n{}",
-            migrate::USAGE
+            "Usage: limeosctl [--socket PATH] status|bootstrap|enroll\nbootstrap: root-only, one-use token valid for 15 minutes.\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\n{}\n{}",
+            migrate::USAGE,
+            job::USAGE
         );
         return Ok(());
     }
