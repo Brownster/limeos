@@ -9,6 +9,8 @@ mod operations;
 pub use operations::*;
 mod stack_operations;
 pub use stack_operations::*;
+mod job_resolution;
+pub use job_resolution::*;
 mod logs;
 pub use logs::*;
 mod compose;
@@ -111,6 +113,9 @@ pub enum Operation {
     StorageManage,
     IdentityManage,
     AutomationManage,
+    /// Administrator-only settlement of a `needs_intervention` job. Never
+    /// grantable to a task token, API key or wildcard scope.
+    JobResolve,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
@@ -134,6 +139,9 @@ pub enum JobState {
     PreconditionChanged,
     OutcomeUnknown,
     NeedsIntervention,
+    /// An administrator settled an uncertain job on evidence. Terminal and
+    /// lock-releasing; the original job, plan and receipts stay unchanged.
+    Resolved,
 }
 impl JobState {
     pub fn allows(self, next: Self) -> bool {
@@ -152,6 +160,7 @@ impl JobState {
                     Succeeded | Failed | PreconditionChanged | OutcomeUnknown | NeedsIntervention
                 )
                 | (OutcomeUnknown, Verifying | NeedsIntervention)
+                | (NeedsIntervention, Resolved)
         )
     }
     pub fn as_str(self) -> &'static str {
@@ -167,6 +176,7 @@ impl JobState {
             Self::PreconditionChanged => "precondition_changed",
             Self::OutcomeUnknown => "outcome_unknown",
             Self::NeedsIntervention => "needs_intervention",
+            Self::Resolved => "resolved",
         }
     }
 }
@@ -187,6 +197,13 @@ pub enum EventKind {
     JobRecoveryRequired,
     JobTransition {
         state: JobState,
+    },
+    JobResolutionRequested {
+        declared: DeclaredOutcome,
+    },
+    JobResolutionWithdrawn,
+    JobResolved {
+        declared: DeclaredOutcome,
     },
     PlanCreated {
         plan: String,

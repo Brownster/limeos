@@ -1,7 +1,22 @@
 use limeos_domain::{Error, ErrorCode, Operation, Principal, Result, Role, Scope};
 
+/// Settling a `needs_intervention` job is never a grant or a task scope: it is
+/// the administrator role itself, on a session with fresh re-authentication
+/// (the caller's duty; a principal does not record how it authenticated).
+pub fn authorize_job_resolution(principal: &Principal) -> Result<()> {
+    if principal.role == Role::Administrator {
+        Ok(())
+    } else {
+        Err(Error(ErrorCode::Forbidden))
+    }
+}
+
 pub fn authorize(principal: &Principal, grants: &[Scope], request: &Scope) -> Result<()> {
     use Operation::*;
+    if request.operation == JobResolve {
+        // Not satisfiable by any grant, wildcard or token scope.
+        return Err(Error(ErrorCode::Forbidden));
+    }
     let role_allows = match principal.role {
         Role::Administrator => true,
         Role::Operator => matches!(
@@ -32,7 +47,8 @@ pub fn task_subset(grants: &[Scope], requested: &[Scope]) -> Result<()> {
     if requested.is_empty()
         || requested.len() > 32
         || !requested.iter().all(|r| {
-            r.resource != "*"
+            r.operation != Operation::JobResolve
+                && r.resource != "*"
                 && grants.iter().any(|g| {
                     g.operation == r.operation
                         && (g.resource == r.resource
@@ -100,6 +116,35 @@ mod tests {
             )
             .is_err()
         );
+    }
+    #[test]
+    fn job_resolution_is_administrator_only_and_never_a_grant_or_task_scope() {
+        let scope = Scope {
+            operation: Operation::JobResolve,
+            resource: "job:abc".into(),
+        };
+        let wildcard = Scope {
+            resource: "*".into(),
+            ..scope.clone()
+        };
+        for role in [
+            Role::Administrator,
+            Role::Operator,
+            Role::Viewer,
+            Role::MediaRequester,
+        ] {
+            let principal = Principal {
+                id: "alice".into(),
+                role,
+                grant_revision: 1,
+            };
+            assert_eq!(
+                authorize_job_resolution(&principal).is_ok(),
+                role == Role::Administrator
+            );
+            assert!(authorize(&principal, &[scope.clone(), wildcard.clone()], &scope).is_err());
+        }
+        assert!(task_subset(std::slice::from_ref(&scope), std::slice::from_ref(&scope)).is_err());
     }
     #[test]
     fn elevated_template_authority_cannot_be_wildcard_or_inherited_by_a_task() {
