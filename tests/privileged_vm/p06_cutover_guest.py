@@ -19,6 +19,7 @@ import json
 import os
 import pwd
 import re
+import shutil
 import socket
 import sqlite3
 import ssl
@@ -315,24 +316,7 @@ def write_fixture(version_hashes):
     ids["watchtower"] = create("watchtower")
     ids["vpn"] = create("vpn")
     state["ids"] = ids
-    # The management catalog (the stack reader's registration); no tool writes it, so the operator step is scripted here.
-    engine_id = sh("docker info --format '{{.ID}}'")[1].strip()
-    catalog = {
-        "version": 1,
-        "engine_id": engine_id,
-        "stacks": [
-            {
-                "stack": "media",
-                "project": "media",
-                "working_directory": "/opt/stacks/media",
-                "operator": {"name": "compose.yaml", "sha256": sha(stack / "compose.yaml")},
-                "managed": {"state": "absent"},
-                "services": ["jellyfin", "radarr", "sonarr", "transmission", "airsonic-advanced"],
-            }
-        ],
-    }
-    CATALOG.write_text(json.dumps(catalog))
-    sh(f"chown root:root {CATALOG}; chmod 0644 {CATALOG}")
+    # No management catalog exists yet: `limeosctl migrate propose-catalog` generates it (case 4b).
     # Baseline of the frozen app's files (taken before any LimeOS package exists).
     files = []
     for root in ("/home/holly/pi-health", "/etc/limeos", "/var/lib/limeos", "/etc/caddy/Caddyfile"):
@@ -522,8 +506,8 @@ def expect_frozen_serving(label, rust_running=False):
             check(active(u) in ("inactive", "failed") and enabled(u) == "disabled", f"{label}: {u} not stopped+disabled", state=(active(u), enabled(u)))
     check(frozen_world() == {u: {"active": "active", "enabled": "enabled"} for u in FROZEN_UNITS}, f"{label}: frozen units not restored", world=frozen_world())
     ports = listeners()
-    if not rust_running:
-        check(active("limeos-storage-reader") != "active", f"{label}: stack reader still running")
+    reader = (active("limeos-storage-reader"), enabled("limeos-storage-reader"))
+    check((reader[0] == "active") == rust_running and reader[1] != "enabled", f"{label}: stack reader state (activate starts it, return stops it, nothing enables it)", reader=reader)
     check(("127.0.0.1:8003" in ports) == rust_running, f"{label}: core listening state", ports=ports)
     owner = sh("ps -o user=,comm= -p $(systemctl show pi-health -p MainPID --value)")[1].split()
     check(owner[0] == "holly", f"{label}: frozen app owner", owner=owner)
@@ -534,6 +518,50 @@ def expect_world_equal(label, before_containers, before_bystanders, strict=True)
     check(containers() == before_containers, f"{label}: container IDs/StartedAt/pids differ", before=before_containers, after=containers())
     check(bystanders() == before_bystanders, f"{label}: a bystander unit changed", before=before_bystanders, after=bystanders())
     check(hash_tree() == state["frozen_hashes"], f"{label}: a frozen-app file hash changed", changed=[p for p, h in hash_tree().items() if state["frozen_hashes"].get(p) != h])
+
+
+@case("4b propose-catalog: preflight refuses without a catalog (exact command); proposal from Compose labels; --install root 0644; never overwrites")
+def catalog():
+    ctl = "/usr/lib/limeos/limeosctl"
+    check(not CATALOG.exists(), "a catalog exists before propose-catalog")
+    managed = Path("/root/managed.txt")
+    managed.write_text("\n".join(RUNNING) + "\n")
+    rc, out = run_script("preflight.sh", "--out", "/var/lib/limeos-cutover/no-catalog", "--managed-file", managed, log="preflight-no-catalog")
+    check(rc != 0 and "management-catalog.json is missing" in out and f"{ctl} migrate propose-catalog --out" in out, "preflight did not refuse a missing catalog with the command", out=out[-800:])
+    proposed = Path("/root/management-catalog.proposed.json")
+    rc, out = sh(f"{ctl} migrate propose-catalog --out {proposed}", check_rc=False, log="propose-catalog")
+    check(rc == 0, "propose-catalog failed", out=out)
+    check(not CATALOG.exists(), "propose-catalog installed the catalog without --install")
+    value = json.loads(proposed.read_text())
+    engine_id = sh("docker info --format '{{.ID}}'")[1].strip()
+    expected = {
+        "version": 1,
+        "engine_id": engine_id,
+        "stacks": [{
+            "stack": "media",
+            "project": "media",
+            "working_directory": "/opt/stacks/media",
+            "operator": {"name": "compose.yaml", "sha256": sha(Path("/opt/stacks/media/compose.yaml"))},
+            "managed": {"state": "absent"},
+            "services": ["airsonic-advanced", "jellyfin", "radarr", "sonarr", "transmission"],
+        }],
+    }
+    check(value == expected, "proposed catalog differs from the Compose project", value=value)
+    check("stack media (project media)" in out and "container(s) without a Compose project" in out, "proposal listing incomplete", out=out)
+    again = sh(f"{ctl} migrate propose-catalog --out {proposed}", check_rc=False)
+    check(again[0] != 0 and "already exists" in again[1], "propose-catalog overwrote its output", out=again[1])
+    # The operator installs it with --install (a second proposal file, same content).
+    second = Path("/root/management-catalog.second.json")
+    rc, out2 = sh(f"{ctl} migrate propose-catalog --out {second} --install", check_rc=False, log="propose-catalog-install")
+    check(rc == 0 and CATALOG.exists(), "--install did not install the catalog", out=out2)
+    st = CATALOG.stat()
+    check(st.st_uid == 0 and st.st_gid == 0 and oct(st.st_mode & 0o7777) == "0o644", "installed catalog is not root:root 0644", mode=oct(st.st_mode))
+    check(json.loads(CATALOG.read_text()) == expected, "installed catalog differs from the proposal")
+    third = sh(f"{ctl} migrate propose-catalog --out /root/management-catalog.third.json --install", check_rc=False)
+    check(third[0] != 0 and "already exists" in third[1] and json.loads(CATALOG.read_text()) == expected, "--install replaced an installed catalog", out=third[1])
+    check(active("limeos-storage-reader") != "active", "stack reader running before the cutover")
+    shutil.rmtree("/var/lib/limeos-cutover/no-catalog", ignore_errors=True)
+    return {"listing": out.splitlines(), "catalog": expected}
 
 
 @case("5 preflight refusals leave everything unchanged (stopped managed container; active playback)")
@@ -601,6 +629,8 @@ def cycle1_activate():
     check(frozen_world() == {u: {"active": "inactive", "enabled": "disabled"} for u in FROZEN_UNITS}, "frozen units not stopped+disabled", world=frozen_world())
     check(all(active(u) == "active" and enabled(u) == "enabled" for u in RUST_UNITS), "Rust services not active+enabled")
     check(active("caddy") == "active" and enabled("caddy") == "enabled", "caddy not active+enabled")
+    check(active("limeos-storage-reader") == "active" and enabled("limeos-storage-reader") != "enabled", "activate.sh did not leave the stack reader started and not enabled", state=(active("limeos-storage-reader"), enabled("limeos-storage-reader")))
+    check("stack reader still ready after settling" in out, "activate.sh did not verify the stack reader", out=out[-800:])
     ports = listeners()
     check(re.search(r"\*:8002\s.*caddy", ports) or re.search(r"8002\s.*caddy", ports), "8002 is not Caddy's", ports=ports)
     check("127.0.0.1:8003" in ports and "limeos-core" in ports, "core not on loopback 8003", ports=ports)
@@ -644,9 +674,18 @@ def cycle1_https():
     check(status == 200 and "jellyfin ready" in logs["text"], "container logs not served", status=status, logs=str(logs)[:300])
     unmanaged = https(f"/api/v1/containers/{state['ids']['airsonic-advanced']}/logs?tail=50", cookie=cookie)[0]
     check(unmanaged == 403, "unmanaged container logs not refused", status=unmanaged)
+    # Stack status is available right after activate.sh with no manual step (reader started, catalog proposed).
+    def stacks_fresh():
+        status, _, value = https("/api/v1/deployment/stacks", cookie=cookie)
+        return status == 200 and value["catalog"]["state"] == "fresh" and value["engine"]["state"] == "fresh" and any(x["project"] == "media" and not x["issues"] for x in value["stacks"])
+
+    waited = time.monotonic()
+    fx.eventually(stacks_fresh, timeout=60)
+    stack_wait = round(time.monotonic() - waited, 1)
     status, _, stacks = https("/api/v1/deployment/stacks", cookie=cookie)
+    check(stacks["catalog"]["state"] != "unavailable" and stacks["engine"]["state"] != "unavailable", "stack status is unavailable after activate.sh", stacks=str(stacks)[:600])
     host = https("/api/v1/resources", cookie=cookie)
-    return {"overview_kinds": kinds, "overview_keys": sorted(overview), "containers_listed": len(listed), "log_first_line": logs["text"].splitlines()[:2], "unmanaged_logs": unmanaged, "stacks_status": status, "stacks": str(stacks)[:900], "resources_status": host[0], "resources": str(host[2])[:600]}
+    return {"overview_kinds": kinds, "overview_keys": sorted(overview), "containers_listed": len(listed), "log_first_line": logs["text"].splitlines()[:2], "unmanaged_logs": unmanaged, "stacks_status": status, "stack_status_wait_seconds": stack_wait, "stacks": str(stacks)[:900], "resources_status": host[0], "resources": str(host[2])[:600]}
 
 
 @case("8 cycle 1: return.sh restores the frozen app; containers/hashes/bystanders identical to the preflight snapshot; idempotent")
@@ -736,11 +775,9 @@ def container_restart():
 @case("11 whole-stack restart (media) through the HTTPS API: only the four running members, ID order, stopped member untouched")
 def stack_restart():
     s = state["session"]
-    # The stack inventory needs the dormant reader; record whether the cutover scripts start it.
+    # activate.sh started the reader; nothing here starts it by hand any more.
     reader_before = active("limeos-storage-reader")
-    state["notes"].append(f"limeos-storage-reader after activate.sh: {reader_before}")
-    if reader_before != "active":
-        sh("systemctl start limeos-storage-reader", check_rc=False)
+    check(reader_before == "active", "stack reader not started by activate.sh", state=reader_before)
 
     def inventory_ok():
         status, _, value = https("/api/v1/deployment/stacks", cookie=s["cookie"])
