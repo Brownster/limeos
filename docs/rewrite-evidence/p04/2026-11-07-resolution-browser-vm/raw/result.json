@@ -1,0 +1,1785 @@
+{
+  "summary": "pass",
+  "package_version": "0.4.17+resbrowser.1",
+  "engine_id": "3ABE:TLYW:7ASW:USCH:CBAU:DMBN:UZSX:BGHH:QOIC:AUUT:5FAM:JB3U",
+  "setup_seconds": 390.8,
+  "facts": {
+    "final_locks": [
+      [
+        "container:44c06a519d756b6150956fcc8cd9735506696f368f84cbad892902445e4b660b",
+        "d77d90bbd103c71a6002c894afe8b6b01ed8f49719558412966b2bbef619b24e",
+        "needs_intervention"
+      ],
+      [
+        "container:59195c7fbedee6a8c5286556773273146d4c4eac3816e0e586fc64290b1bc40d",
+        "884c3907bb7572051482c25777d66456e662dcb5bd52353ba74f4ef88e26ed44",
+        "needs_intervention"
+      ],
+      [
+        "container:930f054adb8690b34bb5de3c459e6cf7e046015eedf94276caef1fbf143cbb24",
+        "884c3907bb7572051482c25777d66456e662dcb5bd52353ba74f4ef88e26ed44",
+        "needs_intervention"
+      ],
+      [
+        "container:cceb403a9cf7581427a3a5a1902aa1369d84565e36add85f752de6113f5ffbf2",
+        "884c3907bb7572051482c25777d66456e662dcb5bd52353ba74f4ef88e26ed44",
+        "needs_intervention"
+      ],
+      [
+        "stack:sl5",
+        "884c3907bb7572051482c25777d66456e662dcb5bd52353ba74f4ef88e26ed44",
+        "needs_intervention"
+      ]
+    ]
+  },
+  "cases": {
+    "1 banner for an administrator: container jobs list and stack jobs list": {
+      "status": "pass",
+      "detail": {
+        "container_banner": 3,
+        "stack_banner_buttons": [
+          "Review and resolve Start stack \u00b7 sl4",
+          "Review and resolve Restart stack \u00b7 sl2"
+        ]
+      },
+      "seconds": 2.2
+    },
+    "2 operator sees read-only text without the button (containers and stacks)": {
+      "status": "pass",
+      "detail": {
+        "account": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee \u00b7 operator"
+      },
+      "seconds": 5.0
+    },
+    "3 dialog: focus moves in, is contained, returns to the opener on Close and on Escape; accessible names": {
+      "status": "pass",
+      "detail": {
+        "initial_focus": {
+          "body": false,
+          "id": "",
+          "inDialog": true,
+          "label": "Close resolution dialog",
+          "tag": "button",
+          "text": "Close",
+          "type": "submit"
+        },
+        "tab_stops_seen": 3
+      },
+      "seconds": 2.9
+    },
+    "4 per-target plan vs measured evidence (container and multi-container stack)": {
+      "status": "pass",
+      "detail": {
+        "H": {
+          "targets": 1,
+          "allowed": [
+            "verified_done",
+            "accepted_divergence"
+          ]
+        },
+        "D3": {
+          "targets": 3,
+          "allowed": [
+            "accepted_divergence"
+          ]
+        }
+      },
+      "seconds": 5.0
+    },
+    "5 disallowed outcomes are disabled with an explanation": {
+      "status": "pass",
+      "detail": {
+        "H.verified_done": {
+          "enabled": true,
+          "why": "Every container is already in the state the plan intended. The lock is released and the job is recorded as done."
+        },
+        "H.not_done": {
+          "enabled": false,
+          "why": "Not available: c641a583f368 differs from the plan."
+        },
+        "H.accepted_divergence": {
+          "enabled": true,
+          "why": "The present state differs from both the plan and the intended result, and you accept it as it is. The lock is released and the next plan sta"
+        },
+        "D3.verified_done": {
+          "enabled": false,
+          "why": "Not available: de3f277dafe5 is not in the intended end state."
+        },
+        "D3.not_done": {
+          "enabled": false,
+          "why": "Not available: 5dcabf2be29a, 76087b61e46e differs from the plan."
+        },
+        "D3.accepted_divergence": {
+          "enabled": true,
+          "why": "The present state differs from both the plan and the intended result, and you accept it as it is. The lock is released and the next plan sta"
+        },
+        "N1.verified_done": {
+          "enabled": false,
+          "why": "Not available: ddf87471747d is not in the intended end state."
+        },
+        "N1.not_done": {
+          "enabled": true,
+          "why": "Nothing took effect: every container still equals the plan. Only the lock is released. Plan again separately if you still want the change."
+        },
+        "N1.accepted_divergence": {
+          "enabled": true,
+          "why": "The present state differs from both the plan and the intended result, and you accept it as it is. The lock is released and the next plan sta"
+        }
+      },
+      "seconds": 5.2
+    },
+    "6 divergence: >=20 character reason enforced; confirmation is visually distinct": {
+      "status": "pass",
+      "detail": {
+        "divergence_style": {
+          "bg": "rgb(48, 42, 34)",
+          "border": "rgb(255, 211, 163) rgb(255, 211, 163) rgb(255, 211, 163) rgb(224, 161, 90)",
+          "w": "0px 0px 0px 3px"
+        },
+        "plain_style": {
+          "bg": "rgba(0, 0, 0, 0)",
+          "border": "rgb(237, 241, 231)",
+          "w": "0px"
+        },
+        "plain_button": {
+          "bg": "rgb(198, 242, 124)",
+          "c": "rgb(28, 40, 22)"
+        }
+      },
+      "seconds": 6.4
+    },
+    "7 wrong password: right message, field cleared, nothing recorded, session intact": {
+      "status": "pass",
+      "detail": {
+        "alert": "The password was not accepted. Nothing was recorded.",
+        "post_statuses": [
+          401
+        ]
+      },
+      "seconds": 6.4
+    },
+    "8 stale evidence: background change, submit refreshes the view and clears the confirmation": {
+      "status": "pass",
+      "detail": {
+        "post_statuses": [
+          401,
+          409
+        ]
+      },
+      "seconds": 38.7
+    },
+    "9 successful resolve: record shown, banner entry gone, jobs list refreshed, no password left, focus recoverable": {
+      "status": "pass",
+      "detail": {
+        "banner_before": 2,
+        "banner_after": 1,
+        "rows": [
+          "Restart \u00b7 c641a583f368 resolved Progress"
+        ],
+        "focus_after_close": {
+          "body": false,
+          "id": ":r0:",
+          "inDialog": false,
+          "label": "",
+          "tag": "h3",
+          "text": "Needs attention \u00b7 1 operation",
+          "type": ""
+        }
+      },
+      "seconds": 10.7
+    },
+    "10 pending (202): executor stopped, message shown, identical decision repeated safely": {
+      "status": "pass",
+      "detail": {
+        "repeat": "resolved",
+        "post_statuses": [
+          200,
+          202,
+          200
+        ]
+      },
+      "seconds": 10.8
+    },
+    "11 keyboard-only: open, choose, reason, review, confirm, submit and close with Tab/Space/Enter/Escape": {
+      "status": "pass",
+      "detail": {
+        "focus_after_close": {
+          "body": false,
+          "id": "operations-heading",
+          "inDialog": false,
+          "label": "",
+          "tag": "h2",
+          "text": "Recent container operations",
+          "type": ""
+        }
+      },
+      "seconds": 36.9
+    },
+    "12 final: remaining job (D3) resolved by divergence in the stack list; no console errors; nothing sensitive anywhere": {
+      "status": "pass",
+      "detail": {
+        "deliberate_http_errors_logged_by_chromium": 39,
+        "console_entries": 48
+      },
+      "seconds": 9.9
+    }
+  },
+  "evidence": {
+    "console": [
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989808.311081
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989808.311082
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989808.3110826
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989812.3760035
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989812.3760045
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 403 ()",
+        "t": 1793989812.376005
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/jobs - Failed to load resource: the server responded with a status of 403 ()",
+        "t": 1793989812.3760054
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989816.3145733
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989816.314574
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989816.3145742
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989821.3987556
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989821.398756
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989821.3987563
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989826.633104
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989826.6331055
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989826.6331058
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989833.1110477
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989833.1110485
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989833.1110487
+      },
+      {
+        "level": "DEBUG",
+        "message": "https://localhost/ - [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o",
+        "t": 1793989833.111049
+      },
+      {
+        "level": "DEBUG",
+        "message": "https://localhost/ - [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o",
+        "t": 1793989833.1110492
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989839.3090456
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989839.309046
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989839.3090465
+      },
+      {
+        "level": "DEBUG",
+        "message": "https://localhost/ - [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o",
+        "t": 1793989839.3090465
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/jobs/7543d683c5ebf14492cf726741d42456c8503cfcd2bf2b0087cae182ffaf4890/resolution - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989839.309047
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989872.9176931
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989872.9176939
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989872.917694
+      },
+      {
+        "level": "DEBUG",
+        "message": "https://localhost/ - [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o",
+        "t": 1793989872.9176948
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/jobs/2d7645f8b772325e89f8a75e8af476e2fe1b2b79faeefe2e536b29a33cf906a1/resolution - Failed to load resource: the server responded with a status of 409 ()",
+        "t": 1793989872.917695
+      },
+      {
+        "level": "DEBUG",
+        "message": "https://localhost/ - [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o",
+        "t": 1793989878.2940981
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989888.7709606
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989888.7709615
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989888.7709618
+      },
+      {
+        "level": "DEBUG",
+        "message": "https://localhost/ - [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o",
+        "t": 1793989888.770962
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989897.706549
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989897.7065496
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989897.7065504
+      },
+      {
+        "level": "DEBUG",
+        "message": "https://localhost/ - [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o",
+        "t": 1793989897.7065506
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989936.6695466
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989936.6695502
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989936.6695516
+      },
+      {
+        "level": "DEBUG",
+        "message": "https://localhost/ - [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o",
+        "t": 1793989936.6695879
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989946.777575
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/auth/session - Failed to load resource: the server responded with a status of 401 ()",
+        "t": 1793989946.7775757
+      },
+      {
+        "level": "SEVERE",
+        "message": "https://localhost/api/v1/storage/mounts/targets - Failed to load resource: the server responded with a status of 503 ()",
+        "t": 1793989946.777576
+      },
+      {
+        "level": "DEBUG",
+        "message": "https://localhost/ - [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o",
+        "t": 1793989946.7775762
+      }
+    ],
+    "a11y": [
+      {
+        "case": 9,
+        "focus_after_close_of_removed_opener": {
+          "body": false,
+          "id": ":r0:",
+          "inDialog": false,
+          "label": "",
+          "tag": "h3",
+          "text": "Needs attention \u00b7 1 operation",
+          "type": ""
+        }
+      },
+      {
+        "case": 11,
+        "focus_after_keyboard_close": {
+          "body": false,
+          "id": "operations-heading",
+          "inDialog": false,
+          "label": "",
+          "tag": "h2",
+          "text": "Recent container operations",
+          "type": ""
+        }
+      }
+    ],
+    "network": [],
+    "notes": [
+      "FINDING: job lists are per principal (jobs WHERE principal=?): the administrator's banner does not list needs_intervention jobs queued by an operator, so the UI cannot reach them; only limeosctl by job id can."
+    ],
+    "induced": {
+      "H": {
+        "job": "7543d683c5ebf14492cf726741d42456c8503cfcd2bf2b0087cae182ffaf4890",
+        "kind": "container",
+        "operation": "restart",
+        "targets": 1
+      },
+      "D3": {
+        "job": "cf2d09577abb51e0de4f0d3c9c842415ffca827216d72a37cc41ca1c14818bdb",
+        "kind": "stack",
+        "operation": "restart",
+        "targets": 3
+      },
+      "N1": {
+        "job": "34f2ece7aa0e93a7cf6d774949dd8fd03f90c4e932f8cff0cd02acb9f1431ebb",
+        "kind": "container",
+        "operation": "start",
+        "targets": 1
+      },
+      "N3": {
+        "job": "2d7645f8b772325e89f8a75e8af476e2fe1b2b79faeefe2e536b29a33cf906a1",
+        "kind": "container",
+        "operation": "start",
+        "targets": 1
+      },
+      "N2": {
+        "job": "06e4f4591055a7a065244ec37c70f3fe244c88f9e1cc038b7f326fa0f4255ba6",
+        "kind": "stack",
+        "operation": "start",
+        "targets": 3
+      },
+      "N5": {
+        "job": "d77d90bbd103c71a6002c894afe8b6b01ed8f49719558412966b2bbef619b24e",
+        "kind": "container",
+        "operation": "start",
+        "targets": 1
+      },
+      "N6": {
+        "job": "884c3907bb7572051482c25777d66456e662dcb5bd52353ba74f4ef88e26ed44",
+        "kind": "stack",
+        "operation": "start",
+        "targets": 3
+      }
+    },
+    "packaged_ui_sha256": {
+      "assets/index-BcXa30Nr.css": "e4a5c76e01aa223caf2c80a7f149602b474cb76e8189291b30e4f436f92bb419",
+      "assets/index-DAsQ0ozj.js": "6658b330bec8150f46588197e50dfcacbbf5fd2a4e91aecae7467ad1fc9508cc",
+      "index.html": "fac94f859ccb75ce13699a2b4f9230a29a245047a9176abe5fc1e6c61e108915"
+    },
+    "browser_version": "156.0.8078.79",
+    "ui_sha256": {
+      "assets/index-CO95V7_Z.css": "8ef4b3ed9ee724376e00261390351994711ae1134b02d7860c2117350b0ce6f0",
+      "assets/index-D0BCmgZ_.js": "309f7b19b2f8cb2da2aafea1ab43c4a263d60244237a2711de1ea919054b1f30",
+      "index.html": "8f2156e15a1a26f7701324bf45c5b4c693e0bf82741cfab39179823456459198"
+    },
+    "console_expected_http_errors": 39,
+    "network_summary": [
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/stack/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/deployment/stacks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/logout",
+        "status": 204
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 403
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 403
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/stack/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/deployment/stacks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/logout",
+        "status": 204
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/7543d683c5ebf14492cf726741d42456c8503cfcd2bf2b0087cae182ffaf4890/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/7543d683c5ebf14492cf726741d42456c8503cfcd2bf2b0087cae182ffaf4890/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/logout",
+        "status": 204
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/7543d683c5ebf14492cf726741d42456c8503cfcd2bf2b0087cae182ffaf4890/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/stack/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/deployment/stacks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/cf2d09577abb51e0de4f0d3c9c842415ffca827216d72a37cc41ca1c14818bdb/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/logout",
+        "status": 204
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/7543d683c5ebf14492cf726741d42456c8503cfcd2bf2b0087cae182ffaf4890/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/stack/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/deployment/stacks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/cf2d09577abb51e0de4f0d3c9c842415ffca827216d72a37cc41ca1c14818bdb/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/34f2ece7aa0e93a7cf6d774949dd8fd03f90c4e932f8cff0cd02acb9f1431ebb/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/logout",
+        "status": 204
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/stack/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/deployment/stacks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/cf2d09577abb51e0de4f0d3c9c842415ffca827216d72a37cc41ca1c14818bdb/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/7543d683c5ebf14492cf726741d42456c8503cfcd2bf2b0087cae182ffaf4890/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/logout",
+        "status": 204
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/7543d683c5ebf14492cf726741d42456c8503cfcd2bf2b0087cae182ffaf4890/resolution",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/jobs/7543d683c5ebf14492cf726741d42456c8503cfcd2bf2b0087cae182ffaf4890/resolution",
+        "status": 401
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/logout",
+        "status": 204
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/2d7645f8b772325e89f8a75e8af476e2fe1b2b79faeefe2e536b29a33cf906a1/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/jobs/2d7645f8b772325e89f8a75e8af476e2fe1b2b79faeefe2e536b29a33cf906a1/resolution",
+        "status": 409
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/jobs/2d7645f8b772325e89f8a75e8af476e2fe1b2b79faeefe2e536b29a33cf906a1/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/logout",
+        "status": 204
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/7543d683c5ebf14492cf726741d42456c8503cfcd2bf2b0087cae182ffaf4890/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/jobs/7543d683c5ebf14492cf726741d42456c8503cfcd2bf2b0087cae182ffaf4890/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/logout",
+        "status": 204
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/stack/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/deployment/stacks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/06e4f4591055a7a065244ec37c70f3fe244c88f9e1cc038b7f326fa0f4255ba6/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/jobs/06e4f4591055a7a065244ec37c70f3fe244c88f9e1cc038b7f326fa0f4255ba6/resolution",
+        "status": 202
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/deployment/stacks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/stack/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/jobs/06e4f4591055a7a065244ec37c70f3fe244c88f9e1cc038b7f326fa0f4255ba6/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/deployment/stacks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/stack/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/logout",
+        "status": 204
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/34f2ece7aa0e93a7cf6d774949dd8fd03f90c4e932f8cff0cd02acb9f1431ebb/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/jobs/34f2ece7aa0e93a7cf6d774949dd8fd03f90c4e932f8cff0cd02acb9f1431ebb/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/logout",
+        "status": 204
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/auth/session",
+        "status": 401
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/auth/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/overview",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/system/history?range=24h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/observations/stream",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/targets",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/container/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/stack/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/deployment/stacks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/jobs/cf2d09577abb51e0de4f0d3c9c842415ffca827216d72a37cc41ca1c14818bdb/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "url": "/api/v1/jobs/cf2d09577abb51e0de4f0d3c9c842415ffca827216d72a37cc41ca1c14818bdb/resolution",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/deployment/stacks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/stack/jobs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "url": "/api/v1/storage/mounts/jobs",
+        "status": 200
+      }
+    ],
+    "screenshot_sha256": {
+      "01-banner-containers-admin": "fed5d3fe46e76fc6f556fc1b0b235d3f568733cec567ad03b888039c5ef9703e",
+      "02-banner-stacks-admin": "e6bd14d4970cd74a829f9c8aaa64152d39547d6e2f03f26c704c874d3b1e2b66",
+      "03-banner-containers-operator": "c3a6affa34c043ffa2e956f509978f73ed4ed30c64257ebea63d3fb491564114",
+      "04-banner-stacks-operator": "2f3af276ae6c762e1671e60cc877c7ea3e002f979990536e20c03f26d86cda2e",
+      "05-dialog-open-container": "fc4f26f36fa20aea025d5efdbf561b1453a4f7977889ec29f9fddef8d2f7df00",
+      "06a-evidence-container": "bffec3cc91c97b518802d96989bf90a2bae05fe88fd72e8cd73f33c0045befd6",
+      "06-evidence-stack-three-targets": "a92b2acbcf133de5bc01a28154dcd66d32a62ccdd965d8499eead1f7a75603e9",
+      "07-disabled-outcomes-d3": "abd667520af4c166c3ec76bfd3da79d03bbe44facdf09c552ef072d03b8f44bb",
+      "07-disabled-outcomes-n1": "0a88efaea02b5041561f3c796ca5d181a091cc3243bd5ba2c18266345dcafda3",
+      "08-divergence-short-reason": "c4ce9a3b806c5d1e0c41d06dd8bedd78daae3a74fdabe83da2f3e7af785436e3",
+      "09-divergence-confirm": "bec16f65d5d623bb0b901bdc5ec338b814df65007274434c6e80341800a45202",
+      "10-ordinary-confirm": "174c217b6f060fd4aa26c9e50a53bb7e6391c3113b645917277f2785e40b4c7d",
+      "11-wrong-password": "57942dad1e3a18e6265e1089d321c48bac3b46055ae7d73a81f6c922f2d4022a",
+      "12-stale-evidence-refreshed": "99d234997f78eb81dfdd71a8f4e38a140666464db03e9fa6237e76f0eee0ee36",
+      "13-resolved-record": "9bbb769ed0f71c09e9e786b2914138a419abade48b57f2dd6706c1006c4c56e7",
+      "14-banner-after-resolve": "8bc092e1a8ba707cbc33dbfb638e3aa62c274c02244e8925aa6930669ad834e6",
+      "15-pending": "b14076ba00caabfbabbf8efe16f2690b7c0bc09dd3dd9c78db3353c0cd913943",
+      "16-pending-then-resolved": "af89be4b9a0b533a5860092d376e11dd8ec45914468bb3e28af94ebd4db63ec0",
+      "17-keyboard-resolved": "c7452deb26ad3743b79c9a87966fffd874e1cdb6fc2747dcdde31371772c46de",
+      "18-stack-divergence-resolved": "0c2b5134713c3e2ed58d102c98505d848cf6586d6fa0f886e124f15e6b368716"
+    }
+  },
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "3d94c9dd66d8a283fde060b8810373b7ae04038b956ee00d553d1ae564f6fbdeaa2fd6e7404e87e53348b5a9509170f3ea7c0731ba737590c5c4cb8d559a47f8"
+  }
+}
