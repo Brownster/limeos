@@ -1,0 +1,812 @@
+{
+  "summary": "pass",
+  "package_version": "0.4.16+resolve.1",
+  "cases": {
+    "0 induce five stuck jobs (container/stack restart, bad start container/stack)": {
+      "status": "pass",
+      "detail": {
+        "H": "c1a5e94002612b71b260ac18bae27f4da7a1a8c5e1bbd3929b762b62c729a626",
+        "D3": "940e381ba0c027412286327c9a772bf2a302881d4d451816f11d1048dbd2ebe8",
+        "D4": "d93d78d8320675f2c8abb879d113648bc44a44fedf965e2d8f1d675a9e7c0817",
+        "N1": "647eaf855d5c9f39a789b0b1031ea75f77a69c951ce265cc39b10cd2b07f22ee",
+        "N2": "f497d40559e712d3d8c97a2a996ece4633cba74ace26b1d4381cff562406f5a0",
+        "H_receipts": {
+          "stack_actions": [],
+          "actions": [
+            [
+              "container:35d1e6da228bfba1f0c397d3d1c484d2108e5e3e2d3c0b61e6c34cde385ced97",
+              "prepared"
+            ]
+          ]
+        },
+        "H_locks": [
+          [
+            "container:35d1e6da228bfba1f0c397d3d1c484d2108e5e3e2d3c0b61e6c34cde385ced97"
+          ]
+        ],
+        "D3_receipts": {
+          "stack_actions": [
+            [
+              "outcome_unknown",
+              "restart"
+            ]
+          ],
+          "actions": []
+        },
+        "D3_locks": [
+          [
+            "container:2de06e8123b862d1484c4ba06b32f3d88feb600fd1414923fef5880cfb0f644d"
+          ],
+          [
+            "container:9786447810a0c27a1039e1dffc1392fdd4f1ffccd3ea4cc2fae0d821b2df74ea"
+          ],
+          [
+            "container:f2389f843f756c02a8ee0ef36b329b3995e1f96156760fae9d4909e88ae621a3"
+          ],
+          [
+            "stack:sl2"
+          ]
+        ],
+        "D4_receipts": {
+          "stack_actions": [
+            [
+              "outcome_unknown",
+              "restart"
+            ]
+          ],
+          "actions": []
+        },
+        "D4_locks": [
+          [
+            "container:6a2148334fb762518976efda0bb47782caf8e3b405e8a7326bf77c458238c707"
+          ],
+          [
+            "container:7b4fbed96a7b88aa1b5b9dfc33346916ccb2655632ad83f660fbbb55d06f1a25"
+          ],
+          [
+            "container:f9f9b41862d4826e43e610e86fe51290a95d7ecbadf9ca3d0261fed78884825f"
+          ],
+          [
+            "stack:sl3"
+          ]
+        ],
+        "N1_receipts": {
+          "stack_actions": [],
+          "actions": [
+            [
+              "container:865771cb87f5e1c247fba33ba129597bd86e122f54667b5c908c914121ae8b2b",
+              "outcome_unknown"
+            ]
+          ]
+        },
+        "N1_locks": [
+          [
+            "container:865771cb87f5e1c247fba33ba129597bd86e122f54667b5c908c914121ae8b2b"
+          ]
+        ],
+        "N2_receipts": {
+          "stack_actions": [
+            [
+              "outcome_unknown",
+              "start"
+            ]
+          ],
+          "actions": []
+        },
+        "N2_locks": [
+          [
+            "container:97ee6f55863faf30c542c8defa21967faed2d7f983d08f63557763c917a13929"
+          ],
+          [
+            "container:d0a3791241c4ac881cffd1450946ecf8f2c0f2daf3cbb15f1156bc4d4278ad14"
+          ],
+          [
+            "container:fa057b368d831e7fc34b06050bfe62a8dad5f431a61816de60727e11a0d91067"
+          ],
+          [
+            "stack:sl4"
+          ]
+        ]
+      },
+      "seconds": 113.3
+    },
+    "1 locks held after needs_intervention: a new plan on the same target is refused or never dispatches": {
+      "status": "pass",
+      "detail": {
+        "H": {
+          "queue_status": 202,
+          "cancel": 204,
+          "result": "queued, never dispatched, canceled"
+        },
+        "D3": {
+          "queue_status": 202,
+          "cancel": 204,
+          "result": "queued, never dispatched, canceled"
+        },
+        "N1": {
+          "queue_status": 202,
+          "cancel": 204,
+          "result": "queued, never dispatched, canceled"
+        },
+        "N2": {
+          "queue_status": 202,
+          "cancel": 204,
+          "result": "queued, never dispatched, canceled"
+        }
+      },
+      "seconds": 69.2
+    },
+    "2 GET resolution evidence: plan vs measured, allowed outcomes, digest": {
+      "status": "pass",
+      "detail": {
+        "H": {
+          "allowed": [
+            "accepted_divergence",
+            "verified_done"
+          ],
+          "all_match_plan": false,
+          "all_intended": true,
+          "members": [
+            {
+              "container": "35d1e6da228bfba1f0c397d3d1c484d2108e5e3e2d3c0b61e6c34cde385ced97",
+              "state": "prepared",
+              "error": null
+            }
+          ],
+          "digest": "9956f0db0f495534ab438dd795aaea4162bb953cd8819370d1a1e0042c1913b1"
+        },
+        "D3": {
+          "allowed": [
+            "accepted_divergence"
+          ],
+          "all_match_plan": false,
+          "all_intended": false,
+          "members": [
+            {
+              "container": "2de06e8123b862d1484c4ba06b32f3d88feb600fd1414923fef5880cfb0f644d",
+              "state": "verified",
+              "error": null
+            },
+            {
+              "container": "9786447810a0c27a1039e1dffc1392fdd4f1ffccd3ea4cc2fae0d821b2df74ea",
+              "state": "verified",
+              "error": null
+            },
+            {
+              "container": "f2389f843f756c02a8ee0ef36b329b3995e1f96156760fae9d4909e88ae621a3",
+              "state": "outcome_unknown",
+              "error": "state_not_durable"
+            }
+          ],
+          "digest": "961026eb393cc2dc3701d8433bc6dd8f8ec68103a0b739566338bb7ad4af815d"
+        },
+        "N1": {
+          "allowed": [
+            "accepted_divergence",
+            "not_done"
+          ],
+          "all_match_plan": true,
+          "all_intended": false,
+          "members": [
+            {
+              "container": "865771cb87f5e1c247fba33ba129597bd86e122f54667b5c908c914121ae8b2b",
+              "state": "outcome_unknown",
+              "error": "unavailable"
+            }
+          ],
+          "digest": "f972166203f9785d06379030fabd3bfc8aa592f7bc4aab73eeeea67fd18f60a7"
+        },
+        "N2": {
+          "allowed": [
+            "accepted_divergence",
+            "not_done"
+          ],
+          "all_match_plan": true,
+          "all_intended": false,
+          "members": [
+            {
+              "container": "97ee6f55863faf30c542c8defa21967faed2d7f983d08f63557763c917a13929",
+              "state": "outcome_unknown",
+              "error": "unavailable"
+            },
+            {
+              "container": "d0a3791241c4ac881cffd1450946ecf8f2c0f2daf3cbb15f1156bc4d4278ad14",
+              "state": "precondition_changed",
+              "error": "conflict"
+            },
+            {
+              "container": "fa057b368d831e7fc34b06050bfe62a8dad5f431a61816de60727e11a0d91067",
+              "state": "precondition_changed",
+              "error": "conflict"
+            }
+          ],
+          "digest": "85fc71433d9596bba331665c731d37442557836d5f67992e9306cdcfa011cb86"
+        }
+      },
+      "seconds": 0.4
+    },
+    "2b stack whose end state is proved is recovered by the existing receipt check; resolution then refuses": {
+      "status": "pass",
+      "detail": {
+        "state": "succeeded",
+        "members": [
+          {
+            "container": "6a2148334fb762518976efda0bb47782caf8e3b405e8a7326bf77c458238c707",
+            "state": "verified",
+            "error": null
+          },
+          {
+            "container": "7b4fbed96a7b88aa1b5b9dfc33346916ccb2655632ad83f660fbbb55d06f1a25",
+            "state": "verified",
+            "error": null
+          },
+          {
+            "container": "f9f9b41862d4826e43e610e86fe51290a95d7ecbadf9ca3d0261fed78884825f",
+            "state": "verified",
+            "error": null
+          }
+        ],
+        "post_status": 409
+      },
+      "seconds": 0.2
+    },
+    "3 refusals: unsupported declaration, stale digest, wrong password, token/key, non-admin, anonymous, bad CSRF": {
+      "status": "pass",
+      "detail": {
+        "verified_done_when_not_reached": {
+          "status": 409,
+          "blocking": [
+            "865771cb87f5e1c247fba33ba129597bd86e122f54667b5c908c914121ae8b2b"
+          ]
+        },
+        "not_done_when_changed": {
+          "status": 409,
+          "blocking": [
+            "35d1e6da228bfba1f0c397d3d1c484d2108e5e3e2d3c0b61e6c34cde385ced97"
+          ]
+        },
+        "d3_verified_done_blocking": [
+          "f2389f843f756c02a8ee0ef36b329b3995e1f96156760fae9d4909e88ae621a3"
+        ],
+        "d3_not_done_blocking": [
+          "2de06e8123b862d1484c4ba06b32f3d88feb600fd1414923fef5880cfb0f644d",
+          "9786447810a0c27a1039e1dffc1392fdd4f1ffccd3ea4cc2fae0d821b2df74ea"
+        ],
+        "short_reason_status": 400,
+        "bogus_digest": 409,
+        "real_stale": {
+          "status": 409,
+          "new_digest_differs": true
+        },
+        "wrong_password": 401,
+        "Authorization": [
+          403,
+          403
+        ],
+        "X-API-Key": [
+          403,
+          403
+        ],
+        "non_admin": [
+          403,
+          403
+        ],
+        "anonymous": [
+          401,
+          401
+        ],
+        "bad_csrf": 403,
+        "engine_effects": []
+      },
+      "seconds": 71.5
+    },
+    "4a verified_done via API (container restart H) frees both lock layers; new restart succeeds": {
+      "status": "pass",
+      "detail": {
+        "verdict": {
+          "allowed": [
+            "accepted_divergence",
+            "verified_done"
+          ],
+          "all_match_plan": false,
+          "all_intended": true
+        },
+        "engine_effects": [],
+        "executor_rows": {
+          "stack_actions": [],
+          "actions": [
+            [
+              "container:35d1e6da228bfba1f0c397d3d1c484d2108e5e3e2d3c0b61e6c34cde385ced97",
+              "resolved"
+            ]
+          ]
+        },
+        "audit_kinds": [
+          "{\"kind\":\"job_transition\",\"state\":\"running\"}",
+          "{\"kind\":\"job_transition\",\"state\":\"needs_intervention\"}",
+          "{\"kind\":\"job_resolution_requested\",\"declared\":\"verified_done\"}",
+          "{\"kind\":\"job_resolved\",\"declared\":\"verified_done\"}"
+        ],
+        "response": "resolved",
+        "next": {
+          "job": "50f3f16491861d0cf6992f23afa07fb14c4ea500d14a13f10f220288f43d19ec",
+          "events": {
+            "35d1e6da228bfba1f0c397d3d1c484d2108e5e3e2d3c0b61e6c34cde385ced97": {
+              "kill": 2,
+              "die": 1,
+              "stop": 1,
+              "start": 1,
+              "restart": 1
+            }
+          },
+          "executor_rows": {
+            "stack_actions": [],
+            "actions": [
+              [
+                "container:35d1e6da228bfba1f0c397d3d1c484d2108e5e3e2d3c0b61e6c34cde385ced97",
+                "verified"
+              ]
+            ]
+          }
+        }
+      },
+      "seconds": 32.5
+    },
+    "4b accepted_divergence via API (stack restart D3, mixed state); new restart succeeds": {
+      "status": "pass",
+      "detail": {
+        "verdict": {
+          "allowed": [
+            "accepted_divergence"
+          ],
+          "all_match_plan": false,
+          "all_intended": false
+        },
+        "engine_effects": [],
+        "executor_rows": {
+          "stack_actions": [
+            [
+              "resolved",
+              "restart"
+            ]
+          ],
+          "actions": []
+        },
+        "audit_kinds": [
+          "{\"kind\":\"job_transition\",\"state\":\"running\"}",
+          "{\"kind\":\"job_transition\",\"state\":\"needs_intervention\"}",
+          "{\"kind\":\"job_resolution_requested\",\"declared\":\"accepted_divergence\"}",
+          "{\"kind\":\"job_resolved\",\"declared\":\"accepted_divergence\"}"
+        ],
+        "response": "resolved",
+        "next": {
+          "job": "6b20fc97be6a5d236343807006d02943f61d804f99a396ebad14f46adf740f0f",
+          "events": {
+            "2de06e8123b862d1484c4ba06b32f3d88feb600fd1414923fef5880cfb0f644d": {
+              "kill": 2,
+              "die": 1,
+              "stop": 1,
+              "start": 1,
+              "restart": 1
+            },
+            "9786447810a0c27a1039e1dffc1392fdd4f1ffccd3ea4cc2fae0d821b2df74ea": {
+              "kill": 2,
+              "die": 1,
+              "stop": 1,
+              "start": 1,
+              "restart": 1
+            },
+            "f2389f843f756c02a8ee0ef36b329b3995e1f96156760fae9d4909e88ae621a3": {
+              "kill": 2,
+              "die": 1,
+              "stop": 1,
+              "start": 1,
+              "restart": 1
+            }
+          },
+          "executor_rows": {
+            "stack_actions": [
+              [
+                "verified",
+                "restart"
+              ]
+            ],
+            "actions": []
+          }
+        }
+      },
+      "seconds": 74.8
+    },
+    "4c not_done via API (container start N1, nothing started); fix the cause; new start succeeds": {
+      "status": "pass",
+      "detail": {
+        "verdict": {
+          "allowed": [
+            "accepted_divergence",
+            "not_done"
+          ],
+          "all_match_plan": true,
+          "all_intended": false
+        },
+        "engine_effects": [],
+        "executor_rows": {
+          "stack_actions": [],
+          "actions": [
+            [
+              "container:865771cb87f5e1c247fba33ba129597bd86e122f54667b5c908c914121ae8b2b",
+              "resolved"
+            ]
+          ]
+        },
+        "audit_kinds": [
+          "{\"kind\":\"job_transition\",\"state\":\"running\"}",
+          "{\"kind\":\"job_transition\",\"state\":\"needs_intervention\"}",
+          "{\"kind\":\"job_resolution_requested\",\"declared\":\"not_done\"}",
+          "{\"kind\":\"job_resolved\",\"declared\":\"not_done\"}"
+        ],
+        "response": "resolved",
+        "next": {
+          "job": "52733451dcc7c06e967deb40f8730d34dbb4469ac0ff3a3bb7318707c929831c",
+          "events": {
+            "865771cb87f5e1c247fba33ba129597bd86e122f54667b5c908c914121ae8b2b": {
+              "start": 1
+            }
+          },
+          "executor_rows": {
+            "stack_actions": [],
+            "actions": [
+              [
+                "container:865771cb87f5e1c247fba33ba129597bd86e122f54667b5c908c914121ae8b2b",
+                "verified"
+              ]
+            ]
+          }
+        }
+      },
+      "seconds": 23.2
+    },
+    "4d not_done via API (stack start N2, nothing started); fix the cause; new start succeeds": {
+      "status": "pass",
+      "detail": {
+        "verdict": {
+          "allowed": [
+            "accepted_divergence",
+            "not_done"
+          ],
+          "all_match_plan": true,
+          "all_intended": false
+        },
+        "engine_effects": [],
+        "executor_rows": {
+          "stack_actions": [
+            [
+              "resolved",
+              "start"
+            ]
+          ],
+          "actions": []
+        },
+        "audit_kinds": [
+          "{\"kind\":\"job_transition\",\"state\":\"verifying\"}",
+          "{\"kind\":\"job_transition\",\"state\":\"needs_intervention\"}",
+          "{\"kind\":\"job_resolution_requested\",\"declared\":\"not_done\"}",
+          "{\"kind\":\"job_resolved\",\"declared\":\"not_done\"}"
+        ],
+        "response": "resolved",
+        "next": {
+          "job": "f972f7c40dca98b579bdc4037242c77dc790a1059c8c4b47144390c54ad58a74",
+          "events": {
+            "97ee6f55863faf30c542c8defa21967faed2d7f983d08f63557763c917a13929": {
+              "start": 1
+            },
+            "d0a3791241c4ac881cffd1450946ecf8f2c0f2daf3cbb15f1156bc4d4278ad14": {
+              "start": 1
+            },
+            "fa057b368d831e7fc34b06050bfe62a8dad5f431a61816de60727e11a0d91067": {
+              "start": 1
+            }
+          },
+          "executor_rows": {
+            "stack_actions": [
+              [
+                "verified",
+                "start"
+              ]
+            ],
+            "actions": []
+          }
+        }
+      },
+      "seconds": 22.4
+    },
+    "6a CLI: show-resolution and resolve verified-done as root (container H2); new restart succeeds": {
+      "status": "pass",
+      "detail": {
+        "non_root": "job resolution over the local socket is root-only",
+        "unknown_admin_rc": 1,
+        "non_admin_rc": 1,
+        "unsupported_rc": 1,
+        "stale_rc": 1,
+        "resolve": {
+          "verdict": {
+            "allowed": [
+              "accepted_divergence",
+              "verified_done"
+            ],
+            "all_match_plan": false,
+            "all_intended": true
+          },
+          "engine_effects": [],
+          "executor_rows": {
+            "stack_actions": [],
+            "actions": [
+              [
+                "container:35d1e6da228bfba1f0c397d3d1c484d2108e5e3e2d3c0b61e6c34cde385ced97",
+                "resolved"
+              ]
+            ]
+          },
+          "audit_kinds": [
+            "{\"kind\":\"job_transition\",\"state\":\"running\"}",
+            "{\"kind\":\"job_transition\",\"state\":\"needs_intervention\"}",
+            "{\"kind\":\"job_resolution_requested\",\"declared\":\"verified_done\"}",
+            "{\"kind\":\"job_resolved\",\"declared\":\"verified_done\"}"
+          ],
+          "response": {
+            "cli": "rt\ntarget: 35d1e6da228bfba1f0c397d3d1c484d2108e5e3e2d3c0b61e6c34cde385ced97\n  planned:  running yes started 2026-11-06T12:57:14.109785453Z image sha256:63b48ca3e8c8519f9734c570a01f66354af93162f92583ea964a8ef585727587\n  measured: running yes started 2026-11-06T12:59:28.080938254Z image sha256:63b48ca3e8c8519f9734c570a01f66354af93162f92583ea964a8ef585727587\n  unchanged from plan: no   intended state reached: yes\nevidence digest: 4e2d53acb2323ef07516f3e284a33cac0ea21fbc6d07b5605dbd2debc923ad18\noutcomes available: verified-done, accepted-divergence\nResolved. The job no longer holds its resources.\n"
+          }
+        },
+        "next": {
+          "job": "0dc431eb916b6437a36c7bb21575200c28ff0b82f427fb14710bd772c72c4184",
+          "events": {
+            "35d1e6da228bfba1f0c397d3d1c484d2108e5e3e2d3c0b61e6c34cde385ced97": {
+              "kill": 2,
+              "die": 1,
+              "stop": 1,
+              "start": 1,
+              "restart": 1
+            }
+          },
+          "executor_rows": {
+            "stack_actions": [],
+            "actions": [
+              [
+                "container:35d1e6da228bfba1f0c397d3d1c484d2108e5e3e2d3c0b61e6c34cde385ced97",
+                "verified"
+              ]
+            ]
+          }
+        }
+      },
+      "seconds": 53.5
+    },
+    "6b CLI: resolve not-done (container N3, nothing started) with reason on stdin; new start succeeds": {
+      "status": "pass",
+      "detail": {
+        "stdout_tail": "f9734c570a01f66354af93162f92583ea964a8ef585727587\n  unchanged from plan: yes   intended state reached: no\nevidence digest: a4768aea52953ce586dba100bdf25f34a16ee295ca33f1d87833f46e581e0a94\noutcomes available: not-done, accepted-divergence\nexecutor outcome: 4dc6a65dea0c18394b5d9c1fd578e3d8944af2380a1409532245bdbe1304f6c7 outcome_unknown (unavailable)\nResolved. The job no longer holds its resources.\n",
+        "executor_rows": {
+          "stack_actions": [],
+          "actions": [
+            [
+              "container:4dc6a65dea0c18394b5d9c1fd578e3d8944af2380a1409532245bdbe1304f6c7",
+              "resolved"
+            ]
+          ]
+        },
+        "next": {
+          "job": "396b226fb30707514037bfe962899313e5acbfa1dc20319230788b17a0ae4497",
+          "events": {
+            "4dc6a65dea0c18394b5d9c1fd578e3d8944af2380a1409532245bdbe1304f6c7": {
+              "start": 1
+            }
+          },
+          "executor_rows": {
+            "stack_actions": [],
+            "actions": [
+              [
+                "container:4dc6a65dea0c18394b5d9c1fd578e3d8944af2380a1409532245bdbe1304f6c7",
+                "verified"
+              ]
+            ]
+          }
+        }
+      },
+      "seconds": 28.1
+    },
+    "7a crash after the request is recorded (executor not yet freed): restart completes the resolution": {
+      "status": "pass",
+      "detail": {
+        "crash_state": {
+          "executor_rows": {
+            "stack_actions": [],
+            "actions": [
+              [
+                "container:fa9cb96892290960b4a290be00d70ac03122c59d6c7a707fb8c5eb92c9660130",
+                "outcome_unknown"
+              ]
+            ]
+          },
+          "request": [
+            [
+              "21e2f3fad9409ff10f470e2cea9fd6a11d2c8e3516ab5a9615fca81c815a9153",
+              "not_done",
+              "Start failed at the runtime; nothing started (crash test).",
+              "564d0367168c7888ce79d4366e92c0e77e932b8672e8ce802cb13f85531d0557",
+              0,
+              null
+            ]
+          ],
+          "core_job_state": "needs_intervention",
+          "core_locks": [
+            [
+              "container:fa9cb96892290960b4a290be00d70ac03122c59d6c7a707fb8c5eb92c9660130"
+            ]
+          ]
+        },
+        "after": {
+          "stack_actions": [],
+          "actions": [
+            [
+              "container:fa9cb96892290960b4a290be00d70ac03122c59d6c7a707fb8c5eb92c9660130",
+              "resolved"
+            ]
+          ]
+        },
+        "engine_effects": []
+      },
+      "seconds": 20.9
+    },
+    "7b crash after the executor freed its side but before core completed: restart completes the resolution": {
+      "status": "pass",
+      "detail": {
+        "attempt_1": {
+          "job": "C2",
+          "crash": {
+            "executor_rows": {
+              "stack_actions": [],
+              "actions": [
+                [
+                  "container:7abc93f2bac96771512742832e1c3a2a14b4a2a2f4a582d3a4c901be6337f745",
+                  "resolved"
+                ]
+              ]
+            },
+            "request": [
+              [
+                "21e2f3fad9409ff10f470e2cea9fd6a11d2c8e3516ab5a9615fca81c815a9153",
+                "not_done",
+                "Start failed at the runtime; nothing started (crash test).",
+                "24258d6adc22e068324c05e1c7f0b4b945722a76c251506a3261a75bf1587771",
+                0,
+                null
+              ]
+            ],
+            "core_job_state": "needs_intervention",
+            "core_locks": [
+              [
+                "container:7abc93f2bac96771512742832e1c3a2a14b4a2a2f4a582d3a4c901be6337f745"
+              ]
+            ]
+          }
+        },
+        "engine_effects": [],
+        "completed_job": "C2"
+      },
+      "seconds": 61.6
+    },
+    "5 summary: zero Engine lifecycle effects came from any resolution, refusal or retry": {
+      "status": "pass",
+      "detail": {
+        "lifecycle_events_total": 146,
+        "note": "per-resolution windows asserted empty in cases 3, 4a-4c, 6a, 6b, 7a, 7b"
+      },
+      "seconds": 0.0
+    }
+  },
+  "facts": {
+    "engine_id": "JOLI:ZBOB:4BSI:B4I2:45VQ:H2NO:EZXK:QLL3:RWE3:CIWW:ILED:EJCR",
+    "docker_version": "20.10.24+dfsg1",
+    "setup_seconds": 124.6,
+    "memory_before": {
+      "limeos-core": {
+        "pss_kib": 11300,
+        "swap_kib": 0
+      },
+      "limeos-containerd": {
+        "pss_kib": 2183,
+        "swap_kib": 0
+      },
+      "limeos-storage-reader": {
+        "pss_kib": 1792,
+        "swap_kib": 0
+      },
+      "guest_mem_available_kib": 593448,
+      "guest_mem_total_kib": 996368
+    },
+    "memory_after": {
+      "limeos-core": {
+        "pss_kib": 9928,
+        "swap_kib": 0
+      },
+      "limeos-containerd": {
+        "pss_kib": 3379,
+        "swap_kib": 0
+      },
+      "limeos-storage-reader": {
+        "pss_kib": 1779,
+        "swap_kib": 0
+      },
+      "guest_mem_available_kib": 512424,
+      "guest_mem_total_kib": 996368
+    },
+    "final_locks": [],
+    "jobs": {
+      "H": {
+        "job": "c1a5e94002612b71b260ac18bae27f4da7a1a8c5e1bbd3929b762b62c729a626",
+        "kind": "container",
+        "operation": "restart",
+        "targets": 1
+      },
+      "D3": {
+        "job": "940e381ba0c027412286327c9a772bf2a302881d4d451816f11d1048dbd2ebe8",
+        "kind": "stack",
+        "operation": "restart",
+        "targets": 3
+      },
+      "D4": {
+        "job": "d93d78d8320675f2c8abb879d113648bc44a44fedf965e2d8f1d675a9e7c0817",
+        "kind": "stack",
+        "operation": "restart",
+        "targets": 3
+      },
+      "N1": {
+        "job": "647eaf855d5c9f39a789b0b1031ea75f77a69c951ce265cc39b10cd2b07f22ee",
+        "kind": "container",
+        "operation": "start",
+        "targets": 1
+      },
+      "N2": {
+        "job": "f497d40559e712d3d8c97a2a996ece4633cba74ace26b1d4381cff562406f5a0",
+        "kind": "stack",
+        "operation": "start",
+        "targets": 3
+      },
+      "H2": {
+        "job": "ede8d083813fe1a63db63f33f37d2d57f640744e789c538a0a559af3b04ca659",
+        "kind": "container",
+        "operation": "restart",
+        "targets": 1
+      },
+      "N3": {
+        "job": "b0884b2ca9c163851f8040a19d6474b56dcc97f7394b201e53c92f9d2ad8805a",
+        "kind": "container",
+        "operation": "start",
+        "targets": 1
+      },
+      "C1": {
+        "job": "e0ec76cbea7bde30f50c322cb1f4cd5f8c25d6a838b1c377c1721a007bb2af09",
+        "kind": "container",
+        "operation": "start",
+        "targets": 1
+      },
+      "C2": {
+        "job": "8e974ecdbb48707284d46084441a99f5b4c18df2ea6d3db305d8e157552787f8",
+        "kind": "container",
+        "operation": "start",
+        "targets": 1
+      }
+    },
+    "docker_events_total": 146,
+    "binary_sha256": {
+      "limeos-core": "e7f7b74ffbe4d6e3021f8dac692ec7019a218b2855fd5b5a46376c7767a34bba",
+      "limeos-executor": "429b1e9f8faf71429170a893b027ebe5ccb5bfe9be8bf3eb9a359bea823a1651",
+      "limeosctl": "7eabdd986420992fa4ee1583656a3ae490d7afdd3afd056acaa0dfedce914672",
+      "limeos-password-worker": "b3a88d9cccc42b110c6e80ef4f436bf221495ff3217d676235eda9466714dc2b",
+      "limeos-stack-read-worker": "1993e72497b0652163c2534f08a548252a62dbe14f318f60028693b3e0dad904"
+    }
+  },
+  "image": {
+    "name": "debian-12-genericcloud-amd64.qcow2",
+    "sha512": "3d94c9dd66d8a283fde060b8810373b7ae04038b956ee00d553d1ae564f6fbdeaa2fd6e7404e87e53348b5a9509170f3ea7c0731ba737590c5c4cb8d559a47f8"
+  }
+}
