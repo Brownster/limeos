@@ -254,3 +254,21 @@ async fn project_listing_bound_is_the_engine_bound_not_the_stack_bound() {
     );
     task.abort();
 }
+#[tokio::test]
+async fn project_members_accept_a_wybie_sized_engine_and_the_stack_bound_still_holds() {
+    let started = "2026-10-05T07:00:00Z";
+    // 18 rows: a 14-member media stack plus 4 one-off containers.
+    let rows = (0..18)
+        .map(|i| (i, "media", i >= 14, started))
+        .collect::<Vec<_>>();
+    let (_dir, engine, _calls, task) = project_server(rows).await;
+    assert_eq!(engine.project_members("media").await.unwrap().len(), 14);
+    task.abort();
+    // 18 non-one-off rows exceed the per-stack bound of 16, whatever the Engine bound.
+    let rows = (0..18)
+        .map(|i| (i, "media", false, started))
+        .collect::<Vec<_>>();
+    let (_dir, engine, _calls, task) = project_server(rows).await;
+    assert!(engine.project_members("media").await.is_err());
+    task.abort();
+}

@@ -431,3 +431,23 @@ async fn engine_wide_profile_admits_exactly_sixty_four_containers_of_any_state()
             .is_err()
     );
 }
+#[tokio::test]
+async fn engine_wide_profile_admits_the_wybie_shape_of_eighteen_containers() {
+    // 18 containers, 14 running, 4 stopped: past CombinedV1's 16 and 8.
+    let fixture = fixture(Config {
+        count: 18,
+        running_count: Some(14),
+        mounts: 2,
+        ..config()
+    })
+    .await;
+    let owner = inspect(&fixture).await.unwrap();
+    assert_eq!(owner.snapshot().containers.len(), 18);
+    assert_eq!(owner.storage().running().len(), 14);
+    owner.revalidate().await.unwrap();
+    assert!(
+        inspect_profile_for(&fixture, EngineReadProfile::CombinedV1)
+            .await
+            .is_err()
+    );
+}

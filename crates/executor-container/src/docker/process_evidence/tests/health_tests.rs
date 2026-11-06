@@ -452,3 +452,22 @@ async fn original_wall_and_monotonic_lifetimes_survive_fresh_comparison() {
     ));
     tokio::time::resume();
 }
+
+#[tokio::test]
+async fn health_read_keeps_the_combined_profile_so_eighteen_containers_refuse() {
+    // Deliberate: only the alert/health-policy automation reads this projection,
+    // behind `allow_container_health_read` (off by default, outside the basic
+    // cutover). An Engine past 16 containers or 8 running fails closed here;
+    // stack and container reads use EngineWideV1 or Engine-direct calls instead.
+    let f = fixture(Config {
+        count: 18,
+        running_count: Some(14),
+        mounts: 0,
+        ..config()
+    })
+    .await;
+    assert!(matches!(
+        inspect(&f).await,
+        Err(Error(ErrorCode::Unavailable))
+    ));
+}

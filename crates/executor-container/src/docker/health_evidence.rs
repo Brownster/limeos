@@ -103,6 +103,10 @@ impl EngineHealthEvidence {
 }
 
 /// Fixed trusted reader. Runtime registration and independent supervision remain required.
+/// Kept on `CombinedV1` (16 containers, 8 running): its only consumer is the
+/// alert/health-policy automation behind `allow_container_health_read`, which
+/// the basic cutover leaves off. Raise it with an `EngineWideV1`-style profile
+/// before enabling that read on an Engine of more than 16 containers.
 pub async fn inspect_container_health() -> Result<EngineHealthEvidence> {
     if !rustix::process::geteuid().is_root() {
         return Err(Error(ErrorCode::Forbidden));
