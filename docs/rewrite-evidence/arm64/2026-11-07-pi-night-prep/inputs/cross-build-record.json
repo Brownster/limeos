@@ -1,0 +1,32 @@
+{
+  "source": "3dc51cabc2b3b3de0704369a3745e72a145e820f",
+  "target": "aarch64-unknown-linux-gnu",
+  "offline": true,
+  "locked": true,
+  "image": "sha256:af684f63adae359e95f9082cc3235bcc76208baaa9cd1a48b553784e226d5ba5",
+  "cargo_build_jobs": 4,
+  "exit_code": 0,
+  "command": "docker run --rm ... cargo build --offline --locked --release --target aarch64-unknown-linux-gnu",
+  "binaries": {
+    "limeos-core": {
+      "sha256": "0ffc0ee9beb03013b1d68ad5026c377159c1290ef01b236db264d587750c5c4e",
+      "bytes": 7032760
+    },
+    "limeos-password-worker": {
+      "sha256": "896314be6fd7a7869759d19c0d1d739f92f55f852f1d38db778a815ab7c47af0",
+      "bytes": 529024
+    },
+    "limeos-executor": {
+      "sha256": "f519ea36af6eb0ec453222e45eadfd7d41bf2ecfaa83d62007d691952bca8bdc",
+      "bytes": 5459640
+    },
+    "limeos-stack-read-worker": {
+      "sha256": "28d7d996e8237a80919eea8d98307f6aee2b37e6f90756ac9e79abcf0f5656f8",
+      "bytes": 1118928
+    },
+    "limeosctl": {
+      "sha256": "4a16d0a4b52816aa04a30809987dbdcfeb0bc9abe662eb3f3c43ba474bbc9d7b",
+      "bytes": 1184464
+    }
+  }
+}

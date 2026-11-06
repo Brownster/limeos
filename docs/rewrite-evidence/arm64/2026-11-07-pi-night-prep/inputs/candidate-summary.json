@@ -1,0 +1,21 @@
+{
+  "version": "0.4.17+arm64.1",
+  "signing_fingerprint": "CF5A886ED2DEB6E624BF1FA918E2DFC28BF247EA",
+  "packages": {
+    "limeos-shadow_0.4.17+arm64.1_arm64.deb": "b9814cd65760f9433521b67905d056f83f6d337e6cf3efc3afd92f1079f4a006",
+    "limeos_0.4.17+arm64.1_arm64.deb": "be182a7c802a14c4cbc38a6e988403764557c0200e84ce7a59596f0c70efb473"
+  },
+  "build_result_sha256": "60d953a5a9d3fd64bfc94ed440af0af07c517a26084e09d818af477ac1d17138",
+  "repository_files": {
+    "dists/stable/InRelease": "327dcf2e4c9673a7418b16ca20324246e376449443ec198594685f34bba7be53",
+    "dists/stable/Release": "c6db8537ad04b490f29fd489e0e3f22ae135c2059cee8705f0d9650db41f5662",
+    "dists/stable/Release.gpg": "a6840bde38845905ad85737e4e60ce9af422817a4bc7901d2016df8122105415",
+    "dists/stable/main/binary-amd64/Packages": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "dists/stable/main/binary-amd64/Packages.gz": "59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2",
+    "dists/stable/main/binary-arm64/Packages": "c63812151f379673cac6cfea808ed8cc6c8c51e9df4e4d9f0e85136b0c381789",
+    "dists/stable/main/binary-arm64/Packages.gz": "681e0ecaf7ace3b12954bb8809fd998e12d06e380e2ee35118d81dc4c7f4b376",
+    "limeos-archive-keyring.gpg": "d589505418eaa2ded58bb1d341f8db9dee7987b17c3a8f697c4d73e8094a56d3",
+    "pool/main/limeos-shadow_0.4.17+arm64.1_arm64.deb": "b9814cd65760f9433521b67905d056f83f6d337e6cf3efc3afd92f1079f4a006",
+    "pool/main/limeos_0.4.17+arm64.1_arm64.deb": "be182a7c802a14c4cbc38a6e988403764557c0200e84ce7a59596f0c70efb473"
+  }
+}

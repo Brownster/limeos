@@ -1,0 +1,7 @@
+e79e7e2aa4fbeb9914039716b599136cd677ba82c0f79f1de8acfe36cc4e8af2  ./harness/build_arm64_binaries.py
+107feab250b2749055c0906143c0561a9563b6764ccc74d09255cead963fd5a0  ./harness/package_arm64_candidate.py
+af30a1e648ff86b5dfe0d06e90217fc7a2957fdc9cd670213ad880b02f4bbd2d  ./inputs/candidate-summary.json
+53a2b2fa2406684795ded8af2733a5381c9cbbf6b6e68ab2957bb19600491638  ./inputs/cross-build-output.log.gz
+94bf0202420cdc9167040d2b84bb69439809e58d7feeabe2ff0547e6c8a80a23  ./inputs/cross-build-record.json
+5187392b6beede0e6ddbf870df22ad6e7eb83463f7f65388338520e9bc770b1c  ./inputs/frontend-steps.json
+cf782903c587ddf8b0313bc852979b1261934c3d5e68d80fcf7175b869f6e4e6  ./README.md
