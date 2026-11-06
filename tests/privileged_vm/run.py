@@ -62,6 +62,13 @@ def main():
         "--guest-script", type=Path, default=ROOT / "tests/privileged_vm/guest.py"
     )
     parser.add_argument(
+        "--guest-file",
+        type=Path,
+        action="append",
+        default=[],
+        help="Extra file copied to /root/ in the guest (e.g. a replacement frontend dist archive)",
+    )
+    parser.add_argument(
         "--storage-disks",
         action="store_true",
         help="Attach four empty 128 MiB disposable virtual disks for storage acceptance",
@@ -263,6 +270,15 @@ def main():
                     *map(str, scripts),
                     "root@127.0.0.1:/root/",
                 )
+                for extra in args.guest_file:
+                    run(
+                        "scp",
+                        *common,
+                        "-P",
+                        str(port),
+                        str(extra),
+                        "root@127.0.0.1:/root/" + extra.name,
+                    )
                 # Current expectations come from the same checked-out source
                 # as CI's packages, never the installed database or a label.
                 run(
