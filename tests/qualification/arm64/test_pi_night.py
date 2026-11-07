@@ -7,6 +7,7 @@
 
 import hashlib
 import json
+import os
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -135,6 +136,29 @@ def snapshot(
 
 
 class PureTests(unittest.TestCase):
+    def test_watchdog_launch_returns_while_the_daemon_keeps_running(self):
+        # Regression: the 2026-11-07 night timed out because the whole `&&` list was
+        # backgrounded, so the SSH session stayed open until the watchdog exited.
+        import subprocess
+        import tempfile
+        import time
+
+        with tempfile.TemporaryDirectory() as home:
+            Path(home, night.NIGHT).mkdir(parents=True)
+            command = night.watchdog_launch_command(
+                123.0, entry="python3 -c 'import time; time.sleep(30)'", home=home
+            )
+            start = time.monotonic()
+            result = subprocess.run(
+                ["bash", "-c", command], capture_output=True, text=True, timeout=10
+            )
+            self.assertLess(time.monotonic() - start, 5)
+            pid = int(result.stdout.strip())
+            try:
+                os.kill(pid, 0)  # still alive after the call returned
+            finally:
+                os.kill(pid, 15)
+
     def test_start_refusals(self):
         self.assertEqual(night.start_refusals(snapshot()), [])
         # A container that was already stopped before the run is not a refusal.

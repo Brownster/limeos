@@ -179,6 +179,21 @@ def compare_snapshots(pre, post):
     return problems
 
 
+def watchdog_launch_command(deadline_epoch, entry="python3 -I pi_night_host.py watchdog", home=None):
+    """Remote command that starts the watchdog detached and returns its pid at once.
+
+    Only the daemon is backgrounded, inside a group: backgrounding the whole `&&` list
+    leaves a subshell holding the SSH session's stdout, so ssh waits for the watchdog
+    to exit and the call times out.
+    """
+    base = f"{home}/{NIGHT}" if home else f"~/{NIGHT}"
+    return (
+        f"cd {base} && rm -f abort.json done && {{ setsid nohup {entry} "
+        f"--baseline baseline.json --log watchdog.jsonl --abort-flag abort.json --done-flag done "
+        f"--deadline {deadline_epoch} </dev/null >watchdog.out 2>&1 & echo $!; }}"
+    )
+
+
 def start_refusals(snapshot):
     reasons = []
     if snapshot["uid"] == 0:
@@ -405,11 +420,7 @@ class Night:
         baseline = self.run_dir / "host-pre.json"
         self.host.push(baseline, f"{NIGHT}/baseline.json")
         deadline_epoch = self.deadline.timestamp()
-        self.host.run(
-            f"cd ~/{NIGHT} && rm -f abort.json done && setsid nohup python3 -I pi_night_host.py watchdog "
-            f"--baseline baseline.json --log watchdog.jsonl --abort-flag abort.json --done-flag done "
-            f"--deadline {deadline_epoch} </dev/null >watchdog.out 2>&1 & echo $!"
-        )
+        self.host.run(watchdog_launch_command(deadline_epoch))
         self.watchdog_started = True
         self.sleep(12)
         if (
