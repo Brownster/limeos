@@ -19,6 +19,7 @@ passwordless sudo. QEMU opens /dev/kvm as root, then drops to the SSH user with
 import argparse
 import hashlib
 import json
+import os
 import re
 import secrets
 import shlex
@@ -30,7 +31,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-STATE = ROOT / ".cache/arm64-qual"
+# LIMEOS_QUAL_STATE_ROOT is for the local rehearsal only; production uses the default.
+STATE = Path(os.environ.get("LIMEOS_QUAL_STATE_ROOT") or ROOT / ".cache/arm64-qual")
 REMOTE_BASE = "limeos-arm64-qual"
 IMAGE = "image/debian-12-genericcloud-arm64.qcow2"
 SUPERVISOR = Path(__file__).resolve().with_name("guest_supervisor.py")
@@ -202,8 +204,8 @@ class Guest:
             **kwargs,
         )
 
-    def push(self, source, destination):
-        options = self.dispatch_options()
+    def push(self, source, destination, timeout=900):
+        options = self.dispatch_options({"timeout": timeout})
         run(
             "scp",
             *self.options(),
@@ -215,9 +217,9 @@ class Guest:
             **options,
         )
 
-    def pull(self, source, destination):
+    def pull(self, source, destination, timeout=600):
         Path(destination).parent.mkdir(parents=True, exist_ok=True)
-        options = self.dispatch_options()
+        options = self.dispatch_options({"timeout": timeout})
         run(
             "scp",
             *self.options(),
@@ -246,8 +248,8 @@ class Guest:
             **kwargs,
         )
 
-    def host_push(self, source, destination):
-        options = self.dispatch_options()
+    def host_push(self, source, destination, timeout=900):
+        options = self.dispatch_options({"timeout": timeout})
         return run(
             "scp",
             "-o",
@@ -257,9 +259,9 @@ class Guest:
             **options,
         )
 
-    def host_pull(self, source, destination):
+    def host_pull(self, source, destination, timeout=600):
         Path(destination).parent.mkdir(parents=True, exist_ok=True)
-        options = self.dispatch_options()
+        options = self.dispatch_options({"timeout": timeout})
         return run(
             "scp",
             "-o",
@@ -370,7 +372,7 @@ def boot(args):
         str(guest.local / "user-data"),
         str(guest.local / "meta-data"),
     )
-    guest.host_run(f"mkdir -p {guest.remote}")
+    guest.host_run(f"mkdir -p {guest.remote}", timeout=60)
     guest.host_push(guest.local / "seed.iso", f"{guest.remote}/seed.iso")
     storage = []
     disks = []
@@ -458,9 +460,9 @@ def boot(args):
             *[d.replace(f"{guest.remote}/", "") for d in disks],
         ]
     )
-    guest.host_run(f"mkdir -p {guest.remote}")
+    guest.host_run(f"mkdir -p {guest.remote}", timeout=60)
     guest.host_push(SUPERVISOR, f"{guest.remote}/guest_supervisor.py")
-    guest.host_run(script)
+    guest.host_run(script, timeout=120)
     command_file = guest.local / "launch.json"
     command_file.write_text(json.dumps({"argv": qemu, "cwd": work_directory}) + "\n")
     guest.host_push(command_file, f"{guest.remote}/launch.json")
@@ -607,7 +609,8 @@ def stop(args):
         f"sudo -n /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /usr/bin/python3 -I {control}/guest_supervisor.py stop {control}/process.json --marker {shlex.quote(marker)} && "
         f"sudo -n /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /usr/bin/python3 -I {control}/guest_supervisor.py wait {control}/owner.json --marker {shlex.quote(marker)} && "
         f"{{ sudo -n /usr/bin/cat console.log > /tmp/limeos-arm64-{args.name}-console.log 2>/dev/null; "
-        f"sudo -n /usr/bin/cat {control}/supervisor.log > /tmp/limeos-arm64-{args.name}-supervisor.log; }}"
+        f"sudo -n /usr/bin/cat {control}/supervisor.log > /tmp/limeos-arm64-{args.name}-supervisor.log; }}",
+        timeout=120,
     )
     guest.host_pull(
         f"/tmp/limeos-arm64-{args.name}-console.log", guest.local / "console.log"
@@ -617,7 +620,8 @@ def stop(args):
     )
     guest.host_run(
         f"sudo -n /usr/bin/rm -rf -- {control} && rm -rf {guest.remote} /tmp/limeos-arm64-{args.name}-console.log "
-        f"/tmp/limeos-arm64-{args.name}-supervisor.log"
+        f"/tmp/limeos-arm64-{args.name}-supervisor.log",
+        timeout=120,
     )
     archive = STATE / "stopped" / args.name
     archive.parent.mkdir(parents=True, exist_ok=True)

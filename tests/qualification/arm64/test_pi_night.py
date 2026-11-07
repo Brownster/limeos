@@ -510,6 +510,20 @@ class TeardownOnlyTests(unittest.TestCase):
             self.assertEqual([c[0] for c in vm.calls], ["stop"])
 
 
+class CrashedImageTests(unittest.TestCase):
+    def test_teardown_only_removes_an_image_the_crashed_run_staged(self):
+        with tempfile.TemporaryDirectory() as d:
+            n, host, vm = make_night(d)
+            (n.run_dir / "host-pre.json").write_text(json.dumps(snapshot()))
+            (n.run_dir / "verdict.json").write_text(
+                json.dumps({"staging_existed": True, "image_staged": True})
+            )
+            with patch.object(night.native_vm, "STATE", Path(d) / "state"):
+                self.assertEqual(n.teardown_only(), 0, n.verdict)
+            removal = [c for c in host.commands if c.startswith("rm -rf")]
+            self.assertTrue(any("debian-12-genericcloud-arm64.qcow2" in c for c in removal))
+
+
 class WatchdogTests(unittest.TestCase):
     def run_watchdog(self, directory, containers, available_kib=6 * GIB):
         base = Path(directory)
@@ -585,6 +599,141 @@ class WatchdogTests(unittest.TestCase):
         source = Path(ph.__file__).read_text()
         for verb in ("start", "restart", "unpause", "rm", "kill", "compose", "stop"):
             self.assertIsNone(re.search(rf'"docker",\s*"{verb}"', source))
+
+
+REAL_PRE = Path(__file__).resolve().parent / "rehearsal/fixtures/wybie-host-pre.json"
+REAL_APT = Path(__file__).resolve().parent / "rehearsal/fixtures/apt-install-simulation.txt"
+
+
+class RealWybieFacts(unittest.TestCase):
+    """The parsers against what wybie really printed (2026-11-07 snapshot, 2026-10-13 apt)."""
+
+    real = json.loads(REAL_PRE.read_text())
+
+    def test_the_real_snapshot_starts_a_night(self):
+        rows = ph.parse_containers(self.real["containers"]["stdout"])
+        states = [r["status"] for r in rows.values()]
+        self.assertEqual((states.count("running"), states.count("exited")), (14, 4))
+        self.assertEqual(night.start_refusals(self.real), [])
+        self.assertEqual(night.compare_snapshots(self.real, self.real), [])
+
+    def test_real_qemu_packages_are_the_five_from_october(self):
+        have = night.parse_packages(self.real)
+        for name in (
+            "qemu-system-arm:arm64",
+            "qemu-system-common:arm64",
+            "qemu-system-data:all",
+            "qemu-efi-aarch64:all",
+            "qemu-utils:arm64",
+        ):
+            self.assertIn(name, have)
+
+    def test_real_apt_simulation_is_41_clean_installs(self):
+        installs, upgrades, removals = night.parse_simulation(REAL_APT.read_text())
+        self.assertEqual((len(installs), upgrades, removals), (41, set(), set()))
+        self.assertTrue({"qemu-system-arm", "qemu-utils", "qemu-efi-aarch64"} <= installs)
+
+    def test_real_purge_simulation_lines_parse_as_removals(self):
+        text = "Purg qemu-utils [1:7.2+dfsg-7+deb12u18+b3]\nPurg libaio1 [0.3.113-4]\n"
+        self.assertEqual(night.parse_simulation(text), (set(), set(), {"qemu-utils", "libaio1"}))
+
+
+class HardeningTests(unittest.TestCase):
+    def test_the_kernel_files_can_be_redirected_for_the_rehearsal_only(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "proc").mkdir()
+            (Path(d) / "proc/meminfo").write_text("MemAvailable: 1 kB\n")
+            with patch.dict(os.environ, {ph.FAKE_ROOT_ENV: d}):
+                self.assertEqual(ph.read("/proc/meminfo"), "MemAvailable: 1 kB\n")
+                self.assertEqual(ph.read("/etc/hostname"), Path("/etc/hostname").read_text())
+            env = {k: v for k, v in os.environ.items() if k != ph.FAKE_ROOT_ENV}
+            with patch.dict(os.environ, env, clear=True):
+                self.assertNotIn("MemAvailable: 1 kB", ph.read("/proc/meminfo"))
+
+    def test_a_hung_host_call_is_a_logged_124_not_an_exception(self):
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as d:
+            with patch.object(native_vm, "Guest") as guest:
+                guest.return_value.host_run.side_effect = subprocess.TimeoutExpired(
+                    ["ssh"], 5, output=b"partial", stderr=None
+                )
+                host = night.Host("rehearsal@pi", Path("a.json"), Path(d))
+                done = host.run("echo hi", timeout=5)
+            self.assertEqual(done.returncode, 124)
+            self.assertIn("timed out after 5s", done.stderr)
+            logged = json.loads((Path(d) / "host-commands.jsonl").read_text())
+            self.assertEqual((logged["exit"], logged["stdout"]), (124, "partial"))
+
+    def test_scp_failures_are_refusals_not_tracebacks(self):
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as d:
+            with patch.object(native_vm, "Guest") as guest:
+                host = night.Host("rehearsal@pi", Path("a.json"), Path(d))
+                guest.return_value.host_pull.side_effect = subprocess.CalledProcessError(1, "scp")
+                with self.assertRaises(night.Refused):
+                    host.pull("x", Path(d) / "y")
+                src = Path(d) / "s"
+                src.write_text("x")
+                guest.return_value.host_push.side_effect = subprocess.TimeoutExpired("scp", 1)
+                with self.assertRaises(night.Refused):
+                    host.push(src, "x")
+
+    def test_unreadable_guard_output_is_a_refusal(self):
+        with tempfile.TemporaryDirectory() as d:
+            n, host, vm = make_night(d)
+            host.helper = lambda *a, **k: SimpleNamespace(returncode=0, stdout="oops", stderr="")
+            with self.assertRaises(night.Refused):
+                n.guard()
+
+    def test_teardown_goes_on_after_a_step_hangs(self):
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as d:
+            n, host, vm = make_night(d)
+            original = host.run
+
+            def hanging(command, timeout=60, input=None):
+                if "apt-get -s purge" in command:
+                    raise subprocess.TimeoutExpired(command, timeout)
+                return original(command, timeout, input)
+
+            host.run = hanging
+            self.assertEqual(n.execute(), 4)
+            problems = " ".join(n.verdict["problems"])
+            self.assertIn("purge added packages", problems)
+            self.assertTrue(any(c.startswith("rm -rf") for c in host.commands))
+            self.assertTrue(any(c.startswith("touch") for c in host.commands))
+
+    def test_unexpected_errors_still_tear_down_and_exit_four(self):
+        with tempfile.TemporaryDirectory() as d:
+            n, host, vm = make_night(d)
+            n.stage_image = lambda: 1 / 0
+            self.assertEqual(n.execute(), 4)
+            self.assertIn("ZeroDivisionError", " ".join(n.verdict["problems"]))
+            self.assertEqual(host.state["packages"], {"bash": "5", "curl": "8"})
+
+    def test_boot_that_never_recorded_a_guest_has_nothing_to_stop(self):
+        with tempfile.TemporaryDirectory() as d:
+            n, host, vm = make_night(d)
+            snap = host.snap
+            host.snap = lambda: {**snap(), "staging": {"exit": 0, "stdout": "", "stderr": ""}}
+            original = vm.call
+            vm.call = lambda *a, **k: (1, "boom", False) if a[0] == "boot" else original(*a, **k)
+            with patch.object(night.native_vm, "STATE", Path(d) / "state"):
+                self.assertEqual(n.execute(), 1)
+            self.assertNotIn("stop", [c[0] for c in vm.calls])
+            self.assertEqual(n.verdict["problems"], [])
+            self.assertTrue(any("runs/night-*" in c for c in host.commands))
+
+    def test_package_changes_use_a_noninteractive_frontend_like_the_october_runs(self):
+        with tempfile.TemporaryDirectory() as d:
+            n, host, vm = make_night(d)
+            self.assertEqual(n.execute(), 0)
+            for needle in ("apt-get install -y", "apt-get purge -y"):
+                (command,) = [c for c in host.commands if needle in c]
+                self.assertIn("sudo -n DEBIAN_FRONTEND=noninteractive apt-get", command)
 
 
 if __name__ == "__main__":

@@ -40,7 +40,16 @@ INSPECT_FORMAT = (
 )
 
 
+# Test-only: a directory laid out like / that stands in for the kernel statistics
+# files below (never set on the real host; process inspection stays on the real /proc).
+FAKE_ROOT_ENV = "LIMEOS_QUAL_PROC_ROOT"
+FAKE_ROOT_PREFIXES = ("/proc/meminfo", "/proc/loadavg", "/proc/vmstat", "/proc/sys/", "/sys/")
+
+
 def read(path):
+    fake = os.environ.get(FAKE_ROOT_ENV)
+    if fake and str(path).startswith(FAKE_ROOT_PREFIXES):
+        path = fake + str(path)
     try:
         return Path(path).read_text()
     except OSError:

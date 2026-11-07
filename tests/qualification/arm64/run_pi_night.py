@@ -96,6 +96,12 @@ def utc_now():
     return datetime.now(UTC)
 
 
+def text_of(value):
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value or ""
+
+
 def parse_deadline(text):
     return native_vm.parse_utc(text)
 
@@ -251,14 +257,25 @@ class Host:
         if FORBIDDEN.search(command):
             raise Refused(f"forbidden host command: {command[:80]}")
         started = utc_now().strftime("%Y-%m-%dT%H:%M:%SZ")
-        done = self.guest.host_run(
-            command,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            input=input,
-        )
+        try:
+            done = self.guest.host_run(
+                command,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                input=input,
+            )
+        except subprocess.TimeoutExpired as error:
+            # A hung call is a failed call (124, as timeout(1)) that the evidence log
+            # records; callers decide whether it is fatal. It never aborts teardown.
+            done = subprocess.CompletedProcess(
+                error.cmd,
+                124,
+                stdout=text_of(error.stdout),
+                stderr=f"timed out after {error.timeout:.0f}s; no answer from {self.host}: "
+                + text_of(error.stderr),
+            )
         with self.log.open("a") as stream:
             stream.write(
                 json.dumps(
@@ -284,10 +301,20 @@ class Host:
         )
 
     def push(self, source, destination):
-        self.guest.host_push(source, destination)
+        # Generous floor of about 0.3 MiB/s so a stalled scp ends instead of hanging.
+        timeout = 300 + 3 * Path(source).stat().st_size / (1 << 20)
+        self.transfer(self.guest.host_push, source, destination, timeout=timeout)
 
     def pull(self, source, destination):
-        self.guest.host_pull(source, destination)
+        self.transfer(self.guest.host_pull, source, destination)
+
+    def transfer(self, function, source, destination, **kwargs):
+        try:
+            function(source, destination, **kwargs)
+        except subprocess.TimeoutExpired:
+            raise Refused(f"scp {source} -> {destination} timed out") from None
+        except subprocess.CalledProcessError as error:
+            raise Refused(f"scp {source} -> {destination} failed ({error.returncode})") from None
 
 
 class Vm:
@@ -362,6 +389,7 @@ class Night:
         self.staging_existed = True
         self.image_present = self.image_staged = False
         self.install_attempted = False
+        self.guest_unstopped = False
         self.watchdog_started = False
         self.abort_flag = f"~/{NIGHT}/abort.json"
         self.done_flag = f"~/{NIGHT}/done"
@@ -390,10 +418,15 @@ class Night:
 
     def guard(self):
         done = self.host.helper("guard", "--phase", "start")
-        record = json.loads(done.stdout or "{}")
+        unreadable = False
+        try:
+            record = json.loads(done.stdout or "{}")
+        except ValueError:
+            unreadable = True
+            record = {"failures": [f"guard output unreadable: {done.stdout[-200:]!r}"]}
         with (self.run_dir / "guards.jsonl").open("a") as stream:
             stream.write(json.dumps({"epoch": time.time(), **record}) + "\n")
-        if done.returncode:
+        if done.returncode or unreadable:
             raise Refused(
                 "guard refused to start a guest: "
                 + "; ".join(record.get("failures", ["guard failed"]))
@@ -449,7 +482,7 @@ class Night:
         if installs:
             self.install_attempted = True
             done = self.host.run(
-                f"sudo -n apt-get install -y --no-install-recommends {names}",
+                f"sudo -n DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends {names}",
                 timeout=1500,
             )
             (self.run_dir / "qemu-install.txt").write_text(done.stdout + done.stderr)
@@ -484,6 +517,8 @@ class Night:
         self.image_staged = (
             have.stdout.split()[:1] == [IMAGE_SHA512] and not self.image_present
         )
+        self.verdict["image_staged"] = self.image_staged
+        self.save()
         if have.stdout.split()[:1] != [IMAGE_SHA512]:
             raise Refused(
                 "staged Debian image SHA-512 differs from the published value"
@@ -494,15 +529,24 @@ class Night:
         cand = self.args.candidate
         call = self.vm.call
         steps = [
-            ("mkdir", lambda: call("exec", name, "mkdir -p /root/qual")),
+            ("mkdir", lambda: call("exec", name, "mkdir -p /root/qual", timeout=120)),
             (
                 "inputs",
-                lambda: call("push", name, str(cand / "inputs"), "/root/qual/inputs"),
+                lambda: call(
+                    "push",
+                    name,
+                    str(cand / "inputs"),
+                    "/root/qual/inputs",
+                    timeout=1200,
+                ),
             ),
             (
                 "extract",
                 lambda: call(
-                    "exec", name, "cd /root/qual && tar -xzf inputs/source.tar.gz"
+                    "exec",
+                    name,
+                    "cd /root/qual && tar -xzf inputs/source.tar.gz",
+                    timeout=300,
                 ),
             ),
             # The external manifest (with bundle hash) replaces the internal copy.
@@ -513,6 +557,7 @@ class Night:
                     name,
                     str(cand / "inputs/source-manifest.json"),
                     "/root/qual/source-manifest.json",
+                    timeout=120,
                 ),
             ),
             (
@@ -522,12 +567,16 @@ class Night:
                     name,
                     str(cand / "build-result.json"),
                     "/root/qual/build-result.json",
+                    timeout=120,
                 ),
             ),
             (
                 "repo",
                 lambda: call(
-                    "exec", name, "cp -a /root/qual/inputs/repo /opt/limeos-repo"
+                    "exec",
+                    name,
+                    "cp -a /root/qual/inputs/repo /opt/limeos-repo",
+                    timeout=300,
                 ),
             ),
             (
@@ -536,6 +585,7 @@ class Night:
                     "exec",
                     name,
                     "cp /root/qual/source/tests/fixtures/werkzeug-hashes.json /root/werkzeug-hashes.json",
+                    timeout=120,
                 ),
             ),
         ]
@@ -565,6 +615,7 @@ class Night:
             return
         out_dir = self.run_dir / name
         out_dir.mkdir(exist_ok=True)
+        boot_failed = False
         try:
             code, out, _ = self.vm.call(
                 "boot",
@@ -586,6 +637,7 @@ class Night:
                 timeout=900,
             )
             if code:
+                boot_failed = True
                 record.update(summary="boot failed", detail=out[-500:])
                 return
             self.prepare_guest(name)
@@ -599,13 +651,18 @@ class Night:
             record["exit"] = code
             for result in spec["results"]:
                 self.vm.call(
-                    "pull", name, f"/root/qual/{result}", str(out_dir / result)
+                    "pull",
+                    name,
+                    f"/root/qual/{result}",
+                    str(out_dir / result),
+                    timeout=300,
                 )
             self.vm.call(
                 "exec",
                 name,
                 'journalctl -u "limeos-*" --no-pager > /root/qual/limeos-journal.txt; '
                 "journalctl -k --no-pager > /root/qual/kernel-journal.txt; systemctl --failed --no-pager > /root/qual/failed-units.txt; free -m > /root/qual/free.txt",
+                timeout=300,
             )
             for extra in (
                 "limeos-journal.txt",
@@ -613,7 +670,13 @@ class Night:
                 "failed-units.txt",
                 "free.txt",
             ):
-                self.vm.call("pull", name, f"/root/qual/{extra}", str(out_dir / extra))
+                self.vm.call(
+                    "pull",
+                    name,
+                    f"/root/qual/{extra}",
+                    str(out_dir / extra),
+                    timeout=300,
+                )
             first = out_dir / spec["results"][0]
             try:
                 summary = json.loads(first.read_text()).get("summary")
@@ -632,75 +695,110 @@ class Night:
             record.update(summary="fail", detail=str(error))
         finally:
             record["finished"] = utc_now().isoformat()
-            stop_code, stop_out, _ = self.vm.call("stop", name, timeout=300)
-            if stop_code:
-                record["stop_failed"] = stop_out[-500:]
-                self.verdict["problems"].append(
-                    f"guest {name} did not stop cleanly; stop it by hand on the host"
-                )
+            if not (
+                boot_failed and not (native_vm.STATE / name / "guest.json").is_file()
+            ):
+                stop_code, stop_out, _ = self.vm.call("stop", name, timeout=300)
+                if stop_code:
+                    record["stop_failed"] = stop_out[-500:]
+                    self.guest_unstopped = True
+                    self.verdict["problems"].append(
+                        f"guest {name} did not stop cleanly; stop it by hand on the host"
+                    )
+            else:
+                # boot died before native_vm recorded a guest, so no QEMU was launched
+                record["stop_skipped"] = "no recorded guest; nothing was launched"
             self.save()
+
+    def attempt(self, label, step):
+        """Run one teardown step; whatever goes wrong is a problem, never the end of teardown."""
+        try:
+            return step()
+        except (Exception, SystemExit) as error:
+            self.verdict["problems"].append(
+                f"teardown step '{label}' failed: {type(error).__name__}: {error}"
+            )
 
     def teardown(self):
         problems = self.verdict["problems"]
         if self.watchdog_started:
-            self.host.run(f"touch {self.done_flag}")
+            self.attempt("stop watchdog", lambda: self.host.run(f"touch {self.done_flag}"))
             self.sleep(self.args.interval + 2)
         if self.pre is not None:
-            # The observed difference, not the plan, decides what is purged.
-            mid = self.snapshot("pre-purge")
-            before, now = parse_packages(self.pre), parse_packages(mid)
-            changed = [n for n in before if now.get(n) != before[n]]
-            if changed:
-                problems.append(
-                    f"pre-existing packages changed, nothing purged: {changed[:10]}"
-                )
-            added = sorted(set(now) - set(before))
-            self.verdict["added_packages"] = added
-            if added and not changed:
-                names = " ".join(shlex.quote(n) for n in added)
-                sim = self.host.run(f"sudo -n apt-get -s purge {names}", timeout=180)
-                (self.run_dir / "host-purge-simulation.txt").write_text(sim.stdout)
-                _, _, removals = parse_simulation(sim.stdout)
-                if sim.returncode or not removals <= {n.split(":")[0] for n in added}:
-                    problems.append(
-                        f"purge simulation would remove more than was added: {sorted(removals)}; nothing purged"
-                    )
-                else:
-                    done = self.host.run(
-                        f"sudo -n apt-get purge -y {names}", timeout=900
-                    )
-                    (self.run_dir / "host-purge.txt").write_text(
-                        done.stdout + done.stderr
-                    )
-                    if done.returncode:
-                        problems.append("purge failed")
+            self.attempt("purge added packages", self.purge_added)
         if self.watchdog_started:
-            for name in ("watchdog.jsonl", "watchdog.out", "abort.json"):
-                if self.host.run(f"test -e ~/{NIGHT}/{name}").returncode == 0:
-                    self.host.pull(f"{NIGHT}/{name}", self.run_dir / name)
-            if (self.run_dir / "abort.json").exists():
-                self.verdict["watchdog_abort"] = (
-                    self.run_dir / "abort.json"
-                ).read_text()
+            self.attempt("collect watchdog evidence", self.collect_watchdog)
         # Only what this run created under the staging directory.
         remove = [f"~/{NIGHT}"]
         if not self.staging_existed:
             remove = [f"~/{STAGING}"]
-        elif self.image_staged:
-            remove.append(f"~/{STAGING}/image/debian-12-genericcloud-arm64.qcow2")
-        self.host.run("rm -rf " + " ".join(remove))
+        else:
+            if self.image_staged:
+                remove.append(f"~/{STAGING}/image/debian-12-genericcloud-arm64.qcow2")
+            if not self.guest_unstopped:
+                # guests are named night-<suite>; one whose boot died leaves its run directory
+                remove.append(f"~/{STAGING}/runs/night-*")
+        self.attempt("remove staging", lambda: self.host.run("rm -rf " + " ".join(remove)))
         if self.pre is not None:
-            problems += compare_snapshots(self.pre, self.snapshot("post"))
+            self.attempt(
+                "compare host state",
+                lambda: problems.extend(
+                    compare_snapshots(self.pre, self.snapshot("post"))
+                ),
+            )
         self.save()
+
+    def collect_watchdog(self):
+        for name in ("watchdog.jsonl", "watchdog.out", "abort.json"):
+            if self.host.run(f"test -e ~/{NIGHT}/{name}").returncode == 0:
+                self.host.pull(f"{NIGHT}/{name}", self.run_dir / name)
+        if (self.run_dir / "abort.json").exists():
+            self.verdict["watchdog_abort"] = (self.run_dir / "abort.json").read_text()
+
+    def purge_added(self):
+        """Purge exactly the packages observed to be new; the observation decides, not the plan."""
+        problems = self.verdict["problems"]
+        mid = self.snapshot("pre-purge")
+        before, now = parse_packages(self.pre), parse_packages(mid)
+        changed = [n for n in before if now.get(n) != before[n]]
+        if changed:
+            problems.append(
+                f"pre-existing packages changed, nothing purged: {changed[:10]}"
+            )
+        added = sorted(set(now) - set(before))
+        self.verdict["added_packages"] = added
+        if not added or changed:
+            return
+        names = " ".join(shlex.quote(n) for n in added)
+        sim = self.host.run(f"sudo -n apt-get -s purge {names}", timeout=180)
+        (self.run_dir / "host-purge-simulation.txt").write_text(sim.stdout + sim.stderr)
+        _, _, removals = parse_simulation(sim.stdout)
+        if sim.returncode:
+            problems.append(
+                f"purge simulation failed ({sim.returncode}: {sim.stderr.strip()[-200:]}); "
+                f"nothing purged, remove by hand: {names}"
+            )
+        elif not removals <= {n.split(":")[0] for n in added}:
+            problems.append(
+                f"purge simulation would remove more than was added: {sorted(removals)}; nothing purged"
+            )
+        else:
+            done = self.host.run(
+                f"sudo -n DEBIAN_FRONTEND=noninteractive apt-get purge -y {names}",
+                timeout=900,
+            )
+            (self.run_dir / "host-purge.txt").write_text(done.stdout + done.stderr)
+            if done.returncode:
+                problems.append(f"purge failed ({done.returncode}): {done.stderr.strip()[-200:]}")
 
     def teardown_only(self):
         """Recover after a crashed workstation: guests, packages and staging, then the diff."""
         self.pre = json.loads((self.run_dir / "host-pre.json").read_text())
         previous = self.run_dir / "verdict.json"
         if previous.is_file():
-            self.staging_existed = json.loads(previous.read_text()).get(
-                "staging_existed", True
-            )
+            recorded = json.loads(previous.read_text())
+            self.staging_existed = recorded.get("staging_existed", True)
+            self.image_staged = recorded.get("image_staged", False)
         self.watchdog_started = True
         for guest in sorted(native_vm.STATE.glob("night-*")):
             if (guest / "guest.json").is_file():
@@ -736,6 +834,10 @@ class Night:
             except Refused as refusal:
                 self.verdict["refused"] = str(refusal)
                 code = 3
+            except Exception as error:  # noqa: BLE001 - the host may have changed: report, tear down
+                self.verdict["problems"].append(
+                    f"unexpected {type(error).__name__}: {error}"
+                )
         finally:
             self.teardown()
         if self.verdict["problems"]:

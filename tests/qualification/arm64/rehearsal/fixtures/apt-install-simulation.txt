@@ -1,0 +1,114 @@
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  bluez dos2unix libcamera0.3 libossp-uuid16 python3-toml rfkill uuid
+Use 'sudo apt autoremove' to remove them.
+The following additional packages will be installed:
+  libaio1 libbrlapi0.8 libcacard0 libcapstone4 libdaxctl1 libdrm-amdgpu1
+  libdrm-radeon1 libepoxy0 libexecs0 libgbm1 libglapi-mesa
+  libgstreamer-plugins-base1.0-0 libgstreamer1.0-0 libllvm15 libndctl6
+  libopus0 liborc-0.4-0 libpixman-1-0 libpmem1 libsensors-config libsensors5
+  libsndio7.0 libspice-server1 libusbredirparser1 libvdeplug2
+  libwayland-server0 libx11-xcb1 libxcb-dri2-0 libxcb-dri3-0 libxcb-present0
+  libxcb-randr0 libxcb-sync1 libxcb-xfixes0 libxshmfence1 libz3-4
+  mesa-libgallium qemu-system-common qemu-system-data
+Suggested packages:
+  libvisual-0.4-plugins gstreamer1.0-tools opus-tools lm-sensors sndiod
+  gstreamer1.0-plugins-ugly vde2
+Recommended packages:
+  gstreamer1.0-plugins-base gstreamer1.0-libav gstreamer1.0-plugins-good
+  qemu-system-gui ipxe-qemu qemu-efi-arm qemu-block-extra
+The following NEW packages will be installed:
+  libaio1 libbrlapi0.8 libcacard0 libcapstone4 libdaxctl1 libdrm-amdgpu1
+  libdrm-radeon1 libepoxy0 libexecs0 libgbm1 libglapi-mesa
+  libgstreamer-plugins-base1.0-0 libgstreamer1.0-0 libllvm15 libndctl6
+  libopus0 liborc-0.4-0 libpixman-1-0 libpmem1 libsensors-config libsensors5
+  libsndio7.0 libspice-server1 libusbredirparser1 libvdeplug2
+  libwayland-server0 libx11-xcb1 libxcb-dri2-0 libxcb-dri3-0 libxcb-present0
+  libxcb-randr0 libxcb-sync1 libxcb-xfixes0 libxshmfence1 libz3-4
+  mesa-libgallium qemu-efi-aarch64 qemu-system-arm qemu-system-common
+  qemu-system-data qemu-utils
+0 upgraded, 41 newly installed, 0 to remove and 62 not upgraded.
+Inst libaio1 (0.3.113-4 Debian:12.15/oldstable [arm64])
+Inst libbrlapi0.8 (6.5-7+deb12u1 Debian:12.15/oldstable [arm64])
+Inst libcacard0 (1:2.8.0-3 Debian:12.15/oldstable [arm64])
+Inst libcapstone4 (4.0.2-5 Debian:12.15/oldstable [arm64])
+Inst libdaxctl1 (76.1-1 Debian:12.15/oldstable [arm64])
+Inst libdrm-amdgpu1 (2.4.123-1~bpo12+1+rpt1 Raspberry Pi Foundation:oldstable [arm64])
+Inst libdrm-radeon1 (2.4.123-1~bpo12+1+rpt1 Raspberry Pi Foundation:oldstable [arm64])
+Inst libepoxy0 (1.5.10-1 Debian:12.15/oldstable [arm64])
+Inst libexecs0 (1.3-2 Debian:12.15/oldstable [arm64])
+Inst libwayland-server0 (1.23.1-3+rpt1 Raspberry Pi Foundation:oldstable [arm64])
+Inst libxcb-randr0 (1.15-1 Debian:12.15/oldstable [arm64])
+Inst libglapi-mesa (24.2.8-1~bpo12+rpt5 Raspberry Pi Foundation:oldstable [arm64])
+Inst libz3-4 (4.8.12-3.1 Debian:12.15/oldstable [arm64])
+Inst libllvm15 (1:15.0.6-4+b1 Debian:12.15/oldstable [arm64])
+Inst libsensors-config (1:3.6.0-7.1 Debian:12.15/oldstable [all])
+Inst libsensors5 (1:3.6.0-7.1 Debian:12.15/oldstable [arm64])
+Inst libx11-xcb1 (2:1.8.4-2+deb12u2 Debian:12.15/oldstable, Debian-Security:12/oldstable-security [arm64])
+Inst libxcb-dri2-0 (1.15-1 Debian:12.15/oldstable [arm64])
+Inst libxcb-dri3-0 (1.15-1 Debian:12.15/oldstable [arm64])
+Inst libxcb-present0 (1.15-1 Debian:12.15/oldstable [arm64])
+Inst libxcb-sync1 (1.15-1 Debian:12.15/oldstable [arm64])
+Inst libxcb-xfixes0 (1.15-1 Debian:12.15/oldstable [arm64])
+Inst libxshmfence1 (1.3-1 Debian:12.15/oldstable [arm64])
+Inst mesa-libgallium (24.2.8-1~bpo12+rpt5 Raspberry Pi Foundation:oldstable [arm64])
+Inst libgbm1 (24.2.8-1~bpo12+rpt5 Raspberry Pi Foundation:oldstable [arm64])
+Inst libgstreamer1.0-0 (1.22.0-2+deb12u1 Debian:12.15/oldstable, Debian-Security:12/oldstable-security [arm64])
+Inst liborc-0.4-0 (1:0.4.33-2 Debian:12.15/oldstable [arm64])
+Inst libgstreamer-plugins-base1.0-0 (1.22.0-3+rpt1+deb12u6 Raspberry Pi Foundation:oldstable [arm64])
+Inst libndctl6 (76.1-1 Debian:12.15/oldstable [arm64])
+Inst libopus0 (1.3.1-3 Debian:12.15/oldstable [arm64])
+Inst libpixman-1-0 (0.44.0-3+rpt1 Raspberry Pi Foundation:oldstable [arm64])
+Inst libpmem1 (1.12.1-2 Debian:12.15/oldstable [arm64])
+Inst libsndio7.0 (1.9.0-0.3+b2 Debian:12.15/oldstable [arm64])
+Inst libspice-server1 (0.15.1-1 Debian:12.15/oldstable [arm64])
+Inst libusbredirparser1 (0.13.0-2 Debian:12.15/oldstable [arm64])
+Inst libvdeplug2 (4.0.1-4 Debian:12.15/oldstable [arm64])
+Inst qemu-efi-aarch64 (2022.11-6+deb12u2 Debian:12.15/oldstable [all])
+Inst qemu-system-common (1:7.2+dfsg-7+deb12u18+b3 Debian:12.15/oldstable [arm64])
+Inst qemu-system-data (1:7.2+dfsg-7+deb12u18 Debian:12.15/oldstable [all])
+Inst qemu-system-arm (1:7.2+dfsg-7+deb12u18+b3 Debian:12.15/oldstable [arm64])
+Inst qemu-utils (1:7.2+dfsg-7+deb12u18+b3 Debian:12.15/oldstable [arm64])
+Conf libaio1 (0.3.113-4 Debian:12.15/oldstable [arm64])
+Conf libbrlapi0.8 (6.5-7+deb12u1 Debian:12.15/oldstable [arm64])
+Conf libcacard0 (1:2.8.0-3 Debian:12.15/oldstable [arm64])
+Conf libcapstone4 (4.0.2-5 Debian:12.15/oldstable [arm64])
+Conf libdaxctl1 (76.1-1 Debian:12.15/oldstable [arm64])
+Conf libdrm-amdgpu1 (2.4.123-1~bpo12+1+rpt1 Raspberry Pi Foundation:oldstable [arm64])
+Conf libdrm-radeon1 (2.4.123-1~bpo12+1+rpt1 Raspberry Pi Foundation:oldstable [arm64])
+Conf libepoxy0 (1.5.10-1 Debian:12.15/oldstable [arm64])
+Conf libexecs0 (1.3-2 Debian:12.15/oldstable [arm64])
+Conf libwayland-server0 (1.23.1-3+rpt1 Raspberry Pi Foundation:oldstable [arm64])
+Conf libxcb-randr0 (1.15-1 Debian:12.15/oldstable [arm64])
+Conf libglapi-mesa (24.2.8-1~bpo12+rpt5 Raspberry Pi Foundation:oldstable [arm64])
+Conf libz3-4 (4.8.12-3.1 Debian:12.15/oldstable [arm64])
+Conf libllvm15 (1:15.0.6-4+b1 Debian:12.15/oldstable [arm64])
+Conf libsensors-config (1:3.6.0-7.1 Debian:12.15/oldstable [all])
+Conf libsensors5 (1:3.6.0-7.1 Debian:12.15/oldstable [arm64])
+Conf libx11-xcb1 (2:1.8.4-2+deb12u2 Debian:12.15/oldstable, Debian-Security:12/oldstable-security [arm64])
+Conf libxcb-dri2-0 (1.15-1 Debian:12.15/oldstable [arm64])
+Conf libxcb-dri3-0 (1.15-1 Debian:12.15/oldstable [arm64])
+Conf libxcb-present0 (1.15-1 Debian:12.15/oldstable [arm64])
+Conf libxcb-sync1 (1.15-1 Debian:12.15/oldstable [arm64])
+Conf libxcb-xfixes0 (1.15-1 Debian:12.15/oldstable [arm64])
+Conf libxshmfence1 (1.3-1 Debian:12.15/oldstable [arm64])
+Conf mesa-libgallium (24.2.8-1~bpo12+rpt5 Raspberry Pi Foundation:oldstable [arm64])
+Conf libgbm1 (24.2.8-1~bpo12+rpt5 Raspberry Pi Foundation:oldstable [arm64])
+Conf libgstreamer1.0-0 (1.22.0-2+deb12u1 Debian:12.15/oldstable, Debian-Security:12/oldstable-security [arm64])
+Conf liborc-0.4-0 (1:0.4.33-2 Debian:12.15/oldstable [arm64])
+Conf libgstreamer-plugins-base1.0-0 (1.22.0-3+rpt1+deb12u6 Raspberry Pi Foundation:oldstable [arm64])
+Conf libndctl6 (76.1-1 Debian:12.15/oldstable [arm64])
+Conf libopus0 (1.3.1-3 Debian:12.15/oldstable [arm64])
+Conf libpixman-1-0 (0.44.0-3+rpt1 Raspberry Pi Foundation:oldstable [arm64])
+Conf libpmem1 (1.12.1-2 Debian:12.15/oldstable [arm64])
+Conf libsndio7.0 (1.9.0-0.3+b2 Debian:12.15/oldstable [arm64])
+Conf libspice-server1 (0.15.1-1 Debian:12.15/oldstable [arm64])
+Conf libusbredirparser1 (0.13.0-2 Debian:12.15/oldstable [arm64])
+Conf libvdeplug2 (4.0.1-4 Debian:12.15/oldstable [arm64])
+Conf qemu-efi-aarch64 (2022.11-6+deb12u2 Debian:12.15/oldstable [all])
+Conf qemu-system-common (1:7.2+dfsg-7+deb12u18+b3 Debian:12.15/oldstable [arm64])
+Conf qemu-system-data (1:7.2+dfsg-7+deb12u18 Debian:12.15/oldstable [all])
+Conf qemu-system-arm (1:7.2+dfsg-7+deb12u18+b3 Debian:12.15/oldstable [arm64])
+Conf qemu-utils (1:7.2+dfsg-7+deb12u18+b3 Debian:12.15/oldstable [arm64])
