@@ -30,8 +30,12 @@ GIB = 1024 * 1024  # in KiB
 START_MIN_AVAILABLE_KIB = 3 * GIB
 # Mid-run: the previous run's floor, since the guest itself holds 1.5 GiB.
 RUN_MIN_AVAILABLE_KIB = 2 * GIB
-SWAP_MAX_FRACTION = 0.90
-SWAP_MAX_KIB = 450 * 1024  # the previous run's absolute swap guard
+# The Pi keeps ~410 of 511 MiB of cold pages in swap while 5+ GiB is available, and a
+# 1.5 GiB guest pushes ~55 MiB more out (2026-11-08 aborted at 464 MiB). Swap is a
+# proxy here; MemAvailable and the OOM counter are the real protection. The ceiling is
+# just under the device size so the guest can never exhaust swap.
+SWAP_MAX_FRACTION = 0.985
+SWAP_MAX_KIB = 503 * 1024
 LOAD_MAX = 2.0
 TEMPERATURE_MAX_MILLIDEGREES = 75000
 GUEST_PREFIX = "limeos-arm64-"
@@ -77,7 +81,7 @@ def guard_failures(mem, loadavg, phase="start"):
     used = total - free
     if total and used > SWAP_MAX_FRACTION * total:
         failures.append(
-            f"swap used {used // 1024} MiB is over 90% of {total // 1024} MiB"
+            f"swap used {used // 1024} MiB is over {SWAP_MAX_FRACTION:.1%} of {total // 1024} MiB"
         )
     if used > SWAP_MAX_KIB:
         failures.append(

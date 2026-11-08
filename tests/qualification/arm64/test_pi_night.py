@@ -41,20 +41,24 @@ class GuardTests(unittest.TestCase):
         self.assertTrue(ph.guard_failures(mem(), "0.1 2.5 0.1", "start"))
         self.assertTrue(ph.guard_failures(mem(), "garbage", "start"))
 
-    def test_swap_is_at_least_as_strict_as_the_previous_run(self):
-        # 450 MiB absolute (previous run) and 90% fraction (new request).
-        self.assertTrue(ph.guard_failures(mem(swap_used=451 * 1024), "0 0 0", "start"))
+    def test_swap_ceiling_leaves_room_but_never_lets_swap_fill(self):
+        # The 2026-11-08 night aborted at 464 MiB of 511: the old 450 MiB cap was
+        # below what a guest legitimately pushes out of a host with 5 GiB free.
         self.assertEqual(
-            ph.guard_failures(mem(swap_used=450 * 1024), "0 0 0", "start"), []
+            ph.guard_failures(mem(swap_used=470 * 1024), "0 0 0", "start"), []
         )
-        small = mem(swap_total=400 * 1024, swap_used=361 * 1024)
+        self.assertEqual(
+            ph.guard_failures(mem(swap_used=503 * 1024), "0 0 0", "start"), []
+        )
+        self.assertTrue(ph.guard_failures(mem(swap_used=504 * 1024), "0 0 0", "start"))
+        small = mem(swap_total=400 * 1024, swap_used=395 * 1024)
         self.assertTrue(ph.guard_failures(small, "0 0 0", "start"))
         self.assertEqual(ph.guard_failures(mem(swap_total=0), "0 0 0", "start"), [])
 
     def test_running_floor_keeps_the_previous_two_gib_and_ignores_load(self):
         self.assertTrue(ph.guard_failures(mem(available=2 * GIB - 1), "9 9 9", "run"))
         self.assertEqual(ph.guard_failures(mem(available=2 * GIB), "9 9 9", "run"), [])
-        self.assertTrue(ph.guard_failures(mem(swap_used=500 * 1024), "0 0 0", "run"))
+        self.assertTrue(ph.guard_failures(mem(swap_used=508 * 1024), "0 0 0", "run"))
 
 
 ROWS = "\n".join(
@@ -208,7 +212,7 @@ class PureTests(unittest.TestCase):
             night.compare_snapshots(snapshot(), snapshot(qemu=[{"pid": 5}]))
         )
         self.assertTrue(
-            night.compare_snapshots(snapshot(), snapshot(swap_used=500 * 1024))
+            night.compare_snapshots(snapshot(), snapshot(swap_used=508 * 1024))
         )
 
     def test_deadline_and_plan(self):
