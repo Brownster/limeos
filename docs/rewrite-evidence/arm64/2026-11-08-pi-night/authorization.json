@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "host": "holly@wybie",
+  "not_before": "2026-11-08T01:00:00Z",
+  "not_after": "2026-11-08T09:00:00Z",
+  "authorized_by": "operator (repository owner), in the 2026-11-07 session; recorded by the assistant from the operator's instruction to run the test tonight",
+  "reference": "Operator words: 'you can have access for testing overnight between 01:00 and 09:00 as long as by 09:00 the docker stack/storage is available' (2026-11-05); 'i want you to run the test tonight not leave a script and find out next dat we wasted the whole test window' (2026-11-07). QEMU packages may be installed on wybie and purged afterwards (operator choice 2026-11-05).",
+  "scope": "disposable Debian 12 ARM64 KVM guests only. Temporary QEMU packages installed with --no-install-recommends (simulated first) and purged afterwards; no LimeOS install on the host; no Docker, /opt/stacks, service, mount or account changes. Docker stack and storage must be available and unchanged by 09:00."
+}

@@ -5,20 +5,21 @@ The scripts live in `scripts/cutover/`. Nothing here runs without the operator's
 go on a fresh window; the scripts were tested against stubs and then rehearsed end to end in a disposable VM
 ([evidence](rewrite-evidence/p06/2026-11-06-cutover-rehearsal-vm/README.md)).
 
-## Open decisions (operator)
+## Operator decisions
 
-1. **TLS mode - OPEN.** `internal` (default): Caddy's local CA signs the cert, so
+1. **TLS mode - DECIDED 2026-11-12: `internal`.** Caddy's local CA signs the cert, so
    no outside dependency, but every household browser must trust that CA once or
-   it shows a warning, and the UI needs a secure context. Own certificate
-   (`--tls-cert/--tls-key`): no per-browser step if the CA is already trusted, but
-   the operator must supply, renew and protect the key.
-2. **Public port - OPEN.** Default 8002 so bookmarks survive (Caddy takes the port
-   only after the frozen app stops, so a return must stop Caddy first; the
-   scripts do). Any other port means new bookmarks and a different `origin`.
-3. `core.json` `origin` must equal `https://HOST:PORT` exactly (edit before the
-   window; `activate.sh` refuses otherwise).
-4. Caddy is not installed on the host and the scripts do not install it. Install
-   it first and put `import /etc/caddy/conf.d/*.caddy` in `/etc/caddy/Caddyfile`.
+   it shows a warning, and the UI needs a secure context. (Not chosen: own certificate
+   via `--tls-cert/--tls-key`.)
+2. **Public port - DECIDED 2026-11-12: 8002**, so bookmarks survive with an `https://`
+   scheme (Caddy takes the port only after the frozen app stops, so a return must
+   stop Caddy first; the scripts do).
+3. `core.json` `origin` must equal `https://HOST:8002` exactly (edit before the
+   window; `activate.sh` refuses otherwise). HOST is the name household browsers
+   use; assumed `wybie`, to confirm.
+4. **Caddy install - APPROVED 2026-11-12.** Caddy is not installed on the host and
+   the scripts do not install it. Install it in the cutover window before
+   `activate.sh` and put `import /etc/caddy/conf.d/*.caddy` in `/etc/caddy/Caddyfile`.
    Caddy may also bind port 80 for redirects; if that port is taken, set
    `auto_https disable_redirects` in the main Caddyfile's global block.
 5. Whether the managed-container list is the default fourteen names (edit with
