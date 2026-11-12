@@ -53,8 +53,42 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    restarting (twice, three seconds apart), and that `limeops-*`,
    `limeos-agent` and `flask-shutdown` are unchanged. Any failure runs
    `return.sh` and exits non-zero.
-5. Log in through the browser (trust the Caddy CA first under `internal`).
-6. `scripts/cutover/return.sh SNAP [--dry-run]` at any time: removes the Caddy
+5. Measure, once `activate.sh` has passed its health checks and the host is idle:
+   `scripts/cutover/measure.sh --host HOST [--port 8002] [--out DIR] [--window 600]`.
+   It is read-only: it reads `/proc`, `/sys/fs/cgroup`, `systemctl show` and
+   `dpkg-query`, sends loopback HTTPS requests through the proxy, and writes only
+   `DIR/report.json` and `DIR/raw.txt` (default
+   `/var/lib/limeos-cutover/measure-<ts>/`). It never calls docker and never reads
+   `/opt/stacks` or the frozen app's files. Over the idle window (`--window`,
+   default 600 s) it records the
+   [architecture section 10](plans/2026-10-04-rust-rewrite-architecture.md#10-observations-performance-and-footprint)
+   targets, each as pass, fail or unmeasured:
+   - PSS and swap (`/proc/PID/smaps_rollup`) of every process in the
+     `limeos-core`, `limeos-storaged` and `limeos-containerd` cgroups: at most
+     30 MiB PSS combined, no swap; with any running `limeos-storage-*` executor,
+     at most 60 MiB PSS for all resident LimeOS processes.
+   - CPU (`/proc/PID/stat`, including reaped children) over the window: under
+     0.1 % of one core.
+   - Disk writes (`/proc/PID/io` `write_bytes`) over the window, extrapolated:
+     under 20 MB/day.
+   - p95 of `/api/v1/health` through Caddy on 127.0.0.1 (`--requests`, default
+     100), minus TCP/TLS setup: under 20 ms. The authenticated cached read
+     (`/api/v1/overview`) needs a session that `limeosctl` cannot provide, so it is
+     unmeasured unless you pass `--cookie-file FILE`, a curl cookie file with a
+     browser session. The script reads the file and never copies it; delete it
+     afterwards.
+   - The `limeos` package footprint (the larger of dpkg `Installed-Size` and its
+     installed files): under 154 MB.
+   - Core readiness after a restart is skipped by default. `--measure-core-restart`
+     restarts `limeos-core` to time it, which is the only change the script can
+     make. Use it only with the household's agreement.
+
+   Exit 0 means every measured target passed; exit 2 means a target failed or a
+   LimeOS process was missing (the report is still written). A miss never runs
+   `return.sh`: read the report and decide yourself whether it is an abort
+   criterion. Keep `report.json` with the cutover evidence.
+6. Log in through the browser (trust the Caddy CA first under `internal`).
+7. `scripts/cutover/return.sh SNAP [--dry-run]` at any time: removes the Caddy
    site, stops and disables the Rust services, re-enables and starts the frozen
    units (helper, app, timers), then verifies state hashes, container IDs and
    StartedAt, and that port 8002 answers over plain HTTP. Safe to repeat. The
