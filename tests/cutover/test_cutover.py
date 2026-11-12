@@ -1,4 +1,4 @@
-"""Stub-driven tests for scripts/cutover/{preflight,activate,return}.sh.
+"""Stub-driven tests for scripts/cutover/{preflight,activate,return,measure}.sh.
 
 No real systemctl, docker, ss, free, curl, dpkg or caddy is ever run: PATH points
 at copies of tests/cutover/stubs/stub.sh, and host paths live under a temp root.
@@ -630,6 +630,248 @@ class ReturnTests(Harness):
         result = self.do_return()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("live state file differs", result.stderr)
+
+
+class MeasureTests(Harness):
+    """measure.sh reads a fake /proc and /sys/fs/cgroup under the temp root."""
+
+    OUT = "/var/lib/limeos-cutover/measure"
+    # unit -> list of (pid, comm, pss_kB, swap_kB, start ticks, end ticks, start write_bytes, end write_bytes)
+    PROCS = {
+        "limeos-core.service": [(1201, "limeos-core", 9000, 0, 100, 110, 4096, 12288),
+                                (1202, "tokio rt worker", 1000, 0, 5, 6, 0, 4096)],
+        "limeos-storaged.service": [(1301, "limeos-executor", 5000, 0, 50, 55, 0, 8192)],
+        "limeos-containerd.service": [(1401, "limeos-executor", 5000, 0, 40, 44, 0, 8192)],
+        READER: [(1501, "limeos-executor", 6000, 0, 30, 33, 0, 8192)],
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.tmpdir = Path(self._tmp.name) / "tmp"
+        self.tmpdir.mkdir()
+        self.env["TMPDIR"] = str(self.tmpdir)
+        self.report_path = self.root / self.OUT.lstrip("/") / "report.json"
+        self._write("/proc/uptime", "1000.00 3000.00\n")
+        self._write("/proc/meminfo", "MemAvailable: 6000000 kB\nSwapTotal: 523264 kB\nSwapFree: 100000 kB\n")
+        (self.root / "sys/fs/cgroup/system.slice/docker-abc.scope").mkdir(parents=True)
+        self.end = self.stub / "proc-end"
+        self._write_end("uptime", "1600.00 4000.00\n")
+        for unit, procs in self.PROCS.items():
+            self.seed_unit(unit, procs)
+        hook = self.stub / "hook-sleep"
+        hook.write_text(f"#!/usr/bin/env bash\ncp -R '{self.end}/.' '{self.root}/proc/'\n")
+        hook.chmod(0o755)
+        self._write("/usr/lib/limeos/limeos-core", "x" * 3000)
+        self._write("/usr/lib/limeos/ui/index.html", "y" * 1000)
+        (self.stub / "pkg_info.limeos").write_text("installed 1.0.0 40\n")
+        (self.stub / "pkg_files.limeos").write_text(
+            "/.\n/usr/lib/limeos\n/usr/lib/limeos/limeos-core\n/usr/lib/limeos/ui\n/usr/lib/limeos/ui/index.html\n")
+
+    def _write_end(self, rel, text):
+        target = self.end / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text)
+
+    @staticmethod
+    def _stat(pid, comm, ticks):
+        return f"{pid} ({comm}) S 1 {pid} {pid} 0 -1 4194560 100 0 0 0 {ticks} 0 0 0 20 0 4 0 50000 123456 789\n"
+
+    def seed_unit(self, unit, procs):
+        cgroup = self.root / f"sys/fs/cgroup/system.slice/{unit}"
+        cgroup.mkdir(parents=True, exist_ok=True)
+        (cgroup / "cgroup.procs").write_text("".join(f"{p[0]}\n" for p in procs))
+        (self.stub / "units" / f"{unit}.cgroup").write_text(f"/system.slice/{unit}\n")
+        (self.stub / "units" / f"{unit}.mainpid").write_text(f"{procs[0][0]}\n")
+        for pid, comm, pss, swap, t0, t1, w0, w1 in procs:
+            self._write(f"/proc/{pid}/comm", comm + "\n")
+            self._write(f"/proc/{pid}/stat", self._stat(pid, comm, t0))
+            self._write(f"/proc/{pid}/io", f"rchar: 1\nwchar: 2\nread_bytes: 0\nwrite_bytes: {w0}\ncancelled_write_bytes: 0\n")
+            self._write(f"/proc/{pid}/smaps_rollup",
+                        f"00400000-7fff [rollup]\nRss: {pss * 2} kB\nPss: {pss} kB\nPss_Anon: {pss} kB\n"
+                        f"Swap: {swap} kB\nSwapPss: {swap} kB\nLocked: 0 kB\n")
+            self._write_end(f"{pid}/stat", self._stat(pid, comm, t1))
+            self._write_end(f"{pid}/io", f"rchar: 1\nwchar: 2\nread_bytes: 0\nwrite_bytes: {w1}\ncancelled_write_bytes: 0\n")
+
+    def remove_unit(self, unit):
+        shutil.rmtree(self.root / f"sys/fs/cgroup/system.slice/{unit}")
+        (self.stub / "units" / f"{unit}.cgroup").unlink()
+        (self.stub / "units" / f"{unit}.mainpid").unlink()
+
+    def measure(self, *extra):
+        return self.run_script("measure.sh", "--host", HOST, "--out", self.OUT, *extra)
+
+    def report(self):
+        import json
+        return json.loads(self.report_path.read_text())
+
+    def rows(self):
+        return {row["id"]: row for row in self.report()["measurements"]}
+
+    def assert_read_only(self):
+        self.assertEqual(self.mutating_calls(), [])
+        self.assertFalse([l for l in self.calls() if l.startswith("docker")])
+        self.assertFalse([l for l in self.calls() if l.startswith("systemctl") and l.split()[1] != "show"])
+
+    def test_pass_reports_every_target(self):
+        result = self.measure("--window", "600")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("sleep 600", self.calls())
+        report = self.report()
+        self.assertEqual(report["verdict"], "pass")
+        self.assertTrue(report["read_only"])
+        self.assertEqual(report["missing_units"], [])
+        self.assertEqual(report["meta"]["docker_scopes"], "1")
+        rows = self.rows()
+        self.assertEqual(rows["core_base_idle_pss"]["value"], 20000 * 1024)
+        self.assertEqual(rows["core_base_idle_pss"]["target"], 30 * 1024 * 1024)
+        self.assertEqual(rows["core_base_idle_swap"]["value"], 0)
+        self.assertEqual(rows["all_resident_idle_pss"]["value"], 26000 * 1024)
+        # 10+1+5+4+3 ticks at 100 Hz over 600 s of uptime.
+        self.assertEqual(rows["backend_cpu_idle"]["elapsed_s"], 600.0)
+        self.assertAlmostEqual(rows["backend_cpu_idle"]["value"], 23 / 100 / 600 * 100, places=4)
+        # 8192+4096+8192*3 bytes over 600 s, per day.
+        self.assertAlmostEqual(rows["resident_disk_writes"]["value"], 36864 / 600 * 86400 / 1e6, places=3)
+        self.assertEqual(rows["health_http_p95"]["value"], 2.0)  # 4 ms total minus 2 ms TLS setup
+        self.assertEqual(rows["health_http_p95"]["requests"], 100)
+        self.assertEqual(rows["installed_footprint"]["value"], 40960)  # Installed-Size beats 4000 file bytes
+        self.assertEqual(rows["installed_footprint"]["packages"]["limeos"]["file_bytes"], 4000)
+        for ident in ("core_base_idle_pss", "core_base_idle_swap", "all_resident_idle_pss", "backend_cpu_idle",
+                      "resident_disk_writes", "health_http_p95", "installed_footprint"):
+            self.assertEqual(rows[ident]["status"], "pass", ident)
+        self.assertEqual(rows["cached_observation_http_p95"]["status"], "unmeasured")
+        self.assertIn("--cookie-file", rows["cached_observation_http_p95"]["note"])
+        self.assertEqual(rows["core_restart_readiness"]["status"], "unmeasured")
+        self.assertIn("tokio_rt_worker", [p["comm"] for p in report["processes"]])
+        self.assert_read_only()
+
+    def test_writes_nothing_outside_the_output_path(self):
+        (self.stub / "hook-sleep").unlink()  # a static /proc, so the whole root must stay identical
+        before = tree_digest(self.root), tree_digest(self.stub)
+        result = self.measure("--window", "1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("sleep 1", self.calls())
+        self.assertEqual(sorted(p.name for p in self.report_path.parent.iterdir()), ["raw.txt", "report.json"])
+        shutil.rmtree(self.root / "var/lib/limeos-cutover")
+        self.assertEqual(before, (tree_digest(self.root), tree_digest(self.stub)))
+        self.assertEqual(list(self.tmpdir.iterdir()), [])
+        self.assert_read_only()
+        for line in self.calls():
+            self.assertNotIn("/opt/stacks", line)
+            self.assertNotIn("pi-health", line)
+
+    def test_pss_over_target_fails_without_rollback(self):
+        self.seed_unit("limeos-core.service", [(1201, "limeos-core", 40000, 0, 100, 110, 0, 0)])
+        result = self.measure("--window", "5")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("nothing was rolled back", result.stderr)
+        self.assertEqual(self.report()["verdict"], "fail")
+        rows = self.rows()
+        self.assertEqual(rows["core_base_idle_pss"]["status"], "fail")
+        self.assertEqual(rows["core_base_idle_swap"]["status"], "pass")
+        self.assert_read_only()
+
+    def test_swap_present_fails(self):
+        self.seed_unit("limeos-containerd.service", [(1401, "limeos-executor", 5000, 128, 40, 44, 0, 0)])
+        result = self.measure("--window", "5")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        rows = self.rows()
+        self.assertEqual(rows["core_base_idle_swap"]["status"], "fail")
+        self.assertEqual(rows["core_base_idle_swap"]["value"], 128 * 1024)
+        self.assertEqual(rows["core_base_idle_pss"]["status"], "pass")
+        self.assert_read_only()
+
+    def test_missing_process_is_incomplete_not_a_pass(self):
+        self.remove_unit("limeos-storaged.service")
+        result = self.measure("--window", "5")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        report = self.report()
+        self.assertEqual(report["verdict"], "incomplete")
+        self.assertEqual(report["missing_units"], ["limeos-storaged.service"])
+        rows = self.rows()
+        for ident in ("core_base_idle_pss", "core_base_idle_swap", "backend_cpu_idle", "resident_disk_writes"):
+            self.assertEqual(rows[ident]["status"], "unmeasured", ident)
+            self.assertIn("limeos-storaged.service", rows[ident]["note"])
+        self.assert_read_only()
+
+    def test_optional_executor_absent_is_noted_not_missing(self):
+        self.remove_unit(READER)
+        result = self.measure("--window", "5")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rows = self.rows()
+        self.assertEqual(rows["all_resident_idle_pss"]["value"], 20000 * 1024)
+        self.assertIn(READER, rows["all_resident_idle_pss"]["not_running_optional"])
+
+    def test_mainpid_fallback_without_cgroup(self):
+        (self.stub / "units" / "limeos-storaged.service.cgroup").unlink()
+        result = self.measure("--window", "5")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(1301, [p["pid"] for p in self.report()["processes"]])
+
+    def test_cpu_and_disk_over_target_fail(self):
+        # 0.1 % of one core over 600 s is 60 ticks; 20 MB/day over 600 s is about 139 kB.
+        self.seed_unit("limeos-core.service", [(1201, "limeos-core", 9000, 0, 100, 200, 0, 500_000)])
+        result = self.measure("--window", "600")
+        self.assertEqual(result.returncode, 2)
+        rows = self.rows()
+        self.assertEqual(rows["backend_cpu_idle"]["status"], "fail")
+        self.assertEqual(rows["resident_disk_writes"]["status"], "fail")
+
+    def test_slow_or_failing_health_fails(self):
+        (self.stub / "curl_times").write_text("0.050 0.010 0.001")
+        self.measure("--window", "5", "--requests", "3")
+        self.assertEqual(self.rows()["health_http_p95"]["status"], "fail")
+        self.set_curl({f"{SITE}/api/v1/health": "503"})
+        shutil.rmtree(self.root / "var/lib/limeos-cutover")
+        self.measure("--window", "5", "--requests", "3")
+        row = self.rows()["health_http_p95"]
+        self.assertEqual(row["status"], "fail")
+        self.assertIn("3 of 3 requests failed", row["note"])
+
+    def test_cookie_file_measures_the_authenticated_read_without_copying_it(self):
+        self._write("/root/session.cookies", "lime.lan\tFALSE\t/\tTRUE\t0\tsession\tCOOKIE-SECRET\n")
+        self.set_curl({f"{SITE}/api/v1/health": "200", f"{SITE}/api/v1/overview": "200 {}"})
+        result = self.measure("--window", "5", "--requests", "4", "--cookie-file", "/root/session.cookies")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        row = self.rows()["cached_observation_http_p95"]
+        self.assertEqual(row["status"], "pass")
+        self.assertEqual(row["requests"], 4)
+        for path in self.report_path.parent.iterdir():
+            self.assertNotIn("COOKIE-SECRET", path.read_text())
+        self.assertIn("COOKIE-SECRET", (self.root / "root/session.cookies").read_text())
+
+    def test_rejected_session_is_unmeasured(self):
+        self._write("/root/session.cookies", "expired\n")
+        self.set_curl({f"{SITE}/api/v1/health": "200", f"{SITE}/api/v1/overview": "401"})
+        self.measure("--window", "5", "--requests", "2", "--cookie-file", "/root/session.cookies")
+        row = self.rows()["cached_observation_http_p95"]
+        self.assertEqual(row["status"], "unmeasured")
+        self.assertIn("session rejected", row["note"])
+
+    def test_core_restart_is_opt_in(self):
+        self.measure("--window", "5")
+        self.assertNotIn("systemctl restart limeos-core.service", self.calls())
+        shutil.rmtree(self.root / "var/lib/limeos-cutover")
+        result = self.measure("--window", "5", "--measure-core-restart")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("systemctl restart limeos-core.service", self.calls())
+        report = self.report()
+        self.assertFalse(report["read_only"])
+        row = self.rows()["core_restart_readiness"]
+        self.assertEqual(row["status"], "pass")
+        self.assertIsInstance(row["value"], float)
+
+    def test_rejects_bad_arguments_and_a_used_output_directory(self):
+        for args in (("--window", "0"), ("--window", "ten"), ("--requests", "0"), ("--host", "x}\nevil"),
+                     ("--cookie-file", "relative.txt")):
+            with self.subTest(args=args):
+                result = self.measure(*args)
+                self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(self.run_script("measure.sh", "--out", self.OUT).returncode, 1)
+        self.assertEqual(self.measure("--window", "5").returncode, 0)
+        result = self.measure("--window", "5")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("not empty", result.stderr)
+        self.assert_read_only()
 
 
 if __name__ == "__main__":
