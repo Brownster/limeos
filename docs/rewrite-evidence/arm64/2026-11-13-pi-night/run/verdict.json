@@ -1,0 +1,32 @@
+{
+  "added_packages": [],
+  "exit": 4,
+  "image_staged": false,
+  "problems": [
+    "guest night-install did not stop cleanly; stop it by hand on the host"
+  ],
+  "qemu_install_simulated": [],
+  "refusals": [],
+  "staging_existed": true,
+  "suites": {
+    "install": {
+      "exit": 0,
+      "finished": "2026-11-13T01:24:14.576428+00:00",
+      "started": "2026-11-13T01:02:51.438179+00:00",
+      "stop_failed": " ~~~~^^^^^^\n  File \"/home/marc/Documents/github/lime-os/tests/qualification/arm64/native_vm.py\", line 628, in stop\n    guest.local.rename(archive)\n    ~~~~~~~~~~~~~~~~~~^^^^^^^^^\n  File \"/usr/lib64/python3.14/pathlib/__init__.py\", line 1076, in rename\n    os.rename(self, target)\n    ~~~~~~~~~^^^^^^^^^^^^^^\nOSError: [Errno 39] Directory not empty: '/home/marc/Documents/github/lime-os/.cache/arm64-qual/night-install' -> '/home/marc/Documents/github/lime-os/.cache/arm64-qual/stopped/night-install'\n",
+      "summary": "fail"
+    },
+    "scale": {
+      "exit": 0,
+      "finished": "2026-11-13T01:42:40.461788+00:00",
+      "started": "2026-11-13T01:37:09.264906+00:00",
+      "summary": "pass"
+    },
+    "stack": {
+      "exit": 0,
+      "finished": "2026-11-13T01:37:06.517247+00:00",
+      "started": "2026-11-13T01:24:17.474036+00:00",
+      "summary": "pass"
+    }
+  }
+}

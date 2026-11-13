@@ -1,0 +1,10 @@
+Reading package lists...
+Building dependency tree...
+Reading state information...
+qemu-system-arm is already the newest version (1:7.2+dfsg-7+deb12u18+b3).
+qemu-efi-aarch64 is already the newest version (2022.11-6+deb12u2).
+qemu-utils is already the newest version (1:7.2+dfsg-7+deb12u18+b3).
+The following packages were automatically installed and are no longer required:
+  bluez dos2unix libcamera0.3 libossp-uuid16 python3-toml rfkill uuid
+Use 'sudo apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 68 not upgraded.

@@ -1,0 +1,210 @@
+Nov 13 01:26:03 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Nov 13 01:26:03 limeos-p01-test systemd[1]: Starting limeos-storaged.service - LimeOS storaged...
+Nov 13 01:26:03 limeos-p01-test systemd[1]: Started limeos-storaged.service - LimeOS storaged.
+Nov 13 01:26:03 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Nov 13 01:26:03 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Nov 13 01:26:04 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Nov 13 01:26:04 limeos-p01-test limeos-core[6052]: {"timestamp":"2026-11-13T01:26:04.172684Z","level":"INFO","fields":{"message":"core ready","generation":1}}
+Nov 13 01:27:04 limeos-p01-test systemd[1]: Starting limeos-a1-real-docker.service - /usr/sbin/dockerd --host=unix:///run/docker.sock --containerd=/run/containerd/containerd.sock --bridge=none --iptables=false --ip-forward=false --ip-masq=false...
+Nov 13 01:27:04 limeos-p01-test systemd[1]: Started limeos-a1-real-docker.service - /usr/sbin/dockerd --host=unix:///run/docker.sock --containerd=/run/containerd/containerd.sock --bridge=none --iptables=false --ip-forward=false --ip-masq=false.
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.246898827Z" level=info msg="Starting up"
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.248551726Z" level=info msg="[core] parsed scheme: \"unix\"" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.248707874Z" level=info msg="[core] scheme \"unix\" not registered, fallback to default scheme" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.248813947Z" level=info msg="[core] ccResolverWrapper: sending update to cc: {[{unix:///run/containerd/containerd.sock  <nil> 0 <nil>}] <nil> <nil>}" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.248940873Z" level=info msg="[core] ClientConn switching balancer to \"pick_first\"" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.249024187Z" level=info msg="[core] Channel switches to new LB policy \"pick_first\"" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.249154538Z" level=info msg="[core] Subchannel Connectivity change to CONNECTING" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.249284741Z" level=info msg="[core] Subchannel picks a new address \"unix:///run/containerd/containerd.sock\" to connect" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.249342445Z" level=info msg="[core] Channel Connectivity change to CONNECTING" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.250147219Z" level=info msg="[core] Subchannel Connectivity change to READY" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.250314959Z" level=info msg="[core] Channel Connectivity change to READY" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.250982382Z" level=info msg="[core] parsed scheme: \"unix\"" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.251007659Z" level=info msg="[core] scheme \"unix\" not registered, fallback to default scheme" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.251034400Z" level=info msg="[core] ccResolverWrapper: sending update to cc: {[{unix:///run/containerd/containerd.sock  <nil> 0 <nil>}] <nil> <nil>}" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.251047696Z" level=info msg="[core] ClientConn switching balancer to \"pick_first\"" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.251057863Z" level=info msg="[core] Channel switches to new LB policy \"pick_first\"" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.251079733Z" level=info msg="[core] Subchannel Connectivity change to CONNECTING" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.251103733Z" level=info msg="[core] Subchannel picks a new address \"unix:///run/containerd/containerd.sock\" to connect" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.251307010Z" level=info msg="[core] Channel Connectivity change to CONNECTING" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.251493527Z" level=info msg="[core] Subchannel Connectivity change to READY" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.251514972Z" level=info msg="[core] Channel Connectivity change to READY" module=grpc
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.377113828Z" level=info msg="[graphdriver] using prior storage driver: overlay2"
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.383418409Z" level=info msg="Loading containers: start."
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.454288318Z" level=info msg="Loading containers: done."
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.468983934Z" level=info msg="Docker daemon" commit=5d6db84 graphdriver(s)=overlay2 version=20.10.24+dfsg1
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.469066878Z" level=info msg="Daemon has completed initialization"
+Nov 13 01:27:04 limeos-p01-test dockerd[6840]: time="2026-11-13T01:27:04.499372922Z" level=info msg="API listen on /run/docker.sock"
+Nov 13 01:27:04 limeos-p01-test systemd[1]: Starting limeos-storage-reader.service - LimeOS fresh storage inventory (read only)...
+Nov 13 01:27:04 limeos-p01-test systemd[1]: Started limeos-storage-reader.service - LimeOS fresh storage inventory (read only).
+Nov 13 01:27:04 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Nov 13 01:27:04 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Nov 13 01:27:04 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Nov 13 01:27:04 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Nov 13 01:27:05 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Nov 13 01:27:05 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Nov 13 01:27:05 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Nov 13 01:27:05 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Nov 13 01:27:05 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Nov 13 01:27:05 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Nov 13 01:28:16 limeos-p01-test dockerd[6840]: time="2026-11-13T01:28:16.761753355Z" level=info msg="ignoring event" container=4dbd0a0af043ac9476b425969a6cdc774368a5aabef2bc383c4bf0ace0d95427 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:28:17 limeos-p01-test dockerd[6840]: time="2026-11-13T01:28:17.080398705Z" level=info msg="ignoring event" container=af56a7727af54ee501c199055e20024a8a3ee35a7e6b1c156a32bfdcde1306b8 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:28:17 limeos-p01-test dockerd[6840]: time="2026-11-13T01:28:17.374315145Z" level=info msg="ignoring event" container=fb53565bc2cb31127b4a7b58f01ed586c7c02d5ff438fecabf039d8ea39c7231 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:29:16 limeos-p01-test dockerd[6840]: time="2026-11-13T01:29:16.524745411Z" level=info msg="ignoring event" container=4dbd0a0af043ac9476b425969a6cdc774368a5aabef2bc383c4bf0ace0d95427 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:29:17 limeos-p01-test dockerd[6840]: time="2026-11-13T01:29:17.772515506Z" level=info msg="ignoring event" container=af56a7727af54ee501c199055e20024a8a3ee35a7e6b1c156a32bfdcde1306b8 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:29:19 limeos-p01-test dockerd[6840]: time="2026-11-13T01:29:19.035234070Z" level=info msg="ignoring event" container=fb53565bc2cb31127b4a7b58f01ed586c7c02d5ff438fecabf039d8ea39c7231 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:29:26 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Nov 13 01:29:26 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Nov 13 01:29:26 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Nov 13 01:29:26 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Nov 13 01:29:26 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Nov 13 01:29:26 limeos-p01-test dockerd[6840]: time="2026-11-13T01:29:26.824654644Z" level=info msg="ignoring event" container=4dbd0a0af043ac9476b425969a6cdc774368a5aabef2bc383c4bf0ace0d95427 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:29:27 limeos-p01-test dockerd[6840]: time="2026-11-13T01:29:27.071836132Z" level=info msg="ignoring event" container=af56a7727af54ee501c199055e20024a8a3ee35a7e6b1c156a32bfdcde1306b8 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:29:27 limeos-p01-test dockerd[6840]: time="2026-11-13T01:29:27.344914666Z" level=info msg="ignoring event" container=fb53565bc2cb31127b4a7b58f01ed586c7c02d5ff438fecabf039d8ea39c7231 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:29:45 limeos-p01-test dockerd[6840]: time="2026-11-13T01:29:45.101597021Z" level=info msg="ignoring event" container=8d6b52fe03c4aff9d35d1a389f71f304244a7985c4487c4876b2ed32c5071ca2 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:29:50 limeos-p01-test dockerd[6840]: time="2026-11-13T01:29:50.714336683Z" level=info msg="ignoring event" container=7e097e25aacc892353da67f9177f7d4d348ec7298e5776cad8cdccacb7664a17 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:29:50 limeos-p01-test dockerd[6840]: time="2026-11-13T01:29:50.885109330Z" level=info msg="ignoring event" container=c1fa0c1b02d4201d5bd5b026bf18e39bd54beb4ff023a8ed4ab3afc0bc7c455a module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:29:51 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Nov 13 01:29:51 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Nov 13 01:29:51 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Nov 13 01:29:51 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Nov 13 01:29:51 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Nov 13 01:30:16 limeos-p01-test dockerd[6840]: time="2026-11-13T01:30:16.376603463Z" level=info msg="ignoring event" container=9b9098538842cff52cd846b5b86ccf495d6b0713caeed6780753959f081e452e module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:30:26 limeos-p01-test dockerd[6840]: time="2026-11-13T01:30:26.236001019Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=18d07b204151b659b55863c726d16ee89e6f61004c5828a059a2754b74f5265f
+Nov 13 01:30:26 limeos-p01-test dockerd[6840]: time="2026-11-13T01:30:26.295087852Z" level=info msg="ignoring event" container=18d07b204151b659b55863c726d16ee89e6f61004c5828a059a2754b74f5265f module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:30:29 limeos-p01-test dockerd[6840]: time="2026-11-13T01:30:29.911971476Z" level=info msg="ignoring event" container=6630e1b2d56ca1c5c023c736e4c73359a12cd646c99adb014df851d3f1182d74 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:30:30 limeos-p01-test dockerd[6840]: time="2026-11-13T01:30:30.035899474Z" level=info msg="ignoring event" container=9501a32960e4341ca3ca357aa012ebbc342504a210e4539882d7c77c2d434235 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:30:30 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Nov 13 01:30:30 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Nov 13 01:30:30 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Nov 13 01:30:30 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Nov 13 01:30:30 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Nov 13 01:30:31 limeos-p01-test dockerd[6840]: time="2026-11-13T01:30:31.718513874Z" level=info msg="Container failed to exit within 1s of signal 15 - using the force" container=18d07b204151b659b55863c726d16ee89e6f61004c5828a059a2754b74f5265f
+Nov 13 01:30:31 limeos-p01-test dockerd[6840]: time="2026-11-13T01:30:31.755593341Z" level=info msg="ignoring event" container=18d07b204151b659b55863c726d16ee89e6f61004c5828a059a2754b74f5265f module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:30:45 limeos-p01-test systemd[1]: limeos-core.service: Main process exited, code=killed, status=9/KILL
+Nov 13 01:30:45 limeos-p01-test systemd[1]: limeos-core.service: Failed with result 'signal'.
+Nov 13 01:30:45 limeos-p01-test systemd[1]: limeos-core.service: Consumed 1.879s CPU time.
+Nov 13 01:30:47 limeos-p01-test systemd[1]: limeos-core.service: Scheduled restart job, restart counter is at 1.
+Nov 13 01:30:47 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Nov 13 01:30:47 limeos-p01-test systemd[1]: limeos-core.service: Consumed 1.879s CPU time.
+Nov 13 01:30:47 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Nov 13 01:30:47 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Nov 13 01:30:47 limeos-p01-test limeos-core[25263]: {"timestamp":"2026-11-13T01:30:47.949497Z","level":"INFO","fields":{"message":"core ready","generation":2}}
+Nov 13 01:30:48 limeos-p01-test dockerd[6840]: time="2026-11-13T01:30:48.158036979Z" level=info msg="ignoring event" container=45b7b4dc030ec8723a6c12b1d654b517adcafd43609b9d358419466940d966bd module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:30:49 limeos-p01-test dockerd[6840]: time="2026-11-13T01:30:49.480639396Z" level=info msg="ignoring event" container=671b0aff5300becb89d640954d603f379a909b5517b0f05367e3e7528bafb469 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:30:50 limeos-p01-test dockerd[6840]: time="2026-11-13T01:30:50.813432969Z" level=info msg="ignoring event" container=df61c7c9020cc6cbf82f8b1666675280b042b4ca60e25efd81ccf5eaea113297 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:31:28 limeos-p01-test dockerd[6840]: time="2026-11-13T01:31:28.755182581Z" level=info msg="ignoring event" container=45b7b4dc030ec8723a6c12b1d654b517adcafd43609b9d358419466940d966bd module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:31:28 limeos-p01-test dockerd[6840]: time="2026-11-13T01:31:28.895451847Z" level=info msg="ignoring event" container=671b0aff5300becb89d640954d603f379a909b5517b0f05367e3e7528bafb469 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:31:29 limeos-p01-test dockerd[6840]: time="2026-11-13T01:31:29.021131996Z" level=info msg="ignoring event" container=df61c7c9020cc6cbf82f8b1666675280b042b4ca60e25efd81ccf5eaea113297 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:31:29 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Nov 13 01:31:29 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Nov 13 01:31:29 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Nov 13 01:31:29 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Nov 13 01:31:29 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Nov 13 01:31:50 limeos-p01-test dockerd[6840]: time="2026-11-13T01:31:50.014366411Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=174c98d5334e687b7859803423f167dc98ec7046f3c36ff427fbac2c233353f4
+Nov 13 01:31:50 limeos-p01-test dockerd[6840]: time="2026-11-13T01:31:50.053558551Z" level=info msg="ignoring event" container=174c98d5334e687b7859803423f167dc98ec7046f3c36ff427fbac2c233353f4 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:31:50 limeos-p01-test systemd[1]: limeos-core.service: Main process exited, code=killed, status=9/KILL
+Nov 13 01:31:50 limeos-p01-test systemd[1]: limeos-core.service: Failed with result 'signal'.
+Nov 13 01:31:52 limeos-p01-test systemd[1]: limeos-core.service: Scheduled restart job, restart counter is at 2.
+Nov 13 01:31:52 limeos-p01-test systemd[1]: Stopped limeos-core.service - LimeOS core.
+Nov 13 01:31:52 limeos-p01-test systemd[1]: Starting limeos-core.service - LimeOS core...
+Nov 13 01:31:52 limeos-p01-test systemd[1]: Started limeos-core.service - LimeOS core.
+Nov 13 01:31:52 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:31:52.730094Z","level":"INFO","fields":{"message":"core ready","generation":3}}
+Nov 13 01:31:52 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:31:52.732825Z","level":"WARN","fields":{"message":"stack job remains pending or requires reconciliation","code":"Overloaded"}}
+Nov 13 01:32:00 limeos-p01-test dockerd[6840]: time="2026-11-13T01:32:00.418887577Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=555ddfbe56917da467ec620c8a442db14be54fceb645b4c41d68700f6902e684
+Nov 13 01:32:00 limeos-p01-test dockerd[6840]: time="2026-11-13T01:32:00.468521318Z" level=info msg="ignoring event" container=555ddfbe56917da467ec620c8a442db14be54fceb645b4c41d68700f6902e684 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:32:10 limeos-p01-test dockerd[6840]: time="2026-11-13T01:32:10.807955680Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=86fbb53e2b4d17b426c8583ad4f12f756a8d8d6365a17b9d2d61624be5c14ec2
+Nov 13 01:32:10 limeos-p01-test dockerd[6840]: time="2026-11-13T01:32:10.853746385Z" level=info msg="ignoring event" container=86fbb53e2b4d17b426c8583ad4f12f756a8d8d6365a17b9d2d61624be5c14ec2 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:32:29 limeos-p01-test dockerd[6840]: time="2026-11-13T01:32:29.049059764Z" level=info msg="ignoring event" container=174c98d5334e687b7859803423f167dc98ec7046f3c36ff427fbac2c233353f4 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:32:29 limeos-p01-test dockerd[6840]: time="2026-11-13T01:32:29.184187088Z" level=info msg="ignoring event" container=555ddfbe56917da467ec620c8a442db14be54fceb645b4c41d68700f6902e684 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:32:29 limeos-p01-test dockerd[6840]: time="2026-11-13T01:32:29.309483737Z" level=info msg="ignoring event" container=86fbb53e2b4d17b426c8583ad4f12f756a8d8d6365a17b9d2d61624be5c14ec2 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:32:29 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Nov 13 01:32:29 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Nov 13 01:32:29 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Nov 13 01:32:29 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Nov 13 01:32:29 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Nov 13 01:32:54 limeos-p01-test dockerd[6840]: time="2026-11-13T01:32:54.810008036Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=0d7a3a4cf92911212599f804374c87ad40b19e013aed324322dc766244f50243
+Nov 13 01:32:54 limeos-p01-test dockerd[6840]: time="2026-11-13T01:32:54.860508789Z" level=info msg="ignoring event" container=0d7a3a4cf92911212599f804374c87ad40b19e013aed324322dc766244f50243 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:32:55 limeos-p01-test systemd[1]: limeos-containerd.service: Main process exited, code=killed, status=9/KILL
+Nov 13 01:32:55 limeos-p01-test systemd[1]: limeos-containerd.service: Failed with result 'signal'.
+Nov 13 01:32:55 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:32:55.268755Z","level":"WARN","fields":{"message":"stack job remains pending or requires reconciliation","code":"Unavailable"}}
+Nov 13 01:32:57 limeos-p01-test systemd[1]: limeos-containerd.service: Scheduled restart job, restart counter is at 1.
+Nov 13 01:32:57 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Nov 13 01:32:57 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Nov 13 01:32:57 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Nov 13 01:33:05 limeos-p01-test dockerd[6840]: time="2026-11-13T01:33:05.238032955Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=160ff2b159c969c1922a809543f5e3dd1ce314c9dd55b53132fc79e3bc5580d0
+Nov 13 01:33:05 limeos-p01-test dockerd[6840]: time="2026-11-13T01:33:05.273790780Z" level=info msg="ignoring event" container=160ff2b159c969c1922a809543f5e3dd1ce314c9dd55b53132fc79e3bc5580d0 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:33:40 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:33:40.741579Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:33:42 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:33:42.741074Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:33:44 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:33:44.742131Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:33:46 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:33:46.742919Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:33:48 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:33:48.742228Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:33:50 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:33:50.742158Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:33:52 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:33:52.742486Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:33:54 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:33:54.741123Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:33:56 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:33:56.741205Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:33:58 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:33:58.754749Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:34:00 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:34:00.742045Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:34:01 limeos-p01-test dockerd[6840]: time="2026-11-13T01:34:01.319998508Z" level=info msg="ignoring event" container=0d7a3a4cf92911212599f804374c87ad40b19e013aed324322dc766244f50243 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:34:01 limeos-p01-test dockerd[6840]: time="2026-11-13T01:34:01.458899087Z" level=info msg="ignoring event" container=160ff2b159c969c1922a809543f5e3dd1ce314c9dd55b53132fc79e3bc5580d0 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:34:01 limeos-p01-test dockerd[6840]: time="2026-11-13T01:34:01.595308639Z" level=info msg="ignoring event" container=f3e75f72ede80e8a06d328b734031550eb04d73bafc1ebbd792ce8f1bd9dafac module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:34:01 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Nov 13 01:34:01 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Nov 13 01:34:01 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Nov 13 01:34:01 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Nov 13 01:34:01 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Nov 13 01:34:14 limeos-p01-test systemd[1]: limeos-containerd.service: Main process exited, code=killed, status=9/KILL
+Nov 13 01:34:14 limeos-p01-test systemd[1]: limeos-containerd.service: Failed with result 'signal'.
+Nov 13 01:34:16 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:34:16.732794Z","level":"WARN","fields":{"message":"container job remains pending or requires reconciliation","code":"Unavailable"}}
+Nov 13 01:34:17 limeos-p01-test systemd[1]: limeos-containerd.service: Scheduled restart job, restart counter is at 1.
+Nov 13 01:34:17 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Nov 13 01:34:17 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Nov 13 01:34:17 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Nov 13 01:34:24 limeos-p01-test dockerd[6840]: time="2026-11-13T01:34:24.779856497Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=6c50c0e90e083f95ef57427b8221542e5a329ab503eb6df02213031710db407e
+Nov 13 01:34:24 limeos-p01-test dockerd[6840]: time="2026-11-13T01:34:24.818170161Z" level=info msg="ignoring event" container=6c50c0e90e083f95ef57427b8221542e5a329ab503eb6df02213031710db407e module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:34:46 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:34:46.743960Z","level":"WARN","fields":{"message":"stack job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:34:48 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:34:48.744205Z","level":"WARN","fields":{"message":"stack job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:34:50 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:34:50.744877Z","level":"WARN","fields":{"message":"stack job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:34:52 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:34:52.743293Z","level":"WARN","fields":{"message":"stack job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:34:54 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:34:54.744588Z","level":"WARN","fields":{"message":"stack job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:34:56 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:34:56.744470Z","level":"WARN","fields":{"message":"stack job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:34:58 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:34:58.744052Z","level":"WARN","fields":{"message":"stack job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:35:00 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:35:00.743995Z","level":"WARN","fields":{"message":"stack job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:35:02 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:35:02.744861Z","level":"WARN","fields":{"message":"stack job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:35:04 limeos-p01-test limeos-core[27025]: {"timestamp":"2026-11-13T01:35:04.749575Z","level":"WARN","fields":{"message":"stack job remains pending or requires reconciliation","code":"Conflict"}}
+Nov 13 01:35:06 limeos-p01-test dockerd[6840]: time="2026-11-13T01:35:06.029664860Z" level=info msg="ignoring event" container=0c52dea79561efd8a6f7fdd82058bb72a24320035a16a90a92735d45fc70fc26 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:35:06 limeos-p01-test dockerd[6840]: time="2026-11-13T01:35:06.171819285Z" level=info msg="ignoring event" container=6c50c0e90e083f95ef57427b8221542e5a329ab503eb6df02213031710db407e module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:35:06 limeos-p01-test dockerd[6840]: time="2026-11-13T01:35:06.295576163Z" level=info msg="ignoring event" container=72694a826defd2c1505900aaf8744ca926c002993d0d965ca3166112ac4cac77 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:35:10 limeos-p01-test systemd[1]: Starting limeos-shadow-storaged.service - LimeOS storaged...
+Nov 13 01:35:10 limeos-p01-test systemd[1]: Starting limeos-shadow-containerd.service - LimeOS containerd...
+Nov 13 01:35:10 limeos-p01-test systemd[1]: Started limeos-shadow-storaged.service - LimeOS storaged.
+Nov 13 01:35:10 limeos-p01-test systemd[1]: Started limeos-shadow-containerd.service - LimeOS containerd.
+Nov 13 01:35:10 limeos-p01-test systemd[1]: Starting limeos-shadow-core.service - LimeOS core...
+Nov 13 01:35:10 limeos-p01-test systemd[1]: Started limeos-shadow-core.service - LimeOS core.
+Nov 13 01:35:10 limeos-p01-test limeos-core[31598]: {"timestamp":"2026-11-13T01:35:10.893632Z","level":"INFO","fields":{"message":"core ready","generation":1}}
+Nov 13 01:35:11 limeos-p01-test systemd[1]: Stopping limeos-shadow-containerd.service - LimeOS containerd...
+Nov 13 01:35:11 limeos-p01-test systemd[1]: limeos-shadow-containerd.service: Deactivated successfully.
+Nov 13 01:35:11 limeos-p01-test systemd[1]: Stopped limeos-shadow-containerd.service - LimeOS containerd.
+Nov 13 01:35:11 limeos-p01-test systemd[1]: Starting limeos-shadow-containerd.service - LimeOS containerd...
+Nov 13 01:35:11 limeos-p01-test systemd[1]: Started limeos-shadow-containerd.service - LimeOS containerd.
+Nov 13 01:35:11 limeos-p01-test limeos-executor[31646]: {"timestamp":"2026-11-13T01:35:11.870146Z","level":"ERROR","fields":{"message":"executor configuration or runtime failure"}}
+Nov 13 01:35:11 limeos-p01-test systemd[1]: limeos-shadow-containerd.service: Main process exited, code=exited, status=1/FAILURE
+Nov 13 01:35:11 limeos-p01-test systemd[1]: limeos-shadow-containerd.service: Failed with result 'exit-code'.
+Nov 13 01:35:13 limeos-p01-test systemd[1]: Stopping limeos-shadow-core.service - LimeOS core...
+Nov 13 01:35:13 limeos-p01-test systemd[1]: limeos-shadow-core.service: Deactivated successfully.
+Nov 13 01:35:13 limeos-p01-test systemd[1]: Stopped limeos-shadow-core.service - LimeOS core.
+Nov 13 01:35:13 limeos-p01-test systemd[1]: Stopped limeos-shadow-containerd.service - LimeOS containerd.
+Nov 13 01:35:13 limeos-p01-test systemd[1]: Stopping limeos-shadow-storaged.service - LimeOS storaged...
+Nov 13 01:35:13 limeos-p01-test systemd[1]: limeos-shadow-storaged.service: Deactivated successfully.
+Nov 13 01:35:13 limeos-p01-test systemd[1]: Stopped limeos-shadow-storaged.service - LimeOS storaged.
+Nov 13 01:35:44 limeos-p01-test systemd[1]: Stopping limeos-containerd.service - LimeOS containerd...
+Nov 13 01:35:44 limeos-p01-test systemd[1]: limeos-containerd.service: Deactivated successfully.
+Nov 13 01:35:44 limeos-p01-test systemd[1]: Stopped limeos-containerd.service - LimeOS containerd.
+Nov 13 01:35:44 limeos-p01-test systemd[1]: Starting limeos-containerd.service - LimeOS containerd...
+Nov 13 01:35:44 limeos-p01-test systemd[1]: Started limeos-containerd.service - LimeOS containerd.
+Nov 13 01:35:44 limeos-p01-test dockerd[6840]: time="2026-11-13T01:35:44.800210252Z" level=info msg="ignoring event" container=4dbd0a0af043ac9476b425969a6cdc774368a5aabef2bc383c4bf0ace0d95427 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:35:45 limeos-p01-test dockerd[6840]: time="2026-11-13T01:35:45.179264057Z" level=info msg="ignoring event" container=af56a7727af54ee501c199055e20024a8a3ee35a7e6b1c156a32bfdcde1306b8 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:35:45 limeos-p01-test dockerd[6840]: time="2026-11-13T01:35:45.540940624Z" level=info msg="ignoring event" container=fb53565bc2cb31127b4a7b58f01ed586c7c02d5ff438fecabf039d8ea39c7231 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+Nov 13 01:36:15 limeos-p01-test dockerd[6840]: time="2026-11-13T01:36:15.285988110Z" level=error msg="stream copy error: reading from a closed fifo"
+Nov 13 01:36:15 limeos-p01-test dockerd[6840]: time="2026-11-13T01:36:15.286085759Z" level=error msg="stream copy error: reading from a closed fifo"
+Nov 13 01:36:15 limeos-p01-test dockerd[6840]: time="2026-11-13T01:36:15.331067722Z" level=error msg="5d9514742c6696b3754a1386733109e91fc883d6d175523ded2029a7025428cd cleanup: failed to delete container from containerd: no such container"
+Nov 13 01:37:01 limeos-p01-test dockerd[6840]: time="2026-11-13T01:37:01.199282081Z" level=info msg="ignoring event" container=57f5c0d00e4e6b695c95ca23cdd9a3a2ac6200c89c1712ec2357edeeff5f5f35 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
