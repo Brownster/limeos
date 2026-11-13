@@ -588,6 +588,24 @@ def boot(args):
     raise SystemExit(f"guest {args.name} did not become ready; see console.log")
 
 
+def stopped_archive(name):
+    """Return a free path under stopped/ for a guest's local state.
+
+    An earlier run of the same guest name keeps its archive; the new one gets a
+    UTC timestamp suffix instead of failing the rename after a clean stop.
+    """
+    base = STATE / "stopped" / name
+    if not base.exists():
+        return base
+    stamp = utc_now().strftime("%Y%m%dT%H%M%SZ")
+    candidate = base.with_name(f"{name}-{stamp}")
+    counter = 1
+    while candidate.exists():
+        candidate = base.with_name(f"{name}-{stamp}-{counter}")
+        counter += 1
+    return candidate
+
+
 def stop(args):
     guest = Guest(args.name, args.host, args.authorization)
     if guest.port is None:
@@ -623,7 +641,7 @@ def stop(args):
         f"/tmp/limeos-arm64-{args.name}-supervisor.log",
         timeout=120,
     )
-    archive = STATE / "stopped" / args.name
+    archive = stopped_archive(args.name)
     archive.parent.mkdir(parents=True, exist_ok=True)
     guest.local.rename(archive)
     print(f"guest {args.name} stopped; local state kept in {archive}")

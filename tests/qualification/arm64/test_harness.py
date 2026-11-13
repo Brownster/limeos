@@ -756,6 +756,50 @@ class AuthorizationTests(unittest.TestCase):
                 )
             self.assertFalse(any(command[0] == "scp" for command in commands))
 
+    def test_stop_keeps_an_earlier_archive_of_the_same_guest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = write_authorization(directory)
+            earlier = Path(directory) / "stopped" / "night-install"
+            earlier.mkdir(parents=True)
+            (earlier / "guest.json").write_text("{}")
+            # A second stop in the same second also exists: the counter is used.
+            (Path(directory) / "stopped" / "night-install-20261006T230000Z").mkdir()
+            local = Path(directory) / "night-install"
+            local.mkdir()
+            (local / "guest.json").write_text(
+                json.dumps(
+                    {
+                        "host": "holly@wybie",
+                        "port": 22801,
+                        "marker": "exact-marker",
+                        "supervisor": {
+                            "control_directory": "/tmp/limeos-arm64-supervisor-12345678"
+                        },
+                    }
+                )
+            )
+
+            def dispatch(argv, **kwargs):
+                return subprocess.CompletedProcess(argv, 0, stdout="")
+
+            with (
+                patch("native_vm.STATE", Path(directory)),
+                patch("native_vm.utc_now", return_value=INSIDE),
+                patch("native_vm.host_info", return_value={}),
+                patch("native_vm.subprocess.run", side_effect=dispatch),
+            ):
+                native_vm.stop(
+                    SimpleNamespace(
+                        name="night-install",
+                        host="holly@wybie",
+                        authorization=path,
+                    )
+                )
+            self.assertFalse(local.exists())
+            self.assertEqual((earlier / "guest.json").read_text(), "{}")
+            archive = Path(directory) / "stopped" / "night-install-20261006T230000Z-1"
+            self.assertTrue((archive / "guest.json").exists())
+
     def test_aliases_and_addresses_of_production_are_production(self):
         def fake_ssh_g(argv, **kwargs):
             host = argv[-1].rsplit("@", 1)[-1]
