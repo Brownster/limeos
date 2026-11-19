@@ -611,7 +611,7 @@ class ConfinementReproductionTests(unittest.TestCase):
         self.assertEqual(values["NoNewPrivileges"], "yes")
         self.assertEqual(values["CapabilityBoundingSet"], "")
         self.assertEqual(values["AmbientCapabilities"], "")
-        self.assertEqual(values["SystemCallFilter"], "@system-service")
+        self.assertEqual(values["SystemCallFilter"], "@system-service openat2")
         self.assertEqual(values["RestrictAddressFamilies"], "AF_UNIX")
         self.assertNotIn("ExecStart", values)
         lines = {line.strip() for line in self.unit.splitlines()}
