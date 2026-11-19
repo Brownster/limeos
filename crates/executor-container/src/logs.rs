@@ -161,14 +161,16 @@ fn content(line: &str) -> &str {
         _ => line,
     }
 }
-/// The length of a line's final whitespace-separated token when that token
-/// uses only the base64 alphabet (with `=` padding), after the timestamp.
-fn base64_tail(line: &str) -> Option<usize> {
-    let token = content(line).split_whitespace().next_back()?;
-    token
+/// A line's final whitespace-separated token, after the timestamp, when it
+/// uses only the base64 alphabet (with `=` padding): the text before it and
+/// its length.
+fn base64_tail(line: &str) -> Option<(&str, usize)> {
+    let text = content(line).trim_end();
+    let token = text.split_whitespace().next_back()?;
+    let base64 = token
         .bytes()
-        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='))
-        .then_some(token.len())
+        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='));
+    Some((text.strip_suffix(token)?, token.len())).filter(|_| base64)
 }
 /// Each output piece of `clean` in order: a line as it is, or its redaction.
 /// Returns whether a line was omitted for being too long.
@@ -181,10 +183,12 @@ fn base64_tail(line: &str) -> Option<usize> {
 /// - otherwise leading lines that look like a key body are withheld: a line
 ///   whose final token is 16 or more base64-alphabet characters, whatever
 ///   precedes it (a prefix, any wrapping width), then at most one line right
-///   after that run whose final token is a shorter base64-only one (a key's
-///   last line). The first leading line that matches neither ends this. It
-///   only ever applies to the leading run of a read, so the cost is a few
-///   leading lines that end in a digest, an id or a long single word.
+///   after that run whose final token is a shorter base64-only one after
+///   exactly the same prefix as the run's last line (a key's last line,
+///   written the same way). The first leading line that matches neither
+///   ends this. It only ever applies to the leading run of a read, so the
+///   cost is a few leading lines that end in a digest, an id or a long
+///   single word.
 fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) -> bool {
     let mut omitted = false;
     let mut private_key = clean
@@ -201,18 +205,19 @@ fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) -> bool {
         emit(KEY_REDACTED);
     }
     let mut leading = !private_key;
-    let mut withheld = false;
+    // The prefix of the last withheld line, once any is withheld.
+    let mut withheld: Option<&str> = None;
     for line in clean.split_inclusive('\n') {
         if leading {
             let tail = base64_tail(line);
-            if tail.is_some_and(|length| length >= 16) {
-                withheld = true;
+            if let Some((prefix, 16..)) = tail {
+                withheld = Some(prefix);
                 continue;
             }
             leading = false;
-            if withheld {
+            if let Some(run) = withheld {
                 emit(WITHHELD);
-                if tail.is_some() {
+                if tail.is_some_and(|(prefix, _)| prefix == run) {
                     continue;
                 }
             }
@@ -240,7 +245,7 @@ fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) -> bool {
             line
         });
     }
-    if leading && withheld {
+    if leading && withheld.is_some() {
         emit(WITHHELD);
     }
     omitted
@@ -521,11 +526,28 @@ mod tests {
         let value = decode_all(ordinary.as_bytes(), true).unwrap();
         assert_eq!(value.text, ordinary);
         // The recorded cost: a leading line ending in a digest or id of 16 or
-        // more base64-alphabet characters is withheld, and so is the next line
-        // when its last word is base64-only (it could be a key's last line).
+        // more base64-alphabet characters is withheld. The next line goes too
+        // only if it could be that key's last line: a short base64-only final
+        // token after exactly the same prefix.
+        let digest = "0123456789abcdef".repeat(4);
         let raw = [
-            stamped(1, &format!("pulled image {}", "0123456789abcdef".repeat(4))),
+            stamped(1, &format!("pulled image {digest}")),
             stamped(2, "Starting server on port 8080"),
+            stamped(3, "listening on :8080"),
+        ]
+        .concat();
+        let value = decode_all(raw.as_bytes(), true).unwrap();
+        assert_eq!(
+            value.text,
+            format!(
+                "{WITHHELD}{}{}",
+                stamped(2, "Starting server on port 8080"),
+                stamped(3, "listening on :8080")
+            )
+        );
+        let raw = [
+            stamped(1, &format!("pulled image {digest}")),
+            stamped(2, "pulled image abc"),
             stamped(3, "listening on :8080"),
         ]
         .concat();
