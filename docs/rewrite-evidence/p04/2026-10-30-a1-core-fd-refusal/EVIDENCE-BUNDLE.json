@@ -1,0 +1,36 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-30-a1-core-fd-refusal",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-30-a1-core-fd-refusal.tar.gz",
+    "size": 410921,
+    "sha256": "4d6959ace002fa2c4b3cd5a62652811caf5cab6ea9b20387a99d39b557e60b85",
+    "tar_sha256": "911f19585ddee728fcad97bc475043c8cf678cebb5a8b8f1029f0367eda722f8"
+  },
+  "files": [
+    {"path": "admission-1.json.gz", "size": 319, "sha256": "7a06b7caef57ffd0adc41409460045e8ec522cc29be13e94691a8d5b1aacd5a9"},
+    {"path": "build-record.json.gz", "size": 67144, "sha256": "6e85b4da0bd8855b46b53d991bf6e4febf2a6c6c25787be0f5b88fbfb2c53bcb"},
+    {"path": "checks/a1-docker-quiet-red-1-output.log.gz", "size": 672, "sha256": "0fba3823669d8afd7b47282ff31946987241f5d76e5fb4a358a993853340fd8a"},
+    {"path": "checks/a1-docker-quiet-red-1-record.json.gz", "size": 66756, "sha256": "bad0760fa82528d2702399beb1121d0e2109479b485dc743cf968225500d9807"},
+    {"path": "checks/a1-docker-quiet-reference-1-output.log.gz", "size": 56, "sha256": "32c484aa436412aa59a6c74e05d7ae07e7e7461fd0b3a4f5b4feefd31e8a1168"},
+    {"path": "checks/a1-docker-quiet-reference-1-record.json.gz", "size": 66772, "sha256": "ab7af1f8725ea86657c5ac84a4f2737b4798b20ba2ccea91b141b7d95729dc83"},
+    {"path": "checks/a1-docker-quiet-vm-1-output.log.gz", "size": 12991, "sha256": "33f2a9cc1f33861f6261937715455884371fd50374333342bacb5c80fbd76ff3"},
+    {"path": "checks/a1-docker-quiet-vm-1-record.json.gz", "size": 66943, "sha256": "4b6ec501e0c955a775aaea7c3b37b40fc22aa027bd4eb6b3f5edef4dc8a7b485"},
+    {"path": "guard-console-1.log.gz", "size": 4680, "sha256": "cde2eff0fe7e1f9f35866dd47bbec0f7de2028027f01d1effab24eff8835c578"},
+    {"path": "guard-launch-1.json.gz", "size": 628, "sha256": "39689258832b7febdd0d37a53acfb004149c9c3f4ae6dc7083f7732e9082ed17"},
+    {"path": "inputs-1.json.gz", "size": 2951, "sha256": "9b1f4ec71dbcc41c430bffab73e02cf91ba9c2c3c4a59532c0cdad9a252be588"},
+    {"path": "local-check-1.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "local-check-2.log.gz", "size": 46, "sha256": "9a1a2d79acccdb0f46930a600a1382606067033cfb52a4673dc15b0c1030d871"},
+    {"path": "local-check-3.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "local-check-4.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "local-checks.json.gz", "size": 304, "sha256": "994e91795438e7f0190afc63f1ef2f15a3f21fdd9c693b2e8252ba87a838730f"},
+    {"path": "package-inputs.json.gz", "size": 1564, "sha256": "024846e0f977bbca76fd8c4c205ae4804436231f8c6e1be56e9bd2abe1e722db"},
+    {"path": "quiet-observation-red.json.gz", "size": 244, "sha256": "f21a8aa048e30e13d4fa7ebf4ce8071818e2730ef826e8101e14f9d51f817886"},
+    {"path": "reproduction-sources.tar.gz", "size": 103662, "sha256": "407d347c7fffc1443bb80aba6e9fc768d79031572b720b32e826f4f1d99daf3c"},
+    {"path": "result-1-startup-console.txt.gz", "size": 7765, "sha256": "3653cce635bc9cc6b313699d6b6cebecdbeb2a606fe4ed9a35995f1745c12bed"},
+    {"path": "result-1-vm-failure.txt.gz", "size": 1795, "sha256": "7f3e6880d06a15aca4fa8eea0761f0bb88b6e87b2d07f7b6150510893e2dda4f"},
+    {"path": "source-match.json", "size": 12708, "sha256": "d09e503eb0c33a4811b6497b2d03c2b654784efbe49ee43259139039e8e12aeb"}
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-18-b1-ui-mutation-lifetime",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-18-b1-ui-mutation-lifetime.tar.gz",
+    "size": 128492,
+    "sha256": "647b87e113974fe2b20cc94a65792b607b1589732f35236016a17d595539265c",
+    "tar_sha256": "923656372cb4d60a422c3b8fa9044a3c05fec7bfe8b62008b4d740922b896a77"
+  },
+  "files": [
+    {"path": "api-explicit.log.gz", "size": 158, "sha256": "2e0609f56860dba50ac7d42f0b4e69cad46652f0e63f827de2a40a6b9f6830cb"},
+    {"path": "api-transpiled-direct.log.gz", "size": 388, "sha256": "dd0c648eed46b9caf6850c68a2006d1b603891196ed0d14f0d0b9106723099cd"},
+    {"path": "api-transpiled.mjs.gz", "size": 3207, "sha256": "a09e481b81971d2e917a7581c322e745f578758f08b8489cc907a52469f12749"},
+    {"path": "baseline-AutomationView.tsx.gz", "size": 3167, "sha256": "93528d6475666667f407a0574ec715af1a3f0464be810d3ff0ec19ee7657d074"},
+    {"path": "baseline-reproduction.log.gz", "size": 153, "sha256": "990b9eac8e07fb936159afbcdc5f3d8bedbbd406681932d762d76f9a5b2728f4"},
+    {"path": "build-panel.mjs.gz", "size": 698, "sha256": "edf1549edfd048860ed84e8a8e6d70f1a8dfae4c4a6362ea1d42a0d709eae3b8"},
+    {"path": "changed-paths.txt.gz", "size": 150, "sha256": "c71fe3830ee913a2d0ee460830883a4bc5ce43380066593e5c49807b4d2eb370"},
+    {"path": "check-frontend.mjs.gz", "size": 954, "sha256": "3f5a5f1ac3a4d32934e0ca44261b18bf59fcfa66d7ecb9651dad549964a35531"},
+    {"path": "frontend-automation-controller.test.mjs.log.gz", "size": 877, "sha256": "1a28a8a36b145119ed2848c233f46735b7decc27c7ba0a9a503fb2afd265b67c"},
+    {"path": "frontend-automation-mutations.test.mjs.log.gz", "size": 894, "sha256": "ed6d1504bffe4c7d28a50a59e16e6a0536c38c759728b83ea04ce368657dec26"},
+    {"path": "frontend-automation.test.mjs.log.gz", "size": 627, "sha256": "1a38c0b7604c66236cba71757108e1fc209eeabf258d44b55fc5e5e79518ff0b"},
+    {"path": "frontend-media-activity-client.test.mjs.log.gz", "size": 1758, "sha256": "c8bdf42e0c04ecf1efe48eea7f1c2c1fbccd9bc08cb5ea93b949eb9fce589271"},
+    {"path": "frontend-media-activity.test.mjs.log.gz", "size": 633, "sha256": "6a879d26fbe4448796ccad4e919f3eab6f1b4cf04ca8c3c09ac05ad789319806"},
+    {"path": "frontend-observations.test.mjs.log.gz", "size": 460, "sha256": "89d2bb5734e3859611f3d7521588fa8cbe5a1f9d43a8a16626616576a1a56e77"},
+    {"path": "frontend-stack-discovery.test.mjs.log.gz", "size": 1026, "sha256": "ce4bc455e6b3f898702c3a8a1d8bc8d62fe35eb437a5d864328e8166c00a7e6b"},
+    {"path": "frontend-suite.log.gz", "size": 391, "sha256": "921ac1084c63ebf8a589be4b1d339f23b2276efba96725d46faa73677103413d"},
+    {"path": "initial-count-refusal.log.gz", "size": 391, "sha256": "1fef92d85b0b4ee2d7a3a335bee9e4bb123471fbbc5a0848e79c6c5d4388b9cc"},
+    {"path": "main-bundle-assets_index-BZSsFpQa.js.gz", "size": 51942, "sha256": "cb1f1ce226c999028809ff90e03b7ce91a8837d9ce5d3c639040c89b827dacba"},
+    {"path": "main-bundle-assets_index-C3RxCNyi.css.gz", "size": 1764, "sha256": "d87488b5345a42f0168311dfc79f00c20fadd5e1bc73795ef9e94cdb12b7eb58"},
+    {"path": "main-bundle-index.html.gz", "size": 287, "sha256": "99c3cd6f254651ecc5596afe55151aba3de152cf52fe2a45e147f370e2bb5e21"},
+    {"path": "package-evidence.mjs.gz", "size": 1959, "sha256": "9f5012f6d3a8570f0440307d85ee4e82533eb5fa401401eb4ae95edb6d73d6c9"},
+    {"path": "panel-build.log.gz", "size": 262, "sha256": "bf2d6349e46409a2e989541652a79b1650f65724dea5c90b476b6d1bba6a7371"},
+    {"path": "panel-bundle-assets_index-BCSFAjYH.js.gz", "size": 51287, "sha256": "bb0c1553ad9ad563378980e178799fb2f6396c111ad4da5b019e4b8d631d3b6a"},
+    {"path": "panel-bundle-assets_index-C3RxCNyi.css.gz", "size": 1764, "sha256": "d87488b5345a42f0168311dfc79f00c20fadd5e1bc73795ef9e94cdb12b7eb58"},
+    {"path": "panel-bundle-index.html.gz", "size": 230, "sha256": "b6bb5bb79c78407d6f5bbab368a0fa1c8a0e1c7877365d7ddba6990e51058afb"},
+    {"path": "production-build.log.gz", "size": 297, "sha256": "996d6d82d3cc8dd4a5db1458bff1b4250cc7ee11e0cccdca73c74e5c1b234bb4"},
+    {"path": "reproduce.mjs.gz", "size": 927, "sha256": "4ac8d7a2bcd90867aa4c4dd95af497efba935310b9746198a2ad4b54cc7cb186"},
+    {"path": "tested-source.txt.gz", "size": 59, "sha256": "49beffaed41ce8d726bab33815476f4c53a93e69840ac7fcc153e9dd75c71359"},
+    {"path": "types.log.gz", "size": 72, "sha256": "7c967782cc4b275a37eced7964790a7052a407f5607df0c8f6b21d2c94595bc2"}
+  ]
+}

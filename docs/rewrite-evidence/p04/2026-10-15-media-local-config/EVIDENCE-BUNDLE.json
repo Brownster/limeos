@@ -1,0 +1,29 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-15-media-local-config",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-15-media-local-config.tar.gz",
+    "size": 27128,
+    "sha256": "3e67128a4b9557b44e861ae0bf802c83be260e3ea747459378f7019dce2cfc78",
+    "tar_sha256": "fed3be50de9c3634cbecb75f7051fdc2812b05b1214bd90038a44148a31ee152"
+  },
+  "files": [
+    {"path": "cargo-metadata.json.gz", "size": 11421, "sha256": "57d4595ba7da2a4947efb8858c56fd5089af72fa981bbb1c2e7268412a2a0423"},
+    {"path": "cargo-version.log.gz", "size": 56, "sha256": "46cfde9c7e99a96b2a67fc5e948760695b3093bcde0c8dc58e440b17a8cfd7b6"},
+    {"path": "clippy.log.gz", "size": 252, "sha256": "debfa9c97cae84dc75fbb0d620a67350eee1141ecc3b2315dec145a97ecea57a"},
+    {"path": "collision-red.log.gz", "size": 719, "sha256": "d669ad85249c587ef7ce28535bcb129f2c87b7eaa6c5f899402ca1212a3f0cd4"},
+    {"path": "ini-collision-red.rs.gz", "size": 1525, "sha256": "0d93cebea6222d15a92836e545c516ad836eb1a40f2be511e81d9cfed213e865"},
+    {"path": "package-evidence.py.gz", "size": 1804, "sha256": "409028db38547fd41279329044529d0e3c78d5f236b2559fa81992a7b110e526"},
+    {"path": "prepare.log.gz", "size": 132, "sha256": "5451cde1efb6cb8158bd060e577c37059d4b54a307a3f048f01f4976be775248"},
+    {"path": "ruff-format.log.gz", "size": 39, "sha256": "2283aea2b330488a006d79106f5f562181af4f1fab820fd23ed7f19cf203d3f9"},
+    {"path": "ruff.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "rustc-version.log.gz", "size": 56, "sha256": "5cf87a09cf349a986436eda08f9f0cca7b53d6e49423d9a28390d1266321cc23"},
+    {"path": "rustfmt.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "source-status.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "test-initial.log.gz", "size": 3537, "sha256": "33ff7158c656514bad15f6c8b08e87a2a4692a09a137aaa5978d26964b015493"},
+    {"path": "test.log.gz", "size": 3291, "sha256": "dba643ad36235b997bd94e93ccc76706db88631ef4b0b0e806ac8c1ef8298226"},
+    {"path": "tests-collision-red.rs.gz", "size": 3697, "sha256": "aaf2e7a57d85bfc99e10d38a89a99bfb7a0c8ae400b7410e3622c7101ac8616e"}
+  ]
+}

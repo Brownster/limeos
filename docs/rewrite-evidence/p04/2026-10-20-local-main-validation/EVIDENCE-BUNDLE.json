@@ -1,0 +1,41 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-20-local-main-validation",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-20-local-main-validation.tar.gz",
+    "size": 763220,
+    "sha256": "e45ac1b86079515ff9d871fc2fd41b0d426c6d4051519cf8df8d67aaca13cbb0",
+    "tar_sha256": "2fcf2089c1c41d04370e32576943b01a11d88647e37327d7abdd773b3ef8ceaa"
+  },
+  "files": [
+    {"path": "Cargo.lock.gz", "size": 13854, "sha256": "659fa0e2ebcad7509bb817bfb17b77bc02cf1bcfe76eb121641ac1cd88157ccc"},
+    {"path": "bundle-verification.log.gz", "size": 4666, "sha256": "d40c4b622acf750225d979791f9f02999bd5d0393ac768ac76ac5db6caa2e886"},
+    {"path": "checks/main-clippy/output.log.gz", "size": 1468, "sha256": "f77bbef26f49b91e12c0216b4b507b19360e3e4da360d0510e32be06f9b8e070"},
+    {"path": "checks/main-clippy/record.json.gz", "size": 63937, "sha256": "51104aa640d30e56e6c4792d44924f0c6fd6bdd02630e53b14fb34e74679d8ab"},
+    {"path": "checks/main-contracts/output.log.gz", "size": 288, "sha256": "b0591b96c5b651d257b6cfe6e083e05fef209205a2419bee554b584544138ad3"},
+    {"path": "checks/main-contracts/record.json.gz", "size": 63943, "sha256": "234a9f88875740c1524b3d0d8174e1f63983b31ca2e30917624914d655558ea4"},
+    {"path": "checks/prepare-stream-b/output.log.gz", "size": 112, "sha256": "5e2ee19347a6657975091f701c925e184d3f027dc629af6f76360d96ccf37232"},
+    {"path": "checks/prepare-stream-b/record.json.gz", "size": 63952, "sha256": "ac4a8efd3b977cf0e3fd63571cb0489380f3b93e6487af726f91d78b76fb3075"},
+    {"path": "checks/storage-compile/output.log.gz", "size": 6650, "sha256": "32542794e1d4b9998fb0b0c2fd7fb1d01bfabb49bb929394aa653cc4461b7136"},
+    {"path": "checks/storage-compile/record.json.gz", "size": 63940, "sha256": "e193021b7c83906ecc0e953408ac1d66def0be7874ccb56b514ee30da8603149"},
+    {"path": "checks/storage-docs/output.log.gz", "size": 464, "sha256": "0349c72659da1e9a137fcbd287c92ccd4098baffe05b466f524173fcef286a66"},
+    {"path": "checks/storage-docs/record.json.gz", "size": 63915, "sha256": "340fca701205d4ef3114353e8bd56b163436796a7511baacc5c2160cde67ceab"},
+    {"path": "checks/storage-runtime/output.log.gz", "size": 369, "sha256": "8d215f87e46d47624f409a6eb98f085f7c2cbfe7ec5aaef485df255c80919d57"},
+    {"path": "checks/storage-runtime/record.json.gz", "size": 63935, "sha256": "7a451356653cea1120559b479289bbee37e012cce0e88082cf7d3696982913ef"},
+    {"path": "checks/stream-b-clippy/output.log.gz", "size": 503, "sha256": "e4cb2faf9f8650226c97f567c13350c97314d76e71888b69805da994eb08c2c0"},
+    {"path": "checks/stream-b-clippy/record.json.gz", "size": 63965, "sha256": "040ddd498011b501d128e8910b5dc666bae0361efecd6edba95a42f72cc9d8d5"},
+    {"path": "checks/stream-b-tests/output.log.gz", "size": 12420, "sha256": "905f6abf3c551046a26249313e51439d2cd34caec408f58514279eea9a38ec70"},
+    {"path": "checks/stream-b-tests/record.json.gz", "size": 63926, "sha256": "171727046b18da7a60f22360f5de9c9d37c21a6797922b755a00f2f4de4831d3"},
+    {"path": "checks/workspace-rest/output.log.gz", "size": 23093, "sha256": "7f3f53225e71dd334804f7f36c754f167d95ec252769b4ea767eced830a43dc7"},
+    {"path": "checks/workspace-rest/record.json.gz", "size": 63937, "sha256": "2df41ac9e5798a229696e1d764917e70633ba5bbf60321ad352494a15d37b28e"},
+    {"path": "cleanup-plan.json.gz", "size": 7532, "sha256": "3827633b5dacd8af6db2710bbcfdfe89b1746d157acf97a883ce62ffd3df37cf"},
+    {"path": "cleanup-result.json.gz", "size": 12766, "sha256": "be878e27612e9a36f33ebd33852419165777a7b540cab6dff4004e6990cd657d"},
+    {"path": "harness/Cargo.lock", "size": 32021, "sha256": "64fd3fc7338014ba938299772cec4d4779c943b13cf8dc58408f3a2016f15016"},
+    {"path": "initial-btrfs-run/output.log.gz", "size": 23674, "sha256": "b7da1e5078625f60f203a0595388448bf7fe1f864eb86703b50cd43420dca3c6"},
+    {"path": "initial-btrfs-run/record.json.gz", "size": 63909, "sha256": "c299c235b57f80787dfec0333da3396b716e43867b7b1459f468cd48cfa2559a"},
+    {"path": "storage-kernel-runtime.json.gz", "size": 373, "sha256": "e2539cacc3e70c6b510f39122e6033ec93a1fdc3ebf00730104bf912466c911d"},
+    {"path": "storage-kernel-runtime.log.gz", "size": 5544, "sha256": "14d0430465db9648e150108871b39f52884b93534780b19ef773abaa01a72e6d"}
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-18-backup-capture-preflight",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-18-backup-capture-preflight.tar.gz",
+    "size": 23384,
+    "sha256": "8be4178eb4e8dd994447539241ff701a50b286721eb3ddcd6f452040c1df9af2",
+    "tar_sha256": "94f347db195c6d5d8d4443452a4f120830f1bc9efc0f74c70c4926931efc471c"
+  },
+  "files": [
+    {"path": "Cargo.lock.gz", "size": 12668, "sha256": "ac12c286bd3cc7c63f212352b07c8a42fae2bb75e195acfda8f2e48e1d12ec4e"},
+    {"path": "archive-tests.log.gz", "size": 4421, "sha256": "bfa057c441b7457a5ed96054cdeceb6ec7a543bfe4154de61ff11712f2f8fc0a"},
+    {"path": "baseline-before-images-online.log.gz", "size": 1543, "sha256": "ad7edab15c226fefaced972c5b484efb9654c749a71a2b10dff7c8a621a77648"},
+    {"path": "baseline-before-images.log.gz", "size": 428, "sha256": "39bdf29d6fd61b8872d1d0270e62ded5016b354b2e58f566caa687df72a4c94e"},
+    {"path": "cargo.txt.gz", "size": 56, "sha256": "7bc018033768d158a093cc64c2a1ee3ffb0e61fb25d206b9bf3923202395677c"},
+    {"path": "changed-paths.txt.gz", "size": 126, "sha256": "26571378900d693ba59f43be7d6cd3c91ed107ca2ff6cd830ff208ef7ccc44c3"},
+    {"path": "clippy.log.gz", "size": 601, "sha256": "52017e19fc0a0cee51a4dd615e55a438d2bd638566abbd466bf3da0f464028ef"},
+    {"path": "descriptor-measurement.log.gz", "size": 392, "sha256": "40bd99998fd290e2a1f5a8a5ef593619f3c4d803008a0214691b7580af740f09"},
+    {"path": "input-paths.txt.gz", "size": 741, "sha256": "0ee24ed1486fb463bca75773b95974727723379a30c0e570ad9238b72d6c6aee"},
+    {"path": "package-evidence.mjs.gz", "size": 1530, "sha256": "eb5ab787b65ee66974cc50b48cec6825b285fc69acedff37e0edab94efb9b4fb"},
+    {"path": "rustc.txt.gz", "size": 167, "sha256": "1b56e58df6c1da76fd73cc92204c6850c5a87c6df52f86609a6eab19690f69cf"},
+    {"path": "rustfmt.log.gz", "size": 20, "sha256": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec"},
+    {"path": "tested-source.txt.gz", "size": 59, "sha256": "32b3131e9b2b254c1dac4b7bdb8c2ddf0219291ccff1a1b22f066c8016318e8e"}
+  ]
+}

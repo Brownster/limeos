@@ -1,0 +1,22 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-20-local-main-hosted",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-20-local-main-hosted.tar.gz",
+    "size": 223316,
+    "sha256": "ef4ea0e5dfab1ac41044699afd6a4f9b2216c7157ce6826a65ff9b226e609486",
+    "tar_sha256": "a4d5a19baab0a29951899928b1c62c3fd3938d5bd70f892326fc4ea58bb9eda8"
+  },
+  "files": [
+    {"path": "debian-vm.log.gz", "size": 21808, "sha256": "0ecc4129294ff69ad77e8e23c5287a9391091ba5f6bc5d464e466f21db60bd95"},
+    {"path": "hosted-run.json", "size": 12136, "sha256": "7689369351bb28d123aef6f53c511b5d846820aca5c47328019b5e6d11f11965"},
+    {"path": "native-amd64.log.gz", "size": 98467, "sha256": "06ec793c1afaf6b99922b5c38052a121bdc68107f53712bf7756d81deaef0de9"},
+    {"path": "native-arm64.log.gz", "size": 93192, "sha256": "f6b517247f521aebc3c5215750c35dd948b66813067141454dc45fbe424e1f99"},
+    {"path": "vm-artifact/p01/ci-vm-result.json.gz", "size": 972, "sha256": "c1fd396ec84a30cd4c49d134a1876e9bec116b277fa2e8f81bbdfa2f73915736"},
+    {"path": "vm-artifact/p02/ci-vm-result.json.gz", "size": 644, "sha256": "fc1509341c5e56838d8bb6ee52d4a84d2117bd7487340f27528d449a68beadcc"},
+    {"path": "vm-artifact/p03/ci-reference-vm-result.json.gz", "size": 3497, "sha256": "0badfa8f0d4a2eb0e0e15982bcfbf7a0bcfb45675f5fcea19b296ff2a8af85f5"},
+    {"path": "vm-artifact/p04/ci-approved-vm-failure.txt.gz", "size": 1746, "sha256": "47a6374ad0ceb33f022459a13d14659de02c4f654ac30bc74300e833ae4a57e7"}
+  ]
+}

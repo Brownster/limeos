@@ -1,0 +1,26 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-18-stack-notifications",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-18-stack-notifications.tar.gz",
+    "size": 27575,
+    "sha256": "c63909fcc3630b01ead961e8b8b186e306c743ac04101fdc5dc974918c575284",
+    "tar_sha256": "447ef681a30df52f3d5683d7aa03dfa794a31d3009623465218ab7ed1e09a979"
+  },
+  "files": [
+    {"path": "clippy-first.log.gz", "size": 909, "sha256": "b29d725d0c0eb6281ed2281fe9b998d5935eb1dc8a99671a20f1574d5d232f87"},
+    {"path": "collector-format-final.log.gz", "size": 45, "sha256": "afdae4b86058000c02acc699088589b28fbfe2ead39a424c4435b13464b2f494"},
+    {"path": "collector-format.log.gz", "size": 39, "sha256": "2283aea2b330488a006d79106f5f562181af4f1fab820fd23ed7f19cf203d3f9"},
+    {"path": "collector-ruff-final.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "collector-ruff.log.gz", "size": 186, "sha256": "d81379ae30bc5f0d743857ec2f2902534d62ad8d97975ebfe900819f3fb9b5fc"},
+    {"path": "harness/Cargo.lock", "size": 32021, "sha256": "64fd3fc7338014ba938299772cec4d4779c943b13cf8dc58408f3a2016f15016"},
+    {"path": "rustfmt.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "shared-paths.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "test-combined.log.gz", "size": 11432, "sha256": "70f8350b24808f57f21bc901677b86ae6102f97927ac57645506df0d29d2b50c"},
+    {"path": "test-diagnosis.log.gz", "size": 1593, "sha256": "a345fdbdf5cdff6ae87d24fd560314ac8ae41abe0efaa73b5359c58a3bc580a1"},
+    {"path": "test-first.log.gz", "size": 1742, "sha256": "d2f05e5618b19ccadf9035a647ccb54df89d6dd5991c6286c048aff071ce58e9"},
+    {"path": "test-focused.log.gz", "size": 1115, "sha256": "f8d326255536c7d5a31a909c0ca44bee83fdaef10fe112f7af783cc6f126657c"}
+  ]
+}

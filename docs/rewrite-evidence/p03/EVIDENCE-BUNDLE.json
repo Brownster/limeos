@@ -1,0 +1,25 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p03",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p03.tar.gz",
+    "size": 115187,
+    "sha256": "26e4395ab620c93c2a54b80c977f63b0ba10250cb9a23329cd5b02a925d524b5",
+    "tar_sha256": "e475e031136a2540a801947094de3a600a98e168e6090de22aba47dfd33c6dee"
+  },
+  "files": [
+    {"path": "compose-vm-failure.txt", "size": 13800, "sha256": "af4e0f9a1e218b59d5c9b686f213cce3c27ed23fcbcbdd848b922fb785ee25d0"},
+    {"path": "lifecycle-source-sha256.json", "size": 11793, "sha256": "ec0e642b8bd1d56c1e795e80346dbc475a83baf50963c3ff6a14389eed7bdade"},
+    {"path": "lifecycle-vm-failure.txt", "size": 14352, "sha256": "c063d2a5a5f9a88425ec74678aa7e1372158c1b5437e5ac05ea3f4c6466427dd"},
+    {"path": "qualified-source-sha256.json", "size": 10880, "sha256": "f3317fec10b9d6ebcb01d8c5c275ceb315ce274fbca33a1992f4e83b1d9d9efd"},
+    {"path": "reference-source-sha256.json", "size": 13537, "sha256": "5b351784de21c7c6d862609a3f97b8275b49ed7968baf1fc3b04c54b1526e278"},
+    {"path": "reference-validation.json", "size": 8215, "sha256": "942231f4fe1cb9ce9683b77b824f41050f8de63f0f4af1342f3e8b3bd8abe724"},
+    {"path": "reference-vm-result.json", "size": 8970, "sha256": "79d4738293a01da553031c73080e1cb64b87baab6e747582e9196edce3454001"},
+    {"path": "restart-progress.png", "size": 100080, "sha256": "df73ce1eb64978e90397de9afee8ee0f5fe469bc3a70f0289716509130ed3ddc"},
+    {"path": "rust-integration-tests.txt", "size": 10571, "sha256": "a72c20e01eaac45f8e2dd20b7e0e406a3ca11e3c8ffac67d5ba3f9c6dd8a2162"},
+    {"path": "rust-lifecycle-tests.txt", "size": 11851, "sha256": "a25967a1c5c47b2aa6692b8259b53fc1d62182845912f357321fc7186f0b7869"},
+    {"path": "rust-tests.txt", "size": 9634, "sha256": "d58774b60bbdd07454d5662251f047feed0a78aa5c9bfe6d94d053916796b2ef"}
+  ]
+}

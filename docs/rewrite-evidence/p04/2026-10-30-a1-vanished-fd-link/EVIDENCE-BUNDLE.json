@@ -1,0 +1,34 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-30-a1-vanished-fd-link",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-30-a1-vanished-fd-link.tar.gz",
+    "size": 444303,
+    "sha256": "aa045c9b91ba087348d773ac639017a20e9c5d21137e82507c363f5fd090d9d2",
+    "tar_sha256": "2cf6342805a7fd0b43781ac4c5bf23e69e23d2f9c3eea1c415589f55527985d1"
+  },
+  "files": [
+    {"path": "a1-failure.json.gz", "size": 8650, "sha256": "e892d5eeebb876fb91317aec3380d09ca03ffeeb603ddf5225ed01d41f69efa2"},
+    {"path": "admission-1.json.gz", "size": 280, "sha256": "86039ad8f6e3a89f71a49956440f8220b8075a50cd082bf4d06d7a2d26f45be6"},
+    {"path": "build/binaries.json.gz", "size": 345, "sha256": "f97423f867117f37d04d07e5e5c7bdc3b90d7d08b66ba813ee4dd23a0f11bf48"},
+    {"path": "build/output.log.gz", "size": 796, "sha256": "1fe06cb490b8d0eb2632d822bd22026e8a0c10cadce0a0d585e11339920f30c5"},
+    {"path": "build/record.json.gz", "size": 67146, "sha256": "ce011a80b0e16f53cb9e2448f38a57340f651239126b948cfd95dc75d69b74f9"},
+    {"path": "build/source-after.log.gz", "size": 4215, "sha256": "8c44ca744008cfa8da8177947459c6500dca9bb55c8c9a7ebd4dc6328b4eee12"},
+    {"path": "build/source-before.log.gz", "size": 4215, "sha256": "8c44ca744008cfa8da8177947459c6500dca9bb55c8c9a7ebd4dc6328b4eee12"},
+    {"path": "checks/a1-fd-owner-packages-1-output.log.gz", "size": 751, "sha256": "a8f226f944357b1b8186b317cdcd3a052cb5aa2e29002b4310111bdc121b7c34"},
+    {"path": "checks/a1-fd-owner-packages-1-record.json.gz", "size": 66782, "sha256": "6a00f33ca9ba47ee95f7e9b50cdee39c42b6a8f0dd7b51221e181d8dac1f1cb1"},
+    {"path": "checks/a1-fd-owner-ui-build-1-output.log.gz", "size": 292, "sha256": "4b1e9e3902ef02eeac53e324b709fe2ffa5b0e3f22d58a757fca8ac1a424561c"},
+    {"path": "checks/a1-fd-owner-ui-build-1-record.json.gz", "size": 66764, "sha256": "fbd01d2213209450381dcf975eb1efe5695c397d5a05fd0cbce49c041cdc5a4f"},
+    {"path": "checks/a1-fd-owner-vm-1-output.log.gz", "size": 11310, "sha256": "9c2793ee54a1964160c923257025209613a6c84dedc9164449c054a4adfd1d3d"},
+    {"path": "checks/a1-fd-owner-vm-1-record.json.gz", "size": 66950, "sha256": "142c089b4b154829b58a2f37d9601ff39a035e20bfbe38d25dc35f0a66b1ce5f"},
+    {"path": "fixture-inputs.json.gz", "size": 2578, "sha256": "c5b5bf8b0b20c66c3aa5501ba7ba96e53cb714b3e329bf535b20f3ff8ebf8986"},
+    {"path": "guard-console-1.log.gz", "size": 3748, "sha256": "e934d10aac143cbef230cf1de53ba885849d911c00f81fec208c166a288a1cc8"},
+    {"path": "guard-launch-1.json.gz", "size": 627, "sha256": "2b507f2bb3ec98dd7216d1c9dd6f40a0136d51671605c0bb36a73062a693195e"},
+    {"path": "package-inputs.json.gz", "size": 1568, "sha256": "0a41765817e84c241cee5352b0adbfda9b32d0976189699c18a96bf49232c57e"},
+    {"path": "reproduction-sources.tar.gz", "size": 130109, "sha256": "13768bc37c497c23a8bafdf2ad1075993aba325df6ed761f8361a03cadd014d4"},
+    {"path": "result-1-startup-console.txt.gz", "size": 7764, "sha256": "24d75e7ce411999823f217bd34174cf656a8b3faa4e5d9e05857c028a03c29e7"},
+    {"path": "result-1-vm-failure.txt.gz", "size": 1804, "sha256": "8e618bb211b837ecffde269b5bab1d32f84102deff6c38bf22b4fcad24499549"}
+  ]
+}

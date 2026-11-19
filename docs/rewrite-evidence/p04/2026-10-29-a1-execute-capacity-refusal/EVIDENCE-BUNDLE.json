@@ -1,0 +1,38 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-29-a1-execute-capacity-refusal",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-29-a1-execute-capacity-refusal.tar.gz",
+    "size": 425225,
+    "sha256": "de2c091af13687062be6c92e9f877a55bcdc0e2fe24ec57e3adb10d93c428f77",
+    "tar_sha256": "c44b79bcd01e844c77860865849cbb97a905dab56389a8bb655dd0b0f787ed44"
+  },
+  "files": [
+    {"path": "a1-failure.json", "size": 60481, "sha256": "0bc664a7af90404d1593cccd37c969e6cbde6efb9988c334e0fc9f35824fb9b3"},
+    {"path": "admission-1.json.gz", "size": 278, "sha256": "9ead04d6591ba9610912b7c062a61a32b4e36a667ae0f5e27ad3d651b02bef60"},
+    {"path": "build/binaries.json.gz", "size": 346, "sha256": "335dde6966a49bdf46f9ecef46ccbba2164f6cd511681019e846fbcfcada57ba"},
+    {"path": "build/output.log.gz", "size": 779, "sha256": "f51fbcf03f6017a7b7c9479e0296822ac29b3f5d0f2b4fbd34362f66ce5197fb"},
+    {"path": "build/record.json.gz", "size": 67143, "sha256": "ba81c05c3977121c9e5bb2869c1406b52c29ddbca5ad73900e3990b4d9881433"},
+    {"path": "build/source-after.log.gz", "size": 4215, "sha256": "8c44ca744008cfa8da8177947459c6500dca9bb55c8c9a7ebd4dc6328b4eee12"},
+    {"path": "build/source-before.log.gz", "size": 4215, "sha256": "8c44ca744008cfa8da8177947459c6500dca9bb55c8c9a7ebd4dc6328b4eee12"},
+    {"path": "checks/a1-runtime-bootstrap-packages-1-output.log.gz", "size": 747, "sha256": "5ebf338a1713350e52135b7a79ab83550649e7e395dea08d1a244a91d6efe758"},
+    {"path": "checks/a1-runtime-bootstrap-packages-1-record.json.gz", "size": 66787, "sha256": "be5fb4b004ee3b0bb1518725fb5a2282417f43e738d345cdff2cc9b504515474"},
+    {"path": "checks/a1-runtime-bootstrap-ui-build-1-output.log.gz", "size": 291, "sha256": "05e0d7ccd8a7aac32ff2764a8d07555e752bb3fb6b57f032daf6ab9c2271025c"},
+    {"path": "checks/a1-runtime-bootstrap-ui-build-1-record.json.gz", "size": 66769, "sha256": "a9aa3e9af5784848b46b7aaa4df8fb9d524aaec699825553f0f3dabf18701070"},
+    {"path": "checks/a1-runtime-bootstrap-vm-1-output.log.gz", "size": 12060, "sha256": "67cf75c7db8b0bb9312b540b5d4f05181d91286d48eb67dfe3ccc899536661cf"},
+    {"path": "checks/a1-runtime-bootstrap-vm-1-record.json.gz", "size": 66957, "sha256": "b343eeeccf70de6b2374e6275f15dc5eb990f9a491efd547009c15adcf8d1ccf"},
+    {"path": "executor-admission.rs.gz", "size": 6394, "sha256": "b932fe1817af9ebb8d207bab822b866febb26cef4338fbf4083ace710e99a738"},
+    {"path": "executor-main.rs.gz", "size": 5549, "sha256": "d9bbf6baf67616277651217b371a3233dcfaec0bddc05314847c9918f8d2bbba"},
+    {"path": "executor-runtime.rs.gz", "size": 4324, "sha256": "c076a96c58ff63716db24287ebf33fcf8da21c6e3149f3c2874866f0ef983543"},
+    {"path": "fixture-inputs.json.gz", "size": 2582, "sha256": "ec9df07093a7f356b3596ba84012957820542d9f91f83274f11bb52de7c26b29"},
+    {"path": "guard-console-1.log.gz", "size": 3754, "sha256": "13b822be1beecf4d5390c88cf768a2d0b74a7b1bd1e0d016bcb3a1b228ac88a5"},
+    {"path": "guard-launch-1.json.gz", "size": 632, "sha256": "0430d5b30b5a3db253402412063f1e151ca0b2ecdd7c2ace8332e9fa65238c00"},
+    {"path": "guest-and-runner-sources.tar.gz", "size": 87805, "sha256": "854ec7de14458a8dfec9706c2a0d621431acea576ea35d23496228d2bd126282"},
+    {"path": "package-inputs.json.gz", "size": 1558, "sha256": "89191d03301498767dc43e6f17d2c7a93fa41572e8a7c4172d85c71bef6bc356"},
+    {"path": "result-1-startup-console.txt.gz", "size": 7805, "sha256": "f9ef4ab4b9043a196220669a135bf72f33ada62bd6ede4b10c309412d0e9bb94"},
+    {"path": "result-1-vm-failure.txt.gz", "size": 1845, "sha256": "6b04131a62d6cbded4b2701c39657fc622ac22f3ec33f782097761ac220700d5"},
+    {"path": "schema-source.rs.gz", "size": 3529, "sha256": "812bd2e7afbf88e87dd779ac1334aebc9727f893a31435660e7642c75349a756"}
+  ]
+}

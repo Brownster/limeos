@@ -1,0 +1,28 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-14-read-worker-supervision",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-14-read-worker-supervision.tar.gz",
+    "size": 49679,
+    "sha256": "a6ff30bc2ea7d964e5dd260a05cee2bcd9a054227ae04d8aa1d4d5b25e7a1d4a",
+    "tar_sha256": "b0bf1370c80c02ac774c57a3d3ee35031c2c69d71c4f3880ff6674fa1c13b877"
+  },
+  "files": [
+    {"path": "arm64-harness-accepted.log.gz", "size": 428, "sha256": "7d9f374fd7e3ac5c54ff22ea45729309a831037e59f2c39195f8887e89987032"},
+    {"path": "checks.json", "size": 30239, "sha256": "2294b560ccb55a832c0428d5ec72341937fdb528bad93349b9cc8ee8a93571d1"},
+    {"path": "clippy-accepted.log.gz", "size": 91, "sha256": "131e806dfa9e48563e834eaa6891495ef872d43e6af613ee72bc3e61ebfb3a98"},
+    {"path": "contracts-accepted.log.gz", "size": 299, "sha256": "f9d73e9da2d363462c85b177099007911d5316d10465b0a59f4b1abadd7bf162"},
+    {"path": "diagnostics/diagnostic-supervision.log.gz", "size": 1157, "sha256": "0958351d35b74c29e51b88478cd086797daa13ee6da3055de81812b328a283bc"},
+    {"path": "diagnostics/precommit-supervision.log.gz", "size": 2172, "sha256": "9cbc1a58fe451dc51e3aad23f1e58be95752675e3192a080768bf64c5dd432b5"},
+    {"path": "fmt-accepted.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "package-read-worker-supervision.py", "size": 13184, "sha256": "0dcb37c698fe2884775796418818c56d121ba6f6b6dbf17f5bcda7b9f022d538"},
+    {"path": "repository-accepted.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "source-manifest.json", "size": 36589, "sha256": "6ebe3f34faea6390656d55ae5fa9c482cc346c21a103273e38bb2db552522262"},
+    {"path": "storage-compile-on-disk.log.gz", "size": 273, "sha256": "f584855148f53544c9b2518e6c8654a70d5e9b8950d4f96440689105701d0c8f"},
+    {"path": "storage-fixtures.log.gz", "size": 5260, "sha256": "94ad87d31914687bfcc6f7e3f4034690e790ea8e8f16253a7a84107e14c9472d"},
+    {"path": "supervision-focused.log.gz", "size": 581, "sha256": "0d9ba3aa77d5c23b74ddac04ec723a499b196a8b7c654ffbe12e330ffe5b1ec9"},
+    {"path": "test-rest-accepted.log.gz", "size": 13241, "sha256": "31747a7c0c174507ed8e952b43cb5fa2d3f06ab42e5442ecd9acbfb4005d2e7a"}
+  ]
+}

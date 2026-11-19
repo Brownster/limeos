@@ -1,0 +1,21 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/rw040-dependencies",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-rw040-dependencies.tar.gz",
+    "size": 35185,
+    "sha256": "e0a10f20ee21537ceeeefe5ab5e0154fd7ea5b934c772850cf51948407895f97",
+    "tar_sha256": "da55dd6dc785c3928ac510c68022f5a90e9ee8044ddadc651a9511265f4dcc2c"
+  },
+  "files": [
+    {"path": "b346-dependencies-vm-failure.txt", "size": 14745, "sha256": "542c1c9b2f6ac1f96c50d1b50bfa5db807460b74d761a3cfa772f58a2339c20c"},
+    {"path": "b346-dependencies-vm-startup-console.txt", "size": 32778, "sha256": "00d55c4cec526b373445c1e1fb829b8df46335fdd6acc492366e7a2aaafb7237"},
+    {"path": "ci/p03/ci-reference-vm-result.json", "size": 8682, "sha256": "6f0a0ffab1ee2c119882c17334a2cb2e5eddeca193fb24694afe425dcb927c76"},
+    {"path": "ci/p04/ci-dependencies-vm-result.json", "size": 18841, "sha256": "27b7477ea7936cc286b8b91957fa92d7bfd7f886442bd2f07dede594599f418e"},
+    {"path": "dependencies-vm-result.json", "size": 18744, "sha256": "a44ba457df9922aa2fa7576a0c56ad7cda0a1cdb27fd663ceac1e5b86a286f23"},
+    {"path": "rust-tests.txt", "size": 23777, "sha256": "bd7d094aa77f09cb9ed65c63203eaf1c758a445411f4b97210448300a68f2663"},
+    {"path": "source-sha256.json", "size": 24829, "sha256": "d8b2979c485d1ade1e5f3565be8d5123b279281f6423abf34e6021132699dcaf"}
+  ]
+}

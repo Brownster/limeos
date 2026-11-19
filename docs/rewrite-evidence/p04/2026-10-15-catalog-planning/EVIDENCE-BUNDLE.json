@@ -1,0 +1,26 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-15-catalog-planning",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-15-catalog-planning.tar.gz",
+    "size": 8656,
+    "sha256": "fff5548b9516014290b263a5e2995fe59dfefa2a3601c79099eb047a325906cf",
+    "tar_sha256": "5f92d45bd400042832911c6ff5d4cfc61e8de347be2b33860f46dfaa16350a7f"
+  },
+  "files": [
+    {"path": "clippy-final.log.gz", "size": 172, "sha256": "0e9928337b1d92a580b895a5a701f3497130cf31cec2a5d9062a38eb406737ee"},
+    {"path": "clippy-initial.log.gz", "size": 194, "sha256": "da6ef4bbc26e1e087e637533b2c6de7158b1b73a974d500080e8deb2c896e4fe"},
+    {"path": "metadata.json", "size": 8661, "sha256": "3e6ad29ad7ec9053f6a6866b9331d90bc0e09c1ee726ebead61a696115180f2c"},
+    {"path": "python-format-sandbox.log.gz", "size": 139, "sha256": "7419d7826c0e456c529db3e71a113f4d2a6971cb2c40d968d7ddd462236bc5fd"},
+    {"path": "python-format.log.gz", "size": 45, "sha256": "afdae4b86058000c02acc699088589b28fbfe2ead39a424c4435b13464b2f494"},
+    {"path": "ruff-sandbox.log.gz", "size": 135, "sha256": "e847d8291c83f87d0e8c38bf269d6e5da0811a0f3b06974d66b921baff4c7a10"},
+    {"path": "ruff.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "rustfmt.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "test-aggregate.log.gz", "size": 936, "sha256": "58dda43c089cd777cfaf8cadf103e710fb14c9eda918fe364acbd8de877934a1"},
+    {"path": "test-final.log.gz", "size": 967, "sha256": "97fbefd05e36f588989decfbee85e8ae9bb97cb3b35fd6f24c23f18e38ccbc96"},
+    {"path": "test-first.log.gz", "size": 1000, "sha256": "65a40bf43c6bd783e98123e01c7a8bee69a492c4322c97265b1e9d1e29179c8b"},
+    {"path": "test-impact-rename.log.gz", "size": 421, "sha256": "7173e2a9231c435f6c07386cc936b4cf764dadfe9650fcf8f6e7c0b772a333d8"}
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-13-combined-read-budget",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-13-combined-read-budget.tar.gz",
+    "size": 43967,
+    "sha256": "6ea757f8085d99e084690a788d182e0df246f6d55c3ac2017a3b7bd3731c5156",
+    "tar_sha256": "ebd7b370ebd41b2eff4ec4f2e11c0d06784684fc8a6594a06bf33804faf1001c"
+  },
+  "files": [
+    {"path": "arm64-harness-accepted.log.gz", "size": 429, "sha256": "859903e390f3da17b242ad18e7fd6c63ba0688913db7c225e5968953dc9ac89a"},
+    {"path": "budget-focused.log.gz", "size": 684, "sha256": "5e42942de196f789dbb962ea70ee9a518f9ec351b061efae713986d351b1fd59"},
+    {"path": "budget-measurement.log.gz", "size": 397, "sha256": "b7e5deb47568522bb01da625347b03d29bbc09ed80300800e34e74490094eed3"},
+    {"path": "checks.json", "size": 24811, "sha256": "39ad533963971b9741283ce465c58f750e09b4021f591843999a3fd97236e5e3"},
+    {"path": "clippy-accepted.log.gz", "size": 361, "sha256": "90f80f5091e411bf3cee70c3c2c6e6ac1cc477cd477d27ccf8e92ca8afc991e3"},
+    {"path": "contracts-accepted.log.gz", "size": 298, "sha256": "2c9d305d8942999a19321c1ad94e6e254e57bd60bbef133b866dc9b7126625bf"},
+    {"path": "fmt-accepted.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "package-combined-read-budget.py", "size": 10424, "sha256": "53f0fe27983b93fad99718cb85a01df433d4d2386f0787a07ba71600051cd2f9"},
+    {"path": "repository-accepted.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "source-manifest.json", "size": 35759, "sha256": "63e5e3993e1c254b61e252412cd596150ce2adf46db685cfd1c1a82dc85e96da"},
+    {"path": "storage-compile-on-disk.log.gz", "size": 198, "sha256": "14e8f28b0f29ce254e1bde37781066c3dfa1eb4a232e10948f442ce0648e5700"},
+    {"path": "storage-fixtures.log.gz", "size": 5260, "sha256": "cbe7cd99532d0242b096cc1122a0207787ce81c152b26efad1c3c92571b00955"},
+    {"path": "test-rest.log.gz", "size": 12535, "sha256": "3591af2b52fbbe02dff1376e4c5b9af53ee852fbcfe5e7fe10e4a83e31682e95"}
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-14-compose-membership",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-14-compose-membership.tar.gz",
+    "size": 52847,
+    "sha256": "e54d7f40d9f6877fb3532f81ad1ff05f9e594cce89b1633354cb76d341e1cd34",
+    "tar_sha256": "fa1f63ede2b5e5457a7b2ee7b8358d35eabae97e1b27db1a16c759ad3630c568"
+  },
+  "files": [
+    {"path": "arm64-harness-accepted.log.gz", "size": 428, "sha256": "7f53fcd25597d4205c1588a966a137ec97ff577bc62544d7dc43114b9118a163"},
+    {"path": "checks.json", "size": 49587, "sha256": "7df190cb6d0431186eaf442e8cfca62b6934d7decb63c56aa481926237890a5a"},
+    {"path": "clippy-accepted.log.gz", "size": 360, "sha256": "8e98a9837f3cb4307a58c1d338a0cd903adb86c5ff098d4f15386a78ebe7d2e1"},
+    {"path": "compose-focused.log.gz", "size": 1180, "sha256": "023b1ad5b5fd5d9391db99ed55db0c6aeb5e2f2c7f549f6963a37dbcfc55cad8"},
+    {"path": "contracts-accepted.log.gz", "size": 295, "sha256": "85e1078b84478a49aa5a1a51b25653790651bf6b8452c61cd52c41ac42b8ec87"},
+    {"path": "fmt-accepted.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "package-compose-membership.py", "size": 13256, "sha256": "3859500c3d4c88c2c2f15f60919a9f6760e2bf69c6a7bfc76c1f500a32026afa"},
+    {"path": "repository-accepted.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "run-compose-membership-check.py", "size": 9838, "sha256": "04bb16e6762349ab80d0220fdfa744726d0113e7711ee263624fb75898da00e4"},
+    {"path": "source-manifest.json", "size": 37825, "sha256": "32166ee2348a1502c2408244a509c36a5769f5afd61eeead69ef36152e0c75b6"},
+    {"path": "storage-compile-on-disk.log.gz", "size": 255, "sha256": "7d3684ae3708bad9fc945e790eb33c1276d1bb5103080d88bf85d8ca26710df0"},
+    {"path": "storage-fixtures.log.gz", "size": 5260, "sha256": "b6a7489962f8c594cd41f38569dd73ee275d4d7d752aba2fb72b81781a0550f4"},
+    {"path": "test-rest-accepted.log.gz", "size": 14680, "sha256": "ffa4109941899cca31150f2a48a1d9be095b643611edb2ce9d6c95bc16a4244e"}
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-08-library-handoff-integration",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-08-library-handoff-integration.tar.gz",
+    "size": 359807,
+    "sha256": "04af3452a675a69c6d8c9a58744a8d185cd9186affc219b7d8c5f549afc3a91c",
+    "tar_sha256": "6fe7ff802b868031322d1b2eba5b0217ac4f0a3f253a960003d22c9edb43ceb8"
+  },
+  "files": [
+    {"path": "ci-failed-37743977472/ci-amd64.log.gz", "size": 56142, "sha256": "5913030b72425a41dd4dc698e9611f2e0021aa0a69e3f0122c9900c661840f10"},
+    {"path": "ci-failed-37743977472/ci-arm64.log.gz", "size": 53485, "sha256": "ab13e355606a489a32357304f18caaebaa246cb723be6b62d1162e7e77ec94a4"},
+    {"path": "ci-failed-37743977472/ci-complete.json", "size": 34019, "sha256": "86da54da1dfa481ac3084092fa564d313212febee3defd57799aaefb908274fd"},
+    {"path": "ci-failed-37743977472/ci-summary.json", "size": 19842, "sha256": "c40bb4bef5f8742aa373d307da048415559e947d5f9e3c11d0b7d3bb6627c3f5"},
+    {"path": "ci-failed-37743977472/ci-vm.log.gz", "size": 11882, "sha256": "74e44e3bba0eed15a3f3b8720a32901a3add919393f5808acf7b2ba631517fae"},
+    {"path": "ci-failed-37743977472/status-20261008T073244Z.json", "size": 26368, "sha256": "b6f632da620db71e3affca78d8a1cdb6bcfa3972d68b82a6249f72e34092b543"},
+    {"path": "ci-failed-37743977472/status-20261008T073941Z.json", "size": 27228, "sha256": "8c4771aa87aa15d0ff5aa638d13c9643d305eece3e6122458a9017b3eb9d3d69"},
+    {"path": "ci-failed-37743977472/status-20261008T074228Z.json", "size": 28837, "sha256": "7964d0b8cc40328b255c083fe7215c69cd3d039d335fda5b9deaa469fc137a58"},
+    {"path": "ci-failed-37743977472/status-20261008T074522Z.json", "size": 32803, "sha256": "2d261f618466d42b9e516d2737c819b5b79a52d88567d957890a1977d65c366a"},
+    {"path": "ci-failed-37743977472/status-20261008T074910Z.json", "size": 34019, "sha256": "296e82d068fa664cba91081602919c083e92e090b1a7e5e69a63418605e3417b"},
+    {"path": "ci-failed-37743977472/status-20261008T075052Z.json", "size": 34019, "sha256": "86da54da1dfa481ac3084092fa564d313212febee3defd57799aaefb908274fd"},
+    {"path": "ci-passed-37746766303/ci-amd64.log.gz", "size": 55919, "sha256": "1dd2a8c3eb151bf58b72ab1a0931cf448278554410d1d6e04681c1cb75d86a4e"},
+    {"path": "ci-passed-37746766303/ci-arm64.log.gz", "size": 53654, "sha256": "2c7345c3d84e5ec7363a0894dedc7677f0a6b7f08058bdceef90d712c31c6889"},
+    {"path": "ci-passed-37746766303/ci-complete.json", "size": 34021, "sha256": "b97b8383dfe979ad73308994e98625eaaca9ba6ea3ee3d0d0c740f5e4e0d40fb"},
+    {"path": "ci-passed-37746766303/ci-dependencies-vm-result.json", "size": 18844, "sha256": "91ec65fa9115b72b2446fa43a0fb8c78f6fb62e98dee23b65c886c437dfdbd15"},
+    {"path": "ci-passed-37746766303/ci-reference-vm-result.json", "size": 8682, "sha256": "02e85bda2a2b58c3d2b0ec12320fb41918aa427da6258c02ecb4ef160655b77e"},
+    {"path": "ci-passed-37746766303/ci-vm.log.gz", "size": 19113, "sha256": "28dfcf29fec15d4aea457aef3edc808c923613b22e14275006d9fe54c899c349"},
+    {"path": "ci-passed-37746766303/status-20261008T075954Z.json", "size": 26370, "sha256": "bf80e514d586fe529c48d38562394c7eab53f2bdb21fd553ad8c5e26a7e0a28b"},
+    {"path": "ci-passed-37746766303/status-20261008T080739Z.json", "size": 27574, "sha256": "bef28977f4e0fbe711fb8d8685faba845b435c1fc8c19bade21704e2db6a0370"},
+    {"path": "ci-passed-37746766303/status-20261008T081022Z.json", "size": 32805, "sha256": "c3f3ceefc0bb73099d0f572983978cb77f17cb66318a6240fcc3b04d8d528b42"},
+    {"path": "ci-passed-37746766303/status-20261008T123819Z.json", "size": 34021, "sha256": "b97b8383dfe979ad73308994e98625eaaca9ba6ea3ee3d0d0c740f5e4e0d40fb"},
+    {"path": "corrected-source-manifest.json", "size": 71373, "sha256": "9ee1edc1d594819915e2054ef08aca862c94636957980606ffb2db9bb3b19056"},
+    {"path": "logs/deny.txt", "size": 17693, "sha256": "ef86a2003ca7434364ea628317edc122923723f18e63703ad7680fcd647a4821"},
+    {"path": "logs/tests.txt", "size": 41226, "sha256": "ac5fb03685825171d95dabfa8e717e168fb9005d8205167334e7f0a0a74897a2"},
+    {"path": "preserved-handoff-manifests.json", "size": 43598, "sha256": "25d694885f94f8b926bf87ba041de90458f439e7ba55c0b90ea1bf57013a1ec0"},
+    {"path": "source-manifest.json", "size": 70958, "sha256": "d1f63a5cfbc7ac4aff4b6b8809905e9fe9e3eff0b039f55dded3a312aa307abd"}
+  ]
+}

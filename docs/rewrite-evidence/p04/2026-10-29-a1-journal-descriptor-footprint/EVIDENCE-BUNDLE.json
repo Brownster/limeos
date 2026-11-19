@@ -1,0 +1,29 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-29-a1-journal-descriptor-footprint",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-29-a1-journal-descriptor-footprint.tar.gz",
+    "size": 417177,
+    "sha256": "923300da2b4013c35387d50904afede5de4a2b37d2f7f7b31ec46371dd8aff40",
+    "tar_sha256": "43729eac322c436b8765d0d91f3f20556d5396d1f9bae1c7451ff8e47de22128"
+  },
+  "files": [
+    {"path": "checks/a1-journal-descriptor-clippy-2-output.log.gz", "size": 159, "sha256": "e41b4276f79d948b2d76c3c5ec975a6c7e402e3d285c87b041aa51a53a0839ae"},
+    {"path": "checks/a1-journal-descriptor-clippy-2-record.json.gz", "size": 66794, "sha256": "ebca3ed461d80a869ed8f75a2ae786f11ded9214961f1d41e8483b85719fd039"},
+    {"path": "checks/a1-journal-descriptor-format-1-output.log.gz", "size": 360, "sha256": "f42912594a9c21946dad7d6b39bab87da3039463d6a7bdd99ac1309636a57388"},
+    {"path": "checks/a1-journal-descriptor-format-1-record.json.gz", "size": 66749, "sha256": "61a4e26da93c8ab258d25ef9d17fd14a1a87f818759d961b0ae4424d6d7feb8b"},
+    {"path": "checks/a1-journal-descriptor-format-2-output.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "checks/a1-journal-descriptor-format-2-record.json.gz", "size": 66748, "sha256": "6b853ba6e2d6fbfb6713fab31b1bf3f4080f2c946c03fd869b32813045976f20"},
+    {"path": "checks/a1-journal-descriptor-probe-1-output.log.gz", "size": 417, "sha256": "4ea28d1376c090cd5f122d45eee234ccbf160251313b99c9aef5b8a8d38f53bf"},
+    {"path": "checks/a1-journal-descriptor-probe-1-record.json.gz", "size": 66826, "sha256": "73f2f9011df5efad4fba3e529f1c4deba4870d005c08b3a71f1f7c0cc8d3d98e"},
+    {"path": "checks/a1-journal-descriptor-repository-2-output.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "checks/a1-journal-descriptor-repository-2-record.json.gz", "size": 66752, "sha256": "5288fa0075b1fcaee523b4f75dae233596ef4d4cd0c954e66281361d99f94755"},
+    {"path": "checks/a1-journal-descriptor-tests-2-output.log.gz", "size": 790, "sha256": "7bf5f87c0e2c291b91b5d52a9248528a9b8e13148e8057bb25b15427bc97f813"},
+    {"path": "checks/a1-journal-descriptor-tests-2-record.json.gz", "size": 66784, "sha256": "5bfb1c3775049c2a0d5eecd519830a5d9b0cc5abf3450d78ca72e216fd785c40"},
+    {"path": "source-final.rs.gz", "size": 4325, "sha256": "fe2f0ac9b36dccdd01986e91d62594f896f2f144de9e0d8b5293803fffac0b07"},
+    {"path": "source-format-1.rs.gz", "size": 4304, "sha256": "a6a1dbf8deecc5f67df3eddb763ee9c6977ee52b42628fce3a66b928e9b854f1"},
+    {"path": "source-probe-1.rs.gz", "size": 4261, "sha256": "ebd202920f82a3322304bcf2ccc00f699e70efad2bd07f9287a598a189828c91"}
+  ]
+}

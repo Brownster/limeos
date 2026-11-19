@@ -1,0 +1,43 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/rw040-combined-qualification",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-rw040-combined-qualification.tar.gz",
+    "size": 188055,
+    "sha256": "98072d3b797ba88cf9c676bd420c48ec71a4dbaf2f2ab435f0f314021cbd618a",
+    "tar_sha256": "592f547bdb661bbe15327d7f9011de7f37a4970933784e5cab799f5a3ee76921"
+  },
+  "files": [
+    {"path": "attempts/attempt-1/console.log.gz", "size": 19732, "sha256": "20e486c53a4eda758305769d9082ced433b5befecd3dddfe8c800fe0eb52d923"},
+    {"path": "attempts/attempt-1/guest/commands.json", "size": 23978, "sha256": "8738046ce5da9685ab54d592e3ecb42d06603f0566560418d10e379b11f79145"},
+    {"path": "attempts/attempt-1/guest/confinement-equivalence.json", "size": 12596, "sha256": "0740030465565db56052fdb5c006161aa7bfafd5cc5412af205dfdaf14b25448"},
+    {"path": "attempts/attempt-2/console.log.gz", "size": 23779, "sha256": "cebc4cca5258f2d535fab6c6c859910be0407e9e0a62e544729de4c3c317d878"},
+    {"path": "attempts/attempt-2/guest/commands.json", "size": 63659, "sha256": "11cea59d91a5cc0681ac067bb0f85165196f1b5f3a647d68e241f95560c908d7"},
+    {"path": "attempts/attempt-2/guest/confinement-equivalence.json", "size": 12596, "sha256": "0740030465565db56052fdb5c006161aa7bfafd5cc5412af205dfdaf14b25448"},
+    {"path": "attempts/attempt-2/guest/environment/baseline.json", "size": 38414, "sha256": "6734627e983d171dd54f70b5137887f6e91795537471b9b033fb20b28a135c09"},
+    {"path": "attempts/attempt-2/guest/fixtures/layout-applied.json", "size": 13199, "sha256": "add81aa66e4d6ef55c63da19f989aacfca728a13b2067c7c19aa79f46faa96c0"},
+    {"path": "attempts/attempt-2/guest/ground-truth/complete.json", "size": 26883, "sha256": "da0effa0bf4dc567f360bb842658d098d0f8389e46909298d1ac77109bd2a299"},
+    {"path": "attempts/attempt-2/guest/ground-truth/membership-complete.json", "size": 9161, "sha256": "d75fa35719678ba1238ee92d3998cd6f8126b88e4f2ef5727e98d2ba1c16ecbf"},
+    {"path": "attempts/attempt-3/console.log.gz", "size": 25506, "sha256": "af81e65093cd9683371453b75623d5b104d39e21191142dafc98b2bdf2c6a372"},
+    {"path": "attempts/attempt-3/guest/commands.json", "size": 69316, "sha256": "f3ac92c855f0f265dafb311ac3e55645c6121603db75da3926226b1735c1e0ff"},
+    {"path": "attempts/attempt-3/guest/confinement-equivalence.json", "size": 12596, "sha256": "0740030465565db56052fdb5c006161aa7bfafd5cc5412af205dfdaf14b25448"},
+    {"path": "attempts/attempt-3/guest/environment/baseline.json", "size": 81613, "sha256": "30b531edc46638ff5798d22f9317254b7634acb79b14eb6c07058c5255b41f34"},
+    {"path": "attempts/attempt-3/guest/fixtures/layout-applied.json", "size": 13236, "sha256": "2a6084ae5ba2033bfd937720a7051c8ce36b258cf9df785cc49afb47721846b0"},
+    {"path": "attempts/attempt-3/guest/ground-truth/complete.json", "size": 27485, "sha256": "fbb8d3b77033d5fb09c4f71138381626e179b540fd119d3996415e3c9f9bce9f"},
+    {"path": "attempts/attempt-3/guest/ground-truth/membership-complete.json", "size": 9157, "sha256": "d0e914325b3e0d53f76fac5d0a5251ed6e374fd880a970868098afa46b788288"},
+    {"path": "checks-attempt-1/checks.json", "size": 29063, "sha256": "c3551f9a8ee44b071859a745cddb5c7ea2a89c099c5be6c6e0ef794c7515f044"},
+    {"path": "checks-attempt-2/checks.json", "size": 31151, "sha256": "539ead3651c4746f7229c34bcd3b6fd68c29daaf4e76b852724bc250e9f2e70b"},
+    {"path": "guest-run/console.log.gz", "size": 25673, "sha256": "e5edeb34448504da809c2248d1e5cf17c2f9973a6a0d05f6a86878587fa2c188"},
+    {"path": "guest-run/guest/commands.json", "size": 69345, "sha256": "28b2ed72e723d8eaa8b6c473c37b445e87af2f2c1538402df14ee916c96b9fdc"},
+    {"path": "guest-run/guest/confinement-equivalence.json", "size": 12596, "sha256": "0740030465565db56052fdb5c006161aa7bfafd5cc5412af205dfdaf14b25448"},
+    {"path": "guest-run/guest/environment/baseline.json", "size": 81615, "sha256": "00341af2449b85a807de890de4d1e5aad429edb8d04c38e3b4bce3cbad126472"},
+    {"path": "guest-run/guest/fixtures/layout-applied.json", "size": 13235, "sha256": "9252b5f03a245844ef83e0728093f5c68e73868fd9143c48f82b02cd124335fd"},
+    {"path": "guest-run/guest/ground-truth/complete.json", "size": 27488, "sha256": "db7064d12a677619adfc6ad60b75243d843b6f74facfa404316e8086c2bd3ccf"},
+    {"path": "guest-run/guest/ground-truth/membership-complete.json", "size": 9160, "sha256": "40253282d99404cff9322fff8a5b2a052be97126e0854f8cf4d3329d142bf7d6"},
+    {"path": "guest-run/qemu.log", "size": 0, "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    {"path": "logs/checks.json", "size": 33463, "sha256": "c70b9b331f3197c3d0e5a9ed01db735a2248b968247ac57c46a82db2d139855b"},
+    {"path": "summary.json", "size": 31994, "sha256": "8a00f47d11f68361a72b034d879b2d094e94753d6c4ad7d640938cb2b6ec3962"}
+  ]
+}

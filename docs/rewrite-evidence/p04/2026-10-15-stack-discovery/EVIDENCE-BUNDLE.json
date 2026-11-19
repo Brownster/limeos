@@ -1,0 +1,30 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-15-stack-discovery",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-15-stack-discovery.tar.gz",
+    "size": 31244,
+    "sha256": "684d416d2cd0403f7a621e20ae1f847799f90ffd25b17435542576f83c229a4f",
+    "tar_sha256": "5dd59ab6c25a621bc00c7f954908c1f8be8278a924be93d7349e0f2bc04bc9e3"
+  },
+  "files": [
+    {"path": "clippy-final.log.gz", "size": 210, "sha256": "1023c6703e6f93e5c0d9d320b8d48097df114248d872af916ddc9ebd940f12d7"},
+    {"path": "clippy-first.log.gz", "size": 553, "sha256": "fe7f567ec57c31841f96a27691afc4b10ce13b2be7c28618dc55d68041e5fda7"},
+    {"path": "frontend-clock-red.log.gz", "size": 9570, "sha256": "2af10149587199f84e75cfe934b20325791c0b403e9e4b1e682296efa8d010fe"},
+    {"path": "frontend-final.log.gz", "size": 1040, "sha256": "97e7dc92f57ed552c94017e598d0170dae154de2e19bd379716cfc88c470d4a2"},
+    {"path": "frontend-lifecycle-red.log.gz", "size": 5862, "sha256": "d3623f7a6b6a6ab0dcd0d29ff788b71bc973bb75cd1683b2ae93d4f432539dc6"},
+    {"path": "frontend-project-runner.log.gz", "size": 172, "sha256": "baa9670d1c0e42395f14078a16915f58582ae0d400f9a0b7d2d155de8d0fc6cb"},
+    {"path": "harness-Cargo.lock", "size": 31805, "sha256": "9fb0037ae817b625598385fdfea1705312d4201ef6d4bfd4f72be6fe0654f03f"},
+    {"path": "prepare.log.gz", "size": 133, "sha256": "392a9c2a2c2793f39820690da3760d9678a18c9d8c99e265792e2dbac4225434"},
+    {"path": "python-format.log.gz", "size": 45, "sha256": "afdae4b86058000c02acc699088589b28fbfe2ead39a424c4435b13464b2f494"},
+    {"path": "ruff.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "rustfmt.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "test-compile.log.gz", "size": 729, "sha256": "1a8e3a38478699784627c560f0097b211abae790674e30252a0e06471935fa1c"},
+    {"path": "test-final.log.gz", "size": 932, "sha256": "8759a447e230a96d8ab4c7ff7bfd48d1ff22f2017a7314aac20ddfe703f2e1ee"},
+    {"path": "test-first.log.gz", "size": 1104, "sha256": "bd4964a9801129af361d573cd9b5ee17c2fadebc074d93f6f9fd4ed789b09ba8"},
+    {"path": "test-second.log.gz", "size": 807, "sha256": "5902fb9b3c8d1fc5acc980914b07544710d3664ab17e001d5f4346e39027e2ed"},
+    {"path": "typescript-final.log.gz", "size": 72, "sha256": "0cc057d6d6f2810b7ef05090c05c4a62a0daaf6b965e6c90aa76a767e99e49f2"}
+  ]
+}

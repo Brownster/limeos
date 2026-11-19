@@ -1,7 +1,0 @@
-$ /root/limeos-src/scripts/cutover/preflight.sh --out /var/lib/limeos-cutover/refused-stopped --managed-file /root/managed-bad.txt
-snapshot: /var/lib/limeos-cutover/refused-stopped
-WARN: Jellyfin playback could not be checked without credentials (HTTP 000); check the dashboard by hand
-REFUSED: managed container not running: airsonic-advanced
-ERROR: preflight refused; nothing was changed
-
-[exit 1]

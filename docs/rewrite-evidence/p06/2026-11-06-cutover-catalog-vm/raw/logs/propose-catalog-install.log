@@ -1,7 +1,0 @@
-$ /usr/lib/limeos/limeosctl migrate propose-catalog --out /root/management-catalog.second.json --install
-stack media (project media) /opt/stacks/media/compose.yaml services=airsonic-advanced,jellyfin,radarr,sonarr,transmission
-ignored: 2 container(s) without a Compose project, 0 one-off container(s)
-wrote /root/management-catalog.second.json: 1 stack(s) registered, 0 refused.
-installed /etc/limeos/management-catalog.json (root-owned, mode 0644). Start limeos-storage-reader.service to use it.
-
-[exit 0]

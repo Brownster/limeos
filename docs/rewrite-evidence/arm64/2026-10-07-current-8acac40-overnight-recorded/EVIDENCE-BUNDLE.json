@@ -1,0 +1,21 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/arm64/2026-10-07-current-8acac40-overnight-recorded",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-arm64-2026-10-07-current-8acac40-overnight-recorded.tar.gz",
+    "size": 96568,
+    "sha256": "7d2e29520b3bb9ef37511e5e0971adaa922b2b17ba632306c457a311b74df2cf",
+    "tar_sha256": "98ef95adfaa819db33892bae154b4fe3421fd735f9c58fbe6de75f82be6cffd6"
+  },
+  "files": [
+    {"path": "build/build-result.json", "size": 82348, "sha256": "8b6fe1dd64e3e4fedc454cc5a3ddbc630d5218bf5de187d285f56e774f31c50a"},
+    {"path": "build/logs/apt.txt", "size": 24529, "sha256": "ad601fcfc75b9440065a2113b205953cbaa09db4b957979670f278b9ff6ff725"},
+    {"path": "build/logs/test.txt", "size": 32103, "sha256": "7154b29cd4accfbe9d7ef116eeecc71b961c1131dfb3da7c6affa2a8297bc67a"},
+    {"path": "host/preflight.json", "size": 13235, "sha256": "4632e21a5db5b5dd7dc0fa4d4ef87c8d2990f1a1ae32c7eb6369662e5f05b6e8"},
+    {"path": "results/install-result.json", "size": 249751, "sha256": "1212f525a463489bba0e6165d13ad2e242d0a2d58ab8e1c02bdb4f16c87c5f61"},
+    {"path": "results/storage-result.json", "size": 11023, "sha256": "31ff39b6859ccc413e21ee7316aa2880b5910a0648fd94317e4012945e48a566"},
+    {"path": "source-manifest.json", "size": 75370, "sha256": "b0b983754544b3b6560cfbf8957bb3c327f7e5fcff8adce5b4c1efb4a7160ef4"}
+  ]
+}

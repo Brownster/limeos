@@ -1,0 +1,15 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/arm64/2026-11-05-pi-night-prep",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-arm64-2026-11-05-pi-night-prep.tar.gz",
+    "size": 1112,
+    "sha256": "711cb8d355d5704a8c055be57dc5c49efbaacb976ec15320830945d5e3a96a4b",
+    "tar_sha256": "01ba8b81fb96d8dc6458b1d3b6da673e0dc4bf74aca8fef3272ef951fbbb22b3"
+  },
+  "files": [
+    {"path": "inputs/cross-build-output.log.gz", "size": 874, "sha256": "549cd2b248c56c47c9726c8397f956fe73b17a2ddf357ff3bcb6f2b344df8572"}
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/rw043-custody",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-rw043-custody.tar.gz",
+    "size": 25058,
+    "sha256": "3aa3146d6cdf8ae5c37a8956f0475188fbb6afd44a10a81b485f63ed57598419",
+    "tar_sha256": "295c86f326f908f6ec634225ace3d0f565e96ace41d5c24eb0277775e17d2b87"
+  },
+  "files": [
+    {"path": "logs/final/deny.txt", "size": 17765, "sha256": "b82ed924090bb0ebed3663ac2c31bdd144db1f6e715c33813168d5fde37449f1"},
+    {"path": "logs/final/workspace-tests.txt", "size": 39349, "sha256": "2272f0b66e7a4a3cf9acd171c56983abaf7f06b797acafac170ed57761278ba7"},
+    {"path": "logs/mutations-9340277/foreign-entries-allowed.txt", "size": 13397, "sha256": "8c4174b3f74edf3bb62f9c7c3cf32560f04720417b67244ec181a341230ec8b7"},
+    {"path": "logs/mutations-9340277/mutations.json", "size": 8468, "sha256": "990e5052cf6df24f8636a76dcaba4a5948392c461350b5b1e779e5a399c5b03e"},
+    {"path": "logs/mutations-9340277/recover-ignores-policy.txt", "size": 8201, "sha256": "0c6f942cd5c17ce1b4477117f65d3f3eb961f69f3422bc81ab10ce266cdf3b86"},
+    {"path": "logs/mutations/foreign-entries-allowed.txt", "size": 13396, "sha256": "d6cc7c25d84d734be4b54f537d1ffb2dc2c66b491d173f2cb7d1dd3f5a84f2ab"},
+    {"path": "logs/mutations/mutations.json", "size": 8468, "sha256": "38beff6498118861e08b7aa101d346d0696e1d02fee30752ca83c1f61f60636b"},
+    {"path": "logs/mutations/recover-ignores-policy.txt", "size": 8200, "sha256": "e4721b413b362316c281086bce7a4cc2cc4f9a0394beea617df8d005ae3b8dda"},
+    {"path": "peak-memory-raw.json.gz", "size": 3936, "sha256": "114f91b8686bd7272c70fb9383d3cbd50994eef571560dd6c633d177ffbd7641"}
+  ]
+}

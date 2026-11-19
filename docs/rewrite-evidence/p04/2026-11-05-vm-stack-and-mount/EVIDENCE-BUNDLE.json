@@ -1,0 +1,35 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-11-05-vm-stack-and-mount",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-11-05-vm-stack-and-mount.tar.gz",
+    "size": 119885,
+    "sha256": "ce9adf22d49b83113360f298a6c3f41bcd5860eef19ef1095b59eb95bc731383",
+    "tar_sha256": "7814be4c3802977176dad091db8f4806f407574719ae2204bcb45da007294563"
+  },
+  "files": [
+    {"path": "raw/build-output.log.gz", "size": 259, "sha256": "5a80b6ba2c3cf8dc4dde4bb626d9a0e289721286ca71b7e1acc988507b011b48"},
+    {"path": "raw/lifecycle-1-output.log.gz", "size": 946, "sha256": "a6850795fd5de4dcedebf19840c049c8f1a58a229b3a11e4b673a2c8d3b5ae75"},
+    {"path": "raw/mount-1-output.log.gz", "size": 12218, "sha256": "fb2298ebe4da7dfc35f3023e69d70f8aaf3005c9f71faee6c20edc37cbed02ec"},
+    {"path": "raw/mount-2-output.log.gz", "size": 11800, "sha256": "14afba42a34cedded13772cb5d48e2e42a1495c32edf16b7810a1dadd7ef7cf7"},
+    {"path": "raw/mount-3-output.log.gz", "size": 12204, "sha256": "4dfe195483a76e5942c1ba95521021fad21c8b62470f18f186095699d1e83ee9"},
+    {"path": "raw/mount-4-output.log.gz", "size": 11992, "sha256": "3753bc2a387098448d6a91a3d17945d1c534346109f423eb4c2829d3acead11c"},
+    {"path": "raw/mount-5-output.log.gz", "size": 11991, "sha256": "e283696b219d42145aa4b44ffa3d7fad947ed68ab39254aabfd9d77306b223b3"},
+    {"path": "raw/mount-6-output.log.gz", "size": 12826, "sha256": "a5d9244c29eb69af6dc0e8075b304e69105ed611cf33b4610d34f5641cfdd565"},
+    {"path": "raw/mount-7-output.log.gz", "size": 13717, "sha256": "28e0229688a9fcaaac1908931565e7651f43aa7c92288bfad5ea81ccb2a46c68"},
+    {"path": "raw/mount-summary.json", "size": 11098, "sha256": "d0b53c1a576a86ad925bb58bf8143fa1696f9c1d890b0cca8eab336e936e1d6c"},
+    {"path": "raw/stack-1-output.log.gz", "size": 2668, "sha256": "d78b96c885eda6745771b302c093e6c1acdcbbc824da55c0e14bebbb30dbb180"},
+    {"path": "raw/stack-1-result.json", "size": 11415, "sha256": "c6d8b1eed48d72a9f8869c2fff0e500fd1874abeaf1612cceaa576d41c98a6d9"},
+    {"path": "raw/stack-2-output.log.gz", "size": 994, "sha256": "64d3747f930293f6abce07f4ef7e21e48f17855eb2a76c85ed3b41b0d588399f"},
+    {"path": "raw/stack-3-output.log.gz", "size": 996, "sha256": "df727206614d34dc7ca870fa843a86e8a9d820c31f02bd03ec2a3b6bfaf0009b"},
+    {"path": "raw/stack-4-output.log.gz", "size": 995, "sha256": "2e933042eabffa868e7686c6a879d80d3972402f2ccc0a2c55d98bd469edebed"},
+    {"path": "raw/stack-5-output.log.gz", "size": 4963, "sha256": "eb5a4a0f979e6134680e755b317d1669d3e4c19daacd187bff6bbd75c08341d5"},
+    {"path": "raw/stack-5-result.json", "size": 20352, "sha256": "97f646bc65240addf680b8ea84fd99d2bc51e2ba14c68de829b3a98c02d848a2"},
+    {"path": "raw/stack-6-output.log.gz", "size": 4319, "sha256": "4ece0f36e5685924d3dd88fa3e5a8c88f6f286d7522e662ab1df98b2554b90e2"},
+    {"path": "raw/stack-6-result.json", "size": 23599, "sha256": "5563fb2c9537c4dc9a81d1e165c0bf4fae13c4a86fb66ffccc5b47e58da1ad39"},
+    {"path": "raw/stack-7-output.log.gz", "size": 4316, "sha256": "3caa96cf65f20319adbd23c018bafbf308fd1d69aebe79daf6f3e050e7c25802"},
+    {"path": "raw/stack-7-result.json", "size": 23594, "sha256": "5596320aa7cf733f624eedbab0fa7c09eb73f000c1762fa7a79dbeeeba348c66"}
+  ]
+}

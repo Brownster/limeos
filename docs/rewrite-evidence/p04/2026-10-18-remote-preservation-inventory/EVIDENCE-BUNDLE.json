@@ -1,0 +1,28 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-18-remote-preservation-inventory",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-18-remote-preservation-inventory.tar.gz",
+    "size": 21002,
+    "sha256": "f2c58564150700e7e6cdc835f81da319bba7d7c8623d8ca77e6d4e49506a4bda",
+    "tar_sha256": "c9b129d4e09488329442b99fae17d72c70e788f57cbd3d60e525ae132ad484f2"
+  },
+  "files": [
+    {"path": "anchors.json", "size": 27509, "sha256": "34cd9c7906b7283492263b2af6f98f2444b3b891b5bcf89865e62869da7793de"},
+    {"path": "audit-final.log.gz", "size": 94, "sha256": "eb42c2caf79964ccccd834c0765f181dff5978f629ca50548578cd6dfe6c48eb"},
+    {"path": "audit-first.log.gz", "size": 93, "sha256": "47f56132ec2e5810812d19ed4b7a8cea0e84a383991dd873172766730a66eca1"},
+    {"path": "audit-packet.log.gz", "size": 94, "sha256": "eb42c2caf79964ccccd834c0765f181dff5978f629ca50548578cd6dfe6c48eb"},
+    {"path": "audit-reference.py", "size": 14141, "sha256": "159f01e99a14d674a715999dd66f2be452afb170a3b14748c8e94f981cb67191"},
+    {"path": "audit-reproduction.log.gz", "size": 94, "sha256": "eb42c2caf79964ccccd834c0765f181dff5978f629ca50548578cd6dfe6c48eb"},
+    {"path": "format-final.log.gz", "size": 42, "sha256": "6502d5ac12a0c41fefcf1c11b4daf47afd638876208f8a8bd551cfc5caea8587"},
+    {"path": "format-packet.log.gz", "size": 39, "sha256": "2283aea2b330488a006d79106f5f562181af4f1fab820fd23ed7f19cf203d3f9"},
+    {"path": "format.log.gz", "size": 39, "sha256": "2283aea2b330488a006d79106f5f562181af4f1fab820fd23ed7f19cf203d3f9"},
+    {"path": "inventory.json", "size": 28463, "sha256": "fa69d41378d8eb30814e01e40355aab64029c01937b6da7552ce8bdb76425173"},
+    {"path": "ruff-final.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "ruff-packet.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "ruff.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "source-extraction.json", "size": 14235, "sha256": "89ac5a13ded727480d60d5eb60d45ed4159268891e802357cdf38b1ef2313c87"}
+  ]
+}

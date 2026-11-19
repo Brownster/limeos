@@ -1,0 +1,28 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/arm64/2026-10-13-native-ci-af94f19-inputs",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-arm64-2026-10-13-native-ci-af94f19-inputs.tar.gz",
+    "size": 194139,
+    "sha256": "17e4d6c69e46feaddac2a914a5119fa2d72840a5490b7e664651567557474489",
+    "tar_sha256": "e5f2cb2ea67d377df99d4f68438c7ba47d2f0166d312a66b285db1b7a6ac64fb"
+  },
+  "files": [
+    {"path": "build/build-result.json", "size": 453584, "sha256": "da27cdd0efe29639f029ff01845a43a976aee16a7c7e76dfd14d92f3f8c2dc0c"},
+    {"path": "build/ci/run.json", "size": 13515, "sha256": "4781a2f43e8d0d244e1ccab2b518e99ec9076660457ae3319ee47d26a41df5e1"},
+    {"path": "preparation/previous-repo/dists/stable/main/binary-amd64/Packages.gz", "size": 20, "sha256": "59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2"},
+    {"path": "preparation/previous-repo/dists/stable/main/binary-arm64/Packages.gz", "size": 512, "sha256": "871e2abd279cdb6f23deee4afbd38d8d52ad3b8fd65bb1402c97ee414b20da05"},
+    {"path": "preparation/repo/dists/stable/main/binary-amd64/Packages.gz", "size": 20, "sha256": "59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2"},
+    {"path": "preparation/repo/dists/stable/main/binary-arm64/Packages.gz", "size": 708, "sha256": "0d0bb9f375f4a81f7024def0aa5be0892bbf57d19205bb87b09511b71ca6637d"},
+    {"path": "preparation/signing.log.gz", "size": 281, "sha256": "d7558f96b085f2d6384b6c87d8d17e4a09d39e24eedc1d6f83c7f6f7c7081470"},
+    {"path": "source-manifest.json", "size": 275153, "sha256": "fad3172e4b187a27cbf7c60f57af298559a21ef53422b6b186d9296ac1f17798"},
+    {"path": "validation/broad-probe/debian-python311-harness.log.gz", "size": 418, "sha256": "f8d107701c83c148d9840eb65b1cbadbe57e6a6b225278ebfb4eff243eabbb77"},
+    {"path": "validation/broad-probe/ruff-check.log.gz", "size": 450, "sha256": "2f63f8653edbee65540141e9760c3c95fcfac2e1a7592d342437f248a7691d91"},
+    {"path": "validation/scoped/offline-build-validation.log.gz", "size": 350, "sha256": "38cf05953241d3a1c2c1036be9eaf8ba53b9e7f79d71b015a93971255b391517"},
+    {"path": "validation/scoped/repository-hygiene.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "validation/scoped/ruff-check.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "validation/scoped/ruff-format.log.gz", "size": 46, "sha256": "1555138f16fdad6e80ea2757bcf718bab24f7a930ed5b14c9f6ebe45f3afad5a"}
+  ]
+}

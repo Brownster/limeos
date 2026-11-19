@@ -1,0 +1,29 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-17-a1-layout-lifetime",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-17-a1-layout-lifetime.tar.gz",
+    "size": 66990,
+    "sha256": "972e6d57f4afb5f655ff7c0d4be9f9452c398971ef3f4b501733383ea78059db",
+    "tar_sha256": "4e3541fe54c454b01cbe6bc54551564d5bcea3cb4f1f20f4c891f74a4c5f6113"
+  },
+  "files": [
+    {"path": "check-frontend.py.gz", "size": 625, "sha256": "39e9de66b209acb72c538c3404f1fb7b1dfa12da1aa1d42068604972e9f95ba8"},
+    {"path": "frontend-api.mjs.log.gz", "size": 493, "sha256": "97f03e9a9aea08794ea8624b0604f4d564b3e6ab658e4f3aee36982d5dcc8418"},
+    {"path": "frontend-automation-controller.test.mjs.log.gz", "size": 898, "sha256": "416f79845979974bc5f9390cdc033dff87ec3f4ba536fda20f75da232d7dc363"},
+    {"path": "frontend-automation.test.mjs.log.gz", "size": 636, "sha256": "7e058b7b7646ae7446ca63e9ac28aa8f97678031315f1b148e36a31fb274acfc"},
+    {"path": "frontend-media-activity-client.test.mjs.log.gz", "size": 1791, "sha256": "2c1b806c109451acd4dd246d0b96f8024a09818e8324828ce635b8242910b30b"},
+    {"path": "frontend-media-activity.test.mjs.log.gz", "size": 645, "sha256": "bea2850661b7c4e13a16192b4a382dddd9dbf641ab09861f9ab1f43239d9bff7"},
+    {"path": "frontend-observations.test.mjs.log.gz", "size": 469, "sha256": "87de8820dd44c58b44f3faa0f782fd2d0a896c56109a0ee1842e4cb0ec520625"},
+    {"path": "frontend-results.json.gz", "size": 215, "sha256": "d76dbde7aec0ce01f49531234d56536f3d086b60c2d063f865342633d88d52f1"},
+    {"path": "frontend-stack-discovery.test.mjs.log.gz", "size": 1037, "sha256": "51f368b66643845a9406f2593865b5f0c594d6a5a80d935c8387776861afbd15"},
+    {"path": "frontend-storage-mount-lifecycle.test.mjs.log.gz", "size": 1895, "sha256": "7139e497ec17233ac505e91a73845eea25152d74e0de24e351c9dd1ef88c582f"},
+    {"path": "frontend-summary.log.gz", "size": 200, "sha256": "77dc36a2a9e1acedabc4679e79017958f01f0d6afcd1aba68e702aba1da0b9f6"},
+    {"path": "layout-frontend-summary.log.gz", "size": 200, "sha256": "77dc36a2a9e1acedabc4679e79017958f01f0d6afcd1aba68e702aba1da0b9f6"},
+    {"path": "layout-production-build.log.gz", "size": 292, "sha256": "3f7654cd3a25f5dc4b6447c245e869df13f059cbbfd7e4056f4bf2568346d237"},
+    {"path": "package-layout.py.gz", "size": 1362, "sha256": "30ddd87208c7a2325912f9efa96f99c24b5167ca96840da35db84c1e7f62849a"},
+    {"path": "production-ui/assets/index-CoQNGoxD.js", "size": 174520, "sha256": "0b9d70e623aa31b9354d7b464334e227528f8d18bf8925808a8367747777815e"}
+  ]
+}

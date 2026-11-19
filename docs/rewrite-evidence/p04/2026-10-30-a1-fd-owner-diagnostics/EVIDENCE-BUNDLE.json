@@ -1,0 +1,33 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-30-a1-fd-owner-diagnostics",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-30-a1-fd-owner-diagnostics.tar.gz",
+    "size": 569550,
+    "sha256": "322a69a94edccb346664cbe795c71fc19346143748d7d7d04c42c22a60a5cb5d",
+    "tar_sha256": "a616c42e9872ccd15d6ae2bca7f7d98a6545b089eee985c1c1a63ce655165b7a"
+  },
+  "files": [
+    {"path": "checks/a1-fd-change-clippy-1-output.log.gz", "size": 171, "sha256": "99fa94aae5e0ead0782f66f349f3d7f382ce35e0b308c7f74466484e88a8bc20"},
+    {"path": "checks/a1-fd-change-clippy-1-record.json.gz", "size": 66813, "sha256": "35aaa170c0006029792da2ae35be885499bb717647c4f719fd45cb8017a0f9f3"},
+    {"path": "checks/a1-fd-change-compile-1-output.log.gz", "size": 6316, "sha256": "9c01d25ce759683cff23afb0cfecec42048b1cbcef8048b97bef52e7482e7b66"},
+    {"path": "checks/a1-fd-change-compile-1-record.json.gz", "size": 66811, "sha256": "c7fcaf96d4be58a1bad4c5abcc53c7b645921af67154e50850e3648333fcfedb"},
+    {"path": "checks/a1-fd-change-doctests-1-output.log.gz", "size": 512, "sha256": "ac86f38ae81ec502605439de309fb5af86afe87619e39ad99e2283c94cfb2530"},
+    {"path": "checks/a1-fd-change-doctests-1-record.json.gz", "size": 66781, "sha256": "947c4962abc8d6729eb0291a79061c64b7cb5b84aa27149a16575e209bdb0fe2"},
+    {"path": "checks/a1-fd-change-focused-1-output.log.gz", "size": 1434, "sha256": "be735cd7f2b4653510769f29a75899a12022765e23034bfc1a95fc0c4caaf18f"},
+    {"path": "checks/a1-fd-change-focused-1-record.json.gz", "size": 66808, "sha256": "f5e668b052a2e90f84e480e5937eca26eabe7d75e3c6b6eab13762899bae9522"},
+    {"path": "checks/a1-fd-change-format-1-output.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "checks/a1-fd-change-format-1-record.json.gz", "size": 66763, "sha256": "52fb472616c771e30b58f94a6ea938697cd666970fd9e168dcd9e05424035ff7"},
+    {"path": "checks/a1-fd-change-repository-1-output.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "checks/a1-fd-change-repository-1-record.json.gz", "size": 66764, "sha256": "aa74207e04fead29a0707cc55e610383f0c4ec4d436bf4934305398bd1bd5c7e"},
+    {"path": "checks/a1-fd-change-runtime-1-output.log.gz", "size": 425, "sha256": "49b6ff1e643b2ea43536e88cf829e7091b74052b8fc41927b81de87437ec467d"},
+    {"path": "checks/a1-fd-change-runtime-1-record.json.gz", "size": 66778, "sha256": "64f0041d9b81ba3dbc34c08b077ced5b51274276ff24c84c8e7fb598c13bdc4d"},
+    {"path": "kernel-runtime.json.gz", "size": 430, "sha256": "2ee2974e972618a0d391dc54e21695d4a2e26f75d587eb255dba0d04bc1d1948"},
+    {"path": "kernel-runtime.log.gz", "size": 6598, "sha256": "e34f0fc1585ba6d205e8860c81a93c0fcf3a337b80be4cff7d41e4edd93e2da4"},
+    {"path": "procedure/format-apply-output.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "procedure/format-apply-record.json.gz", "size": 66752, "sha256": "77404b7b139ebbe17ecd3ac53b3a801b411a16465a9d14214a42396f28df20ee"},
+    {"path": "reproduction-sources.tar.gz", "size": 16245, "sha256": "163b50c017782990108e461a5c3692392f9b613fe2b3b411974bc521fc721826"}
+  ]
+}

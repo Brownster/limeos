@@ -1,0 +1,30 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/rw040-engine-process-evidence",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-rw040-engine-process-evidence.tar.gz",
+    "size": 205897,
+    "sha256": "75687eaa2b13111514725f400ead3cfdfe3adbe88801089a7626d75c5a33af20",
+    "tar_sha256": "99fbcb4bb9ccdb929dc68490a6060fc00d2e047ff6b31824dc14119f27377e21"
+  },
+  "files": [
+    {"path": "ci/ci-amd64.log.gz", "size": 54413, "sha256": "407c95616625cffaf681e3ec31057c215399fb51af2b1c55b91aeba0780ca992"},
+    {"path": "ci/ci-arm64.log.gz", "size": 51592, "sha256": "6fa8b55a3d440debd9ee957676ad51dcbef37bb0d9b42def5e01fa0729cfd995"},
+    {"path": "ci/ci-complete.json", "size": 34306, "sha256": "35e20dc10c45df8b16efa529163b384e62ecaed7345525862488dc973d65f3a4"},
+    {"path": "ci/ci-dependencies-vm-result.json", "size": 18845, "sha256": "f7a1803cb8c49dca7490dde07066d07b25c1242e9ea35bea8195b0b63b00341f"},
+    {"path": "ci/ci-reference-vm-result.json", "size": 8682, "sha256": "6cca1098d36efb00b26051691f5c812ad07a2aa83ab5bc54c6b2304faf86708a"},
+    {"path": "ci/ci-summary.json", "size": 26566, "sha256": "43cd0b15c2ac47b5f8945684927de1e2d84e96399382b9d734b6285842f0cf15"},
+    {"path": "ci/ci-vm.log.gz", "size": 19109, "sha256": "b6d512cf2f41c1f3d2ba013f1045c5f898c488fcc850d5b999133970f27e4147"},
+    {"path": "ci/status-20261007T202601Z.json", "size": 33090, "sha256": "9f54b654385a19561a0bea5d1d17c0b907eb728d1373876cd7ecfc16f06dc36c"},
+    {"path": "ci/status-20261007T202712Z.json", "size": 33090, "sha256": "8eabc5d3f86d4aef5d5f3754d98892437d4ad98addfae94b1c5dd3bd04576ddc"},
+    {"path": "ci/status-20261007T202734Z.json", "size": 33090, "sha256": "320d9534dd6b0e881a3539e5493875f08c8a1cabecf59cc113573e828f343bac"},
+    {"path": "ci/status-20261008T072127Z.json", "size": 34306, "sha256": "35e20dc10c45df8b16efa529163b384e62ecaed7345525862488dc973d65f3a4"},
+    {"path": "logs/deny.txt", "size": 17634, "sha256": "b3a413364c9a1b1adbf2406d7b4d6001d90ae6c4d3181a7faf39da2d6416a5b1"},
+    {"path": "logs/workspace-tests-tool-output.txt", "size": 34901, "sha256": "608c50b61ab2b5145a8fd802b22c1cd00a25d47dc49d3ff6bffe890151803ca6"},
+    {"path": "logs/workspace-tests.txt", "size": 34900, "sha256": "ce3beda63789422d8e35db2128ed08efcc62460baadc83d61def1e317e6d7f74"},
+    {"path": "preserved-proof-manifest.json", "size": 46442, "sha256": "4025c7e7157019ac884b322232c47705e94caface84997f7624b121d6eb9007e"},
+    {"path": "source-manifest.json", "size": 67368, "sha256": "5a267a832386757822fa2adb558ab2839033b7957b258ced112c6d353a3ab1f7"}
+  ]
+}
