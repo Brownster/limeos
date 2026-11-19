@@ -177,34 +177,56 @@ def undeclared_access(source):
                 return True
             return any(taints(child) for child in ast.iter_child_nodes(node))
 
-        assignments = []
+        # Walk bindings and calls in evaluation order, so a later binding
+        # replaces what a name was before.
+        enclosing = {}
+        for node in ast.walk(function):
+            if isinstance(
+                node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+            ):
+                for generator in node.generators:
+                    enclosing[id(generator)] = node
+        events = []
         for node in ast.walk(function):
             if isinstance(node, ast.Assign):
-                assignments.append((node.targets, node.value))
-            elif isinstance(node, (ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
-                if node.value is not None:
-                    assignments.append(([node.target], node.value))
-            elif isinstance(node, (ast.For, ast.comprehension)):
-                assignments.append(([node.target], node.iter))
-        changed = True
-        while changed:
-            changed = False
-            for targets, value in assignments:
+                end = (node.end_lineno, node.end_col_offset)
+                events.append((end, 1, ("bind", node.targets, node.value, False)))
+            elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)) and node.value:
+                end = (node.end_lineno, node.end_col_offset)
+                events.append((end, 1, ("bind", [node.target], node.value, False)))
+            elif isinstance(node, ast.AugAssign):
+                end = (node.end_lineno, node.end_col_offset)
+                events.append((end, 1, ("bind", [node.target], node.value, True)))
+            elif isinstance(node, ast.For):
+                end = (node.iter.end_lineno, node.iter.end_col_offset)
+                events.append((end, 1, ("bind", [node.target], node.iter, False)))
+            elif isinstance(node, ast.comprehension):
+                owner = enclosing[id(node)]
+                start = (owner.lineno, owner.col_offset)
+                events.append((start, 0, ("bind", [node.target], node.iter, False)))
+            elif isinstance(node, ast.Call):
+                events.append(((node.lineno, node.col_offset), 2, ("call", node)))
+        for _position, _order, event in sorted(events, key=lambda e: (e[0], e[1])):
+            if event[0] == "bind":
+                _, targets, value, augmented = event
                 names = [name for target in targets for name in bound(target)]
                 if (
                     isinstance(value, ast.Call) and dotted(value.func) in DECLARATIONS
                 ) or is_declared(value):
-                    new = set(names) - declared
-                    declared |= new
-                elif taints(value):
-                    new = set(names) - tainted
-                    tainted |= new
+                    status = "declared"
+                elif taints(value) or (augmented and any(n in tainted for n in names)):
+                    status = "tainted"
                 else:
-                    new = set()
-                changed = changed or bool(new)
-        for call in ast.walk(function):
-            if not isinstance(call, ast.Call):
+                    status = "clean"
+                for name in names:
+                    tainted.discard(name)
+                    declared.discard(name)
+                    if status == "tainted":
+                        tainted.add(name)
+                    elif status == "declared":
+                        declared.add(name)
                 continue
+            call = event[1]
             callee = dotted(call.func) or ""
             if callee.split(".")[-1] in DECLARATIONS | {"add_argument"}:
                 continue
@@ -285,6 +307,29 @@ class RecorderInputTests(unittest.TestCase):
                 mutated = compose.replace(anchor, anchor + code)
                 self.assertNotEqual(mutated, compose)
                 self.assertTrue(undeclared_access(mutated), label)
+
+    def test_a_reassigned_name_loses_its_declared_status(self):
+        compose = (ROOT / "tests/privileged_vm/record_compose_evidence.py").read_text()
+        anchor = "    directory = args.output.parent\n"
+        code = (
+            '    archived = inputs["vm"]\n'
+            '    archived: Path = directory / "qualified-source-sha256.json"\n'
+            "    archived.read_text()\n"
+        )
+        anchor = '    vm_path = inputs["vm"]\n'
+        mutated = compose.replace(anchor, anchor + code)
+        self.assertNotEqual(mutated, compose)
+        found = undeclared_access(mutated)
+        self.assertEqual(len(found), 1, found)
+        self.assertIn("archived.read_text()", found[0])
+        redeclared = compose.replace(
+            anchor,
+            anchor
+            + '    archived = directory / "x.json"\n'
+            + '    archived = inputs["vm"]\n'
+            + "    archived.read_text()\n",
+        )
+        self.assertEqual(undeclared_access(redeclared), [])
 
     def test_recorder_files_are_tracked_and_pinned(self):
         files = set(tracked(str(bundles.EVIDENCE)))

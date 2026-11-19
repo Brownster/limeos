@@ -656,6 +656,95 @@ class RollbackTests(Tree):
         self.assertEqual(self.leftovers(), [])
 
 
+class InterruptTests(Tree):
+    def test_an_interrupted_restore_reports_what_it_could_not_undo(self):
+        self.build()
+        original_unlink = os.unlink
+        original_write = bundles.write_file
+        calls = []
+
+        def stubborn_unlink(path, *args, **kwargs):
+            if path == "guest.log":
+                raise PermissionError("simulated unlink failure")
+            return original_unlink(path, *args, **kwargs)
+
+        def interrupted(*args):
+            calls.append(args[1])
+            if len(calls) == 3:
+                raise KeyboardInterrupt
+            return original_write(*args)
+
+        with (
+            patch.object(bundles.os, "unlink", stubborn_unlink),
+            patch.object(bundles, "write_file", interrupted),
+        ):
+            code, _out, err = self.restore()
+        self.assertNotEqual(code, 0)
+        self.assertIn("KeyboardInterrupt", err)
+        self.assertIn("not undone", err)
+        self.assertIn("logs/guest.log", err)
+        self.assertFalse((self.root / RUN / "deep/nested/checks.json").exists())
+
+
+class PartialBuildTests(Tree):
+    def partial(self):
+        return self.out / (bundles.bundle_name(RUN) + ".partial")
+
+    def test_an_existing_partial_stops_the_build_untouched(self):
+        self.out.mkdir()
+        self.partial().write_bytes(b"someone's file")
+        before = snapshot(self.root)
+        code, _out, err = self.cli(
+            "build", "--release", "t", "--out", str(self.out), str(self.root / RUN)
+        )
+        self.assertEqual(code, 1)
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        self.assertIn(self.partial().name, err)
+        self.assertEqual(self.partial().read_bytes(), b"someone's file")
+        self.assertEqual(snapshot(self.root), before)
+
+    def test_a_symlinked_partial_is_never_followed(self):
+        self.out.mkdir()
+        target = self.outside / "victim"
+        target.write_bytes(b"keep")
+        self.partial().symlink_to(target)
+        code, _out, err = self.cli(
+            "build", "--release", "t", "--out", str(self.out), str(self.root / RUN)
+        )
+        self.assertEqual(code, 1)
+        self.assertIn(self.partial().name, err)
+        self.assertEqual(target.read_bytes(), b"keep")
+
+    def test_a_failed_check_removes_only_our_own_partial(self):
+        original = bundles.read_bundle
+
+        def failing(manifest, path):
+            if str(path).endswith(".partial"):
+                raise bundles.EvidenceError("simulated verification failure")
+            return original(manifest, path)
+
+        with patch.object(bundles, "read_bundle", failing):
+            code, _out, _err = self.cli(
+                "build", "--release", "t", "--out", str(self.out), str(self.root / RUN)
+            )
+        self.assertEqual(code, 1)
+        self.assertFalse(self.partial().exists())
+
+        def swapping(manifest, path):
+            if str(path).endswith(".partial"):
+                Path(path).unlink()
+                Path(path).write_bytes(b"replaced meanwhile")
+                raise bundles.EvidenceError("simulated verification failure")
+            return original(manifest, path)
+
+        with patch.object(bundles, "read_bundle", swapping):
+            code, _out, _err = self.cli(
+                "build", "--release", "t", "--out", str(self.out), str(self.root / RUN)
+            )
+        self.assertEqual(code, 1)
+        self.assertEqual(self.partial().read_bytes(), b"replaced meanwhile")
+
+
 class LockTests(Tree):
     def test_a_second_build_or_restore_waits_for_nobody(self):
         import fcntl

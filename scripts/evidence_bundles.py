@@ -434,12 +434,29 @@ def build(root, units, out, release, remove=True):
         if target.exists() and target.read_bytes() != compressed:
             raise EvidenceError(f"{target} exists with different content")
         partial = out / (name + ".partial")
-        partial.write_bytes(compressed)
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
         try:
+            handle = os.open(partial, flags, 0o644)
+        except FileExistsError:
+            raise EvidenceError(
+                f"{partial} already exists, probably from an interrupted build; "
+                "inspect or delete it, then run build again"
+            ) from None
+        status = os.fstat(handle)
+        identity = (status.st_dev, status.st_ino)
+        try:
+            with os.fdopen(handle, "wb") as stream:
+                stream.write(compressed)
             read_bundle(manifest, partial)
             os.replace(partial, target)
-        finally:
-            partial.unlink(missing_ok=True)
+        except BaseException:
+            try:
+                current = os.stat(partial, follow_symlinks=False)
+                if (current.st_dev, current.st_ino) == identity:
+                    partial.unlink()
+            except FileNotFoundError:
+                pass
+            raise
         read_bundle(manifest, target)
         built.append((unit, raw, manifest))
     for unit, raw, manifest in built:
@@ -826,13 +843,11 @@ def restore_all(root, manifest_paths, bundles, force=False):
                 records.append(
                     write_file(root, name, data, mode, state == "differs", created_dirs)
                 )
-    except (OSError, EvidenceError) as error:
+    except BaseException as error:  # noqa: BLE001 - reported as EvidenceError
         failures = undo(root, records, created_dirs)
         note = f"; not undone: {failures}" if failures else ""
-        raise EvidenceError(f"{error}; restore undone{note}") from None
-    except BaseException:
-        undo(root, records, created_dirs)
-        raise
+        reason = str(error) or type(error).__name__
+        raise EvidenceError(f"{reason}; restore undone{note}") from None
     failures = drop_backups(root, records)
     if failures:
         raise EvidenceError(f"restored, but these backups remain: {failures}")
