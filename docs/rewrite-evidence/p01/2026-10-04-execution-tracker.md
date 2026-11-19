@@ -17,7 +17,7 @@ Executor protocols permit health only. P01 contains no host/container mutation o
 
 ## Tested build
 
-- Implementation snapshot: `d98e4726a8791dfe4152e68969323fc4826185aa`; source digest `49f45a0e658dd173836f9e2f52216068d9753ce42836fa61939932d1a484609a`. See [build provenance](build-provenance.json) for per-file, per-binary and package SHA256 values
+- Implementation snapshot: `d98e4726a8791dfe4152e68969323fc4826185aa`; source digest `49f45a0e658dd173836f9e2f52216068d9753ce42836fa61939932d1a484609a`. See [build provenance](EVIDENCE-BUNDLE.json "bundled: build-provenance.json") for per-file, per-binary and package SHA256 values
 - Debian fixtures: 0.1.0/0.1.1 for amd64 and arm64; both versions intentionally use authority schema 1. Upgrade/downgrade evidence does not promise future schema rollback
 - Native release build: x86-64 Debian 12 with Rust 1.88.0. ARM64: Debian cross sysroot plus a successful QEMU-user CLI smoke test. Native ARM64 execution remains to be qualified
 - Signing fingerprint `5046FB0972B8DF0DCD7A225B54D35B8B21AE1BF1` is a disposable test key; `gpgv` verified InRelease. No production key or repository was published

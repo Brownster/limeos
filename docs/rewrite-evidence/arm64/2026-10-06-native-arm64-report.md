@@ -47,7 +47,7 @@ Two regression tests reproduced the defect in the other opens on the same native
 
 ### Installed behaviour
 
-A clean guest installed `limeos 0.4.2 arm64` from the signed repository. 20 checks ran ([result](2026-10-06-frozen-589cf9a/install/install-result.json)); all passed after one harness rerun:
+A clean guest installed `limeos 0.4.2 arm64` from the signed repository. 20 checks ran ([result](2026-10-06-frozen-589cf9a/EVIDENCE-BUNDLE.json "bundled: install/install-result.json")); all passed after one harness rerun:
 
 - **Package identity:** `dpkg --verify` is clean; the installed binaries match the native build's hashes, and the repository packages match the build. The first attempt failed only because the harness called `readelf`, which a clean guest lacks. The fixed harness reads the ELF header directly and [passed in the same installed guest](2026-10-06-frozen-589cf9a/install/identity-rerun.json).
 - **Units:** `limeos-core`, `limeos-containerd` and `limeos-storaged` are enabled and running. `limeos-storage-reader` and `limeos-storage-ready` are static and start on demand.
@@ -73,7 +73,7 @@ A clean guest installed `limeos 0.4.2 arm64` from the signed repository. 20 chec
 
 ### Measurements against the architecture budgets
 
-The workload was 18 running containers (a static busybox fixture on Debian `docker.io` 20.10.24), one authenticated user, and either no subscribers or 3 open dashboard streams. Raw values: [`install-result.json`](2026-10-06-frozen-589cf9a/install/install-result.json); computed table: [`budgets.json`](2026-10-06-frozen-589cf9a/budgets.json).
+The workload was 18 running containers (a static busybox fixture on Debian `docker.io` 20.10.24), one authenticated user, and either no subscribers or 3 open dashboard streams. Raw values: [`install-result.json`](2026-10-06-frozen-589cf9a/EVIDENCE-BUNDLE.json "bundled: install/install-result.json"); computed table: [`budgets.json`](2026-10-06-frozen-589cf9a/budgets.json).
 
 | Measurement | Measured | Budget | Within |
 |---|---|---|---|

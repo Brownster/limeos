@@ -6,7 +6,7 @@
 | Worktree | `/home/marc/Documents/github/lime-os-rw040-confinement` |
 | Base | `2fd74209e1238c1374837ab431ef670020726dc2`; its full CI, [run 37746766303](https://github.com/Brownster/limeos/actions/runs/37746766303), succeeded on that exact SHA before work began |
 | Guest qualification run | `20261008T165447Z-7f86e022` at harness commit `0358017`, clean tree |
-| Recorded checks | [logs/checks.json](logs/checks.json) at `7ef5894` |
+| Recorded checks | [logs/checks.json](EVIDENCE-BUNDLE.json "bundled: logs/checks.json") at `7ef5894` |
 | Brief | `docs/plans/2026-10-08-engineer-rw040-confinement-qualification.md`, on main after this base |
 
 **No P04 gate closes, and no RW-040 library result is claimed.** The base has no
@@ -51,14 +51,14 @@ All 14 guest stages passed. Their durations:
 | selfcheck | 3.2 |
 | everything else | under 1 each |
 
-[summarize.py](summarize.py) derives [summary.json](summary.json) mechanically from
+[summarize.py](summarize.py) derives [summary.json](EVIDENCE-BUNDLE.json "bundled: summary.json") mechanically from
 the raw output in [guest-run/](guest-run/), and the summary reproduces exactly.
 
 ## Results that are qualified here
 
 | Evidence | Result |
 |---|---|
-| **Confinement reproduction** | A transient unit carrying the installed unit's 21 non-lifecycle `[Service]` settings equals the installed `limeos-storage-reader.service` on all 62 compared `systemctl show` properties: 23 derived from the unit's settings and 40 sandbox defaults, with `CapabilityBoundingSet` in both ([equivalence](guest-run/guest/confinement-equivalence.json)). Nothing is granted or raised. |
+| **Confinement reproduction** | A transient unit carrying the installed unit's 21 non-lifecycle `[Service]` settings equals the installed `limeos-storage-reader.service` on all 62 compared `systemctl show` properties: 23 derived from the unit's settings and 40 sandbox defaults, with `CapabilityBoundingSet` in both ([equivalence](EVIDENCE-BUNDLE.json "bundled: guest-run/guest/confinement-equivalence.json")). Nothing is granted or raised. |
 | **Ceilings enforced** (harness self-check, not a probe) | Descriptors: 253 opened beside 3 inherited, stopping at 256 with EMFILE; the sampler peak was 256, against 303 unrestricted. Tasks: 15 threads plus the main thread (`TasksMax=16`), against 24. Memory: OOM-killed with the cgroup at exactly 67,108,864 bytes after touching 56 MiB, against 96 MiB unrestricted. Each transient unit was inactive afterwards ([self-check](guest-run/guest/selfcheck/ceilings.json)). |
 | **Engine endpoint facts** | `/var/run` is a symlink to `/run`. The canonical `/run/docker.sock` is `root:docker 0660`, socket-activated by `docker.socket`. **`SO_PEERCRED` reports PID 1 (systemd)**, not `dockerd` (PID 964), so peer credentials identify the activating listener, not the daemon. Without symlink resolution, `openat2` of `/var/run` gives ELOOP. |
 | **Membership ground truth** | Empty membership, then 14 consumers with 12 running: bind, alias, symlink, file, named-volume, tmpfs, swappable-device, mountless, cross-UID, nondumpable and transition consumers, plus stopped bind and mountless consumers. Captured from the Engine API, `/proc`, `findmnt`, `lsblk` and `blkid` ([ground truth](guest-run/guest/ground-truth/)). |
@@ -144,7 +144,7 @@ files differed. Their console logs are gzipped.
 
 ## Checks
 
-At `7ef5894` ([logs](logs/), [checks.json](logs/checks.json)), all passed:
+At `7ef5894` ([logs](logs/), [checks.json](EVIDENCE-BUNDLE.json "bundled: logs/checks.json")), all passed:
 - 17 harness tests, with `ResourceWarning` treated as an error
 - Ruff lint and format on the harness and evidence scripts
 - `scripts/check_repository.py`

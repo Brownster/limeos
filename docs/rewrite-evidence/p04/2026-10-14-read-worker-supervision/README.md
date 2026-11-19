@@ -15,7 +15,7 @@ The 17 new cases and focused rerun are already in that total. Workspace tests us
 the opt-in `limeos-executor/read-worker-probe` feature; the fixture binary is
 disabled by default and absent from the packaging executable list.
 **61 local ARM64 harness tests pass**, plus strict all-target Clippy, fmt,
-contract and repository checks. [checks.json](checks.json) binds final-source
+contract and repository checks. [checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") binds final-source
 commands, environments, runtime hashes and lossless transcripts. Documentation
 edits during validation changed no runtime source.
 
@@ -57,7 +57,7 @@ lower-bound peaks of 69045 bytes and 4 files, not exact maxima.
 No Pi, SSH, Docker, raw block probe or guest launch was used. Reserved backup work
 and external qualification paths stayed untouched.
 
-[source-manifest.json](source-manifest.json) binds 316 source,
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 316 source,
 fixture, contract and script files. Fixed-timestamp gzip preserves complete merged
 stdout/stderr bytes with raw/compressed hashes. [artifact-sha256.json](artifact-sha256.json)
 binds the packet. Reproduce with fresh disk logs using the retained helpers;

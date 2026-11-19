@@ -25,7 +25,7 @@ copy and broader UI/health coverage remain open. It does not close B1 or P04.
   Acknowledgment and pause each used one successful UI POST. Both persisted after
   a second actual Core crash and page reload, with exact durable history preserved.
 
-[Installed result](installed-result.json) contains the independently read SQLite
+[Installed result](EVIDENCE-BUNDLE.json "bundled: installed-result.json") contains the independently read SQLite
 snapshots, resource/unit observations, notification identities and sanitized
 method/path/status records. Final counts are one paused schedule at revision two,
 two occurrences, two succeeded observation jobs/results, one clear alert and two
@@ -61,7 +61,7 @@ SSH keys, passwords, cookies and browser profiles are excluded. Credentials were
 freshly generated, used through the actual console enrollment/browser flow, and
 never included in result data or raw network logs. Both attempts' 34-module guest
 copies and unchanged canonical runner are available in
-[reproduction sources](reproduction-sources.tar.gz).
+[reproduction sources](EVIDENCE-BUNDLE.json "bundled: reproduction-sources.tar.gz").
 
 The first installed attempt, fixture `692d92d`, failed before installation because
 the guest root cgroup has no `memory.events` file. Its original logs and bounded
@@ -92,7 +92,7 @@ reader observations and limits are in the result.
 
 Original live wrapper/runner/QEMU identities were captured for both VMs; the
 second observation preceded QEMU startup, and the third captured its actual PID
-and start ticks. [Cleanup](observations/cleanup-final.json.gz) confirms all
+and start ticks. [Cleanup](EVIDENCE-BUNDLE.json "bundled: observations/cleanup-final.json.gz") confirms all
 **16 unique recorded native qualification PIDs absent** and both exact owned
 temporary VM directories removed. No unrelated process was stopped. No Pi,
 production service, external delivery or publication was involved.

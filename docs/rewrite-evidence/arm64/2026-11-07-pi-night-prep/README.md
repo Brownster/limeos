@@ -11,7 +11,7 @@ key label (`night 2026-11-07`) and a 30-day key lifetime (`30d`, was `7d`).
 | --- | --- |
 | Runtime source and fixtures | `3dc51cabc2b3b3de0704369a3745e72a145e820f` (main), authority schema 16 (was 15) |
 | Package version | `0.4.17+arm64.1` |
-| Build | `build_arm64_binaries.py 3dc51ca`: offline `cargo build --offline --locked --release --target aarch64-unknown-linux-gnu`, image `sha256:af684f63…5ba5`, `CARGO_BUILD_JOBS=4`, exit 0. [Record](inputs/cross-build-record.json), [log](inputs/cross-build-output.log.gz) |
+| Build | `build_arm64_binaries.py 3dc51ca`: offline `cargo build --offline --locked --release --target aarch64-unknown-linux-gnu`, image `sha256:af684f63…5ba5`, `CARGO_BUILD_JOBS=4`, exit 0. [Record](inputs/cross-build-record.json), [log](EVIDENCE-BUNDLE.json "bundled: inputs/cross-build-output.log.gz") |
 | Bundle | `make_bundle.py --cross-build --commit 3dc51ca --fixtures-commit 3dc51ca --package-version 0.4.17+arm64.1 --authority-schema 16`; frontend `npm ci --ignore-scripts`, `npm test`, `npm run build` all exit 0 ([steps](inputs/frontend-steps.json)) |
 | `source.tar.gz` | `782126733d6640bdcd165e5cb52367514a46ffb5b5f707da5914b5a0c378dc8f` (57,712,845 bytes) |
 | `source-manifest.json` | `df4afd37e46dd7dfaf7412062641eb960224e00eba4a5c7efb4f616a7f6fd14b` |

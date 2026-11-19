@@ -12,7 +12,7 @@ and [the interface guide](../../../p04-container-destination-evidence.md).
 **589 Rust cases pass:** 576 unit/integration cases and 13 compile-fail
 doctests. The 27 new focused cases are already included. **61 local ARM64
 harness tests pass.** All-target strict Clippy, fmt, generated contracts and
-repository checks pass. [checks.json](checks.json) binds every command,
+repository checks pass. [checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") binds every command,
 environment, runtime, source hash and original/compressed transcript hash.
 
 Local proof uses real scratch descriptors for confined cached O_PATH resolution,
@@ -33,7 +33,7 @@ workstation storage probe was used, and the separate backup recovery worktree
 stayed untouched. The earlier signed ARM64 candidate contains neither this owner
 nor the subsequently integrated configuration/graph libraries.
 
-[source-manifest.json](source-manifest.json) binds 300 source,
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 300 source,
 fixture, contract and script files to the qualified commit. Lossless gzip retains
 every raw stdout/stderr byte, with a fixed timestamp and both raw/compressed
 SHA-256 values. [artifact-sha256.json](artifact-sha256.json) binds the evidence

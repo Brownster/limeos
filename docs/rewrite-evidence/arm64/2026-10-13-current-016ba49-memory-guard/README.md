@@ -34,8 +34,8 @@ command. The operator corrected the address and separately approved the reviewed
 QEMU prerequisites, then allowed retaining them dormant for future testing.
 [Authorization and decision records](inputs/authorization-pi45.json) preserve
 that scope. The package delta is exactly 41 additions and zero changes to the
-717 preexisting entries. [Before](inputs/preparation-before.json),
-[after](inputs/preparation-after.json) and [install transcript](inputs/preparation-install.txt.gz)
+717 preexisting entries. [Before](EVIDENCE-BUNDLE.json "bundled: inputs/preparation-before.json"),
+[after](EVIDENCE-BUNDLE.json "bundled: inputs/preparation-after.json") and [install transcript](EVIDENCE-BUNDLE.json "bundled: inputs/preparation-install.txt.gz")
 retain the actual simulation, package versions and manual selections. The image
 matches Debian's downloaded [SHA512SUMS](inputs/debian-SHA512SUMS), including the
 same SHA-512 rechecked on the host before boot.
@@ -48,7 +48,7 @@ UIDs and kernel start ticks were retained. At 23:55:00 BST it sent SIGTERM; the
 guest exited approximately 33 ms later. Both owner and child disappeared, and
 the unrelated frozen application's PID/start ticks were unchanged. SIGKILL was
 not needed. [Proof](inputs/deadline-proof-result.json) and
-[supervisor log](deadline-proof/supervisor.log.gz) establish the current native
+[supervisor log](EVIDENCE-BUNDLE.json "bundled: deadline-proof/supervisor.log.gz") establish the current native
 deadline path independently of the historical run and local mocks.
 
 | Attempt | Guest allocation | Reached | Stop and post-stop health |
@@ -94,12 +94,12 @@ Any new host dispatch requires its own authorized window.
 
 The successful native-run recorder was deliberately not used: its complete-build
 prerequisite did not pass. Private SSH keys, seed images and guest login material
-are excluded from this packet. [Evidence hashes](evidence-sha256.json) cover every
+are excluded from this packet. [Evidence hashes](EVIDENCE-BUNDLE.json "bundled: evidence-sha256.json") cover every
 packet file except the hash index itself.
 
 Raw text/console transcripts use lossless gzip with mtime zero, preserving
 terminal CR/LF, ANSI escapes and every trailing byte. The
-[compression record](raw-transcript-compression.json) binds each original and
+[compression record](EVIDENCE-BUNDLE.json "bundled: raw-transcript-compression.json") binds each original and
 compressed SHA-256 and verifies exact decompression. Paths in captured original
 records refer to uncompressed names; their stored counterparts have `.gz` added.
 
@@ -122,7 +122,7 @@ The existing CI labels `0.4.4` and `0.4.4+ci.1` are older than the genuine previ
 Fresh standard/shadow **`0.4.8+arm64.3`** packages were assembled locally with the
 frozen `af94f19` builder and unchanged native CI ELFs/UI. Controls, generated
 contracts and every packaged ELF hash were verified. Neither original CI
-packages nor the genuine previous package changed. The [candidate provenance](next-inputs/candidate/candidate-provenance.json)
+packages nor the genuine previous package changed. The [candidate provenance](EVIDENCE-BUNDLE.json "bundled: next-inputs/candidate/candidate-provenance.json")
 records actual CI compilation separately from local packaging and pending guest
 qualification. Packages remain on disk under
 `.cache/arm64-qual/integrated-2026-10-12/ci-candidate-0.4.8-arm64.3/`.

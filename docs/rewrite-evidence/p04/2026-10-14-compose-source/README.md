@@ -12,7 +12,7 @@ The 23 new cases and focused rerun are already in that total. Full workspace
 checks enable the existing opt-in local worker fixture feature.
 **61 local ARM64 harness tests and six independent offline parser cases pass**,
 with strict feature all-target Clippy, fmt, contracts and repository checks.
-[checks.json](checks.json) binds commands, environments, source hashes and complete
+[checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") binds commands, environments, source hashes and complete
 merged stdout/stderr. Accepted source stays unchanged through documentation edits.
 
 21 unit cases cover compiler artifacts and actual operator bytes, scalar defaults/
@@ -38,7 +38,7 @@ single managed-service removal, host mode and scalar updates preserving sequence
 Rust verifies each artifact against the compiler and source combination. The
 independent standalone parser runs only `version`/`config`; actual canonical JSON,
 commands, version output/stderr, fixed environment and binary hashes are lossless
-in [compose-conformance-accepted.log.gz](compose-conformance-accepted.log.gz).
+in [compose-conformance-accepted.log.gz](EVIDENCE-BUNDLE.json "bundled: compose-conformance-accepted.log.gz").
 
 The observed AMD64 parser is version 5.3.0, SHA256
 `4727d85c084b042897384b58f65e767fb5d2e98a4783acc6380f544a59c68b32`. The same hash is checked before and after each case.
@@ -78,7 +78,7 @@ backup or external qualification path was used. Guards remain 256 FDs/64 MiB/zer
 swap/16 tasks. Historical inventory p95 61.401 ms still exceeds 20 ms; no P04/defect/
 installed/resource/performance/cutover gate closes.
 
-[source-manifest.json](source-manifest.json) binds 346 source/fixture/
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 346 source/fixture/
 contract/script files. Fixed-timestamp gzip retains every check log byte with raw/
 compressed hashes; [artifact-sha256.json](artifact-sha256.json) binds the packet.
 Reproduce against the qualified source using retained helpers and fresh work/log/

@@ -12,7 +12,7 @@ and [the library guide](../../../p04-storage-configuration-evidence.md).
 doctests. The 24 focused configuration tests are already included in that total.
 The four existing layouts feed the existing graph goldens. All-target strict
 Clippy, fmt, generated contracts and repository checks pass. **61 ARM64 harness
-tests pass locally.** [checks.json](checks.json) retains every command, runtime,
+tests pass locally.** [checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") retains every command, runtime,
 environment, source hash and original/compressed transcript hash.
 
 Compilation, Cargo/UV caches, logs and general scratch stayed on disk. Existing
@@ -21,7 +21,7 @@ directory that was removed after execution. Its sampled peak was
 12020 bytes in 8 files. This exception preserves existing
 filesystem guards; it does not put build outputs or caches on tmpfs.
 
-[source-manifest.json](source-manifest.json) binds 298 source,
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 298 source,
 fixture, contract and script files to the qualified commit. Logs use lossless
 gzip with a fixed timestamp; decompress them to recover the exact combined
 stdout/stderr bytes. The [precommit diagnostic](diagnostics/README.md) records the

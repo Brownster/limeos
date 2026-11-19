@@ -30,11 +30,11 @@ Run from the repository root on the workstation (x86-64, Rust 1.88.0):
 |---|---|
 | `cargo fmt --all -- --check` | Pass |
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | Pass |
-| `cargo test --workspace --locked --no-fail-fast` | Pass: 30 targets, 214 tests, 0 failures ([transcript](workspace-tests.txt)) |
+| `cargo test --workspace --locked --no-fail-fast` | Pass: 30 targets, 214 tests, 0 failures ([transcript](EVIDENCE-BUNDLE.json "bundled: workspace-tests.txt")) |
 | `cargo test --locked -p limeos-backup-archive -p limeos-domain -- --test-threads=1` | 70 named tests pass: 10 new domain admission tests among the domain crate's 51, plus 3 unit and 16 integration inspector tests ([transcript](crate-tests.txt)) |
 | `python3 scripts/check_repository.py` | Pass, with `backup-archive` registered as depending only on `domain` |
 | `python3 scripts/check_contracts.py` | Pass; generated contracts unchanged |
-| `cargo deny check` (0.20.2) | `advisories ok, bans ok, licenses ok, sources ok`. Three duplicate-version warnings (`base64`, `getrandom`, `syn`) predate this branch ([output](cargo-deny.txt)) |
+| `cargo deny check` (0.20.2) | `advisories ok, bans ok, licenses ok, sources ok`. Three duplicate-version warnings (`base64`, `getrandom`, `syn`) predate this branch ([output](EVIDENCE-BUNDLE.json "bundled: cargo-deny.txt")) |
 | `cargo audit` (0.22.2) | No vulnerabilities in 227 crates, against 1,290 advisories ([output](cargo-audit.txt)) |
 | `uvx --from shellcheck-py shellcheck tests/fixtures/backup-archives/generate.sh` | Pass |
 | `tests/fixtures/backup-archives/generate.sh`, run twice | Byte-identical output. Tools: GNU tar 1.35, zstd 1.5.7, gzip 1.13 ([`TOOLS`](../../../../tests/fixtures/backup-archives/TOOLS), [`SHA256SUMS`](../../../../tests/fixtures/backup-archives/SHA256SUMS)) |

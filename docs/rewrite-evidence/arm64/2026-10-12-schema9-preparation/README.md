@@ -26,7 +26,7 @@ included in these harness changes.
 | Verified files | 1,647 runtime source, 39 fixture, 3 frontend dist |
 | Shared upgrade fixture SHA-256 | `016ff3c25119f79b4eba3c95651ca63d56aa7f96c69a90bd57523fcc739d6893` |
 
-[Manifest](guarded/source-manifest.json),
+[Manifest](EVIDENCE-BUNDLE.json "bundled: guarded/source-manifest.json"),
 [bundle verification](guarded/bundle-verification.json) and
 [frontend commands](guarded/frontend-logs/steps.json) bind the frozen source and
 separate committed fixtures. `npm ci --ignore-scripts`, frontend tests (2 files),

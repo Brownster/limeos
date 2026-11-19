@@ -43,11 +43,11 @@ The first ARM64 compile exposed missing target C headers because the minimal cro
 
 Raw evidence:
 
-- [Pi 5 measurements, startup samples and 601 memory/CPU/I/O samples](2026-10-04-rw005-pi5-live.json).
+- [Pi 5 measurements, startup samples and 601 memory/CPU/I/O samples](EVIDENCE-BUNDLE.json "bundled: 2026-10-04-rw005-pi5-live.json").
 - [Build provenance, compiler image digests, source hashes, dependency versions and commands](2026-10-04-rw005-build-provenance.json).
 - [Both Debian binary checksums](2026-10-04-rw005-debian-binary-checksums.txt).
 - [Python service and checkout snapshot before](2026-10-04-rw005-wybie-before.txt) and [after](2026-10-04-rw005-wybie-after.txt), byte-for-byte equal. All eight service PIDs and activation times are unchanged.
-- [x86-64 fixture validation](2026-10-04-rw005-x86_64-fixture.json): 4.53 MiB PSS, 2.8–5.4 ms readiness, 30-second idle window. This used a fixture and intentionally did not qualify the Pi gate.
+- [x86-64 fixture validation](EVIDENCE-BUNDLE.json "bundled: 2026-10-04-rw005-x86_64-fixture.json"): 4.53 MiB PSS, 2.8–5.4 ms readiness, 30-second idle window. This used a fixture and intentionally did not qualify the Pi gate.
 
 The local frozen source checkout still reports only the pre-existing untracked `Docs/LIMEOS_ROLLOUT_RECOVERY_TICKETS.md`. No files there were changed.
 

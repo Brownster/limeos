@@ -29,16 +29,16 @@ for the API, failure semantics and integration obligations.
 
 | Frozen-source check | Result and raw output |
 |---|---|
-| `cargo fmt --all -- --check` | [Pass](logs/fmt-final.log) |
-| Strict workspace/all-target clippy, locked/offline | [Pass](logs/clippy-final.log) |
-| Workspace tests, locked/offline | [320 unit/integration + 2 compile-fail tests pass](logs/workspace-tests-final.log); 29 new process unit tests |
-| `cargo deny --locked --offline check` | [Pass](logs/deny-cached-corrected.log); three existing duplicate warnings: base64, getrandom, syn |
-| `cargo audit --no-fetch --no-yanked --db /tmp/limeos-advisory-db` | [Pass](logs/audit-cached.log), cached scope; live yanked-package checks excluded |
-| `python3 scripts/check_repository.py` | [Pass](logs/repository-final.log) |
-| `python3 scripts/check_contracts.py` | [Pass](logs/contracts-final.log); generated contracts match |
-| `git diff --check` against assigned base | [Pass](logs/diff-final.log) |
-| Isolated maximum-row allocation test | [Pass](logs/resource-frozen-source.log) |
-| Actual 64-child FD retention and Drop | [Pass](logs/real-fds-frozen-source.log) |
+| `cargo fmt --all -- --check` | [Pass](EVIDENCE-BUNDLE.json "bundled: logs/fmt-final.log") |
+| Strict workspace/all-target clippy, locked/offline | [Pass](EVIDENCE-BUNDLE.json "bundled: logs/clippy-final.log") |
+| Workspace tests, locked/offline | [320 unit/integration + 2 compile-fail tests pass](EVIDENCE-BUNDLE.json "bundled: logs/workspace-tests-final.log"); 29 new process unit tests |
+| `cargo deny --locked --offline check` | [Pass](EVIDENCE-BUNDLE.json "bundled: logs/deny-cached-corrected.log"); three existing duplicate warnings: base64, getrandom, syn |
+| `cargo audit --no-fetch --no-yanked --db /tmp/limeos-advisory-db` | [Pass](EVIDENCE-BUNDLE.json "bundled: logs/audit-cached.log"), cached scope; live yanked-package checks excluded |
+| `python3 scripts/check_repository.py` | [Pass](EVIDENCE-BUNDLE.json "bundled: logs/repository-final.log") |
+| `python3 scripts/check_contracts.py` | [Pass](EVIDENCE-BUNDLE.json "bundled: logs/contracts-final.log"); generated contracts match |
+| `git diff --check` against assigned base | [Pass](EVIDENCE-BUNDLE.json "bundled: logs/diff-final.log") |
+| Isolated maximum-row allocation test | [Pass](EVIDENCE-BUNDLE.json "bundled: logs/resource-frozen-source.log") |
+| Actual 64-child FD retention and Drop | [Pass](EVIDENCE-BUNDLE.json "bundled: logs/real-fds-frozen-source.log") |
 
 Each listed check has adjacent JSON metadata binding its command, working
 directory, elapsed time, exit code, raw output hash and frozen source/fixture
@@ -50,7 +50,7 @@ The directory's `.gitattributes` exempts only `logs/*.log` from whitespace
 diagnostics so original tool padding/newlines are preserved. Source and
 documentation retain normal whitespace checks. The pre-exemption failure is
 retained in `logs/diff-raw-output-failed.log`.
-The full handoff check also [passes](logs/diff-handoff-final.log); its metadata
+The full handoff check also [passes](EVIDENCE-BUNDLE.json "bundled: logs/diff-handoff-final.log"); its metadata
 identifies the documentation parent and the same frozen source hashes.
 
 ```text
@@ -115,28 +115,28 @@ independent worker deadline/single-flight limit still matter. These library
 measurements do not sign off P00 inventory footprint or latency.
 
 Retained failures are deliberate review evidence. Pre-freeze attempts are not
-qualified as the final source. [The initial 23/24 result](logs/targeted-initial-failed.log)
+qualified as the final source. [The initial 23/24 result](EVIDENCE-BUNDLE.json "bundled: logs/targeted-initial-failed.log")
 was transferred from the tool stream and has no separately measured timing or
 source hash. Later attempts have raw outputs plus command/time metadata:
 
-- [Host diagnosis](logs/real-host-diagnostic.log) isolated denied PID-1 namespace
+- [Host diagnosis](EVIDENCE-BUNDLE.json "bundled: logs/real-host-diagnostic.log") isolated denied PID-1 namespace
   access; production retained the refusal and local tests explicitly substituted
   host authentication only.
-- [Btrfs diagnosis](logs/real-root-device-diagnostic.log) recorded root device
+- [Btrfs diagnosis](EVIDENCE-BUNDLE.json "bundled: logs/real-root-device-diagnostic.log") recorded root device
   `0:39` versus mount-row `0:35` with matching mount ID 43.
-  [The failing fixture](logs/btrfs-regression-before-fix.log) precedes removing
+  [The failing fixture](EVIDENCE-BUNDLE.json "bundled: logs/btrfs-regression-before-fix.log") precedes removing
   the invalid device-number equality requirement.
-- [Volatile proc link counts](logs/host-volatile-link-diagnostic.log) changed
+- [Volatile proc link counts](EVIDENCE-BUNDLE.json "bundled: logs/host-volatile-link-diagnostic.log") changed
   from 489 to 493 while owned children started. Identity now compares stable
   device/inode/mount/mode, with nonzero links checked live. A real scratch
   directory regression confirms link-count changes and detached refusal.
-- [The metadata attempt](logs/targeted-stable-identities.log) exposed a test's
+- [The metadata attempt](EVIDENCE-BUNDLE.json "bundled: logs/targeted-stable-identities.log") exposed a test's
   incorrect assumption that maximum numeric fields alone overflow 48 KiB.
   Tests now preserve those fields and separately reject amplified serialization.
-- [Clippy](logs/clippy-initial.log) rejected a manual range expression;
-  [the deny invocation](logs/deny-cached.log) rejected an unsupported flag.
+- [Clippy](EVIDENCE-BUNDLE.json "bundled: logs/clippy-initial.log") rejected a manual range expression;
+  [the deny invocation](EVIDENCE-BUNDLE.json "bundled: logs/deny-cached.log") rejected an unsupported flag.
   Both corrected checks pass with raw outputs retained.
-- [Artifact capture](logs/artifact-capture-failed.log) rejected an over-escaped
+- [Artifact capture](EVIDENCE-BUNDLE.json "bundled: logs/artifact-capture-failed.log") rejected an over-escaped
   path-extraction expression. Corrected capture binds 19 compiled test artifacts;
   this packaging attempt has no independently recorded duration.
 

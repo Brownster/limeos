@@ -42,7 +42,7 @@ or guard was changed to accommodate the filesystem. The check metadata records
 the sampled fixture peak and successful cleanup; it is not a universal memory
 bound. Compiler concurrency stays at one, Rust test concurrency at two.
 
-The [source manifest](source-manifest.json) verifies every recorded Rust source,
+The [source manifest](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") verifies every recorded Rust source,
 manifest/lockfile, test fixture, generated contract and check script against the
 qualified Git commit. It also verifies 21 frozen reference source hashes against
 pi-health `80593b29443ea9b81eb60ed4e5c3c3ac7a236204` using Git objects only.

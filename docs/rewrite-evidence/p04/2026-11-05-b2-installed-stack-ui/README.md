@@ -18,8 +18,8 @@ review; its capture also clips part of the Stack heading.
 | Shadow payload, not installed here | SHA-256 `17de12f85d42ec36f7761789535e6e647be1cb01ee63dc6ec94bba28d3d193b5` |
 | Canonical VM | Unchanged runner, 1,024 MiB, two vCPUs |
 
-[Source joins](source-match.json), [package inputs](package-inputs.json.gz) and
-[original build record](original-build-record.json.gz) retain distinct provenance.
+[Source joins](source-match.json), [package inputs](EVIDENCE-BUNDLE.json "bundled: package-inputs.json.gz") and
+[original build record](EVIDENCE-BUNDLE.json "bundled: original-build-record.json.gz") retain distinct provenance.
 Only two existing test files differ between the package and final fixture; three
 test files were added. All other package inputs and the installed executable/UI
 bytes match. No production Rust, schema, contract, UI, policy or unit changed in
@@ -34,7 +34,7 @@ CDP document rectangles rather than Selenium's viewport-clipped element capture.
 
 ## Covered installed behavior
 
-Four checkpoint groups pass in [the installed result](installed-result.json):
+Four checkpoint groups pass in [the installed result](EVIDENCE-BUNDLE.json "bundled: installed-result.json"):
 
 1. All eight protected registrations appear in the actual API and UI with a
    genuinely empty Engine. A registered empty stack remains visible.
@@ -85,11 +85,11 @@ mobile visual acceptance. No production UI correction is included here.
 
 | Capture | Dimensions | Review |
 | --- | --- | --- |
-| [Empty](screenshots/empty-desktop.png) | 1045 × 288 | Empty registration, zero counts, file-inspection notice |
-| [Mixed](screenshots/mixed-desktop.png) | 1045 × 769 | Partial ordinary service and distinct running one-off; full member identities |
-| [Maximum](screenshots/maximum-desktop.png) | 1045 × 2331 | Sixteen declared services, missing-service count and member details |
-| [Refused](screenshots/refused-desktop.png) | 1045 × 1971 | Unknown current counts and previous-observation labels |
-| [Narrow maximum](screenshots/maximum-mobile.png) | 335 × 2903 | Width check passes; readability and heading capture remain open |
+| [Empty](EVIDENCE-BUNDLE.json "bundled: screenshots/empty-desktop.png") | 1045 × 288 | Empty registration, zero counts, file-inspection notice |
+| [Mixed](EVIDENCE-BUNDLE.json "bundled: screenshots/mixed-desktop.png") | 1045 × 769 | Partial ordinary service and distinct running one-off; full member identities |
+| [Maximum](EVIDENCE-BUNDLE.json "bundled: screenshots/maximum-desktop.png") | 1045 × 2331 | Sixteen declared services, missing-service count and member details |
+| [Refused](EVIDENCE-BUNDLE.json "bundled: screenshots/refused-desktop.png") | 1045 × 1971 | Unknown current counts and previous-observation labels |
+| [Narrow maximum](EVIDENCE-BUNDLE.json "bundled: screenshots/maximum-mobile.png") | 335 × 2903 | Width check passes; readability and heading capture remain open |
 
 ## Attempts, failure and cleanup
 
@@ -115,7 +115,7 @@ VM admission required 4.5 GiB. Work and scratch stayed on repository disk.
 The delayed cleanup record at 19:26:56 is separate from the 17:13:29 run end;
 the intervening pause is not VM execution time.
 
-[Cleanup](observations/cleanup-2.json.gz) confirms all ten recorded original
+[Cleanup](EVIDENCE-BUNDLE.json "bundled: observations/cleanup-2.json.gz") confirms all ten recorded original
 native PIDs are absent and both exact owned VM scratch directories are removed.
 No unrelated process was stopped. Holly's Pi, the frozen application and the
 Python checkout were untouched.
@@ -129,7 +129,7 @@ return rehearsal remain open. Historical performance evidence is not replaced
 by this run. P05's minimal assistant and P06's migration/return rehearsal remain
 required for full cutover.
 
-[Frozen sources](reproduction-sources.tar.gz) contain both 36-module guest
+[Frozen sources](EVIDENCE-BUNDLE.json "bundled: reproduction-sources.tar.gz") contain both 36-module guest
 cohorts, the exact runner, launch/admission/guard/observation helpers and reference
 source. Original guarded records/logs are in `checks/`; inputs, failure, original
 base64-bearing result and cleanup observations are in `observations/`. Public

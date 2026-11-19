@@ -55,7 +55,7 @@ catalog reads and observed discard. Input is deterministic synthetic data.
 Each result includes the archive/payload digest and source/binary/policy hashes;
 the example rejects a reader size/hash mismatch. The complete stdout/stderr,
 exit codes, commands and cleanup observations are preserved in
-[compressed raw samples](peak-memory-raw.json.gz); [summary](peak-memory.json)
+[compressed raw samples](EVIDENCE-BUNDLE.json "bundled: peak-memory-raw.json.gz"); [summary](peak-memory.json)
 includes their artifact hash. The example binary is 894,376 bytes on this host.
 
 | Fixture | Payload/files | Peak RSS (KiB, min–max) |

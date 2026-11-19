@@ -29,7 +29,7 @@ Cargo group; the focused checks are not added to the workspace total.
 Eight final guards (`rust-1`, `core-2`, `integration-3`, `clippy-1`, `contracts-1`,
 `frontend-1`, `browser-2`, `sanity-1`) share identical before/after maps covering
 738 committed inputs. Current worktree bytes match the qualified commit.
-[Source-match metadata](source-match.json) records exact commands, Cargo groups,
+[Source-match metadata](EVIDENCE-BUNDLE.json "bundled: source-match.json") records exact commands, Cargo groups,
 all fifteen attempts and differences in earlier input maps.
 
 Two failed fixtures are retained. `focused-1` attempted to alter an immutable

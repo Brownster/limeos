@@ -10,7 +10,7 @@ lifecycle/catalog/file/source/Engine owners and exact candidate bytes. See the
 The 18 new cases and 16-case focused rerun are already included. Full workspace
 acceptance enables the existing opt-in local worker fixture feature. **61 local
 ARM64 harness tests and six existing pinned offline parser cases pass**, with strict
-all-target feature Clippy, fmt, contracts and repository checks. [checks.json](checks.json)
+all-target feature Clippy, fmt, contracts and repository checks. [checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json")
 binds exact committed before/after source hashes, commands, environments and full logs.
 
 Sixteen new unit cases cover exact canonical before/desired/impact/operator/stack/
@@ -71,7 +71,7 @@ production Docker, raw block probe, guest, reserved backup or external qualifica
 path was used. Guards stay 256 FDs/64 MiB/zero swap/16 tasks. Historical inventory p95
 61.401 ms still exceeds the 20 ms target.
 
-[source-manifest.json](source-manifest.json) binds 355 source/fixture/
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 355 source/fixture/
 contract/script files. Fixed-timestamp gzip preserves every log byte, with raw and
 compressed hashes; [artifact-sha256.json](artifact-sha256.json) binds this packet.
 Reproduce with retained helpers and fresh work/log/output paths, compiling storage

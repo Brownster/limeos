@@ -31,7 +31,7 @@ records an unavailable operation; it does not prove that operation works.
 | Complete | Storage inventory | U0 | Success | Verified; accepted |
 | Complete | Storage inventory | B0 | Success | Verified; accepted |
 
-[standalone-summary.json](standalone-summary.json) contains the exact ten rows,
+[standalone-summary.json](../EVIDENCE-BUNDLE.json "bundled: local-u0-b0/standalone-summary.json") contains the exact ten rows,
 raw-output identities, original delivery ages, samples and closure observations.
 The successful Engine results retain their original `observed_at`; final delivery
 arrived within five seconds. The actual library refusals expose `unavailable`.
@@ -61,7 +61,7 @@ serial/QEMU logs, so their contents are unavailable. A redirected escalation
 request was interrupted after 201.2 seconds without an execution result or owned
 retry state. It is an approval wait, not an executed guest. The direct escalated
 retry produced attempt 02. Original metadata, stderr and runner output are kept
-under `raw/`; [raw-identities.json](raw-identities.json) records original and
+under `raw/`; [raw-identities.json](../EVIDENCE-BUNDLE.json "bundled: local-u0-b0/raw-identities.json") records original and
 retained byte hashes, including any gzip encoding.
 
 Only U0/B0 ran. Diagnostic policy variants stayed deferred. No production unit,

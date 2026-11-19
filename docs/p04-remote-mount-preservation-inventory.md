@@ -8,12 +8,12 @@ evidence, with no remote Rust operation, import, credential authority or install
 qualification. All 30 rows remain unimplemented/unqualified; no retirement is
 accepted. Deployed usage/configuration has not been collected here.
 
-The [matrix](rewrite-evidence/p04/2026-10-18-remote-preservation-inventory/inventory.json)
+The [matrix](rewrite-evidence/p04/2026-10-18-remote-preservation-inventory/EVIDENCE-BUNDLE.json "bundled: inventory.json")
 records intent, observed frozen behavior, proposed replacement, source anchors
 and required acceptance for every row. Its
 [coverage](rewrite-evidence/p04/2026-10-18-remote-preservation-inventory/coverage.md)
 maps all 56 selected public methods, helper commands and API handlers through 81
-anchors. The [extraction](rewrite-evidence/p04/2026-10-18-remote-preservation-inventory/source-extraction.json)
+anchors. The [extraction](rewrite-evidence/p04/2026-10-18-remote-preservation-inventory/EVIDENCE-BUNDLE.json "bundled: source-extraction.json")
 contains the exact literal schemas, declared defaults, saved-field expressions,
 helper dispatch and route declarations. These are static facts, not proof of
 actual effects, authorization, complete deployed inventory or recovery.

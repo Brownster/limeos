@@ -56,27 +56,27 @@ The already documented Core file-bit-filter exception remains explicit.
 
 ## Original and corrected captures
 
-The [first result](installed-result.json) passes status and geometry checks, but
+The [first result](EVIDENCE-BUNDLE.json "bundled: installed-result.json") passes status and geometry checks, but
 WebDriver's element screenshot clips tall targets to the visible viewport.
 Those original five PNGs, result, source map and harness archive are preserved
 unchanged; they are not credited as complete panel evidence.
 
-The [follow-up result](full-panel-followup/installed-result.json) uses bounded
+The [follow-up result](EVIDENCE-BUNDLE.json "bundled: full-panel-followup/installed-result.json") uses bounded
 Chromium document-rectangle capture, verifies requested target dimensions against
 PNG dimensions, and captures both horizontal edges of the narrow notification
 table. Its six original PNGs were visually inspected:
 
-- [Policy](full-panel-followup/screenshots/policy-desktop.png) shows the corrected
+- [Policy](EVIDENCE-BUNDLE.json "bundled: full-panel-followup/screenshots/policy-desktop.png") shows the corrected
   partial-coverage notice and save confirmation, threshold one and current controls.
-- [Incident](full-panel-followup/screenshots/incident-desktop.png) shows the open
+- [Incident](EVIDENCE-BUNDLE.json "bundled: full-panel-followup/screenshots/incident-desktop.png") shows the open
   warning, one delivered incident and acknowledgment control.
-- [Recovery](full-panel-followup/screenshots/recovery-desktop.png) shows the clear
+- [Recovery](EVIDENCE-BUNDLE.json "bundled: full-panel-followup/screenshots/recovery-desktop.png") shows the clear
   alert and exactly two delivered transitions for the same container.
-- [Narrow history](full-panel-followup/screenshots/acknowledged-mobile.png) and its
-  [right edge](full-panel-followup/screenshots/acknowledged-mobile-right.png) show
+- [Narrow history](EVIDENCE-BUNDLE.json "bundled: full-panel-followup/screenshots/acknowledged-mobile.png") and its
+  [right edge](EVIDENCE-BUNDLE.json "bundled: full-panel-followup/screenshots/acknowledged-mobile-right.png") show
   the transition rows, delivery states and persisted acknowledgment through the
   existing scroll region. Cell labels can wrap in the narrow layout.
-- [Narrow schedules](full-panel-followup/screenshots/paused-mobile.png) shows the
+- [Narrow schedules](EVIDENCE-BUNDLE.json "bundled: full-panel-followup/screenshots/paused-mobile.png") shows the
   persisted paused state and accessible form with an empty password field.
 
 This accepts the shown status/notification/schedule states and page-overflow
@@ -96,7 +96,7 @@ floor. All phases ran serially with repository-disk scratch. No sampled stop or
 guest OOM kill occurred. Service observations retain the original ceilings.
 
 Both original wrapper/runner/QEMU identities were captured live, including the
-second VM during its longer bounded wait. [Final cleanup](observations/cleanup-2.json.gz)
+second VM during its longer bounded wait. [Final cleanup](EVIDENCE-BUNDLE.json "bundled: observations/cleanup-2.json.gz")
 confirms all **18 unique recorded native qualification PIDs absent** and both
 exact owned VM directories removed. A later read-only SSH observation arrived
 after normal cleanup; authoritative guard/result records establish completion.

@@ -4,8 +4,8 @@ One disposable Debian 12 AMD64 KVM guest at a time, 4 GiB RAM (`tests/privileged
 touched: no push, no Pi, no remote host. The scripts under test are the real `scripts/cutover/{preflight,activate,return}.sh`
 and `limeosctl migrate {scan,import-users,propose-ceiling}`; until now they had only run against stubs. Source: local main
 `fc59411` plus the `return.sh` fix `e1b243e`; packages `0.4.17+cutover.1` built inside the guest from that bundle (the build
-step is not in this packet). Guest script: `tests/privileged_vm/p06_cutover_guest.py`. Final run: [result.json](raw/result.json)
-(16 cases, all pass), raw script transcripts in [raw/logs](raw/logs).
+step is not in this packet). Guest script: `tests/privileged_vm/p06_cutover_guest.py`. Final run: [result.json](EVIDENCE-BUNDLE.json "bundled: raw/result.json")
+(16 cases, all pass), raw script transcripts in [raw/logs](EVIDENCE-BUNDLE.json "bundled: raw/logs/").
 
 ## What the guest imitates
 

@@ -13,7 +13,7 @@ is exposed only after a final original-window check. See the
 **658 Rust cases pass:** 640 unit/integration cases and 18 compile-fail doctests.
 The 14 new cases are included; focused and measurement reruns add no cases.
 **61 local ARM64 harness tests pass**, with strict all-target workspace Clippy,
-fmt, contract and repository checks. [checks.json](checks.json) binds exact-source
+fmt, contract and repository checks. [checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") binds exact-source
 commands, environments, runtime hashes and lossless transcripts. Documentation
 edits during validation changed no runtime source.
 The initial sandbox denied unchanged owned Unix-socket fixture binds; the full
@@ -50,7 +50,7 @@ samples observed lower-bound peaks of 53248 bytes and 8
 files, not exact maxima. No Pi, SSH, Docker, raw block probe or guest launch was
 used. Reserved backup recovery and external qualification paths stayed untouched.
 
-[source-manifest.json](source-manifest.json) binds 311 source,
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 311 source,
 fixture, contract and script files. Fixed-timestamp gzip preserves every original
 stdout/stderr byte with raw/compressed hashes. [artifact-sha256.json](artifact-sha256.json)
 binds the packet. Reproduce with fresh disk logs and the retained helpers; compile

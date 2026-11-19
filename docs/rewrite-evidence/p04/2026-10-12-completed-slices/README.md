@@ -35,8 +35,8 @@ eight threads and the workspace passes with two. Production capture code and
 resource limits are unchanged. [Pre-fix records](pre-fix.json) and raw failure
 transcripts retain the reproduction; acceptance totals count final runs only.
 
-[checks.json](checks.json) records commands, environment, exits and scratch
-measurements. [source-manifest.json](source-manifest.json) verifies 290 qualified
+[checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") records commands, environment, exits and scratch
+measurements. [source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") verifies 290 qualified
 source/fixture/contract/script hashes against the exact Git source. Historical
 engineer packets continue to refer to their original snapshots. Their former
 unmerged/branch status does not describe this integration. The retained capture

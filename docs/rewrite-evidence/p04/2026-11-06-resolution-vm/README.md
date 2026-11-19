@@ -6,7 +6,7 @@ inside the guest from the bundled source ([hashes](raw/build-sha256.txt)); `fron
 (UI not under test). Guest script: `tests/privileged_vm/p04_resolution_guest.py` (reuses the fixture and helpers of
 `p04_stack_lifecycle_guest.py`; selected with `--guest-script`, which is how every guest script is wired in `run.py`).
 Real HTTP API with an enrolled administrator session and CSRF, packaged dockerd, ordinary busybox containers, the real
-executor; `docker events` is the independent proof. Final run: [result.json](raw/result.json), all 12 cases pass.
+executor; `docker events` is the independent proof. Final run: [result.json](EVIDENCE-BUNDLE.json "bundled: raw/result.json"), all 12 cases pass.
 
 ## How a stuck job is induced
 
@@ -42,7 +42,7 @@ that `packaging/build.py` copies (the in-guest build failed after the compile; a
 My first full run had five failing cases, all in my script, not the product: it assumed a stack job whose end state is
 reached stays stuck (see 2b), a hand-stopped member is not restarted by a stack restart (a stopped member got no event),
 and the crash helper signalled pid 0 (own process group) because the dockerd unit name was wrong. See
-[first-run-result.json.gz](raw/first-run-result.json.gz).
+[first-run-result.json.gz](EVIDENCE-BUNDLE.json "bundled: raw/first-run-result.json.gz").
 
 ## Not covered
 
