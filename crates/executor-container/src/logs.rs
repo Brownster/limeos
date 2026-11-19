@@ -8,6 +8,7 @@ const WINDOW: usize = 64 * 1024;
 const MAX_RESPONSE: usize = 8 * 1024 * 1024;
 const KEY_REDACTED: &str = "[private key redacted]\n";
 const CREDENTIAL_REDACTED: &str = "[credential-bearing line redacted]\n";
+const WITHHELD: &str = "[possible private key lines withheld]\n";
 
 /// Demultiplexes a logs response as it arrives and keeps only the newest
 /// `WINDOW` bytes of output. The Engine sends the last lines oldest first, so
@@ -106,10 +107,10 @@ impl Tail {
 fn decode(resource: String, bytes: &[u8], cut: bool) -> ContainerLogs {
     let clean = strip_controls(&String::from_utf8_lossy(bytes));
     let mut total = 0;
-    render(&clean, cut, |piece| total += piece.len());
+    render(&clean, |piece| total += piece.len());
     let mut text = String::new();
     let mut truncated = cut;
-    render(&clean, cut, |piece| {
+    render(&clean, |piece| {
         if total > CONTAINER_LOG_BYTES {
             // Only the newest line is left and alone it is too long: keep its end.
             if total == piece.len() {
@@ -138,24 +139,70 @@ fn key_begin(line: &str) -> bool {
 fn key_end(line: &str) -> bool {
     line.contains("-----END") && line.contains("PRIVATE KEY-----")
 }
+/// A line's text without the Engine's leading timestamp (`timestamps=1`).
+fn content(line: &str) -> &str {
+    let line = line.trim_end_matches(['\n', '\r']);
+    match line.split_once(' ') {
+        Some((stamp, rest))
+            if stamp.len() <= 40
+                && stamp.starts_with(|c: char| c.is_ascii_digit())
+                && stamp.contains('T')
+                && stamp.ends_with('Z') =>
+        {
+            rest
+        }
+        _ => line,
+    }
+}
+fn base64_token(text: &str, lengths: std::ops::RangeInclusive<usize>) -> bool {
+    lengths.contains(&text.len())
+        && text
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='))
+}
 /// Each output piece of `clean` in order: a line as it is, or its redaction.
-fn render<'a>(clean: &'a str, cut: bool, mut emit: impl FnMut(&'a str)) {
-    // A window cut inside a key block shows its body without the BEGIN line.
-    let mut private_key = cut
-        && clean
-            .split_inclusive('\n')
-            .find(|line| key_begin(line) || key_end(line))
-            .is_some_and(
-                |line| match (line.find("-----END"), line.find("-----BEGIN")) {
-                    (Some(end), Some(begin)) => end < begin,
-                    (Some(_), None) => true,
-                    _ => false,
-                },
-            );
+///
+/// The output never shows where it starts: the Engine applies `tail=N` before
+/// anything arrives and our window may drop more. So, whether or not this
+/// reader cut anything, the start is treated as having lost its context:
+/// - if the first key marker is an END line, everything before it is inside
+///   a block whose BEGIN is gone and is redacted;
+/// - otherwise leading lines that look like a wrapped PEM body are withheld:
+///   a bare base64-alphabet token of 40 to 76 characters (PEM wraps at 64,
+///   MIME at 76), then at most one shorter bare token directly after them
+///   (a block's last line). The first line that is neither ends this; such
+///   lines only stay hidden while they open the output, so the cost is a
+///   leading bare digest or token of that length.
+fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) {
+    let mut private_key = clean
+        .split_inclusive('\n')
+        .find(|line| key_begin(line) || key_end(line))
+        .is_some_and(
+            |line| match (line.find("-----END"), line.find("-----BEGIN")) {
+                (Some(end), Some(begin)) => end < begin,
+                (Some(_), None) => true,
+                _ => false,
+            },
+        );
     if private_key {
         emit(KEY_REDACTED);
     }
+    let mut leading = !private_key;
+    let mut withheld = false;
     for line in clean.split_inclusive('\n') {
+        if leading {
+            if base64_token(content(line), 40..=76) {
+                withheld = true;
+                continue;
+            }
+            leading = false;
+            if withheld {
+                emit(WITHHELD);
+                if base64_token(content(line), 1..=39) {
+                    continue;
+                }
+            }
+        }
         if key_begin(line) {
             if !private_key {
                 emit(KEY_REDACTED);
@@ -175,6 +222,9 @@ fn render<'a>(clean: &'a str, cut: bool, mut emit: impl FnMut(&'a str)) {
         } else {
             line
         });
+    }
+    if leading && withheld {
+        emit(WITHHELD);
     }
 }
 fn credential(line: &str) -> bool {
@@ -333,6 +383,80 @@ mod tests {
         let value = decode_all(text.as_bytes(), true).unwrap();
         assert_eq!(value.text, "[private key redacted]\nafter\n");
         assert!(value.truncated);
+    }
+    const BODY: &str = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj";
+    fn stamped(i: usize, text: &str) -> String {
+        format!("2026-11-19T00:00:00.{i:09}Z {text}\n")
+    }
+    #[test]
+    fn an_engine_tail_that_starts_inside_a_key_never_shows_the_key_body() {
+        // Under the window, so nothing was cut here: the Engine's tail was.
+        let raw = [
+            stamped(1, BODY),
+            stamped(2, "Ag=="),
+            stamped(3, "-----END PRIVATE KEY-----"),
+            stamped(4, "after"),
+        ]
+        .concat();
+        let value = decode_all(&frame(1, raw.as_bytes()), false).unwrap();
+        assert_eq!(value.text, format!("{KEY_REDACTED}{}", stamped(4, "after")));
+        assert!(!value.truncated);
+    }
+    #[test]
+    fn an_unfinished_key_whose_begin_was_dropped_is_withheld() {
+        // Our window dropped BEGIN and logging stopped before END.
+        let mut text = String::from("-----BEGIN PRIVATE KEY-----\n");
+        let mut i = 0;
+        while text.len() < WINDOW + 100 {
+            text.push_str(&stamped(i, BODY));
+            i += 1;
+        }
+        let value = decode_all(text.as_bytes(), true).unwrap();
+        assert_eq!(value.text, WITHHELD);
+        assert!(value.truncated);
+        // The Engine's tail dropped BEGIN; the application then logged on.
+        let raw = [
+            stamped(1, BODY),
+            stamped(2, BODY),
+            stamped(3, "lQIDAQAB"),
+            stamped(4, "listening on :8080"),
+        ]
+        .concat();
+        let value = decode_all(raw.as_bytes(), true).unwrap();
+        assert_eq!(
+            value.text,
+            format!("{WITHHELD}{}", stamped(4, "listening on :8080"))
+        );
+    }
+    #[test]
+    fn withholding_leading_key_like_lines_costs_ordinary_logs_only_a_leading_bare_token() {
+        let ordinary = [
+            stamped(1, "Ready"),
+            stamped(2, "OK"),
+            stamped(
+                3,
+                r#"10.0.0.2 - - [19/Nov/2026:00:00:01 +0000] "GET / HTTP/1.1" 200 612"#,
+            ),
+            stamped(4, r#"{"level":"info","msg":"started"}"#),
+            stamped(5, "Starting server on port 8080"),
+            stamped(6, &"0123456789abcdef".repeat(4)),
+        ]
+        .concat();
+        let value = decode_all(ordinary.as_bytes(), true).unwrap();
+        assert_eq!(value.text, ordinary);
+        // The cost: a bare base64-alphabet token of wrapped-key length that
+        // opens the output (here a digest) is withheld with the line after it
+        // only if that one is short and bare too.
+        let leading = [
+            stamped(1, &"0123456789abcdef".repeat(4)),
+            stamped(2, "Starting server"),
+        ]
+        .concat();
+        let value = decode_all(leading.as_bytes(), true).unwrap();
+        assert_eq!(
+            value.text,
+            format!("{WITHHELD}{}", stamped(2, "Starting server"))
+        );
     }
     #[test]
     fn private_key_blocks_on_one_or_many_lines_redact_only_the_block() {
