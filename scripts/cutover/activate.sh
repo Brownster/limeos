@@ -26,7 +26,10 @@ Usage: activate.sh SNAPSHOT_DIR --yes-i-have-operator-approval
                    [--site-dir /etc/caddy/conf.d] [--caddyfile /etc/caddy/Caddyfile]
                    [--template FILE] [--attached] [--dry-run] [--help]
 
-PATH is a limeos .deb or a directory of .deb files. HOST is the name or IPv4
+PATH is the one limeos .deb to install; its Package and Version fields must be
+limeos and VERSION, checked before anything changes. It is installed with
+DEBIAN_FRONTEND=noninteractive and --force-confold, so an existing
+/etc/limeos/core.json is kept. HOST is the name or IPv4
 address browsers use (core.json "origin" must be https://HOST:PORT). The default
 TLS mode is internal (Caddy local CA). --dry-run prints every command and changes
 nothing. Any failed step after the first change runs return.sh and exits 1, and so
@@ -189,7 +192,16 @@ fct_main() {
         fct_detach "${original_args[@]}" || rc=$?
         return "${rc}"
     fi
-    fct_need "package not found: ${package}" test -e "${CUTOVER_ROOT}${package}"
+    # Only the named file is installed, and only when it is the pinned limeos version.
+    [[ "${package}" == *.deb ]] || fct_die "--package must name one limeos .deb file: ${package}"
+    fct_need "package not found: ${package}" test -f "${CUTOVER_ROOT}${package}"
+    if [[ -f "${CUTOVER_ROOT}${package}" ]]; then
+        local deb_name deb_version
+        deb_name="$(dpkg-deb -f "${CUTOVER_ROOT}${package}" Package)" || fct_die "cannot read the package fields of ${package}"
+        deb_version="$(dpkg-deb -f "${CUTOVER_ROOT}${package}" Version)" || fct_die "cannot read the package fields of ${package}"
+        [[ "${deb_name}" == limeos ]] || fct_die "${package} is package ${deb_name}, not limeos"
+        [[ "${deb_version}" == "${version}" ]] || fct_die "${package} is version ${deb_version}, not ${version}"
+    fi
     fct_need 'caddy is not installed (install it separately first)' command -v caddy
     fct_need "${caddyfile} must contain: import ${SITE_DIR}/*.caddy" grep -Eqx "[[:space:]]*import[[:space:]]+${SITE_DIR}/\*(\.caddy)?" "${CUTOVER_ROOT}${caddyfile}"
     fct_need "core.json origin must be ${site}" fct_core_origin_ok "${site}"
@@ -208,14 +220,6 @@ fct_main() {
         caddy validate --adapter caddyfile --config "${rendered}" >/dev/null 2>&1 || { rm -f -- "${rendered}"; fct_die 'rendered Caddy site does not validate; nothing was changed'; }
     fi
 
-    local -a debs=()
-    if [[ -d "${CUTOVER_ROOT}${package}" ]]; then
-        mapfile -t debs < <(find "${CUTOVER_ROOT}${package}" -maxdepth 1 -name '*.deb' | sort)
-        (( ${#debs[@]} > 0 )) || { [[ ${DRY_RUN} == 1 ]] || fct_die "no .deb files in ${package}"; }
-        debs=("${debs[@]#"${CUTOVER_ROOT}"}")
-    else
-        debs=("${package}")
-    fi
 
     fct_log "activate: frozen writers stop, Rust services start, HTTPS at ${site}"
     local unit
@@ -236,8 +240,9 @@ fct_main() {
     fi
     if (( ! DRY_RUN )) && ! fct_port_free "${port}"; then fct_abort "port ${port} is still in use after the frozen app stopped"; fi
 
-    # 2. Install the pinned package; its postinst starts the services too.
-    fct_do dpkg -i "${debs[@]}"
+    # 2. Install the pinned package; its postinst starts the services too. Never prompt, and
+    # keep the operator's /etc/limeos/core.json (a conffile) when it differs from the package's.
+    fct_do env DEBIAN_FRONTEND=noninteractive dpkg --force-confold -i "${package}"
     if (( DRY_RUN )); then printf '[dry-run] check installed limeos version is %s\n' "${version}"
     elif ! fct_installed_version_ok "${version}"; then fct_abort "installed limeos version is not ${version}"; fi
     fct_do systemctl daemon-reload

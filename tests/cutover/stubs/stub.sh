@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One stub for systemctl, systemd-run, docker, ss, free, curl, dpkg, dpkg-query, caddy, sleep and
+# One stub for systemctl, systemd-run, docker, ss, free, curl, dpkg, dpkg-deb, dpkg-query, caddy, sleep and
 # limeosctl. sleep runs $STUB_DIR/hook-sleep when present (measure.sh's idle window). Copied under each tool's name into a PATH directory by the tests.
 # State lives in $STUB_DIR; every call is appended to $STUB_DIR/calls.log.
 set -Eeuo pipefail
@@ -89,9 +89,18 @@ case "${tool}" in
     ss) cat "${STUB_DIR}/ss_out" ;;
     free) cat "${STUB_DIR}/free_out" ;;
     dpkg)
-        [[ "${1:-}" == -i ]] || exit 99
+        [[ " $* " == *" -i "* ]] || exit 99
+        printf '%s\n' "${DEBIAN_FRONTEND:-}" >"${STUB_DIR}/dpkg_frontend"
         printf '%s\n' "$(cat "${STUB_DIR}/pkg_to_install")" >"${STUB_DIR}/pkg_version"
         for u in limeos-storaged limeos-containerd limeos-core; do set_unit "${u}.service" active active; set_unit "${u}.service" enabled enabled; done ;;
+    dpkg-deb)
+        # dpkg-deb -f FILE FIELD: the package file's control fields.
+        [[ "${1:-}" == -f && -n "${3:-}" ]] || exit 99
+        case "${3}" in
+            Package) if [[ -f "${STUB_DIR}/deb_package" ]]; then cat "${STUB_DIR}/deb_package"; else echo limeos; fi ;;
+            Version) if [[ -f "${STUB_DIR}/deb_version" ]]; then cat "${STUB_DIR}/deb_version"; else cat "${STUB_DIR}/pkg_to_install"; fi ;;
+            *) exit 99 ;;
+        esac ;;
     dpkg-query)
         pkg="${!#}"
         if [[ "${1:-}" == -L ]]; then [[ -f "${STUB_DIR}/pkg_files.${pkg}" ]] || exit 1; cat "${STUB_DIR}/pkg_files.${pkg}"; exit 0; fi

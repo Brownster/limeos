@@ -45,9 +45,14 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
 4. Go (within 30 minutes of step 2, or rerun preflight):
    `scripts/cutover/activate.sh SNAP --yes-i-have-operator-approval --package PATH
    --expected-version V --host HOST [--port 8002] [--tls-cert F --tls-key F]`.
+   `--package` names the one `limeos_V_ARCH.deb` file (not a directory); its
+   `Package` and `Version` fields must be `limeos` and `V`, checked before
+   anything changes.
    It stops and disables only `limeos-metrics-collector.timer`,
    `limeos-package-reconcile.timer`, `pi-health` and `pihealth-helper`; installs
-   the package; starts the Rust services and the read-only stack reader
+   that file alone with `DEBIAN_FRONTEND=noninteractive dpkg --force-confold -i`,
+   so dpkg never prompts and keeps your edited `/etc/limeos/core.json` (a
+   conffile); starts the Rust services and the read-only stack reader
    (`limeos-storage-reader`, started but never enabled); installs the Caddy site; then checks
    core health and the login page through the proxy, `limeosctl status`, `docker
    ps` IDs and StartedAt against the snapshot, that the reader is active, listening and not

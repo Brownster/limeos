@@ -20,7 +20,7 @@ REPO = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO / "scripts/cutover"
 STUB = Path(__file__).resolve().parent / "stubs/stub.sh"
 TOOLS = [
-    "systemctl", "systemd-run", "docker", "ss", "free", "curl", "dpkg", "dpkg-query",
+    "systemctl", "systemd-run", "docker", "ss", "free", "curl", "dpkg", "dpkg-deb", "dpkg-query",
     "caddy", "sleep", "limeosctl",
 ]
 NOW = 1_800_000_000
@@ -51,7 +51,7 @@ ACTIVATE_STEPS = [
     "systemctl disable pi-health.service",
     "systemctl disable limeos-metrics-collector.timer",
     "systemctl disable limeos-package-reconcile.timer",
-    "dpkg -i /pkg/limeos_1.0.0_arm64.deb",
+    "dpkg --force-confold -i /pkg/limeos_1.0.0_arm64.deb",
     "systemctl daemon-reload",
     "systemctl enable limeos-storaged.service",
     "systemctl enable limeos-containerd.service",
@@ -331,7 +331,7 @@ class ActivateTests(Harness):
         result = self.activate("--dry-run")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("[dry-run] systemctl stop pi-health.service", result.stdout)
-        self.assertIn("[dry-run] dpkg -i", result.stdout)
+        self.assertIn("[dry-run] env DEBIAN_FRONTEND=noninteractive dpkg --force-confold -i /pkg/limeos_1.0.0_arm64.deb", result.stdout)
         self.assertEqual(self.mutating_calls(), [])
         self.assertEqual(before, (tree_digest(self.root), tree_digest(self.stub)))
 
@@ -421,7 +421,7 @@ class ActivateTests(Harness):
             "systemctl stop pi-health.service",
             "systemctl stop pihealth-helper.service",
             "systemctl disable pi-health.service",
-            "dpkg -i /pkg/limeos_1.0.0_arm64.deb",
+            "dpkg --force-confold -i /pkg/limeos_1.0.0_arm64.deb",
             "systemctl daemon-reload",
             "systemctl enable limeos-core.service",
             "systemctl start limeos-containerd.service",
@@ -615,8 +615,44 @@ class ActivateTests(Harness):
 
     def test_version_mismatch_rolls_back(self):
         self.passing_snapshot()
+        (self.stub / "deb_version").write_text("1.0.0\n")  # the file says 1.0.0, dpkg ends up with 9.9.9
         (self.stub / "pkg_to_install").write_text("9.9.9\n")
         self.assert_rolled_back(self.approved())
+
+    def test_installs_only_the_named_deb_without_prompting(self):
+        self._write("/pkg/limeos-shadow_1.0.0_arm64.deb", "other deb")
+        self._write("/pkg/limeos_0.9.0_arm64.deb", "older deb")
+        self.passing_snapshot()
+        result = self.approved()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual([l for l in self.calls() if l.startswith("dpkg ")],
+                         ["dpkg --force-confold -i /pkg/limeos_1.0.0_arm64.deb"])
+        # What the stub can check: dpkg ran non-interactively and was told to keep existing conffiles.
+        # Whether real dpkg then keeps a differing /etc/limeos/core.json without a prompt is not modelled.
+        self.assertEqual((self.stub / "dpkg_frontend").read_text().strip(), "noninteractive")
+        self.assertIn(f"dpkg-deb -f {self.root}/pkg/limeos_1.0.0_arm64.deb Version", self.calls())
+
+    def test_rejects_a_package_directory_before_changing_anything(self):
+        self.passing_snapshot()
+        args = self.activate_args("--yes-i-have-operator-approval", "--attached")
+        args[0] = str(self.snap)
+        args[args.index("--package") + 1] = "/pkg"
+        result = self.run_script("activate.sh", *args, now=NOW + 60)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(".deb file", result.stderr)
+        self.assertEqual(self.mutating_calls(), [])
+
+    def test_rejects_a_deb_of_another_version_or_package_before_changing_anything(self):
+        for name, value, fragment in (("deb_version", "9.9.9", "is version 9.9.9, not 1.0.0"),
+                                      ("deb_package", "limeos-shadow", "is package limeos-shadow, not limeos")):
+            with self.subTest(field=name):
+                self.setUp()
+                self.passing_snapshot()
+                (self.stub / name).write_text(value + "\n")
+                result = self.approved()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(fragment, result.stderr)
+                self.assertEqual(self.mutating_calls(), [])
 
     def test_container_change_rolls_back(self):
         self.passing_snapshot()
