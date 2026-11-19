@@ -583,3 +583,18 @@ async fn a_line_whose_start_was_dropped_is_never_returned_in_part() {
     );
     assert!(value.truncated);
 }
+#[tokio::test]
+async fn logs_for_a_removed_container_are_not_found() {
+    let (_dir, engine, calls, task) =
+        scripted(Arc::new(AtomicU16::new(0)), Arc::new(AtomicU16::new(404))).await;
+    let error = engine
+        .logs(
+            &format!("container:{}", "a".repeat(64)),
+            limeos_domain::LogOptions { tail: 200 },
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.0, ErrorCode::NotFound);
+    assert!(calls.lock().unwrap().iter().all(|c| !c.contains("/logs")));
+    task.abort();
+}

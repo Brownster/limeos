@@ -34,7 +34,7 @@ impl Docker {
         }
         tokio::time::timeout(Duration::from_secs(4), async {
             let version = self.version().await?;
-            let inspect = self.json(format!("/{version}/containers/{id}/json"), 512 * 1024).await?;
+            let inspect = self.container_json(format!("/{version}/containers/{id}/json"), 512 * 1024).await?;
             if inspect["Id"].as_str() != Some(id) {return Err(Error(ErrorCode::Conflict));}
             let tty = inspect["Config"]["Tty"].as_bool().ok_or(Error(ErrorCode::Unavailable))?;
             // Read the whole bounded-time response; keep only its newest output.
