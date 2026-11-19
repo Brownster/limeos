@@ -10,7 +10,6 @@ use axum::{
 use limeos_contracts::{ErrorEnvelope, Health, Login, SessionView};
 use limeos_domain::{Error, ErrorCode, Result};
 use std::{
-    collections::HashMap,
     future::Future,
     hash::{BuildHasher, RandomState},
     sync::{Arc, Mutex},
@@ -552,45 +551,58 @@ enum Attempt<'a> {
     /// The principal of an authenticated session re-entering its password.
     Principal(&'a str),
 }
-/// Failed password attempts per minute: ten per attempt key and 120 in all.
-/// Keys are hashed with a per-process random key, so entries are fixed-size
-/// whatever was submitted; the global budget bounds how many can exist.
-#[derive(Default)]
+/// Failed password attempts allowed per budget slot and window.
+const ATTEMPTS: u32 = 10;
+const ATTEMPT_WINDOW: Duration = Duration::from_secs(60);
+/// Budget slots. Fixed, so memory never grows with what is submitted.
+const ATTEMPT_SLOTS: usize = 4096;
+/// Failed password attempts, in a fixed table of per-slot budgets indexed by
+/// the attempt key hashed with a per-process random key. There is no global
+/// budget, so failures against other names cannot lock out an untouched one:
+/// without the key an attacker cannot aim at a victim's slot, and spraying
+/// names fills slots only as fast as the two password workers compare, far
+/// below the 40,960 failures a minute that every slot would take. Two names
+/// may share a slot by chance; nothing depends on whether an account exists.
 struct Limiter {
     keys: RandomState,
-    attempts: HashMap<u64, (Instant, u32)>,
-    global: Option<(Instant, u32)>,
+    slots: Box<[(Option<Instant>, u32)]>,
+}
+impl Default for Limiter {
+    fn default() -> Self {
+        Self {
+            keys: RandomState::new(),
+            slots: vec![(None, 0); ATTEMPT_SLOTS].into_boxed_slice(),
+        }
+    }
+}
+/// The slot one charge was taken from, for its refund.
+#[derive(Clone, Copy)]
+struct Ticket {
+    slot: usize,
 }
 impl Limiter {
-    /// Charge one attempt before the password work; false when either budget
-    /// is spent. Charging first keeps concurrent attempts inside the budget.
-    fn charge(&mut self, key: u64) -> bool {
-        let now = Instant::now();
-        let window = Duration::from_secs(60);
-        self.attempts
-            .retain(|_, (at, _)| now.duration_since(*at) < window);
-        let global = self.global.get_or_insert((now, 0));
-        if now.duration_since(global.0) >= window {
-            *global = (now, 0);
+    fn slot(&self, attempt: Attempt) -> usize {
+        (self.keys.hash_one(attempt) % ATTEMPT_SLOTS as u64) as usize
+    }
+    /// Charge one attempt before the password work; `None` when the slot's
+    /// budget is spent. Charging first keeps concurrent attempts inside it.
+    fn charge(&mut self, slot: usize, now: Instant) -> Option<Ticket> {
+        let entry = self.slots.get_mut(slot)?;
+        if entry
+            .0
+            .is_none_or(|start| now.saturating_duration_since(start) >= ATTEMPT_WINDOW)
+        {
+            *entry = (Some(now), 0);
         }
-        if global.1 >= 120 || (!self.attempts.contains_key(&key) && self.attempts.len() >= 1024) {
-            return false;
-        }
-        let entry = self.attempts.entry(key).or_insert((now, 0));
-        if entry.1 >= 10 {
-            return false;
+        if entry.1 >= ATTEMPTS {
+            return None;
         }
         entry.1 += 1;
-        global.1 += 1;
-        true
+        Some(Ticket { slot })
     }
-    /// A correct password costs nothing.
-    fn refund(&mut self, key: u64) {
-        if let Some(entry) = self.attempts.get_mut(&key) {
+    fn refund(&mut self, ticket: Ticket) {
+        if let Some(entry) = self.slots.get_mut(ticket.slot) {
             entry.1 = entry.1.saturating_sub(1);
-        }
-        if let Some(global) = &mut self.global {
-            global.1 = global.1.saturating_sub(1);
         }
     }
 }
@@ -606,11 +618,11 @@ async fn password_attempt<B, T>(
     attempt: Attempt<'_>,
     check: impl Future<Output = PasswordChecked<T>>,
 ) -> Result<T> {
-    let key = app.limiter.lock().ok().and_then(|mut limiter| {
-        let key = limiter.keys.hash_one(attempt);
-        limiter.charge(key).then_some(key)
+    let ticket = app.limiter.lock().ok().and_then(|mut limiter| {
+        let slot = limiter.slot(attempt);
+        limiter.charge(slot, Instant::now())
     });
-    let Some(key) = key else {
+    let Some(ticket) = ticket else {
         return Err(Error(ErrorCode::Overloaded));
     };
     let PasswordChecked { check, result } = check.await;
@@ -621,7 +633,7 @@ async fn password_attempt<B, T>(
     };
     if refund {
         if let Ok(mut limiter) = app.limiter.lock() {
-            limiter.refund(key);
+            limiter.refund(ticket);
         }
     }
     result
@@ -1250,33 +1262,88 @@ mod tests {
         );
     }
     #[test]
-    fn cycling_usernames_cannot_grow_the_attempt_map() {
+    fn the_budget_table_stays_fixed_whatever_names_are_charged() {
         let mut limiter = Limiter::default();
+        let now = Instant::now();
         let mut charged = 0;
-        for i in 0..5000 {
-            let key = limiter.keys.hash_one(Attempt::Login(&format!("user{i}")));
-            charged += usize::from(limiter.charge(key));
+        for i in 0..100_000 {
+            let slot = limiter.slot(Attempt::Login(&format!("user{i}")));
+            charged += usize::from(limiter.charge(slot, now).is_some());
         }
-        assert_eq!(charged, 120);
-        assert!(limiter.attempts.len() <= 120);
+        // 100,000 names over 4,096 slots average 24 each: the per-slot budget
+        // refuses the excess and nothing grows.
+        assert!(charged <= ATTEMPT_SLOTS * ATTEMPTS as usize);
+        assert!(charged > ATTEMPT_SLOTS * ATTEMPTS as usize * 99 / 100);
+        assert_eq!(limiter.slots.len(), ATTEMPT_SLOTS);
         // A username and a principal with the same text are different keys.
         assert_ne!(
             limiter.keys.hash_one(Attempt::Login("p")),
             limiter.keys.hash_one(Attempt::Principal("p"))
         );
     }
+    /// Holds every check open until released, counting those that arrive.
+    #[derive(Clone)]
+    struct Held {
+        arrived: Arc<std::sync::atomic::AtomicUsize>,
+        release: Arc<tokio::sync::Notify>,
+    }
+    impl Backend for Held {
+        async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
+            self.arrived
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.release.notified().await;
+            PasswordChecked::rejected()
+        }
+        async fn session(&self, _: String, _: Option<String>) -> Result<SessionView> {
+            Err(Error(ErrorCode::Unauthenticated))
+        }
+        async fn logout(&self, _: String, _: String) -> Result<()> {
+            panic!("unvalidated mutation")
+        }
+        async fn health(&self) -> Result<Health> {
+            Err(Error(ErrorCode::Unavailable))
+        }
+    }
     #[tokio::test]
-    async fn a_global_backstop_bounds_failures_across_usernames() {
+    async fn concurrent_attempts_stay_within_the_per_name_budget() {
+        let held = Held {
+            arrived: Arc::default(),
+            release: Arc::default(),
+        };
+        let app = router(held.clone(), "https://localhost".into());
+        let tasks: Vec<_> = (0..30)
+            .map(|_| tokio::spawn(app.clone().oneshot(attempt("alice", "wrong"))))
+            .collect();
+        // Every attempt is either inside a check or already refused.
+        while held.arrived.load(std::sync::atomic::Ordering::SeqCst) < 10 {
+            tokio::task::yield_now().await;
+        }
+        held.release.notify_waiters();
+        let mut statuses = Vec::new();
+        for task in tasks {
+            statuses.push(task.await.unwrap().unwrap().status());
+        }
+        let count = |s| statuses.iter().filter(|x| **x == s).count();
+        assert_eq!(count(StatusCode::UNAUTHORIZED), 10);
+        assert_eq!(count(StatusCode::TOO_MANY_REQUESTS), 20);
+        assert_eq!(held.arrived.load(std::sync::atomic::Ordering::SeqCst), 10);
+    }
+    #[tokio::test]
+    async fn failures_across_other_usernames_never_lock_out_an_untouched_one() {
         let app = router(Accepting, "https://localhost".into());
-        for i in 0..120 {
+        for i in 0..3000 {
             assert_eq!(
                 status(&app, attempt(&format!("user{i}"), "wrong")).await,
                 StatusCode::UNAUTHORIZED
             );
         }
         assert_eq!(
-            status(&app, attempt("user-next", "wrong")).await,
-            StatusCode::TOO_MANY_REQUESTS
+            status(&app, attempt("admin", "wrong")).await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            status(&app, attempt("admin", "right")).await,
+            StatusCode::OK
         );
     }
 }
