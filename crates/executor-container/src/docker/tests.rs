@@ -433,3 +433,124 @@ async fn project_members_accept_a_wybie_sized_engine_and_the_stack_bound_still_h
     assert!(engine.project_members("media").await.is_err());
     task.abort();
 }
+
+/// Serves one container's inspection and a fixed logs body, written in small
+/// pieces so frames and lines cross the reads the client sees.
+async fn logs_server(tty: bool, body: Vec<u8>) -> (tempfile::TempDir, Docker) {
+    let dir = tempfile::tempdir().unwrap();
+    let socket = dir.path().join("engine.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    tokio::spawn(async move {
+        loop {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut bytes = Vec::new();
+            loop {
+                let mut byte = [0];
+                if stream.read_exact(&mut byte).await.is_err() {
+                    break;
+                }
+                bytes.push(byte[0]);
+                if bytes.ends_with(b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let line = String::from_utf8(bytes)
+                .unwrap()
+                .lines()
+                .next()
+                .unwrap()
+                .to_owned();
+            let payload = if line.contains("/version ") {
+                serde_json::json!({"ApiVersion":"1.41","MinAPIVersion":"1.24"})
+                    .to_string()
+                    .into_bytes()
+            } else if line.contains("/logs?") {
+                body.clone()
+            } else {
+                serde_json::json!({"Id":"a".repeat(64),"Config":{"Tty":tty}})
+                    .to_string()
+                    .into_bytes()
+            };
+            let head = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
+                payload.len()
+            );
+            if stream.write_all(head.as_bytes()).await.is_err() {
+                continue;
+            }
+            for piece in payload.chunks(1021) {
+                if stream.write_all(piece).await.is_err() {
+                    break;
+                }
+                let _ = stream.flush().await;
+                tokio::task::yield_now().await;
+            }
+        }
+    });
+    (dir, Docker::new(socket))
+}
+fn frame(stream: u8, text: &[u8]) -> Vec<u8> {
+    let mut raw = vec![stream, 0, 0, 0];
+    raw.extend_from_slice(&(text.len() as u32).to_be_bytes());
+    raw.extend_from_slice(text);
+    raw
+}
+fn log_line(i: usize) -> String {
+    format!(
+        "2026-11-19T00:00:00.{i:09}Z line {i:03} {}\n",
+        "x".repeat(560)
+    )
+}
+async fn read_logs(tty: bool, body: Vec<u8>) -> limeos_domain::ContainerLogs {
+    let (_dir, engine) = logs_server(tty, body).await;
+    engine
+        .logs(
+            &format!("container:{}", "a".repeat(64)),
+            limeos_domain::LogOptions { tail: 200 },
+        )
+        .await
+        .unwrap()
+}
+fn assert_newest_lines(value: &limeos_domain::ContainerLogs) {
+    assert!(value.truncated);
+    assert!(value.text.len() <= limeos_domain::CONTAINER_LOG_BYTES);
+    assert!(
+        value.text.ends_with(&log_line(199)),
+        "{}",
+        &value.text[..80]
+    );
+    // Whole, consecutive lines up to the newest one: a line-boundary start.
+    let lines: Vec<_> = value.text.split_inclusive('\n').collect();
+    assert!(lines.len() > 30);
+    let first = 200 - lines.len();
+    for (offset, line) in lines.iter().enumerate() {
+        assert_eq!(*line, log_line(first + offset));
+    }
+}
+#[tokio::test]
+async fn logs_over_the_bounds_return_the_newest_whole_lines_from_multiplexed_streams() {
+    // About 120 KiB of 200 lines, one frame per line on alternating streams.
+    let body = (0..200)
+        .flat_map(|i| frame(1 + (i % 2) as u8, log_line(i).as_bytes()))
+        .collect();
+    assert_newest_lines(&read_logs(false, body).await);
+    // Frames larger than one line, with lines crossing frame boundaries.
+    let text: Vec<u8> = (0..200).flat_map(|i| log_line(i).into_bytes()).collect();
+    let body = text.chunks(4093).flat_map(|c| frame(1, c)).collect();
+    assert_newest_lines(&read_logs(false, body).await);
+}
+#[tokio::test]
+async fn logs_over_the_bounds_return_the_newest_whole_lines_from_a_terminal() {
+    let body = (0..200).flat_map(|i| log_line(i).into_bytes()).collect();
+    assert_newest_lines(&read_logs(true, body).await);
+}
+#[tokio::test]
+async fn a_single_line_private_key_is_redacted_and_later_lines_are_kept() {
+    let body = frame(
+        1,
+        b"before\nkey=-----BEGIN PRIVATE KEY-----MIIEvQ-----END PRIVATE KEY-----\nafter\n",
+    );
+    let value = read_logs(false, body).await;
+    assert_eq!(value.text, "before\n[private key redacted]\nafter\n");
+    assert!(!value.truncated);
+}

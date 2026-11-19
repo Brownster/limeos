@@ -461,9 +461,9 @@ impl AuthenticatedEngine {
         // Reserve body/decoder/HTTP scratch before the transport or serde can grow.
         let scope = admission.map(|a| a.response_scope(limit)).transpose()?;
         let value = tokio::time::timeout(Duration::from_secs(REQUEST_SECONDS), async {
-            let (status, bytes, _) = self
+            let (status, bytes) = self
                 .docker
-                .request_clipped_inner("GET", path, limit, false, Some((self, budget)))
+                .request_inner("GET", path, limit, Some((self, budget)))
                 .await?;
             if status != StatusCode::OK {
                 return Err(unavailable());

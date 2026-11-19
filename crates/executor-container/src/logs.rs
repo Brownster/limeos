@@ -1,115 +1,212 @@
 use limeos_domain::{CONTAINER_LOG_BYTES, ContainerLogs, Error, ErrorCode, Result};
+use std::collections::VecDeque;
 
-pub(super) fn decode(
-    resource: String,
-    raw: &[u8],
+/// Decoded output kept while a logs response streams: its newest bytes.
+const WINDOW: usize = 64 * 1024;
+/// Whole-response ceiling. The Engine splits log entries at 16 KiB, so 200
+/// tail entries plus framing and timestamps stay well inside it.
+const MAX_RESPONSE: usize = 8 * 1024 * 1024;
+const KEY_REDACTED: &str = "[private key redacted]\n";
+const CREDENTIAL_REDACTED: &str = "[credential-bearing line redacted]\n";
+
+/// Demultiplexes a logs response as it arrives and keeps only the newest
+/// `WINDOW` bytes of output. The Engine sends the last lines oldest first, so
+/// the end is what matters; memory stays bounded however long the response.
+pub(super) struct Tail {
     tty: bool,
-    clipped: bool,
-) -> Result<ContainerLogs> {
-    let mut bytes = Vec::new();
-    let mut truncated = clipped;
-    if tty {
-        bytes.extend_from_slice(raw);
-    } else {
-        let mut position = 0;
-        while position < raw.len() {
-            let header = raw.get(position..position + 8);
-            let Some(header) = header else {
-                if clipped {
-                    break;
-                }
-                return Err(Error(ErrorCode::Unavailable));
-            };
-            if !matches!(header[0], 1 | 2) || header[1..4] != [0, 0, 0] {
-                return Err(Error(ErrorCode::Unavailable));
-            }
-            let length = u32::from_be_bytes(header[4..8].try_into().unwrap()) as usize;
-            position += 8;
-            let available = raw.len() - position;
-            if length > available && !clipped {
-                return Err(Error(ErrorCode::Unavailable));
-            }
-            let count = length.min(available);
-            bytes.extend_from_slice(&raw[position..position + count]);
-            position += count;
-            if count < length {
-                truncated = true;
-                break;
-            }
+    header: Vec<u8>,
+    remaining: usize,
+    window: VecDeque<u8>,
+    cut: bool,
+    read: usize,
+}
+impl Tail {
+    pub(super) fn new(tty: bool) -> Self {
+        Self {
+            tty,
+            header: Vec::with_capacity(8),
+            remaining: 0,
+            window: VecDeque::new(),
+            cut: false,
+            read: 0,
         }
     }
-    let clean = strip_controls(&String::from_utf8_lossy(&bytes));
-    let mut text = String::new();
-    let mut private_key = false;
-    for line in clean.split_inclusive('\n') {
-        if line.contains("-----BEGIN") && line.contains("PRIVATE KEY-----") {
-            private_key = true;
-            if text.len() + 23 <= CONTAINER_LOG_BYTES {
-                text.push_str("[private key redacted]\n");
-            } else {
-                truncated = true;
-                break;
+    /// One piece of the body, cut anywhere: frame headers may span pieces.
+    pub(super) fn push(&mut self, mut data: &[u8]) -> Result<()> {
+        self.read = self.read.saturating_add(data.len());
+        if self.read > MAX_RESPONSE {
+            return Err(Error(ErrorCode::Unavailable));
+        }
+        if self.tty {
+            self.keep(data);
+            return Ok(());
+        }
+        while !data.is_empty() {
+            if self.remaining == 0 {
+                let Some((&byte, rest)) = data.split_first() else {
+                    break;
+                };
+                data = rest;
+                self.header.push(byte);
+                let Ok([stream, a, b, c, l0, l1, l2, l3]) =
+                    <[u8; 8]>::try_from(self.header.as_slice())
+                else {
+                    continue;
+                };
+                if !matches!(stream, 1 | 2) || [a, b, c] != [0, 0, 0] {
+                    return Err(Error(ErrorCode::Unavailable));
+                }
+                self.header.clear();
+                self.remaining = u32::from_be_bytes([l0, l1, l2, l3]) as usize;
+                continue;
             }
+            let (payload, rest) = data.split_at(self.remaining.min(data.len()));
+            self.keep(payload);
+            self.remaining -= payload.len();
+            data = rest;
+        }
+        Ok(())
+    }
+    fn keep(&mut self, bytes: &[u8]) {
+        let bytes = match bytes.len().checked_sub(WINDOW) {
+            Some(older) if older > 0 => {
+                self.cut = true;
+                bytes.get(older..).unwrap_or_default()
+            }
+            _ => bytes,
+        };
+        let overflow = (self.window.len() + bytes.len()).saturating_sub(WINDOW);
+        if overflow > 0 {
+            self.cut = true;
+            self.window.drain(..overflow.min(self.window.len()));
+        }
+        self.window.extend(bytes);
+    }
+    /// The complete response has been read. A partial frame is malformed.
+    pub(super) fn finish(self, resource: String) -> Result<ContainerLogs> {
+        if !self.header.is_empty() || self.remaining != 0 {
+            return Err(Error(ErrorCode::Unavailable));
+        }
+        let bytes = Vec::from(self.window);
+        // Older output was dropped: start after the first partial line.
+        let start = match bytes.iter().position(|&b| b == b'\n') {
+            Some(end) if self.cut => end + 1,
+            _ => 0,
+        };
+        Ok(decode(
+            resource,
+            bytes.get(start..).unwrap_or_default(),
+            self.cut,
+        ))
+    }
+}
+
+/// The newest whole output lines that fit `CONTAINER_LOG_BYTES`, after
+/// terminal controls are stripped and credentials redacted.
+fn decode(resource: String, bytes: &[u8], cut: bool) -> ContainerLogs {
+    let clean = strip_controls(&String::from_utf8_lossy(bytes));
+    let mut total = 0;
+    render(&clean, cut, |piece| total += piece.len());
+    let mut text = String::new();
+    let mut truncated = cut;
+    render(&clean, cut, |piece| {
+        if total > CONTAINER_LOG_BYTES {
+            // Only the newest line is left and alone it is too long: keep its end.
+            if total == piece.len() {
+                let mut start = piece.len() - CONTAINER_LOG_BYTES;
+                while !piece.is_char_boundary(start) {
+                    start += 1;
+                }
+                text.push_str(piece.get(start..).unwrap_or_default());
+            }
+            total -= piece.len();
+            truncated = true;
+            return;
+        }
+        text.push_str(piece);
+    });
+    ContainerLogs {
+        resource,
+        text,
+        truncated,
+    }
+}
+
+fn key_begin(line: &str) -> bool {
+    line.contains("-----BEGIN") && line.contains("PRIVATE KEY-----")
+}
+fn key_end(line: &str) -> bool {
+    line.contains("-----END") && line.contains("PRIVATE KEY-----")
+}
+/// Each output piece of `clean` in order: a line as it is, or its redaction.
+fn render<'a>(clean: &'a str, cut: bool, mut emit: impl FnMut(&'a str)) {
+    // A window cut inside a key block shows its body without the BEGIN line.
+    let mut private_key = cut
+        && clean
+            .split_inclusive('\n')
+            .find(|line| key_begin(line) || key_end(line))
+            .is_some_and(
+                |line| match (line.find("-----END"), line.find("-----BEGIN")) {
+                    (Some(end), Some(begin)) => end < begin,
+                    (Some(_), None) => true,
+                    _ => false,
+                },
+            );
+    if private_key {
+        emit(KEY_REDACTED);
+    }
+    for line in clean.split_inclusive('\n') {
+        if key_begin(line) {
+            if !private_key {
+                emit(KEY_REDACTED);
+            }
+            // A block may open and close on this one line.
+            private_key = !(key_end(line) && line.rfind("-----END") > line.rfind("-----BEGIN"));
             continue;
         }
         if private_key {
-            if line.contains("-----END") && line.contains("PRIVATE KEY-----") {
+            if key_end(line) {
                 private_key = false;
             }
             continue;
         }
-        let lower = line.to_ascii_lowercase();
-        let credential = [
-            "password",
-            "passwd",
-            "passphrase",
-            "secret",
-            "api_key",
-            "api-key",
-            "apikey",
-            "token",
-            "authorization",
-            "bearer ",
-            "ghp_",
-            "github_pat_",
-            "sk-ant-",
-            "sk-proj-",
-            "x-amz-credential",
-            "x-amz-signature",
-            "x-goog-signature",
-        ]
-        .iter()
-        .any(|marker| lower.contains(marker))
-            || lower.split_whitespace().any(|part| {
-                part.split_once("://").is_some_and(|(_, rest)| {
-                    rest.split('/').next().unwrap_or_default().contains('@')
-                })
-            })
-            || lower
-                .split(|c: char| c.is_whitespace() || "\"'=:,[]{}".contains(c))
-                .any(|part| part.starts_with("sk-") && part.len() >= 16);
-        let line = if credential {
-            "[credential-bearing line redacted]\n"
+        emit(if credential(line) {
+            CREDENTIAL_REDACTED
         } else {
             line
-        };
-        let left = CONTAINER_LOG_BYTES.saturating_sub(text.len());
-        if line.len() > left {
-            let mut end = left;
-            while !line.is_char_boundary(end) {
-                end -= 1;
-            }
-            text.push_str(&line[..end]);
-            truncated = true;
-            break;
-        }
-        text.push_str(line);
+        });
     }
-    Ok(ContainerLogs {
-        resource,
-        text,
-        truncated,
-    })
+}
+fn credential(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    [
+        "password",
+        "passwd",
+        "passphrase",
+        "secret",
+        "api_key",
+        "api-key",
+        "apikey",
+        "token",
+        "authorization",
+        "bearer ",
+        "ghp_",
+        "github_pat_",
+        "sk-ant-",
+        "sk-proj-",
+        "x-amz-credential",
+        "x-amz-signature",
+        "x-goog-signature",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker))
+        || lower.split_whitespace().any(|part| {
+            part.split_once("://")
+                .is_some_and(|(_, rest)| rest.split('/').next().unwrap_or_default().contains('@'))
+        })
+        || lower
+            .split(|c: char| c.is_whitespace() || "\"'=:,[]{}".contains(c))
+            .any(|part| part.starts_with("sk-") && part.len() >= 16)
 }
 
 fn strip_controls(value: &str) -> String {
@@ -159,6 +256,11 @@ mod tests {
         raw.extend_from_slice(text);
         raw
     }
+    fn decode_all(raw: &[u8], tty: bool) -> Result<ContainerLogs> {
+        let mut tail = Tail::new(tty);
+        tail.push(raw)?;
+        tail.finish("r".into())
+    }
     #[test]
     fn decode_streams_strip_terminal_controls_and_redact_credentials() {
         let mut raw = frame(
@@ -169,7 +271,7 @@ mod tests {
             2,
             b"error\nAuthorization: Bearer private\n\x1b]52;c;clipboard\x07<html>literal</html>\n",
         ));
-        let value = decode("resource".into(), &raw, false, false).unwrap();
+        let value = decode_all(&raw, false).unwrap();
         assert_eq!(
             value.text,
             "ready\n[credential-bearing line redacted]\n[credential-bearing line redacted]\nerror\n[credential-bearing line redacted]\n<html>literal</html>\n"
@@ -177,18 +279,69 @@ mod tests {
         assert!(!value.truncated);
     }
     #[test]
-    fn malformed_frames_fail_closed_and_clipping_remains_bounded() {
-        assert!(decode("r".into(), b"invalid", false, false).is_err());
+    fn malformed_or_partial_frames_fail_closed_and_output_remains_bounded() {
+        assert!(decode_all(b"invalid", false).is_err());
+        assert!(decode_all(b"\x03\0\0\0\0\0\0\x01x", false).is_err());
         let mut raw = frame(1, b"partial");
         raw[7] = 100;
-        assert!(decode("r".into(), &raw, false, false).is_err());
-        assert_eq!(
-            decode("r".into(), &raw, false, true).unwrap().text,
-            "partial"
-        );
+        assert!(decode_all(&raw, false).is_err());
+        let mut tail = Tail::new(true);
+        for _ in 0..MAX_RESPONSE / WINDOW {
+            tail.push(&[b'z'; WINDOW]).unwrap();
+        }
+        assert!(tail.push(b"z").is_err());
         let large = "é".repeat(CONTAINER_LOG_BYTES);
-        let value = decode("r".into(), large.as_bytes(), true, false).unwrap();
+        let value = decode_all(large.as_bytes(), true).unwrap();
         assert_eq!(value.text.len(), CONTAINER_LOG_BYTES);
         assert!(value.truncated);
+    }
+    #[test]
+    fn frames_split_at_every_offset_resynchronise_and_memory_stays_at_the_window() {
+        let mut raw = Vec::new();
+        for i in 0..400 {
+            raw.extend(frame(
+                1 + (i % 2) as u8,
+                format!("line {i:03} {}\n", "y".repeat(300)).as_bytes(),
+            ));
+        }
+        raw.extend(frame(1, b""));
+        let whole = decode_all(&raw, false).unwrap();
+        for size in [1, 3, 7, 8, 9, 4096] {
+            let mut tail = Tail::new(false);
+            for piece in raw.chunks(size) {
+                tail.push(piece).unwrap();
+                assert!(tail.window.len() <= WINDOW);
+            }
+            let value = tail.finish("r".into()).unwrap();
+            assert_eq!(value.text, whole.text, "{size}");
+        }
+        assert!(whole.truncated);
+        assert!(whole.text.starts_with("line "));
+        assert!(
+            whole
+                .text
+                .ends_with(&format!("line 399 {}\n", "y".repeat(300)))
+        );
+    }
+    #[test]
+    fn a_window_cut_inside_a_private_key_never_shows_the_key_body() {
+        let mut text = String::from("-----BEGIN PRIVATE KEY-----\n");
+        while text.len() < WINDOW + 100 {
+            text.push_str("MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC\n");
+        }
+        text.push_str("-----END PRIVATE KEY-----\nafter\n");
+        let value = decode_all(text.as_bytes(), true).unwrap();
+        assert_eq!(value.text, "[private key redacted]\nafter\n");
+        assert!(value.truncated);
+    }
+    #[test]
+    fn private_key_blocks_on_one_or_many_lines_redact_only_the_block() {
+        let raw = b"a\n-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----\nb\nk=-----BEGIN PRIVATE KEY-----x-----END PRIVATE KEY-----\nc\n";
+        let value = decode_all(raw, true).unwrap();
+        assert_eq!(
+            value.text,
+            "a\n[private key redacted]\nb\n[private key redacted]\nc\n"
+        );
+        assert!(!value.truncated);
     }
 }
