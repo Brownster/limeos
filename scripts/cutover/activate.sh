@@ -16,6 +16,12 @@ ATTACHED=0
 DETACHED_PID=''
 TAIL_PID=''
 HEALTH_DETAIL=''
+STEP_PID=''
+PENDING_SIGNAL=''
+# How long a signal waits for the running step before stopping it. The longest legitimate step
+# is dpkg -i: its postinst restarts three services, each allowed systemd's default 90 s start
+# timeout, so five minutes is generous.
+STEP_GRACE="${CUTOVER_STEP_GRACE:-300}"
 SNAP=''
 SITE_DIR='/etc/caddy/conf.d'
 
@@ -36,7 +42,8 @@ TLS mode is internal (Caddy local CA). --dry-run prints every command and change
 nothing; a signal during it only stops it and never runs return.sh. Any failed
 step after the first change runs return.sh and exits 1, and so do SIGINT, SIGTERM, SIGHUP and an unexpected exit once a change has been made. Each
 step runs in its own session, so a terminal Ctrl-C lets it finish (dpkg is never
-killed mid-install) before the rollback starts. The rollback runs once and to the
+killed mid-install) before the rollback starts; after 300 s it is stopped (TERM,
+then KILL) and the rollback goes ahead anyway. The rollback runs once and to the
 end: signals are ignored while it runs.
 
 Detached by default: after the snapshot check the script runs itself again in a
@@ -142,7 +149,46 @@ fct_do() {
     if (( DRY_RUN )); then fct_run "$@"; return 0; fi
     ARMED=1
     printf '+ %s\n' "$*"
-    setsid --wait "$@" 9>&- || fct_abort "command failed: $*"
+    local rc=0
+    # In the background so a signal interrupts wait at once (see fct_on_signal).
+    setsid --wait "$@" 9>&- &
+    STEP_PID=$!
+    while :; do
+        rc=0
+        wait "${STEP_PID}" || rc=$?
+        if ! kill -0 "${STEP_PID}" 2>/dev/null; then break; fi
+        # A signal interrupted wait while the step still runs: give it the grace period.
+        if [[ -n "${PENDING_SIGNAL}" ]]; then fct_finish_step "$*"; rc=0; wait "${STEP_PID}" || rc=$?; break; fi
+    done
+    STEP_PID=''
+    if [[ -n "${PENDING_SIGNAL}" ]]; then fct_abort "interrupted by SIG${PENDING_SIGNAL}"; fi
+    (( rc == 0 )) || fct_abort "command failed: $*"
+}
+
+# Wait up to STEP_GRACE seconds for the running step; past that, stop its whole session
+# (TERM, then KILL after 10 s) and let the rollback go ahead: a host left half-cut-over with
+# the frozen app stopped is worse than an interrupted step. If that step was dpkg, run
+# dpkg --audit after the rollback and finish or remove the package by hand.
+fct_finish_step() { # command text
+    local deadline=$(( SECONDS + STEP_GRACE ))
+    while kill -0 "${STEP_PID}" 2>/dev/null && (( SECONDS < deadline )); do fct_pause; done
+    kill -0 "${STEP_PID}" 2>/dev/null || return 0
+    printf 'TIMEOUT: step still running after %ss: %s; stopping it and rolling back anyway (if it was dpkg, run dpkg --audit afterwards)\n' "${STEP_GRACE}" "${1}" >&2
+    kill -s TERM -- "-${STEP_PID}" 2>/dev/null || true
+    deadline=$(( SECONDS + 10 ))
+    while kill -0 "${STEP_PID}" 2>/dev/null && (( SECONDS < deadline )); do fct_pause; done
+    kill -s KILL -- "-${STEP_PID}" 2>/dev/null || true
+}
+fct_pause() { read -r -t 0.2 <> <(:) || true; }
+
+# A signal during a step lets the step finish (bounded by STEP_GRACE) before the rollback;
+# anywhere else it rolls back at once.
+fct_on_signal() { # INT, TERM or HUP
+    if [[ -z "${STEP_PID}" ]]; then fct_abort "interrupted by SIG${1}"; fi
+    if [[ -z "${PENDING_SIGNAL}" ]]; then
+        PENDING_SIGNAL="${1}"
+        printf 'SIG%s: letting the running step finish (up to %ss), then rolling back\n' "${1}" "${STEP_GRACE}" >&2
+    fi
 }
 
 # Read-only precondition. Host-presence problems only warn under --dry-run.
@@ -349,7 +395,7 @@ fct_main() {
 }
 
 trap fct_on_exit EXIT
-trap 'fct_abort "interrupted by SIGINT"' INT
-trap 'fct_abort "interrupted by SIGTERM"' TERM
-trap 'fct_abort "interrupted by SIGHUP"' HUP
+trap 'fct_on_signal INT' INT
+trap 'fct_on_signal TERM' TERM
+trap 'fct_on_signal HUP' HUP
 fct_main "$@"

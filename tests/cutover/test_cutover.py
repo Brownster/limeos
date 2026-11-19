@@ -728,6 +728,19 @@ class ActivateTests(Harness):
         self.assertIn("interrupted by SIGINT", result.stderr)
         self.assertTrue((self.stub / "site-installed").exists())
 
+    def test_a_step_that_never_returns_is_stopped_after_the_grace_period_then_rolled_back(self):
+        self.passing_snapshot()
+        self.block_at_core_start()  # never released: the step hangs
+        (self.stub / "signal.txt").write_text("TERM systemctl start limeos-core.service\n")
+        self.env["CUTOVER_STEP_GRACE"] = "2"
+        started = time.monotonic()
+        result = self.approved()
+        self.assertLess(time.monotonic() - started, 30)
+        self.assert_rolled_back(result)
+        self.assertIn("letting the running step finish (up to 2s)", result.stderr)
+        self.assertIn("still running after 2s: systemctl start limeos-core.service", result.stderr)
+        self.assertIn("interrupted by SIGTERM", result.stderr)
+
     def test_signal_before_the_first_change_rolls_nothing_back(self):
         self.passing_snapshot()
         # The read-only validation of the rendered site, before any change.

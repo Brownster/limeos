@@ -87,7 +87,11 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    `return.sh` and exits non-zero; so do SIGINT, SIGTERM, SIGHUP and any
    unexpected exit after the first change. Each step runs in its own session, so
    a Ctrl-C lets the running step (dpkg included) finish before the rollback
-   starts. The rollback runs once and ignores further signals until it ends.
+   starts. That wait is bounded: after 5 minutes (the longest legitimate step,
+   `dpkg -i`, restarts three services within systemd's 90 s start timeouts) the
+   step's session gets SIGTERM, then SIGKILL 10 s later, and the rollback goes
+   ahead with a TIMEOUT line naming the step. If that step was dpkg, run
+   `dpkg --audit` afterwards and finish or remove the package by hand. The rollback runs once and ignores further signals until it ends.
    It runs detached: after the snapshot check it starts itself again in a new
    session (`systemd-run --scope`, then `setsid`), appends its output to
    `SNAP/activate.log` and the terminal only follows that log, so a dropped SSH
