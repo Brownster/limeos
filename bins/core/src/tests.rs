@@ -123,6 +123,7 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
                 password: "wrong".into()
             })
             .await
+            .result
             .err()
             .unwrap()
             .0,
@@ -142,6 +143,7 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
                 password: fixture["password"].as_str().unwrap().into(),
             })
             .await
+            .result
             .unwrap();
         assert!(core.session(issued.token.clone(), None).await.is_ok());
         let upgraded = core
@@ -201,13 +203,15 @@ async fn batch_imported_legacy_users_log_in_and_rerun_changes_nothing() {
                 username: username.clone(),
                 password: "wrong-password".into(),
             })
-            .await;
+            .await
+            .result;
         assert_eq!(wrong.err().unwrap().0, ErrorCode::Unauthenticated);
         core.login(Login {
             username: username.clone(),
             password: fixture["password"].as_str().unwrap().into(),
         })
         .await
+        .result
         .unwrap();
         let stored = core
             .db

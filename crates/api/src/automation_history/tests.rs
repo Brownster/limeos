@@ -57,8 +57,8 @@ fn budget(token: &str, deadline: Instant) {
     assert!(deadline > Instant::now() && deadline <= Instant::now() + Duration::from_secs(10));
 }
 impl Backend for Stub {
-    async fn login(&self, _: Login) -> Result<IssuedSession> {
-        Err(Error(ErrorCode::Unauthenticated))
+    async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
+        PasswordChecked::rejected()
     }
     async fn session(&self, _: String, _: Option<String>) -> Result<SessionView> {
         panic!("Store authenticates")

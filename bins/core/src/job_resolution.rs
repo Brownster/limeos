@@ -357,12 +357,26 @@ impl Core {
 
     /// HTTP decision: administrator session with its CSRF binding and a fresh
     /// password check. The password is verified before any executor contact.
+    #[cfg(test)]
     pub(super) async fn human_resolve(
         &self,
         token: String,
         csrf: String,
         job: String,
         input: ResolveJobInput,
+    ) -> Result<ResolveJobResponse> {
+        let mut check = limeos_api::PasswordCheck::NotReached;
+        self.human_resolve_checked(token, csrf, job, input, &mut check)
+            .await
+    }
+    /// As `human_resolve`, recording how far the password check got.
+    pub(super) async fn human_resolve_checked(
+        &self,
+        token: String,
+        csrf: String,
+        job: String,
+        input: ResolveJobInput,
+        check: &mut limeos_api::PasswordCheck,
     ) -> Result<ResolveJobResponse> {
         if !limeos_contracts::password_well_formed(&input.password) {
             return Err(Error(ErrorCode::InvalidInput));
@@ -383,8 +397,10 @@ impl Core {
             })
             .await?;
         if !verified.valid {
+            *check = limeos_api::PasswordCheck::Rejected;
             return Err(Error(ErrorCode::Unauthenticated));
         }
+        *check = limeos_api::PasswordCheck::Accepted;
         // The password check is slow; the same session must still be the same
         // administrator with the same grants afterwards.
         let principal = self

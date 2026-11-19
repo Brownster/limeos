@@ -66,6 +66,7 @@ async fn setup() -> (tempfile::TempDir, Core, limeos_api::IssuedSession) {
             password: "correct-long-password".into(),
         })
         .await
+        .result
         .unwrap();
     (dir, core, session)
 }
@@ -107,6 +108,7 @@ async fn real_verifier_wrong_password_then_enable_relogin_and_noop() {
             password: "correct-long-password".into(),
         })
         .await
+        .result
         .unwrap();
     let before_noop = state(&dir);
     let result = core

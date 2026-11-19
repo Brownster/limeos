@@ -28,8 +28,8 @@ impl Backend for ReadBackend {
             digest: "a".repeat(64),
         })
     }
-    async fn login(&self, _: Login) -> Result<IssuedSession> {
-        Err(Error(ErrorCode::Unauthenticated))
+    async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
+        PasswordChecked::rejected()
     }
     async fn session(&self, _: String, _: Option<String>) -> Result<SessionView> {
         Err(Error(ErrorCode::Unauthenticated))

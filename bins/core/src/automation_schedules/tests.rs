@@ -54,6 +54,7 @@ async fn setup() -> (tempfile::TempDir, Core, IssuedSession) {
             password: "correct-long-password".into(),
         })
         .await
+        .result
         .unwrap();
     (dir, core, session)
 }
@@ -98,6 +99,7 @@ async fn actual_enable_relogin_create_read_restart_and_pause_are_metadata_only()
             password: "correct-long-password".into(),
         })
         .await
+        .result
         .unwrap();
     let before = now();
     let row = initial

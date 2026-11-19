@@ -9,8 +9,8 @@ struct RouteStub {
     calls: Arc<AtomicUsize>,
 }
 impl Backend for RouteStub {
-    async fn login(&self, _: Login) -> Result<IssuedSession> {
-        Err(Error(ErrorCode::Unauthenticated))
+    async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
+        PasswordChecked::rejected()
     }
     async fn session(&self, token: String, csrf: Option<String>) -> Result<SessionView> {
         if token != "a".repeat(64) || csrf != Some("c".repeat(64)) {
@@ -38,19 +38,26 @@ impl Backend for RouteStub {
         csrf: String,
         input: limeos_contracts::ObserveHealthEnable,
         deadline: Instant,
-    ) -> Result<limeos_contracts::ObserveHealthEnabled> {
+    ) -> PasswordChecked<limeos_contracts::ObserveHealthEnabled> {
         // Transport stub only. Real password and transaction coverage is in Core.
         self.calls.fetch_add(1, Ordering::SeqCst);
         assert_eq!(token, "a".repeat(64));
         assert_eq!(csrf, "c".repeat(64));
         assert!(deadline > Instant::now() && deadline <= Instant::now() + Duration::from_secs(10));
-        if input.password == "wrong" {
-            return Err(Error(ErrorCode::Unauthenticated));
+        match input.password.as_str() {
+            "wrong" => PasswordChecked::rejected(),
+            // Verified, then the grant changed underneath: a refusal after the match.
+            "raced" => {
+                PasswordChecked::new(PasswordCheck::Accepted, Err(Error(ErrorCode::Conflict)))
+            }
+            password => PasswordChecked::new(
+                PasswordCheck::Accepted,
+                Ok(limeos_contracts::ObserveHealthEnabled {
+                    enabled: true,
+                    reauthenticate: password != "noop",
+                }),
+            ),
         }
-        Ok(limeos_contracts::ObserveHealthEnabled {
-            enabled: true,
-            reauthenticate: input.password != "noop",
-        })
     }
 }
 fn request(body: &str) -> Request {
@@ -160,6 +167,14 @@ async fn only_failed_enablement_passwords_spend_the_principal_budget() {
     let stub = RouteStub::default();
     let app = router(stub.clone(), "https://localhost".into());
     for _ in 0..12 {
+        assert_eq!(
+            app.clone()
+                .oneshot(request(r#"{"password":"raced"}"#))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::CONFLICT
+        );
         for body in ["{bad", r#"{"password":""}"#] {
             assert_eq!(
                 app.clone().oneshot(request(body)).await.unwrap().status(),
@@ -185,7 +200,7 @@ async fn only_failed_enablement_passwords_spend_the_principal_budget() {
             StatusCode::UNAUTHORIZED
         );
     }
-    assert_eq!(stub.calls.load(Ordering::SeqCst), 22);
+    assert_eq!(stub.calls.load(Ordering::SeqCst), 34);
     assert_eq!(
         app.clone()
             .oneshot(request(r#"{"password":"correct"}"#))
@@ -206,5 +221,5 @@ async fn only_failed_enablement_passwords_spend_the_principal_budget() {
         app.oneshot(login).await.unwrap().status(),
         StatusCode::UNAUTHORIZED
     );
-    assert_eq!(stub.calls.load(Ordering::SeqCst), 22);
+    assert_eq!(stub.calls.load(Ordering::SeqCst), 34);
 }

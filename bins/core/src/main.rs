@@ -1,4 +1,4 @@
-use limeos_api::{Backend, IssuedSession};
+use limeos_api::{Backend, IssuedSession, PasswordCheck, PasswordChecked};
 use limeos_contracts::{
     CoreRequest, CoreResponse, Enrollment, ErrorEnvelope, Health, Login, SessionView, VERSION,
 };
@@ -55,6 +55,62 @@ struct Core {
     stacks: limeos_observations::stacks::Cache,
 }
 impl Core {
+    /// Login with how far the password check got recorded in `check`.
+    async fn login_checked(
+        &self,
+        input: Login,
+        check: &mut PasswordCheck,
+    ) -> Result<IssuedSession> {
+        if !input.well_formed() {
+            return Err(Error(ErrorCode::Unauthenticated));
+        }
+        let record = self
+            .db
+            .call(move |s| s.login_record(&input.username))
+            .await?;
+        let encoded = record
+            .as_ref()
+            .map(|r| r.password_hash.clone())
+            .unwrap_or_else(|| self.dummy_hash.to_string());
+        let response = self
+            .password(limeos_contracts::PasswordRequest::Verify {
+                password: input.password,
+                encoded,
+            })
+            .await?;
+        let (valid, upgraded) = (response.valid, response.upgraded);
+        // A match against the dummy hash of a missing account is no match.
+        *check = if valid && record.is_some() {
+            PasswordCheck::Accepted
+        } else {
+            PasswordCheck::Rejected
+        };
+        if !valid {
+            return Err(Error(ErrorCode::Unauthenticated));
+        }
+        let record = record.ok_or(Error(ErrorCode::Unauthenticated))?;
+        let principal = record.principal.clone();
+        let token = limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?;
+        // CSRF token is deterministically derived from the session secret, and only
+        // its digest is persisted. It can be recovered after a browser reconnect.
+        let csrf = limeos_identity::digest(&format!("csrf:{token}"));
+        let digest = limeos_identity::digest(&token);
+        let csrf_digest = limeos_identity::digest(&csrf);
+        let expires_at = self
+            .db
+            .call(move |s| {
+                s.create_session(&record, upgraded.as_deref(), &digest, &csrf_digest, now())
+            })
+            .await?;
+        Ok(IssuedSession {
+            token,
+            view: SessionView {
+                principal,
+                csrf_token: csrf,
+                expires_at,
+            },
+        })
+    }
     async fn password(
         &self,
         request: limeos_contracts::PasswordRequest,
@@ -235,9 +291,12 @@ impl Backend for Core {
         csrf: String,
         input: limeos_contracts::ObserveHealthEnable,
         deadline: std::time::Instant,
-    ) -> Result<limeos_contracts::ObserveHealthEnabled> {
-        self.human_enable_observe_health(token, csrf, input, deadline)
-            .await
+    ) -> PasswordChecked<limeos_contracts::ObserveHealthEnabled> {
+        let mut check = PasswordCheck::NotReached;
+        let result = self
+            .human_enable_observe_health_checked(token, csrf, input, deadline, &mut check)
+            .await;
+        PasswordChecked::new(check, result)
     }
     async fn storage_mount_catalog(
         &self,
@@ -420,50 +479,10 @@ impl Backend for Core {
             .call(move |s| s.cancel_storage(&principal, &id, now()))
             .await
     }
-    async fn login(&self, input: Login) -> Result<IssuedSession> {
-        if !input.well_formed() {
-            return Err(Error(ErrorCode::Unauthenticated));
-        }
-        let record = self
-            .db
-            .call(move |s| s.login_record(&input.username))
-            .await?;
-        let encoded = record
-            .as_ref()
-            .map(|r| r.password_hash.clone())
-            .unwrap_or_else(|| self.dummy_hash.to_string());
-        let response = self
-            .password(limeos_contracts::PasswordRequest::Verify {
-                password: input.password,
-                encoded,
-            })
-            .await?;
-        let (valid, upgraded) = (response.valid, response.upgraded);
-        if !valid {
-            return Err(Error(ErrorCode::Unauthenticated));
-        }
-        let record = record.ok_or(Error(ErrorCode::Unauthenticated))?;
-        let principal = record.principal.clone();
-        let token = limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?;
-        // CSRF token is deterministically derived from the session secret, and only
-        // its digest is persisted. It can be recovered after a browser reconnect.
-        let csrf = limeos_identity::digest(&format!("csrf:{token}"));
-        let digest = limeos_identity::digest(&token);
-        let csrf_digest = limeos_identity::digest(&csrf);
-        let expires_at = self
-            .db
-            .call(move |s| {
-                s.create_session(&record, upgraded.as_deref(), &digest, &csrf_digest, now())
-            })
-            .await?;
-        Ok(IssuedSession {
-            token,
-            view: SessionView {
-                principal,
-                csrf_token: csrf,
-                expires_at,
-            },
-        })
+    async fn login(&self, input: Login) -> PasswordChecked<IssuedSession> {
+        let mut check = PasswordCheck::NotReached;
+        let result = self.login_checked(input, &mut check).await;
+        PasswordChecked::new(check, result)
     }
     async fn session(&self, token: String, csrf: Option<String>) -> Result<SessionView> {
         let csrf_token = limeos_identity::digest(&format!("csrf:{token}"));
@@ -786,8 +805,12 @@ impl Backend for Core {
         csrf: String,
         id: String,
         input: limeos_contracts::ResolveJobInput,
-    ) -> Result<limeos_contracts::ResolveJobResponse> {
-        self.human_resolve(token, csrf, id, input).await
+    ) -> PasswordChecked<limeos_contracts::ResolveJobResponse> {
+        let mut check = PasswordCheck::NotReached;
+        let result = self
+            .human_resolve_checked(token, csrf, id, input, &mut check)
+            .await;
+        PasswordChecked::new(check, result)
     }
 }
 async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {

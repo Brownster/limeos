@@ -128,6 +128,7 @@ async fn login(core: &Core) -> limeos_api::IssuedSession {
         password: PASSWORD.into(),
     })
     .await
+    .result
     .unwrap()
 }
 /// An administrator, a restart job claimed and then left `needs_intervention`,
@@ -556,6 +557,45 @@ async fn the_retry_loop_completes_withdraws_throttles_and_waits_for_young_reques
     assert_eq!(f.state().await, JobState::Resolved);
     f.retry(&mut retry).await;
     assert!(retry.is_empty());
+}
+
+#[tokio::test]
+async fn the_password_check_is_reported_apart_from_what_follows_it() {
+    use limeos_api::{Backend, PasswordCheck};
+    let f = fixture().await;
+    let checked = |job: String, password: &str| {
+        let core = f.core.clone();
+        let (token, csrf) = (f.session.token.clone(), f.session.view.csrf_token.clone());
+        let input = f.input(DeclaredOutcome::NotDone, &"d".repeat(64), password);
+        async move { core.resolve_job(token, csrf, job, input).await }
+    };
+    // Correct password, no such job: refused after the match.
+    let outcome = checked("0".repeat(64), PASSWORD).await;
+    assert_eq!(outcome.check, PasswordCheck::Accepted);
+    assert_eq!(outcome.result.unwrap_err().0, ErrorCode::NotFound);
+    let outcome = checked(f.job.clone(), "wrong-password").await;
+    assert_eq!(outcome.check, PasswordCheck::Rejected);
+    assert_eq!(outcome.result.unwrap_err().0, ErrorCode::Unauthenticated);
+    // A missing account is compared against the dummy hash: never accepted.
+    for username in ["alice", "nobody"] {
+        let outcome = f
+            .core
+            .login(Login {
+                username: username.into(),
+                password: "wrong-password".into(),
+            })
+            .await;
+        assert_eq!(outcome.check, PasswordCheck::Rejected, "{username}");
+    }
+    let outcome = f
+        .core
+        .login(Login {
+            username: "alice".into(),
+            password: PASSWORD.into(),
+        })
+        .await;
+    assert_eq!(outcome.check, PasswordCheck::Accepted);
+    assert!(outcome.result.is_ok());
 }
 
 #[tokio::test]

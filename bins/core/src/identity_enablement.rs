@@ -9,12 +9,26 @@ fn live(deadline: Instant) -> Result<()> {
 }
 
 impl Core {
+    #[cfg(test)]
     pub(super) async fn human_enable_observe_health(
         &self,
         token: String,
         csrf: String,
         input: limeos_contracts::ObserveHealthEnable,
         deadline: Instant,
+    ) -> Result<limeos_contracts::ObserveHealthEnabled> {
+        let mut check = limeos_api::PasswordCheck::NotReached;
+        self.human_enable_observe_health_checked(token, csrf, input, deadline, &mut check)
+            .await
+    }
+    /// As `human_enable_observe_health`, recording how far the check got.
+    pub(super) async fn human_enable_observe_health_checked(
+        &self,
+        token: String,
+        csrf: String,
+        input: limeos_contracts::ObserveHealthEnable,
+        deadline: Instant,
+        check: &mut limeos_api::PasswordCheck,
     ) -> Result<limeos_contracts::ObserveHealthEnabled> {
         live(deadline)?;
         if !limeos_contracts::password_well_formed(&input.password) {
@@ -38,8 +52,10 @@ impl Core {
             })
             .await?;
         if !response.valid {
+            *check = limeos_api::PasswordCheck::Rejected;
             return Err(Error(ErrorCode::Unauthenticated));
         }
+        *check = limeos_api::PasswordCheck::Accepted;
         live(deadline)?;
         let original_revision = record.principal.grant_revision;
         let principal = self

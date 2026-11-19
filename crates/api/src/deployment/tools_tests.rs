@@ -37,7 +37,7 @@ struct Stub {
     missing: bool,
 }
 impl Backend for Stub {
-    async fn login(&self, _: Login) -> Result<IssuedSession> {
+    async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
         panic!("tools GET cannot login")
     }
     async fn logout(&self, _: String, _: String) -> Result<()> {
@@ -76,7 +76,7 @@ impl DeploymentBackend for Stub {
 #[derive(Clone)]
 struct Unregistered(Stub);
 impl Backend for Unregistered {
-    async fn login(&self, input: Login) -> Result<IssuedSession> {
+    async fn login(&self, input: Login) -> PasswordChecked<IssuedSession> {
         self.0.login(input).await
     }
     async fn logout(&self, token: String, csrf: String) -> Result<()> {

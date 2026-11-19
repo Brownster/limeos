@@ -40,6 +40,40 @@ pub struct IssuedSession {
     pub token: String,
     pub view: SessionView,
 }
+/// How far a password-gated call got with the password itself.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PasswordCheck {
+    /// Refused before any comparison: storage, a busy worker, a closed
+    /// session. Nothing about the password was learned.
+    NotReached,
+    /// Compared and wrong, including a name with no account (compared
+    /// against a dummy hash, so the work is the same).
+    Rejected,
+    /// The password of an existing account matched. Later steps may still
+    /// fail; that does not undo the match.
+    Accepted,
+}
+/// A password-gated call's result together with how far its check got.
+pub struct PasswordChecked<T> {
+    pub check: PasswordCheck,
+    pub result: Result<T>,
+}
+impl<T> PasswordChecked<T> {
+    pub fn new(check: PasswordCheck, result: Result<T>) -> Self {
+        Self { check, result }
+    }
+    /// A refusal before any comparison.
+    pub fn not_reached(error: Error) -> Self {
+        Self::new(PasswordCheck::NotReached, Err(error))
+    }
+    /// A wrong password, or no such account.
+    pub fn rejected() -> Self {
+        Self::new(
+            PasswordCheck::Rejected,
+            Err(Error(ErrorCode::Unauthenticated)),
+        )
+    }
+}
 pub trait Backend: Clone + Send + Sync + 'static {
     fn observe_health_policy(
         &self,
@@ -136,8 +170,8 @@ pub trait Backend: Clone + Send + Sync + 'static {
         _csrf: String,
         _input: limeos_contracts::ObserveHealthEnable,
         _deadline: Instant,
-    ) -> impl Future<Output = Result<limeos_contracts::ObserveHealthEnabled>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
+    ) -> impl Future<Output = PasswordChecked<limeos_contracts::ObserveHealthEnabled>> + Send {
+        async { PasswordChecked::not_reached(Error(ErrorCode::Unavailable)) }
     }
     fn storage_mount_catalog(
         &self,
@@ -338,7 +372,7 @@ pub trait Backend: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<()>> + Send {
         async { Err(Error(ErrorCode::Unavailable)) }
     }
-    fn login(&self, request: Login) -> impl Future<Output = Result<IssuedSession>> + Send;
+    fn login(&self, request: Login) -> impl Future<Output = PasswordChecked<IssuedSession>> + Send;
     fn session(
         &self,
         token: String,
@@ -498,8 +532,8 @@ pub trait Backend: Clone + Send + Sync + 'static {
         _csrf: String,
         _id: String,
         _input: limeos_contracts::ResolveJobInput,
-    ) -> impl Future<Output = Result<limeos_contracts::ResolveJobResponse>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
+    ) -> impl Future<Output = PasswordChecked<limeos_contracts::ResolveJobResponse>> + Send {
+        async { PasswordChecked::not_reached(Error(ErrorCode::Unavailable)) }
     }
 }
 #[derive(Clone)]
@@ -562,10 +596,15 @@ impl Limiter {
 }
 /// Run one password check under the failed-attempt budget. Callers validate
 /// origin, credentials headers and the body first, so junk is never charged.
+///
+/// The charge is refunded when no comparison happened, or when the password
+/// was correct and the response already shows that (anything but 401). An
+/// accepted password whose call still answers 401 keeps its charge: a refund
+/// there would let the budget tell it apart from a wrong one.
 async fn password_attempt<B, T>(
     app: &App<B>,
     attempt: Attempt<'_>,
-    check: impl Future<Output = Result<T>>,
+    check: impl Future<Output = PasswordChecked<T>>,
 ) -> Result<T> {
     let key = app.limiter.lock().ok().and_then(|mut limiter| {
         let key = limiter.keys.hash_one(attempt);
@@ -574,8 +613,13 @@ async fn password_attempt<B, T>(
     let Some(key) = key else {
         return Err(Error(ErrorCode::Overloaded));
     };
-    let result = check.await;
-    if result.is_ok() {
+    let PasswordChecked { check, result } = check.await;
+    let refund = match check {
+        PasswordCheck::NotReached => true,
+        PasswordCheck::Rejected => false,
+        PasswordCheck::Accepted => !matches!(result, Err(Error(ErrorCode::Unauthenticated))),
+    };
+    if refund {
         if let Ok(mut limiter) = app.limiter.lock() {
             limiter.refund(key);
         }
@@ -980,8 +1024,8 @@ mod tests {
     #[derive(Clone)]
     struct Fake;
     impl Backend for Fake {
-        async fn login(&self, _: Login) -> Result<IssuedSession> {
-            Err(Error(ErrorCode::Unauthenticated))
+        async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
+            PasswordChecked::rejected()
         }
         async fn session(&self, _: String, _: Option<String>) -> Result<SessionView> {
             Err(Error(ErrorCode::Unauthenticated))
@@ -1036,22 +1080,32 @@ mod tests {
     #[derive(Clone)]
     struct Accepting;
     impl Backend for Accepting {
-        async fn login(&self, input: Login) -> Result<IssuedSession> {
-            if input.username != "admin" || input.password != "right" {
-                return Err(Error(ErrorCode::Unauthenticated));
+        async fn login(&self, input: Login) -> PasswordChecked<IssuedSession> {
+            // Verified, then the session could not be stored.
+            if input.username == "admin" && input.password == "right-but-down" {
+                return PasswordChecked::new(
+                    PasswordCheck::Accepted,
+                    Err(Error(ErrorCode::Unavailable)),
+                );
             }
-            Ok(IssuedSession {
-                token: "a".repeat(64),
-                view: SessionView {
-                    principal: limeos_domain::Principal {
-                        id: "p".repeat(64),
-                        role: limeos_domain::Role::Administrator,
-                        grant_revision: 1,
+            if input.username != "admin" || input.password != "right" {
+                return PasswordChecked::rejected();
+            }
+            PasswordChecked::new(
+                PasswordCheck::Accepted,
+                Ok(IssuedSession {
+                    token: "a".repeat(64),
+                    view: SessionView {
+                        principal: limeos_domain::Principal {
+                            id: "p".repeat(64),
+                            role: limeos_domain::Role::Administrator,
+                            grant_revision: 1,
+                        },
+                        csrf_token: "c".repeat(64),
+                        expires_at: 999,
                     },
-                    csrf_token: "c".repeat(64),
-                    expires_at: 999,
-                },
-            })
+                }),
+            )
         }
         async fn session(&self, _: String, _: Option<String>) -> Result<SessionView> {
             Err(Error(ErrorCode::Unauthenticated))
@@ -1174,6 +1228,20 @@ mod tests {
             assert_eq!(
                 status(&app, attempt("admin", "wrong")).await,
                 StatusCode::UNAUTHORIZED
+            );
+        }
+        assert_eq!(
+            status(&app, attempt("admin", "right")).await,
+            StatusCode::OK
+        );
+    }
+    #[tokio::test]
+    async fn a_correct_password_is_free_even_when_the_login_then_fails() {
+        let app = router(Accepting, "https://localhost".into());
+        for _ in 0..15 {
+            assert_eq!(
+                status(&app, attempt("admin", "right-but-down")).await,
+                StatusCode::SERVICE_UNAVAILABLE
             );
         }
         assert_eq!(
