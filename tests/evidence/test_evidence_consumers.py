@@ -68,13 +68,17 @@ def recorder_files():
     compose = load("tests/privileged_vm/record_compose_evidence.py")
     add(
         "record_compose_evidence",
-        compose.evidence_inputs(compose.DEFAULT_OUTPUT.parent),
+        compose.evidence_inputs(
+            compose.DEFAULT_OUTPUT.parent, checks=compose.DEFAULT_CHECKS
+        ),
         compose.evidence_outputs(compose.DEFAULT_OUTPUT, reference=False),
     )
     reference = compose.REFERENCE_INVOCATION
     add(
         "record_compose_evidence --reference-profile",
-        compose.evidence_inputs(reference["output"].parent, reference["vm_result"]),
+        compose.evidence_inputs(
+            reference["output"].parent, reference["vm_result"], reference["checks"]
+        ),
         compose.evidence_outputs(reference["output"], reference=True),
     )
     storage = load("tests/privileged_vm/record_storage_evidence.py")
@@ -97,12 +101,21 @@ def recorder_files():
 DECLARATIONS = {"evidence_inputs", "evidence_outputs", "default_output"}
 PATH_METHODS = {"with_name", "with_suffix", "joinpath", "resolve", "absolute"}
 SOURCES = {
-    "args.output",
-    "args.evidence",
-    "args.vm_result",
     "DEFAULT_OUTPUT",
+    "DEFAULT_CHECKS",
     "DOCUMENTED_EVIDENCE",
     "REFERENCE_INVOCATION",
+}
+# Command-line values that are not evidence paths. Every other args.<name> is
+# treated as an evidence path and must reach the recorder through evidence_inputs().
+EXTERNAL_OPTIONS = {
+    "args.bundle",
+    "args.artifacts",
+    "args.source_commit",
+    "args.slice",
+    "args.reference_profile",
+    "args.container_fixture_commit",
+    "args.storage_fixture_commit",
 }
 
 
@@ -113,6 +126,16 @@ def dotted(node):
         base = dotted(node.value)
         return base and f"{base}.{node.attr}"
     return None
+
+
+def bound(target):
+    """Names (or dotted attributes) an assignment target binds."""
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return [name for element in target.elts for name in bound(element)]
+    if isinstance(target, ast.Starred):
+        return bound(target.value)
+    name = dotted(target)
+    return [name] if name else []
 
 
 def undeclared_access(source):
@@ -144,19 +167,30 @@ def undeclared_access(source):
                 # A call's result is data, not a path, unless it derives a path.
                 method = node.func.attr if isinstance(node.func, ast.Attribute) else ""
                 return method in PATH_METHODS and taints(node.func.value)
-            if dotted(node) in tainted:
+            name = dotted(node) or ""
+            if name in tainted:
+                return True
+            option = ".".join(name.split(".")[:2])
+            if name.startswith("args.") and option not in EXTERNAL_OPTIONS:
                 return True
             if isinstance(node, ast.Constant) and "rewrite-evidence" in str(node.value):
                 return True
             return any(taints(child) for child in ast.iter_child_nodes(node))
 
-        assignments = [n for n in ast.walk(function) if isinstance(n, ast.Assign)]
+        assignments = []
+        for node in ast.walk(function):
+            if isinstance(node, ast.Assign):
+                assignments.append((node.targets, node.value))
+            elif isinstance(node, (ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
+                if node.value is not None:
+                    assignments.append(([node.target], node.value))
+            elif isinstance(node, (ast.For, ast.comprehension)):
+                assignments.append(([node.target], node.iter))
         changed = True
         while changed:
             changed = False
-            for assignment in assignments:
-                value = assignment.value
-                names = [dotted(t) for t in assignment.targets if dotted(t)]
+            for targets, value in assignments:
+                names = [name for target in targets for name in bound(target)]
                 if (
                     isinstance(value, ast.Call) and dotted(value.func) in DECLARATIONS
                 ) or is_declared(value):
@@ -232,6 +266,25 @@ class RecorderInputTests(unittest.TestCase):
             anchor, anchor + "    extra = json.load(open(directory / 'x.json'))\n"
         )
         self.assertTrue(undeclared_access(sneaky))
+
+    def test_every_assignment_form_carries_the_evidence_path(self):
+        compose = (ROOT / "tests/privileged_vm/record_compose_evidence.py").read_text()
+        anchor = "    directory = args.output.parent\n"
+        forms = {
+            "annotated": '    extra: Path = directory / "x.json"\n    extra.read_text()\n',
+            "walrus": '    (extra := directory / "x.json")\n    extra.read_text()\n',
+            "augmented": '    extra = ROOT\n    extra /= "docs/rewrite-evidence/x.json"\n'
+            "    extra.read_text()\n",
+            "loop": '    for extra in [directory / "x.json"]:\n        extra.read_text()\n',
+            "comprehension": '    [p.read_text() for p in [directory / "x.json"]]\n',
+            "tuple": '    extra, other = directory / "x.json", 1\n    extra.read_text()\n',
+            "undeclared option": "    args.checks.read_text()\n",
+        }
+        for label, code in forms.items():
+            with self.subTest(label):
+                mutated = compose.replace(anchor, anchor + code)
+                self.assertNotEqual(mutated, compose)
+                self.assertTrue(undeclared_access(mutated), label)
 
     def test_recorder_files_are_tracked_and_pinned(self):
         files = set(tracked(str(bundles.EVIDENCE)))

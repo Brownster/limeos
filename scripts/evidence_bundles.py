@@ -122,6 +122,8 @@ _PINS = [
     ("p04/rw040-dependencies/dependencies-vm-result.json", f"read by {_DEPS}"),
     ("p04/rw040-dependencies/rust-tests.txt", f"read by {_DEPS}"),
     ("p03/reference-vm-result.json", f"read by {_COMPOSE} --vm-result (reference run)"),
+    ("p03/compose-local-checks.json", f"read by {_COMPOSE} --checks"),
+    ("p03/reference-local-checks.json", f"read by {_COMPOSE} --checks (reference run)"),
     # Files the recorders write (their evidence_outputs functions): small hash
     # and result summaries that a re-run rewrites in place.
     ("p03/reference-validation.json", f"written by {_COMPOSE} (reference run)"),

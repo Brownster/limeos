@@ -16,18 +16,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT = ROOT / "docs/rewrite-evidence/p03/compose-validation.json"
+# The --checks file of the recorded Compose run (required; no default).
+DEFAULT_CHECKS = DEFAULT_OUTPUT.parent / "compose-local-checks.json"
 # The reference-profile run recorded as p03/reference-validation.json:
-# --reference-profile <layout> --vm-result <vm_result> --output <output>.
+# --reference-profile <layout> --vm-result <vm_result> --checks <checks> --output <output>.
 REFERENCE_INVOCATION = {
     "vm_result": DEFAULT_OUTPUT.parent / "reference-vm-result.json",
+    "checks": DEFAULT_OUTPUT.parent / "reference-local-checks.json",
     "output": DEFAULT_OUTPUT.parent / "reference-validation.json",
 }
 
 
-def evidence_inputs(directory, vm_result=None):
+def evidence_inputs(directory, vm_result=None, checks=None):
     """Inputs read beside the output; scripts/evidence_bundles.py PINNED keeps them tracked."""
     return {
         "vm": vm_result or directory / "compose-vm-result.json",
+        "checks": checks or DEFAULT_CHECKS,
         "arm": directory / "compose-arm64-result.json",
         "gates": directory / "compose-gate-probes.json",
         "previous": directory / "lifecycle-validation.json",
@@ -76,12 +80,12 @@ def main():
     )
     args = parser.parse_args()
     directory = args.output.parent
-    inputs = evidence_inputs(directory, args.vm_result)
+    inputs = evidence_inputs(directory, args.vm_result, args.checks)
     outputs = evidence_outputs(args.output, bool(args.reference_profile))
     vm_path = inputs["vm"]
     vm = json.loads(vm_path.read_text())
     arm = json.loads(inputs["arm"].read_text())
-    checks = json.loads(args.checks.read_text())
+    checks = json.loads(inputs["checks"].read_text())
     gates = json.loads(inputs["gates"].read_text())
     assert all(item["exit_code"] == 0 for item in checks["checks"])
     assert gates["result"] == "pass"
