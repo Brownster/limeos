@@ -5,6 +5,7 @@ at copies of tests/cutover/stubs/stub.sh, and host paths live under a temp root.
 Run: python3 -m unittest discover -s tests/cutover
 """
 
+import fcntl
 import hashlib
 import os
 import shutil
@@ -772,6 +773,47 @@ class ActivateTests(Harness):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("migrate propose-catalog --out", result.stderr)
         self.assertEqual(self.mutating_calls(), [])
+
+    def test_a_signal_during_a_dry_run_never_runs_the_rollback(self):
+        self.passing_snapshot()
+        args = self.activate_args("--dry-run", "--attached")
+        args[0] = str(self.snap)
+        env = {**self.env, "CUTOVER_NOW": str(NOW + 60)}
+        command = ["bash", str(SCRIPTS / "activate.sh"), *args]
+        # Where the output stands once the first mutating step has been "run" (printed).
+        full = subprocess.run(command, env=env, capture_output=True, timeout=60).stdout
+        marker = b"[dry-run] systemctl stop limeos-metrics-collector.timer limeos-package-reconcile.timer\n"
+        offset = full.index(marker) + len(marker)
+        self.assertLess(offset, len(full))
+        (self.stub / "calls.log").write_text("")
+        # A one-page pipe as stdout, pre-filled so exactly `offset` bytes still fit: the script
+        # writes up to and including that step, then blocks on its next line.
+        r, w = os.pipe()
+        self.addCleanup(os.close, r)
+        fcntl.fcntl(w, 1031, 4096)  # F_SETPIPE_SZ
+        size = fcntl.fcntl(w, 1032)  # F_GETPIPE_SZ
+        self.assertEqual(size, 4096)
+        self.assertGreater(size, offset)
+        os.write(w, b"j" * (size - offset))
+        proc = subprocess.Popen(command, env=env, stdout=w, stderr=subprocess.PIPE)
+        os.close(w)
+
+        def pipe_full():
+            import array
+            avail = array.array("i", [0])
+            fcntl.ioctl(r, 0x541B, avail)  # FIONREAD
+            return avail[0] == size
+        self.wait_for(pipe_full)
+        proc.send_signal(signal.SIGTERM)
+        while os.read(r, 65536):
+            pass
+        stderr = proc.communicate(timeout=60)[1].decode()
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("interrupted by SIGTERM", stderr)
+        self.assertNotIn("ROLLBACK", stderr)
+        self.assertEqual(self.mutating_calls(), [])
+        for name in FROZEN:
+            self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
 
     def test_dry_run_prints_the_reader_start_and_check(self):
         self.passing_snapshot()

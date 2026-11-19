@@ -65,7 +65,8 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    refuses unless you pass `--no-playback-check`; then check the dashboard
    yourself.
 3. Rehearse: `scripts/cutover/activate.sh SNAP --dry-run --package PATH
-   --expected-version V --host HOST` prints every command and changes nothing.
+   --expected-version V --host HOST` prints every command and changes nothing;
+   interrupting it never starts a rollback.
 4. Go (within 30 minutes of step 2, or rerun preflight):
    `scripts/cutover/activate.sh SNAP --yes-i-have-operator-approval --package PATH
    --expected-version V --host HOST [--port 8002] [--tls-cert F --tls-key F]`.

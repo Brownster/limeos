@@ -32,8 +32,8 @@ DEBIAN_FRONTEND=noninteractive and --force-confold, so an existing
 /etc/limeos/core.json is kept. HOST is the name or IPv4
 address browsers use (core.json "origin" must be https://HOST:PORT). The default
 TLS mode is internal (Caddy local CA). --dry-run prints every command and changes
-nothing. Any failed step after the first change runs return.sh and exits 1, and so
-do SIGINT, SIGTERM, SIGHUP and an unexpected exit once a change has been made. The
+nothing; a signal during it only stops it and never runs return.sh. Any failed
+step after the first change runs return.sh and exits 1, and so do SIGINT, SIGTERM, SIGHUP and an unexpected exit once a change has been made. The
 rollback runs once and to the end: signals are ignored while it runs.
 
 Detached by default: after the snapshot check the script runs itself again in a
@@ -49,7 +49,8 @@ USAGE
 
 fct_abort() {
     printf 'FAIL: %s\n' "$*" >&2
-    if (( ARMED && ! ROLLING_BACK )); then
+    # A dry run changes nothing, so it never arms and never runs return.sh.
+    if (( ARMED && ! DRY_RUN && ! ROLLING_BACK )); then
         # Once, and to the end: a second signal or the EXIT trap must neither repeat nor cut it short.
         ROLLING_BACK=1
         trap '' INT TERM HUP
@@ -91,9 +92,9 @@ fct_detach() { # original arguments
     return "${rc}"
 }
 
-# Mutating step: from the first one on, any failure rolls back.
+# Mutating step: from the first one on, any failure rolls back (never under --dry-run).
 fct_do() {
-    ARMED=1
+    if (( ! DRY_RUN )); then ARMED=1; fi
     fct_run "$@" || fct_abort "command failed: $*"
 }
 
