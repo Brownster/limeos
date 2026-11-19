@@ -575,10 +575,13 @@ impl Default for Limiter {
         }
     }
 }
-/// The slot one charge was taken from, for its refund.
+/// The slot and window one charge was taken from. A refund applies only to
+/// that window: a check charged just before the window rolled must not erase
+/// a failure counted in the next one.
 #[derive(Clone, Copy)]
 struct Ticket {
     slot: usize,
+    window: Instant,
 }
 impl Limiter {
     fn slot(&self, attempt: Attempt) -> usize {
@@ -598,11 +601,16 @@ impl Limiter {
             return None;
         }
         entry.1 += 1;
-        Some(Ticket { slot })
+        Some(Ticket {
+            slot,
+            window: entry.0?,
+        })
     }
     fn refund(&mut self, ticket: Ticket) {
         if let Some(entry) = self.slots.get_mut(ticket.slot) {
-            entry.1 = entry.1.saturating_sub(1);
+            if entry.0 == Some(ticket.window) {
+                entry.1 = entry.1.saturating_sub(1);
+            }
         }
     }
 }
@@ -1260,6 +1268,30 @@ mod tests {
             status(&app, attempt("admin", "right")).await,
             StatusCode::OK
         );
+    }
+    #[test]
+    fn a_refund_from_an_earlier_window_cannot_erase_a_new_failure() {
+        let mut limiter = Limiter::default();
+        let slot = limiter.slot(Attempt::Login("alice"));
+        let start = Instant::now();
+        let at = |ms: u64| start + Duration::from_millis(ms);
+        assert!(limiter.charge(slot, at(0)).is_some());
+        // Charged at 59.9 s; its check finishes only after the window rolled.
+        let late = limiter.charge(slot, at(59_900)).unwrap();
+        assert!(limiter.charge(slot, at(60_000)).is_some());
+        limiter.refund(late);
+        // The new window holds its one failure: nine more, then refused.
+        for _ in 0..9 {
+            assert!(limiter.charge(slot, at(61_000)).is_some());
+        }
+        assert!(limiter.charge(slot, at(61_000)).is_none());
+        // A refund inside its own window still applies.
+        let ticket = limiter.charge(slot, at(130_000)).unwrap();
+        limiter.refund(ticket);
+        for _ in 0..10 {
+            assert!(limiter.charge(slot, at(130_001)).is_some());
+        }
+        assert!(limiter.charge(slot, at(130_001)).is_none());
     }
     #[test]
     fn the_budget_table_stays_fixed_whatever_names_are_charged() {
