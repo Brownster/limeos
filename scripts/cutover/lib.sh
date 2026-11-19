@@ -195,8 +195,9 @@ fct_docker_changes() { # snapshot_dir
     } | sort -u
 }
 # Filter names on stdin by the snapshot's managed set (managed.txt, written by preflight).
-fct_managed_only() { grep -Fxf "${1}/managed.txt" || [[ $? == 1 ]]; }
-fct_unmanaged_only() { grep -vFxf "${1}/managed.txt" || [[ $? == 1 ]]; }
+# A snapshot from before managed sets has none: then every container counts as managed.
+fct_managed_only() { if [[ -f "${1}/managed.txt" ]]; then grep -Fxf "${1}/managed.txt" || [[ $? == 1 ]]; else cat; fi; }
+fct_unmanaged_only() { if [[ -f "${1}/managed.txt" ]]; then grep -vFxf "${1}/managed.txt" || [[ $? == 1 ]]; else cat >/dev/null; fi; }
 # Only the managed set must be unchanged; a change elsewhere (watchtower updating an unmanaged
 # container, say) is named and otherwise ignored.
 fct_warn_unmanaged_changes() { # snapshot_dir
@@ -213,8 +214,6 @@ fct_snapshot_check() { # dir max_age_seconds
     [[ -f "${meta}" ]] || fct_die "not a preflight snapshot: ${dir}"
     [[ "$(fct_meta_get "${meta}" complete)" == 1 ]] || fct_die 'snapshot is incomplete'
     [[ "$(fct_meta_get "${meta}" preflight)" == pass ]] || fct_die 'snapshot records a refused preflight'
-    [[ -f "${dir}/state-paths.txt" ]] || fct_die 'snapshot has no state-paths.txt (taken before state lists); run preflight again'
-    [[ -f "${dir}/managed.txt" ]] || fct_die 'snapshot has no managed.txt (taken before managed sets were recorded); run preflight again'
     if (( max > 0 )); then
         ts="$(fct_meta_get "${meta}" epoch)"
         [[ "${ts}" =~ ^[0-9]+$ ]] || fct_die 'snapshot has no valid timestamp'

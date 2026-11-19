@@ -70,6 +70,14 @@ fct_restore_rust() {
     done
 }
 
+# The paths of the well-formed records in a hash file, one per line.
+fct_record_paths() { # file
+    local record
+    while IFS= read -r record; do
+        if fct_parse_record "${record}"; then printf '%s\n' "${REC_PATH}"; fi
+    done <"${1}"
+}
+
 fct_frozen_writer_running() {
     local unit
     for unit in "${FROZEN_UNITS[@]}"; do
@@ -165,7 +173,17 @@ fct_main() {
     [[ -n "${snap}" ]] || { fct_usage >&2; fct_die 'a snapshot directory is required'; }
     fct_require_root
     fct_snapshot_check "${snap}" 0
-    STATE_LIST="${snap}/state-paths.txt"
+    # return.sh is the safety path, so it still accepts a snapshot from before state lists
+    # and managed sets, with the rules that snapshot was taken under.
+    if [[ -f "${snap}/state-paths.txt" ]]; then
+        STATE_LIST="${snap}/state-paths.txt"
+    elif [[ -z "${CUTOVER_STATE_FILES:-}" ]]; then
+        fct_warn 'older snapshot with no state-paths.txt: comparing the paths recorded in its state.sha256'
+        CUTOVER_STATE_FILES="$(fct_record_paths "${snap}/state.sha256")"
+    fi
+    if [[ ! -f "${snap}/managed.txt" ]]; then
+        fct_warn 'older snapshot with no managed.txt: every container must match the snapshot'
+    fi
     local port caddy_state caddy_enabled class unit active enabled
     port="$(fct_meta_get "${snap}/meta.env" frozen_port)"
     read -r class unit caddy_state caddy_enabled < <(grep -m1 -F 'managed caddy.service ' "${snap}/units.txt" || echo 'managed caddy.service inactive disabled')

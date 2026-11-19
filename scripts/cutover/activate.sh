@@ -191,6 +191,8 @@ fct_main() {
     fct_require_root
 
     fct_snapshot_check "${SNAP}" "${MAX_SNAPSHOT_AGE}"
+    [[ -f "${SNAP}/state-paths.txt" ]] || fct_die 'snapshot has no state-paths.txt (taken before state lists); run preflight again'
+    [[ -f "${SNAP}/managed.txt" ]] || fct_die 'snapshot has no managed.txt (taken before managed sets were recorded); run preflight again'
     STATE_LIST="${SNAP}/state-paths.txt"
     fct_records_ok "${SNAP}/state.sha256" || fct_die 'the snapshot has a malformed state record; run preflight again'
     if (( ! DRY_RUN && ! ATTACHED )); then

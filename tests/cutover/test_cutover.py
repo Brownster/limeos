@@ -923,6 +923,39 @@ class ReturnTests(Harness):
         # The reader was never enabled and is still stopped by return.
         self.assertEqual(self.unit_state(READER), ("inactive", "disabled"))
 
+    def test_rolls_back_an_older_snapshot_with_the_previous_rules(self):
+        self.activated()
+        (self.snap / "state-paths.txt").unlink()
+        (self.snap / "managed.txt").unlink()
+        result = self.do_return()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("no state-paths.txt", result.stderr)
+        self.assertIn("no managed.txt", result.stderr)
+        for name in FROZEN:
+            self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
+        # Listed files are still compared (taken from the snapshot's records) ...
+        self._write("/home/holly/pi-health/config/media_paths.json", "changed")
+        result = self.do_return()
+        self.assertIn("state file changed: /home/holly/pi-health/config/media_paths.json", result.stderr)
+        # ... and every container is held to the snapshot, as before managed sets.
+        self._write("/home/holly/pi-health/config/media_paths.json", '{"m":1}')
+        started = self.stub / "docker_started.txt"
+        started.write_text(started.read_text().replace("/watchtower 2026-11-01", "/watchtower 2026-11-19"))
+        result = self.do_return()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("StartedAt differs from the snapshot (a restart happened): watchtower", result.stderr)
+
+    def test_activate_refuses_an_older_snapshot(self):
+        self.passing_snapshot()
+        for name in ("state-paths.txt", "managed.txt"):
+            with self.subTest(missing=name):
+                (self.snap / name).rename(self.snap / f"{name}.away")
+                result = self.approved()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"no {name}", result.stderr)
+                self.assertEqual(self.mutating_calls(), [])
+                (self.snap / f"{name}.away").rename(self.snap / name)
+
     def test_return_without_prior_activate(self):
         self.passing_snapshot()
         self.assertEqual(self.do_return().returncode, 0)
