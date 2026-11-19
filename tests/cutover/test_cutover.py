@@ -107,6 +107,9 @@ class Harness(unittest.TestCase):
             "CUTOVER_NOW": str(NOW),
             "LIMEOSCTL": str(self.bin / "limeosctl"),
         }
+        # Runs after the test (cleanups are last in, first out), before the temp tree goes:
+        # kills whatever the test started, detached runs and blocked stubs included.
+        self.addCleanup(self.kill_strays, self.stub)
         self.out = "/var/lib/limeos-cutover/snap"
         self.snap = self.root / self.out.lstrip("/")
         # The operator's state list, as built from the `limeosctl migrate scan` report.
@@ -118,6 +121,21 @@ class Harness(unittest.TestCase):
         self.key_file.write_text(JELLYFIN_KEY + "\n")
         self.key_file.chmod(0o600)
         self._seed_host()
+
+    @staticmethod
+    def kill_strays(stub_dir):
+        """SIGKILL every process whose environment carries this harness's STUB_DIR."""
+        marker = b"\0STUB_DIR=" + os.fsencode(str(stub_dir)) + b"\0"
+        for entry in os.listdir("/proc"):
+            if not entry.isdigit() or int(entry) == os.getpid():
+                continue
+            try:
+                with open(f"/proc/{entry}/environ", "rb") as handle:
+                    environ = b"\0" + handle.read()
+                if marker in environ:
+                    os.kill(int(entry), signal.SIGKILL)
+            except OSError:
+                pass
 
     def _write(self, path, text):
         target = self.root / path.lstrip("/")
@@ -242,6 +260,15 @@ class Harness(unittest.TestCase):
         result = self.preflight()
         self.assertEqual(result.returncode, 0, result.stderr)
         (self.stub / "calls.log").write_text("")
+
+
+class HarnessTests(Harness):
+    def test_cleanup_kills_processes_left_in_other_sessions(self):
+        # A blocked stub in its own session survives its script's death; the cleanup must not leak it.
+        child = subprocess.Popen(["bash", "-c", "while :; do command -p sleep 0.05; done"],
+                                 env=self.env, start_new_session=True)
+        self.kill_strays(self.stub)
+        self.assertEqual(child.wait(timeout=10), -signal.SIGKILL)
 
 
 class PreflightTests(Harness):
@@ -979,13 +1006,15 @@ class ActivateTests(Harness):
         offset = full.index(marker) + len(marker)
         self.assertLess(offset, len(full))
         (self.stub / "calls.log").write_text("")
-        # A one-page pipe as stdout, pre-filled so exactly `offset` bytes still fit: the script
-        # writes up to and including that step, then blocks on its next line.
+        # A one-page pipe as stdout (Linux rounds a pipe up to whole pages: 4 KiB here, 16 KiB on
+        # the Pi), pre-filled so exactly `offset` bytes still fit: the script writes up to and
+        # including that step, then blocks on its next line.
         r, w = os.pipe()
         self.addCleanup(os.close, r)
-        fcntl.fcntl(w, 1031, 4096)  # F_SETPIPE_SZ
+        page = os.sysconf("SC_PAGE_SIZE")
+        fcntl.fcntl(w, 1031, page)  # F_SETPIPE_SZ
         size = fcntl.fcntl(w, 1032)  # F_GETPIPE_SZ
-        self.assertEqual(size, 4096)
+        self.assertEqual(size, page)  # one buffer: writes merge into it until it is full
         self.assertGreater(size, offset)
         os.write(w, b"j" * (size - offset))
         proc = subprocess.Popen(command, env=env, stdout=w, stderr=subprocess.PIPE)
