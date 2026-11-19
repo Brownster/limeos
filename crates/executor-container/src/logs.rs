@@ -1,3 +1,13 @@
+//! Bounded container log reads: the newest whole lines, terminal controls
+//! stripped, private keys and credential-bearing lines redacted.
+//!
+//! Redaction is line based. Key blocks with their BEGIN/END markers are
+//! reliable; a key body without markers (its BEGIN dropped by the Engine's
+//! tail or our window, its END never written) is caught only best effort, by
+//! withholding leading lines that look like one. A known limit: the Engine
+//! splits a log entry at 16 KiB, so a tail can start on a later piece of a
+//! long line whose `password=` style marker was in an earlier piece; that
+//! fragment carries no marker and cannot be recognised.
 use limeos_domain::{CONTAINER_LOG_BYTES, ContainerLogs, Error, ErrorCode, Result};
 use std::collections::VecDeque;
 
@@ -151,11 +161,14 @@ fn content(line: &str) -> &str {
         _ => line,
     }
 }
-fn base64_token(text: &str, lengths: std::ops::RangeInclusive<usize>) -> bool {
-    lengths.contains(&text.len())
-        && text
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='))
+/// The length of a line's final whitespace-separated token when that token
+/// uses only the base64 alphabet (with `=` padding), after the timestamp.
+fn base64_tail(line: &str) -> Option<usize> {
+    let token = content(line).split_whitespace().next_back()?;
+    token
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='))
+        .then_some(token.len())
 }
 /// Each output piece of `clean` in order: a line as it is, or its redaction.
 /// Returns whether a line was omitted for being too long.
@@ -165,12 +178,13 @@ fn base64_token(text: &str, lengths: std::ops::RangeInclusive<usize>) -> bool {
 /// reader cut anything, the start is treated as having lost its context:
 /// - if the first key marker is an END line, everything before it is inside
 ///   a block whose BEGIN is gone and is redacted;
-/// - otherwise leading lines that look like a wrapped PEM body are withheld:
-///   a bare base64-alphabet token of 40 to 76 characters (PEM wraps at 64,
-///   MIME at 76), then at most one shorter bare token directly after them
-///   (a block's last line). The first line that is neither ends this; such
-///   lines only stay hidden while they open the output, so the cost is a
-///   leading bare digest or token of that length.
+/// - otherwise leading lines that look like a key body are withheld: a line
+///   whose final token is 16 or more base64-alphabet characters, whatever
+///   precedes it (a prefix, any wrapping width), then at most one line right
+///   after that run whose final token is a shorter base64-only one (a key's
+///   last line). The first leading line that matches neither ends this. It
+///   only ever applies to the leading run of a read, so the cost is a few
+///   leading lines that end in a digest, an id or a long single word.
 fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) -> bool {
     let mut omitted = false;
     let mut private_key = clean
@@ -190,14 +204,15 @@ fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) -> bool {
     let mut withheld = false;
     for line in clean.split_inclusive('\n') {
         if leading {
-            if base64_token(content(line), 40..=76) {
+            let tail = base64_tail(line);
+            if tail.is_some_and(|length| length >= 16) {
                 withheld = true;
                 continue;
             }
             leading = false;
             if withheld {
                 emit(WITHHELD);
-                if base64_token(content(line), 1..=39) {
+                if tail.is_some() {
                     continue;
                 }
             }
@@ -354,7 +369,7 @@ mod tests {
         for i in 0..400 {
             raw.extend(frame(
                 1 + (i % 2) as u8,
-                format!("line {i:03} {}\n", "y".repeat(300)).as_bytes(),
+                format!("line {i:03} {}\n", "yy ".repeat(100)).as_bytes(),
             ));
         }
         raw.extend(frame(1, b""));
@@ -373,7 +388,7 @@ mod tests {
         assert!(
             whole
                 .text
-                .ends_with(&format!("line 399 {}\n", "y".repeat(300)))
+                .ends_with(&format!("line 399 {}\n", "yy ".repeat(100)))
         );
     }
     #[test]
@@ -432,7 +447,7 @@ mod tests {
         );
     }
     #[test]
-    fn withholding_leading_key_like_lines_costs_ordinary_logs_only_a_leading_bare_token() {
+    fn leading_lines_with_short_or_non_base64_endings_are_kept() {
         let ordinary = [
             stamped(1, "Ready"),
             stamped(2, "OK"),
@@ -447,18 +462,77 @@ mod tests {
         .concat();
         let value = decode_all(ordinary.as_bytes(), true).unwrap();
         assert_eq!(value.text, ordinary);
-        // The cost: a bare base64-alphabet token of wrapped-key length that
-        // opens the output (here a digest) is withheld with the line after it
-        // only if that one is short and bare too.
-        let leading = [
-            stamped(1, &"0123456789abcdef".repeat(4)),
-            stamped(2, "Starting server"),
+    }
+    /// A key body without its markers, wrapped at `width` and ending in a
+    /// short final line, each line written through `prefix`.
+    fn body(width: usize, prefix: &str) -> Vec<String> {
+        let text = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7+/Vz".repeat(8);
+        let mut lines: Vec<_> = text
+            .as_bytes()
+            .chunks(width)
+            .map(|c| format!("{prefix}{}", std::str::from_utf8(c).unwrap()))
+            .collect();
+        lines.push(format!("{prefix}Ag=="));
+        lines
+    }
+    #[test]
+    fn leading_key_bodies_are_withheld_whatever_the_wrapping_or_prefix() {
+        for width in [32, 64, 76, 80] {
+            for prefix in ["", "INFO ", "app[1]: key "] {
+                let mut lines = body(width, prefix);
+                lines.push("listening on :8080".into());
+                let raw: String = lines
+                    .iter()
+                    .enumerate()
+                    .map(|(i, line)| stamped(i, line))
+                    .collect();
+                let value = decode_all(raw.as_bytes(), true).unwrap();
+                assert_eq!(
+                    value.text,
+                    format!(
+                        "{WITHHELD}{}",
+                        stamped(lines.len() - 1, "listening on :8080")
+                    ),
+                    "{width} {prefix:?}"
+                );
+            }
+        }
+    }
+    #[test]
+    fn a_lone_short_last_line_of_a_leading_key_body_is_withheld() {
+        let raw: String = body(64, "")
+            .iter()
+            .enumerate()
+            .map(|(i, line)| stamped(i, line))
+            .collect();
+        let value = decode_all(raw.as_bytes(), true).unwrap();
+        assert_eq!(value.text, WITHHELD);
+    }
+    #[test]
+    fn ordinary_leading_lines_survive_and_only_a_leading_digest_line_is_the_cost() {
+        let ordinary = [
+            stamped(1, "Starting server on port 8080"),
+            stamped(2, "GET /health 200"),
+            stamped(3, r#"{"level":"info","msg":"ready"}"#),
+            stamped(4, "connected to postgres://db:5432/app"),
+            stamped(5, "OK"),
         ]
         .concat();
-        let value = decode_all(leading.as_bytes(), true).unwrap();
+        let value = decode_all(ordinary.as_bytes(), true).unwrap();
+        assert_eq!(value.text, ordinary);
+        // The recorded cost: a leading line ending in a digest or id of 16 or
+        // more base64-alphabet characters is withheld, and so is the next line
+        // when its last word is base64-only (it could be a key's last line).
+        let raw = [
+            stamped(1, &format!("pulled image {}", "0123456789abcdef".repeat(4))),
+            stamped(2, "Starting server on port 8080"),
+            stamped(3, "listening on :8080"),
+        ]
+        .concat();
+        let value = decode_all(raw.as_bytes(), true).unwrap();
         assert_eq!(
             value.text,
-            format!("{WITHHELD}{}", stamped(2, "Starting server"))
+            format!("{WITHHELD}{}", stamped(3, "listening on :8080"))
         );
     }
     #[test]

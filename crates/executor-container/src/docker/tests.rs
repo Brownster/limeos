@@ -498,7 +498,7 @@ fn frame(stream: u8, text: &[u8]) -> Vec<u8> {
 fn log_line(i: usize) -> String {
     format!(
         "2026-11-19T00:00:00.{i:09}Z line {i:03} {}\n",
-        "x".repeat(560)
+        "word ".repeat(112)
     )
 }
 async fn read_logs(tty: bool, body: Vec<u8>) -> limeos_domain::ContainerLogs {
