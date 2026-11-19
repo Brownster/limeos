@@ -5,6 +5,11 @@
 # for content, and only paths and verdicts reach the logs.
 # shellcheck shell=bash
 
+# Byte order and byte matching everywhere: sort, comm, grep, awk and [[ ]] compare paths and
+# records byte for byte, never by a locale's collation (en_GB.UTF-8 collates some distinct
+# names as equal, and sort -u then drops a record). Every message here is plain ASCII.
+export LC_ALL=C
+
 # Test hooks: LIMEOS_CUTOVER_ROOT prefixes every host path; CUTOVER_NOW fixes the
 # clock; CUTOVER_ALLOW_NONROOT skips the root check (stub-driven tests only).
 CUTOVER_ROOT="${LIMEOS_CUTOVER_ROOT:-}"

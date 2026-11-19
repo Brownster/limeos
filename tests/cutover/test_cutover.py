@@ -455,6 +455,29 @@ class PreflightTests(Harness):
         result = self.do_return()
         self.assertIn("state file changed: /srv/trailing space ", result.stderr)
 
+    @unittest.skipUnless(
+        "en_gb.utf8" in subprocess.run(["locale", "-a"], capture_output=True, text=True).stdout.lower(),
+        "the en_GB.UTF-8 locale is not installed")
+    def test_records_survive_a_locale_that_collates_distinct_names_as_equal(self):
+        # en_GB.UTF-8 collates these two names as equal; sort -u there kept only one record.
+        names = [b"/var/lib/limeos/a\x80.json", b"/var/lib/limeos/a\x81.json"]
+        for name in names:
+            with open(os.fsencode(str(self.root)) + name, "wb") as handle:
+                handle.write(b"same")
+        self.env["LC_ALL"] = "en_GB.UTF-8"
+        self.assertEqual(self.preflight().returncode, 0)
+        records = (self.snap / "state.sha256").read_bytes()
+        for name in names:
+            self.assertIn(b" " + name + b"\n", records)
+        (self.stub / "calls.log").write_text("")
+        self.assertEqual(self.approved().returncode, 0)
+        with open(os.fsencode(str(self.root)) + names[1], "wb") as handle:
+            handle.write(b"changed")
+        result = subprocess.run(["bash", str(SCRIPTS / "return.sh"), str(self.snap)], env=self.env,
+                                capture_output=True, timeout=60)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"state file changed: " + names[1], result.stderr)
+
     def test_a_state_file_name_with_a_newline_is_refused(self):
         self._write("/var/lib/limeos/evil\nname.json", "{}")
         result = self.preflight()
