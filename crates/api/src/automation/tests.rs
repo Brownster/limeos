@@ -10,7 +10,7 @@ struct Stub {
     oversize: bool,
 }
 impl Backend for Stub {
-    async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
+    async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
     }
     async fn logout(&self, _: String, _: String) -> Result<()> {

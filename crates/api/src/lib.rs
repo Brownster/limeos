@@ -52,6 +52,21 @@ pub enum PasswordCheck {
     /// fail; that does not undo the match.
     Accepted,
 }
+/// Handed to a password-gated backend call, which marks the moment it starts
+/// a comparison: once a worker is admitted, right before the password goes
+/// to it. A request cancelled before that mark is refunded; after it, the
+/// charge stands, since the work was spent and refunding would let a client
+/// start unlimited comparisons by cancelling each one.
+#[derive(Clone, Default)]
+pub struct PasswordAttempt(Arc<std::sync::atomic::AtomicBool>);
+impl PasswordAttempt {
+    pub fn start_comparison(&self) {
+        self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+    pub fn comparison_started(&self) -> bool {
+        self.0.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
 /// A password-gated call's result together with how far its check got.
 pub struct PasswordChecked<T> {
     pub check: PasswordCheck,
@@ -169,6 +184,7 @@ pub trait Backend: Clone + Send + Sync + 'static {
         _csrf: String,
         _input: limeos_contracts::ObserveHealthEnable,
         _deadline: Instant,
+        _attempt: PasswordAttempt,
     ) -> impl Future<Output = PasswordChecked<limeos_contracts::ObserveHealthEnabled>> + Send {
         async { PasswordChecked::not_reached(Error(ErrorCode::Unavailable)) }
     }
@@ -371,7 +387,11 @@ pub trait Backend: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<()>> + Send {
         async { Err(Error(ErrorCode::Unavailable)) }
     }
-    fn login(&self, request: Login) -> impl Future<Output = PasswordChecked<IssuedSession>> + Send;
+    fn login(
+        &self,
+        request: Login,
+        attempt: PasswordAttempt,
+    ) -> impl Future<Output = PasswordChecked<IssuedSession>> + Send;
     fn session(
         &self,
         token: String,
@@ -531,6 +551,7 @@ pub trait Backend: Clone + Send + Sync + 'static {
         _csrf: String,
         _id: String,
         _input: limeos_contracts::ResolveJobInput,
+        _attempt: PasswordAttempt,
     ) -> impl Future<Output = PasswordChecked<limeos_contracts::ResolveJobResponse>> + Send {
         async { PasswordChecked::not_reached(Error(ErrorCode::Unavailable)) }
     }
@@ -629,12 +650,16 @@ impl Limiter {
 /// The charge is refunded when no comparison happened, or when the password
 /// was correct and the response already shows that (anything but 401). An
 /// accepted password whose call still answers 401 keeps its charge: a refund
-/// there would let the budget tell it apart from a wrong one.
-async fn password_attempt<B, T>(
+/// there would let the budget tell it apart from a wrong one. A request
+/// dropped before it completes is settled by `Charge` instead.
+async fn password_attempt<B, T, F>(
     app: &App<B>,
     attempt: Attempt<'_>,
-    check: impl Future<Output = PasswordChecked<T>>,
-) -> Result<T> {
+    check: impl FnOnce(PasswordAttempt) -> F,
+) -> Result<T>
+where
+    F: Future<Output = PasswordChecked<T>>,
+{
     let ticket = app
         .limiter
         .lock()
@@ -643,18 +668,50 @@ async fn password_attempt<B, T>(
     let Some(ticket) = ticket else {
         return Err(Error(ErrorCode::Overloaded));
     };
-    let PasswordChecked { check, result } = check.await;
-    let refund = match check {
+    let handle = PasswordAttempt::default();
+    let charge = Charge {
+        limiter: &app.limiter,
+        ticket: Some(ticket),
+        attempt: handle.clone(),
+    };
+    let PasswordChecked { check, result } = check(handle).await;
+    charge.settle(match check {
         PasswordCheck::NotReached => true,
         PasswordCheck::Rejected => false,
         PasswordCheck::Accepted => !matches!(result, Err(Error(ErrorCode::Unauthenticated))),
-    };
-    if refund {
-        if let Ok(mut limiter) = app.limiter.lock() {
+    });
+    result
+}
+/// One charged attempt, settled exactly once: by `settle` when the check
+/// completes, or on drop when the request is cancelled first. A cancelled
+/// request is refunded only if its comparison had not started.
+struct Charge<'a> {
+    limiter: &'a Mutex<Limiter>,
+    ticket: Option<Ticket>,
+    attempt: PasswordAttempt,
+}
+impl Charge<'_> {
+    fn settle(mut self, refund: bool) {
+        if let Some(ticket) = self.ticket.take() {
+            if refund {
+                self.refund(ticket);
+            }
+        }
+    }
+    fn refund(&self, ticket: Ticket) {
+        if let Ok(mut limiter) = self.limiter.lock() {
             limiter.refund(ticket);
         }
     }
-    result
+}
+impl Drop for Charge<'_> {
+    fn drop(&mut self) {
+        if let Some(ticket) = self.ticket.take() {
+            if !self.attempt.comparison_started() {
+                self.refund(ticket);
+            }
+        }
+    }
 }
 pub fn router<B: Backend>(backend: B, origin: String) -> Router {
     Router::new()
@@ -963,7 +1020,11 @@ async fn login<B: Backend>(State(app): State<App<B>>, request: Request) -> Respo
         return failure(Error(ErrorCode::Unauthenticated));
     }
     let username = input.username.clone();
-    match password_attempt(&app, Attempt::Login(&username), app.backend.login(input)).await {
+    match password_attempt(&app, Attempt::Login(&username), |attempt| {
+        app.backend.login(input, attempt)
+    })
+    .await
+    {
         Ok(issued) => {
             let value = format!(
                 "__Host-limeos={}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=28800",
@@ -1054,7 +1115,7 @@ mod tests {
     #[derive(Clone)]
     struct Fake;
     impl Backend for Fake {
-        async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
+        async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
             PasswordChecked::rejected()
         }
         async fn session(&self, _: String, _: Option<String>) -> Result<SessionView> {
@@ -1113,7 +1174,7 @@ mod tests {
         unknown: Arc<std::sync::atomic::AtomicUsize>,
     }
     impl Backend for Accepting {
-        async fn login(&self, input: Login) -> PasswordChecked<IssuedSession> {
+        async fn login(&self, input: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
             if input.username != "admin"
                 && self
                     .unknown
@@ -1314,6 +1375,104 @@ mod tests {
         }
         assert!(limiter.charge(alice, at(130_001)).is_none());
     }
+    fn app() -> App<Accepting> {
+        App {
+            backend: Accepting::default(),
+            origin: "https://localhost".into(),
+            limiter: Arc::new(Mutex::new(Limiter::default())),
+            readers: Arc::new(Semaphore::new(8)),
+        }
+    }
+    fn live(app: &App<Accepting>) -> usize {
+        app.limiter.lock().unwrap().budgets.len()
+    }
+    fn count(app: &App<Accepting>, name: &str) -> Option<u32> {
+        let key = AttemptKey::Login(name.into());
+        app.limiter.lock().unwrap().budgets.get(&key).map(|e| e.1)
+    }
+    #[test]
+    fn requests_cancelled_before_a_comparison_leave_no_entry() {
+        use futures_util::FutureExt;
+        let app = app();
+        // Rotating names, each abandoned during the account lookup, cannot
+        // fill the table.
+        for i in 0..5000 {
+            let name = format!("user{i}");
+            let pending = password_attempt(&app, Attempt::Login(&name), |_| {
+                std::future::pending::<PasswordChecked<()>>()
+            });
+            assert!(pending.now_or_never().is_none());
+        }
+        assert_eq!(live(&app), 0);
+        assert!(
+            app.limiter
+                .lock()
+                .unwrap()
+                .charge(Attempt::Login("admin"), Instant::now())
+                .is_some()
+        );
+    }
+    #[test]
+    fn a_request_cancelled_during_its_comparison_keeps_the_charge() {
+        use futures_util::FutureExt;
+        let app = app();
+        for _ in 0..10 {
+            let pending = password_attempt(&app, Attempt::Login("alice"), |attempt| async move {
+                attempt.start_comparison();
+                std::future::pending::<PasswordChecked<()>>().await
+            });
+            assert!(pending.now_or_never().is_none());
+        }
+        assert_eq!(count(&app, "alice"), Some(10));
+        let refused = password_attempt(&app, Attempt::Login("alice"), |_| async {
+            PasswordChecked::<()>::rejected()
+        });
+        assert_eq!(
+            refused.now_or_never().unwrap().err(),
+            Some(Error(ErrorCode::Overloaded))
+        );
+    }
+    #[test]
+    fn each_charge_is_settled_exactly_once() {
+        use futures_util::FutureExt;
+        let app = app();
+        let complete = |check: PasswordCheck, result: Result<()>| {
+            password_attempt(&app, Attempt::Login("alice"), move |_| async move {
+                PasswordChecked::new(check, result)
+            })
+            .now_or_never()
+            .unwrap()
+        };
+        // Two kept charges, then one refunded completion: the count does not
+        // move, and the completed charge's drop refunds nothing more.
+        complete(
+            PasswordCheck::Rejected,
+            Err(Error(ErrorCode::Unauthenticated)),
+        )
+        .unwrap_err();
+        complete(
+            PasswordCheck::Rejected,
+            Err(Error(ErrorCode::Unauthenticated)),
+        )
+        .unwrap_err();
+        assert_eq!(count(&app, "alice"), Some(2));
+        complete(PasswordCheck::Accepted, Ok(())).unwrap();
+        complete(PasswordCheck::NotReached, Err(Error(ErrorCode::Overloaded))).unwrap_err();
+        assert_eq!(count(&app, "alice"), Some(2));
+        // A kept charge whose comparison never started is not refunded on drop.
+        let ticket = app
+            .limiter
+            .lock()
+            .unwrap()
+            .charge(Attempt::Login("alice"), Instant::now());
+        Charge {
+            limiter: &app.limiter,
+            ticket,
+            attempt: PasswordAttempt::default(),
+        }
+        .settle(false);
+        assert_eq!(count(&app, "alice"), Some(3));
+    }
     #[test]
     fn two_names_never_share_a_budget() {
         let mut limiter = Limiter::default();
@@ -1359,7 +1518,7 @@ mod tests {
         release: Arc<tokio::sync::Notify>,
     }
     impl Backend for Held {
-        async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
+        async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
             self.arrived
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             self.release.notified().await;

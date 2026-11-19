@@ -9,7 +9,7 @@ struct RouteStub {
     calls: Arc<AtomicUsize>,
 }
 impl Backend for RouteStub {
-    async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
+    async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
     }
     async fn session(&self, token: String, csrf: Option<String>) -> Result<SessionView> {
@@ -38,6 +38,7 @@ impl Backend for RouteStub {
         csrf: String,
         input: limeos_contracts::ObserveHealthEnable,
         deadline: Instant,
+        _: PasswordAttempt,
     ) -> PasswordChecked<limeos_contracts::ObserveHealthEnabled> {
         // Transport stub only. Real password and transaction coverage is in Core.
         self.calls.fetch_add(1, Ordering::SeqCst);

@@ -28,7 +28,7 @@ impl Backend for ReadBackend {
             digest: "a".repeat(64),
         })
     }
-    async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
+    async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
     }
     async fn session(&self, _: String, _: Option<String>) -> Result<SessionView> {

@@ -87,7 +87,7 @@ impl Backend for Mutations {
         self.0.fetch_add(1, Ordering::SeqCst);
         Err(Error(ErrorCode::Unavailable))
     }
-    async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
+    async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
     }
     async fn session(&self, _: String, csrf: Option<String>) -> Result<SessionView> {

@@ -18,7 +18,8 @@ impl Core {
         deadline: Instant,
     ) -> Result<limeos_contracts::ObserveHealthEnabled> {
         let mut check = limeos_api::PasswordCheck::NotReached;
-        self.human_enable_observe_health_checked(token, csrf, input, deadline, &mut check)
+        let attempt = limeos_api::PasswordAttempt::default();
+        self.human_enable_observe_health_checked(token, csrf, input, deadline, &attempt, &mut check)
             .await
     }
     /// As `human_enable_observe_health`, recording how far the check got.
@@ -28,6 +29,7 @@ impl Core {
         csrf: String,
         input: limeos_contracts::ObserveHealthEnable,
         deadline: Instant,
+        attempt: &limeos_api::PasswordAttempt,
         check: &mut limeos_api::PasswordCheck,
     ) -> Result<limeos_contracts::ObserveHealthEnabled> {
         live(deadline)?;
@@ -46,7 +48,8 @@ impl Core {
             })
             .await?;
         let response = self
-            .password(limeos_contracts::PasswordRequest::Verify {
+            .password(PasswordJob::Verify {
+                attempt,
                 password: input.password,
                 encoded: record.password_hash.clone(),
             })

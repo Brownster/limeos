@@ -43,7 +43,7 @@ fn budget(token: &str, deadline: Instant) {
     assert!(deadline > Instant::now() && deadline <= Instant::now() + Duration::from_secs(10));
 }
 impl Backend for RouteStub {
-    async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
+    async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
     }
     async fn session(&self, _: String, _: Option<String>) -> Result<SessionView> {

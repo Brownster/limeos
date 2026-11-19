@@ -61,10 +61,13 @@ async fn setup() -> (tempfile::TempDir, Core, limeos_api::IssuedSession) {
     .await
     .unwrap();
     let session = core
-        .login(Login {
-            username: "alice".into(),
-            password: "correct-long-password".into(),
-        })
+        .login(
+            Login {
+                username: "alice".into(),
+                password: "correct-long-password".into(),
+            },
+            limeos_api::PasswordAttempt::default(),
+        )
         .await
         .result
         .unwrap();
@@ -103,10 +106,13 @@ async fn real_verifier_wrong_password_then_enable_relogin_and_noop() {
     assert_eq!(after.audit, before.audit + 256);
     assert!(core.session(session.token, None).await.is_err());
     let fresh = core
-        .login(Login {
-            username: "alice".into(),
-            password: "correct-long-password".into(),
-        })
+        .login(
+            Login {
+                username: "alice".into(),
+                password: "correct-long-password".into(),
+            },
+            limeos_api::PasswordAttempt::default(),
+        )
         .await
         .result
         .unwrap();
@@ -198,7 +204,8 @@ async fn successful_real_verification_cannot_survive_session_revocation() {
         .await
         .unwrap();
     let verified = core
-        .password(limeos_contracts::PasswordRequest::Verify {
+        .password(PasswordJob::Verify {
+            attempt: &limeos_api::PasswordAttempt::default(),
             password: "correct-long-password".into(),
             encoded: record.password_hash.clone(),
         })

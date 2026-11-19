@@ -40,7 +40,7 @@ fn view() -> ResolutionView {
     }
 }
 impl Backend for Stub {
-    async fn login(&self, _: Login) -> PasswordChecked<IssuedSession> {
+    async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
     }
     async fn logout(&self, _: String, _: String) -> Result<()> {
@@ -92,6 +92,7 @@ impl Backend for Stub {
         _: String,
         id: String,
         input: limeos_contracts::ResolveJobInput,
+        _: PasswordAttempt,
     ) -> PasswordChecked<ResolveJobResponse> {
         self.decisions.fetch_add(1, Ordering::SeqCst);
         assert_eq!(id, "e".repeat(64));

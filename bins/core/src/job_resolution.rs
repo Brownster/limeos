@@ -366,7 +366,8 @@ impl Core {
         input: ResolveJobInput,
     ) -> Result<ResolveJobResponse> {
         let mut check = limeos_api::PasswordCheck::NotReached;
-        self.human_resolve_checked(token, csrf, job, input, &mut check)
+        let attempt = limeos_api::PasswordAttempt::default();
+        self.human_resolve_checked(token, csrf, job, input, &attempt, &mut check)
             .await
     }
     /// As `human_resolve`, recording how far the password check got.
@@ -376,6 +377,7 @@ impl Core {
         csrf: String,
         job: String,
         input: ResolveJobInput,
+        attempt: &limeos_api::PasswordAttempt,
         check: &mut limeos_api::PasswordCheck,
     ) -> Result<ResolveJobResponse> {
         if !limeos_contracts::password_well_formed(&input.password) {
@@ -391,7 +393,8 @@ impl Core {
             .call(move |store| store.resolution_reauthentication(&s, &c, now()))
             .await?;
         let verified = self
-            .password(limeos_contracts::PasswordRequest::Verify {
+            .password(PasswordJob::Verify {
+                attempt,
                 password: input.password,
                 encoded: record.password_hash.clone(),
             })

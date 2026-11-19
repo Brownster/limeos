@@ -1,4 +1,4 @@
-use limeos_api::{Backend, IssuedSession, PasswordCheck, PasswordChecked};
+use limeos_api::{Backend, IssuedSession, PasswordAttempt, PasswordCheck, PasswordChecked};
 use limeos_contracts::{
     CoreRequest, CoreResponse, Enrollment, ErrorEnvelope, Health, Login, SessionView, VERSION,
 };
@@ -40,6 +40,16 @@ fn now() -> i64 {
         .as_secs()
         .min(i64::MAX as u64) as i64
 }
+/// Work for a password worker. A verification carries the request's attempt
+/// handle, so it cannot be issued without marking when its comparison starts.
+enum PasswordJob<'a> {
+    Hash(String),
+    Verify {
+        attempt: &'a PasswordAttempt,
+        password: String,
+        encoded: String,
+    },
+}
 #[derive(Clone)]
 struct Core {
     automation_status: automation_runtime::Status,
@@ -61,6 +71,7 @@ impl Core {
     async fn login_checked(
         &self,
         input: Login,
+        attempt: &PasswordAttempt,
         check: &mut PasswordCheck,
     ) -> Result<IssuedSession> {
         if !input.well_formed() {
@@ -84,7 +95,8 @@ impl Core {
             .map(|r| r.password_hash.clone())
             .unwrap_or_else(|| self.dummy_hash.to_string());
         let response = self
-            .password(limeos_contracts::PasswordRequest::Verify {
+            .password(PasswordJob::Verify {
+                attempt,
                 password: input.password,
                 encoded,
             })
@@ -122,12 +134,21 @@ impl Core {
             },
         })
     }
-    async fn password(
-        &self,
-        request: limeos_contracts::PasswordRequest,
-    ) -> Result<limeos_contracts::PasswordResponse> {
+    async fn password(&self, job: PasswordJob<'_>) -> Result<limeos_contracts::PasswordResponse> {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let _admission = self.password_workers.admit().await?;
+        // Admitted: from here a cancelled request has spent a comparison.
+        let request = match job {
+            PasswordJob::Hash(password) => limeos_contracts::PasswordRequest::Hash { password },
+            PasswordJob::Verify {
+                attempt,
+                password,
+                encoded,
+            } => {
+                attempt.start_comparison();
+                limeos_contracts::PasswordRequest::Verify { password, encoded }
+            }
+        };
         let executable = std::env::current_exe().map_err(|_| Error(ErrorCode::Unavailable))?;
         let directory = executable.parent().ok_or(Error(ErrorCode::Unavailable))?;
         #[cfg(test)]
@@ -179,7 +200,7 @@ impl Core {
         if !(12..=1024).contains(&password.len()) {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        self.password(limeos_contracts::PasswordRequest::Hash { password })
+        self.password(PasswordJob::Hash(password))
             .await?
             .upgraded
             .ok_or(Error(ErrorCode::Unavailable))
@@ -298,10 +319,11 @@ impl Backend for Core {
         csrf: String,
         input: limeos_contracts::ObserveHealthEnable,
         deadline: std::time::Instant,
+        attempt: PasswordAttempt,
     ) -> PasswordChecked<limeos_contracts::ObserveHealthEnabled> {
         let mut check = PasswordCheck::NotReached;
         let result = self
-            .human_enable_observe_health_checked(token, csrf, input, deadline, &mut check)
+            .human_enable_observe_health_checked(token, csrf, input, deadline, &attempt, &mut check)
             .await;
         PasswordChecked::new(check, result)
     }
@@ -486,9 +508,13 @@ impl Backend for Core {
             .call(move |s| s.cancel_storage(&principal, &id, now()))
             .await
     }
-    async fn login(&self, input: Login) -> PasswordChecked<IssuedSession> {
+    async fn login(
+        &self,
+        input: Login,
+        attempt: PasswordAttempt,
+    ) -> PasswordChecked<IssuedSession> {
         let mut check = PasswordCheck::NotReached;
-        let result = self.login_checked(input, &mut check).await;
+        let result = self.login_checked(input, &attempt, &mut check).await;
         PasswordChecked::new(check, result)
     }
     async fn session(&self, token: String, csrf: Option<String>) -> Result<SessionView> {
@@ -812,10 +838,11 @@ impl Backend for Core {
         csrf: String,
         id: String,
         input: limeos_contracts::ResolveJobInput,
+        attempt: PasswordAttempt,
     ) -> PasswordChecked<limeos_contracts::ResolveJobResponse> {
         let mut check = PasswordCheck::NotReached;
         let result = self
-            .human_resolve_checked(token, csrf, id, input, &mut check)
+            .human_resolve_checked(token, csrf, id, input, &attempt, &mut check)
             .await;
         PasswordChecked::new(check, result)
     }

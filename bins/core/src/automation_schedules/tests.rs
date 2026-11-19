@@ -49,10 +49,13 @@ async fn setup() -> (tempfile::TempDir, Core, IssuedSession) {
     .await
     .unwrap();
     let session = core
-        .login(Login {
-            username: "alice".into(),
-            password: "correct-long-password".into(),
-        })
+        .login(
+            Login {
+                username: "alice".into(),
+                password: "correct-long-password".into(),
+            },
+            limeos_api::PasswordAttempt::default(),
+        )
         .await
         .result
         .unwrap();
@@ -94,10 +97,13 @@ async fn actual_enable_relogin_create_read_restart_and_pause_are_metadata_only()
         .await
         .unwrap();
     let session = initial
-        .login(Login {
-            username: "alice".into(),
-            password: "correct-long-password".into(),
-        })
+        .login(
+            Login {
+                username: "alice".into(),
+                password: "correct-long-password".into(),
+            },
+            limeos_api::PasswordAttempt::default(),
+        )
         .await
         .result
         .unwrap();

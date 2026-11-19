@@ -123,10 +123,13 @@ fn core(db: Database, socket: PathBuf) -> Core {
     }
 }
 async fn login(core: &Core) -> limeos_api::IssuedSession {
-    core.login(Login {
-        username: "alice".into(),
-        password: PASSWORD.into(),
-    })
+    core.login(
+        Login {
+            username: "alice".into(),
+            password: PASSWORD.into(),
+        },
+        limeos_api::PasswordAttempt::default(),
+    )
     .await
     .result
     .unwrap()
@@ -567,7 +570,16 @@ async fn the_password_check_is_reported_apart_from_what_follows_it() {
         let core = f.core.clone();
         let (token, csrf) = (f.session.token.clone(), f.session.view.csrf_token.clone());
         let input = f.input(DeclaredOutcome::NotDone, &"d".repeat(64), password);
-        async move { core.resolve_job(token, csrf, job, input).await }
+        async move {
+            core.resolve_job(
+                token,
+                csrf,
+                job,
+                input,
+                limeos_api::PasswordAttempt::default(),
+            )
+            .await
+        }
     };
     // Correct password, no such job: refused after the match.
     let outcome = checked("0".repeat(64), PASSWORD).await;
@@ -578,18 +590,24 @@ async fn the_password_check_is_reported_apart_from_what_follows_it() {
     assert_eq!(outcome.result.unwrap_err().0, ErrorCode::Unauthenticated);
     let outcome = f
         .core
-        .login(Login {
-            username: "alice".into(),
-            password: "wrong-password".into(),
-        })
+        .login(
+            Login {
+                username: "alice".into(),
+                password: "wrong-password".into(),
+            },
+            limeos_api::PasswordAttempt::default(),
+        )
         .await;
     assert_eq!(outcome.check, PasswordCheck::Rejected);
     let outcome = f
         .core
-        .login(Login {
-            username: "alice".into(),
-            password: PASSWORD.into(),
-        })
+        .login(
+            Login {
+                username: "alice".into(),
+                password: PASSWORD.into(),
+            },
+            limeos_api::PasswordAttempt::default(),
+        )
         .await;
     assert_eq!(outcome.check, PasswordCheck::Accepted);
     assert!(outcome.result.is_ok());
@@ -614,10 +632,13 @@ async fn try_login(
     password: &str,
 ) -> limeos_api::PasswordChecked<limeos_api::IssuedSession> {
     use limeos_api::Backend;
-    core.login(Login {
-        username: username.into(),
-        password: password.into(),
-    })
+    core.login(
+        Login {
+            username: username.into(),
+            password: password.into(),
+        },
+        limeos_api::PasswordAttempt::default(),
+    )
     .await
 }
 
@@ -636,6 +657,41 @@ async fn a_missing_account_goes_through_the_real_dummy_hash_and_is_never_accepte
             Some(Error(ErrorCode::Unauthenticated))
         );
     }
+}
+
+#[tokio::test]
+async fn a_comparison_is_marked_started_only_once_a_worker_is_admitted() {
+    use limeos_api::PasswordAttempt;
+    let f = fixture().await;
+    let core = login_core(&f, 3);
+    let login = |attempt: PasswordAttempt| {
+        let core = core.clone();
+        async move {
+            use limeos_api::Backend;
+            let input = Login {
+                username: "alice".into(),
+                password: PASSWORD.into(),
+            };
+            core.login(input, attempt).await
+        }
+    };
+    // Both workers busy: the request is cancelled while it waits.
+    let busy = (
+        core.password_workers.admit().await.unwrap(),
+        core.password_workers.admit().await.unwrap(),
+    );
+    let attempt = PasswordAttempt::default();
+    let waited = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        login(attempt.clone()),
+    )
+    .await;
+    assert!(waited.is_err());
+    assert!(!attempt.comparison_started());
+    drop(busy);
+    let attempt = PasswordAttempt::default();
+    assert!(login(attempt.clone()).await.result.is_ok());
+    assert!(attempt.comparison_started());
 }
 
 #[tokio::test]

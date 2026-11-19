@@ -118,10 +118,13 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
             .await
             .unwrap();
         let wrong = core
-            .login(Login {
-                username: username.clone(),
-                password: "wrong".into(),
-            })
+            .login(
+                Login {
+                    username: username.clone(),
+                    password: "wrong".into(),
+                },
+                limeos_api::PasswordAttempt::default(),
+            )
             .await;
         assert_eq!(wrong.check, limeos_api::PasswordCheck::Rejected);
         assert_eq!(wrong.result.err().unwrap().0, ErrorCode::Unauthenticated);
@@ -134,10 +137,13 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
             encoded
         );
         let right = core
-            .login(Login {
-                username: username.clone(),
-                password: fixture["password"].as_str().unwrap().into(),
-            })
+            .login(
+                Login {
+                    username: username.clone(),
+                    password: fixture["password"].as_str().unwrap().into(),
+                },
+                limeos_api::PasswordAttempt::default(),
+            )
             .await;
         assert_eq!(right.check, limeos_api::PasswordCheck::Accepted);
         let issued = right.result.unwrap();
@@ -195,18 +201,24 @@ async fn batch_imported_legacy_users_log_in_and_rerun_changes_nothing() {
     for (i, fixture) in fixtures.as_array().unwrap().iter().enumerate() {
         let username = format!("legacy-{i}");
         let wrong = core
-            .login(Login {
-                username: username.clone(),
-                password: "wrong-password".into(),
-            })
+            .login(
+                Login {
+                    username: username.clone(),
+                    password: "wrong-password".into(),
+                },
+                limeos_api::PasswordAttempt::default(),
+            )
             .await;
         assert_eq!(wrong.check, limeos_api::PasswordCheck::Rejected);
         assert_eq!(wrong.result.err().unwrap().0, ErrorCode::Unauthenticated);
         let right = core
-            .login(Login {
-                username: username.clone(),
-                password: fixture["password"].as_str().unwrap().into(),
-            })
+            .login(
+                Login {
+                    username: username.clone(),
+                    password: fixture["password"].as_str().unwrap().into(),
+                },
+                limeos_api::PasswordAttempt::default(),
+            )
             .await;
         assert_eq!(right.check, limeos_api::PasswordCheck::Accepted);
         right.result.unwrap();

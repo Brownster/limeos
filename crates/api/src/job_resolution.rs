@@ -77,11 +77,9 @@ pub(super) async fn resolve<B: Backend>(
             return Err(Error(ErrorCode::InvalidInput));
         }
         // Failed password attempts are budgeted per authenticated principal.
-        password_attempt(
-            &app,
-            Attempt::Principal(&principal.id),
-            app.backend.resolve_job(token, csrf, id, value),
-        )
+        password_attempt(&app, Attempt::Principal(&principal.id), |attempt| {
+            app.backend.resolve_job(token, csrf, id, value, attempt)
+        })
         .await
     }
     .await;

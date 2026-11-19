@@ -15,12 +15,10 @@ pub(super) async fn enable<B: Backend>(State(app): State<App<B>>, request: Reque
             return Err(Error(ErrorCode::InvalidInput));
         }
         // Failed password attempts are budgeted per authenticated principal.
-        password_attempt(
-            &app,
-            Attempt::Principal(&principal.id),
+        password_attempt(&app, Attempt::Principal(&principal.id), |attempt| {
             app.backend
-                .enable_observe_health(token, csrf, input, deadline),
-        )
+                .enable_observe_health(token, csrf, input, deadline, attempt)
+        })
         .await
     }
     .await;
