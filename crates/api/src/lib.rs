@@ -10,8 +10,8 @@ use axum::{
 use limeos_contracts::{ErrorEnvelope, Health, Login, SessionView};
 use limeos_domain::{Error, ErrorCode, Result};
 use std::{
+    collections::HashMap,
     future::Future,
-    hash::{BuildHasher, RandomState},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -544,72 +544,81 @@ struct App<B> {
 }
 /// Whose password is being tried. Every peer is the local proxy, so the
 /// address says nothing; forwarded headers are never trusted either.
-#[derive(Clone, Copy, Hash)]
+#[derive(Clone, Copy)]
 enum Attempt<'a> {
     /// The username a login names, whether or not such an account exists.
+    /// Already checked by `Login::well_formed`, so at most 64 bytes.
     Login(&'a str),
     /// The principal of an authenticated session re-entering its password.
     Principal(&'a str),
 }
-/// Failed password attempts allowed per budget slot and window.
-const ATTEMPTS: u32 = 10;
-const ATTEMPT_WINDOW: Duration = Duration::from_secs(60);
-/// Budget slots. Fixed, so memory never grows with what is submitted.
-const ATTEMPT_SLOTS: usize = 4096;
-/// Failed password attempts, in a fixed table of per-slot budgets indexed by
-/// the attempt key hashed with a per-process random key. There is no global
-/// budget, so failures against other names cannot lock out an untouched one:
-/// without the key an attacker cannot aim at a victim's slot, and spraying
-/// names fills slots only as fast as the two password workers compare, far
-/// below the 40,960 failures a minute that every slot would take. Two names
-/// may share a slot by chance; nothing depends on whether an account exists.
-struct Limiter {
-    keys: RandomState,
-    slots: Box<[(Option<Instant>, u32)]>,
+/// An attempt's budget key: the full name, never a hash of it.
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum AttemptKey {
+    Login(String),
+    Principal(String),
 }
-impl Default for Limiter {
-    fn default() -> Self {
-        Self {
-            keys: RandomState::new(),
-            slots: vec![(None, 0); ATTEMPT_SLOTS].into_boxed_slice(),
+impl Attempt<'_> {
+    fn key(self) -> AttemptKey {
+        match self {
+            Self::Login(name) => AttemptKey::Login(name.into()),
+            Self::Principal(id) => AttemptKey::Principal(id.into()),
         }
     }
 }
-/// The slot and window one charge was taken from. A refund applies only to
+/// Failed password attempts allowed per name and window.
+const ATTEMPTS: u32 = 10;
+const ATTEMPT_WINDOW: Duration = Duration::from_secs(60);
+/// Names with a live budget. Worst case, with 64-byte usernames and principal
+/// ids: about 56 bytes per table bucket (key, window, count) for at most
+/// 4,096 buckets, plus one heap allocation of at most 80 bytes per entry,
+/// under 0.5 MiB in all. In practice far fewer are live: an entry lasts one
+/// window, wrong passwords for names with no account are capped by core at
+/// 120 a minute, and refunded entries are removed at once.
+const ATTEMPT_CAPACITY: usize = 2048;
+/// Exact per-name budgets of failed password attempts: ten per window for
+/// each username and each principal, with no sharing between names. When
+/// the table is full of live entries an unseen name is refused (fail
+/// closed). The aggregate cost of names with no account is bounded in core.
+#[derive(Default)]
+struct Limiter {
+    budgets: HashMap<AttemptKey, (Instant, u32)>,
+}
+/// The name and window one charge was taken from. A refund applies only to
 /// that window: a check charged just before the window rolled must not erase
 /// a failure counted in the next one.
-#[derive(Clone, Copy)]
 struct Ticket {
-    slot: usize,
+    key: AttemptKey,
     window: Instant,
 }
 impl Limiter {
-    fn slot(&self, attempt: Attempt) -> usize {
-        (self.keys.hash_one(attempt) % ATTEMPT_SLOTS as u64) as usize
-    }
-    /// Charge one attempt before the password work; `None` when the slot's
-    /// budget is spent. Charging first keeps concurrent attempts inside it.
-    fn charge(&mut self, slot: usize, now: Instant) -> Option<Ticket> {
-        let entry = self.slots.get_mut(slot)?;
-        if entry
-            .0
-            .is_none_or(|start| now.saturating_duration_since(start) >= ATTEMPT_WINDOW)
-        {
-            *entry = (Some(now), 0);
-        }
-        if entry.1 >= ATTEMPTS {
+    /// Charge one attempt before the password work; `None` when the name's
+    /// budget is spent or the table is full. Charging first keeps concurrent
+    /// attempts inside the budget.
+    fn charge(&mut self, attempt: Attempt, now: Instant) -> Option<Ticket> {
+        self.budgets
+            .retain(|_, (window, _)| now.saturating_duration_since(*window) < ATTEMPT_WINDOW);
+        let key = attempt.key();
+        if !self.budgets.contains_key(&key) && self.budgets.len() >= ATTEMPT_CAPACITY {
             return None;
         }
-        entry.1 += 1;
+        let (window, count) = self.budgets.entry(key.clone()).or_insert((now, 0));
+        if *count >= ATTEMPTS {
+            return None;
+        }
+        *count += 1;
         Some(Ticket {
-            slot,
-            window: entry.0?,
+            key,
+            window: *window,
         })
     }
     fn refund(&mut self, ticket: Ticket) {
-        if let Some(entry) = self.slots.get_mut(ticket.slot) {
-            if entry.0 == Some(ticket.window) {
-                entry.1 = entry.1.saturating_sub(1);
+        if let Some((window, count)) = self.budgets.get_mut(&ticket.key) {
+            if *window == ticket.window {
+                *count = count.saturating_sub(1);
+                if *count == 0 {
+                    self.budgets.remove(&ticket.key);
+                }
             }
         }
     }
@@ -626,10 +635,11 @@ async fn password_attempt<B, T>(
     attempt: Attempt<'_>,
     check: impl Future<Output = PasswordChecked<T>>,
 ) -> Result<T> {
-    let ticket = app.limiter.lock().ok().and_then(|mut limiter| {
-        let slot = limiter.slot(attempt);
-        limiter.charge(slot, Instant::now())
-    });
+    let ticket = app
+        .limiter
+        .lock()
+        .ok()
+        .and_then(|mut limiter| limiter.charge(attempt, Instant::now()));
     let Some(ticket) = ticket else {
         return Err(Error(ErrorCode::Overloaded));
     };
@@ -1097,10 +1107,21 @@ mod tests {
         assert!(!String::from_utf8_lossy(&bytes).contains("pihealth"));
     }
     /// Accepts exactly `admin` / `right`; every other attempt is a failure.
-    #[derive(Clone)]
-    struct Accepting;
+    /// Like core, names with no account get 120 comparisons, then none.
+    #[derive(Clone, Default)]
+    struct Accepting {
+        unknown: Arc<std::sync::atomic::AtomicUsize>,
+    }
     impl Backend for Accepting {
         async fn login(&self, input: Login) -> PasswordChecked<IssuedSession> {
+            if input.username != "admin"
+                && self
+                    .unknown
+                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                    >= 120
+            {
+                return PasswordChecked::not_reached(Error(ErrorCode::Overloaded));
+            }
             // Verified, then the session could not be stored.
             if input.username == "admin" && input.password == "right-but-down" {
                 return PasswordChecked::new(
@@ -1158,7 +1179,7 @@ mod tests {
     }
     #[tokio::test]
     async fn junk_requests_do_not_spend_the_login_budget() {
-        let app = router(Accepting, "https://localhost".into());
+        let app = router(Accepting::default(), "https://localhost".into());
         for _ in 0..12 {
             for (content_type, body) in [
                 (Some("application/json"), "{bad".to_owned()),
@@ -1186,7 +1207,7 @@ mod tests {
     }
     #[tokio::test]
     async fn failed_passwords_are_limited_per_username_and_successes_are_free() {
-        let app = router(Accepting, "https://localhost".into());
+        let app = router(Accepting::default(), "https://localhost".into());
         for _ in 0..10 {
             assert_eq!(
                 status(&app, attempt("alice", "wrong")).await,
@@ -1229,7 +1250,7 @@ mod tests {
     }
     #[tokio::test]
     async fn malformed_credentials_are_refused_without_spending_the_budget() {
-        let app = router(Accepting, "https://localhost".into());
+        let app = router(Accepting::default(), "https://localhost".into());
         for _ in 0..12 {
             for (username, password) in [
                 ("admin", String::new()),
@@ -1257,7 +1278,7 @@ mod tests {
     }
     #[tokio::test]
     async fn a_correct_password_is_free_even_when_the_login_then_fails() {
-        let app = router(Accepting, "https://localhost".into());
+        let app = router(Accepting::default(), "https://localhost".into());
         for _ in 0..15 {
             assert_eq!(
                 status(&app, attempt("admin", "right-but-down")).await,
@@ -1272,46 +1293,64 @@ mod tests {
     #[test]
     fn a_refund_from_an_earlier_window_cannot_erase_a_new_failure() {
         let mut limiter = Limiter::default();
-        let slot = limiter.slot(Attempt::Login("alice"));
+        let alice = Attempt::Login("alice");
         let start = Instant::now();
         let at = |ms: u64| start + Duration::from_millis(ms);
-        assert!(limiter.charge(slot, at(0)).is_some());
+        assert!(limiter.charge(alice, at(0)).is_some());
         // Charged at 59.9 s; its check finishes only after the window rolled.
-        let late = limiter.charge(slot, at(59_900)).unwrap();
-        assert!(limiter.charge(slot, at(60_000)).is_some());
+        let late = limiter.charge(alice, at(59_900)).unwrap();
+        assert!(limiter.charge(alice, at(60_000)).is_some());
         limiter.refund(late);
         // The new window holds its one failure: nine more, then refused.
         for _ in 0..9 {
-            assert!(limiter.charge(slot, at(61_000)).is_some());
+            assert!(limiter.charge(alice, at(61_000)).is_some());
         }
-        assert!(limiter.charge(slot, at(61_000)).is_none());
+        assert!(limiter.charge(alice, at(61_000)).is_none());
         // A refund inside its own window still applies.
-        let ticket = limiter.charge(slot, at(130_000)).unwrap();
+        let ticket = limiter.charge(alice, at(130_000)).unwrap();
         limiter.refund(ticket);
         for _ in 0..10 {
-            assert!(limiter.charge(slot, at(130_001)).is_some());
+            assert!(limiter.charge(alice, at(130_001)).is_some());
         }
-        assert!(limiter.charge(slot, at(130_001)).is_none());
+        assert!(limiter.charge(alice, at(130_001)).is_none());
     }
     #[test]
-    fn the_budget_table_stays_fixed_whatever_names_are_charged() {
+    fn two_names_never_share_a_budget() {
         let mut limiter = Limiter::default();
         let now = Instant::now();
-        let mut charged = 0;
-        for i in 0..100_000 {
-            let slot = limiter.slot(Attempt::Login(&format!("user{i}")));
-            charged += usize::from(limiter.charge(slot, now).is_some());
+        for _ in 0..10 {
+            assert!(limiter.charge(Attempt::Login("alice"), now).is_some());
         }
-        // 100,000 names over 4,096 slots average 24 each: the per-slot budget
-        // refuses the excess and nothing grows.
-        assert!(charged <= ATTEMPT_SLOTS * ATTEMPTS as usize);
-        assert!(charged > ATTEMPT_SLOTS * ATTEMPTS as usize * 99 / 100);
-        assert_eq!(limiter.slots.len(), ATTEMPT_SLOTS);
-        // A username and a principal with the same text are different keys.
-        assert_ne!(
-            limiter.keys.hash_one(Attempt::Login("p")),
-            limiter.keys.hash_one(Attempt::Principal("p"))
-        );
+        assert!(limiter.charge(Attempt::Login("alice"), now).is_none());
+        // Every other name, and the same text as a principal, is untouched.
+        for i in 0..1000 {
+            let name = format!("user{i}");
+            assert!(limiter.charge(Attempt::Login(&name), now).is_some());
+        }
+        assert!(limiter.charge(Attempt::Principal("alice"), now).is_some());
+        assert!(limiter.charge(Attempt::Login("alice"), now).is_none());
+    }
+    #[test]
+    fn a_full_map_refuses_an_unseen_name_and_recovers_when_windows_end() {
+        let mut limiter = Limiter::default();
+        let start = Instant::now();
+        for i in 0..ATTEMPT_CAPACITY {
+            let name = format!("user{i}");
+            assert!(limiter.charge(Attempt::Login(&name), start).is_some());
+        }
+        assert_eq!(limiter.budgets.len(), ATTEMPT_CAPACITY);
+        // Fail closed for a name not yet in the map; known names keep going.
+        assert!(limiter.charge(Attempt::Login("late"), start).is_none());
+        assert!(limiter.charge(Attempt::Login("user0"), start).is_some());
+        assert_eq!(limiter.budgets.len(), ATTEMPT_CAPACITY);
+        // Windows end and their entries go.
+        let later = start + ATTEMPT_WINDOW;
+        assert!(limiter.charge(Attempt::Login("late"), later).is_some());
+        assert_eq!(limiter.budgets.len(), 1);
+        // An entry refunded to zero is removed at once.
+        let ticket = limiter.charge(Attempt::Login("brief"), later).unwrap();
+        limiter.refund(ticket);
+        assert_eq!(limiter.budgets.len(), 1);
     }
     /// Holds every check open until released, counting those that arrive.
     #[derive(Clone)]
@@ -1362,11 +1401,18 @@ mod tests {
     }
     #[tokio::test]
     async fn failures_across_other_usernames_never_lock_out_an_untouched_one() {
-        let app = router(Accepting, "https://localhost".into());
+        let app = router(Accepting::default(), "https://localhost".into());
+        // A flood of rotating names with no account: 120 compared, the rest
+        // refused by core without a comparison, which the limiter refunds.
         for i in 0..3000 {
+            let expected = if i < 120 {
+                StatusCode::UNAUTHORIZED
+            } else {
+                StatusCode::TOO_MANY_REQUESTS
+            };
             assert_eq!(
                 status(&app, attempt(&format!("user{i}"), "wrong")).await,
-                StatusCode::UNAUTHORIZED
+                expected
             );
         }
         assert_eq!(

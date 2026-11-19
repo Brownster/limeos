@@ -25,6 +25,8 @@ pub mod health_collection;
 mod identity_enablement;
 mod job_resolution;
 mod operations;
+mod password_admission;
+use password_admission::PasswordWorkers;
 mod stack_operations;
 mod stacks;
 mod storage;
@@ -42,7 +44,7 @@ fn now() -> i64 {
 struct Core {
     automation_status: automation_runtime::Status,
     db: Database,
-    password_workers: Arc<Semaphore>,
+    password_workers: Arc<PasswordWorkers>,
     dummy_hash: Arc<str>,
     observations: limeos_observations::Cache,
     telemetry: Option<limeos_observations::telemetry::Telemetry>,
@@ -68,6 +70,15 @@ impl Core {
             .db
             .call(move |s| s.login_record(&input.username))
             .await?;
+        // Names with no account share one comparison budget, so a flood of
+        // made-up names cannot hold the workers; real accounts never use it.
+        if record.is_none()
+            && !self
+                .password_workers
+                .take_unknown_name(std::time::Instant::now())
+        {
+            return Err(Error(ErrorCode::Overloaded));
+        }
         let encoded = record
             .as_ref()
             .map(|r| r.password_hash.clone())
@@ -116,11 +127,7 @@ impl Core {
         request: limeos_contracts::PasswordRequest,
     ) -> Result<limeos_contracts::PasswordResponse> {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        let _permit = self
-            .password_workers
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| Error(ErrorCode::Overloaded))?;
+        let _admission = self.password_workers.admit().await?;
         let executable = std::env::current_exe().map_err(|_| Error(ErrorCode::Unavailable))?;
         let directory = executable.parent().ok_or(Error(ErrorCode::Unavailable))?;
         #[cfg(test)]
@@ -1046,7 +1053,7 @@ async fn run() -> Result<()> {
         automation_status: automation_runtime::Status::default(),
         stacks: limeos_observations::stacks::start_proxy(config.storage_socket.clone().into()),
         db,
-        password_workers: Arc::new(Semaphore::new(2)),
+        password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: "".into(),
         observations,
         telemetry,

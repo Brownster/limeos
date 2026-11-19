@@ -35,7 +35,7 @@ async fn fixture(
         stacks: Default::default(),
         container_socket: Arc::new("/unused-container".into()),
         compose_catalog: None,
-        password_workers: Arc::new(Semaphore::new(2)),
+        password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: "unused".into(),
         observations: Default::default(),
         telemetry: None,
