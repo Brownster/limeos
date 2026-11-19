@@ -106,6 +106,11 @@ class Harness(unittest.TestCase):
         }
         self.out = "/var/lib/limeos-cutover/snap"
         self.snap = self.root / self.out.lstrip("/")
+        # The operator's state list, as built from the `limeosctl migrate scan` report.
+        self.state_list = base / "state-paths.txt"
+        self.state_list.write_text(
+            "# from limeosctl migrate scan\n/etc/limeos/credentials.env\n"
+            "/home/holly/pi-health/config/backup_config.json\n/home/holly/pi-health/config/media_paths.json\n")
         self._seed_host()
 
     def _write(self, path, text):
@@ -175,8 +180,9 @@ class Harness(unittest.TestCase):
         return subprocess.run(
             ["bash", str(SCRIPTS / name), *args], env=env, capture_output=True, text=True, timeout=60)
 
-    def preflight(self, *extra):
-        return self.run_script("preflight.sh", "--out", self.out, *extra)
+    def preflight(self, *extra, state_list=True):
+        listed = ["--state-list", str(self.state_list)] if state_list else []
+        return self.run_script("preflight.sh", "--out", self.out, *listed, *extra)
 
     def activate_args(self, *extra):
         return [
@@ -297,6 +303,58 @@ class PreflightTests(Harness):
     def test_idle_jellyfin_without_credentials_passes(self):
         self.set_curl({"http://127.0.0.1:8096/Sessions": "200 []"})
         self.assertEqual(self.preflight().returncode, 0)
+
+    def test_requires_a_state_list(self):
+        result = self.preflight(state_list=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("a state list is required: --state-list FILE", result.stderr)
+        self.assertFalse(self.snap.exists())
+
+    def test_rejects_a_relative_or_empty_state_list(self):
+        for text, fragment in (("etc/limeos/credentials.env\n", "not an absolute path: etc/limeos/credentials.env"),
+                               ("# nothing\n\n", "names no paths")):
+            with self.subTest(text=text):
+                self.state_list.write_text(text)
+                result = self.preflight()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(fragment, result.stderr)
+                self.assertFalse(self.snap.exists())
+
+    def test_empty_root_is_refused_with_a_named_reason(self):
+        shutil.rmtree(self.root)
+        self.root.mkdir()
+        result = self.preflight()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("REFUSED: state path missing: /etc/limeos/credentials.env", result.stderr)
+        self.assertIn("REFUSED: no frozen-app state found", result.stderr)
+        self.assertIn("preflight=refused", (self.snap / "meta.env").read_text())
+
+    def test_a_listed_path_that_is_missing_is_refused(self):
+        (self.root / "home/holly/pi-health/config/media_paths.json").unlink()
+        self.refused("state path missing: /home/holly/pi-health/config/media_paths.json")
+
+    def test_state_paths_come_from_the_list_not_a_home_directory(self):
+        self._write("/srv/app/config/settings.json", '{"a":1}')
+        self.state_list.write_text("/srv/app/config/settings.json\n")
+        result = self.preflight()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        hashes = (self.snap / "state.sha256").read_text()
+        self.assertIn("/srv/app/config/settings.json", hashes)
+        self.assertNotIn("/home/holly", hashes)
+        self.assertEqual((self.snap / "state-paths.txt").read_text(), "/srv/app/config/settings.json\n")
+        # activate and return hash the snapshot's list, so a change there is caught on return.
+        (self.stub / "calls.log").write_text("")
+        self.assertEqual(self.approved().returncode, 0)
+        self._write("/srv/app/config/settings.json", '{"a":2}')
+        result = self.do_return()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("state file changed: /srv/app/config/settings.json", result.stderr)
+
+    def test_state_files_override_still_works(self):
+        self.env["CUTOVER_STATE_FILES"] = "/etc/limeos/credentials.env"
+        result = self.preflight(state_list=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("/home/holly", (self.snap / "state.sha256").read_text())
 
     def test_refused_snapshot_blocks_activate(self):
         (self.stub / "free_out").write_text(FREE_OK.replace("6000000000", "1000000000"))

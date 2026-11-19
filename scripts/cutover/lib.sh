@@ -101,13 +101,15 @@ fct_unit_report() {
     } | sort
 }
 
-# Paths of the frozen app's state. Defaults come from the scope doc; override with
-# newline-separated CUTOVER_STATE_FILES / CUTOVER_STATE_DIRS.
+# Paths of the frozen app's state files: one absolute path per line in STATE_LIST (preflight's
+# --state-list, built from the `limeosctl migrate scan` report and copied into the snapshot as
+# state-paths.txt, which activate and return read). Newline-separated CUTOVER_STATE_FILES /
+# CUTOVER_STATE_DIRS override the list and the directories.
+STATE_LIST=''
 fct_state_files() {
     if [[ -n "${CUTOVER_STATE_FILES:-}" ]]; then printf '%s\n' "${CUTOVER_STATE_FILES}"; return; fi
-    printf '%s\n' /etc/limeos/credentials.env \
-        /home/holly/pi-health/config/backup_config.json \
-        /home/holly/pi-health/config/media_paths.json
+    [[ -n "${STATE_LIST}" ]] || return 0
+    grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' -- "${STATE_LIST}" || [[ $? == 1 ]]
 }
 fct_state_dirs() {
     if [[ -n "${CUTOVER_STATE_DIRS:-}" ]]; then printf '%s\n' "${CUTOVER_STATE_DIRS}"; return; fi
@@ -160,6 +162,7 @@ fct_snapshot_check() { # dir max_age_seconds
     [[ -f "${meta}" ]] || fct_die "not a preflight snapshot: ${dir}"
     [[ "$(fct_meta_get "${meta}" complete)" == 1 ]] || fct_die 'snapshot is incomplete'
     [[ "$(fct_meta_get "${meta}" preflight)" == pass ]] || fct_die 'snapshot records a refused preflight'
+    [[ -f "${dir}/state-paths.txt" ]] || fct_die 'snapshot has no state-paths.txt (taken before state lists); run preflight again'
     if (( max > 0 )); then
         ts="$(fct_meta_get "${meta}" epoch)"
         [[ "${ts}" =~ ^[0-9]+$ ]] || fct_die 'snapshot has no valid timestamp'

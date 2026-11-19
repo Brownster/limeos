@@ -128,6 +128,7 @@ fct_main() {
     [[ -n "${snap}" ]] || { fct_usage >&2; fct_die 'a snapshot directory is required'; }
     fct_require_root
     fct_snapshot_check "${snap}" 0
+    STATE_LIST="${snap}/state-paths.txt"
     local port caddy_state caddy_enabled class unit active enabled
     port="$(fct_meta_get "${snap}/meta.env" frozen_port)"
     read -r class unit caddy_state caddy_enabled < <(grep -m1 -F 'managed caddy.service ' "${snap}/units.txt" || echo 'managed caddy.service inactive disabled')

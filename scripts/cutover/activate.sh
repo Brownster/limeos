@@ -187,6 +187,7 @@ fct_main() {
     fct_require_root
 
     fct_snapshot_check "${SNAP}" "${MAX_SNAPSHOT_AGE}"
+    STATE_LIST="${SNAP}/state-paths.txt"
     if (( ! DRY_RUN && ! ATTACHED )); then
         local rc=0
         fct_detach "${original_args[@]}" || rc=$?

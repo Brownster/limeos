@@ -13,13 +13,18 @@ MAX_SWAP_PERCENT=90
 
 fct_usage() {
     cat <<'USAGE'
-Usage: preflight.sh [--out DIR] [--managed-file FILE] [--frozen-port N]
-                    [--jellyfin-url URL] [--help]
+Usage: preflight.sh --state-list FILE [--out DIR] [--managed-file FILE]
+                    [--frozen-port N] [--jellyfin-url URL] [--help]
 
 Read-only snapshot for the basic cutover. Default DIR is
 /var/lib/limeos-cutover/<UTC timestamp>/. --managed-file lists container names
 (one per line) that must be running; the default is the household set from
 docs/plans/2026-11-05-basic-cutover-tooling-scope.md.
+--state-list names the frozen app's state files, one absolute path per line (#
+comments allowed), built from the `limeosctl migrate scan` report; it is copied
+into the snapshot as state-paths.txt and activate.sh and return.sh hash the same
+files. Every listed path must exist. Every file under /etc/limeos and
+/var/lib/limeos is hashed as well.
 The stack management catalog (/etc/limeos/management-catalog.json, from
 `limeosctl migrate propose-catalog`) must exist: activate.sh starts the stack reader
 with it. Exit 0: snapshot written and every check passed. Exit 1: refused or failed.
@@ -27,11 +32,12 @@ USAGE
 }
 
 fct_main() {
-    local out='' managed_file='' port="${FROZEN_PORT_DEFAULT}" jelly='http://127.0.0.1:8096/Sessions'
+    local out='' managed_file='' state_list='' port="${FROZEN_PORT_DEFAULT}" jelly='http://127.0.0.1:8096/Sessions'
     while (( $# )); do
         case "${1}" in
             --out) out="${2:?--out needs a directory}"; shift 2 ;;
             --managed-file) managed_file="${2:?--managed-file needs a path}"; shift 2 ;;
+            --state-list) state_list="${2:?--state-list needs a path}"; shift 2 ;;
             --frozen-port) port="${2:?--frozen-port needs a number}"; shift 2 ;;
             --jellyfin-url) jelly="${2:?--jellyfin-url needs a URL}"; shift 2 ;;
             -h|--help) fct_usage; return 0 ;;
@@ -40,6 +46,18 @@ fct_main() {
     done
     [[ "${port}" =~ ^[0-9]{1,5}$ ]] || fct_die 'invalid --frozen-port'
     fct_require_root
+    if [[ -z "${CUTOVER_STATE_FILES:-}" ]]; then
+        [[ -n "${state_list}" ]] || fct_die 'a state list is required: --state-list FILE, one absolute path per line, built from the limeosctl migrate scan report (docs/p06-cutover-runbook.md)'
+        [[ -f "${state_list}" && -r "${state_list}" ]] || fct_die "state list not readable: ${state_list}"
+        STATE_LIST="${state_list}"
+    fi
+    local -a state_paths=()
+    local state_path
+    mapfile -t state_paths < <(fct_state_files)
+    (( ${#state_paths[@]} > 0 )) || fct_die "the state list names no paths: ${state_list}"
+    for state_path in "${state_paths[@]}"; do
+        [[ "${state_path}" == /* ]] || fct_die "state list entry is not an absolute path: ${state_path}"
+    done
 
     local stamp epoch
     stamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -49,6 +67,8 @@ fct_main() {
     if [[ -e "${out}" ]] && [[ -n "$(ls -A -- "${out}" 2>/dev/null)" ]]; then fct_die "snapshot directory is not empty: ${out}"; fi
     umask 077
     mkdir -p -- "${out}"
+    printf '%s\n' "${state_paths[@]}" >"${out}/state-paths.txt"
+    STATE_LIST="${out}/state-paths.txt"
 
     local -a managed=() refusals=() warnings=()
     if [[ -n "${managed_file}" ]]; then
@@ -98,6 +118,15 @@ fct_main() {
             refusals+=("swap use is above ${MAX_SWAP_PERCENT}% (${swap_used} of ${swap_total} bytes)")
         fi
     fi
+    local hash path state_found=0
+    while read -r _ hash path; do
+        if [[ "${hash}" == ABSENT ]]; then
+            refusals+=("state path missing: ${path} (fix the state list from limeosctl migrate scan)")
+        else
+            state_found=1
+        fi
+    done <"${out}/state.sha256"
+    (( state_found )) || refusals+=("no frozen-app state found: no listed path exists and $(fct_state_dirs | paste -sd ' ' -) hold no files")
     local problem
     problem="$(fct_catalog_problem)"
     [[ -z "${problem}" ]] || refusals+=("stack management catalog: ${problem}")

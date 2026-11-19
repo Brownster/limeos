@@ -35,9 +35,19 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    Compose project outside `/opt/stacks`, such as wybie's one-container `docker`, is refused by
    design), then `install -o root -g root -m 0644 /root/management-catalog.proposed.json
    /etc/limeos/management-catalog.json` (or rerun with `--install`).
-2. `scripts/cutover/preflight.sh` (writes `/var/lib/limeos-cutover/<ts>/`, or
-   `--out DIR`). It refuses on MemAvailable below 1.5 GiB, swap above 90 %, a
-   stopped managed container, Jellyfin playback, or a missing/unsafe
+   Build the state list (the frozen app's files that must not change) from the
+   scan report, then read it and drop anything that is not the frozen app's:
+
+   ```sh
+   limeosctl migrate scan --json --checkout /home/holly/pi-health/config >/root/migrate-scan.json
+   python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); loc={l["label"]: l["path"].rstrip("/") for l in r["locations"]}; print("\n".join(loc[f["location"]] + "/" + f["path"] for f in r["files"] if f["kind"] == "file" and f["location"] != "stacks"))' /root/migrate-scan.json >/root/cutover-state-paths.txt
+   ```
+
+2. `scripts/cutover/preflight.sh --state-list /root/cutover-state-paths.txt`
+   (writes `/var/lib/limeos-cutover/<ts>/`, or `--out DIR`). It refuses on
+   MemAvailable below 1.5 GiB, swap above 90 %, a stopped managed container,
+   Jellyfin playback, a listed state path that does not exist, no state found at
+   all, or a missing/unsafe
    `/etc/limeos/management-catalog.json` (the message names the command above). Without Jellyfin credentials
    it cannot see playback and warns: check the dashboard yourself.
 3. Rehearse: `scripts/cutover/activate.sh SNAP --dry-run --package PATH
@@ -126,9 +136,10 @@ retry the cutover: inspect the named failure by hand.
 
 ## Notes
 
-- Hashes cover `credentials.env`, the two edited `pi-health/config` files and
+- Hashes cover every path in the state list (copied into the snapshot as
+  `state-paths.txt`, which `activate.sh` and `return.sh` reuse) and
   everything under `/etc/limeos` and `/var/lib/limeos` except the new package's
-  paths. SQLite files and journals can change while the writers run, so they are
+  paths. On wybie the list must include the two edited `pi-health/config` files. SQLite files and journals can change while the writers run, so they are
   checked against a baseline taken just after the writers stop (`return.sh`
   warns only if no baseline exists).
 - Snapshot contents are paths, hashes and unit/container names, never file contents.
