@@ -67,20 +67,20 @@ pub(super) async fn resolve<B: Backend>(
             return Err(Error(ErrorCode::InvalidInput));
         }
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
+        let principal = app
+            .backend
             .session(token.clone(), Some(csrf.clone()))
-            .await?;
-        // Password attempts share the login budget per peer address.
-        let ip = request
-            .extensions()
-            .get::<Peer>()
-            .map(|p| p.0.ip())
-            .unwrap_or(IpAddr::from([127, 0, 0, 1]));
-        if !app.limiter.lock().is_ok_and(|mut l| l.allow(ip)) {
-            return Err(Error(ErrorCode::Overloaded));
-        }
+            .await?
+            .principal;
         let value: ResolveJobInput = input(request).await?;
-        app.backend.resolve_job(token, csrf, id, value).await
+        if !limeos_contracts::password_well_formed(&value.password) {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
+        // Failed password attempts are budgeted per authenticated principal.
+        password_attempt(&app, Attempt::Principal(&principal.id), |attempt| {
+            app.backend.resolve_job(token, csrf, id, value, attempt)
+        })
+        .await
     }
     .await;
     match result {

@@ -8,7 +8,7 @@ pub(crate) fn core(db: Database) -> Core {
     Core {
         automation_status: Default::default(),
         db,
-        password_workers: Arc::new(Semaphore::new(2)),
+        password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: "unused".into(),
         observations: limeos_observations::Cache::default(),
         telemetry: None,
@@ -49,11 +49,15 @@ async fn setup() -> (tempfile::TempDir, Core, IssuedSession) {
     .await
     .unwrap();
     let session = core
-        .login(Login {
-            username: "alice".into(),
-            password: "correct-long-password".into(),
-        })
+        .login(
+            Login {
+                username: "alice".into(),
+                password: "correct-long-password".into(),
+            },
+            limeos_api::PasswordAttempt::default(),
+        )
         .await
+        .result
         .unwrap();
     (dir, core, session)
 }
@@ -93,11 +97,15 @@ async fn actual_enable_relogin_create_read_restart_and_pause_are_metadata_only()
         .await
         .unwrap();
     let session = initial
-        .login(Login {
-            username: "alice".into(),
-            password: "correct-long-password".into(),
-        })
+        .login(
+            Login {
+                username: "alice".into(),
+                password: "correct-long-password".into(),
+            },
+            limeos_api::PasswordAttempt::default(),
+        )
         .await
+        .result
         .unwrap();
     let before = now();
     let row = initial

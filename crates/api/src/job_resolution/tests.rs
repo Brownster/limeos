@@ -11,6 +11,9 @@ struct Stub {
     decisions: Arc<AtomicUsize>,
     /// What the backend answers to a decision.
     answer: Arc<Mutex<Result<ResolveStatus>>>,
+    /// How far its password check got; `None` follows core: a 401 is a wrong
+    /// password and every other answer comes after a verified one.
+    check: Arc<Mutex<Option<PasswordCheck>>>,
 }
 impl Stub {
     fn new(answer: Result<ResolveStatus>) -> Self {
@@ -18,6 +21,7 @@ impl Stub {
             reads: Arc::default(),
             decisions: Arc::default(),
             answer: Arc::new(Mutex::new(answer)),
+            check: Arc::default(),
         }
     }
 }
@@ -36,8 +40,8 @@ fn view() -> ResolutionView {
     }
 }
 impl Backend for Stub {
-    async fn login(&self, _: Login) -> Result<IssuedSession> {
-        Err(Error(ErrorCode::Unauthenticated))
+    async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
+        PasswordChecked::rejected()
     }
     async fn logout(&self, _: String, _: String) -> Result<()> {
         panic!("unexpected mutation")
@@ -88,22 +92,30 @@ impl Backend for Stub {
         _: String,
         id: String,
         input: limeos_contracts::ResolveJobInput,
-    ) -> Result<ResolveJobResponse> {
+        _: PasswordAttempt,
+    ) -> PasswordChecked<ResolveJobResponse> {
         self.decisions.fetch_add(1, Ordering::SeqCst);
         assert_eq!(id, "e".repeat(64));
         assert_eq!(input.declared, DeclaredOutcome::NotDone);
-        let status = (*self.answer.lock().unwrap())?;
-        Ok(ResolveJobResponse {
-            status,
-            message: "m".into(),
-            resolution: None,
-            view: (status == ResolveStatus::StaleEvidence).then(view),
-            blocking: if status == ResolveStatus::UnsupportedDeclaration {
-                vec!["a".repeat(64)]
-            } else {
-                vec![]
-            },
-        })
+        let answer = *self.answer.lock().unwrap();
+        let check = self.check.lock().unwrap().unwrap_or(match answer {
+            Err(Error(ErrorCode::Unauthenticated)) => PasswordCheck::Rejected,
+            _ => PasswordCheck::Accepted,
+        });
+        PasswordChecked::new(
+            check,
+            answer.map(|status| ResolveJobResponse {
+                status,
+                message: "m".into(),
+                resolution: None,
+                view: (status == ResolveStatus::StaleEvidence).then(view),
+                blocking: if status == ResolveStatus::UnsupportedDeclaration {
+                    vec!["a".repeat(64)]
+                } else {
+                    vec![]
+                },
+            }),
+        )
     }
 }
 fn path() -> String {
@@ -267,7 +279,122 @@ async fn backend_refusals_keep_their_status_and_the_four_outcomes_are_distinct()
 }
 
 #[tokio::test]
-async fn password_attempts_share_the_login_rate_limit() {
+async fn only_failed_password_decisions_spend_the_principal_budget() {
+    let stub = Stub::new(Ok(ResolveStatus::Resolved));
+    let app = router(stub.clone(), "https://localhost".into());
+    for _ in 0..12 {
+        let junk = request("POST", true)
+            .header("content-type", "application/json")
+            .body(Body::from("{bad"))
+            .unwrap();
+        assert_eq!(
+            app.clone().oneshot(junk).await.unwrap().status(),
+            StatusCode::BAD_REQUEST
+        );
+    }
+    for _ in 0..12 {
+        assert_eq!(
+            app.clone().oneshot(post(true)).await.unwrap().status(),
+            StatusCode::OK
+        );
+    }
+    *stub.answer.lock().unwrap() = Err(Error(ErrorCode::Unauthenticated));
+    for _ in 0..10 {
+        assert_eq!(
+            app.clone().oneshot(post(true)).await.unwrap().status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    assert_eq!(
+        app.clone().oneshot(post(true)).await.unwrap().status(),
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_eq!(stub.decisions.load(Ordering::SeqCst), 22);
+}
+
+#[tokio::test]
+async fn malformed_passwords_are_refused_before_the_principal_budget() {
+    let stub = Stub::new(Err(Error(ErrorCode::Unauthenticated)));
+    let app = router(stub.clone(), "https://localhost".into());
+    for password in ["".to_owned(), "x".repeat(1025)] {
+        for _ in 0..12 {
+            let body = serde_json::json!({
+                "declared": "not_done",
+                "reason": "Checked by hand.",
+                "evidence_digest": "d".repeat(64),
+                "password": password,
+            });
+            let request = request("POST", true)
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap();
+            assert_eq!(
+                app.clone().oneshot(request).await.unwrap().status(),
+                StatusCode::BAD_REQUEST
+            );
+        }
+    }
+    assert_eq!(stub.decisions.load(Ordering::SeqCst), 0);
+    for _ in 0..10 {
+        assert_eq!(
+            app.clone().oneshot(post(true)).await.unwrap().status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_verified_password_costs_nothing_when_the_decision_then_fails() {
+    // Core verifies the password first; these failures come after it.
+    for (code, expected) in [
+        (ErrorCode::NotFound, StatusCode::NOT_FOUND),
+        (ErrorCode::Conflict, StatusCode::CONFLICT),
+        (ErrorCode::Unavailable, StatusCode::SERVICE_UNAVAILABLE),
+    ] {
+        let stub = Stub::new(Err(Error(code)));
+        let app = router(stub.clone(), "https://localhost".into());
+        for _ in 0..15 {
+            assert_eq!(
+                app.clone().oneshot(post(true)).await.unwrap().status(),
+                expected,
+                "{code:?}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn an_unreached_check_is_free_and_an_accepted_check_answering_401_is_charged() {
+    let stub = Stub::new(Err(Error(ErrorCode::Overloaded)));
+    *stub.check.lock().unwrap() = Some(PasswordCheck::NotReached);
+    let app = router(stub.clone(), "https://localhost".into());
+    for _ in 0..15 {
+        assert_eq!(
+            app.clone().oneshot(post(true)).await.unwrap().status(),
+            StatusCode::TOO_MANY_REQUESTS
+        );
+    }
+    assert_eq!(stub.decisions.load(Ordering::SeqCst), 15);
+    // Correct, but the session closed during the check: indistinguishable
+    // from a wrong password by its 401, so the budget must not differ either.
+    *stub.answer.lock().unwrap() = Err(Error(ErrorCode::Unauthenticated));
+    *stub.check.lock().unwrap() = Some(PasswordCheck::Accepted);
+    for _ in 0..10 {
+        assert_eq!(
+            app.clone().oneshot(post(true)).await.unwrap().status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    assert_eq!(stub.decisions.load(Ordering::SeqCst), 25);
+    assert_eq!(
+        app.clone().oneshot(post(true)).await.unwrap().status(),
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_eq!(stub.decisions.load(Ordering::SeqCst), 25);
+}
+
+#[tokio::test]
+async fn password_attempts_share_the_principal_rate_limit() {
     let stub = Stub::new(Err(Error(ErrorCode::Unauthenticated)));
     let app = router(stub.clone(), "https://localhost".into());
     let mut statuses = Vec::new();

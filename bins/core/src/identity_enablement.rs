@@ -9,6 +9,7 @@ fn live(deadline: Instant) -> Result<()> {
 }
 
 impl Core {
+    #[cfg(test)]
     pub(super) async fn human_enable_observe_health(
         &self,
         token: String,
@@ -16,8 +17,23 @@ impl Core {
         input: limeos_contracts::ObserveHealthEnable,
         deadline: Instant,
     ) -> Result<limeos_contracts::ObserveHealthEnabled> {
+        let mut check = limeos_api::PasswordCheck::NotReached;
+        let attempt = limeos_api::PasswordAttempt::default();
+        self.human_enable_observe_health_checked(token, csrf, input, deadline, &attempt, &mut check)
+            .await
+    }
+    /// As `human_enable_observe_health`, recording how far the check got.
+    pub(super) async fn human_enable_observe_health_checked(
+        &self,
+        token: String,
+        csrf: String,
+        input: limeos_contracts::ObserveHealthEnable,
+        deadline: Instant,
+        attempt: &limeos_api::PasswordAttempt,
+        check: &mut limeos_api::PasswordCheck,
+    ) -> Result<limeos_contracts::ObserveHealthEnabled> {
         live(deadline)?;
-        if input.password.is_empty() || input.password.len() > 1024 {
+        if !limeos_contracts::password_well_formed(&input.password) {
             return Err(Error(ErrorCode::InvalidInput));
         }
         let session = limeos_identity::digest(&token);
@@ -32,14 +48,17 @@ impl Core {
             })
             .await?;
         let response = self
-            .password(limeos_contracts::PasswordRequest::Verify {
+            .password(PasswordJob::Verify {
+                attempt,
                 password: input.password,
                 encoded: record.password_hash.clone(),
             })
             .await?;
         if !response.valid {
+            *check = limeos_api::PasswordCheck::Rejected;
             return Err(Error(ErrorCode::Unauthenticated));
         }
+        *check = limeos_api::PasswordCheck::Accepted;
         live(deadline)?;
         let original_revision = record.principal.grant_revision;
         let principal = self

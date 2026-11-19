@@ -64,7 +64,7 @@ async fn observations_and_history_use_current_resource_grants_and_reject_revocat
         storage_readers: Arc::new(Semaphore::new(1)),
         stacks: Default::default(),
         compose_catalog: None,
-        password_workers: Arc::new(Semaphore::new(2)),
+        password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: "unused".into(),
     };
     let view = core.observations(token.clone()).await.unwrap();
@@ -96,7 +96,7 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
     let core = Core {
         automation_status: Default::default(),
         db,
-        password_workers: Arc::new(Semaphore::new(2)),
+        password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),
         observations: limeos_observations::Cache::default(),
         telemetry: None,
@@ -117,17 +117,17 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
             .call(move |s| s.import_legacy_user(&imported_name, &stored_hash, now()))
             .await
             .unwrap();
-        assert_eq!(
-            core.login(Login {
-                username: username.clone(),
-                password: "wrong".into()
-            })
-            .await
-            .err()
-            .unwrap()
-            .0,
-            ErrorCode::Unauthenticated,
-        );
+        let wrong = core
+            .login(
+                Login {
+                    username: username.clone(),
+                    password: "wrong".into(),
+                },
+                limeos_api::PasswordAttempt::default(),
+            )
+            .await;
+        assert_eq!(wrong.check, limeos_api::PasswordCheck::Rejected);
+        assert_eq!(wrong.result.err().unwrap().0, ErrorCode::Unauthenticated);
         let user = username.clone();
         assert_eq!(
             core.db
@@ -136,13 +136,17 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
                 .unwrap(),
             encoded
         );
-        let issued = core
-            .login(Login {
-                username: username.clone(),
-                password: fixture["password"].as_str().unwrap().into(),
-            })
-            .await
-            .unwrap();
+        let right = core
+            .login(
+                Login {
+                    username: username.clone(),
+                    password: fixture["password"].as_str().unwrap().into(),
+                },
+                limeos_api::PasswordAttempt::default(),
+            )
+            .await;
+        assert_eq!(right.check, limeos_api::PasswordCheck::Accepted);
+        let issued = right.result.unwrap();
         assert!(core.session(issued.token.clone(), None).await.is_ok());
         let upgraded = core
             .db
@@ -166,7 +170,7 @@ async fn batch_imported_legacy_users_log_in_and_rerun_changes_nothing() {
     let core = Core {
         automation_status: Default::default(),
         db,
-        password_workers: Arc::new(Semaphore::new(2)),
+        password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),
         observations: limeos_observations::Cache::default(),
         telemetry: None,
@@ -197,18 +201,27 @@ async fn batch_imported_legacy_users_log_in_and_rerun_changes_nothing() {
     for (i, fixture) in fixtures.as_array().unwrap().iter().enumerate() {
         let username = format!("legacy-{i}");
         let wrong = core
-            .login(Login {
-                username: username.clone(),
-                password: "wrong-password".into(),
-            })
+            .login(
+                Login {
+                    username: username.clone(),
+                    password: "wrong-password".into(),
+                },
+                limeos_api::PasswordAttempt::default(),
+            )
             .await;
-        assert_eq!(wrong.err().unwrap().0, ErrorCode::Unauthenticated);
-        core.login(Login {
-            username: username.clone(),
-            password: fixture["password"].as_str().unwrap().into(),
-        })
-        .await
-        .unwrap();
+        assert_eq!(wrong.check, limeos_api::PasswordCheck::Rejected);
+        assert_eq!(wrong.result.err().unwrap().0, ErrorCode::Unauthenticated);
+        let right = core
+            .login(
+                Login {
+                    username: username.clone(),
+                    password: fixture["password"].as_str().unwrap().into(),
+                },
+                limeos_api::PasswordAttempt::default(),
+            )
+            .await;
+        assert_eq!(right.check, limeos_api::PasswordCheck::Accepted);
+        right.result.unwrap();
         let stored = core
             .db
             .call(move |s| Ok(s.login_record(&username)?.unwrap().password_hash))
@@ -264,7 +277,7 @@ async fn legacy_import_request_is_refused_for_a_non_root_peer_and_writes_nothing
     let core = Core {
         automation_status: Default::default(),
         db,
-        password_workers: Arc::new(Semaphore::new(2)),
+        password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),
         observations: limeos_observations::Cache::default(),
         telemetry: None,

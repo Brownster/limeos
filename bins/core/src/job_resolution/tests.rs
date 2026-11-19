@@ -109,7 +109,7 @@ fn core(db: Database, socket: PathBuf) -> Core {
     Core {
         automation_status: Default::default(),
         db,
-        password_workers: Arc::new(Semaphore::new(2)),
+        password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: "unused".into(),
         observations: Default::default(),
         telemetry: None,
@@ -123,11 +123,15 @@ fn core(db: Database, socket: PathBuf) -> Core {
     }
 }
 async fn login(core: &Core) -> limeos_api::IssuedSession {
-    core.login(Login {
-        username: "alice".into(),
-        password: PASSWORD.into(),
-    })
+    core.login(
+        Login {
+            username: "alice".into(),
+            password: PASSWORD.into(),
+        },
+        limeos_api::PasswordAttempt::default(),
+    )
     .await
+    .result
     .unwrap()
 }
 /// An administrator, a restart job claimed and then left `needs_intervention`,
@@ -556,6 +560,208 @@ async fn the_retry_loop_completes_withdraws_throttles_and_waits_for_young_reques
     assert_eq!(f.state().await, JobState::Resolved);
     f.retry(&mut retry).await;
     assert!(retry.is_empty());
+}
+
+#[tokio::test]
+async fn the_password_check_is_reported_apart_from_what_follows_it() {
+    use limeos_api::{Backend, PasswordCheck};
+    let f = fixture().await;
+    let checked = |job: String, password: &str| {
+        let core = f.core.clone();
+        let (token, csrf) = (f.session.token.clone(), f.session.view.csrf_token.clone());
+        let input = f.input(DeclaredOutcome::NotDone, &"d".repeat(64), password);
+        async move {
+            core.resolve_job(
+                token,
+                csrf,
+                job,
+                input,
+                limeos_api::PasswordAttempt::default(),
+            )
+            .await
+        }
+    };
+    // Correct password, no such job: refused after the match.
+    let outcome = checked("0".repeat(64), PASSWORD).await;
+    assert_eq!(outcome.check, PasswordCheck::Accepted);
+    assert_eq!(outcome.result.unwrap_err().0, ErrorCode::NotFound);
+    let outcome = checked(f.job.clone(), "wrong-password").await;
+    assert_eq!(outcome.check, PasswordCheck::Rejected);
+    assert_eq!(outcome.result.unwrap_err().0, ErrorCode::Unauthenticated);
+    let outcome = f
+        .core
+        .login(
+            Login {
+                username: "alice".into(),
+                password: "wrong-password".into(),
+            },
+            limeos_api::PasswordAttempt::default(),
+        )
+        .await;
+    assert_eq!(outcome.check, PasswordCheck::Rejected);
+    let outcome = f
+        .core
+        .login(
+            Login {
+                username: "alice".into(),
+                password: PASSWORD.into(),
+            },
+            limeos_api::PasswordAttempt::default(),
+        )
+        .await;
+    assert_eq!(outcome.check, PasswordCheck::Accepted);
+    assert!(outcome.result.is_ok());
+}
+
+/// The fixture's core with a real dummy hash and `unknown` comparisons a
+/// minute for names with no account.
+fn login_core(f: &Fixture, unknown: u32) -> Core {
+    let mut core = f.core.clone();
+    core.dummy_hash = limeos_identity::hash("dummy-long-password").unwrap().into();
+    core.password_workers = Arc::new(PasswordWorkers::with_limits(
+        2,
+        8,
+        std::time::Duration::from_secs(2),
+        unknown,
+    ));
+    core
+}
+async fn try_login(
+    core: &Core,
+    username: &str,
+    password: &str,
+) -> limeos_api::PasswordChecked<limeos_api::IssuedSession> {
+    use limeos_api::Backend;
+    core.login(
+        Login {
+            username: username.into(),
+            password: password.into(),
+        },
+        limeos_api::PasswordAttempt::default(),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn a_missing_account_goes_through_the_real_dummy_hash_and_is_never_accepted() {
+    use limeos_api::PasswordCheck;
+    let f = fixture().await;
+    let core = login_core(&f, 3);
+    // The dummy hash is a real argon2id hash, so this is a real comparison.
+    assert!(core.dummy_hash.starts_with("$argon2id$"));
+    for password in ["wrong-password", "dummy-long-password"] {
+        let outcome = try_login(&core, "nobody", password).await;
+        assert_eq!(outcome.check, PasswordCheck::Rejected, "{password}");
+        assert_eq!(
+            outcome.result.err(),
+            Some(Error(ErrorCode::Unauthenticated))
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_comparison_is_marked_started_only_once_a_worker_is_admitted() {
+    use limeos_api::PasswordAttempt;
+    let f = fixture().await;
+    let mut core = login_core(&f, 3);
+    // A wait far longer than the cancellation below, whatever the runner load.
+    core.password_workers = Arc::new(PasswordWorkers::with_limits(
+        2,
+        8,
+        std::time::Duration::from_secs(30),
+        3,
+    ));
+    let login = |attempt: PasswordAttempt| {
+        let core = core.clone();
+        async move {
+            use limeos_api::Backend;
+            let input = Login {
+                username: "alice".into(),
+                password: PASSWORD.into(),
+            };
+            core.login(input, attempt).await
+        }
+    };
+    // Both workers busy: the request is cancelled while it waits.
+    let busy = (
+        core.password_workers.admit().await.unwrap(),
+        core.password_workers.admit().await.unwrap(),
+    );
+    let attempt = PasswordAttempt::default();
+    let waited = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        login(attempt.clone()),
+    )
+    .await;
+    assert!(waited.is_err());
+    assert!(!attempt.comparison_started());
+    drop(busy);
+    let attempt = PasswordAttempt::default();
+    assert!(login(attempt.clone()).await.result.is_ok());
+    assert!(attempt.comparison_started());
+}
+
+#[tokio::test]
+async fn a_flood_of_unknown_names_spends_their_budget_but_never_a_real_account() {
+    use limeos_api::PasswordCheck;
+    let f = fixture().await;
+    let core = login_core(&f, 3);
+    for i in 0..3 {
+        let outcome = try_login(&core, &format!("ghost{i}"), "wrong-password").await;
+        assert_eq!(outcome.check, PasswordCheck::Rejected);
+        assert_eq!(
+            outcome.result.err(),
+            Some(Error(ErrorCode::Unauthenticated))
+        );
+    }
+    // Spent: refused without a comparison, so the per-name charge is refunded.
+    for i in 3..10 {
+        let outcome = try_login(&core, &format!("ghost{i}"), "wrong-password").await;
+        assert_eq!(outcome.check, PasswordCheck::NotReached);
+        assert_eq!(outcome.result.err(), Some(Error(ErrorCode::Overloaded)));
+    }
+    // A real account is compared as before, wrong or right.
+    let outcome = try_login(&core, "alice", "wrong-password").await;
+    assert_eq!(outcome.check, PasswordCheck::Rejected);
+    let outcome = try_login(&core, "alice", PASSWORD).await;
+    assert_eq!(outcome.check, PasswordCheck::Accepted);
+    assert!(outcome.result.is_ok());
+}
+
+/// One HTTP login against the real router over loopback: status and body,
+/// without the per-response `audit_id`.
+async fn http_login(address: std::net::SocketAddr, username: &str) -> (String, String) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let body = serde_json::json!({"username": username, "password": "wrong-password"}).to_string();
+    let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+    let request = format!(
+        "POST /api/v1/auth/login HTTP/1.1\r\nHost: localhost\r\nOrigin: https://localhost\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    stream.write_all(request.as_bytes()).await.unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).await.unwrap();
+    let (head, body) = response.split_once("\r\n\r\n").unwrap();
+    let mut json: serde_json::Value = serde_json::from_str(body).unwrap();
+    json.as_object_mut().unwrap().remove("audit_id");
+    (head.lines().next().unwrap().to_owned(), json.to_string())
+}
+
+#[tokio::test]
+async fn before_the_flood_budget_is_spent_a_missing_name_answers_like_a_wrong_password() {
+    let f = fixture().await;
+    let core = login_core(&f, 3);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(limeos_api::serve(
+        listener,
+        limeos_api::router(core, "https://localhost".into()),
+    ));
+    let missing = http_login(address, "nobody").await;
+    let wrong = http_login(address, "alice").await;
+    assert_eq!(missing, wrong);
+    assert!(missing.0.contains(" 401 "));
+    server.abort();
 }
 
 #[tokio::test]

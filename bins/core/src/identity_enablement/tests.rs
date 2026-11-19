@@ -6,7 +6,7 @@ fn core(db: Database) -> Core {
     Core {
         automation_status: Default::default(),
         db,
-        password_workers: Arc::new(Semaphore::new(2)),
+        password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: "unused".into(),
         observations: limeos_observations::Cache::default(),
         telemetry: None,
@@ -61,11 +61,15 @@ async fn setup() -> (tempfile::TempDir, Core, limeos_api::IssuedSession) {
     .await
     .unwrap();
     let session = core
-        .login(Login {
-            username: "alice".into(),
-            password: "correct-long-password".into(),
-        })
+        .login(
+            Login {
+                username: "alice".into(),
+                password: "correct-long-password".into(),
+            },
+            limeos_api::PasswordAttempt::default(),
+        )
         .await
+        .result
         .unwrap();
     (dir, core, session)
 }
@@ -102,11 +106,15 @@ async fn real_verifier_wrong_password_then_enable_relogin_and_noop() {
     assert_eq!(after.audit, before.audit + 256);
     assert!(core.session(session.token, None).await.is_err());
     let fresh = core
-        .login(Login {
-            username: "alice".into(),
-            password: "correct-long-password".into(),
-        })
+        .login(
+            Login {
+                username: "alice".into(),
+                password: "correct-long-password".into(),
+            },
+            limeos_api::PasswordAttempt::default(),
+        )
         .await
+        .result
         .unwrap();
     let before_noop = state(&dir);
     let result = core
@@ -196,7 +204,8 @@ async fn successful_real_verification_cannot_survive_session_revocation() {
         .await
         .unwrap();
     let verified = core
-        .password(limeos_contracts::PasswordRequest::Verify {
+        .password(PasswordJob::Verify {
+            attempt: &limeos_api::PasswordAttempt::default(),
             password: "correct-long-password".into(),
             encoded: record.password_hash.clone(),
         })

@@ -39,8 +39,8 @@ fn job() -> limeos_domain::StackJob {
     }
 }
 impl Backend for Stub {
-    async fn login(&self, _: Login) -> Result<IssuedSession> {
-        Err(Error(ErrorCode::Unauthenticated))
+    async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
+        PasswordChecked::rejected()
     }
     async fn logout(&self, _: String, _: String) -> Result<()> {
         panic!("unexpected mutation")

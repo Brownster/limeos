@@ -94,8 +94,8 @@ struct Stub {
     source_missing: bool,
 }
 impl Backend for Stub {
-    async fn login(&self, _: Login) -> Result<IssuedSession> {
-        Err(Error(ErrorCode::Unauthenticated))
+    async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
+        PasswordChecked::rejected()
     }
     async fn logout(&self, _: String, _: String) -> Result<()> {
         panic!("network GET cannot mutate")
@@ -137,8 +137,8 @@ impl DeploymentBackend for Stub {
 #[derive(Clone, Default)]
 struct Unregistered(Stub);
 impl Backend for Unregistered {
-    async fn login(&self, input: Login) -> Result<IssuedSession> {
-        self.0.login(input).await
+    async fn login(&self, input: Login, attempt: PasswordAttempt) -> PasswordChecked<IssuedSession> {
+        self.0.login(input, attempt).await
     }
     async fn logout(&self, token: String, csrf: String) -> Result<()> {
         self.0.logout(token, csrf).await

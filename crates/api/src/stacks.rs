@@ -31,8 +31,8 @@ mod tests {
         oversize: bool,
     }
     impl Backend for Stub {
-        async fn login(&self, _: Login) -> Result<IssuedSession> {
-            Err(Error(ErrorCode::Unauthenticated))
+        async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
+            PasswordChecked::rejected()
         }
         async fn logout(&self, _: String, _: String) -> Result<()> {
             panic!("stack GET cannot mutate")

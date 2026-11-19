@@ -87,8 +87,8 @@ impl Backend for Mutations {
         self.0.fetch_add(1, Ordering::SeqCst);
         Err(Error(ErrorCode::Unavailable))
     }
-    async fn login(&self, _: Login) -> Result<IssuedSession> {
-        Err(Error(ErrorCode::Unauthenticated))
+    async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
+        PasswordChecked::rejected()
     }
     async fn session(&self, _: String, csrf: Option<String>) -> Result<SessionView> {
         if csrf.as_deref() != Some("b".repeat(64).as_str()) {

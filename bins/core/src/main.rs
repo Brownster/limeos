@@ -1,4 +1,4 @@
-use limeos_api::{Backend, IssuedSession};
+use limeos_api::{Backend, IssuedSession, PasswordAttempt, PasswordCheck, PasswordChecked};
 use limeos_contracts::{
     CoreRequest, CoreResponse, Enrollment, ErrorEnvelope, Health, Login, SessionView, VERSION,
 };
@@ -25,6 +25,8 @@ pub mod health_collection;
 mod identity_enablement;
 mod job_resolution;
 mod operations;
+mod password_admission;
+use password_admission::PasswordWorkers;
 mod stack_operations;
 mod stacks;
 mod storage;
@@ -38,11 +40,21 @@ fn now() -> i64 {
         .as_secs()
         .min(i64::MAX as u64) as i64
 }
+/// Work for a password worker. A verification carries the request's attempt
+/// handle, so it cannot be issued without marking when its comparison starts.
+enum PasswordJob<'a> {
+    Hash(String),
+    Verify {
+        attempt: &'a PasswordAttempt,
+        password: String,
+        encoded: String,
+    },
+}
 #[derive(Clone)]
 struct Core {
     automation_status: automation_runtime::Status,
     db: Database,
-    password_workers: Arc<Semaphore>,
+    password_workers: Arc<PasswordWorkers>,
     dummy_hash: Arc<str>,
     observations: limeos_observations::Cache,
     telemetry: Option<limeos_observations::telemetry::Telemetry>,
@@ -55,16 +67,88 @@ struct Core {
     stacks: limeos_observations::stacks::Cache,
 }
 impl Core {
-    async fn password(
+    /// Login with how far the password check got recorded in `check`.
+    async fn login_checked(
         &self,
-        request: limeos_contracts::PasswordRequest,
-    ) -> Result<limeos_contracts::PasswordResponse> {
+        input: Login,
+        attempt: &PasswordAttempt,
+        check: &mut PasswordCheck,
+    ) -> Result<IssuedSession> {
+        if !input.well_formed() {
+            return Err(Error(ErrorCode::Unauthenticated));
+        }
+        let record = self
+            .db
+            .call(move |s| s.login_record(&input.username))
+            .await?;
+        // Names with no account share one comparison budget, so a flood of
+        // made-up names cannot hold the workers; real accounts never use it.
+        if record.is_none()
+            && !self
+                .password_workers
+                .take_unknown_name(std::time::Instant::now())
+        {
+            return Err(Error(ErrorCode::Overloaded));
+        }
+        let encoded = record
+            .as_ref()
+            .map(|r| r.password_hash.clone())
+            .unwrap_or_else(|| self.dummy_hash.to_string());
+        let response = self
+            .password(PasswordJob::Verify {
+                attempt,
+                password: input.password,
+                encoded,
+            })
+            .await?;
+        let (valid, upgraded) = (response.valid, response.upgraded);
+        // A match against the dummy hash of a missing account is no match.
+        *check = if valid && record.is_some() {
+            PasswordCheck::Accepted
+        } else {
+            PasswordCheck::Rejected
+        };
+        if !valid {
+            return Err(Error(ErrorCode::Unauthenticated));
+        }
+        let record = record.ok_or(Error(ErrorCode::Unauthenticated))?;
+        let principal = record.principal.clone();
+        let token = limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?;
+        // CSRF token is deterministically derived from the session secret, and only
+        // its digest is persisted. It can be recovered after a browser reconnect.
+        let csrf = limeos_identity::digest(&format!("csrf:{token}"));
+        let digest = limeos_identity::digest(&token);
+        let csrf_digest = limeos_identity::digest(&csrf);
+        let expires_at = self
+            .db
+            .call(move |s| {
+                s.create_session(&record, upgraded.as_deref(), &digest, &csrf_digest, now())
+            })
+            .await?;
+        Ok(IssuedSession {
+            token,
+            view: SessionView {
+                principal,
+                csrf_token: csrf,
+                expires_at,
+            },
+        })
+    }
+    async fn password(&self, job: PasswordJob<'_>) -> Result<limeos_contracts::PasswordResponse> {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        let _permit = self
-            .password_workers
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| Error(ErrorCode::Overloaded))?;
+        let _admission = self.password_workers.admit().await?;
+        // Admitted: from here a cancelled request has spent a comparison.
+        let request = match job {
+            PasswordJob::Hash(password) => limeos_contracts::PasswordRequest::Hash { password },
+            PasswordJob::Verify {
+                attempt,
+                password,
+                encoded,
+            } => {
+                attempt.start_comparison();
+                limeos_contracts::PasswordRequest::Verify { password, encoded }
+            }
+        };
         let executable = std::env::current_exe().map_err(|_| Error(ErrorCode::Unavailable))?;
         let directory = executable.parent().ok_or(Error(ErrorCode::Unavailable))?;
         #[cfg(test)]
@@ -116,7 +200,7 @@ impl Core {
         if !(12..=1024).contains(&password.len()) {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        self.password(limeos_contracts::PasswordRequest::Hash { password })
+        self.password(PasswordJob::Hash(password))
             .await?
             .upgraded
             .ok_or(Error(ErrorCode::Unavailable))
@@ -235,9 +319,13 @@ impl Backend for Core {
         csrf: String,
         input: limeos_contracts::ObserveHealthEnable,
         deadline: std::time::Instant,
-    ) -> Result<limeos_contracts::ObserveHealthEnabled> {
-        self.human_enable_observe_health(token, csrf, input, deadline)
-            .await
+        attempt: PasswordAttempt,
+    ) -> PasswordChecked<limeos_contracts::ObserveHealthEnabled> {
+        let mut check = PasswordCheck::NotReached;
+        let result = self
+            .human_enable_observe_health_checked(token, csrf, input, deadline, &attempt, &mut check)
+            .await;
+        PasswordChecked::new(check, result)
     }
     async fn storage_mount_catalog(
         &self,
@@ -420,54 +508,14 @@ impl Backend for Core {
             .call(move |s| s.cancel_storage(&principal, &id, now()))
             .await
     }
-    async fn login(&self, input: Login) -> Result<IssuedSession> {
-        if !limeos_domain::identifier(&input.username)
-            || input.username.len() > 64
-            || input.password.is_empty()
-            || input.password.len() > 1024
-        {
-            return Err(Error(ErrorCode::Unauthenticated));
-        }
-        let record = self
-            .db
-            .call(move |s| s.login_record(&input.username))
-            .await?;
-        let encoded = record
-            .as_ref()
-            .map(|r| r.password_hash.clone())
-            .unwrap_or_else(|| self.dummy_hash.to_string());
-        let response = self
-            .password(limeos_contracts::PasswordRequest::Verify {
-                password: input.password,
-                encoded,
-            })
-            .await?;
-        let (valid, upgraded) = (response.valid, response.upgraded);
-        if !valid {
-            return Err(Error(ErrorCode::Unauthenticated));
-        }
-        let record = record.ok_or(Error(ErrorCode::Unauthenticated))?;
-        let principal = record.principal.clone();
-        let token = limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?;
-        // CSRF token is deterministically derived from the session secret, and only
-        // its digest is persisted. It can be recovered after a browser reconnect.
-        let csrf = limeos_identity::digest(&format!("csrf:{token}"));
-        let digest = limeos_identity::digest(&token);
-        let csrf_digest = limeos_identity::digest(&csrf);
-        let expires_at = self
-            .db
-            .call(move |s| {
-                s.create_session(&record, upgraded.as_deref(), &digest, &csrf_digest, now())
-            })
-            .await?;
-        Ok(IssuedSession {
-            token,
-            view: SessionView {
-                principal,
-                csrf_token: csrf,
-                expires_at,
-            },
-        })
+    async fn login(
+        &self,
+        input: Login,
+        attempt: PasswordAttempt,
+    ) -> PasswordChecked<IssuedSession> {
+        let mut check = PasswordCheck::NotReached;
+        let result = self.login_checked(input, &attempt, &mut check).await;
+        PasswordChecked::new(check, result)
     }
     async fn session(&self, token: String, csrf: Option<String>) -> Result<SessionView> {
         let csrf_token = limeos_identity::digest(&format!("csrf:{token}"));
@@ -790,8 +838,13 @@ impl Backend for Core {
         csrf: String,
         id: String,
         input: limeos_contracts::ResolveJobInput,
-    ) -> Result<limeos_contracts::ResolveJobResponse> {
-        self.human_resolve(token, csrf, id, input).await
+        attempt: PasswordAttempt,
+    ) -> PasswordChecked<limeos_contracts::ResolveJobResponse> {
+        let mut check = PasswordCheck::NotReached;
+        let result = self
+            .human_resolve_checked(token, csrf, id, input, &attempt, &mut check)
+            .await;
+        PasswordChecked::new(check, result)
     }
 }
 async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
@@ -1027,7 +1080,7 @@ async fn run() -> Result<()> {
         automation_status: automation_runtime::Status::default(),
         stacks: limeos_observations::stacks::start_proxy(config.storage_socket.clone().into()),
         db,
-        password_workers: Arc::new(Semaphore::new(2)),
+        password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: "".into(),
         observations,
         telemetry,
