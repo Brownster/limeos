@@ -18,6 +18,8 @@ import hashlib
 import io
 import json
 import os
+import re
+import secrets
 import stat
 import subprocess
 import sys
@@ -215,19 +217,23 @@ def tracked_violations(root):
     return None if tracked is None else violations(root, tracked)
 
 
+def bad_component(part):
+    """Empty, dot, or holding a control character (NUL included)."""
+    return part in ("", ".", "..") or any(ord(c) < 32 or ord(c) == 127 for c in part)
+
+
 def check_unit(unit):
     """A unit as docs/rewrite-evidence/<area>[/<run>], refusing anything else."""
+    if any(ord(c) < 32 or ord(c) == 127 for c in str(unit)):
+        raise EvidenceError(f"{unit!r}: control character in unit")
     unit = PurePosixPath(unit)
     if unit.is_absolute() or EVIDENCE not in unit.parents:
         raise EvidenceError(f"{unit}: not under {EVIDENCE}")
     parts = unit.relative_to(EVIDENCE).parts
-    if len(parts) not in (1, 2) or any(part in ("", ".", "..") for part in parts):
+    if len(parts) not in (1, 2) or any(bad_component(part) for part in parts):
         raise EvidenceError(f"{unit}: a unit is {EVIDENCE}/<area> or <area>/<run>")
-    if "-" in parts[0]:
-        # The area is the text before the first "-" of a bundle name.
-        raise EvidenceError(
-            f"{unit}: area names containing '-' would make bundle names ambiguous"
-        )
+    if len(parts) == 2 and parts[1].startswith("-"):
+        raise EvidenceError(f"{unit}: run names may not start with '-'")
     return unit
 
 
@@ -239,9 +245,14 @@ def unit_of(rel):
 
 
 def bundle_name(unit):
-    """limeos-evidence-<area>[-<run>].tar.gz; one-to-one because areas have no '-'."""
-    parts = check_unit(unit).relative_to(EVIDENCE).parts
-    return BUNDLE_PREFIX + "-".join(parts) + BUNDLE_SUFFIX
+    """limeos-evidence-<area>[-<run>].tar.gz, with each '-' in the area doubled.
+
+    Areas without '-' keep the plain form. The area ends at the first single
+    '-', and runs never start with '-', so different units get different names.
+    """
+    area, *run = check_unit(unit).relative_to(EVIDENCE).parts
+    encoded = area.replace("-", "--") + "".join("-" + part for part in run)
+    return BUNDLE_PREFIX + encoded + BUNDLE_SUFFIX
 
 
 def is_loose(unit):
@@ -349,6 +360,9 @@ def plan_build(root, units):
         ]
         if not raw:
             continue
+        for rel in raw:
+            if any(bad_component(part) for part in rel.parts):
+                raise EvidenceError(f"{rel!r}: control character in a file name")
         if (Path(root) / unit / MANIFEST).exists():
             if is_loose(unit):
                 raise EvidenceError(
@@ -441,12 +455,13 @@ def build_unit(root, unit, out, release, remove=True):
 
 
 def checked_path(text, loose):
+    if not isinstance(text, str) or any(bad_component(p) for p in text.split("/")):
+        raise EvidenceError(f"bad file path {text!r}")
     path = PurePosixPath(text)
     if (
         not text
         or path.is_absolute()
         or path.as_posix() != text
-        or any(part in ("", ".", "..") for part in path.parts)
         or (loose and len(path.parts) != 1)
         or path == PurePosixPath(MANIFEST)
     ):
@@ -565,46 +580,171 @@ def destination_state(root, name, data, mode):
     return "same" if same and executable == bool(mode & 0o100) else "differs"
 
 
-def write_file(root, name, data, mode, replace, created_dirs):
-    """Write below root without following links: exclusive create, or rename over."""
-    parts = PurePosixPath(name).parts
+TEMPORARY = re.compile(r"^\..+\.evidence-restore-[0-9a-f]{16}$")
+
+
+def open_directory(root, parts, expected=None, create=False, created=None):
+    """Open root/parts one component at a time, never following a link.
+
+    Returns (fd, ids) with the (device, inode) of each directory walked. With
+    expected, every directory must still be the one recorded; with create,
+    missing directories are made and appended to created as (parts, ids).
+    """
     directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+    ids = []
     try:
-        current = PurePosixPath()
-        for part in parts[:-1]:
-            current = current / part
-            try:
-                os.mkdir(part, 0o755, dir_fd=directory)
-                created_dirs.append(current)
-            except FileExistsError:
-                pass
+        for index, part in enumerate(parts):
+            made = False
+            if create:
+                try:
+                    os.mkdir(part, 0o755, dir_fd=directory)
+                    made = True
+                except FileExistsError:
+                    pass
             child = os.open(
                 part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory
             )
             os.close(directory)
             directory = child
-        leaf = parts[-1]
-        target = f".{leaf}.restoring" if replace else leaf
+            status = os.fstat(directory)
+            ids.append((status.st_dev, status.st_ino))
+            if expected is not None and ids[-1] != expected[index]:
+                raise EvidenceError(f"{'/'.join(parts[: index + 1])} was replaced")
+            if made:
+                created.append((parts[: index + 1], list(ids)))
+        return directory, ids
+    except BaseException:
+        os.close(directory)
+        raise
+
+
+def entry_id(directory, name):
+    """(device, inode) of a regular file in an open directory, without following."""
+    try:
+        status = os.stat(name, dir_fd=directory, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+    return (status.st_dev, status.st_ino) if stat.S_ISREG(status.st_mode) else None
+
+
+def remove_stale_temporaries(directory):
+    """Delete regular files left by an interrupted forced restore in this directory."""
+    for name in os.listdir(directory):
+        if TEMPORARY.match(name) and entry_id(directory, name):
+            os.unlink(name, dir_fd=directory)
+
+
+def write_file(root, name, data, mode, replace, created_dirs):
+    """Write one file below root without following links; return an undo record.
+
+    A new file is created exclusively. With replace, the data goes to a unique
+    temporary file, the old file is kept as a hard-linked backup, and the
+    temporary file is renamed over it.
+    """
+    parts = PurePosixPath(name).parts
+    directory, ids = open_directory(root, parts[:-1], create=True, created=created_dirs)
+    leaf = parts[-1]
+    token = secrets.token_hex(8)
+    target = f".{leaf}.evidence-restore-{token}" if replace else leaf
+    backup = None
+    created = False
+    try:
+        if replace:
+            remove_stale_temporaries(directory)
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
         handle = os.open(target, flags, 0o600, dir_fd=directory)
-        try:
-            with os.fdopen(handle, "wb") as stream:
-                stream.write(data)
-                os.fchmod(stream.fileno(), mode)
-            if replace:
-                os.replace(target, leaf, src_dir_fd=directory, dst_dir_fd=directory)
-        except BaseException:
-            try:
-                os.unlink(target, dir_fd=directory)
-            except FileNotFoundError:
-                pass
-            raise
+        created = True
+        with os.fdopen(handle, "wb") as stream:
+            stream.write(data)
+            os.fchmod(stream.fileno(), mode)
+        if replace:
+            backup = f".{leaf}.evidence-backup-{token}"
+            os.link(
+                leaf,
+                backup,
+                src_dir_fd=directory,
+                dst_dir_fd=directory,
+                follow_symlinks=False,
+            )
+            os.replace(target, leaf, src_dir_fd=directory, dst_dir_fd=directory)
+        return {
+            "parts": parts,
+            "dirs": ids,
+            "file": entry_id(directory, leaf),
+            "backup": backup,
+        }
+    except BaseException:
+        if created and entry_id(directory, target):
+            os.unlink(target, dir_fd=directory)
+        if backup and entry_id(directory, backup):
+            os.unlink(backup, dir_fd=directory)
+        raise
     finally:
         os.close(directory)
 
 
+def undo(root, records, created_dirs):
+    """Reverse what restore wrote, through directory handles; return what was skipped."""
+    skipped = []
+    for record in reversed(records):
+        parts = record["parts"]
+        try:
+            directory, _ = open_directory(root, parts[:-1], expected=record["dirs"])
+        except (OSError, EvidenceError):
+            skipped.append("/".join(parts))
+            continue
+        try:
+            if entry_id(directory, parts[-1]) != record["file"]:
+                skipped.append("/".join(parts))
+            elif record["backup"]:
+                os.replace(
+                    record["backup"],
+                    parts[-1],
+                    src_dir_fd=directory,
+                    dst_dir_fd=directory,
+                )
+            else:
+                os.unlink(parts[-1], dir_fd=directory)
+        finally:
+            os.close(directory)
+    for parts, ids in reversed(created_dirs):
+        try:
+            directory, _ = open_directory(root, parts[:-1], expected=ids[:-1])
+        except (OSError, EvidenceError):
+            continue
+        try:
+            status = os.stat(parts[-1], dir_fd=directory, follow_symlinks=False)
+            if (status.st_dev, status.st_ino) == ids[-1]:
+                os.rmdir(parts[-1], dir_fd=directory)
+        except OSError:
+            pass
+        finally:
+            os.close(directory)
+    return skipped
+
+
+def drop_backups(root, records):
+    for record in records:
+        if not record["backup"]:
+            continue
+        parts = record["parts"]
+        try:
+            directory, _ = open_directory(root, parts[:-1], expected=record["dirs"])
+        except (OSError, EvidenceError):
+            continue
+        try:
+            if entry_id(directory, record["backup"]):
+                os.unlink(record["backup"], dir_fd=directory)
+        finally:
+            os.close(directory)
+
+
 def restore_all(root, manifest_paths, bundles, force=False):
-    """Restore bundles into root: check everything first, write, undo on failure."""
+    """Restore bundles into root: check everything first, write, undo on failure.
+
+    Returns (files, written, replaced names). A failure part-way removes the
+    files this run created and puts replaced files back.
+    """
     root = Path(root).resolve()
     actions = {}
     for path in manifest_paths:
@@ -622,24 +762,23 @@ def restore_all(root, manifest_paths, bundles, force=False):
                 f"{name} exists with different content; use --force to replace it"
             )
         plan.append((name, data, mode, state))
-    created_files, created_dirs = [], []
+    records, created_dirs = [], []
     try:
         for name, data, mode, state in plan:
-            if state == "same":
-                continue
-            write_file(root, name, data, mode, state == "differs", created_dirs)
-            if state == "create":
-                created_files.append(name)
+            if state != "same":
+                records.append(
+                    write_file(root, name, data, mode, state == "differs", created_dirs)
+                )
+    except (OSError, EvidenceError) as error:
+        skipped = undo(root, records, created_dirs)
+        note = f"; left in place because they changed: {skipped}" if skipped else ""
+        raise EvidenceError(f"{error}; restore undone{note}") from None
     except BaseException:
-        for name in reversed(created_files):
-            (root / name).unlink(missing_ok=True)
-        for directory in reversed(created_dirs):
-            try:
-                (root / directory).rmdir()
-            except OSError:
-                pass
+        undo(root, records, created_dirs)
         raise
-    return len(plan), sum(1 for item in plan if item[3] != "same")
+    drop_backups(root, records)
+    replaced = [name for name, _, _, state in plan if state == "differs"]
+    return len(plan), len(records), replaced
 
 
 def restore(root, manifest_path, bundles, force=False):
@@ -732,10 +871,14 @@ def main(argv=None):
             print(f"Verified {count} files from {len(found)} bundles")
         elif args.command == "restore":
             found = manifests(root, args.manifests)
-            count, written = restore_all(root, found, args.bundles, force=args.force)
+            count, written, replaced = restore_all(
+                root, found, args.bundles, force=args.force
+            )
+            for name in replaced:
+                print(f"replaced {name}")
             print(
                 f"Restored {count} files from {len(found)} bundles "
-                f"({count - written} already in place)"
+                f"({count - written} already in place, {len(replaced)} replaced)"
             )
         else:
             found = tracked_violations(root)

@@ -165,23 +165,105 @@ class GuardTests(unittest.TestCase):
         self.assertIn("naïve shot.png: raw artifact type .png", result.stderr)
 
 
-class NameTests(Tree):
-    def test_names_are_one_to_one_and_dashed_areas_are_refused(self):
-        units = [f"{AREA}", f"{AREA}/a-b", f"{AREA}/a", "docs/rewrite-evidence/p10/b"]
-        names = [bundles.bundle_name(unit) for unit in units]
-        self.assertEqual(len(set(names)), len(names))
-        with self.assertRaises(bundles.EvidenceError):
-            bundles.bundle_name("docs/rewrite-evidence/p09-a/b")
+def decode(name):
+    """Unit for a bundle name: the inverse of bundles.bundle_name."""
+    body = name[len(bundles.BUNDLE_PREFIX) : -len(bundles.BUNDLE_SUFFIX)]
+    area, index = "", 0
+    while index < len(body):
+        if body.startswith("--", index):
+            area, index = area + "-", index + 2
+        elif body[index] == "-":
+            return f"docs/rewrite-evidence/{area}/{body[index + 1 :]}"
+        else:
+            area, index = area + body[index], index + 1
+    return f"docs/rewrite-evidence/{area}"
 
-    def test_a_colliding_unit_stops_the_build_before_anything_is_written(self):
+
+class NameTests(Tree):
+    def test_names_decode_back_to_their_unit(self):
+        areas = ["p04", "arm64", "current-build", "a-", "-a", "a--b", "x"]
+        runs = [None, "2026-10-01-run", "b", "a-b", "b--c", "c-", "x"]
+        names = {}
+        for area in areas:
+            for run in runs:
+                unit = f"docs/rewrite-evidence/{area}" + (f"/{run}" if run else "")
+                name = bundles.bundle_name(unit)
+                self.assertEqual(decode(name), unit)
+                self.assertNotIn(name, names, f"{unit} and {names.get(name)}")
+                names[name] = unit
+
+    def test_existing_style_names_are_unchanged_and_current_build_is_escaped(self):
+        self.assertEqual(
+            bundles.bundle_name(
+                "docs/rewrite-evidence/p04/2026-10-20-a1-namespace-budget"
+            ),
+            "limeos-evidence-p04-2026-10-20-a1-namespace-budget.tar.gz",
+        )
+        self.assertEqual(
+            bundles.bundle_name("docs/rewrite-evidence/current-build"),
+            "limeos-evidence-current--build.tar.gz",
+        )
+        self.assertEqual(
+            bundles.bundle_name("docs/rewrite-evidence/current-build/2026-07-27-x"),
+            "limeos-evidence-current--build-2026-07-27-x.tar.gz",
+        )
+        for path in bundles.existing_manifests(ROOT):
+            manifest = json.loads(path.read_text())
+            self.assertEqual(
+                bundles.bundle_name(manifest["unit"]), manifest["bundle"]["name"]
+            )
+
+    def test_runs_starting_with_a_dash_are_refused(self):
+        with self.assertRaises(bundles.EvidenceError):
+            bundles.bundle_name(f"{AREA}/-run")
+
+    def test_a_raw_file_in_current_build_bundles_and_restores(self):
+        area = "docs/rewrite-evidence/current-build"
+        write(self.root, f"{area}/tickets.md", b"# Tickets\n")
+        write(self.root, f"{area}/console.log", b"boot\n")
+        write(self.root, f"{area}/2026-07-27-run/trace.log", b"trace\n")
+        before = snapshot(self.root)
+        self.build(str(self.root / area), str(self.root / area / "2026-07-27-run"))
+        self.assertEqual(
+            sorted(p.name for p in self.out.iterdir()),
+            [
+                "limeos-evidence-current--build-2026-07-27-run.tar.gz",
+                "limeos-evidence-current--build.tar.gz",
+            ],
+        )
+        self.assertEqual(self.restore()[0], 0)
+        restored = {
+            k: v for k, v in snapshot(self.root).items() if bundles.MANIFEST not in k
+        }
+        self.assertEqual(restored, before)
+
+    def test_formerly_colliding_units_get_different_bundles(self):
         write(self.root, "docs/rewrite-evidence/p09-a/b/x.log", b"one\n")
         write(self.root, f"{AREA}/a-b/x.log", b"two\n")
+        self.build()
+        names = {p.name for p in self.out.iterdir()}
+        self.assertIn("limeos-evidence-p09--a-b.tar.gz", names)
+        self.assertIn("limeos-evidence-p09-a-b.tar.gz", names)
+
+    def test_a_duplicate_name_stops_the_build_before_anything_is_written(self):
+        write(self.root, f"{AREA}/a-b/x.log", b"two\n")
+        before = snapshot(self.root)
+        with patch.object(bundles, "bundle_name", lambda unit: "same.tar.gz"):
+            code, _out, err = self.cli(
+                "build", "--release", "t", "--out", str(self.out)
+            )
+        self.assertEqual(code, 1)
+        self.assertIn("is used by", err)
+        self.assertEqual(snapshot(self.root), before)
+        self.assertFalse(self.out.exists())
+
+    def test_a_raw_file_name_with_a_control_character_is_refused(self):
+        write(self.root, f"{AREA}/2026-01-03-run/tab\tname.log", b"x\n")
         before = snapshot(self.root)
         code, _out, err = self.cli("build", "--release", "t", "--out", str(self.out))
         self.assertEqual(code, 1)
-        self.assertIn("ambiguous", err)
+        self.assertIn("control character", err)
         self.assertEqual(snapshot(self.root), before)
-        self.assertFalse(self.out.exists())
 
 
 class BuildOrderTests(Tree):
@@ -292,7 +374,7 @@ class RestoreSafetyTests(Tree):
         os.chmod(guest, 0o640)  # same content and execute bit
         code, out, err = self.restore()
         self.assertEqual(code, 0, err)
-        self.assertIn("(5 already in place)", out)
+        self.assertIn("(5 already in place, 0 replaced)", out)
         after = os.stat(guest)
         self.assertEqual(
             (after.st_ino, after.st_mtime_ns), (before.st_ino, before.st_mtime_ns)
@@ -408,6 +490,128 @@ class PartialRestoreTests(Tree):
         self.assertEqual(snapshot(self.root), self.built)
         for directory in ["logs", "deep", "tools"]:
             self.assertFalse((self.root / RUN / directory).exists(), directory)
+
+
+class RollbackTests(Tree):
+    def setUp(self):
+        super().setUp()
+        self.build()
+        self.built = snapshot(self.root)
+
+    def leftovers(self):
+        return [p.name for p in self.root.rglob(".*evidence-*")]
+
+    def test_rollback_does_not_follow_a_directory_swapped_for_a_link(self):
+        outside_file = self.outside / "guest.log"
+        outside_file.write_bytes(b"not yours\n")
+        original = bundles.write_file
+        calls = []
+
+        def swapping(*args):
+            calls.append(args[1])
+            if len(calls) == 3:
+                logs = self.root / RUN / "logs"
+                logs.rename(self.root / RUN / "logs-moved")
+                logs.symlink_to(self.outside, target_is_directory=True)
+                raise OSError("simulated failure after the swap")
+            return original(*args)
+
+        with patch.object(bundles, "write_file", swapping):
+            code, _out, err = self.restore()
+        self.assertEqual(code, 1)
+        self.assertIn("restore undone", err)
+        self.assertEqual(outside_file.read_bytes(), b"not yours\n")
+        self.assertTrue((self.root / RUN / "logs-moved/guest.log").exists())
+        self.assertIn("logs/guest.log", err, "reported as left in place")
+        self.assertFalse((self.root / RUN / "deep").exists(), "untouched paths undone")
+
+    def test_rollback_skips_a_file_replaced_after_it_was_written(self):
+        original = bundles.write_file
+        calls = []
+
+        def replacing(*args):
+            calls.append(args[1])
+            if len(calls) == 3:
+                guest = self.root / RUN / "logs/guest.log"
+                guest.unlink()
+                guest.write_bytes(b"someone else's\n")
+                raise OSError("simulated failure")
+            return original(*args)
+
+        with patch.object(bundles, "write_file", replacing):
+            code, _out, _err = self.restore()
+        self.assertEqual(code, 1)
+        self.assertEqual(
+            (self.root / RUN / "logs/guest.log").read_bytes(), b"someone else's\n"
+        )
+
+    def test_stale_temporary_files_do_not_block_a_forced_restore(self):
+        self.assertEqual(self.restore()[0], 0)
+        logs = self.root / RUN / "logs"
+        write(self.root, f"{RUN}/logs/guest.log", b"local edit\n")
+        stale = logs / ".guest.log.evidence-restore-0123456789abcdef"
+        stale.write_bytes(b"partial")
+        unrelated = logs / ".guest.log.evidence-restore-mine"
+        unrelated.write_bytes(b"keep")
+        planted = logs / ".x.evidence-restore-fedcba9876543210"
+        planted.symlink_to(self.outside / "target")
+        code, out, err = self.restore("--force")
+        self.assertEqual(code, 0, err)
+        self.assertIn(f"replaced {RUN}/logs/guest.log", out)
+        self.assertIn("1 replaced", out)
+        self.assertFalse(stale.exists())
+        self.assertTrue(unrelated.exists())
+        self.assertTrue(planted.is_symlink(), "links are never removed or followed")
+        self.assertEqual((logs / "guest.log").read_bytes(), b"booted\n")
+        self.assertEqual(
+            sorted(self.leftovers()),
+            sorted([unrelated.name, planted.name]),
+            "no temporary or backup files remain",
+        )
+
+    def test_a_failed_forced_restore_puts_replaced_files_back(self):
+        self.assertEqual(self.restore()[0], 0)
+        write(self.root, f"{RUN}/deep/nested/checks.json", b"edit one\n")
+        write(self.root, f"{RUN}/logs/guest.log", b"edit two\n")
+        (self.root / RUN / "record.json.gz").unlink()
+        before = snapshot(self.root)
+        original = bundles.write_file
+        calls = []
+
+        def failing(*args):
+            calls.append(args[1])
+            if len(calls) == 3:
+                raise OSError("simulated failure")
+            return original(*args)
+
+        with patch.object(bundles, "write_file", failing):
+            code, _out, _err = self.restore("--force")
+        self.assertEqual(code, 1)
+        self.assertEqual(snapshot(self.root), before)
+        self.assertEqual(self.leftovers(), [])
+
+
+class ManifestPathTests(Tree):
+    def setUp(self):
+        super().setUp()
+        self.build()
+
+    def test_control_characters_in_manifest_paths_are_refused(self):
+        for bad in ["a\x00b.log", "logs/\tguest.log", "x\x7f.log", "a//b.log"]:
+            with self.subTest(repr(bad)):
+                self.rewrite_manifest(lambda m, bad=bad: m["files"][0].update(path=bad))
+                before = snapshot(self.root)
+                code, _out, err = self.restore()
+                self.assertEqual(code, 1)
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assertIn("bad file path", err)
+                self.assertEqual(snapshot(self.root), before)
+
+    def test_a_nul_in_the_unit_is_refused(self):
+        self.rewrite_manifest(lambda m: m.update(unit=RUN + "\x00x"))
+        code, _out, err = self.restore()
+        self.assertEqual(code, 1)
+        self.assertIn("control character", err)
 
 
 class ErrorTests(Tree):

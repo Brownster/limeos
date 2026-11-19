@@ -32,7 +32,9 @@ these rules.
 
 A unit is one run directory, `<area>/<run>/` with everything below it, or the
 loose files directly in `<area>/`. Its bundle is
-`limeos-evidence-<area>-<run>.tar.gz` (or `limeos-evidence-<area>.tar.gz`):
+`limeos-evidence-<area>-<run>.tar.gz` (or `limeos-evidence-<area>.tar.gz`;
+a `-` inside an area name is doubled, so `current-build` gives
+`limeos-evidence-current--build.tar.gz`, and run names may not start with `-`):
 a gzip-compressed tar with members sorted by path, stored under their
 repository paths, with modification time 0, owner and group 0 and the git file
 mode. The same files give the same tar bytes. The manifest records the release
@@ -55,8 +57,10 @@ python3 scripts/evidence_bundles.py restore --bundles dist/evidence-bundles \
 ```
 
 Without unit arguments, `verify` and `restore` handle every manifest. Restore
-checks each file against the manifest, writes it back in place and refuses to
-replace a file with different content unless given `--force`. A run's
+checks every bundle and destination before writing, never follows a symbolic
+link, and refuses to replace a file with different content unless given
+`--force`, which lists each file it replaced. If a write fails, restore
+removes the files it created and puts replaced files back. A run's
 `SHA256SUMS` then verifies as it did before the move. Scripts kept inside a
 run directory (such as a `verify.py`) read that run's raw files, so restore
 its bundle first. Restored files are for reading; do not commit them.
