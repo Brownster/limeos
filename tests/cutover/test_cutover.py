@@ -1173,5 +1173,17 @@ class MeasureTests(Harness):
         self.assert_read_only()
 
 
+class LintTests(unittest.TestCase):
+    def test_ci_shellchecks_the_cutover_scripts(self):
+        ci = (REPO / ".github/workflows/ci.yml").read_text()
+        self.assertIn("run: shellcheck scripts/cutover/*.sh", ci)
+
+    @unittest.skipUnless(shutil.which("shellcheck"), "shellcheck is not installed")
+    def test_cutover_scripts_pass_shellcheck(self):
+        scripts = sorted(str(p.relative_to(REPO)) for p in SCRIPTS.glob("*.sh"))
+        result = subprocess.run(["shellcheck", *scripts], cwd=REPO, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -33,6 +33,8 @@ jobs:
       - run: cargo deny check
       - run: cargo audit
       - run: shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh tests/fixtures/backup-archives/generate.sh
+      - name: Cutover scripts lint
+        run: shellcheck scripts/cutover/*.sh
       - name: Unit validation
         run: |
           sudo install -d /usr/lib/limeos /var/lib/limeos/core

@@ -5,8 +5,7 @@
 # flask-shutdown, docker or containers. Needs explicit operator approval.
 set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib.sh
-# shellcheck source=lib.sh
+# shellcheck source-path=SCRIPTDIR source=lib.sh
 source "${SCRIPT_DIR}/lib.sh"
 
 MAX_SNAPSHOT_AGE=1800

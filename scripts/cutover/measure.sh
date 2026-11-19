@@ -7,7 +7,7 @@
 # on: no rollback. The one exception to read-only is the opt-in --measure-core-restart.
 set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib.sh
+# shellcheck source-path=SCRIPTDIR source=lib.sh
 source "${SCRIPT_DIR}/lib.sh"
 
 # Core plus base executors (the 30 MiB PSS target); these must be running.

@@ -5,8 +5,7 @@
 # management catalog. Hashes state files; never prints or stores contents.
 set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib.sh
-# shellcheck source=lib.sh
+# shellcheck source-path=SCRIPTDIR source=lib.sh
 source "${SCRIPT_DIR}/lib.sh"
 
 MIN_AVAILABLE_BYTES=1610612736 # 1.5 GiB
