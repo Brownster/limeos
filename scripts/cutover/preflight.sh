@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # T4: read-only pre-cutover snapshot. Writes only into the snapshot directory.
 # Refuses (exit 1) on memory pressure, high swap, a stopped managed container,
-# active Jellyfin playback or a missing stack management catalog. Hashes state files; never prints or stores contents.
+# active Jellyfin playback (or no way to check it), missing state or a missing stack
+# management catalog. Hashes state files; never prints or stores contents.
 set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
@@ -13,8 +14,10 @@ MAX_SWAP_PERCENT=90
 
 fct_usage() {
     cat <<'USAGE'
-Usage: preflight.sh --state-list FILE [--out DIR] [--managed-file FILE]
-                    [--frozen-port N] [--jellyfin-url URL] [--help]
+Usage: preflight.sh --state-list FILE
+                    (--jellyfin-key-file FILE | --no-playback-check)
+                    [--out DIR] [--managed-file FILE] [--frozen-port N]
+                    [--jellyfin-url URL] [--help]
 
 Read-only snapshot for the basic cutover. Default DIR is
 /var/lib/limeos-cutover/<UTC timestamp>/. --managed-file lists container names
@@ -25,14 +28,34 @@ comments allowed), built from the `limeosctl migrate scan` report; it is copied
 into the snapshot as state-paths.txt and activate.sh and return.sh hash the same
 files. Every listed path must exist. Every file under /etc/limeos and
 /var/lib/limeos is hashed as well.
+--jellyfin-key-file names a file holding a Jellyfin API key (Dashboard > API
+Keys), owned by root and readable by root only (chmod 600). The key goes to curl
+on stdin, never on a command line or into the snapshot. Active playback, a
+rejected key or an unreachable Jellyfin refuses. Without a key file, preflight
+refuses unless --no-playback-check is given (then check the dashboard yourself).
 The stack management catalog (/etc/limeos/management-catalog.json, from
 `limeosctl migrate propose-catalog`) must exist: activate.sh starts the stack reader
 with it. Exit 0: snapshot written and every check passed. Exit 1: refused or failed.
 USAGE
 }
 
+# Empty when FILE is a regular file owned by root that only its owner can read;
+# otherwise one line naming the problem.
+fct_key_file_problem() { # file
+    local file="${1}" owner mode
+    if [[ -L "${file}" || ! -f "${file}" ]]; then
+        printf '%s is not a regular file\n' "${file}"
+        return 0
+    fi
+    read -r owner mode < <(stat -c '%u %a' -- "${file}")
+    if [[ "${CUTOVER_ALLOW_NONROOT:-0}" != 1 && "${owner}" != 0 ]] || (( 8#${mode} & 8#077 )); then
+        printf '%s must be owned by root and readable by root only (chmod 600; is %s:%s)\n' "${file}" "${owner}" "${mode}"
+    fi
+}
+
 fct_main() {
     local out='' managed_file='' state_list='' port="${FROZEN_PORT_DEFAULT}" jelly='http://127.0.0.1:8096/Sessions'
+    local key_file='' no_playback_check=0
     while (( $# )); do
         case "${1}" in
             --out) out="${2:?--out needs a directory}"; shift 2 ;;
@@ -40,6 +63,8 @@ fct_main() {
             --state-list) state_list="${2:?--state-list needs a path}"; shift 2 ;;
             --frozen-port) port="${2:?--frozen-port needs a number}"; shift 2 ;;
             --jellyfin-url) jelly="${2:?--jellyfin-url needs a URL}"; shift 2 ;;
+            --jellyfin-key-file) key_file="${2:?--jellyfin-key-file needs a path}"; shift 2 ;;
+            --no-playback-check) no_playback_check=1; shift ;;
             -h|--help) fct_usage; return 0 ;;
             *) fct_usage >&2; fct_die "unknown argument: ${1}" ;;
         esac
@@ -137,12 +162,30 @@ fct_main() {
         grep -qx -- "${name}" <<<"${running}" || refusals+=("managed container not running: ${name}")
     done
 
-    local code body="${out}/.jellyfin-body"
-    code="$(curl -sS --max-time 5 -o "${body}" -w '%{http_code}' "${jelly}" 2>/dev/null || true)"
-    if [[ "${code}" == 200 ]]; then
-        if grep -q 'NowPlayingItem' "${body}"; then refusals+=('Jellyfin has active playback'); fi
+    local code key body="${out}/.jellyfin-body"
+    if (( no_playback_check )); then
+        warnings+=('Jellyfin playback was not checked (--no-playback-check); check the dashboard by hand')
+    elif [[ -z "${key_file}" ]]; then
+        refusals+=('no Jellyfin API key: pass --jellyfin-key-file FILE (root-only) or --no-playback-check')
+    elif problem="$(fct_key_file_problem "${key_file}")" && [[ -n "${problem}" ]]; then
+        refusals+=("Jellyfin API key file: ${problem}")
     else
-        warnings+=("Jellyfin playback could not be checked without credentials (HTTP ${code:-none}); check the dashboard by hand")
+        key=''
+        IFS= read -r key <"${key_file}" || true
+        key="${key//[[:space:]]/}"
+        if [[ ! "${key}" =~ ^[A-Za-z0-9]+$ ]]; then
+            refusals+=('Jellyfin API key file must hold one key (letters and digits) on its first line')
+        else
+            # The key goes to curl on stdin (printf is a builtin), never on a command line.
+            code="$(printf 'Authorization: MediaBrowser Token="%s"\n' "${key}" \
+                | curl -sS --max-time 5 -H @- -o "${body}" -w '%{http_code}' "${jelly}" 2>/dev/null || true)"
+            case "${code}" in
+                200) if grep -q 'NowPlayingItem' "${body}"; then refusals+=('Jellyfin has active playback'); fi ;;
+                401|403) refusals+=("Jellyfin rejected the API key (HTTP ${code})") ;;
+                *) refusals+=("Jellyfin playback could not be checked (HTTP ${code:-none})") ;;
+            esac
+        fi
+        key=''
     fi
     rm -f -- "${body}"
 

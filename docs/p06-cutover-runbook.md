@@ -46,13 +46,21 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); loc={l["label"]: l["path"].rstrip("/") for l in r["locations"]}; print("\n".join(loc[f["location"]] + "/" + f["path"] for f in r["files"] if f["kind"] == "file" and f["location"] != "stacks"))' /root/migrate-scan.json >/root/cutover-state-paths.txt
    ```
 
-2. `scripts/cutover/preflight.sh --state-list /root/cutover-state-paths.txt`
+   Create a Jellyfin API key (Dashboard > API Keys) and store it root-only:
+   `install -o root -g root -m 0600 /dev/null /root/jellyfin.key`, then write the
+   key into that file with an editor (not on a command line).
+2. `scripts/cutover/preflight.sh --state-list /root/cutover-state-paths.txt
+   --jellyfin-key-file /root/jellyfin.key`
    (writes `/var/lib/limeos-cutover/<ts>/`, or `--out DIR`). It refuses on
    MemAvailable below 1.5 GiB, swap above 90 %, a stopped managed container,
    Jellyfin playback, a listed state path that does not exist, no state found at
    all, or a missing/unsafe
-   `/etc/limeos/management-catalog.json` (the message names the command above). Without Jellyfin credentials
-   it cannot see playback and warns: check the dashboard yourself.
+   `/etc/limeos/management-catalog.json` (the message names the command above).
+   The key is sent to Jellyfin's `/Sessions` on curl's stdin, never on a command
+   line or into the snapshot; a key file that group or others can read, a
+   rejected key or an unreachable Jellyfin also refuses. Without a key file it
+   refuses unless you pass `--no-playback-check`; then check the dashboard
+   yourself.
 3. Rehearse: `scripts/cutover/activate.sh SNAP --dry-run --package PATH
    --expected-version V --host HOST` prints every command and changes nothing.
 4. Go (within 30 minutes of step 2, or rerun preflight):

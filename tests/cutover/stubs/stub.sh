@@ -115,6 +115,7 @@ case "${tool}" in
             case "$1" in
                 -o) out="$2"; shift 2 ;;
                 -w) want_code=1; fmt="$2"; shift 2 ;;
+                -H) if [[ "$2" == @- ]]; then cat >>"${STUB_DIR}/curl_headers"; else printf '%s\n' "$2" >>"${STUB_DIR}/curl_headers"; fi; shift 2 ;;
                 --resolve|--max-time|-b) shift 2 ;;
                 --*) shift ;;
                 -*) if [[ "$1" == *f* ]]; then fail_flag=1; fi; shift ;;

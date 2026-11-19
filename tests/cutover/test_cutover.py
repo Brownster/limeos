@@ -24,6 +24,8 @@ TOOLS = [
     "caddy", "sleep", "limeosctl",
 ]
 NOW = 1_800_000_000
+JELLYFIN_KEY = "0123456789abcdef0123456789abcdef"
+SESSIONS = "http://127.0.0.1:8096/Sessions"
 HOST = "lime.lan"
 SITE = f"https://{HOST}:8002"
 MANAGED = [
@@ -111,6 +113,9 @@ class Harness(unittest.TestCase):
         self.state_list.write_text(
             "# from limeosctl migrate scan\n/etc/limeos/credentials.env\n"
             "/home/holly/pi-health/config/backup_config.json\n/home/holly/pi-health/config/media_paths.json\n")
+        self.key_file = base / "jellyfin.key"
+        self.key_file.write_text(JELLYFIN_KEY + "\n")
+        self.key_file.chmod(0o600)
         self._seed_host()
 
     def _write(self, path, text):
@@ -149,7 +154,7 @@ class Harness(unittest.TestCase):
         (self.stub / "free_out").write_text(FREE_OK)
         (self.stub / "pkg_to_install").write_text("1.0.0\n")
         self.set_curl({
-            "http://127.0.0.1:8096/Sessions": "401",
+            SESSIONS: "200 []",
             f"{SITE}/api/v1/health": "200",
             f"{SITE}/": "200 <html>",
             "http://127.0.0.1:8002/": "200",
@@ -180,8 +185,10 @@ class Harness(unittest.TestCase):
         return subprocess.run(
             ["bash", str(SCRIPTS / name), *args], env=env, capture_output=True, text=True, timeout=60)
 
-    def preflight(self, *extra, state_list=True):
+    def preflight(self, *extra, state_list=True, jellyfin_key=True):
         listed = ["--state-list", str(self.state_list)] if state_list else []
+        if jellyfin_key:
+            listed += ["--jellyfin-key-file", str(self.key_file)]
         return self.run_script("preflight.sh", "--out", self.out, *listed, *extra)
 
     def activate_args(self, *extra):
@@ -292,17 +299,48 @@ class PreflightTests(Harness):
         self.refused("managed container not running: radarr")
 
     def test_refuses_active_playback(self):
-        self.set_curl({"http://127.0.0.1:8096/Sessions": '200 [{"NowPlayingItem":{}}]'})
+        self.set_curl({SESSIONS: '200 [{"NowPlayingItem":{}}]'})
         self.refused("active playback")
 
-    def test_warns_when_playback_unchecked(self):
+    def test_idle_jellyfin_passes_and_the_key_stays_out_of_argv_and_the_snapshot(self):
         result = self.preflight()
-        self.assertEqual(result.returncode, 0)
-        self.assertIn("could not be checked", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f"curl -sS --max-time 5 -H @- -o {self.snap}/.jellyfin-body -w %{{http_code}} {SESSIONS}",
+                      self.calls())
+        # The key reaches curl on stdin, never on a command line or in the snapshot.
+        self.assertEqual((self.stub / "curl_headers").read_text(), f'Authorization: MediaBrowser Token="{JELLYFIN_KEY}"\n')
+        self.assertNotIn(JELLYFIN_KEY, (self.stub / "calls.log").read_text())
+        for path in self.snap.iterdir():
+            self.assertNotIn(JELLYFIN_KEY, path.read_text())
 
-    def test_idle_jellyfin_without_credentials_passes(self):
-        self.set_curl({"http://127.0.0.1:8096/Sessions": "200 []"})
-        self.assertEqual(self.preflight().returncode, 0)
+    def test_refuses_without_an_api_key(self):
+        result = self.preflight(jellyfin_key=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("REFUSED: no Jellyfin API key", result.stderr)
+        self.assertFalse([l for l in self.calls() if SESSIONS in l])
+
+    def test_no_playback_check_skips_jellyfin_with_a_warning(self):
+        result = self.preflight("--no-playback-check", jellyfin_key=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--no-playback-check", result.stderr)
+        self.assertIn("check the dashboard by hand", (self.snap / "findings.txt").read_text())
+        self.assertFalse([l for l in self.calls() if SESSIONS in l])
+
+    def test_refuses_a_key_file_others_can_read(self):
+        for mode in (0o640, 0o604, 0o660):
+            with self.subTest(mode=oct(mode)):
+                self.setUp()
+                self.key_file.chmod(mode)
+                self.refused("readable by root only")
+                self.assertFalse([l for l in self.calls() if SESSIONS in l])
+
+    def test_refuses_a_rejected_key_or_an_unreachable_jellyfin(self):
+        for code, fragment in (("401", "Jellyfin rejected the API key (HTTP 401)"),
+                               (None, "Jellyfin playback could not be checked (HTTP 000)")):
+            with self.subTest(code=code):
+                self.setUp()
+                self.set_curl({SESSIONS: code} if code else {})
+                self.refused(fragment)
 
     def test_requires_a_state_list(self):
         result = self.preflight(state_list=False)
