@@ -859,6 +859,17 @@ class ActivateTests(Harness):
                 for name in RUST:
                     self.assertEqual(self.unit_state(name), ("active", "enabled"))
 
+    def test_a_rollback_that_cannot_verify_says_rollback_incomplete(self):
+        self.passing_snapshot()
+        # Health fails, so activate rolls back; the frozen app then does not answer on 8002,
+        # so return.sh restores the units but cannot verify.
+        self.set_curl({SESSIONS: "200 []", f"{SITE}/api/v1/health": "503", "http://127.0.0.1:8002/": "503"})
+        result = self.approved()
+        self.assert_rolled_back(result)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("port 8002 does not serve the frozen app", result.stderr)
+        self.assertIn("ROLLBACK INCOMPLETE: follow docs/p06-cutover-runbook.md", result.stderr)
+
     def test_health_failures_roll_back(self):
         base = {
             "http://127.0.0.1:8096/Sessions": "401",
