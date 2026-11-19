@@ -15,6 +15,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_OUTPUT = ROOT / "docs/rewrite-evidence/p03/compose-validation.json"
+
+
+def evidence_inputs(directory, vm_result=None):
+    """Inputs read beside the output; scripts/evidence_bundles.py PINNED keeps them tracked."""
+    return {
+        "vm": vm_result or directory / "compose-vm-result.json",
+        "arm": directory / "compose-arm64-result.json",
+        "gates": directory / "compose-gate-probes.json",
+        "previous": directory / "lifecycle-validation.json",
+        "previous_manifest": directory / "lifecycle-source-sha256.json",
+    }
 
 
 def sha(path):
@@ -46,15 +58,16 @@ def main():
     parser.add_argument(
         "--output",
         type=Path,
-        default=ROOT / "docs/rewrite-evidence/p03/compose-validation.json",
+        default=DEFAULT_OUTPUT,
     )
     args = parser.parse_args()
     directory = args.output.parent
-    vm_path = args.vm_result or directory / "compose-vm-result.json"
+    inputs = evidence_inputs(directory, args.vm_result)
+    vm_path = inputs["vm"]
     vm = json.loads(vm_path.read_text())
-    arm = json.loads((directory / "compose-arm64-result.json").read_text())
+    arm = json.loads(inputs["arm"].read_text())
     checks = json.loads(args.checks.read_text())
-    gates = json.loads((directory / "compose-gate-probes.json").read_text())
+    gates = json.loads(inputs["gates"].read_text())
     assert all(item["exit_code"] == 0 for item in checks["checks"])
     assert gates["result"] == "pass"
     assert (
@@ -122,10 +135,8 @@ def main():
                 )
     # No frontend behavior changed. Reuse browser evidence only if both the
     # production assets and its complete fixture match the qualified milestone.
-    previous = json.loads((directory / "lifecycle-validation.json").read_text())
-    previous_manifest = json.loads(
-        (directory / "lifecycle-source-sha256.json").read_text()
-    )
+    previous = json.loads(inputs["previous"].read_text())
+    previous_manifest = json.loads(inputs["previous_manifest"].read_text())
     assets = {
         name: value
         for name, value in manifest.items()

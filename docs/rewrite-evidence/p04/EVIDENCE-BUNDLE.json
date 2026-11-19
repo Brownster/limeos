@@ -5,9 +5,9 @@
   "bundle": {
     "release": "evidence-bundles-2026-11-19",
     "name": "limeos-evidence-p04.tar.gz",
-    "size": 122645,
-    "sha256": "8da9df380ca6e0dabe74d5e553d1bfcf13990050e8aea11c6c98c8683bb34626",
-    "tar_sha256": "c201ca6c6241d011d8ef62f419c24f6684570e52109a4977239133ebc6cd155d"
+    "size": 113642,
+    "sha256": "e42c1c020c7876d9b7a281d0cd3c79c42ac742b5fda47ce20a5d4ae833bb9e70",
+    "tar_sha256": "1b8c43591efacd1fc9913058f7fd194dbb265956a9e21ffccce59d364802cd2f"
   },
   "files": [
     {"path": "approved-initial-package-vm-result-startup-console.txt", "size": 32984, "sha256": "88733987af70b8a44f0827f6ff90207f251f7d529c66f94f37a612080937bf7f"},
@@ -17,18 +17,12 @@
     {"path": "approved-restart-fixture-vm-startup-console.txt", "size": 32939, "sha256": "6a81b24ee666374f9b9d1a966e833662c070106be0d76797b6aaf5f46a3901ae"},
     {"path": "approved-vm-failure.txt", "size": 12855, "sha256": "fe7c69aba1126b65101fabdbe4badf83dea90d6df1038d4868b04c290dd75cd0"},
     {"path": "approved-vm-result-startup-console.txt", "size": 32939, "sha256": "6a81b24ee666374f9b9d1a966e833662c070106be0d76797b6aaf5f46a3901ae"},
-    {"path": "approved-vm-result.json", "size": 8517, "sha256": "c38686dc5cbf0462dab121e32c238bf06b9a7648949eddfc88580adc36a96734"},
     {"path": "locks-vm-failure.txt", "size": 14229, "sha256": "8d0c11ccf4f21adaf3522859776b1436abc53dbd0fbe825597dd63ae5035bdd8"},
     {"path": "native-ci-open-flags.json", "size": 13969, "sha256": "774958f21682a9d137ea990d95a949dff15abfc28cadd4778cdd0008947d7f53"},
     {"path": "planning-diagnostic-vm-result-startup-console.txt", "size": 32974, "sha256": "8d2ecfc038676147a5d1ec87d208574f9c43884b8e9520687394e584e9ba4a7a"},
     {"path": "planning-vm-result-startup-console.txt", "size": 32972, "sha256": "0fc8192b8f42f9ad38186efb2bdc2f5272e72483b8aae528bdf518bda4284227"},
-    {"path": "rust-approved-tests.txt", "size": 19135, "sha256": "679ca31201a715db138928adf83c1b6a121e126d320ca94616ab1dea8431e8f4"},
     {"path": "rust-contract-tests.txt", "size": 15460, "sha256": "5f59208b6f4bb3c58910c79b0abf991d5d5c0b0377a32aebb678ca4fa3c3fbdc"},
-    {"path": "rust-locks-tests.txt", "size": 18151, "sha256": "c1fe207aaab94c3060ce60b656047195fbd5765f645d3a7a8067b6c4b99fdf93"},
-    {"path": "rust-planning-tests.txt", "size": 15965, "sha256": "4b954b687654c5c85b41d44cdb0acc7879b3b658e7b0058439ca02d71ca9935d"},
     {"path": "rust-readiness-initial-tests.txt", "size": 15206, "sha256": "4309c3eaed6dffb8eb0787c38111c0c83cb6e97c8df749f9ed617c0698137936"},
-    {"path": "rust-readiness-tests.txt", "size": 15099, "sha256": "710f8cdf7f038bdb02e473e4e92b2ac7b731b41ac04ab8495ea19a1d2b01c1e3"},
-    {"path": "rust-targets-tests.txt", "size": 15425, "sha256": "adf06220a68b4f6ed5ed5cd7234a266775d4f2953990f3283fc19e3b8d539e53"},
     {"path": "storage-approved-initial-source-sha256.json", "size": 19305, "sha256": "36029c75dd5c49765d211e5b8fe5eaef8159e55b18e879dcc162df967e4324c8"},
     {"path": "storage-approved-source-sha256.json", "size": 19305, "sha256": "6359cca68d0c4160b8279d30fdcad8e862824cd71163a43b14546d91aef1c24f"},
     {"path": "storage-context-vm-result-startup-console.txt", "size": 32978, "sha256": "88dd9bfe5519e90b1573a9f2b102cb7ed2801fa7f5a0901b76c82da12c09cf71"},

@@ -1,0 +1,237 @@
+   Compiling limeos-executor-container v0.2.0 (/home/marc/Documents/github/lime-os/crates/executor-container)
+   Compiling limeos-executor v0.2.0 (/home/marc/Documents/github/lime-os/bins/executor)
+    Finished `test` profile [unoptimized] target(s) in 2.33s
+     Running unittests src/lib.rs (target/debug/deps/limeos_api-de2f7a191f2a4e8c)
+
+running 6 tests
+test tests::no_default_login_cross_site_or_get_mutation ... ok
+test read_tests::sse_reconnect_always_sends_snapshot_revocation_ends_stream_and_drop_releases_reader ... ok
+test tests::malformed_and_oversized_body_and_rate_limit ... ok
+test read_tests::reads_require_session_reject_bad_queries_and_paginate_with_revision ... ok
+test operation_tests::every_mutation_rejects_get_origin_csrf_and_untyped_extra_fields ... ok
+test read_tests::sse_has_byte_and_age_limits ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_contracts-92530a38d34336bd)
+
+running 1 test
+test tests::oversized_frame_rejected_before_body_and_forged_actor_rejected ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/limeos_core-6323ebe2c1bd14af)
+
+running 7 tests
+test tests::observations_and_history_use_current_resource_grants_and_reject_revocation ... ok
+test operation_tests::revoking_a_session_during_inspection_prevents_plan_persistence ... ok
+test operation_tests::dispatch_verifies_once_and_replay_returns_the_job_without_engine_access ... ok
+test operation_tests::logs_recheck_revocation_after_reading_and_viewer_scope_never_reaches_executor ... ok
+test operation_tests::recovery_without_an_accepted_receipt_never_dispatches_again ... ok
+test operation_tests::start_and_stop_dispatch_use_the_same_approval_and_verified_job_path ... ok
+test tests::imported_hash_upgrades_only_after_successful_login_and_session_is_durable ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.52s
+
+     Running unittests src/password_worker.rs (target/debug/deps/limeos_password_worker-9cde29ec28b71ce5)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/worker.rs (target/debug/deps/worker-8c0e4d948b5d4138)
+
+running 1 test
+test password_worker_is_bounded_and_has_no_command_or_actor_protocol ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_domain-71cd1c4c308c9e35)
+
+running 5 tests
+test operations::tests::changed_incarnation_image_and_state_cannot_reuse_the_plan ... ok
+test operations::tests::selected_identity_requires_full_ids_and_forbids_paths_or_control_characters ... ok
+test operations::tests::lifecycle_preconditions_and_verification_bind_the_selected_incarnation ... ok
+test operations::tests::legacy_restart_canonical_bytes_survive_the_new_action_field ... ok
+test operations::tests::verification_normalizes_precision_and_rejects_invalid_or_earlier_timestamps ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/limeos_executor-105be6940523520f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_executor_container-c6783aec4c28c922)
+
+running 16 tests
+test logs::tests::decode_streams_strip_terminal_controls_and_redact_credentials ... ok
+test docker::tests::start_and_stop_use_only_the_fixed_selected_endpoints ... ok
+test docker::tests::negotiated_full_id_inspection_is_selected_and_post_has_fixed_grace_without_retries ... ok
+test docker::tests::lost_post_response_is_an_error_with_exactly_one_post ... ok
+test tests::crash_helper ... ok
+
+running 1 test
+test tests::accepted_result_retains_lock_until_fresh_independent_verification ... ok
+test tests::peer_ceiling_plan_and_fresh_precondition_reject_before_any_effect ... ok
+test tests::process_death_after_effect_before_result_persistence_never_replays_the_effect ... ok
+test tests::expiry_during_receipt_sync_prevents_dispatch ... ok
+test tests::receipt_paths_are_private_single_owner_and_fail_closed_on_links_or_future_schema ... ok
+test tests::each_lifecycle_action_requires_its_own_ceiling_and_verified_result ... ok
+test tests::accepted_effect_is_not_claimed_verified_and_repeat_action_returns_original_receipt ... ok
+test tests::storage_failure_before_prepare_has_no_effect_and_failure_after_effect_stays_unknown ... ok
+test tests::v2_receipt_migration_retains_the_prepared_barrier_without_replay ... ok
+test tests::uncertain_or_timed_out_effect_keeps_a_resource_barrier_after_executor_restart ... ok
+test logs::tests::malformed_frames_fail_closed_and_clipping_remains_bounded ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_executor_protocol-ba23e56d6d635ed0)
+
+running 2 tests
+test tests::log_ceiling_is_independent_managed_and_capped ... ok
+test tests::peer_and_ceiling_are_independent_and_no_content_or_command_is_accepted ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/limeos_footprint-fe64670b9790c6bf)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_identity-59046b8952453841)
+
+running 2 tests
+test tests::argon_round_trip_wrong_password_and_bounded_hostile_parameters ... ok
+test tests::verifies_hashes_generated_by_werkzeug ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.55s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_observations-8ce415c4af7c44fa)
+
+running 13 tests
+test docker::tests::missing_cgroups_and_counter_resets_are_unknown ... ok
+test docker::tests::frozen_reference_container_fixture_agrees_on_full_identity_and_status ... ok
+test collectors::tests::slow_optional_metrics_cannot_discard_a_successful_inventory ... ok
+test docker::tests::inventory_only_exposes_selected_metadata_and_stack_health ... ok
+test probes::tests::counters_reset_missing_fields_and_no_cpu_baseline_are_unknown ... ok
+test probes::tests::disk_identity_is_uuid_not_device_name_and_duplicates_fail_closed ... ok
+test probes::tests::frozen_reference_disk_fixture_agrees_on_identity_mount_and_status ... ok
+test tests::failures_keep_last_evidence_missing_resources_are_explicit_and_readers_share_cache ... ok
+test telemetry::tests::aggregate_values_match_frozen_python_history_fixture ... ok
+test telemetry::tests::retention_gaps_and_independent_metric_averages_match_reference_ranges ... ok
+test telemetry::tests::history_reads_do_not_flush_and_oversized_or_linked_files_are_rejected ... ok
+test telemetry::tests::failed_sample_writes_are_visible_and_recover_without_unbounded_buffering ... ok
+test docker::tests::docker_output_interruption_overflow_and_deadlines_are_bounded ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.00s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_persistence-ee83261115495506)
+
+running 26 tests
+test config::tests::corrupt_config_is_preserved_reads_do_not_write_and_atomic_write_is_valid ... ok
+test config::tests::public_cleartext_and_symlink_config_are_rejected ... ok
+test plans::tests::approval_is_plan_bound_hashed_single_use_and_idempotency_survives_expiry ... ok
+test plans::tests::changed_grants_forged_role_and_unscoped_callers_cannot_propose_or_dispatch ... ok
+test plans::tests::approvals_and_events_are_owned_and_hidden_from_other_principals ... ok
+test plans::tests::failed_audit_commit_rolls_back_intent_and_approval_claim ... ok
+test plans::tests::canceled_proposals_and_queued_jobs_cannot_be_dispatched_or_resurrected ... ok
+test plans::tests::modified_plan_wrong_nonce_stale_resource_and_reused_key_do_not_consume_approval ... ok
+test plans::tests::lifecycle_approval_binds_action_and_all_actions_share_the_resource_lock ... ok
+test plans::tests::proof_is_bound_to_the_persisted_intent_and_accepted_effect_is_not_success ... ok
+test plans::tests::concurrent_queueing_shares_a_job_or_consumes_approval_once ... ok
+test tests::crash_helper ... ok
+test tests::budget_reservation_unknown_usage_retains_maximum_and_settlement_is_unique ... ok
+test tests::bounded_worker_serializes_concurrent_budget_reservations ... ok
+
+running 1 test
+test plans::tests::uncertain_dispatch_keeps_resource_lock_across_restart_and_never_reports_canceled ... ok
+test plans::tests::v2_to_v3_failure_preserves_old_authority_and_schema ... ok
+test plans::tests::v1_migration_preserves_authority_and_failed_migration_rolls_back ... ok
+test tests::process_crash_preserves_committed_intent_and_requires_reconciliation ... ok
+test tests::enrollment_once_expiry_and_no_default_user ... ok
+test tests::committed_intent_idempotency_resource_lock_deadline_and_revocation ... ok
+test tests::failures_rollback_intent_events_and_never_report_a_queued_operation ... ok
+test tests::sessions_csrf_expiry_revoke_and_grant_change ... ok
+test tests::single_core_and_future_schema_refuse_startup ... ok
+test tests::startup_refuses_recovery_without_audit_capacity ... ok
+test tests::task_uid_task_scope_expiry_revocation_revision_and_restart ... ok
+test plans::tests::v3_migration_preserves_restart_approval_bytes_and_rolls_back_table_renames ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running unittests src/lib.rs (target/debug/deps/limeos_policy-3d6ce631966842ea)
+
+running 2 tests
+test tests::even_admin_needs_an_explicit_grant_and_task_cannot_expand_it ... ok
+test tests::household_cannot_turn_media_grant_into_storage_or_deployment_authority ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/limeos_schema-a7c2bdb2d7111bbb)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/limeosctl-5fde030e14bf4f6e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_api
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_contracts
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_domain
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_executor_container
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_executor_protocol
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_identity
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_observations
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_persistence
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests limeos_policy
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

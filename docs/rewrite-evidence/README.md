@@ -14,7 +14,10 @@ assets, one bundle per run, and each bundled run keeps a tracked
   JSON, short text, small scripts.
 - Files that code reads, rewrites in place or cites, whatever their size. They
   are listed with the reason in `PINNED` in `scripts/evidence_bundles.py`, for
-  example `p03/lifecycle-progress.png`, which the CI browser check rewrites.
+  example `p03/lifecycle-progress.png`, which the CI browser check rewrites,
+  and every input of the `tests/privileged_vm/record_*_evidence.py` recorders.
+  A recorder declares its inputs in `evidence_inputs()`; `tests/evidence`
+  fails if one is bundled or not pinned, or if code names a bundled path.
 
 ## What is raw
 
@@ -54,8 +57,9 @@ python3 scripts/evidence_bundles.py restore --bundles dist/evidence-bundles \
 Without unit arguments, `verify` and `restore` handle every manifest. Restore
 checks each file against the manifest, writes it back in place and refuses to
 replace a file with different content unless given `--force`. A run's
-`SHA256SUMS` then verifies as it did before the move. Restored files are for
-reading; do not commit them.
+`SHA256SUMS` then verifies as it did before the move. Scripts kept inside a
+run directory (such as a `verify.py`) read that run's raw files, so restore
+its bundle first. Restored files are for reading; do not commit them.
 
 ## Recording a new run
 

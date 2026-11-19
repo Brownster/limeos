@@ -17,6 +17,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BINARIES = ["limeos-core", "limeos-executor", "limeosctl", "limeos-password-worker"]
+# The --evidence directory in docs/rewrite-evidence/p04/rw040-dependencies/2026-10-06-acceptance.md.
+DOCUMENTED_EVIDENCE = ROOT / "docs/rewrite-evidence/p04/rw040-dependencies"
+
+
+def evidence_inputs(evidence):
+    """Inputs read from --evidence; scripts/evidence_bundles.py PINNED keeps them tracked."""
+    return {
+        "vm": evidence / "dependencies-vm-result.json",
+        "transcript": evidence / "rust-tests.txt",
+    }
 
 
 def sha(path):
@@ -35,7 +45,8 @@ def main():
         ["git", "rev-parse", args.source_commit], cwd=ROOT, text=True
     ).strip()
     assert re.fullmatch(r"[a-f0-9]{40}", source)
-    vm_path = args.evidence / "dependencies-vm-result.json"
+    inputs = evidence_inputs(args.evidence)
+    vm_path = inputs["vm"]
     vm = json.loads(vm_path.read_text())
     assert vm["package_version"] == "0.4.6"
     assert vm["schemas"]["authority"] == 8 and vm["schemas"]["container_receipts"] == 3
@@ -50,7 +61,7 @@ def main():
         "shadow reads",
     ]:
         assert phrase in " ".join(vm["checks"]), phrase
-    transcript = args.evidence / "rust-tests.txt"
+    transcript = inputs["transcript"]
     tests = re.findall(
         r"test result: (\w+)\. (\d+) passed; (\d+) failed", transcript.read_text()
     )
