@@ -1,0 +1,41 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-10-confinement-probe-integration",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-10-confinement-probe-integration.tar.gz",
+    "size": 30555,
+    "sha256": "42104ea4a3f9072eaba593a5a908f4217750508dbe8cf85e3ec16bf4a565a438",
+    "tar_sha256": "75467c529002e6007faffd6e67919a73e7a569548d61f17df5f24ed217c56f9c"
+  },
+  "files": [
+    {"path": "local-checks.json", "size": 17637, "sha256": "1e679733c3bb3f4e4b4719b18495e57df17ccb886ca2771779ceb72878b9b59d"},
+    {"path": "logs/contracts.log.gz", "size": 194, "sha256": "2fad084709bb01bec937871d8273519fd33c0c525bdfbd36a84b70ffe1342d14"},
+    {"path": "logs/diff.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "logs/format.log.gz", "size": 46, "sha256": "c7cff4f1341a9de0757173785ee457e4390d92aeda1ac9aa58254fe786e31817"},
+    {"path": "logs/harness.log.gz", "size": 1424, "sha256": "f03242ad9c454f03e23f492ad90731b6b8f284c86b4a1a9a6e69f8039465b44f"},
+    {"path": "logs/historical-hashes.log.gz", "size": 677, "sha256": "b0479e5304f2c3f5dd52f9ceb47d9bd5d5861f18e62ebc93824c83ab8bbb142c"},
+    {"path": "logs/reference.log.gz", "size": 881, "sha256": "d25cc563772dd51cd7ae7100b8ca96666d0415a266f4ba8c8d3984b8b96fa229"},
+    {"path": "logs/repository.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "logs/ruff.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "logs/runtime-unchanged.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "logs/shellcheck.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "producer-attempts/boolean-after.log.gz", "size": 335, "sha256": "f0a7a63388219c0097c8ac95d3ba24d5ba8b3bc791ceea78a3d088c7810bd8fa"},
+    {"path": "producer-attempts/boolean-before.log.gz", "size": 725, "sha256": "b27c5dbd92695df4d2c2ca73a9b38c522f0282eabc959107c10c1f41ed798082"},
+    {"path": "producer-attempts/diff-final.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "producer-attempts/format-direct.log.gz", "size": 100, "sha256": "dc3914f0d48b83a7648e04e31ba373fb162a529b21b257ede5ad3d1d14f6b1b3"},
+    {"path": "producer-attempts/format-final.log.gz", "size": 46, "sha256": "9a1a2d79acccdb0f46930a600a1382606067033cfb52a4673dc15b0c1030d871"},
+    {"path": "producer-attempts/format-private-tools.log.gz", "size": 46, "sha256": "9a1a2d79acccdb0f46930a600a1382606067033cfb52a4673dc15b0c1030d871"},
+    {"path": "producer-attempts/format.log.gz", "size": 137, "sha256": "ba7b79006081f6b3e7e33466ba5782bf1ce7f38c273e251b0bf8b3aa2b4cf397"},
+    {"path": "producer-attempts/reference-unrestricted.log.gz", "size": 883, "sha256": "90d5e3d6d249775ec7a371ac3b151693490a6a940387fcb78f74e2151755740a"},
+    {"path": "producer-attempts/reference.log.gz", "size": 1499, "sha256": "f2207cdba058ac7a89f1df0b921f36e216e85d63443fc9baf87970e6dc2d8b7f"},
+    {"path": "producer-attempts/repository.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "producer-attempts/ruff-direct.log.gz", "size": 100, "sha256": "dc3914f0d48b83a7648e04e31ba373fb162a529b21b257ede5ad3d1d14f6b1b3"},
+    {"path": "producer-attempts/ruff-final.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "producer-attempts/ruff-private-tools.log.gz", "size": 517, "sha256": "91044268c6a1300243b99eda23984b03ce54083bd53384f85b708016a6c29dfe"},
+    {"path": "producer-attempts/ruff.log.gz", "size": 139, "sha256": "3bc1baf674d97c2176b65a1df2cae2e8d88c694ecf8610534d1626d97903048a"},
+    {"path": "producer-attempts/shellcheck.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "source-manifest.json", "size": 56198, "sha256": "6038e8a4ac94854afefe3fa2f944399e082196e6c1b824d414c26b2805bbfcb3"}
+  ]
+}

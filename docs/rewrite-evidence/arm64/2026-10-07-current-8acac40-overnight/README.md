@@ -29,7 +29,7 @@ Every required run completed, and the last guest stopped at 23:03:35Z, well befo
 | Runtime under test | `8acac403e32d3692b028a036a11f4fead2050580`; authority schema 8; package version `0.4.7+arm64.1` |
 | Orchestrator | Guard and deadline supervisor `8e22c25`, committed at 21:41:07Z, before the first host command at 21:43:14Z. Fixes made during the run: `e7867f2`, `828860d` and `d46d7ee`. Inspector fixture: `ad3f9cd`. Post-run log fix: `84d6f81`. |
 | Prepared bundle | `.cache/arm64-qual/2026-10-06-integration/source.tar.gz`: 1,688,191 bytes, SHA-256 `669675abab7b60c0a645ef70531dcd4890a144a681ee2b35c802af870069c594`, as the brief specifies. Used by build attempt 1, with fixtures at `8acac40`. |
-| Rebuilt bundle | `79770ff579a9e0b36b733acc799af8f64da1f06faad94307d9789c168a2c5bd6`, 1,697,847 bytes, fixtures commit `d46d7ee`. It is not byte-identical to the prepared bundle. Its 557 runtime-source hashes and 3 frontend hashes equal the original manifest's; only five files under `tests/qualification/arm64/` differ. [Source manifest](build/source-manifest.json), SHA-256 `b0b98375…`. |
+| Rebuilt bundle | `79770ff579a9e0b36b733acc799af8f64da1f06faad94307d9789c168a2c5bd6`, 1,697,847 bytes, fixtures commit `d46d7ee`. It is not byte-identical to the prepared bundle. Its 557 runtime-source hashes and 3 frontend hashes equal the original manifest's; only five files under `tests/qualification/arm64/` differ. [Source manifest](EVIDENCE-BUNDLE.json "bundled: build/source-manifest.json"), SHA-256 `b0b98375…`. |
 | Guest image | Debian 12 genericcloud arm64 (`Last-Modified` 2026-10-06 15:52:27 GMT). SHA-512 `835b929522716de9798d1c0fbe61caae8313ab78858b278f3389a2db922ae42e4619b4a776ecad39583c149fb85334a2f8cdae685bc56987160e5c86a2354375`, checked against Debian's `SHA512SUMS`. |
 | Native binaries | `limeos-core` `aab46a60…`, `limeos-executor` `171bfb1e…`, `limeosctl` `a0ebf952…`, `limeos-password-worker` `17610bb6…`, all `AArch64`. Both native builds produced byte-identical binaries. |
 | Packages | `limeos_0.4.7+arm64.1_arm64.deb` `6c86199b…`; `limeos-shadow_0.4.7+arm64.1_arm64.deb` `20e10c7e…`; signing key `24BC4738D97221AB2C15A847BBA79DBA0CAB439C`. Attempt 1's `.deb` files had different digests around the same binaries. They weren't kept, so the byte difference wasn't investigated. |
@@ -52,11 +52,11 @@ Every required run completed, and the last guest stopped at 23:03:35Z, well befo
 
 The first attempt used the prepared bundle. Every step passed except `dependency-direction`, which raised `FileNotFoundError` because `scripts/check_repository.py` calls `git` and the build guest hadn't installed it ([log](attempt-1-build-original-bundle/logs/dependency-direction.txt)). `build_guest.py` rightly accepts no build with a failed gate. In the same guest, the check passed once `git` was installed ([transcript](attempt-1-build-original-bundle/supplementary-check-repository-with-git.txt)). The fixture now installs `git` (`828860d`). Because the guest fixtures changed, the bundle was rebuilt with a new fixtures commit and the same runtime source.
 
-The second attempt passed every gate: fmt, Clippy with `-D warnings`, **231 tests passed, 0 failed, 0 ignored**, contracts, dependency direction, release, both packages and the signed repository. [Result](build/build-result.json), [logs](build/logs/), [artifact hashes](build/artifacts.sha256).
+The second attempt passed every gate: fmt, Clippy with `-D warnings`, **231 tests passed, 0 failed, 0 ignored**, contracts, dependency direction, release, both packages and the signed repository. [Result](EVIDENCE-BUNDLE.json "bundled: build/build-result.json"), [logs](build/logs/), [artifact hashes](build/artifacts.sha256).
 
 ### Install and footprint
 
-All 20 checks passed ([result](install/install-result.json), [console](install/install-console.txt), [journal](install/journal-limeos.txt)):
+All 20 checks passed ([result](EVIDENCE-BUNDLE.json "bundled: install/install-result.json"), [console](install/install-console.txt), [journal](EVIDENCE-BUNDLE.json "bundled: install/journal-limeos.txt")):
 - **Platform and identity:** native `aarch64` under KVM; signed install of `0.4.7+arm64.1`; `dpkg --verify` reports no mismatches; installed hashes match the native build.
 - **Units and permissions:** core and both executors enabled and running; the storage reader, readiness and targets units `static` and inactive. All 13 root-executed paths are root-owned and not writable by other accounts. Only the container executor's process has the Docker group.
 - **Passwords and sessions:**
@@ -105,7 +105,7 @@ The architecture's start-up row sets "executor tasks and `limeosctl` under 20 ms
 
 ### Storage suite
 
-All 50 checks passed on the guarded synthetic disks ([result](storage/storage-result.json), [console](storage/storage-console.txt), [journal](storage/journal-limeos.txt)):
+All 50 checks passed on the guarded synthetic disks ([result](EVIDENCE-BUNDLE.json "bundled: storage/storage-result.json"), [console](storage/storage-console.txt), [journal](EVIDENCE-BUNDLE.json "bundled: storage/journal-limeos.txt")):
 - **Disk guards:** the serial, size, boot-disk and mount checks ran before any formatting. Type, serial and alias mismatches were refused, as were root-filesystem aliases and duplicate raw UUIDs.
 - **Target preparation:** creates only empty root-owned directories.
 - **Interruptions:** real executor and core SIGKILLs, before and after the effect, keep complete claim sets. Receipt lookup and lost-response replay cannot repeat an effect, and explicit reconciliation releases claims only when the outcome is proved.
@@ -115,7 +115,7 @@ The suite reports its own limits: mount and fstab effects, live dependency disco
 
 ### Container suite
 
-All 38 checks passed against Debian's `docker.io` 20.10.24 with a static busybox fixture ([result](container/container-result.json), [console](container/container-console.txt), [journal](container/journal-limeos.txt)):
+All 38 checks passed against Debian's `docker.io` 20.10.24 with a static busybox fixture ([result](container/container-result.json), [console](container/container-console.txt), [journal](EVIDENCE-BUNDLE.json "bundled: container/journal-limeos.txt")):
 - **Lifecycle:** real restart, start and stop, each approved, independently verified, bound to its action and idempotent.
 - **Interruptions:** both core and the container executor killed before prepare, during and after the effect, for every operation, with no unjustified second effect.
 - **Approvals and grants:** expired approvals and queued cancellations cause no Engine effect.
@@ -138,7 +138,7 @@ Both old packages are the original bytes ([schema 7 provenance](upgrade-schema7/
 
 ### Native archive inspector (optional)
 
-The frozen `limeos-backup-archive` `inspect` example was built natively with `cargo build --release --locked`: 660,088 bytes, SHA-256 `16e0509e…`. It was run three times per archive under the frozen [`measurement-policy.json`](../../p04/rw043/measurement-policy.json) (SHA-256 `03069532…`, zstd window 2^21). [Result](inspector/inspector-result.json).
+The frozen `limeos-backup-archive` `inspect` example was built natively with `cargo build --release --locked`: 660,088 bytes, SHA-256 `16e0509e…`. It was run three times per archive under the frozen [`measurement-policy.json`](../../p04/rw043/measurement-policy.json) (SHA-256 `03069532…`, zstd window 2^21). [Result](EVIDENCE-BUNDLE.json "bundled: inspector/inspector-result.json").
 
 | Archive | Compressed bytes | Peak `VmHWM` | Time |
 |---|---|---|---|
@@ -165,7 +165,7 @@ Local regressions cover default denial, admission within the named window, and d
 - **Deadlines:** SIGTERM at the deadline, then SIGKILL two minutes later; inside this window that meant 05:55:00Z and 05:57:00Z.
 - **Tests:** real local processes show that only the bound process is forced, an unrelated process survives, a mismatched identity is never signalled, and supervision ends when the guest stops first (`SupervisorTests`, 4 tests). All 18 harness tests pass.
 
-**Deadline proof.** A disposable guest booted at 21:44:27Z with `--terminate-at 21:47:21Z` ([supervisor log](deadline-proof/supervisor.log), [guest record](deadline-proof/guest.json)):
+**Deadline proof.** A disposable guest booted at 21:44:27Z with `--terminate-at 21:47:21Z` ([supervisor log](EVIDENCE-BUNDLE.json "bundled: deadline-proof/supervisor.log"), [guest record](deadline-proof/guest.json)):
 - The launching SSH session had long since exited when the supervisor sent SIGTERM.
 - The guest exited, and the supervisor logged `guest_gone` at 21:47:21Z. SIGKILL wasn't needed.
 - The host then showed no QEMU process.
@@ -186,11 +186,11 @@ The SIGTERM line reads 21:47:20Z, but the signal wasn't early. The supervisor de
 | Upgrade from schema 6 | 22:52:21Z | 05:55:00Z / 05:57:00Z | 22:55:57Z, orderly stop |
 | Inspector | 23:00:26Z | 05:55:00Z / 05:57:00Z | 23:03:35Z, orderly stop |
 
-**Teardown**, recorded through the guarded `host-exec` ([command log](host-commands.jsonl)):
+**Teardown**, recorded through the guarded `host-exec` ([command log](EVIDENCE-BUNDLE.json "bundled: host-commands.jsonl")):
 1. **Simulation:** at 23:06:43Z, `apt-get -s purge` of the [41 added packages](host-packages-added.txt) listed exactly that set and nothing else ([simulation](host-purge-simulation.txt)).
 2. **Purge:** the real purge followed at 23:07:08Z.
 3. **Staging removed:** at 23:07:21Z, `~/limeos-arm64-qual`, which held only the 327 MiB image, `SHA512SUMS` and the download headers.
-4. **Package list:** the [list after teardown](host-packages-after-teardown.txt) is byte-identical to the [717-entry snapshot](host-packages-before.txt) taken before installation.
+4. **Package list:** the [list after teardown](EVIDENCE-BUNDLE.json "bundled: host-packages-after-teardown.txt") is byte-identical to the [717-entry snapshot](EVIDENCE-BUNDLE.json "bundled: host-packages-before.txt") taken before installation.
 5. **Final check:** at 23:07:31Z there was no `qemu` or `guest_supervisor` process, and no `limeos` path in `~holly`. `holly`'s groups were recorded; no account or group change was made. `pi-health`, `pihealth-helper` and `docker` were active.
 
 ## Harness defects found and fixed
@@ -211,7 +211,7 @@ Each fix is its own commit, and none changes runtime source or relaxes an assert
 
 ### Container stop on wybie at 22:18:53Z
 
-What happened, from Docker's own events and journal ([logged queries](host-commands.jsonl)):
+What happened, from Docker's own events and journal ([logged queries](EVIDENCE-BUNDLE.json "bundled: host-commands.jsonl")):
 - At 22:15:14Z, the host sample showed 14 containers up for about 2 hours.
 - From 22:18:53Z to 22:19:16Z, Docker sent SIGTERM to each of the 14 in turn, in exactly the order `docker ps` lists them: `sonarr`, `transmission`, `jackett`, `radarr`, `rdtclient`, `sabnzbd`, `vpn`, `audiobookshelf`, `get_iplayer`, `navidrome`, `jellyfin`, `yt-to-jellyfin`, `requestrr` and `watchtower`.
 - `yt-to-jellyfin` was killed at 22:19:24Z, after the 10-second stop timeout. `dockerd` logged `hasBeenManuallyStopped=true` for all 14, so their restart policies didn't bring them back.

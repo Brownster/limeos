@@ -11,7 +11,7 @@ and [interface guide](../../../p04-compose-membership-evidence.md).
 The 26 new cases and focused rerun are already in that total. Full workspace
 checks enable the existing opt-in local worker fixture feature.
 **61 local ARM64 harness tests pass**, plus strict all-target Clippy, fmt,
-contract and repository checks. [checks.json](checks.json) binds commands,
+contract and repository checks. [checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") binds commands,
 environments, runtime hashes and lossless merged stdout/stderr. Documentation
 edits during validation changed no runtime source.
 
@@ -66,7 +66,7 @@ backup and external qualification paths stayed untouched. Service guards remain
 256 FDs, 64 MiB, zero swap and 16 tasks. Historical inventory p95 61.401 ms remains
 above 20 ms; no P04, defect, footprint, performance or cutover gate closes.
 
-[source-manifest.json](source-manifest.json) binds 326 source, fixture,
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 326 source, fixture,
 contract and script files. Fixed-timestamp gzip preserves full log bytes with raw/
 compressed hashes. [artifact-sha256.json](artifact-sha256.json) binds the packet.
 Reproduce with fresh disk logs using the retained helpers; compile storage

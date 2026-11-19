@@ -29,7 +29,7 @@ qualified commit and final worktree. All six attempts pass and remain retained:
 `focused-1` covers five Store cases, and `core-1` covers thirteen Core cases
 before cancellation and queued-source retry coverage was expanded. These two
 earlier source maps are distinct; the full final run covers fourteen health
-collection cases and the complete workspace. [Source-match metadata](source-match.json)
+collection cases and the complete workspace. [Source-match metadata](EVIDENCE-BUNDLE.json "bundled: source-match.json")
 records the exact differences, commands, counts and Cargo groups.
 
 Every run uses repository-disk scratch/cache, one Cargo build job and Rust test

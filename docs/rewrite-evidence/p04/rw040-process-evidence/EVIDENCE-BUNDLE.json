@@ -1,0 +1,41 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/rw040-process-evidence",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-rw040-process-evidence.tar.gz",
+    "size": 15542,
+    "sha256": "484990fb6a8571b47e19b98178fbf8df3a7d104e02f72024b5d34196a74775ab",
+    "tar_sha256": "0fde5985b97a05954711f4301b1eabb0fc00d17609b851303d9c0f32a297f562"
+  },
+  "files": [
+    {"path": "logs/artifact-capture-failed.log", "size": 132, "sha256": "63fcb66b044664ebb9beabff9c63700a196d81f0c1c6f2b851726e042775a4f5"},
+    {"path": "logs/audit-cached.log", "size": 138, "sha256": "8b70ff8e86aaa03a2b5b18bdfdfe89d3e2fa8548c47df53feaebecb3115170e1"},
+    {"path": "logs/btrfs-regression-before-fix.log", "size": 1068, "sha256": "6d53531c53746d76cf8d6ea9bb0f19359025652631a7eb34b08824fd62d665ad"},
+    {"path": "logs/clippy-final.log", "size": 1235, "sha256": "93218be35c413dbadc4f735672ce2d92ed243c077bf31791679ecc40a98738aa"},
+    {"path": "logs/clippy-initial.log", "size": 2014, "sha256": "ecf20833f5789cfa409aeb4b8c11da2273ad5aa86006760fcdfa56bcbc5cc4f0"},
+    {"path": "logs/contracts-final.log", "size": 606, "sha256": "82975fe5ea742b5f0cdf19328a8e2639770e67ceb0b01f6cd0ba486677d980d6"},
+    {"path": "logs/deny-cached-corrected.log", "size": 17643, "sha256": "392bdd86ede5767b4a45095972ea18af18cd5cd1e13c168bef56e9cf00fd93da"},
+    {"path": "logs/deny-cached.log", "size": 205, "sha256": "401688ecb89898e6bf221e256fb86f638aa0ccabe2a7a6a83733d7b1009e4e56"},
+    {"path": "logs/diff-final.log", "size": 0, "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    {"path": "logs/diff-handoff-final.log", "size": 0, "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    {"path": "logs/diff-raw-output-failed.log", "size": 1495, "sha256": "fc7268be3b5f75047f8f4c398b2b9d3a0518aee576a656c411e4471002904e7d"},
+    {"path": "logs/fmt-final.log", "size": 0, "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    {"path": "logs/host-volatile-link-diagnostic.log", "size": 4117, "sha256": "492b06daba096bd72e9f1c6349bbb2cf11059141c7db53732cbb584fc25f1467"},
+    {"path": "logs/real-child-diagnostic.log", "size": 996, "sha256": "3cf8714a0319006eab777f7c5a3745df42e265f000562f706d1d94122dcf8704"},
+    {"path": "logs/real-child-kernel-diagnostic.log", "size": 1013, "sha256": "7507411d01dcbb99fe394b6f410574cc870f91a985a51b1e31c8a9f2dbeead0a"},
+    {"path": "logs/real-fds-frozen-source.log", "size": 758, "sha256": "44f35158f37f74e6bc7c442ef79d3a0eaf60e58337995a601723232fe157081a"},
+    {"path": "logs/real-host-diagnostic.log", "size": 1011, "sha256": "ef7d5c520ab67ad3eddd1a5cec613d1584551e58fcdf57a9565b4f29e462819c"},
+    {"path": "logs/real-root-device-diagnostic.log", "size": 1164, "sha256": "bc2816dfc6b9ecf6c0bc26e1c7fe246470eec18361ac7c45b3eaaa3a78e3fbc6"},
+    {"path": "logs/repository-final.log", "size": 49, "sha256": "d777bbc8d5a10fe768fb3feb6a83476a4c0114ca044268b8932ed5c0946c54df"},
+    {"path": "logs/resource-frozen-source.log", "size": 743, "sha256": "408bbc877183cfb0f2222b5e5d8a94ba8f4e6d3806407d891c86698bdd138c82"},
+    {"path": "logs/resource-isolated.log", "size": 743, "sha256": "e5c177d392764cc5b2f9b10817772988324ac0748b46d70701a8742879e82834"},
+    {"path": "logs/targeted-after-host-diagnosis.log", "size": 4326, "sha256": "e9b503483c39b1777e406394d52046a5a3ad38ecb75ccd4fc16bd727dc860d76"},
+    {"path": "logs/targeted-btrfs-corrected.log", "size": 3994, "sha256": "165cfa2b6c7ed9feeb0d64e29657326d41f17d13854653d449ba6701619775ec"},
+    {"path": "logs/targeted-final.log", "size": 3758, "sha256": "a575c96c9d93d6ff8c9aeb5426fc815093dab87619e02f35ea300b9bb95b02b7"},
+    {"path": "logs/targeted-initial-failed.log", "size": 3811, "sha256": "1f0312aaa1e6fef86864eeec6c025f56046da2fdcf7a8ce585dcce96f8c7fd3e"},
+    {"path": "logs/targeted-stable-identities.log", "size": 4253, "sha256": "591b81d2cd46a8eb0d287148ae4ab339a52fae1442a92c15c825265b9225219d"},
+    {"path": "logs/workspace-tests-final.log", "size": 37818, "sha256": "dc5a2e7b1f63ea0ac3b7f40594aca270c308ee0daa9717b5c9ec38fbc175d418"}
+  ]
+}

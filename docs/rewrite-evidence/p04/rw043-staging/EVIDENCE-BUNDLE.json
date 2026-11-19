@@ -1,0 +1,18 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/rw043-staging",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-rw043-staging.tar.gz",
+    "size": 118083,
+    "sha256": "f0ac817d9d92e6e3ad40cc323e7a023f115b7961c36491f18a785b620ba57098",
+    "tar_sha256": "ad949024dc6effd681941d631d84f790fb310b4cfa9e55763766baa68e08cb0d"
+  },
+  "files": [
+    {"path": "logs/final/deny.txt", "size": 17607, "sha256": "f8662c6ffb9c9627c3f74b6012ada8493a4184fc558148d5960c2c2867385f8b"},
+    {"path": "logs/final/dependency-metadata.txt", "size": 1118459, "sha256": "2d026324bed64b860a3507d2cc436e8b4691fb098257d1f87d0b6106fdadbfac"},
+    {"path": "logs/final/workspace-tests.txt", "size": 34131, "sha256": "c88b98a00cf1bf9d30a7d88110a03c88d4528a04786e67ddf4561eb6fb88d09d"},
+    {"path": "peak-memory-raw.json.gz", "size": 21614, "sha256": "d5da38a655a27e12931b1d3e913320c14aef54e0aa7e259a2a92979546d7f7c5"}
+  ]
+}

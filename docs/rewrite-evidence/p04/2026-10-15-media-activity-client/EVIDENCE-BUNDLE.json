@@ -1,0 +1,31 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-15-media-activity-client",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-15-media-activity-client.tar.gz",
+    "size": 35353,
+    "sha256": "30256d8caa7749f970e7114efd8ac73115dc98d01bd68c2b480ef42cb2a66c8e",
+    "tar_sha256": "6ac53adb60d6de46af8294410678018d96cd6df1c7d81a85df6a3ff611295279"
+  },
+  "files": [
+    {"path": "body-bound-diagnosis.log.gz", "size": 79, "sha256": "6bd7b49d06aba9a3bda415a5b69b57ab33dbbd9424903230403e3f1f1f5afb18"},
+    {"path": "check.mjs.gz", "size": 1314, "sha256": "a6dab7f26e02c7340b5e7a40cddc274df60d2662f67bcf24ae0eebbb511480b0"},
+    {"path": "client-final.log.gz", "size": 1676, "sha256": "cd3b4b0fcf0c18c0a6bcbc8fb2c6698ed0734f410399142cff03c8eb6820c88a"},
+    {"path": "client-first.log.gz", "size": 9180, "sha256": "722c8a274340e3b2161d2ac026925c29fd86a934baf67e7715c74706b4ced63a"},
+    {"path": "client-qualified.log.gz", "size": 1771, "sha256": "98dcf159895fa98d3bb27d65a4154172150f8aea714b10aa9a57511bc85be015"},
+    {"path": "client-reviewed.log.gz", "size": 1760, "sha256": "93ee0ea6ad03c6e6a9e1e8a6d16644d502e819c7fde8b2812817d9aa92738102"},
+    {"path": "client-test-first.mjs.gz", "size": 5016, "sha256": "8d7cf2345b6c5e9c5782addd762d65e3fc7770bb53817982450b8143d941a821"},
+    {"path": "metadata-retry.log.gz", "size": 118, "sha256": "bf396c28cd16a283ed3966bb69c148c6f07ac8ac23d9b97112ed73f9ce934110"},
+    {"path": "node-version.log.gz", "size": 29, "sha256": "b9089bb4dba77b58faee5a7fac2b19f458c2b480bce76e1c3de5ce0c3d1a0dc8"},
+    {"path": "npm-tree-real.json.gz", "size": 1101, "sha256": "6b1b2acc0e22d54dd7cdfae7070eb8a84796993faa8f01e14241cb9b1fa2af3b"},
+    {"path": "npm-tree-symlink-error.log.gz", "size": 11992, "sha256": "9dce69d4ad2ad6e0ca7ab10ef62bb885da3bad64b7049c6fd3a933e0b99e26d0"},
+    {"path": "npm-version.log.gz", "size": 27, "sha256": "ac3baf099f304f53c8b249b3aae68248454568f672b65c20e7853611d320e194"},
+    {"path": "qualification.log.gz", "size": 337, "sha256": "63fd53f1aa31d7498668babc403c6a86769525cc9f90cec51d916ec8e5b80c29"},
+    {"path": "typescript-final.log.gz", "size": 20, "sha256": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec"},
+    {"path": "typescript-version.log.gz", "size": 34, "sha256": "fb82bbe41690943a252cf570cbf8ffcf04938a5d5e79449c45a9b29c138d7ba3"},
+    {"path": "view-qualified.log.gz", "size": 632, "sha256": "1d968aaca2d4368a5dd5638aff68a7ede68d56dfaa262dcdec25efe16608b2b7"},
+    {"path": "whitespace.log.gz", "size": 20, "sha256": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec"}
+  ]
+}

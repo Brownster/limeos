@@ -33,7 +33,7 @@ to existing planners, contracts, schema, dispatch, API/IPC/CLI/UI or service cap
 
 Complete final logs are `logs/test-disk-rest.txt`, `logs/storage-fixtures.txt`,
 `logs/clippy-disk-final.txt` and `logs/contracts-disk.txt`. [Checks](checks.json)
-record commands, environments and counts; [source hashes](source-manifest.json)
+record commands, environments and counts; [source hashes](EVIDENCE-BUNDLE.json "bundled: source-manifest.json")
 bind Rust/Cargo, fixture, schema and check inputs. The frozen Python files were
 read via Git objects only. There was no Pi, SSH, production Docker or frozen
 Python execution/development.

@@ -1,0 +1,36 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-30-a1-docker-fixture-readiness",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-30-a1-docker-fixture-readiness.tar.gz",
+    "size": 470638,
+    "sha256": "8dbbac52ef96b4619cc224c1a67c912817d14f66b085f3a2ead1429deb58ae02",
+    "tar_sha256": "6b1e31be09cba3908e930c2cff209d76701a31e76f2884ddc7b14bc22862aeaa"
+  },
+  "files": [
+    {"path": "admission-1.json.gz", "size": 320, "sha256": "92bfa58ac01ce6dedcfd68e2763b23030aa4c30d23f140b6d58d3897150ad3dc"},
+    {"path": "build-record.json.gz", "size": 67144, "sha256": "6e85b4da0bd8855b46b53d991bf6e4febf2a6c6c25787be0f5b88fbfb2c53bcb"},
+    {"path": "checks/a1-docker-startup-reference-1-output.log.gz", "size": 883, "sha256": "1c81492b7e23d17a36571af9700866943c166bfd63723c1fbea9a97368e49e75"},
+    {"path": "checks/a1-docker-startup-reference-1-record.json.gz", "size": 66785, "sha256": "fbdfb66fa11cdc591e737c99b2cd32c7b38fabcaf3c1d3d1e9ac9cc4b7eed3de"},
+    {"path": "checks/a1-docker-startup-reference-2-output.log.gz", "size": 56, "sha256": "630c5acc9a543fe004ff7728f4708cb29dc1ff62d1e4b4ef81e48880b3a483d1"},
+    {"path": "checks/a1-docker-startup-reference-2-record.json.gz", "size": 66789, "sha256": "442904231dfbc78231f089d409eb9c4e2eca2923ab2522ee60fc956511950542"},
+    {"path": "checks/a1-docker-startup-reference-3-output.log.gz", "size": 56, "sha256": "c9ac2e5dcdcc53303425d0fe0c29797c13aea65d94c6078071766035610b24a6"},
+    {"path": "checks/a1-docker-startup-reference-3-record.json.gz", "size": 66777, "sha256": "36978c28d2c5879b5705ee41dee6e5bef6dcee782024a854ed138e5cb825fd77"},
+    {"path": "checks/a1-docker-startup-vm-1-output.log.gz", "size": 12299, "sha256": "0ea7003359cf79712b1f39094c2b775d02a5cac489a10797dc40e0134a47b30e"},
+    {"path": "checks/a1-docker-startup-vm-1-record.json.gz", "size": 66949, "sha256": "e45c60517a98d69e8f01afe2778119a723422cbc5db296a5c330a0873ae0c7f5"},
+    {"path": "guard-console-1.log.gz", "size": 3788, "sha256": "a94713676a00061ed2a538e2f8e120857e4336388789abd390ceaa2e8ac4865e"},
+    {"path": "guard-launch-1.json.gz", "size": 631, "sha256": "0a560e47d8bb256773ebddd76d57075fb9f4873553fc0d41bb049d530c81cc3b"},
+    {"path": "inputs-1.json.gz", "size": 2859, "sha256": "65c1b0c9bacb6cc243e2ec5df74d1a8bc6e86d4d6fcd82c91bd71fb7e7bb0c4d"},
+    {"path": "local-check-1.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "local-check-2.log.gz", "size": 46, "sha256": "f140afd39e06ad8a0462e6690dc99d04e26f90c8c3ded45d10199f0ca35805f6"},
+    {"path": "local-check-3.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "local-check-4.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "local-checks.json.gz", "size": 316, "sha256": "b9d38a95060132576a1e969133c5a180cd7d3de5a15253521d3fe17d3eace89e"},
+    {"path": "package-inputs.json.gz", "size": 1564, "sha256": "024846e0f977bbca76fd8c4c205ae4804436231f8c6e1be56e9bd2abe1e722db"},
+    {"path": "reproduction-sources.tar.gz", "size": 101191, "sha256": "d496ff213985e5300951348986bc34c8daa721e80b843b8199f397fde7e6cee9"},
+    {"path": "result-1-startup-console.txt.gz", "size": 7778, "sha256": "692819412937a6e78a94d025c20b54fc069ca4339ab921b8dabbeaad9bcd2aa7"},
+    {"path": "result-1-vm-failure.txt.gz", "size": 1962, "sha256": "2032462bbea42108e2f73852166b084ccbfc83d5346bbc48de8323d902fbcdf5"}
+  ]
+}

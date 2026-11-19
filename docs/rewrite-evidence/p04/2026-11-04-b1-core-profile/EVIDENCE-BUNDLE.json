@@ -1,0 +1,42 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-11-04-b1-core-profile",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-11-04-b1-core-profile.tar.gz",
+    "size": 354091,
+    "sha256": "7ac5bbe4ca34b1858abf9a6d287d0ef6f2dc04c71a5d7f81c1cbbdeb4e3d311a",
+    "tar_sha256": "2e4d8f9aeb099db4134c1fecc6b048906e944e9d86d0b1fdc78dadd083b0a126"
+  },
+  "files": [
+    {"path": "build-record.json.gz", "size": 72223, "sha256": "4993aadbbdece1cbf2771d303f582d1614db4481ac3932557caf13556a0f64c1"},
+    {"path": "checks/b1-core-profile-reference-1-output.log.gz", "size": 479, "sha256": "07fd9c02f3af1b7fd755f50ff1c1ae60a281f9d92e6c371c95852f4c566be78b"},
+    {"path": "checks/b1-core-profile-reference-1-record.json.gz", "size": 72403, "sha256": "a0fd7a218505b935dfcd328625ddbb5bb35e56f035e78c64d2e73d0bfaf76195"},
+    {"path": "checks/b1-core-profile-vm-1-output.log.gz", "size": 287, "sha256": "1ad45996d13614242b741b08e375f639659f0e8f28441aaaf9a63f796c49ecd2"},
+    {"path": "checks/b1-core-profile-vm-1-record.json.gz", "size": 72561, "sha256": "e2a936a7c77f3fdfa0a6c2832d22a771dd4f0987bbe8b14c8d64c0b9073ccd4d"},
+    {"path": "final-verification.json", "size": 17727, "sha256": "fdb85bd82ed5d57a04108a8fbf981df6d71eed0b3d9516a205d0eec447373ae2"},
+    {"path": "installed-matrix.json", "size": 31379, "sha256": "cb3e6f8b1320cd01fae48af96ba048d9ec490b129210af7a24d077d2f8ace173"},
+    {"path": "observations/admission-1.json.gz", "size": 188, "sha256": "753a732027f10117fc207a410e1d849b694481a276275edfbae5f7fe70850f11"},
+    {"path": "observations/cleanup.json.gz", "size": 733, "sha256": "6117f756ea70d7ab1057c7c382b0241b54ebc072aeb1418fbf17171b1f752315"},
+    {"path": "observations/guard-console-1.log.gz", "size": 563, "sha256": "a2090ba83d662041b8d6e9701fa64ca069bd1bb1b3dd1519ee022c3c7be5aa94"},
+    {"path": "observations/guard-launch-1.json.gz", "size": 541, "sha256": "701cf0ba6f0c6860d2b4e7c30f25532ac512e77cf88cfe17fcbdfefd2919d033"},
+    {"path": "observations/inputs-1.json.gz", "size": 2968, "sha256": "d3cca2d931f01255a3b617b65890f2a2ffc77d0a7eb79431c174b85e9f00d6f4"},
+    {"path": "observations/reference-admission.json.gz", "size": 176, "sha256": "169ef0af1f354ed83dacce1fd582c676647b255a6801321f79593afd928c22d1"},
+    {"path": "observations/reference-checks.json.gz", "size": 507, "sha256": "b4b68cf64e4182c725a4576b1333f70a869c3e9ac092f0c561a148b38b013102"},
+    {"path": "observations/reference-console.log.gz", "size": 568, "sha256": "c28ec01dd8a130228173fc6cddac8f6848b785028b84604217988ba8fc1bd8a5"},
+    {"path": "observations/reference-launch.json.gz", "size": 337, "sha256": "78c50936c57c75e6643764b95518a0f4f5be7be1ad981557f2904942a4d9a3ea"},
+    {"path": "observations/reference-step-1.log.gz", "size": 294, "sha256": "64bcb5d0e4147d3072a1e489e401c469b8afbb31ce0fbb0769293922b2253c0f"},
+    {"path": "observations/reference-step-2.log.gz", "size": 446, "sha256": "efb6f736d694a6327f05d3402c861369be46d4989abaa4c716f4d07a0bb4086e"},
+    {"path": "observations/reference-step-3.log.gz", "size": 607, "sha256": "0128aace52e60984bccfcde9723f6a9baa62a05065c039102a9afab5bb1c11ad"},
+    {"path": "observations/reference-step-4.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "observations/reference-step-5.log.gz", "size": 46, "sha256": "f140afd39e06ad8a0462e6690dc99d04e26f90c8c3ded45d10199f0ca35805f6"},
+    {"path": "observations/reference-step-6.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "observations/reference-step-7.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "observations/result-1.json.gz", "size": 4284, "sha256": "3f9f0671f692caaad2d3379eb87da8d0be39a78c4b650b9b2d2f868677f056ef"},
+    {"path": "observations/vm-process-observation-1.json.gz", "size": 172, "sha256": "74d255562a83bb215ae990a79122829d8f91179a6b14585f67f0ccefb1bdf3b3"},
+    {"path": "package-inputs.json.gz", "size": 1568, "sha256": "153a09c275c355bab8d62ba366eac619315a1dfb07e6984b7dafdc2f261d375b"},
+    {"path": "reproduction-sources.tar.gz", "size": 111680, "sha256": "79ff991d261635e670279cc3424ec11e07b0d722dd4ba3ae5127685c00d6c777"},
+    {"path": "seal-source.py.gz", "size": 1952, "sha256": "a8cf63e68b73da89ea14113f1cccea7b7d9e7349f8245995a7aed4ce1d1cdaec"}
+  ]
+}

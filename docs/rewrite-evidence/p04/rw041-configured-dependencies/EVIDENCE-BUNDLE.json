@@ -1,0 +1,19 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/rw041-configured-dependencies",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-rw041-configured-dependencies.tar.gz",
+    "size": 40462,
+    "sha256": "b45ddf8143511649a280b23bfc483d41e24a6f2f5ec6041b4be72c4e6c6dd55e",
+    "tar_sha256": "b3aea3680edbdb8ee8842937313191f00fbcfb1a6650718411771cd5cb386fa1"
+  },
+  "files": [
+    {"path": "logs/limeos-pool-dependencies-workspace-first.txt", "size": 64818, "sha256": "b1acb801c369ae9be6a1a9e25b29eebc4bf197961c0a2a3d684fd41387737847"},
+    {"path": "logs/storage-fixtures.txt", "size": 8962, "sha256": "ed07b59cd345e0adc42cd0c309a8a121a8ff3798a04689fa7dec11f61fbe2395"},
+    {"path": "logs/test-disk-rest.txt", "size": 44150, "sha256": "c663920d49d5d1597ca15338b1658db9d0107f3b8970a365992041a24738ac83"},
+    {"path": "logs/test-disk.txt", "size": 59316, "sha256": "9013641685394180aab7263c9b850c9de3d79966c00743147d35c816722b7818"},
+    {"path": "source-manifest.json", "size": 27095, "sha256": "c053318ea63018210aa2e81262f35e4372184593207707c35abafdfb298f20a2"}
+  ]
+}

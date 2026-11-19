@@ -1,0 +1,32 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-17-tools-planning",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-17-tools-planning.tar.gz",
+    "size": 101735,
+    "sha256": "6375b8b522de516273037e8651387b882c4d7c352bd5895cbf10dc8e6fc5f606",
+    "tar_sha256": "3597250d374f93a220ee44d42d629cd2342fee86873078f3fc0fc295b845f831"
+  },
+  "files": [
+    {"path": "cargo-metadata.json.gz", "size": 52865, "sha256": "f85366e4df0b1ff4d08dff673a6f2f8e36732ec27634595bd557a9d10af65e37"},
+    {"path": "clippy.log.gz", "size": 1051, "sha256": "2c4c99a22dfeb85fbd409d703bdf075edf9d5a420b9b142c305fffaee1607ba9"},
+    {"path": "diff-check.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "evidence-scripts-lint.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "frozen-status.log.gz", "size": 63, "sha256": "fc02c8101910eba1ba5089b7dd1b1f56857ccfb62968601431c50f0e7ed2c933"},
+    {"path": "harness-regeneration.json.gz", "size": 1262, "sha256": "e0843820b64b16405f6203a3ebb47de3aa35fef8619e0f0156975492bc119655"},
+    {"path": "harness-regeneration.log.gz", "size": 158, "sha256": "bb39b021cf1ff5d87b2df2e52f00d915be7b478cc6c90cc0adf14ab1a17c88d1"},
+    {"path": "harness/Cargo.lock", "size": 32021, "sha256": "64fd3fc7338014ba938299772cec4d4779c943b13cf8dc58408f3a2016f15016"},
+    {"path": "object-only-regression.log.gz", "size": 543, "sha256": "e2f9fa4638626b2fe2d295536266e4c81cc6d7efd0f7d895884f6feb75063f4b"},
+    {"path": "package-evidence.py.gz", "size": 2610, "sha256": "523f1a798533659ac3341ee2417fc2cc4784d41472d1ebc104ac3ce987b6b0ba"},
+    {"path": "path-fixture-failure.log.gz", "size": 12141, "sha256": "10fcb90fc2f2b81482fce8ef10f3d8b00f70ad3522df5fc5a860558a4817779e"},
+    {"path": "rust-tests-initial.log.gz", "size": 5298, "sha256": "f102cdccf05327edc7b9701aa6ad9ee24ad176ae87e4850678ff8342a49ebc27"},
+    {"path": "rust-tests.log.gz", "size": 12107, "sha256": "821ef52965d9569f54e9bf45be131dc01ce84add0e299b1eec55ac873105fbf1"},
+    {"path": "rustfmt.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "source-history.log.gz", "size": 232, "sha256": "7a320b80dac00c4acb7cc6aca7fc273c845d9c26624eebf2cdb931c50fcad76c"},
+    {"path": "source-status.log.gz", "size": 140, "sha256": "e01596341450d037afbe92e039f9d4faae0e6c8181fc7e86198b940570093915"},
+    {"path": "tools-array-admission.rs.gz", "size": 1671, "sha256": "28dbd85e82768fe98efcb0a0bf4c919d85eebd8af7d56dc4230007302e4c616b"},
+    {"path": "verify-harness.py.gz", "size": 670, "sha256": "91e645d3bd230e87394e25ce86e96ae8ac7b083586a6804868043c1ae3275f76"}
+  ]
+}

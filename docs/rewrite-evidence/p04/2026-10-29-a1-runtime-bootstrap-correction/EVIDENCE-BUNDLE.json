@@ -1,0 +1,31 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-29-a1-runtime-bootstrap-correction",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-29-a1-runtime-bootstrap-correction.tar.gz",
+    "size": 490459,
+    "sha256": "da6e0162c8173c9a6b1b8d65da9c6742fa33221560adb527e4c929c982661244",
+    "tar_sha256": "823dfa324c67a50801eb2195008a3774ebc27fd173ccecd4b7bde91262b91adf"
+  },
+  "files": [
+    {"path": "checks/a1-runtime-bootstrap-clippy-2-output.log.gz", "size": 151, "sha256": "0f0912e8e9e25bd606d7ba69b3eb9250cd4925c231a52e4ca7474005f9584a2f"},
+    {"path": "checks/a1-runtime-bootstrap-clippy-2-record.json.gz", "size": 66810, "sha256": "6745171f6d97ed888fff748854dc149d4d17fefcc8ef343eca528c28bc014a7d"},
+    {"path": "checks/a1-runtime-bootstrap-executor-tests-2-output.log.gz", "size": 2462, "sha256": "aca1d42e6e23e70d11439d35e7754b9af1d0506eb462814b8ff884eb4ec6012c"},
+    {"path": "checks/a1-runtime-bootstrap-executor-tests-2-record.json.gz", "size": 66779, "sha256": "8458562d0b25ece280711f63d4d6d0681ca12d326e71321a12859b18a6154e0c"},
+    {"path": "checks/a1-runtime-bootstrap-format-1-output.log.gz", "size": 292, "sha256": "75a48b6a1aa0f8031e153c80d7089d8f828e859cdb30018f8d2face03fa9b968"},
+    {"path": "checks/a1-runtime-bootstrap-format-1-record.json.gz", "size": 66762, "sha256": "1449c4d449b206102c7363caa91a19d693775db547f3cc63f86df9f92817659c"},
+    {"path": "checks/a1-runtime-bootstrap-format-2-output.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "checks/a1-runtime-bootstrap-format-2-record.json.gz", "size": 66764, "sha256": "0ceb64cda59f158524d15d1496080182e5d56bc758edd9c4db84163ce25c47e2"},
+    {"path": "checks/a1-runtime-bootstrap-green-1-output.log.gz", "size": 339, "sha256": "6f24388d851f99a049cd10d96e761306360778befa13fa91c1751fd097f0948b"},
+    {"path": "checks/a1-runtime-bootstrap-green-1-record.json.gz", "size": 66853, "sha256": "dcd93d1d113996af65d5fb791e2c4dfcfd4f9c10efc556b68b2240b2341230d7"},
+    {"path": "checks/a1-runtime-bootstrap-red-1-output.log.gz", "size": 684, "sha256": "021ae51a207651d9fddf2c0e74d897be26033b9c0b01228e641c57986c6344e2"},
+    {"path": "checks/a1-runtime-bootstrap-red-1-record.json.gz", "size": 66865, "sha256": "ad9edca057f2b412f5fd47931546e58bc6356bf00d6ecd3f2c058f417fea8b3e"},
+    {"path": "checks/a1-runtime-bootstrap-repository-2-output.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "checks/a1-runtime-bootstrap-repository-2-record.json.gz", "size": 66766, "sha256": "148c13f336efbae83a11b19896774baebdd0a2a6df3b704de3a2eaa5c7791574"},
+    {"path": "source-before-format.rs.gz", "size": 5538, "sha256": "6913317cbdfdc876bc4af9bb8308c498a15204709fdd3b231d08d0d352cdc62f"},
+    {"path": "source-final.rs.gz", "size": 5549, "sha256": "d9bbf6baf67616277651217b371a3233dcfaec0bddc05314847c9918f8d2bbba"},
+    {"path": "source-red.rs.gz", "size": 5490, "sha256": "9b5f6d27a7ad975e4e8b1ae8863004a060c654b3e5b86f00ddb5efe6dcc1d495"}
+  ]
+}

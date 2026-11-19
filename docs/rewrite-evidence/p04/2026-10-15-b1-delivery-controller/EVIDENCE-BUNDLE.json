@@ -1,0 +1,21 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-15-b1-delivery-controller",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-15-b1-delivery-controller.tar.gz",
+    "size": 8552,
+    "sha256": "28ea2ccf2314bd373ff700e38da8456e0bff7632134f607e4df47f4679e6661a",
+    "tar_sha256": "bc65fdaa9b3b517493f71881d194293fcd72a2257501734281a7330e97f03f79"
+  },
+  "files": [
+    {"path": "clippy.log.gz", "size": 205, "sha256": "9b7460212f462568ff2507362ebd01c27e20723aacb5be333e49924ba8262493"},
+    {"path": "controller-tests.log.gz", "size": 895, "sha256": "e07ba887d68caeba6996c08a20d5d293baafd34bc36af85877a394e7cc586852"},
+    {"path": "frontend-check.log.gz", "size": 72, "sha256": "0cc057d6d6f2810b7ef05090c05c4a62a0daaf6b965e6c90aa76a767e99e49f2"},
+    {"path": "frontend-tests.log.gz", "size": 639, "sha256": "53851f681384a7fc824cea4da4068a96446a49034ec52acc03e33ee978a53374"},
+    {"path": "harness-Cargo.lock", "size": 16661, "sha256": "02975786f79faac143f53ec039981be0c37174fbdd6989a5110f5089513496c2"},
+    {"path": "rust-tests.log.gz", "size": 1412, "sha256": "d5db8ed3307ec118a043244bec864ddf7dfd375039a4e0c457da7087ceef14ea"},
+    {"path": "rustfmt.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"}
+  ]
+}

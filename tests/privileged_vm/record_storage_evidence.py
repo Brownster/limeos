@@ -16,6 +16,32 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+SLICES = ["readiness", "planning", "targets", "locks", "approved"]
+
+
+def default_output(slice_name):
+    return ROOT / f"docs/rewrite-evidence/p04/storage-{slice_name}-validation.json"
+
+
+def evidence_inputs(evidence, slice_name):
+    """Inputs read beside the output; scripts/evidence_bundles.py PINNED keeps them tracked."""
+    planning = slice_name != "readiness"
+    inputs = {
+        "vm": evidence
+        / (f"{slice_name}-vm-result.json" if planning else "storage-vm-result.json"),
+        "log": evidence / f"rust-{slice_name}-tests.txt",
+        "compose_manifest": ROOT
+        / "docs/rewrite-evidence/p03/compose-source-sha256.json",
+    }
+    if slice_name in ["locks", "approved"]:
+        inputs["container_vm"] = evidence / f"{slice_name}-container-vm-result.json"
+    return inputs
+
+
+def evidence_outputs(output, slice_name):
+    """Files written; scripts/evidence_bundles.py PINNED keeps them tracked."""
+    manifest = output.parent / f"storage-{slice_name}-source-sha256.json"
+    return {"validation": output, "manifest": manifest}
 
 
 def sha(path):
@@ -38,7 +64,7 @@ def main():
     )
     parser.add_argument(
         "--slice",
-        choices=["readiness", "planning", "targets", "locks", "approved"],
+        choices=SLICES,
         default="readiness",
     )
     parser.add_argument(
@@ -63,14 +89,11 @@ def main():
         if planning
         else "0.4.0"
     )
-    args.output = (
-        args.output
-        or ROOT / f"docs/rewrite-evidence/p04/storage-{args.slice}-validation.json"
-    )
+    args.output = args.output or default_output(args.slice)
     evidence = args.output.parent
-    vm_name = f"{args.slice}-vm-result.json" if planning else "storage-vm-result.json"
-    log_name = f"rust-{args.slice}-tests.txt"
-    vm = json.loads((evidence / vm_name).read_text())
+    inputs = evidence_inputs(evidence, args.slice)
+    outputs = evidence_outputs(args.output, args.slice)
+    vm = json.loads(inputs["vm"].read_text())
     assert len(vm["passed"]) >= (
         51 if approved else 43 if locks else 37 if targets else 27 if planning else 17
     )
@@ -109,9 +132,7 @@ def main():
             "altered dispatch guards",
         ]:
             assert scenario in " ".join(vm["passed"])
-        container_vm = json.loads(
-            (evidence / f"{args.slice}-container-vm-result.json").read_text()
-        )
+        container_vm = json.loads(inputs["container_vm"].read_text())
         assert container_vm["package_version"] == package_version
         assert container_vm["schemas"] == {
             "authority": authority_schema,
@@ -133,7 +154,7 @@ def main():
             assert scenario in " ".join(vm["passed"])
     assert 2.5 <= vm["plan_wait_seconds"] <= 7
     assert 3.5 <= vm["watchdog_seconds"] <= 8
-    log = (evidence / log_name).read_text()
+    log = inputs["log"].read_text()
     assert "FAILED" not in log and "test result: ok." in log
     passed = sum(int(n) for n in re.findall(r"test result: ok\. (\d+) passed", log))
     assert passed >= (
@@ -170,7 +191,7 @@ def main():
                     f"Commit binding failed: {name}"
                 )
             manifest[name] = digest
-    manifest_path = evidence / f"storage-{args.slice}-source-sha256.json"
+    manifest_path = outputs["manifest"]
     manifest_path.write_text(json.dumps(manifest, sort_keys=True, indent=2) + "\n")
     binaries = {
         name: sha(args.artifacts / name)
@@ -253,9 +274,7 @@ def main():
                         and "[Install]" not in service_text
                     )
     assert len(packages) == 2
-    previous = json.loads(
-        (ROOT / "docs/rewrite-evidence/p03/compose-source-sha256.json").read_text()
-    )
+    previous = json.loads(inputs["compose_manifest"].read_text())
     identical_assets = all(
         previous.get(name) == digest
         for name, digest in manifest.items()
@@ -280,10 +299,10 @@ def main():
             "package_sha256": packages,
             "signing_key": "test-only private key discarded with the VM",
         },
-        "rust_workspace_tests": {"passed": passed, "log": log_name},
+        "rust_workspace_tests": {"passed": passed, "log": inputs["log"].name},
         "storage_vm": {
             "acceptance_groups": len(vm["passed"]),
-            "result_file": vm_name,
+            "result_file": inputs["vm"].name,
             "installed_profile": "standard",
             "shadow_scope": "payload identity and dormant unit only",
         },
@@ -419,7 +438,7 @@ def main():
             "No full Pi/Python footprint comparison or cutover signoff",
             "No P04 defect-register row closes on this operation alone",
         ]
-    args.output.write_text(json.dumps(result, indent=2) + "\n")
+    outputs["validation"].write_text(json.dumps(result, indent=2) + "\n")
     print(
         f"Recorded {len(vm['passed'])} VM groups against {len(manifest)} committed source/build files."
     )

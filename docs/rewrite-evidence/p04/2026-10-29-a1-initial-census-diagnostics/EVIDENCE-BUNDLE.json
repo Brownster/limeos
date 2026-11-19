@@ -1,0 +1,35 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-29-a1-initial-census-diagnostics",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-29-a1-initial-census-diagnostics.tar.gz",
+    "size": 638653,
+    "sha256": "2fce8dd1ea8d712f8b3d2150ae21dc2ea974976242dbf9cfd8006d3e1e501c2c",
+    "tar_sha256": "ffff853fcb32a2f9017a2723725baf7e934110807ca7bba23af3cf7911a68562"
+  },
+  "files": [
+    {"path": "checks/a1-initial-census-clippy-1-output.log.gz", "size": 184, "sha256": "acd567493323101cce0c79363b39329d11a4ae2b9d395d6c569683ec893b1847"},
+    {"path": "checks/a1-initial-census-clippy-1-record.json.gz", "size": 66806, "sha256": "18f88e34e6d3e73ee92ef6f75176c9922a852e55209ffed14b15ccc310c82989"},
+    {"path": "checks/a1-initial-census-compile-1-output.log.gz", "size": 6323, "sha256": "ff2329fa0f0261a556d857ef98e37ae55f8002554245879f583465b6db11c0ca"},
+    {"path": "checks/a1-initial-census-compile-1-record.json.gz", "size": 66805, "sha256": "287921d31cfbd847aeed9b1251301f129142cd12bf89422a217de3808baf3866"},
+    {"path": "checks/a1-initial-census-doctests-1-output.log.gz", "size": 463, "sha256": "b2c5b930b2d0982982b163219050a4add97d3f4845551d01eb6e6d93c49b2fb5"},
+    {"path": "checks/a1-initial-census-doctests-1-record.json.gz", "size": 66784, "sha256": "0cc186c93cccad4de514ae138c0816812804663ee4ff92d3753f7804de44ee77"},
+    {"path": "checks/a1-initial-census-executor-clippy-1-output.log.gz", "size": 236, "sha256": "debc5f1f2b4f4edc2241f8705020aaa7914dbea5728d2f34246daf7b427744d3"},
+    {"path": "checks/a1-initial-census-executor-clippy-1-record.json.gz", "size": 66804, "sha256": "e99e929823bea43e79a3011bd30be6b1f44894264c7d0cf94c5f3e7734d80f5f"},
+    {"path": "checks/a1-initial-census-focused-1-output.log.gz", "size": 1329, "sha256": "8ef94568f8f37cbea9ae2b91d9612c74f1a095e87db29bdd7892b0d652ecd030"},
+    {"path": "checks/a1-initial-census-focused-1-record.json.gz", "size": 66809, "sha256": "7fd16f83768b458d1fbc1e9f51539cbe43b04c8a7766d9290ed0ecfc0c89a61e"},
+    {"path": "checks/a1-initial-census-format-check-1-output.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "checks/a1-initial-census-format-check-1-record.json.gz", "size": 66758, "sha256": "7c91dd4ec08cd348c54fa419fa7a2cbc3c0d9a4fb08f44df2dfee4b37e53a5dd"},
+    {"path": "checks/a1-initial-census-repository-1-output.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "checks/a1-initial-census-repository-1-record.json.gz", "size": 66759, "sha256": "79bf21c16a39ea7c4f1c466bf706fea47a9f6c6c89b62797a5046a004798980d"},
+    {"path": "checks/a1-initial-census-runtime-1-output.log.gz", "size": 429, "sha256": "aba0efe27a044daeaa94d5dd7fb97360b07101c2b87ba11786b44478ad75e73e"},
+    {"path": "checks/a1-initial-census-runtime-1-record.json.gz", "size": 66776, "sha256": "5e68fabff33508ded5ae2fe76781cd0f46affa01a912ee2a7c674ca9b6b5a02b"},
+    {"path": "checks/a1-initial-census-storage-all-1-output.log.gz", "size": 7396, "sha256": "22a87fba67d9984f4e1804ef15670887359c3c0ef59531581d7215d7eeb121d0"},
+    {"path": "checks/a1-initial-census-storage-all-1-record.json.gz", "size": 66778, "sha256": "68dc0219aa3d84d27f3f6916e7eb12a450ef320419db481f405b9ecbb148df46"},
+    {"path": "kernel-runtime.json.gz", "size": 434, "sha256": "97cb46e50285a998a7547087fde97165acf34d10533fd8a0b35f62baa7d28e4c"},
+    {"path": "kernel-runtime.log.gz", "size": 6408, "sha256": "81ac75b29658a84d1f53f6cb39abaa008c54a30825b7376aa5e9568a22e4057c"},
+    {"path": "source.rs.gz", "size": 10830, "sha256": "4b960e93d4fc301332f12572d2eb6eb7a75ff4873ef3ba94cb1c36d837194430"}
+  ]
+}

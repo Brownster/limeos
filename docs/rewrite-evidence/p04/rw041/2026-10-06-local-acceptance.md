@@ -6,7 +6,7 @@ The assignment estimated two to four engineer days. Actual automated local work 
 
 | Check | Result | Evidence |
 |---|---|---|
-| `cargo test --workspace --locked --offline` | 161 passed; 30 new planner/parser regressions | [Rust test transcript](rust-tests.txt) |
+| `cargo test --workspace --locked --offline` | 161 passed; 30 new planner/parser regressions | [Rust test transcript](EVIDENCE-BUNDLE.json "bundled: rust-tests.txt") |
 | `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` | Passed | [Strict Clippy transcript](clippy.txt) |
 | `cargo fmt --all -- --check` | Passed | [Validation record](validation.json) |
 | `uv run scripts/check_repository.py` | Passed: dependency direction and hygiene | [Gate transcript](gates.txt) |

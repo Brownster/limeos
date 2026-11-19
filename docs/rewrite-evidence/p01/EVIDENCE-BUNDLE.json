@@ -1,0 +1,15 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p01",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p01.tar.gz",
+    "size": 4860,
+    "sha256": "bbe85b4ef71c1f7389bc1078fc0ca88e809667bd74bc631733b45bf3d544ea91",
+    "tar_sha256": "e7695242384b4f40ec2539646d8910b27e8b60296f6f1bd6479769700834968c"
+  },
+  "files": [
+    {"path": "build-provenance.json", "size": 9844, "sha256": "309de556de86b706833cb78767baaa183b50e2bd669b5c3e5a7b877eacc761fd"}
+  ]
+}

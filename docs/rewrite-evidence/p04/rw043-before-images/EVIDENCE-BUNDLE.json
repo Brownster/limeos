@@ -1,0 +1,35 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/rw043-before-images",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-rw043-before-images.tar.gz",
+    "size": 63648,
+    "sha256": "3d2c6400a57c1d37d3bb8ff0d79d4c8b6979aacaed2bd40beb6284f86dc0a0ab",
+    "tar_sha256": "ab0f106053f4e678211497bb8b68fa0e6c4db502292cb6a8c9e13f8d72504aa8"
+  },
+  "files": [
+    {"path": "audit.txt.gz", "size": 136, "sha256": "7c7c21997df1426228b326860914dc898fb7c3ec64bfc836b49c1a863eb83143"},
+    {"path": "cargo-version.txt.gz", "size": 56, "sha256": "46cfde9c7e99a96b2a67fc5e948760695b3093bcde0c8dc58e440b17a8cfd7b6"},
+    {"path": "clippy-first.txt.gz", "size": 1636, "sha256": "084d289a3ce8476f0544334d8f4b97605ed44dc9f79c4ddd71700b60a201ee5b"},
+    {"path": "clippy-second.txt.gz", "size": 679, "sha256": "f0b46118bcd23d122338e0f65827657683bda091b0548ceaf8b37553484c5d91"},
+    {"path": "compiler.txt.gz", "size": 168, "sha256": "fabb3f6e995202e07ec256b73ebc1c8b1dfdb8d5f6189a480cdf55fa063798d4"},
+    {"path": "contracts.txt.gz", "size": 327, "sha256": "c0a6cf284978647b0332fb2cb178014f9c2b0f17f470a79f69c73f4d64f702ad"},
+    {"path": "deny.txt.gz", "size": 2019, "sha256": "09c6685755442cd98e546b3fbcc093b361839d928c982b4f146cde795257da88"},
+    {"path": "diff-check.txt.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "fmt.txt.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "focused-final.txt.gz", "size": 967, "sha256": "5b4f0a8997e27e7337c2b7c50eb30e87e08550b6fe9a7bbc0e54368001fb0ba9"},
+    {"path": "focused-first.txt.gz", "size": 1034, "sha256": "560ed09b0373e9bd95d30c05c52d8a3532952283520b98c4049a9bdcf3677002"},
+    {"path": "focused-second.txt.gz", "size": 1248, "sha256": "97593b3ad81b645422b4fba083a3bc58190474a9d2bfbeea6b2514cb1d0879d4"},
+    {"path": "focused-third.txt.gz", "size": 967, "sha256": "7869b3b2712c957d3093dfbabb271150fee3a8a262c7d7db8ebce6269f827e97"},
+    {"path": "frozen-source-check.txt.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "initial-check.txt.gz", "size": 1617, "sha256": "c63adbcafdd64b0f3ba5116b021693ee3237e490c6c934ae9dc67cb41ad6ebc9"},
+    {"path": "integration-first.txt.gz", "size": 373, "sha256": "28a69778666d6fe61c5df88a84b692a613bfab2da5c9ae5bf4af461a9d6e5953"},
+    {"path": "repository.txt.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "runtime-diff.patch.gz", "size": 17469, "sha256": "0fa92f7946a71b766bebb555d89313354c0f0b7807856fbe8e5f380c46b50060"},
+    {"path": "source-manifest.json", "size": 51286, "sha256": "9b81e6ddf482b88e729e18f576ae7acdbc5e5ca7b0a02f0ed17e5d2e47de52f1"},
+    {"path": "unchanged-integration-boundaries.txt.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "workspace.txt.gz", "size": 13920, "sha256": "336a91fbaf1e0519ffeb3d09e06c417cbb680fb96a62d488fd79abb8d35f169d"}
+  ]
+}

@@ -4,8 +4,8 @@ One disposable Debian 12 AMD64 KVM guest (`tests/privileged_vm/run.py --memory-m
 remote host. Same fixture and 16 cases as the [first rehearsal](../2026-11-06-cutover-rehearsal-vm/README.md) plus case 4b.
 Source: local main `6c5789e` plus commits `ce61b75` (propose-catalog), `46b582b` (scripts and stub tests), `8beb731` (docs),
 `0848039` and `09bfffb` (guest). Packages `0.4.17+cutover.1` built inside the guest from a bundle of that tree.
-Result: [raw/result.json](raw/result.json), 17 cases, all pass; transcripts in [raw/logs](raw/logs), runner output in
-[raw/run-output.log.gz](raw/run-output.log.gz).
+Result: [raw/result.json](EVIDENCE-BUNDLE.json "bundled: raw/result.json"), 17 cases, all pass; transcripts in [raw/logs](EVIDENCE-BUNDLE.json "bundled: raw/logs/"), runner output in
+[raw/run-output.log.gz](EVIDENCE-BUNDLE.json "bundled: raw/run-output.log.gz").
 
 ## What changed in the guest
 

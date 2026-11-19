@@ -1,0 +1,26 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-13-storage-read-admission",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-13-storage-read-admission.tar.gz",
+    "size": 42719,
+    "sha256": "2919ba1aad9df92baf4da2f5bbc8777f8539565273321341712996f68fe4e82e",
+    "tar_sha256": "4a5d232040545c7dcaef92aa221cf5ba936ea383ace9cb6c1be667d2e905edab"
+  },
+  "files": [
+    {"path": "arm64-harness-accepted.log.gz", "size": 429, "sha256": "54184bfade0dc073dcc75641aed8a8b96598bc12e5f9ec5370df97369c0bbce4"},
+    {"path": "checks.json", "size": 29331, "sha256": "715284ac86e7eca69643755b8f2e56ca6cf5e54d03bd89590f2be0377fec07ff"},
+    {"path": "clippy-accepted.log.gz", "size": 242, "sha256": "7d26207525ab8e932913937be940045f98c6b70eacb43f44a560848c863bb4a0"},
+    {"path": "contracts-accepted.log.gz", "size": 247, "sha256": "3f989db811969ee4998520fc9da272c05e6e254ae212de480c0cd4c32973d6fd"},
+    {"path": "fmt-accepted.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "package-storage-read-admission.py", "size": 10011, "sha256": "8ba5d28b43c79f2f6f19b1e60b858bd318b6db9c979c8b5a20432071406cda17"},
+    {"path": "repository-accepted.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "source-manifest.json", "size": 35307, "sha256": "4476998969bc68123544811d47c862eecba7d4f493605e10c028f3c84946ca6b"},
+    {"path": "source-measurement.log.gz", "size": 385, "sha256": "ffd9a1149ada5b248a01983d4dd1d6f8404865b9b50b50ee16955853a6511cfe"},
+    {"path": "storage-compile-on-disk.log.gz", "size": 254, "sha256": "eee642b937110ba267f761234f868917cadacae814eb9cc0ccd6c1939da2de6a"},
+    {"path": "storage-fixtures.log.gz", "size": 5119, "sha256": "b4acdee06ec56f238c2816c8df2f9272ce6039ac0ab173f32bde269703530616"},
+    {"path": "test-rest.log.gz", "size": 12137, "sha256": "ef33c2143f2356a753f5ffa53d941fab071c45442b0690d25424133acaeb2f50"}
+  ]
+}

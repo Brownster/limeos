@@ -1,0 +1,26 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-21-notification-inventory",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-21-notification-inventory.tar.gz",
+    "size": 398880,
+    "sha256": "6907749ee8d4b3cfbcb3beb406a4eb62ea74ccccc46ca3fb3a8a3f502708e0d2",
+    "tar_sha256": "d6b0703ca3313b685d17393340cf9939931b0fd3684f9870a70be61a7d19e1bc"
+  },
+  "files": [
+    {"path": "checks/notification-inventory-capture-1-output.log.gz", "size": 147, "sha256": "4b88ca42c856012614060cec3f0cf911269561e90b6ecd80929acfb027cd5db1"},
+    {"path": "checks/notification-inventory-capture-1-record.json.gz", "size": 65910, "sha256": "913c5f318e2c013ac656c693c94c8f4dfcb7064c720c9e4aeb2df270b180c4cd"},
+    {"path": "checks/notification-inventory-capture-2-output.log.gz", "size": 147, "sha256": "a561a8737d7fcaf9e61ad65320954a7bb14888d852ca1d1eda3e91e9b86dca31"},
+    {"path": "checks/notification-inventory-capture-2-record.json.gz", "size": 65995, "sha256": "9991419c43df5f526552445fa6c0e764870de0861e3d895517d27cc4eb1624f6"},
+    {"path": "checks/notification-inventory-format-1-output.log.gz", "size": 40, "sha256": "10d1f29fbf0f4ce6d2d3aca6a94ab91faf21c712b389879848ed269bd3c77d6f"},
+    {"path": "checks/notification-inventory-format-1-record.json.gz", "size": 66159, "sha256": "343bf1a6cd52ddd7ab8f4fe841685b2a017182affb2c32691f2e280be8e42c4f"},
+    {"path": "checks/notification-inventory-lint-1-output.log.gz", "size": 456, "sha256": "d187fe96b67f76767c88c9e113f276d61b36f4518bca833ba29674c48a21ca46"},
+    {"path": "checks/notification-inventory-lint-1-record.json.gz", "size": 66193, "sha256": "f438d3e355f8590107a10a46d585aba632607e22a4dbb2446e37df24cb8f19be"},
+    {"path": "checks/notification-inventory-lint-2-output.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "checks/notification-inventory-lint-2-record.json.gz", "size": 66199, "sha256": "ec960973efb593a731b45f5b09eef84e66a15db2e3e0ba747d8372036d234920"},
+    {"path": "checks/notification-inventory-tests-1-output.log.gz", "size": 545, "sha256": "e7017cbab4061fba8d94032df8741f21af187f017d988ad8234d51ac6530e4d3"},
+    {"path": "checks/notification-inventory-tests-1-record.json.gz", "size": 66154, "sha256": "877f8bbeefdff341de276d9a43bf4b9c6e192237602d219b81bd1b2f84ecc0a5"}
+  ]
+}

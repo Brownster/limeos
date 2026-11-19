@@ -1,0 +1,35 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/arm64/2026-11-13-pi-night",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-arm64-2026-11-13-pi-night.tar.gz",
+    "size": 159633,
+    "sha256": "31eb699375179aed7ba15596e53fdb8551f1585f6c3f36b8b2e7739ca247c7c5",
+    "tar_sha256": "333882462970b0ef3e0f22526d4d95ae884bcad059528733885804afb9776009"
+  },
+  "files": [
+    {"path": "orchestrator.log", "size": 536, "sha256": "591e1a2a744142630bc22f76f906d5c02a1c7edc5a11834e77b477e2e445f21c"},
+    {"path": "run/guards.jsonl", "size": 636, "sha256": "7e9c3186422816a09e28e0d21d88361ccb239d71fd627c6b83768dc894e18e42"},
+    {"path": "run/host-after-qemu-install.json", "size": 42461, "sha256": "5d98b0d0e6a187e796c348cb873ff3e6970aaa26fd4c6d15a463d618b7a5ea74"},
+    {"path": "run/host-commands.jsonl", "size": 195574, "sha256": "d4c0c26b9bf5caea77d583339d4524fa1b94c1a00681ecc7554532d2f9f6dd45"},
+    {"path": "run/host-post.json", "size": 42412, "sha256": "630947b1aeb732efa7e05d75ec0cf6a63e65cfc5214db8e320fe8fabf2445a7e"},
+    {"path": "run/host-pre-purge.json", "size": 42464, "sha256": "526cd1c4c8da1022a0f5b0640dfa24546fcdefa827daf18e641f81adc3e4f5fe"},
+    {"path": "run/host-pre.json", "size": 42407, "sha256": "8c0712955f9126a38674afeffdd4665d19c975b40f1a0ba2b6934cdfb5e5b43d"},
+    {"path": "run/night-install/install-result.json", "size": 249612, "sha256": "ee25daf4d112c4d8d1d7e927d5372d98ae331cd5c018ebc6d9dbccb5b838b95f"},
+    {"path": "run/night-install/kernel-journal.txt", "size": 51195, "sha256": "13aafb6fe53acc996255f5b1d622108e7b22a414ef326890e74685655b9603a2"},
+    {"path": "run/night-install/limeos-journal.txt", "size": 28080, "sha256": "f83f5114fe2d12f5e9d9462e5ddf032e2044a41a5d08e4052cd468d19d616805"},
+    {"path": "run/night-scale/kernel-journal.txt", "size": 37566, "sha256": "f9c6a3a1f9fa349973859873b2fc68d745074dfd2600b226cfb18ba1b8ec8ba6"},
+    {"path": "run/night-scale/limeos-journal.txt", "size": 9922, "sha256": "5477045375a4fe51019076f6e185613949fd466834ed9c4374a1d01b22981076"},
+    {"path": "run/night-scale/scale-result.json", "size": 8548, "sha256": "20d52c685840257fcb52d0011e223794f42308d52ed620ebd1f232c35531fbe5"},
+    {"path": "run/night-stack/kernel-journal.txt", "size": 37113, "sha256": "bd53ca9b2ba8f0e0d2ea9181de71c37bdacbfa15dc8cac79bdd270c4b363b86d"},
+    {"path": "run/night-stack/limeos-journal.txt", "size": 34799, "sha256": "d422c2e315f9f22ad7d88b82444612345bed78e5844994760d371e42ec690282"},
+    {"path": "run/night-stack/stack-result-fixture.json", "size": 23599, "sha256": "f7dd5dbf055861e046aaef1bb0c4f8bf87e6c98c54679b29c4f18140f0b729e3"},
+    {"path": "run/night-stack/stack-result.json", "size": 25822, "sha256": "2a94dfbfe78a201b17b3a7c8c42a5a77cb39cb4c7a07ee569f71cba5439207c0"},
+    {"path": "run/night-stack/suite-output.txt", "size": 24532, "sha256": "cd5d8047cad2cb21ab36072e29b4f42a985aecf96e3b2c35b3ba698c47893279"},
+    {"path": "run/vm-commands.jsonl", "size": 49918, "sha256": "1722289a25bc09d8007dd8e9fa4eab6d825abbe64e652fcdab15c2acc044a7ff"},
+    {"path": "run/watchdog.jsonl", "size": 5226, "sha256": "6e8e8e9b1525c8346c2c72bd404d0e8a01c42d3f2c6e63dec46173f05cb79931"},
+    {"path": "run/watchdog.out", "size": 0, "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
+  ]
+}

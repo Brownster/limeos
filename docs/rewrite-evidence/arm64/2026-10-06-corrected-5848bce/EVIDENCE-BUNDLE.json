@@ -1,0 +1,18 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/arm64/2026-10-06-corrected-5848bce",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-arm64-2026-10-06-corrected-5848bce.tar.gz",
+    "size": 26465,
+    "sha256": "60797561a428fc9e0d600698007dcbb055cafee52d72dfb93951331143d7b20f",
+    "tar_sha256": "5599f5e4b989d2dba32870dac87dcbfcd475944b79380b20db580b509f19b23e"
+  },
+  "files": [
+    {"path": "build/logs/apt.txt", "size": 24494, "sha256": "8e50c877383543e717d27d25baa75106e0f28018c2144bd11dd90f9d845c509a"},
+    {"path": "build/logs/test-no-fail-fast.txt", "size": 16879, "sha256": "767c13829b9ec4a0b69683d8712c36b4176214662d639cb031c1e0ece4a26ca0"},
+    {"path": "build/logs/test.txt", "size": 21904, "sha256": "a5d539bcd656b9e9e688f52e2d3c456a0575a3c5571596658caba52e4a44a218"},
+    {"path": "source-manifest.json", "size": 36075, "sha256": "07a8fc80dea4c353e146269c7d0e540ca6d81f4ee0fca559698e4f718ca940cf"}
+  ]
+}

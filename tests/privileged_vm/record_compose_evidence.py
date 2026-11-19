@@ -15,6 +15,36 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_OUTPUT = ROOT / "docs/rewrite-evidence/p03/compose-validation.json"
+# The --checks file of the recorded Compose run (required; no default).
+DEFAULT_CHECKS = DEFAULT_OUTPUT.parent / "compose-local-checks.json"
+# The reference-profile run recorded as p03/reference-validation.json:
+# --reference-profile <layout> --vm-result <vm_result> --checks <checks> --output <output>.
+REFERENCE_INVOCATION = {
+    "vm_result": DEFAULT_OUTPUT.parent / "reference-vm-result.json",
+    "checks": DEFAULT_OUTPUT.parent / "reference-local-checks.json",
+    "output": DEFAULT_OUTPUT.parent / "reference-validation.json",
+}
+
+
+def evidence_inputs(directory, vm_result=None, checks=None):
+    """Inputs read beside the output; scripts/evidence_bundles.py PINNED keeps them tracked."""
+    return {
+        "vm": vm_result or directory / "compose-vm-result.json",
+        "checks": checks or DEFAULT_CHECKS,
+        "arm": directory / "compose-arm64-result.json",
+        "gates": directory / "compose-gate-probes.json",
+        "previous": directory / "lifecycle-validation.json",
+        "previous_manifest": directory / "lifecycle-source-sha256.json",
+    }
+
+
+def evidence_outputs(output, reference):
+    """Files written; scripts/evidence_bundles.py PINNED keeps them tracked."""
+    manifest = (
+        "reference-source-sha256.json" if reference else "compose-source-sha256.json"
+    )
+    return {"validation": output, "manifest": output.parent / manifest}
 
 
 def sha(path):
@@ -46,15 +76,17 @@ def main():
     parser.add_argument(
         "--output",
         type=Path,
-        default=ROOT / "docs/rewrite-evidence/p03/compose-validation.json",
+        default=DEFAULT_OUTPUT,
     )
     args = parser.parse_args()
     directory = args.output.parent
-    vm_path = args.vm_result or directory / "compose-vm-result.json"
+    inputs = evidence_inputs(directory, args.vm_result, args.checks)
+    outputs = evidence_outputs(args.output, bool(args.reference_profile))
+    vm_path = inputs["vm"]
     vm = json.loads(vm_path.read_text())
-    arm = json.loads((directory / "compose-arm64-result.json").read_text())
-    checks = json.loads(args.checks.read_text())
-    gates = json.loads((directory / "compose-gate-probes.json").read_text())
+    arm = json.loads(inputs["arm"].read_text())
+    checks = json.loads(inputs["checks"].read_text())
+    gates = json.loads(inputs["gates"].read_text())
     assert all(item["exit_code"] == 0 for item in checks["checks"])
     assert gates["result"] == "pass"
     assert (
@@ -92,11 +124,7 @@ def main():
             ).hexdigest()
             assert sha(ROOT / name) == fingerprint, f"Qualified runtime drift: {name}"
             manifest[name] = fingerprint
-    manifest_path = directory / (
-        "reference-source-sha256.json"
-        if args.reference_profile
-        else "compose-source-sha256.json"
-    )
+    manifest_path = outputs["manifest"]
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     binaries = {
         name: sha(args.artifacts / name)
@@ -122,10 +150,8 @@ def main():
                 )
     # No frontend behavior changed. Reuse browser evidence only if both the
     # production assets and its complete fixture match the qualified milestone.
-    previous = json.loads((directory / "lifecycle-validation.json").read_text())
-    previous_manifest = json.loads(
-        (directory / "lifecycle-source-sha256.json").read_text()
-    )
+    previous = json.loads(inputs["previous"].read_text())
+    previous_manifest = json.loads(inputs["previous_manifest"].read_text())
     assets = {
         name: value
         for name, value in manifest.items()
@@ -241,7 +267,7 @@ def main():
         result["limitations"][4] = (
             "No live host changes, benchmark, service restart or cutover; only light read-only SSH inventory and filtered configuration projection"
         )
-    args.output.write_text(json.dumps(result, indent=2) + "\n")
+    outputs["validation"].write_text(json.dumps(result, indent=2) + "\n")
     print(
         f"Bound {len(manifest)} source files and both AMD64 packages to Compose/lifecycle evidence."
     )

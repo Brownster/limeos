@@ -1,0 +1,16 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/rw043",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-rw043.tar.gz",
+    "size": 9890,
+    "sha256": "a2977acca583ba8a191e093674ed4e44da6162ddc08f1d4d46468ec67aaae3d0",
+    "tar_sha256": "090cd3ca78a23740ea45d3e8e34aeb89527b295f6a318c8ea6a2aa9f04e20749"
+  },
+  "files": [
+    {"path": "cargo-deny.txt", "size": 17648, "sha256": "e122c0992f6855c7896d77ada046a329fa11f55b1e39317b689c675c0c0e5e5e"},
+    {"path": "workspace-tests.txt", "size": 30171, "sha256": "ae4963b025e38d83765f1d91c55107e324e22ca213063bd8437dea9cdc50f450"}
+  ]
+}

@@ -27,8 +27,8 @@ The current ARM64 harness also passes **61 tests**. Strict workspace/all-target
 Clippy, formatting, generated-contract drift and repository checks pass. No
 runtime fix or conflict resolution was needed for this integration.
 
-[checks.json](checks.json) records commands, exits, timings, environment and raw/
-compressed log hashes. [source-manifest.json](source-manifest.json) binds the
+[checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") records commands, exits, timings, environment and raw/
+compressed log hashes. [source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds the
 source, fixtures, contracts and scripts to the exact qualified Git snapshot.
 The retained capture/packaging scripts make the local check procedure reviewable.
 Raw logs use lossless gzip with `mtime=0`; [evidence-sha256.json](evidence-sha256.json)

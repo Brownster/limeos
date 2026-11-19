@@ -1,0 +1,26 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-15-package-baseline",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-15-package-baseline.tar.gz",
+    "size": 9552,
+    "sha256": "a2630c461987872a148bdeceb0b72c93e693feed5acad3ada4018a246158e6f2",
+    "tar_sha256": "a91a70241c6a24c1bbd8450122299d4b3ae4200bc958d20f039ca66ef13a2bc8"
+  },
+  "files": [
+    {"path": "clippy-final.log.gz", "size": 210, "sha256": "e8372f9dfeb67d5c31ccfefc5484593d2b4fe6ad57223a0c6ac4c67ed452fee5"},
+    {"path": "clippy-first.log.gz", "size": 210, "sha256": "e8372f9dfeb67d5c31ccfefc5484593d2b4fe6ad57223a0c6ac4c67ed452fee5"},
+    {"path": "metadata.json", "size": 9546, "sha256": "f229f7e43f3436e5e9482eb160d065a4cbefce66ba977ad1a2a81fb8d478fd28"},
+    {"path": "python-format.log.gz", "size": 45, "sha256": "afdae4b86058000c02acc699088589b28fbfe2ead39a424c4435b13464b2f494"},
+    {"path": "ruff-mode.log.gz", "size": 198, "sha256": "ccea1c1aaacbd3664b3a99e00fb97fb4ab916ece301dbb003c7ef677490e757d"},
+    {"path": "ruff.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "rustfmt.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "test-final.log.gz", "size": 1208, "sha256": "5f9690b8ba6abe82ca8b78f1065b672c69def8464806ac46dfcb6b17458cc638"},
+    {"path": "test-first.log.gz", "size": 491, "sha256": "1010e9e5d0177386fe7bb4738e45ac3df7de2d17c406c29334cf22c2c56ba396"},
+    {"path": "test-second.log.gz", "size": 1404, "sha256": "2b13e1711318ff75900d8e977293c52366997907620f3dcc636106b6222e7aa7"},
+    {"path": "test-strict-fields-fixed.log.gz", "size": 435, "sha256": "b5e3a2482844e49237c75e49f546782ddfb48e0162465912f8fbbf15ffa5c6e8"},
+    {"path": "test-strict-fields.log.gz", "size": 387, "sha256": "6cb313f33046873449d5da7f453ffad80990724513e87b3652c688965b305260"}
+  ]
+}

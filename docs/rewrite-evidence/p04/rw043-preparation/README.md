@@ -34,8 +34,8 @@ Custody, its three reviewed corrections, inspector/decoder, domain, lockfile,
 old fixtures/evidence, API/IPC/CLI, jobs/claims, packaging, workflows and UI remain
 byte-identical to the base.
 
-[The owned-path patch](allowed-path-diff.patch.gz), [source manifest](source-manifest.json)
-and [qualification metadata](qualification.json) bind 248 source/fixture/build
+[The owned-path patch](EVIDENCE-BUNDLE.json "bundled: allowed-path-diff.patch.gz"), [source manifest](EVIDENCE-BUNDLE.json "bundled: source-manifest.json")
+and [qualification metadata](EVIDENCE-BUNDLE.json "bundled: qualification.json") bind 248 source/fixture/build
 inputs and the preserved logs to the qualified source. The patch is the runtime
 diff; documentation/evidence have their subsequent commits. The recorder refuses
 unexpected paths or changed tested inputs. Generated gzip/zstd scratch fixtures
@@ -45,15 +45,15 @@ live in the committed Rust tests; no production mapping/default is inferred.
 
 | Check | Result and retained output |
 |---|---|
-| Final workspace tests | **399 unit/integration + 4 compile-fail = 403**, zero failed/ignored; [raw output](workspace-92a149d.txt.gz) |
-| Focused private fault/crash/bounds tests | 18 pass, including one subprocess helper; [output](preparation-92a149d.txt.gz) |
-| Formatting | Pass; [output](fmt-92a149d.txt.gz) |
-| Strict workspace/all-target Clippy | Pass with `-D warnings`; [output](clippy-92a149d.txt.gz) |
-| Repository boundaries | Pass; [output](repository-92a149d.txt.gz) |
-| Diff whitespace | Pass; [output](diff-check.txt.gz) |
-| Generated contracts | Pass; [output](contracts.txt.gz); unchanged inputs are source-bound |
-| Offline cargo-deny | Pass; [output](deny-unrestricted.txt.gz), three existing duplicate-version warnings |
-| Cached cargo-audit | Pass; [output](audit-final.txt.gz), 1,290 advisories, 227 packages |
+| Final workspace tests | **399 unit/integration + 4 compile-fail = 403**, zero failed/ignored; [raw output](EVIDENCE-BUNDLE.json "bundled: workspace-92a149d.txt.gz") |
+| Focused private fault/crash/bounds tests | 18 pass, including one subprocess helper; [output](EVIDENCE-BUNDLE.json "bundled: preparation-92a149d.txt.gz") |
+| Formatting | Pass; [output](EVIDENCE-BUNDLE.json "bundled: fmt-92a149d.txt.gz") |
+| Strict workspace/all-target Clippy | Pass with `-D warnings`; [output](EVIDENCE-BUNDLE.json "bundled: clippy-92a149d.txt.gz") |
+| Repository boundaries | Pass; [output](EVIDENCE-BUNDLE.json "bundled: repository-92a149d.txt.gz") |
+| Diff whitespace | Pass; [output](EVIDENCE-BUNDLE.json "bundled: diff-check.txt.gz") |
+| Generated contracts | Pass; [output](EVIDENCE-BUNDLE.json "bundled: contracts.txt.gz"); unchanged inputs are source-bound |
+| Offline cargo-deny | Pass; [output](EVIDENCE-BUNDLE.json "bundled: deny-unrestricted.txt.gz"), three existing duplicate-version warnings |
+| Cached cargo-audit | Pass; [output](EVIDENCE-BUNDLE.json "bundled: audit-final.txt.gz"), 1,290 advisories, 227 packages |
 | Evidence recorder | Executes successfully; Ruff check/format pass on the new helper |
 
 Relative to the 370+2 baseline, there are **29 new unit/integration cases**
@@ -125,7 +125,7 @@ Earlier outcomes remain separate from final acceptance:
 - One integration-test compile had a duplicate mutable borrow; the corrected
   fixture uses a separately computed duplicate selection.
 - Relocating the cache left the password-worker test's compiled-in old path.
-  [Diagnosis](cache-path-diagnosis.txt.gz) proves it; only the owned core package
+  [Diagnosis](EVIDENCE-BUNDLE.json "bundled: cache-path-diagnosis.txt.gz") proves it; only the owned core package
   cache was cleaned. The corrected workspace run passed without source changes.
 - First strict Clippy found a redundant closure. Source review later found
   cleanup I/O flattening, corrected in `92a149d` with the new regression.

@@ -1,0 +1,28 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-18-snapraid-scrub-planning",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-18-snapraid-scrub-planning.tar.gz",
+    "size": 30190,
+    "sha256": "ae9af12704e3c68bc3e543aabf7cce48843c5d267bce359eb3a9032178a760c2",
+    "tar_sha256": "455c385a191ef91faee5b82983585cf30ade74de1302d5ba58676a6759e187fb"
+  },
+  "files": [
+    {"path": "Cargo.lock.gz", "size": 12668, "sha256": "ac12c286bd3cc7c63f212352b07c8a42fae2bb75e195acfda8f2e48e1d12ec4e"},
+    {"path": "baseline-protection.log.gz", "size": 948, "sha256": "f232b03cf8c4c9dc43be8c649afa472ad0d2cbbe632b4033d415475555276fe7"},
+    {"path": "cargo.txt.gz", "size": 56, "sha256": "7bc018033768d158a093cc64c2a1ee3ffb0e61fb25d206b9bf3923202395677c"},
+    {"path": "changed-paths.txt.gz", "size": 114, "sha256": "757214671f53f452072277b10c8ad13b0bba885bdb74a8563165d55344dbbd64"},
+    {"path": "clippy.log.gz", "size": 229, "sha256": "8fcb9e087c99e574778b20c5566864a026ad85415e9be344c9fdca8c07c3010c"},
+    {"path": "domain-tests.log.gz", "size": 4682, "sha256": "c4124d374da718bff121810b8d309cd2a41ce159d56298da18f4dd96a40ff542"},
+    {"path": "initial-domain-test-failure.log.gz", "size": 4732, "sha256": "940c6d002a34529c31c9aaa10c3fb7ffdfd5abdcc1699438ee292bac6d2b4186"},
+    {"path": "input-paths.txt.gz", "size": 484, "sha256": "88a7e9f74f6b95f6cfb65b4c19dc40ceb49a4b17b4fd217ffeb599cfa46a9477"},
+    {"path": "package-evidence.mjs.gz", "size": 1613, "sha256": "23de5e2bd1fd7d36d1de2b09c7cd26f6bed4ee3ef987343e4e8d41465a1387ee"},
+    {"path": "reference-source.txt.gz", "size": 59, "sha256": "90998cb9bc2568e3af85d4d7dbdd9c97de395dd7a9b2c1ce7fe62c4dcdc54e67"},
+    {"path": "rustc.txt.gz", "size": 167, "sha256": "1b56e58df6c1da76fd73cc92204c6850c5a87c6df52f86609a6eab19690f69cf"},
+    {"path": "rustfmt.log.gz", "size": 20, "sha256": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec"},
+    {"path": "second-fixture-failure.log.gz", "size": 4732, "sha256": "f94d01577038fc7dc22dd9c7700a6a3ccfc1412733134ef0dcee2034f3b2849e"},
+    {"path": "tested-source.txt.gz", "size": 60, "sha256": "3c442a985170b7f8566e9e27c0210cd4ef5efb2ff717dacc0e186870af0ae8c1"}
+  ]
+}

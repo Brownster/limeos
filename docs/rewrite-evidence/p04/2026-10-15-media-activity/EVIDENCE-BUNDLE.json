@@ -1,0 +1,37 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-15-media-activity",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-15-media-activity.tar.gz",
+    "size": 67301,
+    "sha256": "e9d7be864b0d7d6c30bd5ac40535c2a6bce3dc2400a78ba7b47bb745ac142032",
+    "tar_sha256": "1e513f254691f58e057cb6f777bef9b386e64980e88bb0638c8bbfab61601292"
+  },
+  "files": [
+    {"path": "cargo-metadata.json.gz", "size": 30181, "sha256": "0b88614d2342a8bd30397dd0c40e32143a70b0f5a4230d7385959db5495f3971"},
+    {"path": "clippy-final.log.gz", "size": 209, "sha256": "57ad1c0850e6cfd8f9b427097cff4cd1abe10f9867fcec5698b3f20e822d73e3"},
+    {"path": "clippy-harness-initial.log.gz", "size": 925, "sha256": "e79f118e53c923fe2f4cc7fbdbf22664443e6c8baaa535670d862b5705d6b5e5"},
+    {"path": "harness-stable.log.gz", "size": 113, "sha256": "574642a79a9d6c6fb1e83b94f84b2d624902476d8efdaf6a7f609130a58b8d59"},
+    {"path": "harness/Cargo.lock", "size": 16742, "sha256": "c4ac5a63512e191ababd9607d52b2c0f32e3bb7fd94b0e597d1c7d6f65b8e1bd"},
+    {"path": "metadata.json", "size": 16172, "sha256": "bbd5f4de962134d48b333c0520255c00bf0ff737791830ab606aeac8827b091b"},
+    {"path": "npm-tree.json.gz", "size": 1072, "sha256": "ff5dc7291756ffe48d4417fb1b6a3910cac872762ca7bcd8163cd4fd7d3b05d6"},
+    {"path": "package-evidence.py.gz", "size": 3410, "sha256": "2c1da0383e4886e5acc6e76bd62f79a55f3a3e6f2b550c503cbb1e9d768d43ad"},
+    {"path": "ruff-format.log.gz", "size": 45, "sha256": "afdae4b86058000c02acc699088589b28fbfe2ead39a424c4435b13464b2f494"},
+    {"path": "ruff.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "rustfmt.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "test-final.log.gz", "size": 3249, "sha256": "797198ac722487654d4f94d4f6b5c146618fe6532b15ea9d6a82b35047d5038e"},
+    {"path": "test-initial.log.gz", "size": 3525, "sha256": "d90523d6dc5671a0cac6002fbc750476600f29086314e452691b97eaa45e6ec1"},
+    {"path": "typescript.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "ui-final.log.gz", "size": 645, "sha256": "104fd26fa9468cfb8a52349261d15bc1859d49cb01992a6413f2ba0dfbb4ebbe"},
+    {"path": "ui-loader.log.gz", "size": 647, "sha256": "7062642d794ac31aa5cdc756601ac990805079b2b4375b1f6e43846575dbd912"},
+    {"path": "ui-partial-red-source.tsx.gz", "size": 2410, "sha256": "251f1bbc49dc8cf8f1f05be0d99abe2259b9463f601f2581794079f83348dafd"},
+    {"path": "ui-partial-regression-red.log.gz", "size": 1709, "sha256": "ea5c61ee263e28eafe55fd753387652ba5da8b6e884071daeaf491d2cea4792f"},
+    {"path": "ui-worker-check.log.gz", "size": 178, "sha256": "b1708a50da340c7e78280a3f435b66daeca02b00e7a358143154e4def87d6e28"},
+    {"path": "ui-worker-initial.log.gz", "size": 300, "sha256": "ca2226bae7073cbd3b8ad253722bf422bd9688bcc1f661dedc78582201851406"},
+    {"path": "wire-generation-initial.log.gz", "size": 977, "sha256": "d194923256b381e97450c0e0dadd5ae0f1f7a1f6a109c7aee917cd43ddbb8f82"},
+    {"path": "wire-generation-source.rs.gz", "size": 2929, "sha256": "0ef7c19d8eb085942f0a4b3b92094ef7642ee87b9f53f95014db4fe65e512d37"},
+    {"path": "wire-generation.log.gz", "size": 529, "sha256": "5840a166dc63a4672c083cdeefed2140026dc24f26b2c3b7f4fc76ce2b25b952"}
+  ]
+}

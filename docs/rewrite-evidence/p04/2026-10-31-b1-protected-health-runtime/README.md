@@ -24,7 +24,7 @@ the intended boundary. No normal scheduler or installed service was activated.
 Three existing child-entry helpers are ignored by the outer Cargo harness and
 invoked by passing isolated-process parents: the executor's journal-capacity
 probe and runtime bootstrap child, and storage's journal-descriptor probe.
-Child output is not counted a second time. [Source-match metadata](source-match.json)
+Child output is not counted a second time. [Source-match metadata](EVIDENCE-BUNDLE.json "bundled: source-match.json")
 records each final Cargo group, exact commits and all attempt results.
 
 Seven final guards have identical before/after maps covering 730 committed

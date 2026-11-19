@@ -1,0 +1,28 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/rw040-filesystem-binding",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-rw040-filesystem-binding.tar.gz",
+    "size": 142718,
+    "sha256": "9e474c08f90fa7e9a823ae0764826db16534eb99f1f0a63823e2ffd8a035fe85",
+    "tar_sha256": "01f858f055d5ed924deab0d706773e5f00bfac40ca264e50aa7daf74903e4b10"
+  },
+  "files": [
+    {"path": "cargo-audit.log.gz", "size": 136, "sha256": "7c7c21997df1426228b326860914dc898fb7c3ec64bfc836b49c1a863eb83143"},
+    {"path": "cargo-deny.log.gz", "size": 1997, "sha256": "b5c5b6769ad208e54259a184620d3c10ed2ac6df3f850698d6837cdb10e1bf8d"},
+    {"path": "ci-amd64.log.gz", "size": 52872, "sha256": "f4da7d04fb92f1363852f9091226e69645ca33ca1d39613d2c4b3ff560a08ac5"},
+    {"path": "ci-arm64.log.gz", "size": 50249, "sha256": "4c03140471d3c01ac61be59761a76ddde1de307f9bb66655478793781cb7756d"},
+    {"path": "ci-complete.json", "size": 33027, "sha256": "59fdf2b51713e4c7dd4009f75bba21c2bfc122ea32e6cef7c33ce4b367d8f743"},
+    {"path": "ci-dependencies-vm-result.json", "size": 18847, "sha256": "557ba71a814c293862f3d44ee06a85607deb63e0d1e5552021fd1b800bccbf61"},
+    {"path": "ci-native.json", "size": 16351, "sha256": "9f2c6fbd637e284909923f8ee6210212d3fa67b5a676a82076923101b619e12d"},
+    {"path": "ci-observation.json", "size": 33106, "sha256": "ff75ace165be78e31fc275cd66de5569e7b7d028b31f807d392fdfc5be5a460e"},
+    {"path": "ci-reference-vm-result.json", "size": 8681, "sha256": "0ffe0425ab87fe0e72a1a758c17697dbf897c7f14787e1c8db5b636cc448244e"},
+    {"path": "contracts.log.gz", "size": 166, "sha256": "166d3d2f9765da4f1ba2720f15955682e830fb2e0e7b370e0e5dd8251d645f36"},
+    {"path": "source-manifest.json", "size": 23128, "sha256": "17c76692c92511230b36696ad28ffca7b49ac87d69f001cfb58ac7e99a0a673b"},
+    {"path": "strict-clippy.log.gz", "size": 203, "sha256": "0d4eadc5f1c8b0d5cf6606486347d9067a6a6b06ccd68190a65b126dae661096"},
+    {"path": "unit-tests.log.gz", "size": 1938, "sha256": "05b265ae93ed83e9cfeeb0ade9a3f9cf1bf26bdf0438dfa56537db67adae248c"},
+    {"path": "workspace-tests.log.gz", "size": 8139, "sha256": "0bccda7e7bfa6da882a4fb93f7c06294ffd6c52d6dd2d983a89831b88a67f402"}
+  ]
+}

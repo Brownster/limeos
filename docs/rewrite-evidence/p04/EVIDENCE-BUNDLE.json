@@ -1,0 +1,32 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04.tar.gz",
+    "size": 100583,
+    "sha256": "48584e12855a82bc70347b9a277f2ca194a72514194fae0ca6304b3d50a1088a",
+    "tar_sha256": "66f8ff958b83325656d161786c316ccea3fb828aebdfbd6866df62bb56336c94"
+  },
+  "files": [
+    {"path": "approved-initial-package-vm-result-startup-console.txt", "size": 32984, "sha256": "88733987af70b8a44f0827f6ff90207f251f7d529c66f94f37a612080937bf7f"},
+    {"path": "approved-initial-teardown-vm-result-startup-console.txt", "size": 32980, "sha256": "4543dfa335841e219bcaa3cf04755b8e8079783ba9afe395cdb9cb570d3eb5b0"},
+    {"path": "approved-initial-vm-result.json", "size": 8305, "sha256": "0a0f06fee4fa97baafed1de10352f1529788d780a8796654f3f3bec953aacfed"},
+    {"path": "approved-restart-fixture-vm-failure.txt", "size": 12855, "sha256": "fe7c69aba1126b65101fabdbe4badf83dea90d6df1038d4868b04c290dd75cd0"},
+    {"path": "approved-restart-fixture-vm-startup-console.txt", "size": 32939, "sha256": "6a81b24ee666374f9b9d1a966e833662c070106be0d76797b6aaf5f46a3901ae"},
+    {"path": "approved-vm-failure.txt", "size": 12855, "sha256": "fe7c69aba1126b65101fabdbe4badf83dea90d6df1038d4868b04c290dd75cd0"},
+    {"path": "approved-vm-result-startup-console.txt", "size": 32939, "sha256": "6a81b24ee666374f9b9d1a966e833662c070106be0d76797b6aaf5f46a3901ae"},
+    {"path": "locks-vm-failure.txt", "size": 14229, "sha256": "8d0c11ccf4f21adaf3522859776b1436abc53dbd0fbe825597dd63ae5035bdd8"},
+    {"path": "native-ci-open-flags.json", "size": 13969, "sha256": "774958f21682a9d137ea990d95a949dff15abfc28cadd4778cdd0008947d7f53"},
+    {"path": "planning-diagnostic-vm-result-startup-console.txt", "size": 32974, "sha256": "8d2ecfc038676147a5d1ec87d208574f9c43884b8e9520687394e584e9ba4a7a"},
+    {"path": "planning-vm-result-startup-console.txt", "size": 32972, "sha256": "0fc8192b8f42f9ad38186efb2bdc2f5272e72483b8aae528bdf518bda4284227"},
+    {"path": "rust-contract-tests.txt", "size": 15460, "sha256": "5f59208b6f4bb3c58910c79b0abf991d5d5c0b0377a32aebb678ca4fa3c3fbdc"},
+    {"path": "rust-readiness-initial-tests.txt", "size": 15206, "sha256": "4309c3eaed6dffb8eb0787c38111c0c83cb6e97c8df749f9ed617c0698137936"},
+    {"path": "storage-approved-initial-source-sha256.json", "size": 19305, "sha256": "36029c75dd5c49765d211e5b8fe5eaef8159e55b18e879dcc162df967e4324c8"},
+    {"path": "storage-context-vm-result-startup-console.txt", "size": 32978, "sha256": "88dd9bfe5519e90b1573a9f2b102cb7ed2801fa7f5a0901b76c82da12c09cf71"},
+    {"path": "storage-permissions-vm-result-startup-console.txt", "size": 32980, "sha256": "7d877f278784dffb78407312b70ad11c16c3867f08e2c5015b35f316d69f7d0f"},
+    {"path": "storage-targets-initial-source-sha256.json", "size": 17329, "sha256": "c92a7b782803d179d07227a9279f565bacac5468edfc1aee3110c33a94ccaea5"},
+    {"path": "storage-vm-result-startup-console.txt", "size": 32976, "sha256": "9e465b0e26f99d3f5f1cd4086d6baa1f767f5c483facebede33513f010b29e28"}
+  ]
+}

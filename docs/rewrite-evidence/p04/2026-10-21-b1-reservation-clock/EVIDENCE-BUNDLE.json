@@ -1,0 +1,25 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-21-b1-reservation-clock",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-21-b1-reservation-clock.tar.gz",
+    "size": 338904,
+    "sha256": "8ef1ff74faeeb36c89c900743a9403e27a3ac3a243e52d5095c801b3b042e305",
+    "tar_sha256": "3ced3086c6024c8245031ff3c25dccfd2653fa2dca5c5c674e35fef4c4cd6d21"
+  },
+  "files": [
+    {"path": "checks/reservation-clock-clippy-1-output.log.gz", "size": 166, "sha256": "d8a25a34cecbde0d1729183d4724cfd517482d08bcf65e9ad3ac3e2e652ad3fe"},
+    {"path": "checks/reservation-clock-clippy-1-record.json.gz", "size": 65815, "sha256": "96ef912831b652b81bdcfe3782d025a4972135a5312bb7de0b28fe26999919b3"},
+    {"path": "checks/reservation-clock-format-check-1-output.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "checks/reservation-clock-format-check-1-record.json.gz", "size": 65770, "sha256": "da08951073250d4c38838256c0f8027c2575494ef0df6cf2d792c54d71d7401d"},
+    {"path": "checks/reservation-clock-persistence-all-1-output.log.gz", "size": 4042, "sha256": "7cc2431041184277c90afbcfba5c96ebb89414c007d0063f76b847185075bade"},
+    {"path": "checks/reservation-clock-persistence-all-1-record.json.gz", "size": 65789, "sha256": "f61611909703ac46974b66f3219d087d391897cc8cfe22e6c34fb6ad38615ad3"},
+    {"path": "checks/reservation-clock-tests-1-output.log.gz", "size": 114, "sha256": "6303aee9bf105c110314fe3577ddea37583bf6e4ef819f290562c8e232efa3fd"},
+    {"path": "checks/reservation-clock-tests-1-record.json.gz", "size": 65813, "sha256": "5842a725db07471b167e19ea09768d06268a69578a87c3a2426518e092e706ff"},
+    {"path": "checks/reservation-clock-tests-2-output.log.gz", "size": 1017, "sha256": "c9b39c0369e00fc88bacae05169070b3c7b9bc947cae6d41607d4b9a5fc0c280"},
+    {"path": "checks/reservation-clock-tests-2-record.json.gz", "size": 65805, "sha256": "b035fc966b5dfa167cfeabcc2603267b4ce6fa8a506ec2693f506126a4d364d4"},
+    {"path": "source.patch.gz", "size": 5219, "sha256": "237dad19eca9f6f787620f8dd2dce12c3beb0d6fdddfdf431448ac34f661835f"}
+  ]
+}

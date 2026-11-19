@@ -11,7 +11,7 @@ resolution and preserves its original response. See the
 The 19 new cases and focused rerun are already included. Full workspace acceptance
 enables the existing opt-in local worker fixture feature. **61 local ARM64 harness
 tests and six existing pinned parser cases pass**, with strict all-target feature
-Clippy, fmt, contracts and repository checks. [checks.json](checks.json) binds exact
+Clippy, fmt, contracts and repository checks. [checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") binds exact
 committed before/after source hashes, commands, environments and full merged logs.
 
 Sixteen new actual database cases cover session/task parity, ordinary/elevated scope,
@@ -54,7 +54,7 @@ and new durable operation-bound approval. Tasks cannot approve. Transport peer U
 and trusted protected catalog provenance remain composition-root responsibilities.
 
 Query-only tests and API read-state comparisons prove no logical Store mutation,
-including approvals and claims. [compatibility.json](compatibility.json) binds
+including approvals and claims. [compatibility.json](EVIDENCE-BUNDLE.json "bundled: compatibility.json") binds
 unchanged schema-9 DDL, contracts, dependency manifests and lockfile. No migration,
 new route, executor request, job, approval acquisition/consumption, resource claim,
 stack/storage lock, host write, recovery or shutdown is added. Root broker/transport,
@@ -74,7 +74,7 @@ the earlier 07:00 return boundary; no replacement is authorized. No Pi, SSH,
 production Docker, raw block probe, guest, reserved backup or external qualification
 path was used. Guards remain 256 FDs/64 MiB/zero swap/16 tasks.
 
-[source-manifest.json](source-manifest.json) binds 359 source/fixture/
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 359 source/fixture/
 contract/script files. Fixed-timestamp gzip retains every log byte with raw and
 compressed hashes; [artifact-sha256.json](artifact-sha256.json) binds this packet.
 Reproduce with retained helpers and fresh work/log/output paths, compiling storage

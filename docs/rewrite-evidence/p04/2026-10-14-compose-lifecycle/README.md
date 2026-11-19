@@ -10,7 +10,7 @@ and [interface guide](../../../p04-compose-lifecycle-proposals.md).
 The 16 new cases and focused rerun are already included. Full workspace acceptance
 enables the existing opt-in local worker fixture feature. **61 local ARM64 harness
 tests and six existing pinned offline parser cases pass**, plus strict all-target
-feature Clippy, fmt, contracts and repository checks. [checks.json](checks.json)
+feature Clippy, fmt, contracts and repository checks. [checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json")
 binds commands, environments and exact before/after source hashes to full merged logs.
 
 Fourteen new authenticated owned-listener cases cover add/change/remove/no-op source
@@ -68,7 +68,7 @@ reserved backup or external qualification path was used. Guards stay 256 FDs/64 
 zero swap/16 tasks. Historical inventory p95 61.401 ms still exceeds the 20 ms target.
 No P04/defect/performance/cutover gate closes.
 
-[source-manifest.json](source-manifest.json) binds 352 source/fixture/
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 352 source/fixture/
 contract/script files. Fixed-timestamp gzip preserves every log byte with raw and
 compressed hashes; [artifact-sha256.json](artifact-sha256.json) binds this packet.
 Reproduce using retained helpers with fresh work/log/output paths; compile storage

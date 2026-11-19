@@ -1,0 +1,25 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/rw040-source-descriptors",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-rw040-source-descriptors.tar.gz",
+    "size": 127584,
+    "sha256": "20d51e779900e9b7d54846ae3af6685d64eb7e52dc297f0a8c114f9a7b20976c",
+    "tar_sha256": "4ce58d6f0d9746b2f18e66c9ebcb687b623b876c4511576d8447e820cb81f2d7"
+  },
+  "files": [
+    {"path": "cargo-audit.log.gz", "size": 136, "sha256": "7c7c21997df1426228b326860914dc898fb7c3ec64bfc836b49c1a863eb83143"},
+    {"path": "cargo-deny-sandbox-failure.log.gz", "size": 166, "sha256": "306bac88de5e78dfb915af85f1f1d593b8bf2f8e420deee7c4b9f9ffd0d3d031"},
+    {"path": "cargo-deny.log.gz", "size": 1997, "sha256": "b5c5b6769ad208e54259a184620d3c10ed2ac6df3f850698d6837cdb10e1bf8d"},
+    {"path": "ci-amd64.log.gz", "size": 52466, "sha256": "ad0dd3487222b1989b63cf76b2f93a16d5a69761be07806a6ce97bd53bfcd8da"},
+    {"path": "ci-arm64.log.gz", "size": 49696, "sha256": "fe678d5469eccd56bdb2e1f45fe6b8911afb4c79c34570a328e1c7b18c76dc62"},
+    {"path": "ci-complete.json", "size": 15555, "sha256": "296d6230da100ac4c16fe72946998db5a3bb63ecfb1d8d7a97a8f0c72b1848cf"},
+    {"path": "contracts.log.gz", "size": 167, "sha256": "e7b55cc7f27a5b14a030f4be76df7f44ea8c879f9f5947c9ce3ec3ab1d89fe40"},
+    {"path": "directory-regression-before-fix.log.gz", "size": 444, "sha256": "2b62e099553094021eaf3f1454a251d5693940d11a415e334015ffdd3a5c2583"},
+    {"path": "source-manifest.json", "size": 31219, "sha256": "f691e12085be7c2eb5e35b548f7edc6e7ce2b48189e7084465ac5405ef64db17"},
+    {"path": "strict-clippy.log.gz", "size": 170, "sha256": "c0cb3575f55db03e72fd96de97b5a51636a99fe175c631df1b98c82cdc9bb16d"},
+    {"path": "workspace-tests.log.gz", "size": 7684, "sha256": "d45cf19c424af45aaefb7512f6e2f21884afc608fc5ef27bae5b66ba07a83517"}
+  ]
+}

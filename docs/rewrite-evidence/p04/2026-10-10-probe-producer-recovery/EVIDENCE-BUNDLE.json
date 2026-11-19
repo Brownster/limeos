@@ -1,0 +1,28 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-10-probe-producer-recovery",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-10-probe-producer-recovery.tar.gz",
+    "size": 139183,
+    "sha256": "9e5a6b89e38762bdb0edad47b35ad9511e45bc1c3eafb7bc2e7a307b8b2c7004",
+    "tar_sha256": "be21877330befd1ed049bcec80ddf9d5736dc157d8c12d2c8e311053964b423b"
+  },
+  "files": [
+    {"path": "failed-build-diagnostics/compiler-messages.jsonl.gz", "size": 9926, "sha256": "555378b17e05d6a81dc8f541dfa0bb4052009dd5378fde32d861619db8183d91"},
+    {"path": "failed-build-diagnostics/compiler-stderr.txt.gz", "size": 1512, "sha256": "4cf76a321edfc65d4665cac31aa3eb9ba6cf9f015243affdaf0c18583b55470d"},
+    {"path": "failed-ci-38075054820/ci-amd64.log.gz", "size": 58614, "sha256": "e6001406fdefd44041045d88d307194e8db4c0500b1e439f51a697a1ce96f42b"},
+    {"path": "failed-ci-38075054820/ci-arm64.log.gz", "size": 55840, "sha256": "c8524a79f60e17edb3f15de599bb92c8dab84cc1613b6d9e832ea695d89acc15"},
+    {"path": "failed-ci-38075054820/ci-complete.json", "size": 33672, "sha256": "9fec419cc081cc987f657dcc6b97f9da78da674e3661f613c0ba4c2a8a3024d8"},
+    {"path": "failed-ci-38075054820/ci-summary.json", "size": 11194, "sha256": "736ecfe4808ebb5809da8e5dcc24d65e8b3d8e173155018a5f5f17b84dfa60ea"},
+    {"path": "failed-ci-38075054820/status-20261010T182607Z.json", "size": 31241, "sha256": "d0b082c11434cd16733673a72be922bad3b678d7e1230784cb2d4328dfd25238"},
+    {"path": "failed-ci-38075054820/status-20261010T183017Z.json", "size": 33672, "sha256": "9fec419cc081cc987f657dcc6b97f9da78da674e3661f613c0ba4c2a8a3024d8"},
+    {"path": "local-logs/after.log.gz", "size": 54, "sha256": "59b52945da6446f8ca7e20e7cf392e58d36654387d1819f4b7ef83535d4ecbff"},
+    {"path": "local-logs/before.log.gz", "size": 457, "sha256": "6beafc667fe4046418351ae3b0df6dc5902ab5322ef89f5c56c38e39906e226e"},
+    {"path": "local-logs/diff.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "local-logs/reference.log.gz", "size": 55, "sha256": "438f508e62e6d519b645ac18c30f18b470a5733062f761a9495f519df4cc6770"},
+    {"path": "local-logs/repository.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "local-logs/source-unchanged.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"}
+  ]
+}

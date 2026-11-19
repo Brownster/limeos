@@ -1,0 +1,39 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-11-07-resolution-browser-vm",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-11-07-resolution-browser-vm.tar.gz",
+    "size": 2825682,
+    "sha256": "6a6f94c2da48d66729525e081344052312d262da5093789e688d0971976884ad",
+    "tar_sha256": "7235ef521293087b49722dc6aeac888ca57a67777a99c47c22c253c28db40093"
+  },
+  "files": [
+    {"path": "raw/final-run-output.log.gz", "size": 822, "sha256": "d8ed145be12dca1c113480e45b1b7caca680be3e9a2dd65828def8efb13159a4"},
+    {"path": "raw/first-run-output.log.gz", "size": 1953, "sha256": "602325b129484f5ff596c4cbe40b7c179a9c10e9fccede01fe83eab755cec65a"},
+    {"path": "raw/first-run-packaged-ui-result.json.gz", "size": 6146, "sha256": "5d1396d1053d20fe512efd29ea63445d42c3a547365d86b869cababa32a3ef5f"},
+    {"path": "raw/result.json", "size": 50368, "sha256": "d594c836a2c0fb10725e4edbd06e31bee125067c2c62be2407d21b39fb908cc1"},
+    {"path": "raw/second-run-result.json.gz", "size": 5643, "sha256": "48cbc5e0cb83d0a952bab4f3ebf7f5d12a025b398a7fadca2b568c125d0250ab"},
+    {"path": "screenshots/01-banner-containers-admin.png", "size": 101459, "sha256": "fed5d3fe46e76fc6f556fc1b0b235d3f568733cec567ad03b888039c5ef9703e"},
+    {"path": "screenshots/02-banner-stacks-admin.png", "size": 110620, "sha256": "e6bd14d4970cd74a829f9c8aaa64152d39547d6e2f03f26c704c874d3b1e2b66"},
+    {"path": "screenshots/03-banner-containers-operator.png", "size": 95853, "sha256": "c3a6affa34c043ffa2e956f509978f73ed4ed30c64257ebea63d3fb491564114"},
+    {"path": "screenshots/04-banner-stacks-operator.png", "size": 105174, "sha256": "2f3af276ae6c762e1671e60cc877c7ea3e002f979990536e20c03f26d86cda2e"},
+    {"path": "screenshots/05-dialog-open-container.png", "size": 176302, "sha256": "fc4f26f36fa20aea025d5efdbf561b1453a4f7977889ec29f9fddef8d2f7df00"},
+    {"path": "screenshots/06-evidence-stack-three-targets.png", "size": 192360, "sha256": "a92b2acbcf133de5bc01a28154dcd66d32a62ccdd965d8499eead1f7a75603e9"},
+    {"path": "screenshots/06a-evidence-container.png", "size": 176312, "sha256": "bffec3cc91c97b518802d96989bf90a2bae05fe88fd72e8cd73f33c0045befd6"},
+    {"path": "screenshots/07-disabled-outcomes-d3.png", "size": 191552, "sha256": "abd667520af4c166c3ec76bfd3da79d03bbe44facdf09c552ef072d03b8f44bb"},
+    {"path": "screenshots/07-disabled-outcomes-n1.png", "size": 154019, "sha256": "0a88efaea02b5041561f3c796ca5d181a091cc3243bd5ba2c18266345dcafda3"},
+    {"path": "screenshots/08-divergence-short-reason.png", "size": 181464, "sha256": "c4ce9a3b806c5d1e0c41d06dd8bedd78daae3a74fdabe83da2f3e7af785436e3"},
+    {"path": "screenshots/09-divergence-confirm.png", "size": 194948, "sha256": "bec16f65d5d623bb0b901bdc5ec338b814df65007274434c6e80341800a45202"},
+    {"path": "screenshots/10-ordinary-confirm.png", "size": 163886, "sha256": "174c217b6f060fd4aa26c9e50a53bb7e6391c3113b645917277f2785e40b4c7d"},
+    {"path": "screenshots/11-wrong-password.png", "size": 179836, "sha256": "57942dad1e3a18e6265e1089d321c48bac3b46055ae7d73a81f6c922f2d4022a"},
+    {"path": "screenshots/12-stale-evidence-refreshed.png", "size": 152622, "sha256": "99d234997f78eb81dfdd71a8f4e38a140666464db03e9fa6237e76f0eee0ee36"},
+    {"path": "screenshots/13-resolved-record.png", "size": 122240, "sha256": "9bbb769ed0f71c09e9e786b2914138a419abade48b57f2dd6706c1006c4c56e7"},
+    {"path": "screenshots/14-banner-after-resolve.png", "size": 114435, "sha256": "8bc092e1a8ba707cbc33dbfb638e3aa62c274c02244e8925aa6930669ad834e6"},
+    {"path": "screenshots/15-pending.png", "size": 195507, "sha256": "b14076ba00caabfbabbf8efe16f2690b7c0bc09dd3dd9c78db3353c0cd913943"},
+    {"path": "screenshots/16-pending-then-resolved.png", "size": 129844, "sha256": "af89be4b9a0b533a5860092d376e11dd8ec45914468bb3e28af94ebd4db63ec0"},
+    {"path": "screenshots/17-keyboard-resolved.png", "size": 129155, "sha256": "c7452deb26ad3743b79c9a87966fffd874e1cdb6fc2747dcdde31371772c46de"},
+    {"path": "screenshots/18-stack-divergence-resolved.png", "size": 122425, "sha256": "0c2b5134713c3e2ed58d102c98505d848cf6586d6fa0f886e124f15e6b368716"}
+  ]
+}

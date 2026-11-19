@@ -1,4 +1,0 @@
-$ /usr/lib/limeos/limeosctl migrate import-users --env-file /root/bad.env
-password values must be Werkzeug scrypt or PBKDF2-SHA256 hashes
-
-[exit 1]

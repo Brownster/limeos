@@ -1,0 +1,25 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-15-host-prerequisites",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-15-host-prerequisites.tar.gz",
+    "size": 4401,
+    "sha256": "aa1a4b50e12889d2b406bae599f9abcafb8e799cfe77d09298d1ae3922f8cacb",
+    "tar_sha256": "f1ea8dae90e0d445460251599ab660bad94c79e885ad0ed0a832e1c435a7c636"
+  },
+  "files": [
+    {"path": "clippy-final.log.gz", "size": 176, "sha256": "b619e0dd5c5a80c86eb1a3212d60e4afde917fd8d351c95c9123f4442e9b53c2"},
+    {"path": "fmt-final.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "journal-cr-red.log.gz", "size": 631, "sha256": "7e3296be200753abadb9ed293bf0cee1106e60c617f654185ad5e4a9c465d59f"},
+    {"path": "kernel-alias-green.log.gz", "size": 369, "sha256": "a44660a0a9ea75ab56a0f3023c97ddeb0d4d467a4791ed89d2bb44da1cad7700"},
+    {"path": "kernel-alias-red.log.gz", "size": 789, "sha256": "5ff1811b497d0c08ce6783647c76105de6262db23422bf0685a8be45ca583041"},
+    {"path": "kernel-separator-green.log.gz", "size": 363, "sha256": "7fe4f92a29fa0efabd3ba1ca23501f1d4f731b70993c401e0931f414583f1b70"},
+    {"path": "kernel-separator-red.log.gz", "size": 622, "sha256": "7b30387514d36f92151b77cf2e5066a7d6e4e75c23fb43e8c8ef5a86dd919bbd"},
+    {"path": "prepare.log.gz", "size": 189, "sha256": "6b7956d70cdc5e6f4c29c82ed80929c321c57f856ca4686ded82edf5c5b0b97b"},
+    {"path": "python-format.log.gz", "size": 45, "sha256": "afdae4b86058000c02acc699088589b28fbfe2ead39a424c4435b13464b2f494"},
+    {"path": "ruff.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "test-final.log.gz", "size": 731, "sha256": "47ffe1692d058f9eb11e94eae63fb6cd2e2043369f29c174a4b4eee0a05a16e7"}
+  ]
+}

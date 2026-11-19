@@ -14,7 +14,7 @@ The 15 new cases and four-case focused rerun are already in that total.
 Workspace tests enable `limeos-executor/read-worker-probe`; both fixture binaries
 remain disabled by default and absent from the explicit packaging list.
 **61 local ARM64 harness tests pass**, plus strict all-target Clippy, fmt,
-contract and repository checks. [checks.json](checks.json) records commands,
+contract and repository checks. [checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") records commands,
 environments, runtime hashes and complete merged stdout/stderr transcripts.
 Documentation changes during validation altered no runtime source.
 
@@ -65,7 +65,7 @@ compiled there before small owned, auto-cleaned tmpfs runtime scratch. Their
 guest launch was used. Reserved backup and external qualification paths stayed
 untouched.
 
-[source-manifest.json](source-manifest.json) binds 320 source, fixture,
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 320 source, fixture,
 contract and script files to the committed runtime. Fixed-timestamp gzip preserves
 full log bytes with raw/compressed hashes; [artifact-sha256.json](artifact-sha256.json)
 binds the packet. Reproduce with fresh disk logs using the retained helpers;

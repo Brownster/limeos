@@ -1,7 +1,0 @@
-$ /root/limeos-src/scripts/cutover/preflight.sh --out /var/lib/limeos-cutover/no-catalog --managed-file /root/managed.txt
-snapshot: /var/lib/limeos-cutover/no-catalog
-WARN: Jellyfin playback could not be checked without credentials (HTTP 000); check the dashboard by hand
-REFUSED: stack management catalog: /etc/limeos/management-catalog.json is missing; generate it with: /usr/lib/limeos/limeosctl migrate propose-catalog --out /root/management-catalog.proposed.json --install (or review the proposal, then: install -o root -g root -m 0644 /root/management-catalog.proposed.json /etc/limeos/management-catalog.json)
-ERROR: preflight refused; nothing was changed
-
-[exit 1]

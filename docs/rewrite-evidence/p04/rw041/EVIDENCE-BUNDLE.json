@@ -1,0 +1,16 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/rw041",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-rw041.tar.gz",
+    "size": 8298,
+    "sha256": "ff90a4b5f00fb9ac7e4a95b1e3cba8bba581e34cc9a7fae94716dff7c5640fa1",
+    "tar_sha256": "9a418a51d1db2a7b18b366346fa4619569ec8fdfd0be06d535be5f382aecbd8f"
+  },
+  "files": [
+    {"path": "integration-rust-tests.txt", "size": 23563, "sha256": "55e85bdee8b8da62faaea70275a241b6ce9b27e10a94210799d1677b5ced991c"},
+    {"path": "rust-tests.txt", "size": 23921, "sha256": "8289073742ee303d71d1b1cd6b98a4cad3c7bee374db90c0463293c84952d1b0"}
+  ]
+}

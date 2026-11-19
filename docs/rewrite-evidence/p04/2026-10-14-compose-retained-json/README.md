@@ -11,7 +11,7 @@ and [interface guide](../../../p04-compose-retained-json.md).
 The 24 new cases and focused rerun are already included. Full workspace checks
 enable the existing opt-in local worker fixture feature. **61 local ARM64 harness
 tests and six existing independent offline parser cases pass**, with strict feature
-all-target Clippy, fmt, contracts and repository checks. [checks.json](checks.json)
+all-target Clippy, fmt, contracts and repository checks. [checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json")
 binds commands/environments/exact-source hashes and complete merged stdout/stderr.
 
 Five file-body cases cover actual held bytes, original issue/FD/read ledger,
@@ -70,7 +70,7 @@ daemon endpoint. No Pi, SSH, production Docker, raw block probe, guest, reserved
 backup or external qualification path was used. Guards stay 256 FDs/64 MiB/zero swap/
 16 tasks. Historical inventory p95 61.401 ms still exceeds the 20 ms target.
 
-[source-manifest.json](source-manifest.json) binds 349 source/fixture/
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 349 source/fixture/
 contract/script files. Fixed-timestamp gzip preserves every log byte with raw/
 compressed hashes; [artifact-sha256.json](artifact-sha256.json) binds this packet.
 Reproduce against qualified source using retained helpers and fresh work/log/output

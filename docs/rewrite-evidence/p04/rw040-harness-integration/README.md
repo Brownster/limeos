@@ -35,7 +35,7 @@ record pre-capture failures and the aborted approval honestly; none is counted
 as final qualification.
 
 All **111 entries** in the frozen engineer evidence still verify; their exact
-identities are retained in [identities.json](identities.json). The historical
+identities are retained in [identities.json](EVIDENCE-BUNDLE.json "bundled: identities.json"). The historical
 14 tool stages and 17 blocked acceptance rows are unchanged.
 
 No guest, workstation Docker, SSH, wybie or Pi operation ran. No Rust source,

@@ -30,8 +30,8 @@ and unfinished backup-bound recovery are excluded. P04 and cutover remain open.
 | Genuine previous version/schema | `0.4.7+arm64.1` / 8, source `8acac403e32d3692b028a036a11f4fead2050580` |
 | Unchanged previous `.deb` SHA-256 | `6c86199b253e155c94d96e1395c069c4188e11a2379f14eff97eacab0203b898` |
 
-The [source manifest](source-manifest.json) pins 1818 source files, 42 fixtures and
-three frontend files. [Build input](build/build-result.json) binds every binary,
+The [source manifest](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") pins 1818 source files, 42 fixtures and
+three frontend files. [Build input](EVIDENCE-BUNDLE.json "bundled: build/build-result.json") binds every binary,
 original and candidate package, full payload inventory, CI observation, builder,
 fixture, comparison log and repository file. [Handoff metadata](preparation/handoff.json)
 records the exact disk paths. Large ZIP/bundle/package bytes stay in the prepared
@@ -65,13 +65,13 @@ upgrade has occurred. The disposable key lasts two days, and the repositories
 expire after seven days. Refresh test signatures before expiry without changing
 the package bytes. Private signing material is excluded from this packet.
 
-[Captured Debian tests](validation/broad-probe/debian-python311-harness.log.gz)
+[Captured Debian tests](EVIDENCE-BUNDLE.json "bundled: validation/broad-probe/debian-python311-harness.log.gz")
 pass 61 cases, including the original 41 plus 20 CI/provenance regressions with
 many malformed-input subcases. [Scoped checks](validation/scoped/checks.json)
 pass Ruff checking/formatting on all seven changed Python files, repository
 hygiene and actual offline build validation. A wider Ruff probe reports two
 pre-existing `timezone.utc` aliases in untouched `native_vm.py`; its failed
-[raw log](validation/broad-probe/ruff-check.log.gz) is preserved. Host guards and
+[raw log](EVIDENCE-BUNDLE.json "bundled: validation/broad-probe/ruff-check.log.gz") is preserved. Host guards and
 deadline supervision were not changed. Raw command logs use lossless gzip; the
 [evidence index](evidence-sha256.json) binds all packet files.
 The two uncompressed ARM64 apt indexes use their original `Packages.gz` copies

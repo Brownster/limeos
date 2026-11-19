@@ -11,7 +11,7 @@ and [interface guide](../../../p04-process-read-admission.md).
 **602 Rust cases pass:** 589 unit/integration cases and 13 compile-fail doctests.
 The 13 new focused cases and separate measurement reruns are already included.
 **61 local ARM64 harness tests pass**, with strict all-target workspace Clippy,
-fmt, contract and repository checks. [checks.json](checks.json) binds commands,
+fmt, contract and repository checks. [checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") binds commands,
 environments, exact runtime hashes and both transcript hashes. Only successful
 checks on the frozen committed source are acceptance evidence. One precommit
 boundary fixture had an extra separator; it was corrected without changing the
@@ -35,7 +35,7 @@ cleaned tmpfs directory. Its 50 ms samples observed a lower-bound peak of
 Docker or raw workstation storage probe was used. The reserved backup recovery
 worktree stayed untouched. Existing service/kernel/capability guards remain.
 
-[source-manifest.json](source-manifest.json) binds 302 source,
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 302 source,
 fixture, contract and script files to the qualified commit. Gzip with a fixed
 timestamp preserves every stdout/stderr byte; original and compressed hashes
 are retained. [artifact-sha256.json](artifact-sha256.json) binds the packet.

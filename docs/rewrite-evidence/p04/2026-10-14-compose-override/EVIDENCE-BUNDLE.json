@@ -1,0 +1,28 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-14-compose-override",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-14-compose-override.tar.gz",
+    "size": 244953,
+    "sha256": "a8426571c1fd45260b92e54e9ad2fa16986968cfdb544c90e5186880fa554df0",
+    "tar_sha256": "2b3c5acdeb2cfc311f6f7cdcac6c8b41096cfb2c476d16242bc70c9cd9c36287"
+  },
+  "files": [
+    {"path": "arm64-harness.log.gz", "size": 427, "sha256": "7434d1a74d6fcc8b44e08bbe806038db3d23a913ab012a75b0eb994bcc28ad9f"},
+    {"path": "checks.json", "size": 467856, "sha256": "6b8bfe1bdd10be5c4b3dbea95baf9050545489440b09e5370e4cd6db1cdeabf0"},
+    {"path": "clippy.log.gz", "size": 365, "sha256": "ff730175490df868f410680e783e80fdd1af94b167d2c0cc58b092ce41846aaa"},
+    {"path": "compiler-focused.log.gz", "size": 900, "sha256": "9e42e6f4b522863d9bd9d3b130861ea4410991d9f01b6e75c0224a075892e1bf"},
+    {"path": "compiler-initial.log.gz", "size": 4171, "sha256": "988987134dd4ecfb55e76a67c07c20b94ab78e099dc8e6050837d89c78dcd0be"},
+    {"path": "compiler-reviewed.log.gz", "size": 4190, "sha256": "7d6b9f976a2152da59a3378152704b454d143c5d467f62d11e5387c99d3960d0"},
+    {"path": "contracts.log.gz", "size": 299, "sha256": "727b0a56ca655f347708412282525b40c1223faa3b7a6e131974b9638c4d7a63"},
+    {"path": "fmt.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "package-compose-override.py", "size": 12023, "sha256": "d9965ac02f9cdeb8f2b908eddbe6ab316cb1d6f83114dd47d0499638b3cf5b0d"},
+    {"path": "repository.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "source-manifest.json", "size": 39629, "sha256": "5e0710fbb4c3fbb52f92e6b6e1cedba3aa29faed57d7c410250e884927065d03"},
+    {"path": "storage-compile.log.gz", "size": 272, "sha256": "da2a637e31011c8fddd9f4b31dcd72e17a48c264e002fe15c20b702a21fdae10"},
+    {"path": "storage-fixtures.log.gz", "size": 5256, "sha256": "2fa5c082aa5573a274b182ca678d9a4ce03a51c6db1933726473279c531c6c9b"},
+    {"path": "test-rest.log.gz", "size": 16497, "sha256": "9ac9090a2fa644e05851999bf929f249361302650756ebf9e0bdd5517915e432"}
+  ]
+}

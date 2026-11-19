@@ -1,0 +1,28 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-15-image-content-admission",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-15-image-content-admission.tar.gz",
+    "size": 19164,
+    "sha256": "9751f178f6f4a66daf629236f5360f33085ad4c7dfebf06b05885c239c393014",
+    "tar_sha256": "969740accf057e3c798563f243f39a23e3e4431effa42e69f19624ed85ef47a7"
+  },
+  "files": [
+    {"path": "clippy-before-raw-layer.log.gz", "size": 558, "sha256": "f30832c91baf0de3bf18e61bf4dd210579ac652ea39c557f5a34424462665b0b"},
+    {"path": "clippy-final.log.gz", "size": 91, "sha256": "296c2980c4ed5f26ed50d2566f2563b9e22827370e691e7ec480bc5cd7903462"},
+    {"path": "clippy-queued.log.gz", "size": 364, "sha256": "1d31093c157ef24fb49c28554b26c9cea2a5aabffb80c9c1f09e1eef45dec091"},
+    {"path": "harness/final/Cargo.lock", "size": 9040, "sha256": "e565a4cac968ba1e48ad2af4515fa2e19a504131cb69c7eb738c234901641d96"},
+    {"path": "make-fixtures.py.gz", "size": 1105, "sha256": "d304e855cabd2b6357fa2627d77e8530c99ceb72bd05ba279e3f6743af6b37b0"},
+    {"path": "metadata.json", "size": 11796, "sha256": "6e7e13f493b7173cb720e0e0bf3bc02d04ae3cc78db5cd4976ddc8b0efe01d07"},
+    {"path": "python-format.log.gz", "size": 45, "sha256": "afdae4b86058000c02acc699088589b28fbfe2ead39a424c4435b13464b2f494"},
+    {"path": "raw-layer-red.log.gz", "size": 1035, "sha256": "08653d59d1a7ee7b60ffd803423332885666e9536be7fef6d9e8660c805a16d0"},
+    {"path": "root-regression-green.log.gz", "size": 1135, "sha256": "ef32f3c9499af7e61d9680ddcec3964d06618178e39118e8e370ea7dcea2657f"},
+    {"path": "root-regression-red.log.gz", "size": 880, "sha256": "aea466f80bc85dfeae58f65a611a775ff3d9eda1cc5f5523b7c75dd1af083443"},
+    {"path": "ruff.log.gz", "size": 39, "sha256": "f3af4d142827f5aad2eb0c72d556d325488a57fb6219aac10afeb51085667d53"},
+    {"path": "rustfmt.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "test-final.log.gz", "size": 2381, "sha256": "3d11edb23b49579c9bdc7d292c90f26decf75f924b428840d53ab140c20fab0b"},
+    {"path": "test-first.log.gz", "size": 2315, "sha256": "69b374319ba2800be86c441d8ea06b7d825858c8f069a9d71e4509d39f23f228"}
+  ]
+}

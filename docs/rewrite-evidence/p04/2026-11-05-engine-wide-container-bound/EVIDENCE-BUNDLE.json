@@ -1,0 +1,16 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-11-05-engine-wide-container-bound",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-11-05-engine-wide-container-bound.tar.gz",
+    "size": 4045,
+    "sha256": "48de2d5c5718a46b27cacb44219ea330aab91cb5d22283424ada692f642ba851",
+    "tar_sha256": "4ec57a487687b9e01b9de43488f6d522e9b165b5b355e8fcd81c6832c0b0fa70"
+  },
+  "files": [
+    {"path": "raw/scale-1-output.log.gz", "size": 1908, "sha256": "fbdcdafeb3ee9bc515056c84dee249164cc96b27866c8fcfbe200c7cf8de5e1f"},
+    {"path": "raw/scale-2-output.log.gz", "size": 1890, "sha256": "a9f289477f90e6c8769c928df5258c0f1aec01cd2f31b4c9928c969c80776a74"}
+  ]
+}

@@ -10,8 +10,8 @@ operator-role user, because job lists are per principal (see Findings).
 
 The UI under test is `frontend/dist` built from `f5d8d5a` and copied over `/usr/lib/limeos/ui` in the guest
 (`run.py --guest-file`; the package copies `frontend/dist` verbatim, so this equals repackaging; both hash sets are in
-[result.json](raw/result.json) under `ui_sha256` and `packaged_ui_sha256`). Final run: [result.json](raw/result.json),
-12 of 12 cases pass; screenshots in [screenshots/](screenshots/) (viewport PNGs, password field asserted empty first).
+[result.json](EVIDENCE-BUNDLE.json "bundled: raw/result.json") under `ui_sha256` and `packaged_ui_sha256`). Final run: [result.json](EVIDENCE-BUNDLE.json "bundled: raw/result.json"),
+12 of 12 cases pass; screenshots in [screenshots/](EVIDENCE-BUNDLE.json "bundled: screenshots/") (viewport PNGs, password field asserted empty first).
 
 ## Cases
 
@@ -36,7 +36,7 @@ The UI under test is `frontend/dist` built from `f5d8d5a` and copied over `/usr/
    - After a resolution the focused "Resolved" heading follows the dialog's only control, so Tab left the modal for the browser chrome (`containFocus` only wrapped at the first and last control).
    - Closing the dialog of a resolved job dropped focus on `<body>`, because the opener (the banner button) had been removed. Focus now goes to the banner heading, or the jobs heading when the last entry is gone.
    - The container and stack banners used the same `id="attention-heading"` (both are on the stack page): now unique.
-   First run (original packaged UI): cases 9 and 11 failed on these; [first-run-packaged-ui-result.json.gz](raw/first-run-packaged-ui-result.json.gz).
+   First run (original packaged UI): cases 9 and 11 failed on these; [first-run-packaged-ui-result.json.gz](EVIDENCE-BUNDLE.json "bundled: raw/first-run-packaged-ui-result.json.gz").
 2. `f5d8d5a` (cosmetic): the confirmation summary's labels touched its border; padded.
 
 ## Findings not fixed

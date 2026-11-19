@@ -1,0 +1,37 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-14-compose-management",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-14-compose-management.tar.gz",
+    "size": 416773,
+    "sha256": "b264f29e56bb54fa57a6b989ca742b659281482a99319428770acb89e63183c5",
+    "tar_sha256": "983f865bc326aac6c6e53d61d9725ba351e3e18f53a039338ca70164c6635cc2"
+  },
+  "files": [
+    {"path": "arm64-harness-final.log.gz", "size": 427, "sha256": "895d1b2029de9f44002ef0b782ca048ff0b376418784e1865ca17aaeb6b22e60"},
+    {"path": "arm64-harness.log.gz", "size": 428, "sha256": "5e7211263d5d4da0bd175efd2b18895a96f072a1d588ab0f5929712e92275da7"},
+    {"path": "catalog-diagnostic.log.gz", "size": 390, "sha256": "9bad916fb1509afc95b4f5ac15f5ed15374f74fe5cf38de47963a477588a5a4e"},
+    {"path": "checks.json", "size": 841307, "sha256": "b33637ab86e8d53673da97e2d5e40f3638e2db88740a5889429b75f9baa27a41"},
+    {"path": "clippy-final.log.gz", "size": 182, "sha256": "006c732acc3536f43f1910a92d9d40fe2d0143c08642a45c2d3526aa92b042d1"},
+    {"path": "clippy.log.gz", "size": 367, "sha256": "611ea4156f294d46f7b25e23980b471b7d452d3b7c34f3a4d9936958fb37d267"},
+    {"path": "contracts-final.log.gz", "size": 302, "sha256": "6472f0b69651083a6aabe8b5d25ccd309a941dc28588214382f5f7dd1b9119c1"},
+    {"path": "fmt-final.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "fmt.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "management-focused-final.log.gz", "size": 1314, "sha256": "95fda3db66486886bbe246de526c6cdfe7e102de3ad3c844b49571eff68190a6"},
+    {"path": "management-initial.log.gz", "size": 4403, "sha256": "45c93c4bb65caf5cacdc9ed730ea5545e1b6ca46587e616d6caaa2d354ac335a"},
+    {"path": "management-reviewed.log.gz", "size": 4348, "sha256": "38f65ee1a7985645d6b8181807ee37240ae4a0e275499e8157a4f383e0951017"},
+    {"path": "package-compose-management-v1.py", "size": 15143, "sha256": "952d5f06f56b8940052cdd463032d51016e3be075de24aec7938d54b333618ed"},
+    {"path": "repository-final.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "repository.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "source-manifest.json", "size": 39131, "sha256": "0a92399360449fdf8fac03365298919ff74fdbbd0b1e80ef9754668b3496deb7"},
+    {"path": "stopped-diagnostic.log.gz", "size": 353, "sha256": "e5b46d1099d1b63348ccb30b73f025037129afe57d6f8563435dfafeff6488e5"},
+    {"path": "storage-compile-final.log.gz", "size": 198, "sha256": "1078b86467f4c7bda33c2ae90e81005e198bc73d7b2396f9c7620649fef6932c"},
+    {"path": "storage-compile.log.gz", "size": 261, "sha256": "906c4c9da93e35ac6f25b4ba33c139f4acd18dcc0c1374ab3301e7d273223b47"},
+    {"path": "storage-fixtures-final.log.gz", "size": 5257, "sha256": "e7c6d1d6a26cae44cc2e34eb1ec3a312eba2bdea77220e09f396a1c311ee57a3"},
+    {"path": "storage-fixtures.log.gz", "size": 5256, "sha256": "4df2b993a2939c518494acae38f7a3af928168084776d5e0992a3187e031db12"},
+    {"path": "test-rest-final.log.gz", "size": 15860, "sha256": "a6d834e98244398ddb7d0959ea62f950ae674aa87883a802d7233186c4b46a49"},
+    {"path": "test-rest.log.gz", "size": 16022, "sha256": "06ace4195915c40686f31c3f16ef804b9ac04a1484b76bfa7ebfe3c38bbeffcd"}
+  ]
+}

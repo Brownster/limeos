@@ -12,7 +12,7 @@ and [interface guide](../../../p04-combined-read-budget.md).
 **644 Rust cases pass:** 627 unit/integration cases and 17 compile-fail doctests.
 The 21 new cases are already included; focused/measurement reruns add no cases.
 **61 local ARM64 harness tests pass**, with strict all-target workspace Clippy,
-fmt, contract and repository checks. [checks.json](checks.json) binds final-source
+fmt, contract and repository checks. [checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") binds final-source
 commands, environments, exact runtime hashes and lossless transcript hashes.
 
 All four frozen layouts pass the closed configuration profile in the private
@@ -46,7 +46,7 @@ storage 50 ms samples observed lower-bound peaks of 75055 bytes and
 8 files, not exact maxima. No Pi, Docker or raw block probe was used;
 reserved backup recovery and external qualification paths stayed untouched.
 
-[source-manifest.json](source-manifest.json) binds 309 source,
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 309 source,
 fixture, contract and script files. Fixed-timestamp gzip preserves every original
 stdout/stderr byte; both hashes are retained. [artifact-sha256.json](artifact-sha256.json)
 binds the packet. Reproduce with fresh disk logs and the retained helper; compile

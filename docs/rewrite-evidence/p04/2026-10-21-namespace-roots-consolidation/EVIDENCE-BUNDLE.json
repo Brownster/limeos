@@ -1,0 +1,39 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-21-namespace-roots-consolidation",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-21-namespace-roots-consolidation.tar.gz",
+    "size": 609728,
+    "sha256": "d7f9ceb76b959ec5aa22826ff7c29ff975e5b6229459cf53464cf8cb42eb0289",
+    "tar_sha256": "6e8c19c248c8429704c65de84d0f11594462cbae350ad98607f23072a4da66a5"
+  },
+  "files": [
+    {"path": "audit.py.gz", "size": 1590, "sha256": "c748ea46643cedcadce3ed02d7d2dc3b8f8f9453a5914a64d52a18f4e4eef107"},
+    {"path": "checks/consolidation-contracts-20261021-output.log.gz", "size": 288, "sha256": "baca8490da59dc668908fd581b8e8d7bd9fb60423e3c9c6d85cd4a79bd87f980"},
+    {"path": "checks/consolidation-contracts-20261021-record.json.gz", "size": 65230, "sha256": "7fadb0b8f39b905d8ad7ca99db576c1ee1761b4b1068af34b24eacb4ca96d490"},
+    {"path": "checks/consolidation-hygiene-20261021-output.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "checks/consolidation-hygiene-20261021-record.json.gz", "size": 65229, "sha256": "698e71c68da46fbd30503142d9839d80f1c0c303608f9eb1783a9d8cdba26289"},
+    {"path": "checks/storage-namespace-clippy-1-output.log.gz", "size": 194, "sha256": "66aa980008a74e6b444826babff0d92c513464e6316d5475b60a45cde1289824"},
+    {"path": "checks/storage-namespace-clippy-1-record.json.gz", "size": 65240, "sha256": "27accd802e4980f9761a69fe75d6d78da9025abf23489ea03c32493f448fc182"},
+    {"path": "checks/storage-namespace-compile-1-output.log.gz", "size": 6354, "sha256": "27a9cd34ef44c720c76465407bb35b7da72ac5712594ba45df28d56ca9383a19"},
+    {"path": "checks/storage-namespace-compile-1-record.json.gz", "size": 65241, "sha256": "116424776cadc88815ad8e389ca0867101e3d2f9467f27c8e62998336b421bd9"},
+    {"path": "checks/storage-namespace-docs-1-output.log.gz", "size": 512, "sha256": "dba1187aa90eef812b8f77a3bb8ca80ece6dcadb8a393db0d4d1ae40747fd899"},
+    {"path": "checks/storage-namespace-docs-1-record.json.gz", "size": 65217, "sha256": "8d9209fd9cd42d7e06e5dd0fccaddbaa4023010de8a470123f4e917ecef68a43"},
+    {"path": "checks/storage-namespace-focused-1-output.log.gz", "size": 1188, "sha256": "355f63b85d10e3436303e85a2bff93215e814cd6074c1b484a4b75597ad58621"},
+    {"path": "checks/storage-namespace-focused-1-record.json.gz", "size": 65222, "sha256": "75ceb5648171961d7a9ede40e0a896cec6db5ee8aee498b368167508baecb5f6"},
+    {"path": "checks/storage-namespace-format-1-output.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "checks/storage-namespace-format-1-record.json.gz", "size": 65193, "sha256": "22e982d191fabbf05b1a1532a9556870a2412fc2258cc627b3b3df67a236c565"},
+    {"path": "checks/storage-namespace-red-1-output.log.gz", "size": 587, "sha256": "66aae87936a107c921973ad71009a53f6bb21ab43481edce5f5d53aefac45dfb"},
+    {"path": "checks/storage-namespace-red-1-record.json.gz", "size": 65158, "sha256": "e29a0d13ff44a3f23c3e1b8bd79b53e8f846e52c7dc3a649357175b89cb63ef8"},
+    {"path": "checks/storage-namespace-runtime-1-output.log.gz", "size": 376, "sha256": "939f11b73dd49389547737a70dc3eba6ff5d9948e406db8cf57ee8a1b96d839a"},
+    {"path": "checks/storage-namespace-runtime-1-record.json.gz", "size": 65233, "sha256": "0949b6c5fa8cb6b8c495512047364f9582d8971cd9c520bbf42762d11f9efc4c"},
+    {"path": "guard.py.gz", "size": 2183, "sha256": "f581d4b5b884d3633b6a2716d44a8966b0d57641d3007e37ea001c84786be186"},
+    {"path": "preceding-kernel-rendering-diagnostic.json.gz", "size": 1196, "sha256": "257e72b6515fae92f2744c6ffcfbceb8783a96ef7a03a755fe5db097e35d61f7"},
+    {"path": "preserve-and-match.py.gz", "size": 1341, "sha256": "9892b5ac25006edd28f6fbd806326d62182817938f9f88fc50a0e5ed7aa7285f"},
+    {"path": "storage-runtime.json.gz", "size": 382, "sha256": "a0c5ceec2368e29b8343b0f18753553888e4c1f863d01d4b3557bf6919461d6c"},
+    {"path": "storage-runtime.log.gz", "size": 5885, "sha256": "001a38138b22df87cdec11199785c78e785e578a775b4efd795f34b35f9c382e"},
+    {"path": "storage-runtime.py.gz", "size": 1400, "sha256": "7fef90850f62c0539b597020a5d8da372e2a216d11c8cd9c3c10c18039014c81"}
+  ]
+}

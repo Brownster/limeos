@@ -12,7 +12,7 @@ and [interface guide](../../../p04-storage-read-admission.md).
 The 21 new regression cases are already included; the source measurement rerun
 adds no cases to that total. **61 local ARM64 harness tests pass**, with strict
 all-target workspace Clippy, fmt, contract and repository checks.
-[checks.json](checks.json) binds successful final-source commands, environments,
+[checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") binds successful final-source commands, environments,
 runtime hashes and raw/compressed transcript hashes. A redundant allocation in
 one pre-acceptance test fixture was removed after Clippy reported it.
 
@@ -41,7 +41,7 @@ precompiled code and an owned cleaned fixture directory. No Pi, Docker or raw
 workstation storage probe was used. The reserved backup recovery worktree and
 installed service/kernel/capability guards were preserved.
 
-[source-manifest.json](source-manifest.json) binds 305 source,
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 305 source,
 fixture, contract and script files to the qualified commit. Fixed-timestamp gzip
 preserves every stdout/stderr byte. [artifact-sha256.json](artifact-sha256.json)
 binds the packet. Reproduce with fresh disk log paths and the retained helper;

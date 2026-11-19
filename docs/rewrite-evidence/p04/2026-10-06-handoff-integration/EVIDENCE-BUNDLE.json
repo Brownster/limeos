@@ -1,0 +1,24 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-06-handoff-integration",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-06-handoff-integration.tar.gz",
+    "size": 170458,
+    "sha256": "10387e9ae1592148835672804089a566aafcc6bc0f45f91612b15513ffcda8e4",
+    "tar_sha256": "f6aa70bf90165a6c433249936846ec59206ab852bb46134d218767c53a6e52ac"
+  },
+  "files": [
+    {"path": "ci-amd64.log.gz", "size": 51189, "sha256": "1f9db1d83dd1aae604103d147164fb916efc1fa7b530d04506f5f0290ca3b566"},
+    {"path": "ci-arm64.log.gz", "size": 49108, "sha256": "c8f0848d7c50c480747c1aa38dbee1be62991b855f12048b9a60693ce3f39832"},
+    {"path": "ci-guests/p03/ci-reference-vm-result.json", "size": 8681, "sha256": "1ea40243258e8f159776726f171f007f631ea8bae67f725991bc8ede06b40303"},
+    {"path": "ci-guests/p04/ci-dependencies-vm-result.json", "size": 18847, "sha256": "454565b2b876f67107587729c0425e8471527cced5c167832466b52d711d3757"},
+    {"path": "ci-native.json", "size": 19144, "sha256": "d47ebc11447900d16a5e66dbcb674e3c62fbae78bcc0fb0f19006f680abe07d3"},
+    {"path": "ci-vm.log.gz", "size": 17511, "sha256": "b30dd68d46618bfc4f79f9897b135c5d0839c898bc0a74e8ba9fad0bf3518136"},
+    {"path": "ci-workflow.json", "size": 10573, "sha256": "a95194dc3acde97a5f5d0ca2ad53a593bc6f7c2cc9defa988969457323e6a8d4"},
+    {"path": "peak-memory-integrated.json", "size": 76153, "sha256": "0588243e5508a5e2e05c2c13e241d1ced87c46a94cb8f14327c87f0228829706"},
+    {"path": "rust-tests.txt", "size": 28356, "sha256": "95a1a0481d23d97e5445505173fca445fc9485178a35522ba1d42c8e06c5b062"},
+    {"path": "source-manifest.json", "size": 75249, "sha256": "29a7a9c070d254e9478655a1784c868aa1e34368a6593b12e7a908984497ed0d"}
+  ]
+}

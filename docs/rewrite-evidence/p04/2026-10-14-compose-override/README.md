@@ -11,7 +11,7 @@ and fresh executable approval remain unresolved. See the
 The 20 new cases and focused rerun are already in that total. Full workspace
 checks enable the existing opt-in local worker fixture feature.
 **61 local ARM64 harness tests pass**, with strict feature all-target Clippy,
-fmt, contracts and repository checks. [checks.json](checks.json) binds commands,
+fmt, contracts and repository checks. [checks.json](EVIDENCE-BUNDLE.json "bundled: checks.json") binds commands,
 environments, source hashes and complete merged stdout/stderr. Accepted runtime
 stays unchanged through documentation and evidence edits.
 
@@ -64,7 +64,7 @@ No Pi, SSH, Docker invocation, raw block probe, guest, reserved backup or extern
 qualification path was used. Service guards remain 256 FDs/64 MiB/zero swap/16 tasks.
 Historical inventory p95 61.401 ms still exceeds the 20 ms target.
 
-[source-manifest.json](source-manifest.json) binds 340 source, fixture,
+[source-manifest.json](EVIDENCE-BUNDLE.json "bundled: source-manifest.json") binds 340 source, fixture,
 contract and script files. Fixed-timestamp gzip preserves every log byte with raw/
 compressed hashes; [artifact-sha256.json](artifact-sha256.json) binds this packet.
 Reproduce against the qualified source using the retained helpers and fresh work/

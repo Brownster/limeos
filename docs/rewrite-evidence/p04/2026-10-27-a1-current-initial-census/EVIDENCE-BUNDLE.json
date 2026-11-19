@@ -1,0 +1,31 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-27-a1-current-initial-census",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-27-a1-current-initial-census.tar.gz",
+    "size": 401267,
+    "sha256": "ea2995a6c65a7b7636bd895b4c384427466f7a6b31215f2537da9a4b50ca37af",
+    "tar_sha256": "5bca3fd123dd5e22ef36befbd97fc0b8f1e01658b9f49acbc19692743f97da40"
+  },
+  "files": [
+    {"path": "a1-failure.json", "size": 51265, "sha256": "55a4dd2ecf1bb7c17efc5e18738b7c4951f234a0e3834624aed837a9532a96b9"},
+    {"path": "binaries.json.gz", "size": 345, "sha256": "98a39d14b74f71202bc306a68022f6238f2192ee53d408f8f0d9b2be29d91c23"},
+    {"path": "build-output.log.gz", "size": 903, "sha256": "cc35b67c5b13227a103a9a74c2c9bebe83111bb6cb26a9afac47b5ba8b0e4c8c"},
+    {"path": "build-record.json.gz", "size": 67148, "sha256": "d5573d85b1c018f5664ca12caf76eb8aa0dd2ede067fa559813100a8aab81207"},
+    {"path": "checks/a1-current-packages-1-output.log.gz", "size": 745, "sha256": "0679a566a04cf0cde8677c787fd1cbb152ae85e2468af0c633d379db11ccd30f"},
+    {"path": "checks/a1-current-packages-1-record.json.gz", "size": 66778, "sha256": "75ef1348371a8f050c7fc0fb56ba37e8a1ceb79e6a6db85ed23fd6d1762a132a"},
+    {"path": "checks/a1-current-ui-build-1-output.log.gz", "size": 292, "sha256": "19e394949ef3cf87fbe51ddfce9469c74f7d2036cd54c6310f397517e6baaaf5"},
+    {"path": "checks/a1-current-ui-build-1-record.json.gz", "size": 66765, "sha256": "f6032bb6d95d619e1f57d195a9d06fa54943be2e805bf2974941ebc20a97c73c"},
+    {"path": "checks/a1-current-vm-1-output.log.gz", "size": 11001, "sha256": "3a3fd7573c20716656d7b17e05f28418b35a17911251f2789bd0553e7d44f1fa"},
+    {"path": "checks/a1-current-vm-1-record.json.gz", "size": 66954, "sha256": "73bb5010a6aaa29b33733bd9e7a555ba2d682f1a4b2e946a177fe0c11570919e"},
+    {"path": "fixture-inputs.json.gz", "size": 2665, "sha256": "cbd82e6b6a84f2d63bdd122a0a56f8edcde8c33f0a049b97c7279466ad5ddb0a"},
+    {"path": "guest-failure-diagnostics.txt.gz", "size": 1792, "sha256": "dcd7e17458d1f5cfd2978d21501b7221592c1c9e8bcf6657c3834c86bd1cfa8b"},
+    {"path": "guest-sources.tar.gz", "size": 86930, "sha256": "622882f26aeba673af3c29a14dccd76004a80346f929756381cce2e6658c9662"},
+    {"path": "guest-startup-console.txt.gz", "size": 7725, "sha256": "5c70eb433a4c715ff80281f3f4bfa6038d98b0d13a949bda9e6dfb7d27b9885f"},
+    {"path": "harness/run_384.py", "size": 16082, "sha256": "d28878a85192f2afe1dee11589e923830183f1c1bd8db2588520992b63238ac6"},
+    {"path": "package-inputs.json.gz", "size": 1560, "sha256": "056eb1ef13ea94049a621d020223efcc88497691384e2ab3bc670a3d4d80a07b"},
+    {"path": "schema-source.rs.gz", "size": 3529, "sha256": "812bd2e7afbf88e87dd779ac1334aebc9727f893a31435660e7642c75349a756"}
+  ]
+}

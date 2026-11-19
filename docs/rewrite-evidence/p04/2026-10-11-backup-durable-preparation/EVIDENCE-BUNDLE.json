@@ -1,0 +1,31 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-11-backup-durable-preparation",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-11-backup-durable-preparation.tar.gz",
+    "size": 250411,
+    "sha256": "e60883c94642c5d4de0ee63bfc98faa2732961faab5b3e5f5dcbdee615456e7f",
+    "tar_sha256": "81182d6689d2403aa55e216b6633b195f093e928a970d143f84792fa24ea41c5"
+  },
+  "files": [
+    {"path": "ci-validation.json", "size": 19789, "sha256": "352a54a98d1a777ac529c12f4a590cc1915a02042116cb6f51866183f0dffd4b"},
+    {"path": "ci/ci-amd64.log.gz", "size": 59917, "sha256": "1bdcd6024872db8b2fc1974c94e3a5bdd33446d3d89d6dbb523fefcec9f37e8d"},
+    {"path": "ci/ci-arm64.log.gz", "size": 56528, "sha256": "ea7be50cf97de016675fae88fac88e18e9d6ee6b2a797b87204d8929032204e7"},
+    {"path": "ci/ci-complete.json", "size": 38582, "sha256": "3f5cd01322194639ef56134998aca56e383a949df618315b2c75457b03a53286"},
+    {"path": "ci/ci-dependencies-vm-result.json", "size": 18845, "sha256": "398342b014dd1db46dccdfd8af099ef441759a8516d0cca4b6107c434a2b0a8b"},
+    {"path": "ci/ci-reference-vm-result.json", "size": 8681, "sha256": "3d39df628ee1ce2a08e40c6bc54fd5daa07b7e99444191282a4562cdf9ca916e"},
+    {"path": "ci/ci-summary.json", "size": 30248, "sha256": "014f34314d7040aef219bdf5cdd3422dc8dd6eb0cf3c614ddb3a71a423783857"},
+    {"path": "ci/ci-vm.log.gz", "size": 19140, "sha256": "7c0c7616849c1472731ddf05053e9cc60a5bebefad08cb8a96a1b7b234c6be90"},
+    {"path": "ci/collect_ci.py", "size": 13610, "sha256": "6ced5afd288e5cac3c65d38b2cf2c209e05f2e820f71b592f9fdc2ab1ab45261"},
+    {"path": "ci/status-20261011T165803Z.json", "size": 38582, "sha256": "3f5cd01322194639ef56134998aca56e383a949df618315b2c75457b03a53286"},
+    {"path": "local/core-attempt-01.log", "size": 5922, "sha256": "56941aad4beb710dabbc3cd436638da57acd7492150d7571c7648c665f17b6cc"},
+    {"path": "local/core-attempt-02.log", "size": 834, "sha256": "5cc5adcbfd2dd1cc650cdfb0b88dd52e67c1eb6b658e10e86ebd3474a1935dbf"},
+    {"path": "local/core-static-check.log", "size": 125, "sha256": "91b312ca7e46c342eead4bc4063ed13731bcbdb82f83d4151471a9aca453a489"},
+    {"path": "local/limeos-backup-durable-advisory-identity.json", "size": 148538, "sha256": "74106b9b1bf1eef2515a9ed65df7efe8faef96598a9cf19568d78ab18b30f2a8"},
+    {"path": "local/python-checks.json", "size": 9831, "sha256": "379fd046dc445ff25e7aa169736174c5c62410534a38ab97a4330a253b9cb13c"},
+    {"path": "local/security.json", "size": 19305, "sha256": "ae4fe84b7d1d46ee38e839ba645f9f0ab7d877e76c2cc43359ac8aa667a3ebea"},
+    {"path": "local/workspace.json", "size": 49814, "sha256": "20f615aa7a5028bed4efb20a099c585cde237a8c115f249ed6be36997d188865"}
+  ]
+}

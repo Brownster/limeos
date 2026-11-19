@@ -1,0 +1,20 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-12-completed-slices",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-12-completed-slices.tar.gz",
+    "size": 126962,
+    "sha256": "49c153e2ad125ac40ec310859dcd95bfa9eb6b36f7ce25aecc66e90ccedbbffc",
+    "tar_sha256": "ff7aa8c9d5968bde27195e68658aa928fe5bd993822028842a156c59bb45eafe"
+  },
+  "files": [
+    {"path": "arm64-source-manifest.json", "size": 271346, "sha256": "bee6bf0742de9b7e55fd3b9bcaeb82ac62c5cac33250360e53b88cade18cfd4c"},
+    {"path": "checks.json", "size": 8773, "sha256": "fe8553ab5941cc001a363b9ba55b8f5dcc255205a5038c52f963bcd9102c7e79"},
+    {"path": "pre-fix-test-rest.txt", "size": 49244, "sha256": "c019dca6676cd740b9a735947fdcaf9db380a71ad4cd2dac0760d3cbfc4ce281"},
+    {"path": "source-manifest.json", "size": 33442, "sha256": "326a2397f10888bd296c00eace9410123c78e64bdca134f9e2a031e4d7ee7d88"},
+    {"path": "storage-fixtures.txt", "size": 10716, "sha256": "3b8ffbb291deeb8c4d6fd73f07b2824d164538374b55a7ba490c19fc5e87010b"},
+    {"path": "test-rest-final.txt", "size": 46665, "sha256": "7d67376fcd329a5a9b3680dc25d8107e8ac53866e918489ce443aa5b8b2b205e"}
+  ]
+}

@@ -30,7 +30,7 @@ again to the workspace total.
 Six final guards (`rust-3`, `focused-5`, `clippy-3`, `contracts-1`, `frontend-1`,
 `sanity-1`) share identical before/after maps covering 740 committed inputs.
 Current worktree bytes match the qualified commit. All eighteen actual guard
-attempts remain preserved in [source-match metadata](source-match.json), with
+attempts remain preserved in [source-match metadata](EVIDENCE-BUNDLE.json "bundled: source-match.json"), with
 commands, Cargo groups and differences in earlier maps.
 
 Three failed checks remain visible. `focused-2` found an undeclared tempfile test

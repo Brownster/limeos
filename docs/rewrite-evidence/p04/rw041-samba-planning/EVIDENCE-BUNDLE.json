@@ -1,0 +1,17 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/rw041-samba-planning",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-rw041-samba-planning.tar.gz",
+    "size": 28196,
+    "sha256": "3377bb1b3358b61f7870e46b7bef725d99cf4d45522f7d3cbc261bbd3c68acbc",
+    "tar_sha256": "4013dedd66206ad4ef1dfe68b39e7715c0a07fadf7db166e02f757ddeb05036e"
+  },
+  "files": [
+    {"path": "source-manifest.json", "size": 40956, "sha256": "e013a7f40b3295d166bbb17a617a9b99b7e2225f26582e685bf76a4fcba1eb96"},
+    {"path": "storage-fixtures.txt", "size": 8963, "sha256": "800de638abaafffa6bdc87f216eab3bdac7b35e3d3cebfbcec7cc442b58d6c6b"},
+    {"path": "test-rest-final.txt", "size": 44307, "sha256": "28c1a1817401fdece3733e1173740f9e864ffebb9bb6dba8ec6f130442b9c3ea"}
+  ]
+}

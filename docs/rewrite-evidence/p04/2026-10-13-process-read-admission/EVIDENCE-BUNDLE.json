@@ -1,0 +1,29 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-13-process-read-admission",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-13-process-read-admission.tar.gz",
+    "size": 43556,
+    "sha256": "22c18ba798360746ed9e78a63e5eb4510fa889723640fdeac14f3879a4b4599c",
+    "tar_sha256": "2af8875f8d87aa425ee17f3d8d441f2d75aaef22125d88dc71451b641b50d9dd"
+  },
+  "files": [
+    {"path": "arm64-harness.log.gz", "size": 428, "sha256": "98aa882887b7b60687f03b48a42a1bfafdef25811bc9af6f8b45135b028b2075"},
+    {"path": "checks.json", "size": 24752, "sha256": "8ea893a836f09da722c886b5936979a7681d8933f25e3687a4cff1681ea9b1ff"},
+    {"path": "clippy.log.gz", "size": 362, "sha256": "0273527285569eed09458cfd92240a4123ace5ee6c7bd03e376f5ba2d0f39f30"},
+    {"path": "contracts.log.gz", "size": 330, "sha256": "559b91633d461a55fcffedc820b30c3ae9bff5005da60a68fb2f4ad4d3286e45"},
+    {"path": "fmt.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "package-process-read-admission.py", "size": 9041, "sha256": "6ccd33bbe7d6d8c9e86ba35bfbaf39be6fa2751b0b779826a033282bf3a71261"},
+    {"path": "payload-accepted.log.gz", "size": 366, "sha256": "46b0aced5032baeb6f69a34b7574491fc0cd063c89b694b1a8934169badca1db"},
+    {"path": "process-fd-measurement.log.gz", "size": 383, "sha256": "2fc0c0ebd8cbadc8cc5acb2a321afd446497fce734df666f7b60df116446bc9c"},
+    {"path": "process-payload-measurement.log.gz", "size": 422, "sha256": "5c115ac8441ba6d24ed89688d992f096c719863617f0da816fa3dcc5469d3686"},
+    {"path": "profile-accepted.log.gz", "size": 649, "sha256": "32b7612c879dbcbe6731929594d0056f258934bf67a4c7d96dd949a890424f12"},
+    {"path": "repository.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "source-manifest.json", "size": 34923, "sha256": "035473df0cf5385d7030496eeb206a6d1dcf91cd23254efe998f1ff73be7485c"},
+    {"path": "storage-compile-on-disk.log.gz", "size": 256, "sha256": "471e48b080ed3fb422b7919797116a4b66718b677d893fdc5f0f55b1255089cb"},
+    {"path": "storage-fixtures.log.gz", "size": 4623, "sha256": "563d358bb5690b61eb763ab84f14fa00343999ceaeb725bd73101768fa2baa8a"},
+    {"path": "test-rest.log.gz", "size": 12166, "sha256": "7d8e7123ff000aaa38d46496bb3acaf5fe3528db8bd16126599ebc40b7f2fd70"}
+  ]
+}

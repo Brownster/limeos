@@ -101,7 +101,7 @@ Integration tests are in [tests/custody.rs](../../../../crates/backup-archive/te
 
 [mutation_checks.py](mutation_checks.py) weakened one guarantee at a time at
 `9a82322` and ran the custody unit and integration tests, skipping only the
-64 MiB case ([summary](logs/mutations/mutations.json), [raw logs](logs/mutations/)).
+64 MiB case ([summary](EVIDENCE-BUNDLE.json "bundled: logs/mutations/mutations.json"), [raw logs](logs/mutations/)).
 **14 of 14 targeted mutants were caught** by named tests:
 - full-policy checks in recovery and in staging
 - canonical record bytes and record-binding equality
@@ -138,7 +138,7 @@ per case. Each run used fresh private roots and two fresh processes, as a
 restart would: `retain`, then `recover … --discard`. Recover verifies,
 re-admits, replays, hashes every reader independently and discards both the
 catalog and the record. Inputs are deterministic. Summary: [peak-memory.json](peak-memory.json).
-Complete stdout, stderr, commands and digests are in [raw output](peak-memory-raw.json.gz).
+Complete stdout, stderr, commands and digests are in [raw output](EVIDENCE-BUNDLE.json "bundled: peak-memory-raw.json.gz").
 
 | Case | Compressed bytes | Payload bytes | Record bytes | Peak RSS, retain (KiB) | Peak RSS, recover and stage (KiB) | Retain (s) | Re-admit (s) | Replay (s) |
 |---|---|---|---|---|---|---|---|---|

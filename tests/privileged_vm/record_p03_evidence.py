@@ -16,6 +16,24 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_OUTPUT = ROOT / "docs/rewrite-evidence/p03/lifecycle-validation.json"
+
+
+def evidence_inputs(evidence):
+    """Inputs read beside the output; scripts/evidence_bundles.py PINNED keeps them tracked."""
+    return {
+        "vm": evidence / "lifecycle-vm-result.json",
+        "browser": evidence / "lifecycle-browser-result.json",
+        "log": evidence / "rust-lifecycle-tests.txt",
+    }
+
+
+def evidence_outputs(output):
+    """Files written; scripts/evidence_bundles.py PINNED keeps them tracked."""
+    return {
+        "validation": output,
+        "manifest": output.parent / "lifecycle-source-sha256.json",
+    }
 
 
 def sha(path):
@@ -31,13 +49,15 @@ def main():
     parser.add_argument(
         "--output",
         type=Path,
-        default=ROOT / "docs/rewrite-evidence/p03/lifecycle-validation.json",
+        default=DEFAULT_OUTPUT,
     )
     args = parser.parse_args()
     evidence = args.output.parent
-    vm = json.loads((evidence / "lifecycle-vm-result.json").read_text())
-    browser = json.loads((evidence / "lifecycle-browser-result.json").read_text())
-    log = (evidence / "rust-lifecycle-tests.txt").read_text()
+    inputs = evidence_inputs(evidence)
+    outputs = evidence_outputs(args.output)
+    vm = json.loads(inputs["vm"].read_text())
+    browser = json.loads(inputs["browser"].read_text())
+    log = inputs["log"].read_text()
     assert "0 failed" in log and "FAILED" not in log
     assert vm["upgrade"] is not None and vm["upgrade"]["from"] == "0.3.0"
     interruptions = sum("kill " in check for check in vm["checks"])
@@ -67,7 +87,7 @@ def main():
                 continue
             assert sha(ROOT / name) == digest, f"Qualified runtime source drift: {name}"
             manifest[name] = digest
-    manifest_path = evidence / "lifecycle-source-sha256.json"
+    manifest_path = outputs["manifest"]
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     binaries = {
         name: sha(args.artifacts / name)
@@ -184,7 +204,7 @@ def main():
             "All 50 defect-register requirements remain open pending their complete acceptance criteria",
         ],
     }
-    args.output.write_text(json.dumps(result, indent=2) + "\n")
+    outputs["validation"].write_text(json.dumps(result, indent=2) + "\n")
     print(
         f"Bound {len(manifest)} source files to lifecycle evidence; VM footprint meets local guardrails."
     )

@@ -1,0 +1,25 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p04/2026-10-13-configured-graph-integration",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-19",
+    "name": "limeos-evidence-p04-2026-10-13-configured-graph-integration.tar.gz",
+    "size": 36267,
+    "sha256": "66374d27994f4529315773e3790584fdc7697d88f510fdb86f04193608fb2af5",
+    "tar_sha256": "c5207ef613a5fe01b7e83a920783ee00bb239dd6ba557bd78390ba215e6005aa"
+  },
+  "files": [
+    {"path": "arm64-harness.log.gz", "size": 428, "sha256": "c921ac8a70014d65030e745c67aac64f9f879ba96838a29ca1150e83efb09ac3"},
+    {"path": "checks.json", "size": 12546, "sha256": "51713f433269279d4ce223e43ba622a3cdea5958a55c71705590364353a22dae"},
+    {"path": "clippy.log.gz", "size": 363, "sha256": "de3bc6b830bbc67f68d681a8aa71fcbbdc9d32b0c31fb45d9878157d86420a56"},
+    {"path": "contracts.log.gz", "size": 303, "sha256": "3b5165295bef8b7e9b6c19651d078462c3a81d05b6618fe5211c908dd80bfafe"},
+    {"path": "fmt.log.gz", "size": 20, "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"},
+    {"path": "graph-focused.log.gz", "size": 812, "sha256": "0c80de62b7656bcbe1d50dbae9d3c3008e6ba197500d063cee63af0ccb5b9825"},
+    {"path": "repository.log.gz", "size": 69, "sha256": "160a77faa603718b2882f1c1fbd14173d42190aba1dcbcd849f5fbe75fec06ef"},
+    {"path": "source-manifest.json", "size": 34175, "sha256": "bef235703b34b671361f12aa185a1754efa0265b697ff87a9027f91abc8703c1"},
+    {"path": "storage-compile-on-disk.log.gz", "size": 285, "sha256": "c88661ea203be2ceeb72b6ba9e485702082e8554aa12ee2309edc58bda129f46"},
+    {"path": "storage-fixtures.log.gz", "size": 3113, "sha256": "d567a7457030b15d51ab26b924bb2496ccfdbfa2e0e72e29caa8c4de40b5a1d7"},
+    {"path": "test-rest.log.gz", "size": 12123, "sha256": "42dcc02e0bf44b0069a7a68248b438b2544c0e7832ed6ab957a058a9d132875e"}
+  ]
+}
