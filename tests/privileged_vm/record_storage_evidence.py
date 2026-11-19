@@ -38,6 +38,12 @@ def evidence_inputs(evidence, slice_name):
     return inputs
 
 
+def evidence_outputs(output, slice_name):
+    """Files written; scripts/evidence_bundles.py PINNED keeps them tracked."""
+    manifest = output.parent / f"storage-{slice_name}-source-sha256.json"
+    return {"validation": output, "manifest": manifest}
+
+
 def sha(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
@@ -86,6 +92,7 @@ def main():
     args.output = args.output or default_output(args.slice)
     evidence = args.output.parent
     inputs = evidence_inputs(evidence, args.slice)
+    outputs = evidence_outputs(args.output, args.slice)
     vm = json.loads(inputs["vm"].read_text())
     assert len(vm["passed"]) >= (
         51 if approved else 43 if locks else 37 if targets else 27 if planning else 17
@@ -184,7 +191,7 @@ def main():
                     f"Commit binding failed: {name}"
                 )
             manifest[name] = digest
-    manifest_path = evidence / f"storage-{args.slice}-source-sha256.json"
+    manifest_path = outputs["manifest"]
     manifest_path.write_text(json.dumps(manifest, sort_keys=True, indent=2) + "\n")
     binaries = {
         name: sha(args.artifacts / name)
@@ -431,7 +438,7 @@ def main():
             "No full Pi/Python footprint comparison or cutover signoff",
             "No P04 defect-register row closes on this operation alone",
         ]
-    args.output.write_text(json.dumps(result, indent=2) + "\n")
+    outputs["validation"].write_text(json.dumps(result, indent=2) + "\n")
     print(
         f"Recorded {len(vm['passed'])} VM groups against {len(manifest)} committed source/build files."
     )

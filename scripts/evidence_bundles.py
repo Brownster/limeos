@@ -96,7 +96,7 @@ _PINS = [
             "contract",
         ]
     ],
-    # Inputs the VM evidence recorders read (their evidence_inputs functions).
+    # Files the VM evidence recorders read (their evidence_inputs functions).
     ("p03/lifecycle-vm-result.json", f"read by {_P03}"),
     ("p03/rust-lifecycle-tests.txt", f"read by {_P03}"),
     ("p03/lifecycle-source-sha256.json", f"written by {_P03}; read by {_COMPOSE}"),
@@ -118,6 +118,20 @@ _PINS = [
     ],
     ("p04/rw040-dependencies/dependencies-vm-result.json", f"read by {_DEPS}"),
     ("p04/rw040-dependencies/rust-tests.txt", f"read by {_DEPS}"),
+    ("p03/reference-vm-result.json", f"read by {_COMPOSE} --vm-result (reference run)"),
+    # Files the recorders write (their evidence_outputs functions): small hash
+    # and result summaries that a re-run rewrites in place.
+    ("p03/reference-validation.json", f"written by {_COMPOSE} (reference run)"),
+    ("p03/reference-source-sha256.json", f"written by {_COMPOSE} (reference run)"),
+    *[
+        (
+            f"p04/storage-{name}-source-sha256.json",
+            f"written by {_STORAGE} --slice {name}",
+        )
+        for name in ["readiness", "planning", "targets", "locks", "approved"]
+    ],
+    ("p04/rw040-dependencies/source-sha256.json", f"written by {_DEPS}"),
+    ("p04/rw040-dependencies/validation.json", f"written by {_DEPS}"),
     ("p04/rw043/measurement-policy.json", f"read by {_ARM64}/inspector_guest.py"),
     ("p04/rw043-custody/measure_custody.py", "cited by tests/fixtures/backup-custody"),
     ("p04/rw043-staging/measure_staging.py", "cited by tests/fixtures/backup-staging"),

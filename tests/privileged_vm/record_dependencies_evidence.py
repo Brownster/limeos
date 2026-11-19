@@ -29,6 +29,14 @@ def evidence_inputs(evidence):
     }
 
 
+def evidence_outputs(evidence):
+    """Files written; scripts/evidence_bundles.py PINNED keeps them tracked."""
+    return {
+        "manifest": evidence / "source-sha256.json",
+        "validation": evidence / "validation.json",
+    }
+
+
 def sha(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
@@ -46,6 +54,7 @@ def main():
     ).strip()
     assert re.fullmatch(r"[a-f0-9]{40}", source)
     inputs = evidence_inputs(args.evidence)
+    outputs = evidence_outputs(args.evidence)
     vm_path = inputs["vm"]
     vm = json.loads(vm_path.read_text())
     assert vm["package_version"] == "0.4.6"
@@ -144,12 +153,10 @@ def main():
             "Historical package upgrades are independently qualified; this run installs the fresh payload",
         ],
     }
-    (args.evidence / "source-sha256.json").write_text(
+    outputs["manifest"].write_text(
         json.dumps(source_hashes, indent=2, sort_keys=True) + "\n"
     )
-    (args.evidence / "validation.json").write_text(
-        json.dumps(validation, indent=2) + "\n"
-    )
+    outputs["validation"].write_text(json.dumps(validation, indent=2) + "\n")
     print(
         json.dumps(
             {

@@ -5,15 +5,14 @@
   "bundle": {
     "release": "evidence-bundles-2026-11-19",
     "name": "limeos-evidence-p04-rw040-dependencies.tar.gz",
-    "size": 26577,
-    "sha256": "19a5039d45298be9411ae5bdbda5e7013f8d6eac2652ece2df1193e43419383c",
-    "tar_sha256": "f508dfe5d3168f1ff6adaef7983eaf934f88b581cdc857b821f3faf97620a15e"
+    "size": 15353,
+    "sha256": "493857c88087f5e0d9978bdb9f74b64e1df3b4851f5237ab2dac8695a9154701",
+    "tar_sha256": "0c1bba73239a91f5f7241fba16674d5f94063cd3c0c5c35bcf54b5a9228eae46"
   },
   "files": [
     {"path": "b346-dependencies-vm-failure.txt", "size": 14745, "sha256": "542c1c9b2f6ac1f96c50d1b50bfa5db807460b74d761a3cfa772f58a2339c20c"},
     {"path": "b346-dependencies-vm-startup-console.txt", "size": 32778, "sha256": "00d55c4cec526b373445c1e1fb829b8df46335fdd6acc492366e7a2aaafb7237"},
     {"path": "ci/p03/ci-reference-vm-result.json", "size": 8682, "sha256": "6f0a0ffab1ee2c119882c17334a2cb2e5eddeca193fb24694afe425dcb927c76"},
-    {"path": "ci/p04/ci-dependencies-vm-result.json", "size": 18841, "sha256": "27b7477ea7936cc286b8b91957fa92d7bfd7f886442bd2f07dede594599f418e"},
-    {"path": "source-sha256.json", "size": 24829, "sha256": "d8b2979c485d1ade1e5f3565be8d5123b279281f6423abf34e6021132699dcaf"}
+    {"path": "ci/p04/ci-dependencies-vm-result.json", "size": 18841, "sha256": "27b7477ea7936cc286b8b91957fa92d7bfd7f886442bd2f07dede594599f418e"}
   ]
 }

@@ -15,9 +15,13 @@ assets, one bundle per run, and each bundled run keeps a tracked
 - Files that code reads, rewrites in place or cites, whatever their size. They
   are listed with the reason in `PINNED` in `scripts/evidence_bundles.py`, for
   example `p03/lifecycle-progress.png`, which the CI browser check rewrites,
-  and every input of the `tests/privileged_vm/record_*_evidence.py` recorders.
-  A recorder declares its inputs in `evidence_inputs()`; `tests/evidence`
-  fails if one is bundled or not pinned, or if code names a bundled path.
+  and every file the `tests/privileged_vm/record_*_evidence.py` recorders read
+  or write in their default and documented invocations (inputs, and the hash
+  and result summaries they rewrite). A recorder declares these in
+  `evidence_inputs()` and `evidence_outputs()` and touches evidence only
+  through them; `tests/evidence` fails if a recorder reads or writes any other
+  evidence path, if a declared file is bundled or not pinned, or if code names
+  a bundled path.
 
 ## What is raw
 

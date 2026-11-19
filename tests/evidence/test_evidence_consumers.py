@@ -5,6 +5,7 @@
 # ///
 """Evidence that code reads must stay in the tree, not in a bundle."""
 
+import ast
 import fnmatch
 import importlib.util
 import json
@@ -46,52 +47,203 @@ def bundled():
     return paths
 
 
-def recorder_inputs():
-    """(recorder, input path) for every evidence file a VM evidence recorder reads."""
+RECORDERS = sorted((ROOT / "tests/privileged_vm").glob("record_*.py"))
+
+
+def recorder_files():
+    """(recorder, kind, path) for every evidence file a VM evidence recorder reads
+    or writes, in its default and documented invocations."""
     found = []
+
+    def add(label, inputs, outputs):
+        found.extend((label, "input", path) for path in inputs.values())
+        found.extend((label, "output", path) for path in outputs.values())
+
     p03 = load("tests/privileged_vm/record_p03_evidence.py")
-    found += [
-        ("record_p03_evidence", path)
-        for path in p03.evidence_inputs(p03.DEFAULT_OUTPUT.parent).values()
-    ]
+    add(
+        "record_p03_evidence",
+        p03.evidence_inputs(p03.DEFAULT_OUTPUT.parent),
+        p03.evidence_outputs(p03.DEFAULT_OUTPUT),
+    )
     compose = load("tests/privileged_vm/record_compose_evidence.py")
-    found += [
-        ("record_compose_evidence", path)
-        for path in compose.evidence_inputs(compose.DEFAULT_OUTPUT.parent).values()
-    ]
+    add(
+        "record_compose_evidence",
+        compose.evidence_inputs(compose.DEFAULT_OUTPUT.parent),
+        compose.evidence_outputs(compose.DEFAULT_OUTPUT, reference=False),
+    )
+    reference = compose.REFERENCE_INVOCATION
+    add(
+        "record_compose_evidence --reference-profile",
+        compose.evidence_inputs(reference["output"].parent, reference["vm_result"]),
+        compose.evidence_outputs(reference["output"], reference=True),
+    )
     storage = load("tests/privileged_vm/record_storage_evidence.py")
     for name in storage.SLICES:
-        inputs = storage.evidence_inputs(storage.default_output(name).parent, name)
-        found += [
-            (f"record_storage_evidence --slice {name}", p) for p in inputs.values()
-        ]
+        output = storage.default_output(name)
+        add(
+            f"record_storage_evidence --slice {name}",
+            storage.evidence_inputs(output.parent, name),
+            storage.evidence_outputs(output, name),
+        )
     dependencies = load("tests/privileged_vm/record_dependencies_evidence.py")
-    found += [
-        ("record_dependencies_evidence", path)
-        for path in dependencies.evidence_inputs(
-            dependencies.DOCUMENTED_EVIDENCE
-        ).values()
-    ]
+    add(
+        "record_dependencies_evidence",
+        dependencies.evidence_inputs(dependencies.DOCUMENTED_EVIDENCE),
+        dependencies.evidence_outputs(dependencies.DOCUMENTED_EVIDENCE),
+    )
     return found
 
 
-class RecorderInputTests(unittest.TestCase):
-    def test_every_recorder_declares_its_evidence_inputs(self):
-        for script in sorted((ROOT / "tests/privileged_vm").glob("record_*.py")):
-            with self.subTest(script.name):
-                self.assertIn("def evidence_inputs(", script.read_text())
+DECLARATIONS = {"evidence_inputs", "evidence_outputs", "default_output"}
+PATH_METHODS = {"with_name", "with_suffix", "joinpath", "resolve", "absolute"}
+SOURCES = {
+    "args.output",
+    "args.evidence",
+    "args.vm_result",
+    "DEFAULT_OUTPUT",
+    "DOCUMENTED_EVIDENCE",
+    "REFERENCE_INVOCATION",
+}
 
-    def test_recorder_inputs_are_tracked_and_pinned(self):
+
+def dotted(node):
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        base = dotted(node.value)
+        return base and f"{base}.{node.attr}"
+    return None
+
+
+def undeclared_access(source):
+    """Calls in a recorder that touch an evidence path not from its declarations.
+
+    A path is "evidence" when it is built from the output or evidence
+    arguments, the documented defaults, or a literal under docs/rewrite-evidence.
+    Every read or write of such a path must use a value returned by
+    evidence_inputs() or evidence_outputs().
+    """
+    tree = ast.parse(source)
+    problems = []
+    for function in ast.walk(tree):
+        if not isinstance(function, ast.FunctionDef) or function.name in DECLARATIONS:
+            continue
+        tainted, declared = set(SOURCES), set()
+
+        def is_declared(node, declared=declared):
+            if isinstance(node, ast.Name):
+                return node.id in declared
+            return isinstance(node, ast.Subscript) and is_declared(node.value)
+
+        def taints(node, tainted=tainted):
+            if is_declared(node):
+                return False
+            if isinstance(node, ast.Attribute) and node.attr in ("name", "stem"):
+                return False
+            if isinstance(node, ast.Call):
+                # A call's result is data, not a path, unless it derives a path.
+                method = node.func.attr if isinstance(node.func, ast.Attribute) else ""
+                return method in PATH_METHODS and taints(node.func.value)
+            if dotted(node) in tainted:
+                return True
+            if isinstance(node, ast.Constant) and "rewrite-evidence" in str(node.value):
+                return True
+            return any(taints(child) for child in ast.iter_child_nodes(node))
+
+        assignments = [n for n in ast.walk(function) if isinstance(n, ast.Assign)]
+        changed = True
+        while changed:
+            changed = False
+            for assignment in assignments:
+                value = assignment.value
+                names = [dotted(t) for t in assignment.targets if dotted(t)]
+                if (
+                    isinstance(value, ast.Call) and dotted(value.func) in DECLARATIONS
+                ) or is_declared(value):
+                    new = set(names) - declared
+                    declared |= new
+                elif taints(value):
+                    new = set(names) - tainted
+                    tainted |= new
+                else:
+                    new = set()
+                changed = changed or bool(new)
+        for call in ast.walk(function):
+            if not isinstance(call, ast.Call):
+                continue
+            callee = dotted(call.func) or ""
+            if callee.split(".")[-1] in DECLARATIONS | {"add_argument"}:
+                continue
+            receiver = call.func.value if isinstance(call.func, ast.Attribute) else None
+            arguments = [*call.args, *(k.value for k in call.keywords)]
+            if (receiver is not None and taints(receiver)) or any(
+                taints(argument) for argument in arguments
+            ):
+                problems.append(
+                    f"{function.name}:{call.lineno}: {ast.unparse(call)[:80]}"
+                )
+    return problems
+
+
+class RecorderInputTests(unittest.TestCase):
+    def test_every_recorder_declares_its_evidence_files(self):
+        for script in RECORDERS:
+            with self.subTest(script.name):
+                text = script.read_text()
+                self.assertIn("def evidence_inputs(", text)
+                self.assertIn("def evidence_outputs(", text)
+
+    def test_recorders_touch_evidence_only_through_their_declarations(self):
+        self.assertEqual(len(RECORDERS), 4)
+        for script in RECORDERS:
+            with self.subTest(script.name):
+                self.assertEqual(undeclared_access(script.read_text()), [])
+
+    def test_an_undeclared_read_is_caught(self):
+        """The two mutations the second review used, applied in memory."""
+        p03 = (ROOT / "tests/privileged_vm/record_p03_evidence.py").read_text()
+        empty = re.sub(
+            r"(def evidence_inputs\(evidence\):\n    \"\"\".*?\"\"\"\n)    return \{.*?\n    \}\n",
+            r"\1    return {}\n",
+            p03,
+            count=1,
+            flags=re.DOTALL,
+        )
+        for key, name in [
+            ("vm", "lifecycle-vm-result.json"),
+            ("browser", "lifecycle-browser-result.json"),
+            ("log", "rust-lifecycle-tests.txt"),
+        ]:
+            empty = empty.replace(f'inputs["{key}"]', f'(evidence / "{name}")')
+        self.assertIn("return {}", empty)
+        self.assertEqual(len(undeclared_access(empty)), 3)
+        compose = (ROOT / "tests/privileged_vm/record_compose_evidence.py").read_text()
+        anchor = "    directory = args.output.parent\n"
+        extra = compose.replace(
+            anchor,
+            anchor
+            + '    extra = (directory / "reference-vm-result.json").read_text()\n',
+        )
+        self.assertNotEqual(extra, compose)
+        found = undeclared_access(extra)
+        self.assertEqual(len(found), 1)
+        self.assertIn("reference-vm-result.json", found[0])
+        sneaky = compose.replace(
+            anchor, anchor + "    extra = json.load(open(directory / 'x.json'))\n"
+        )
+        self.assertTrue(undeclared_access(sneaky))
+
+    def test_recorder_files_are_tracked_and_pinned(self):
         files = set(tracked(str(bundles.EVIDENCE)))
         moved = bundled()
-        inputs = recorder_inputs()
-        self.assertGreater(len(inputs), 20)
-        for recorder, path in inputs:
+        found = recorder_files()
+        self.assertGreater(len(found), 40)
+        for recorder, kind, path in found:
             relative = path.relative_to(ROOT).as_posix()
-            with self.subTest(recorder=recorder, path=relative):
-                self.assertFalse(relative in moved, "input was moved into a bundle")
-                self.assertTrue(relative in files, "input is not tracked")
-                self.assertTrue(relative in bundles.PINNED, "input is not pinned")
+            with self.subTest(recorder=recorder, kind=kind, path=relative):
+                self.assertFalse(relative in moved, f"{kind} was moved into a bundle")
+                self.assertTrue(relative in files, f"{kind} is not tracked")
+                self.assertTrue(relative in bundles.PINNED, f"{kind} is not pinned")
 
     def test_documented_dependencies_evidence_directory(self):
         dependencies = load("tests/privileged_vm/record_dependencies_evidence.py")

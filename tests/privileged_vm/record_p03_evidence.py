@@ -28,6 +28,14 @@ def evidence_inputs(evidence):
     }
 
 
+def evidence_outputs(output):
+    """Files written; scripts/evidence_bundles.py PINNED keeps them tracked."""
+    return {
+        "validation": output,
+        "manifest": output.parent / "lifecycle-source-sha256.json",
+    }
+
+
 def sha(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
@@ -46,6 +54,7 @@ def main():
     args = parser.parse_args()
     evidence = args.output.parent
     inputs = evidence_inputs(evidence)
+    outputs = evidence_outputs(args.output)
     vm = json.loads(inputs["vm"].read_text())
     browser = json.loads(inputs["browser"].read_text())
     log = inputs["log"].read_text()
@@ -78,7 +87,7 @@ def main():
                 continue
             assert sha(ROOT / name) == digest, f"Qualified runtime source drift: {name}"
             manifest[name] = digest
-    manifest_path = evidence / "lifecycle-source-sha256.json"
+    manifest_path = outputs["manifest"]
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     binaries = {
         name: sha(args.artifacts / name)
@@ -195,7 +204,7 @@ def main():
             "All 50 defect-register requirements remain open pending their complete acceptance criteria",
         ],
     }
-    args.output.write_text(json.dumps(result, indent=2) + "\n")
+    outputs["validation"].write_text(json.dumps(result, indent=2) + "\n")
     print(
         f"Bound {len(manifest)} source files to lifecycle evidence; VM footprint meets local guardrails."
     )
