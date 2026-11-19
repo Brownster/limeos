@@ -120,6 +120,8 @@ fct_lock() {
         exec 9>>"${lock}" || fct_die "cannot open ${lock}"
     fi
     flock -n 9 || fct_die "another activate.sh is running on this snapshot (${lock} is locked); nothing was changed"
+    # The holder's pid, for return.sh's refusal (the detached run rewrites it with its own).
+    printf '%s\n' "$$" >"${lock}"
 }
 
 # Refuse before arming when the cutover is already in place: a rerun would stop nothing

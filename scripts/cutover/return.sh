@@ -10,18 +10,25 @@ source "${SCRIPT_DIR}/lib.sh"
 
 SITE_NAME=limeos-cutover.caddy
 FAILURES=0
+FORCE=0
 HASHES_CAPTURED=0
 WRITERS_RUNNING=0
 declare -A CURRENT_HASHES=()
 
 fct_usage() {
     cat <<'USAGE'
-Usage: return.sh SNAPSHOT_DIR [--site-dir DIR] [--dry-run] [--help]
+Usage: return.sh SNAPSHOT_DIR [--site-dir DIR] [--force] [--dry-run] [--help]
 
 Restores the frozen app from a preflight snapshot. Safe to run repeatedly.
 Exit 0 only when hashes, the managed containers' IDs and StartedAt (from the
 snapshot's managed.txt; other containers only warn) and the frozen port all
 verify. Rust units return to their snapshot state.
+
+It takes the snapshot's activate.lock without waiting (activate.sh's own rollback
+uses the lock it already holds). While an activation holds it, return.sh refuses
+and names that activation's pid: it rolls back by itself on failure, and
+kill -TERM <pid> makes it roll back now. --force goes on regardless, only for an
+activation that is hung.
 USAGE
 }
 
@@ -76,6 +83,22 @@ fct_record_paths() { # file
     while IFS= read -r record || [[ -n "${record}" ]]; do
         if fct_parse_record "${record}"; then printf '%s\n' "${REC_PATH}"; fi
     done <"${1}"
+}
+
+# The snapshot's activate.lock, without waiting. activate.sh's rollback runs this script with
+# the lock already held on fd 9 (the same open file, so the same lock).
+fct_lock_snapshot() { # snap
+    local lock="${1}/activate.lock" holder
+    if [[ /proc/self/fd/9 -ef "${lock}" ]] && flock -n 9; then return 0; fi
+    exec 9>>"${lock}" || fct_die "cannot open ${lock}"
+    if flock -n 9; then return 0; fi
+    holder="$(head -n 1 -- "${lock}" 2>/dev/null || true)"
+    [[ "${holder}" =~ ^[0-9]+$ ]] || holder=unknown
+    if (( FORCE )); then
+        fct_warn "activate.sh (pid ${holder}) still holds ${lock}; going on because of --force"
+        return 0
+    fi
+    fct_die "activate.sh (pid ${holder}) is running on this snapshot; it rolls back by itself if it fails. To abort it now: kill -TERM ${holder}. Only if it is hung: return.sh --force"
 }
 
 fct_frozen_writer_running() {
@@ -165,6 +188,7 @@ fct_main() {
         case "${1}" in
             --dry-run) DRY_RUN=1; shift ;;
             --site-dir) site_dir="${2:?--site-dir needs a directory}"; shift 2 ;;
+            --force) FORCE=1; shift ;;
             -h|--help) fct_usage; return 0 ;;
             -*) fct_usage >&2; fct_die "unknown argument: ${1}" ;;
             *) [[ -z "${snap}" ]] || fct_die 'only one snapshot directory is accepted'; snap="${1}"; shift ;;
@@ -173,6 +197,7 @@ fct_main() {
     [[ -n "${snap}" ]] || { fct_usage >&2; fct_die 'a snapshot directory is required'; }
     fct_require_root
     fct_snapshot_check "${snap}" 0
+    if (( ! DRY_RUN )); then fct_lock_snapshot "${snap}"; fi
     # return.sh is the safety path, so it still accepts a snapshot from before state lists
     # and managed sets, with the rules that snapshot was taken under.
     if [[ -f "${snap}/state-paths.txt" ]]; then

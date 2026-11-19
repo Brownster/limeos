@@ -884,7 +884,8 @@ class ActivateTests(Harness):
     def test_a_rerun_after_a_completed_activation_changes_nothing(self):
         self.passing_snapshot()
         self.assertEqual(self.approved().returncode, 0)
-        before = tree_digest(self.root), tree_digest(self.stub / "units")
+        before = (tree_digest(self.root, skip=("calls.log", "activate.log", "activate.lock")),
+                  tree_digest(self.stub / "units"))
         (self.stub / "calls.log").write_text("")
         for attached in (True, False):
             with self.subTest(attached=attached):
@@ -893,7 +894,7 @@ class ActivateTests(Harness):
                 self.assertIn("already activated", result.stdout + result.stderr)
                 self.assertNotIn("ROLLBACK", result.stdout + result.stderr)
                 self.assertEqual(self.mutating_calls(), [])
-                self.assertEqual(before, (tree_digest(self.root, skip=("calls.log", "activate.log")),
+                self.assertEqual(before, (tree_digest(self.root, skip=("calls.log", "activate.log", "activate.lock")),
                                           tree_digest(self.stub / "units")))
 
     def test_an_active_cutover_site_refuses_a_new_activation(self):
@@ -944,6 +945,31 @@ class ActivateTests(Harness):
         self.assertEqual(result.returncode, 1)
         self.assertIn("port 8002 does not serve the frozen app", result.stderr)
         self.assertIn("ROLLBACK INCOMPLETE: follow docs/p06-cutover-runbook.md", result.stderr)
+
+    def test_return_refuses_while_an_activation_holds_the_lock_unless_forced(self):
+        self.passing_snapshot()
+        reached, go = self.block_at_core_start()
+        args = self.activate_args("--yes-i-have-operator-approval", "--attached")
+        args[0] = str(self.snap)
+        first = subprocess.Popen(
+            ["bash", str(SCRIPTS / "activate.sh"), *args], env={**self.env, "CUTOVER_NOW": str(NOW + 60)},
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        self.wait_for(reached.exists)
+        calls_before = len(self.mutating_calls())
+        result = self.do_return()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"activate.sh (pid {first.pid}) is running on this snapshot", result.stderr)
+        self.assertIn(f"kill -TERM {first.pid}", result.stderr)
+        self.assertIn("return.sh --force", result.stderr)
+        self.assertEqual(len(self.mutating_calls()), calls_before)
+        # A hung activation: --force goes ahead and says so.
+        result = self.do_return("--force")
+        self.assertIn(f"activate.sh (pid {first.pid}) still holds", result.stderr)
+        for name in FROZEN:
+            self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
+        os.killpg(first.pid, signal.SIGKILL)  # the "hung" activation; its blocked step goes with the cleanup
+        go.touch()
+        first.communicate(timeout=30)
 
     def test_health_failures_roll_back(self):
         base = {

@@ -138,7 +138,11 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    `return.sh`: read the report and decide yourself whether it is an abort
    criterion. Keep `report.json` with the cutover evidence.
 6. Log in through the browser (trust the Caddy CA first under `internal`).
-7. `scripts/cutover/return.sh SNAP [--dry-run]` at any time: removes the Caddy
+7. `scripts/cutover/return.sh SNAP [--dry-run] [--force]` at any time, except
+   while an activation on that snapshot is still running: then it refuses and
+   names the activation's pid. That run rolls back by itself if it fails;
+   `kill -TERM PID` makes it roll back now. `--force` goes on regardless and is
+   only for an activation that is hung. Otherwise: removes the Caddy
    site, returns the Rust services to their snapshot state (stopped and disabled
    unless they were already running or enabled before the cutover), re-enables
    and starts the frozen units (helper, app, timers), then verifies state hashes,
