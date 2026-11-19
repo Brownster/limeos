@@ -663,7 +663,14 @@ async fn a_missing_account_goes_through_the_real_dummy_hash_and_is_never_accepte
 async fn a_comparison_is_marked_started_only_once_a_worker_is_admitted() {
     use limeos_api::PasswordAttempt;
     let f = fixture().await;
-    let core = login_core(&f, 3);
+    let mut core = login_core(&f, 3);
+    // A wait far longer than the cancellation below, whatever the runner load.
+    core.password_workers = Arc::new(PasswordWorkers::with_limits(
+        2,
+        8,
+        std::time::Duration::from_secs(30),
+        3,
+    ));
     let login = |attempt: PasswordAttempt| {
         let core = core.clone();
         async move {

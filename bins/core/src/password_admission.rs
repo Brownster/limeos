@@ -91,18 +91,32 @@ impl PasswordWorkers {
 #[cfg(test)]
 mod tests {
     use super::*;
-    /// Short real waits: this crate's tests run without a paused clock.
+    /// Real waits: this crate's tests run without a paused clock. Tests that
+    /// only wait as long as they need use a generous bound; the timeout test
+    /// asserts only a lower bound on the elapsed time.
     const TEST_WAIT: Duration = Duration::from_millis(200);
+    const GENEROUS: Duration = Duration::from_secs(30);
+
+    /// Poll once without waiting.
+    fn poll_once<F: std::future::Future>(future: F) -> std::task::Poll<F::Output> {
+        let mut future = std::pin::pin!(future);
+        future
+            .as_mut()
+            .poll(&mut std::task::Context::from_waker(std::task::Waker::noop()))
+    }
 
     #[tokio::test]
     async fn a_waiting_check_gets_the_worker_that_frees_up() {
-        let workers = Arc::new(PasswordWorkers::with_limits(1, 2, TEST_WAIT, 1));
+        let workers = Arc::new(PasswordWorkers::with_limits(1, 2, GENEROUS, 1));
         let held = workers.admit().await.unwrap();
         let waiting = tokio::spawn({
             let workers = workers.clone();
             async move { workers.admit().await.map(|_| ()) }
         });
-        tokio::time::sleep(TEST_WAIT / 4).await;
+        // Queued behind the held worker, not refused.
+        while workers.admitted.available_permits() > 1 {
+            tokio::task::yield_now().await;
+        }
         assert!(!waiting.is_finished());
         drop(held);
         assert!(waiting.await.unwrap().is_ok());
@@ -122,12 +136,7 @@ mod tests {
     }
     #[tokio::test]
     async fn waiters_are_bounded_and_served_in_order() {
-        let workers = Arc::new(PasswordWorkers::with_limits(
-            1,
-            2,
-            Duration::from_secs(5),
-            1,
-        ));
+        let workers = Arc::new(PasswordWorkers::with_limits(1, 2, GENEROUS, 1));
         let held = workers.admit().await.unwrap();
         let order = Arc::new(Mutex::new(Vec::new()));
         let mut waiting = Vec::new();
@@ -143,13 +152,12 @@ mod tests {
                 tokio::task::yield_now().await;
             }
         }
-        // One worker busy, two waiting: a third check is refused at once.
-        let started = Instant::now();
-        assert_eq!(
-            workers.admit().await.err(),
-            Some(Error(ErrorCode::Overloaded))
-        );
-        assert!(started.elapsed() < Duration::from_secs(1));
+        // One worker busy, two waiting: a third check is refused on its first
+        // poll, without waiting.
+        assert!(matches!(
+            poll_once(workers.admit()),
+            std::task::Poll::Ready(Err(Error(ErrorCode::Overloaded)))
+        ));
         drop(held);
         for task in waiting {
             task.await.unwrap();
