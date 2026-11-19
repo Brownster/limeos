@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# T6: return to the frozen app. Stops the Rust services and the proxy site,
-# restores the frozen units to their snapshot state, then verifies state hashes,
+# T6: return to the frozen app. Removes the proxy site, returns the Rust services and
+# the frozen units to their snapshot state, then verifies state hashes,
 # container IDs and the frozen port. Idempotent; best effort, then verified.
 # The package stays installed (removal is the operator's separate decision).
 set -Eeuo pipefail
@@ -17,7 +17,9 @@ fct_usage() {
 Usage: return.sh SNAPSHOT_DIR [--site-dir DIR] [--dry-run] [--help]
 
 Restores the frozen app from a preflight snapshot. Safe to run repeatedly.
-Exit 0 only when hashes, container IDs and the frozen port all verify.
+Exit 0 only when hashes, the managed containers' IDs and StartedAt (from the
+snapshot's managed.txt; other containers only warn) and the frozen port all
+verify. Rust units return to their snapshot state.
 USAGE
 }
 
@@ -48,6 +50,22 @@ fct_restore_frozen() {
         [[ "${active}" == active ]] && fct_step systemctl start "${unit}"
     done
     : "${class:-}"
+}
+
+# Rust units back to their snapshot state: stopped and disabled unless they already ran or
+# were enabled before the cutover (a package installed earlier, for example).
+fct_restore_rust() {
+    local snap="${1}" unit active enabled
+    for unit in limeos-core.service limeos-containerd.service limeos-storaged.service; do
+        read -r _ _ active enabled < <(grep -m1 -F "managed ${unit} " "${snap}/units.txt" || echo 'managed - inactive disabled')
+        if [[ "${active}" != active ]]; then fct_step systemctl stop "${unit}"; fi
+        if [[ "${enabled}" != enabled ]]; then fct_step systemctl disable "${unit}"; fi
+    done
+    for unit in "${RUST_UNITS[@]}"; do
+        read -r _ _ active enabled < <(grep -m1 -F "managed ${unit} " "${snap}/units.txt" || echo 'managed - inactive disabled')
+        if [[ "${enabled}" == enabled ]]; then fct_step systemctl enable "${unit}"; fi
+        if [[ "${active}" == active ]]; then fct_step systemctl start "${unit}"; fi
+    done
 }
 
 fct_frozen_writer_running() {
@@ -88,10 +106,14 @@ fct_verify_hashes() {
     rm -f -- "${tmp}"
 }
 
+# Only the managed set must match the snapshot; other changes are named, not failures.
 fct_verify_docker() {
-    local snap="${1}"
-    if [[ "$(fct_docker_ids)" != "$(cat -- "${snap}/docker-ps.txt")" ]]; then fct_fail 'docker ps IDs differ from the snapshot'; fi
-    if [[ "$(fct_docker_started)" != "$(cat -- "${snap}/docker-started.txt")" ]]; then fct_fail 'container StartedAt differs from the snapshot (a restart happened)'; fi
+    local snap="${1}" ids started
+    ids="$(fct_docker_diff_names "${snap}/docker-ps.txt" <(fct_docker_ids) | fct_managed_only "${snap}" | paste -sd ' ' -)"
+    started="$(fct_docker_diff_names "${snap}/docker-started.txt" <(fct_docker_started) | fct_managed_only "${snap}" | paste -sd ' ' -)"
+    if [[ -n "${ids}" ]]; then fct_fail "docker ps IDs differ from the snapshot: ${ids}"; fi
+    if [[ -n "${started}" ]]; then fct_fail "container StartedAt differs from the snapshot (a restart happened): ${started}"; fi
+    fct_warn_unmanaged_changes "${snap}"
 }
 
 fct_verify_port() {
@@ -135,16 +157,13 @@ fct_main() {
 
     fct_log 'return: stopping the proxy site'
     fct_stop_proxy "${CUTOVER_ROOT}${site_dir}/${SITE_NAME}" "${caddy_state}"
-    fct_log 'return: stopping the Rust services'
+    fct_log 'return: restoring the Rust services to their snapshot state'
     # The stack reader has no Install section: activate.sh starts it (never enables it) and
     # it is stopped here, whoever started it.
     if [[ "$(fct_unit_active limeos-storage-reader.service)" == active ]]; then
         fct_step systemctl stop limeos-storage-reader.service
     fi
-    for unit in limeos-core.service limeos-containerd.service limeos-storaged.service; do
-        fct_step systemctl stop "${unit}"
-        fct_step systemctl disable "${unit}"
-    done
+    fct_restore_rust "${snap}"
     # Hash the state before the frozen writers start again: a restored timer or app can
     # rewrite its live files within seconds, which is not evidence of a late writer.
     if (( ! DRY_RUN )); then

@@ -15,6 +15,7 @@ ARMED=0
 ROLLING_BACK=0
 ATTACHED=0
 DETACHED_PID=''
+HEALTH_DETAIL=''
 SNAP=''
 SITE_DIR='/etc/caddy/conf.d'
 
@@ -110,11 +111,12 @@ fct_retry() { # label, then command; up to 30 tries one second apart
     local label="${1}" attempt
     shift
     if (( DRY_RUN )); then printf '[dry-run] check %s: %s\n' "${label}" "$*"; return 0; fi
+    HEALTH_DETAIL=''
     for (( attempt=0; attempt<30; attempt++ )); do
         if "$@" >/dev/null 2>&1; then printf 'ok: %s\n' "${label}"; return 0; fi
         sleep 1
     done
-    fct_abort "health check failed: ${label}"
+    fct_abort "health check failed: ${label}${HEALTH_DETAIL:+ (${HEALTH_DETAIL})}"
 }
 
 fct_render() { # template site tls -> stdout
@@ -134,9 +136,12 @@ fct_reader_ready() {
     [[ "$(systemctl show -p NRestarts --value "${STACK_READER}" 2>/dev/null || echo 0)" == 0 ]]
 }
 fct_units_active() { local unit; for unit in "$@"; do systemctl is-active --quiet "${unit}" || return 1; done; }
+# Managed containers have the snapshot's IDs and StartedAt; HEALTH_DETAIL names any that do not.
 fct_docker_matches() {
-    [[ "$(fct_docker_ids)" == "$(cat -- "${SNAP}/docker-ps.txt")" ]] \
-        && [[ "$(fct_docker_started)" == "$(cat -- "${SNAP}/docker-started.txt")" ]]
+    local changed
+    changed="$(fct_docker_changes "${SNAP}" | fct_managed_only "${SNAP}" | paste -sd ' ' -)"
+    HEALTH_DETAIL="${changed:+changed: ${changed}}"
+    [[ -z "${changed}" ]]
 }
 fct_untouched_match() {
     [[ "$(fct_unit_report | grep '^untouched ')" == "$(grep '^untouched ' "${SNAP}/units.txt")" ]]
@@ -276,7 +281,8 @@ fct_main() {
     fct_retry 'core health via the proxy' "${curl_base[@]}" "${site}/api/v1/health"
     fct_retry 'login page via the proxy' "${curl_base[@]}" "${site}/"
     fct_retry 'limeosctl status' "${LIMEOSCTL}" --socket "${CORE_SOCKET}" status
-    fct_retry 'docker ps and StartedAt identical to the snapshot' fct_docker_matches
+    fct_retry 'managed containers: docker ps and StartedAt identical to the snapshot' fct_docker_matches
+    if (( ! DRY_RUN )); then fct_warn_unmanaged_changes "${SNAP}"; fi
     fct_retry 'untouched units unchanged' fct_untouched_match
     fct_retry 'stack reader ready' fct_reader_ready
     if (( ! DRY_RUN )); then sleep 3; fi

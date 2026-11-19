@@ -155,6 +155,29 @@ fct_docker_started() {
     docker inspect --format '{{.Id}} {{.Name}} {{.State.StartedAt}}' "${ids[@]}" | sort
 }
 
+# Names of containers whose line differs between a snapshot file and the current
+# listing (started, stopped, re-created or restarted), one per line.
+fct_docker_diff_names() { # snapshot_file current_file
+    comm -3 <(sort -- "${1}") <(sort -- "${2}") | awk '{ n = $2; sub(/^\//, "", n); print n }' | sort -u
+}
+fct_docker_changes() { # snapshot_dir
+    {
+        fct_docker_diff_names "${1}/docker-ps.txt" <(fct_docker_ids)
+        fct_docker_diff_names "${1}/docker-started.txt" <(fct_docker_started)
+    } | sort -u
+}
+# Filter names on stdin by the snapshot's managed set (managed.txt, written by preflight).
+fct_managed_only() { grep -Fxf "${1}/managed.txt" || [[ $? == 1 ]]; }
+fct_unmanaged_only() { grep -vFxf "${1}/managed.txt" || [[ $? == 1 ]]; }
+# Only the managed set must be unchanged; a change elsewhere (watchtower updating an unmanaged
+# container, say) is named and otherwise ignored.
+fct_warn_unmanaged_changes() { # snapshot_dir
+    local name
+    while read -r name; do
+        if [[ -n "${name}" ]]; then fct_warn "container outside the managed set changed (not rolled back): ${name}"; fi
+    done < <(fct_docker_changes "${1}" | fct_unmanaged_only "${1}")
+}
+
 # Snapshot must be complete, from a passing preflight, and fresh (max 0 = any age).
 fct_snapshot_check() { # dir max_age_seconds
     local dir="${1}" max="${2}" meta ts age
@@ -163,6 +186,7 @@ fct_snapshot_check() { # dir max_age_seconds
     [[ "$(fct_meta_get "${meta}" complete)" == 1 ]] || fct_die 'snapshot is incomplete'
     [[ "$(fct_meta_get "${meta}" preflight)" == pass ]] || fct_die 'snapshot records a refused preflight'
     [[ -f "${dir}/state-paths.txt" ]] || fct_die 'snapshot has no state-paths.txt (taken before state lists); run preflight again'
+    [[ -f "${dir}/managed.txt" ]] || fct_die 'snapshot has no managed.txt (taken before managed sets were recorded); run preflight again'
     if (( max > 0 )); then
         ts="$(fct_meta_get "${meta}" epoch)"
         [[ "${ts}" =~ ^[0-9]+$ ]] || fct_die 'snapshot has no valid timestamp'

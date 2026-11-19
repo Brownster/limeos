@@ -23,7 +23,10 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    Caddy may also bind port 80 for redirects; if that port is taken, set
    `auto_https disable_redirects` in the main Caddyfile's global block.
 5. Whether the managed-container list is the default fourteen names (edit with
-   `preflight.sh --managed-file`).
+   `preflight.sh --managed-file`). Only these must keep their IDs and StartedAt
+   through the cutover; a restart of any other container is reported by name and
+   does not roll back. `watchtower` is in the default list, so with the defaults a
+   watchtower restart, or an update it applies to a managed container, rolls back.
 
 ## Steps
 
@@ -65,7 +68,8 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    conffile); starts the Rust services and the read-only stack reader
    (`limeos-storage-reader`, started but never enabled); installs the Caddy site; then checks
    core health and the login page through the proxy, `limeosctl status`, `docker
-   ps` IDs and StartedAt against the snapshot, that the reader is active, listening and not
+   ps` IDs and StartedAt of the managed containers against the snapshot (naming
+   any that changed; other containers that changed are warned about by name), that the reader is active, listening and not
    restarting (twice, three seconds apart), and that `limeops-*`,
    `limeos-agent` and `flask-shutdown` are unchanged. Any failure runs
    `return.sh` and exits non-zero; so do SIGINT, SIGTERM, SIGHUP and any
@@ -114,9 +118,11 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    criterion. Keep `report.json` with the cutover evidence.
 6. Log in through the browser (trust the Caddy CA first under `internal`).
 7. `scripts/cutover/return.sh SNAP [--dry-run]` at any time: removes the Caddy
-   site, stops and disables the Rust services, re-enables and starts the frozen
-   units (helper, app, timers), then verifies state hashes, container IDs and
-   StartedAt, and that port 8002 answers over plain HTTP. Safe to repeat. The
+   site, returns the Rust services to their snapshot state (stopped and disabled
+   unless they were already running or enabled before the cutover), re-enables
+   and starts the frozen units (helper, app, timers), then verifies state hashes,
+   the managed containers' IDs and StartedAt (other containers only warn), and
+   that port 8002 answers over plain HTTP. Safe to repeat. The
    package stays installed.
 
 Stack status and whole-stack start/stop/restart need the reader and the catalog; `activate.sh`
@@ -129,7 +135,7 @@ Compose file under `/opt/stacks` changes, since its hash is registered.
 
 Run `return.sh` and stop if any of these holds: a preflight refusal you cannot
 explain; `activate.sh` rolled back (read its output, do not retry blind); a
-container ID or StartedAt changed; a state hash changed; swap or memory
+managed container's ID or StartedAt changed; a state hash changed; swap or memory
 pressure rises during the window; login or health fails after activation; the
 household reports playback trouble. If `return.sh` exits non-zero, do not
 retry the cutover: inspect the named failure by hand.

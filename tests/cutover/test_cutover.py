@@ -718,6 +718,38 @@ class ActivateTests(Harness):
         snap_ps.write_text(snap_ps.read_text().replace("0001", "ffff", 1))
         self.assert_rolled_back(self.approved())
 
+    def restart_during_activation(self, name):
+        """The container restarts (new StartedAt) while the Rust services start."""
+        started = self.stub / "docker_started.txt"
+        hook = self.stub / "hook-start-limeos-core.service"
+        hook.write_text(
+            "#!/usr/bin/env bash\n"
+            f"sed -i '/ \\/{name} /s/2026-11-01T00:00:00Z/2026-11-19T03:00:00Z/' '{started}'\n")
+        hook.chmod(0o755)
+
+    def test_restart_outside_the_managed_set_is_reported_not_rolled_back(self):
+        managed = Path(self._tmp.name) / "managed.txt"
+        managed.write_text("".join(f"{n}\n" for n in MANAGED if n != "watchtower"))
+        self.assertEqual(self.preflight("--managed-file", str(managed)).returncode, 0)
+        self.restart_during_activation("watchtower")
+        result = self.approved()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("container outside the managed set changed (not rolled back): watchtower", result.stderr)
+        self.assertNotIn("ROLLBACK", result.stderr)
+        # return.sh applies the same rule: reported, not a failure.
+        result = self.do_return()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("container outside the managed set changed", result.stderr)
+        self.assertIn("watchtower", result.stderr)
+
+    def test_restart_of_a_managed_container_rolls_back_and_names_it(self):
+        self.passing_snapshot()
+        self.restart_during_activation("radarr")
+        result = self.approved()
+        self.assert_rolled_back(result)
+        self.assertIn("(changed: radarr)", result.stderr)
+        self.assertIn("container StartedAt differs from the snapshot (a restart happened): radarr", result.stderr)
+
     def test_state_change_before_stop_rolls_back(self):
         self.passing_snapshot()
         self._write("/etc/limeos/credentials.env", "PIHEALTH_USERS=holly:CHANGED\n")
@@ -764,6 +796,19 @@ class ReturnTests(Harness):
         second = self.do_return()
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertEqual(digest, (tree_digest(self.root), tree_digest(self.stub / "units")))
+
+    def test_rust_units_enabled_before_the_cutover_are_restored_not_disabled(self):
+        for name in RUST:
+            self._unit(name, "active", "enabled")
+        self.activated()
+        result = self.do_return()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for name in RUST:
+            self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
+            self.assertNotIn(f"systemctl stop {name}", self.calls())
+            self.assertNotIn(f"systemctl disable {name}", self.calls())
+        # The reader was never enabled and is still stopped by return.
+        self.assertEqual(self.unit_state(READER), ("inactive", "disabled"))
 
     def test_return_without_prior_activate(self):
         self.passing_snapshot()

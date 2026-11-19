@@ -77,6 +77,7 @@ fct_main() {
     else
         managed=("${DEFAULT_MANAGED[@]}")
     fi
+    printf '%s\n' "${managed[@]}" >"${out}/managed.txt"
 
     fct_unit_report >"${out}/units.txt"
     ss -H -ltn >"${out}/ports.txt" || true
