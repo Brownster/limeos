@@ -73,7 +73,7 @@ fct_restore_rust() {
 # The paths of the well-formed records in a hash file, one per line.
 fct_record_paths() { # file
     local record
-    while IFS= read -r record; do
+    while IFS= read -r record || [[ -n "${record}" ]]; do
         if fct_parse_record "${record}"; then printf '%s\n' "${REC_PATH}"; fi
     done <"${1}"
 }
@@ -98,7 +98,7 @@ fct_capture_hashes() {
         return 0
     fi
     # Current hashes by exact path (any byte but newline).
-    while IFS= read -r record; do
+    while IFS= read -r record || [[ -n "${record}" ]]; do
         if fct_parse_record "${record}"; then CURRENT_HASHES["${REC_PATH}"]="${REC_HASH}"; fi
     done <<<"${hashes}"
     HASHES_CAPTURED=1
@@ -108,7 +108,7 @@ fct_verify_hashes() {
     local snap="${1}" flag hash path record cur_hash baseline writers="${WRITERS_RUNNING}"
     (( HASHES_CAPTURED )) || return 0
     baseline="${snap}/state.poststop.sha256"
-    while IFS= read -r record; do
+    while IFS= read -r record || [[ -n "${record}" ]]; do
         [[ -n "${record}" ]] || continue
         if ! fct_parse_record "${record}"; then fct_fail "malformed state record in the snapshot: ${record}"; continue; fi
         flag="${REC_FLAG}" hash="${REC_HASH}" path="${REC_PATH}"
@@ -152,7 +152,7 @@ fct_verify_port() {
 
 fct_verify_untouched() {
     local snap="${1}" class unit active enabled now
-    while read -r class unit active enabled; do
+    while read -r class unit active enabled || [[ -n "${class}" ]]; do
         [[ "${class}" == untouched ]] || continue
         now="$(fct_unit_active "${unit}")"
         [[ "${now}" == "${active}" ]] || fct_fail "untouched unit changed state: ${unit}"

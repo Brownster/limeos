@@ -301,6 +301,17 @@ class PreflightTests(Harness):
         shutil.rmtree(self.root / "var/lib/limeos-cutover")
         self.refused("not a regular file")
 
+    def test_the_last_line_of_operator_lists_counts_without_a_newline(self):
+        managed = Path(self._tmp.name) / "managed.txt"
+        managed.write_text("jellyfin\nradarr")
+        self.state_list.write_text("/etc/limeos/credentials.env\n/home/holly/pi-health/config/media_paths.json")
+        lines = (self.stub / "docker_ps.txt").read_text().splitlines()
+        (self.stub / "docker_ps.txt").write_text("\n".join(l for l in lines if "radarr" not in l) + "\n")
+        result = self.preflight("--managed-file", str(managed))
+        self.assertIn("managed container not running: radarr", result.stderr)
+        self.assertIn("/home/holly/pi-health/config/media_paths.json\n", (self.snap / "state-paths.txt").read_text())
+        self.assertEqual((self.snap / "managed.txt").read_text(), "jellyfin\nradarr\n")
+
     def test_refuses_stopped_managed_container(self):
         lines = (self.stub / "docker_ps.txt").read_text().splitlines()
         (self.stub / "docker_ps.txt").write_text("\n".join(l for l in lines if "radarr" not in l) + "\n")
@@ -1057,6 +1068,20 @@ class ActivateTests(Harness):
         self.assertIn("malformed state record", result.stderr)
         self.assertEqual(self.mutating_calls(), [])
 
+    def test_an_unterminated_last_record_is_refused_before_any_change(self):
+        self.passing_snapshot()
+        records = self.snap / "state.sha256"
+        records.write_text(records.read_text() + "S  /srv/config.json")  # malformed, and no newline
+        result = self.approved()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("does not end in a newline", result.stderr)
+        self.assertEqual(self.mutating_calls(), [])
+        # A well-formed last record without its newline is refused too: the file was cut short.
+        records.write_text(records.read_text().rsplit("\n", 1)[0])
+        result = self.approved()
+        self.assertIn("does not end in a newline", result.stderr)
+        self.assertEqual(self.mutating_calls(), [])
+
     def test_container_change_rolls_back(self):
         self.passing_snapshot()
         snap_ps = self.snap / "docker-ps.txt"
@@ -1223,6 +1248,16 @@ class ReturnTests(Harness):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn(fragment, result.stderr)
                     self.assertIn("state verification skipped", result.stderr)
+
+    def test_an_unterminated_last_record_fails_verification(self):
+        self.activated()
+        records = self.snap / "state.sha256"
+        records.write_text(records.read_text() + "S  /srv/config.json")
+        result = self.do_return()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("malformed state record in the snapshot: S  /srv/config.json", result.stderr)
+        for name in FROZEN:
+            self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
 
     def test_malformed_snapshot_record_fails_verification(self):
         self.activated()

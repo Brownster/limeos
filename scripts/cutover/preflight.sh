@@ -116,7 +116,7 @@ fct_main() {
     local -a managed=() refusals=() warnings=()
     if [[ -n "${managed_file}" ]]; then
         local line
-        while IFS= read -r line; do [[ -n "${line}" && "${line}" != \#* ]] && managed+=("${line}"); done <"${managed_file}"
+        while IFS= read -r line || [[ -n "${line}" ]]; do [[ -n "${line}" && "${line}" != \#* ]] && managed+=("${line}"); done <"${managed_file}"
     else
         managed=("${DEFAULT_MANAGED[@]}")
     fi
@@ -163,7 +163,7 @@ fct_main() {
         fi
     fi
     local record state_found=0
-    while IFS= read -r record; do
+    while IFS= read -r record || [[ -n "${record}" ]]; do
         fct_parse_record "${record}" || continue
         if [[ "${REC_HASH}" == ABSENT ]]; then
             refusals+=("state path missing: ${REC_PATH} (fix the state list from limeosctl migrate scan)")

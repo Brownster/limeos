@@ -81,7 +81,7 @@ fct_unit_enabled() { systemctl is-enabled "${1}" 2>/dev/null || true; }
 # limeops-* units, discovered (names only).
 fct_limeops_units() {
     local name rest
-    while read -r name rest; do
+    while read -r name rest || [[ -n "${name}" ]]; do
         [[ "${name}" == limeops-* ]] && printf '%s\n' "${name}"
     done < <(systemctl list-unit-files 'limeops-*' --no-legend 2>/dev/null || true)
     return 0
@@ -99,7 +99,7 @@ fct_unit_report() {
         for unit in "${FROZEN_UNITS[@]}" "${RUST_UNITS[@]}" caddy.service; do
             printf 'managed %s %s %s\n' "${unit}" "$(fct_unit_active "${unit}")" "$(fct_unit_enabled "${unit}")"
         done
-        while read -r unit; do
+        while read -r unit || [[ -n "${unit}" ]]; do
             [[ -n "${unit}" ]] || continue
             printf 'untouched %s %s %s\n' "${unit}" "$(fct_unit_active "${unit}")" "$(fct_unit_enabled "${unit}")"
         done < <(fct_untouched_units)
@@ -139,12 +139,12 @@ fct_hash_one() {
 fct_state_hashes() {
     local path dir found record
     {
-        while IFS= read -r path; do
+        while IFS= read -r path || [[ -n "${path}" ]]; do
             [[ -n "${path}" ]] || continue
             record="$(fct_hash_one "${path}")" || exit 1
             printf '%s %s\n' "${record}" "${path}"
         done < <(fct_state_files)
-        while IFS= read -r dir; do
+        while IFS= read -r dir || [[ -n "${dir}" ]]; do
             [[ -n "${dir}" && -d "${CUTOVER_ROOT}${dir}" ]] || continue
             while IFS= read -r -d '' found; do
                 found="${found#"${CUTOVER_ROOT}"}"
@@ -172,10 +172,12 @@ fct_parse_record() { # line
     [[ "${REC_FLAG}" == [SV] && "${REC_PATH}" == /* ]] || return 1
     [[ "${REC_HASH}" == ABSENT || "${REC_HASH}" =~ ^[0-9a-f]{64}$ ]]
 }
-# Every record in a hash file is well formed; warns about the first that is not.
+# Every record in a hash file is well formed and the file ends in a newline (a file cut
+# short is not a snapshot); warns about the first problem.
 fct_records_ok() { # file
     local line
-    while IFS= read -r line; do
+    if [[ -s "${1}" && -n "$(tail -c 1 -- "${1}")" ]]; then fct_warn "${1} does not end in a newline (cut short?)"; return 1; fi
+    while IFS= read -r line || [[ -n "${line}" ]]; do
         fct_parse_record "${line}" || { fct_warn "malformed state record in ${1}: ${line}"; return 1; }
     done <"${1}"
 }
@@ -207,7 +209,7 @@ fct_unmanaged_only() { if [[ -f "${1}/managed.txt" ]]; then grep -vFxf "${1}/man
 # container, say) is named and otherwise ignored.
 fct_warn_unmanaged_changes() { # snapshot_dir
     local name
-    while read -r name; do
+    while read -r name || [[ -n "${name}" ]]; do
         if [[ -n "${name}" ]]; then fct_warn "container outside the managed set changed (not rolled back): ${name}"; fi
     done < <(fct_docker_changes "${1}" | fct_unmanaged_only "${1}")
 }
