@@ -5,21 +5,23 @@ pub(super) async fn enable<B: Backend>(State(app): State<App<B>>, request: Reque
     let deadline = Instant::now() + Duration::from_secs(10);
     let result = async {
         let (token, csrf) = operations::credentials(&app, request.headers())?;
-        let ip = request
-            .extensions()
-            .get::<Peer>()
-            .map(|p| p.0.ip())
-            .unwrap_or(IpAddr::from([127, 0, 0, 1]));
-        if !app.limiter.lock().is_ok_and(|mut l| l.allow(ip)) {
-            return Err(Error(ErrorCode::Overloaded));
-        }
+        let principal = app
+            .backend
+            .session(token.clone(), Some(csrf.clone()))
+            .await?
+            .principal;
         let input: limeos_contracts::ObserveHealthEnable = operations::input(request).await?;
         if input.password.is_empty() || input.password.len() > 1024 {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        app.backend
-            .enable_observe_health(token, csrf, input, deadline)
-            .await
+        // Failed password attempts are budgeted per authenticated principal.
+        password_attempt(
+            &app,
+            Attempt::Principal(&principal.id),
+            app.backend
+                .enable_observe_health(token, csrf, input, deadline),
+        )
+        .await
     }
     .await;
     match result {

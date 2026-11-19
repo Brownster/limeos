@@ -12,7 +12,7 @@ use limeos_domain::{Error, ErrorCode, Result};
 use std::{
     collections::HashMap,
     future::Future,
-    net::{IpAddr, SocketAddr},
+    hash::{BuildHasher, RandomState},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -509,34 +509,78 @@ struct App<B> {
     limiter: Arc<Mutex<Limiter>>,
     readers: Arc<Semaphore>,
 }
-#[derive(Clone, Copy)]
-struct Peer(SocketAddr);
+/// Whose password is being tried. Every peer is the local proxy, so the
+/// address says nothing; forwarded headers are never trusted either.
+#[derive(Clone, Copy, Hash)]
+enum Attempt<'a> {
+    /// The username a login names, whether or not such an account exists.
+    Login(&'a str),
+    /// The principal of an authenticated session re-entering its password.
+    Principal(&'a str),
+}
+/// Failed password attempts per minute: ten per attempt key and 120 in all.
+/// Keys are hashed with a per-process random key, so entries are fixed-size
+/// whatever was submitted; the global budget bounds how many can exist.
 #[derive(Default)]
 struct Limiter {
-    peers: HashMap<IpAddr, (Instant, u32)>,
+    keys: RandomState,
+    attempts: HashMap<u64, (Instant, u32)>,
     global: Option<(Instant, u32)>,
 }
 impl Limiter {
-    fn allow(&mut self, ip: IpAddr) -> bool {
+    /// Charge one attempt before the password work; false when either budget
+    /// is spent. Charging first keeps concurrent attempts inside the budget.
+    fn charge(&mut self, key: u64) -> bool {
         let now = Instant::now();
         let window = Duration::from_secs(60);
-        self.peers
+        self.attempts
             .retain(|_, (at, _)| now.duration_since(*at) < window);
         let global = self.global.get_or_insert((now, 0));
         if now.duration_since(global.0) >= window {
             *global = (now, 0);
         }
-        if global.1 >= 120 || (!self.peers.contains_key(&ip) && self.peers.len() >= 1024) {
+        if global.1 >= 120 || (!self.attempts.contains_key(&key) && self.attempts.len() >= 1024) {
             return false;
         }
-        let peer = self.peers.entry(ip).or_insert((now, 0));
-        if peer.1 >= 10 {
+        let entry = self.attempts.entry(key).or_insert((now, 0));
+        if entry.1 >= 10 {
             return false;
         }
-        peer.1 += 1;
+        entry.1 += 1;
         global.1 += 1;
         true
     }
+    /// A correct password costs nothing.
+    fn refund(&mut self, key: u64) {
+        if let Some(entry) = self.attempts.get_mut(&key) {
+            entry.1 = entry.1.saturating_sub(1);
+        }
+        if let Some(global) = &mut self.global {
+            global.1 = global.1.saturating_sub(1);
+        }
+    }
+}
+/// Run one password check under the failed-attempt budget. Callers validate
+/// origin, credentials headers and the body first, so junk is never charged.
+async fn password_attempt<B, T>(
+    app: &App<B>,
+    attempt: Attempt<'_>,
+    check: impl Future<Output = Result<T>>,
+) -> Result<T> {
+    let key = app.limiter.lock().ok().and_then(|mut limiter| {
+        let key = limiter.keys.hash_one(attempt);
+        limiter.charge(key).then_some(key)
+    });
+    let Some(key) = key else {
+        return Err(Error(ErrorCode::Overloaded));
+    };
+    let result = check.await;
+    if result.is_ok() {
+        if let Ok(mut limiter) = app.limiter.lock() {
+            limiter.refund(key);
+        }
+    }
+    result
 }
 pub fn router<B: Backend>(backend: B, origin: String) -> Router {
     Router::new()
@@ -823,14 +867,6 @@ async fn login<B: Backend>(State(app): State<App<B>>, request: Request) -> Respo
     if let Err(e) = origin(&app, request.headers()) {
         return failure(e);
     }
-    let ip = request
-        .extensions()
-        .get::<Peer>()
-        .map(|p| p.0.ip())
-        .unwrap_or(IpAddr::from([127, 0, 0, 1]));
-    if !app.limiter.lock().is_ok_and(|mut l| l.allow(ip)) {
-        return failure(Error(ErrorCode::Overloaded));
-    }
     if request
         .headers()
         .get("content-type")
@@ -848,7 +884,8 @@ async fn login<B: Backend>(State(app): State<App<B>>, request: Request) -> Respo
         Ok(i) => i,
         Err(_) => return failure(Error(ErrorCode::InvalidInput)),
     };
-    match app.backend.login(input).await {
+    let username = input.username.clone();
+    match password_attempt(&app, Attempt::Login(&username), app.backend.login(input)).await {
         Ok(issued) => {
             let value = format!(
                 "__Host-limeos={}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=28800",
@@ -905,11 +942,11 @@ async fn logout<B: Backend>(State(app): State<App<B>>, headers: HeaderMap) -> Re
 pub async fn serve(listener: TcpListener, router: Router) -> std::io::Result<()> {
     let permits = Arc::new(Semaphore::new(64));
     loop {
-        let (stream, peer) = listener.accept().await?;
+        let (stream, _) = listener.accept().await?;
         let Ok(permit) = permits.clone().try_acquire_owned() else {
             continue;
         };
-        let app = router.clone().layer(axum::Extension(Peer(peer)));
+        let app = router.clone();
         tokio::spawn(async move {
             let _permit = permit;
             let io = hyper_util::rt::TokioIo::new(stream);
@@ -991,49 +1028,155 @@ mod tests {
         let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
         assert!(!String::from_utf8_lossy(&bytes).contains("pihealth"));
     }
+    /// Accepts exactly `admin` / `right`; every other attempt is a failure.
+    #[derive(Clone)]
+    struct Accepting;
+    impl Backend for Accepting {
+        async fn login(&self, input: Login) -> Result<IssuedSession> {
+            if input.username != "admin" || input.password != "right" {
+                return Err(Error(ErrorCode::Unauthenticated));
+            }
+            Ok(IssuedSession {
+                token: "a".repeat(64),
+                view: SessionView {
+                    principal: limeos_domain::Principal {
+                        id: "p".repeat(64),
+                        role: limeos_domain::Role::Administrator,
+                        grant_revision: 1,
+                    },
+                    csrf_token: "c".repeat(64),
+                    expires_at: 999,
+                },
+            })
+        }
+        async fn session(&self, _: String, _: Option<String>) -> Result<SessionView> {
+            Err(Error(ErrorCode::Unauthenticated))
+        }
+        async fn logout(&self, _: String, _: String) -> Result<()> {
+            panic!("unvalidated mutation")
+        }
+        async fn health(&self) -> Result<Health> {
+            Err(Error(ErrorCode::Unavailable))
+        }
+    }
+    fn login_request(content_type: Option<&str>, body: String) -> Request {
+        let mut builder = Request::builder()
+            .method("POST")
+            .uri("/api/v1/auth/login")
+            .header("origin", "https://localhost");
+        if let Some(value) = content_type {
+            builder = builder.header("content-type", value);
+        }
+        builder.body(Body::from(body)).unwrap()
+    }
+    fn attempt(username: &str, password: &str) -> Request {
+        login_request(
+            Some("application/json"),
+            serde_json::json!({"username":username,"password":password}).to_string(),
+        )
+    }
+    async fn status(app: &Router, request: Request) -> StatusCode {
+        app.clone().oneshot(request).await.unwrap().status()
+    }
     #[tokio::test]
-    async fn malformed_and_oversized_body_and_rate_limit() {
-        let app = router(Fake, "https://localhost".into());
-        for body in ["{bad".to_owned(), "x".repeat(20 * 1024)] {
-            let r = app
-                .clone()
-                .oneshot(
-                    Request::builder()
-                        .method("POST")
-                        .uri("/api/v1/auth/login")
-                        .header("origin", "https://localhost")
-                        .header("content-type", "application/json")
-                        .body(Body::from(body))
-                        .unwrap(),
-                )
-                .await
-                .unwrap();
-            assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+    async fn junk_requests_do_not_spend_the_login_budget() {
+        let app = router(Accepting, "https://localhost".into());
+        for _ in 0..12 {
+            for (content_type, body) in [
+                (Some("application/json"), "{bad".to_owned()),
+                (Some("application/json"), "x".repeat(20 * 1024)),
+                (
+                    Some("application/json"),
+                    r#"{"username":"admin"}"#.to_owned(),
+                ),
+                (
+                    Some("text/plain"),
+                    r#"{"username":"admin","password":"x"}"#.to_owned(),
+                ),
+                (None, String::new()),
+            ] {
+                assert_eq!(
+                    status(&app, login_request(content_type, body)).await,
+                    StatusCode::BAD_REQUEST
+                );
+            }
         }
-        for _ in 0..8 {
-            let _ = app
-                .clone()
-                .oneshot(
-                    Request::builder()
-                        .method("POST")
-                        .uri("/api/v1/auth/login")
-                        .header("origin", "https://localhost")
-                        .body(Body::empty())
-                        .unwrap(),
-                )
-                .await;
+        assert_eq!(
+            status(&app, attempt("admin", "right")).await,
+            StatusCode::OK
+        );
+    }
+    #[tokio::test]
+    async fn failed_passwords_are_limited_per_username_and_successes_are_free() {
+        let app = router(Accepting, "https://localhost".into());
+        for _ in 0..10 {
+            assert_eq!(
+                status(&app, attempt("alice", "wrong")).await,
+                StatusCode::UNAUTHORIZED
+            );
         }
-        let r = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/v1/auth/login")
-                    .header("origin", "https://localhost")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(r.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            status(&app, attempt("alice", "wrong")).await,
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        // Another account, existing or not, keeps its own budget.
+        assert_eq!(
+            status(&app, attempt("nobody", "wrong")).await,
+            StatusCode::UNAUTHORIZED
+        );
+        for _ in 0..15 {
+            assert_eq!(
+                status(&app, attempt("admin", "right")).await,
+                StatusCode::OK
+            );
+        }
+        for _ in 0..9 {
+            assert_eq!(
+                status(&app, attempt("admin", "wrong")).await,
+                StatusCode::UNAUTHORIZED
+            );
+        }
+        assert_eq!(
+            status(&app, attempt("admin", "right")).await,
+            StatusCode::OK
+        );
+        assert_eq!(
+            status(&app, attempt("admin", "wrong")).await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            status(&app, attempt("admin", "right")).await,
+            StatusCode::TOO_MANY_REQUESTS
+        );
+    }
+    #[test]
+    fn cycling_usernames_cannot_grow_the_attempt_map() {
+        let mut limiter = Limiter::default();
+        let mut charged = 0;
+        for i in 0..5000 {
+            let key = limiter.keys.hash_one(Attempt::Login(&format!("user{i}")));
+            charged += usize::from(limiter.charge(key));
+        }
+        assert_eq!(charged, 120);
+        assert!(limiter.attempts.len() <= 120);
+        // A username and a principal with the same text are different keys.
+        assert_ne!(
+            limiter.keys.hash_one(Attempt::Login("p")),
+            limiter.keys.hash_one(Attempt::Principal("p"))
+        );
+    }
+    #[tokio::test]
+    async fn a_global_backstop_bounds_failures_across_usernames() {
+        let app = router(Accepting, "https://localhost".into());
+        for i in 0..120 {
+            assert_eq!(
+                status(&app, attempt(&format!("user{i}"), "wrong")).await,
+                StatusCode::UNAUTHORIZED
+            );
+        }
+        assert_eq!(
+            status(&app, attempt("user-next", "wrong")).await,
+            StatusCode::TOO_MANY_REQUESTS
+        );
     }
 }

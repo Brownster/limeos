@@ -12,8 +12,19 @@ impl Backend for RouteStub {
     async fn login(&self, _: Login) -> Result<IssuedSession> {
         Err(Error(ErrorCode::Unauthenticated))
     }
-    async fn session(&self, _: String, _: Option<String>) -> Result<SessionView> {
-        Err(Error(ErrorCode::Unauthenticated))
+    async fn session(&self, token: String, csrf: Option<String>) -> Result<SessionView> {
+        if token != "a".repeat(64) || csrf != Some("c".repeat(64)) {
+            return Err(Error(ErrorCode::Unauthenticated));
+        }
+        Ok(SessionView {
+            principal: limeos_domain::Principal {
+                id: "p".repeat(64),
+                role: limeos_domain::Role::Administrator,
+                grant_revision: 1,
+            },
+            csrf_token: "c".repeat(64),
+            expires_at: 999,
+        })
     }
     async fn logout(&self, _: String, _: String) -> Result<()> {
         panic!("unrelated route")
@@ -145,9 +156,25 @@ async fn changed_outcome_clears_cookie_but_noop_retains_it_and_wrong_password_st
 }
 
 #[tokio::test]
-async fn password_enablement_and_login_share_the_existing_attempt_budget() {
+async fn only_failed_enablement_passwords_spend_the_principal_budget() {
     let stub = RouteStub::default();
     let app = router(stub.clone(), "https://localhost".into());
+    for _ in 0..12 {
+        for body in ["{bad", r#"{"password":""}"#] {
+            assert_eq!(
+                app.clone().oneshot(request(body)).await.unwrap().status(),
+                StatusCode::BAD_REQUEST
+            );
+        }
+        assert_eq!(
+            app.clone()
+                .oneshot(request(r#"{"password":"noop"}"#))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK
+        );
+    }
     for _ in 0..10 {
         assert_eq!(
             app.clone()
@@ -158,7 +185,16 @@ async fn password_enablement_and_login_share_the_existing_attempt_budget() {
             StatusCode::UNAUTHORIZED
         );
     }
-    assert_eq!(stub.calls.load(Ordering::SeqCst), 10);
+    assert_eq!(stub.calls.load(Ordering::SeqCst), 22);
+    assert_eq!(
+        app.clone()
+            .oneshot(request(r#"{"password":"correct"}"#))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    // The principal's budget is not the login budget of any username.
     let login = Request::builder()
         .method("POST")
         .uri("/api/v1/auth/login")
@@ -167,15 +203,8 @@ async fn password_enablement_and_login_share_the_existing_attempt_budget() {
         .body(Body::from(r#"{"username":"alice","password":"wrong"}"#))
         .unwrap();
     assert_eq!(
-        app.clone().oneshot(login).await.unwrap().status(),
-        StatusCode::TOO_MANY_REQUESTS
+        app.oneshot(login).await.unwrap().status(),
+        StatusCode::UNAUTHORIZED
     );
-    assert_eq!(
-        app.oneshot(request(r#"{"password":"correct"}"#))
-            .await
-            .unwrap()
-            .status(),
-        StatusCode::TOO_MANY_REQUESTS
-    );
-    assert_eq!(stub.calls.load(Ordering::SeqCst), 10);
+    assert_eq!(stub.calls.load(Ordering::SeqCst), 22);
 }

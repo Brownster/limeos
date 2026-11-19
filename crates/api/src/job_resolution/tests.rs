@@ -267,7 +267,41 @@ async fn backend_refusals_keep_their_status_and_the_four_outcomes_are_distinct()
 }
 
 #[tokio::test]
-async fn password_attempts_share_the_login_rate_limit() {
+async fn only_failed_password_decisions_spend_the_principal_budget() {
+    let stub = Stub::new(Ok(ResolveStatus::Resolved));
+    let app = router(stub.clone(), "https://localhost".into());
+    for _ in 0..12 {
+        let junk = request("POST", true)
+            .header("content-type", "application/json")
+            .body(Body::from("{bad"))
+            .unwrap();
+        assert_eq!(
+            app.clone().oneshot(junk).await.unwrap().status(),
+            StatusCode::BAD_REQUEST
+        );
+    }
+    for _ in 0..12 {
+        assert_eq!(
+            app.clone().oneshot(post(true)).await.unwrap().status(),
+            StatusCode::OK
+        );
+    }
+    *stub.answer.lock().unwrap() = Err(Error(ErrorCode::Unauthenticated));
+    for _ in 0..10 {
+        assert_eq!(
+            app.clone().oneshot(post(true)).await.unwrap().status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    assert_eq!(
+        app.clone().oneshot(post(true)).await.unwrap().status(),
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_eq!(stub.decisions.load(Ordering::SeqCst), 22);
+}
+
+#[tokio::test]
+async fn password_attempts_share_the_principal_rate_limit() {
     let stub = Stub::new(Err(Error(ErrorCode::Unauthenticated)));
     let app = router(stub.clone(), "https://localhost".into());
     let mut statuses = Vec::new();

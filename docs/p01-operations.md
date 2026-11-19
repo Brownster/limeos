@@ -68,7 +68,7 @@ sudo /usr/lib/limeos/limeosctl check-config /etc/limeos/core.json
 sudo systemctl restart limeos-core
 ```
 
-Do not expose the cleartext loopback service through a port forward. Core ignores forwarded identity and client-IP headers. Requests through one proxy share the same per-peer login quota: ten attempts per minute, with a global maximum of 120.
+Do not expose the cleartext loopback service through a port forward. Core ignores forwarded identity and client-IP headers. Every request arrives from the proxy, so the login quota does not use the peer address: each username, existing or not, gets ten failed password attempts per minute, with a global maximum of 120 failures. Malformed requests and successful logins do not count.
 
 There is no default user or password. As local root, issue a bootstrap token:
 
