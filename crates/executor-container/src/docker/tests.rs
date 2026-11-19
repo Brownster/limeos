@@ -554,3 +554,32 @@ async fn a_single_line_private_key_is_redacted_and_later_lines_are_kept() {
     assert_eq!(value.text, "before\n[private key redacted]\nafter\n");
     assert!(!value.truncated);
 }
+#[tokio::test]
+async fn a_line_whose_start_was_dropped_is_never_returned_in_part() {
+    // The credential marker is in the evicted start of one unterminated line.
+    let line = format!("password={}", "a".repeat(70_000));
+    for (tty, body) in [
+        (true, line.clone().into_bytes()),
+        (false, frame(1, line.as_bytes())),
+        (
+            false,
+            line.as_bytes()
+                .chunks(4093)
+                .flat_map(|c| frame(2, c))
+                .collect(),
+        ),
+    ] {
+        let value = read_logs(tty, body).await;
+        assert_eq!(value.text, "", "{tty}");
+        assert!(value.truncated);
+    }
+    // A whole line longer than the text bound is named, never cut.
+    let mut body = log_line(0).into_bytes();
+    body.extend(format!("{}\n", "b".repeat(30_000)).into_bytes());
+    let value = read_logs(true, body).await;
+    assert_eq!(
+        value.text,
+        format!("{}[line over the size limit omitted]\n", log_line(0))
+    );
+    assert!(value.truncated);
+}

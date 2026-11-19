@@ -9,6 +9,7 @@ const MAX_RESPONSE: usize = 8 * 1024 * 1024;
 const KEY_REDACTED: &str = "[private key redacted]\n";
 const CREDENTIAL_REDACTED: &str = "[credential-bearing line redacted]\n";
 const WITHHELD: &str = "[possible private key lines withheld]\n";
+const LONG_LINE: &str = "[line over the size limit omitted]\n";
 
 /// Demultiplexes a logs response as it arrives and keeps only the newest
 /// `WINDOW` bytes of output. The Engine sends the last lines oldest first, so
@@ -89,9 +90,11 @@ impl Tail {
             return Err(Error(ErrorCode::Unavailable));
         }
         let bytes = Vec::from(self.window);
-        // Older output was dropped: start after the first partial line.
+        // Older output was dropped: never show a line whose start is gone,
+        // since its redaction marker may have been in the part dropped.
         let start = match bytes.iter().position(|&b| b == b'\n') {
             Some(end) if self.cut => end + 1,
+            None if self.cut => bytes.len(),
             _ => 0,
         };
         Ok(decode(
@@ -103,7 +106,8 @@ impl Tail {
 }
 
 /// The newest whole output lines that fit `CONTAINER_LOG_BYTES`, after
-/// terminal controls are stripped and credentials redacted.
+/// terminal controls are stripped and credentials redacted. No line is ever
+/// returned in part: one too long alone is replaced by a marker.
 fn decode(resource: String, bytes: &[u8], cut: bool) -> ContainerLogs {
     let clean = strip_controls(&String::from_utf8_lossy(bytes));
     let mut total = 0;
@@ -111,15 +115,9 @@ fn decode(resource: String, bytes: &[u8], cut: bool) -> ContainerLogs {
     let mut text = String::new();
     let mut truncated = cut;
     render(&clean, |piece| {
+        // The marker stands for output that was not returned.
+        truncated |= std::ptr::eq(piece, LONG_LINE);
         if total > CONTAINER_LOG_BYTES {
-            // Only the newest line is left and alone it is too long: keep its end.
-            if total == piece.len() {
-                let mut start = piece.len() - CONTAINER_LOG_BYTES;
-                while !piece.is_char_boundary(start) {
-                    start += 1;
-                }
-                text.push_str(piece.get(start..).unwrap_or_default());
-            }
             total -= piece.len();
             truncated = true;
             return;
@@ -217,7 +215,9 @@ fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) {
             }
             continue;
         }
-        emit(if credential(line) {
+        emit(if line.len() > CONTAINER_LOG_BYTES {
+            LONG_LINE
+        } else if credential(line) {
             CREDENTIAL_REDACTED
         } else {
             line
@@ -342,7 +342,7 @@ mod tests {
         assert!(tail.push(b"z").is_err());
         let large = "é".repeat(CONTAINER_LOG_BYTES);
         let value = decode_all(large.as_bytes(), true).unwrap();
-        assert_eq!(value.text.len(), CONTAINER_LOG_BYTES);
+        assert_eq!(value.text, LONG_LINE);
         assert!(value.truncated);
     }
     #[test]
