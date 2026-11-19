@@ -12,6 +12,9 @@ source "${SCRIPT_DIR}/lib.sh"
 MAX_SNAPSHOT_AGE=1800
 SITE_NAME=limeos-cutover.caddy
 ARMED=0
+ROLLING_BACK=0
+ATTACHED=0
+DETACHED_PID=''
 SNAP=''
 SITE_DIR='/etc/caddy/conf.d'
 
@@ -21,22 +24,68 @@ Usage: activate.sh SNAPSHOT_DIR --yes-i-have-operator-approval
                    --package PATH --expected-version VERSION --host HOST
                    [--port 8002] [--tls internal | --tls-cert FILE --tls-key FILE]
                    [--site-dir /etc/caddy/conf.d] [--caddyfile /etc/caddy/Caddyfile]
-                   [--template FILE] [--dry-run] [--help]
+                   [--template FILE] [--attached] [--dry-run] [--help]
 
 PATH is a limeos .deb or a directory of .deb files. HOST is the name or IPv4
 address browsers use (core.json "origin" must be https://HOST:PORT). The default
 TLS mode is internal (Caddy local CA). --dry-run prints every command and changes
-nothing. Any failed step after the first change runs return.sh and exits 1.
+nothing. Any failed step after the first change runs return.sh and exits 1, and so
+do SIGINT, SIGTERM, SIGHUP and an unexpected exit once a change has been made. The
+rollback runs once and to the end: signals are ignored while it runs.
+
+Detached by default: after the snapshot check the script runs itself again in a
+new session (setsid, inside a systemd-run --scope when systemd-run exists), with
+output appended to SNAPSHOT_DIR/activate.log, and this process only follows that
+log and exits with the run's status. A dropped SSH session therefore cannot stop
+it mid-step; read the log afterwards. Ctrl-C (or SIGTERM) here is passed to the
+run as SIGTERM, which rolls back. To stop a run whose terminal is gone:
+kill -TERM <pid of the detached activate.sh>. --attached runs in the foreground
+instead (tests, or an operator inside tmux/screen).
 USAGE
 }
 
 fct_abort() {
     printf 'FAIL: %s\n' "$*" >&2
-    if (( ARMED )); then
+    if (( ARMED && ! ROLLING_BACK )); then
+        # Once, and to the end: a second signal or the EXIT trap must neither repeat nor cut it short.
+        ROLLING_BACK=1
+        trap '' INT TERM HUP
         printf 'ROLLBACK: running return.sh\n' >&2
         "${SCRIPT_DIR}/return.sh" "${SNAP}" --site-dir "${SITE_DIR}" >&2 || printf 'ROLLBACK INCOMPLETE: follow docs/p06-cutover-runbook.md\n' >&2
+        ARMED=0
     fi
     exit 1
+}
+
+# Any exit while armed (set -e, fct_die, a stray failure) rolls back too.
+fct_on_exit() {
+    local status=$?
+    if (( ARMED )); then fct_abort "exited with status ${status} before activation completed"; fi
+}
+
+# Follow the detached run's log; pass Ctrl-C or TERM on as TERM. (Background jobs of a
+# script start with SIGINT ignored, so the run itself could not trap INT.)
+fct_forward() { if [[ -n "${DETACHED_PID}" ]]; then kill -s TERM "${DETACHED_PID}" 2>/dev/null || true; fi; }
+
+fct_detach() { # original arguments
+    local log="${SNAP}/activate.log" offset rc tail_pid
+    local -a runner=(setsid --wait)
+    if command -v systemd-run >/dev/null 2>&1; then runner=(systemd-run --scope --quiet --collect -- "${runner[@]}"); fi
+    printf '=== activate.sh started %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"${log}"
+    offset="$(stat -c %s -- "${log}")"
+    trap - HUP
+    trap fct_forward INT TERM
+    "${runner[@]}" bash "${SCRIPT_DIR}/activate.sh" "$@" --attached </dev/null >>"${log}" 2>&1 &
+    DETACHED_PID=$!
+    fct_log "activate: running detached (pid ${DETACHED_PID}); a dropped SSH session does not stop it"
+    fct_log "activate: log ${log}; Ctrl-C here rolls back"
+    tail -c "+$(( offset + 1 ))" -f --pid="${DETACHED_PID}" -- "${log}" &
+    tail_pid=$!
+    while kill -0 "${DETACHED_PID}" 2>/dev/null; do wait "${DETACHED_PID}" || true; done
+    rc=0
+    wait "${DETACHED_PID}" || rc=$?
+    wait "${tail_pid}" || true
+    return "${rc}"
 }
 
 # Mutating step: from the first one on, any failure rolls back.
@@ -93,10 +142,12 @@ fct_untouched_match() {
 fct_main() {
     local approved=0 package='' version='' host='' port="${FROZEN_PORT_DEFAULT}" tls=internal cert='' key=''
     local caddyfile='/etc/caddy/Caddyfile' template="${SCRIPT_DIR}/../../packaging/Caddyfile.cutover.example"
+    local -a original_args=("$@")
     while (( $# )); do
         case "${1}" in
             --yes-i-have-operator-approval) approved=1; shift ;;
             --dry-run) DRY_RUN=1; shift ;;
+            --attached) ATTACHED=1; shift ;;
             --package) package="${2:?--package needs a path}"; shift 2 ;;
             --expected-version) version="${2:?--expected-version needs a value}"; shift 2 ;;
             --host) host="${2:?--host needs a value}"; shift 2 ;;
@@ -133,6 +184,11 @@ fct_main() {
     fct_require_root
 
     fct_snapshot_check "${SNAP}" "${MAX_SNAPSHOT_AGE}"
+    if (( ! DRY_RUN && ! ATTACHED )); then
+        local rc=0
+        fct_detach "${original_args[@]}" || rc=$?
+        return "${rc}"
+    fi
     fct_need "package not found: ${package}" test -e "${CUTOVER_ROOT}${package}"
     fct_need 'caddy is not installed (install it separately first)' command -v caddy
     fct_need "${caddyfile} must contain: import ${SITE_DIR}/*.caddy" grep -Eqx "[[:space:]]*import[[:space:]]+${SITE_DIR}/\*(\.caddy)?" "${CUTOVER_ROOT}${caddyfile}"
@@ -219,7 +275,12 @@ fct_main() {
     fct_retry 'stack reader ready' fct_reader_ready
     if (( ! DRY_RUN )); then sleep 3; fi
     fct_retry 'stack reader still ready after settling' fct_reader_ready
+    ARMED=0
     fct_log "activate complete: ${site}"
 }
 
+trap fct_on_exit EXIT
+trap 'fct_abort "interrupted by SIGINT"' INT
+trap 'fct_abort "interrupted by SIGTERM"' TERM
+trap 'fct_abort "interrupted by SIGHUP"' HUP
 fct_main "$@"

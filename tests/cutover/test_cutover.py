@@ -8,8 +8,11 @@ Run: python3 -m unittest discover -s tests/cutover
 import hashlib
 import os
 import shutil
+import signal
 import subprocess
 import tempfile
+import time
+import types
 import unittest
 from pathlib import Path
 
@@ -17,7 +20,7 @@ REPO = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO / "scripts/cutover"
 STUB = Path(__file__).resolve().parent / "stubs/stub.sh"
 TOOLS = [
-    "systemctl", "docker", "ss", "free", "curl", "dpkg", "dpkg-query",
+    "systemctl", "systemd-run", "docker", "ss", "free", "curl", "dpkg", "dpkg-query",
     "caddy", "sleep", "limeosctl",
 ]
 NOW = 1_800_000_000
@@ -39,6 +42,28 @@ READER = "limeos-storage-reader.service"
 READER_SOCKET = "run/limeos-storage-reader/executor.sock"
 CATALOG = "etc/limeos/management-catalog.json"
 MUTATING_VERBS = {"stop", "start", "restart", "enable", "disable", "reload", "daemon-reload"}
+# Every mutating call of a successful activation, in order.
+ACTIVATE_STEPS = [
+    "systemctl stop limeos-metrics-collector.timer limeos-package-reconcile.timer",
+    "systemctl stop pi-health.service",
+    "systemctl stop pihealth-helper.service",
+    "systemctl disable pihealth-helper.service",
+    "systemctl disable pi-health.service",
+    "systemctl disable limeos-metrics-collector.timer",
+    "systemctl disable limeos-package-reconcile.timer",
+    "dpkg -i /pkg/limeos_1.0.0_arm64.deb",
+    "systemctl daemon-reload",
+    "systemctl enable limeos-storaged.service",
+    "systemctl enable limeos-containerd.service",
+    "systemctl enable limeos-core.service",
+    "systemctl start limeos-storaged.service",
+    "systemctl start limeos-containerd.service",
+    "systemctl start limeos-core.service",
+    f"systemctl start {READER}",
+    "caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile",
+    "systemctl enable caddy.service",
+    "systemctl start caddy.service",
+]
 FREE_OK = (
     "              total        used        free      shared  buff/cache   available\n"
     "Mem:     8000000000  2000000000  4000000000     1000000  2000000000  6000000000\n"
@@ -159,13 +184,13 @@ class Harness(unittest.TestCase):
             "--expected-version", "1.0.0", "--host", HOST, *extra,
         ]
 
-    def activate(self, *extra, now=NOW + 60):
-        args = self.activate_args(*extra)
+    def activate(self, *extra, now=NOW + 60, attached=True):
+        args = self.activate_args(*extra, *(["--attached"] if attached else []))
         args[0] = str(self.snap)
         return self.run_script("activate.sh", *args, now=now)
 
-    def approved(self, *extra, now=NOW + 60):
-        return self.activate("--yes-i-have-operator-approval", *extra, now=now)
+    def approved(self, *extra, now=NOW + 60, attached=True):
+        return self.activate("--yes-i-have-operator-approval", *extra, now=now, attached=attached)
 
     def do_return(self, *extra):
         return self.run_script("return.sh", str(self.snap), *extra)
@@ -315,28 +340,7 @@ class ActivateTests(Harness):
         result = self.approved()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         mutating = self.mutating_calls()
-        expected = [
-            "systemctl stop limeos-metrics-collector.timer limeos-package-reconcile.timer",
-            "systemctl stop pi-health.service",
-            "systemctl stop pihealth-helper.service",
-            "systemctl disable pihealth-helper.service",
-            "systemctl disable pi-health.service",
-            "systemctl disable limeos-metrics-collector.timer",
-            "systemctl disable limeos-package-reconcile.timer",
-            "dpkg -i /pkg/limeos_1.0.0_arm64.deb",
-            "systemctl daemon-reload",
-            "systemctl enable limeos-storaged.service",
-            "systemctl enable limeos-containerd.service",
-            "systemctl enable limeos-core.service",
-            "systemctl start limeos-storaged.service",
-            "systemctl start limeos-containerd.service",
-            "systemctl start limeos-core.service",
-            f"systemctl start {READER}",
-            "caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile",
-            "systemctl enable caddy.service",
-            "systemctl start caddy.service",
-        ]
-        self.assertEqual(mutating, expected)
+        self.assertEqual(mutating, ACTIVATE_STEPS)
         # Proxy is configured only after the frozen app is stopped.
         self.assertLess(mutating.index("systemctl stop pi-health.service"),
                         mutating.index("systemctl start caddy.service"))
@@ -434,6 +438,124 @@ class ActivateTests(Harness):
                 self.passing_snapshot()
                 self.inject(point)
                 self.assert_rolled_back(self.approved())
+
+    def test_signal_at_each_mutating_step_rolls_back(self):
+        # The signal arrives while the step runs; the step finishes, then the trap rolls back.
+        for point in ACTIVATE_STEPS:
+            for sig in ("INT", "TERM", "HUP"):
+                with self.subTest(point=point, signal=sig):
+                    self.setUp()
+                    self.passing_snapshot()
+                    (self.stub / "signal.txt").write_text(f"{sig} {point}\n")
+                    result = self.approved()
+                    self.assert_rolled_back(result)
+                    self.assertIn(f"interrupted by SIG{sig}", result.stderr)
+                    # The EXIT trap after the rollback must not run it again.
+                    self.assertEqual(result.stderr.count("ROLLBACK: running return.sh"), 1)
+                    self.assertNotIn("ROLLBACK INCOMPLETE", result.stderr)
+
+    def test_signal_before_the_first_change_rolls_nothing_back(self):
+        self.passing_snapshot()
+        # The read-only validation of the rendered site, before any change.
+        (self.stub / "signal.txt").write_text("TERM caddy validate --adapter caddyfile --config *tmp.*\n")
+        result = self.approved()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("interrupted by SIGTERM", result.stderr)
+        self.assertNotIn("ROLLBACK", result.stderr)
+        self.assertEqual(self.mutating_calls(), [])
+
+    def test_rollback_is_not_cut_short_by_a_second_signal(self):
+        self.passing_snapshot()
+        (self.stub / "signal.txt").write_text(
+            "TERM systemctl start limeos-core.service\n"
+            # Sent to return.sh while it rolls back; the ignored disposition is inherited.
+            "TERM systemctl stop limeos-core.service\n"
+            "HUP systemctl stop limeos-storaged.service\n")
+        result = self.approved()
+        self.assert_rolled_back(result)
+        self.assertIn("return verified", result.stderr)
+
+    def test_unexpected_exit_after_the_first_change_rolls_back(self):
+        self.passing_snapshot()
+        # The post-stop hashes cannot be written, so set -e ends the script mid-activation.
+        (self.snap / "state.poststop.sha256").mkdir()
+        result = self.approved()
+        self.assert_rolled_back(result)
+        self.assertIn("before activation completed", result.stderr)
+        self.assertEqual(result.stderr.count("ROLLBACK: running return.sh"), 1)
+
+    def block_at_core_start(self):
+        """Hold the run inside `systemctl start limeos-core.service` until the test releases it."""
+        reached, go = self.stub / "reached", self.stub / "go"
+        hook = self.stub / "hook-start-limeos-core.service"
+        hook.write_text(
+            "#!/usr/bin/env bash\n"
+            f"python3 -c 'import os; print(os.getsid(0))' >'{reached}'\n"
+            f"while [[ ! -e '{go}' ]]; do command -p sleep 0.05; done\n")
+        hook.chmod(0o755)
+        self.addCleanup(lambda: go.touch())
+        return reached, go
+
+    @staticmethod
+    def wait_for(predicate, timeout=30):
+        deadline = time.monotonic() + timeout
+        while not predicate():
+            if time.monotonic() > deadline:
+                raise AssertionError("timed out")
+            time.sleep(0.05)
+
+    def popen_detached(self):
+        args = self.activate_args("--yes-i-have-operator-approval")
+        args[0] = str(self.snap)
+        return subprocess.Popen(
+            ["bash", str(SCRIPTS / "activate.sh"), *args], env={**self.env, "CUTOVER_NOW": str(NOW + 60)},
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+
+    def test_detaches_by_default_and_logs_into_the_snapshot(self):
+        self.passing_snapshot()
+        reached, go = self.block_at_core_start()
+        go.touch()
+        result = self.approved(attached=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("running detached", result.stdout)
+        self.assertIn("activate complete", result.stdout)  # followed from the log
+        log = (self.snap / "activate.log").read_text()
+        self.assertIn("activate complete", log)
+        self.assertTrue([l for l in self.calls() if l.startswith("systemd-run --scope ")], self.calls())
+        # The run had its own session, so the terminal's hangup cannot reach it.
+        self.assertNotEqual(int(reached.read_text()), os.getsid(0))
+        for name in RUST:
+            self.assertEqual(self.unit_state(name), ("active", "enabled"))
+
+    def test_detached_run_survives_the_terminal_hanging_up(self):
+        self.passing_snapshot()
+        reached, go = self.block_at_core_start()
+        proc = self.popen_detached()
+        self.wait_for(reached.exists)
+        os.killpg(proc.pid, signal.SIGHUP)  # what a dropped SSH session does to the foreground job
+        proc.communicate(timeout=30)
+        self.assertNotEqual(proc.returncode, 0)
+        log = self.snap / "activate.log"
+        self.assertNotIn("activate complete", log.read_text())
+        go.touch()
+        self.wait_for(lambda: "activate complete" in log.read_text())
+        self.assertNotIn("ROLLBACK", log.read_text())
+        for name in RUST:
+            self.assertEqual(self.unit_state(name), ("active", "enabled"))
+        self.assertEqual(self.unit_state("caddy.service"), ("active", "enabled"))
+
+    def test_ctrl_c_on_the_follower_rolls_the_detached_run_back(self):
+        self.passing_snapshot()
+        reached, go = self.block_at_core_start()
+        proc = self.popen_detached()
+        self.wait_for(reached.exists)
+        os.killpg(proc.pid, signal.SIGINT)
+        go.touch()
+        stdout, stderr = proc.communicate(timeout=60)
+        result = types.SimpleNamespace(returncode=proc.returncode, stdout=stdout, stderr=stdout + stderr)
+        self.assert_rolled_back(result)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("interrupted by SIGTERM", stdout)
 
     def test_health_failures_roll_back(self):
         base = {

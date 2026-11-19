@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One stub for systemctl, docker, ss, free, curl, dpkg, dpkg-query, caddy, sleep and
+# One stub for systemctl, systemd-run, docker, ss, free, curl, dpkg, dpkg-query, caddy, sleep and
 # limeosctl. sleep runs $STUB_DIR/hook-sleep when present (measure.sh's idle window). Copied under each tool's name into a PATH directory by the tests.
 # State lives in $STUB_DIR; every call is appended to $STUB_DIR/calls.log.
 set -Eeuo pipefail
@@ -10,11 +10,24 @@ if [[ -f "${STUB_DIR}/fail.txt" ]] && grep -qxF -- "${call}" "${STUB_DIR}/fail.t
     printf 'stub: injected failure for: %s\n' "${call}" >&2
     exit 1
 fi
+# "SIGNAL pattern" lines in signal.txt: send SIGNAL to the calling script when the call matches
+# the glob pattern, then carry on with the call.
+if [[ -f "${STUB_DIR}/signal.txt" ]]; then
+    while read -r sig pattern; do
+        # shellcheck disable=SC2053
+        if [[ "${call}" == ${pattern} ]]; then kill -s "${sig}" "${PPID}"; fi
+    done <"${STUB_DIR}/signal.txt"
+fi
 unit_dir="${STUB_DIR}/units"
 set_unit() { printf '%s\n' "${3}" >"${unit_dir}/${1}.${2}"; }
 get_unit() { if [[ -f "${unit_dir}/${1}.${2}" ]]; then cat "${unit_dir}/${1}.${2}"; else printf '%s\n' "${3}"; fi; }
 
 case "${tool}" in
+    systemd-run)
+        # Run the command in place, as the real --scope does, minus the transient unit.
+        while (( $# )) && [[ "${1}" != -- ]]; do shift; done
+        shift
+        exec "$@" ;;
     sleep) if [[ -x "${STUB_DIR}/hook-sleep" ]]; then "${STUB_DIR}/hook-sleep"; fi; exit 0 ;;
     systemctl)
         verb="${1:-}"; shift || true

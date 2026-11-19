@@ -53,7 +53,16 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    ps` IDs and StartedAt against the snapshot, that the reader is active, listening and not
    restarting (twice, three seconds apart), and that `limeops-*`,
    `limeos-agent` and `flask-shutdown` are unchanged. Any failure runs
-   `return.sh` and exits non-zero.
+   `return.sh` and exits non-zero; so do SIGINT, SIGTERM, SIGHUP and any
+   unexpected exit after the first change. The rollback runs once and ignores
+   further signals until it ends.
+   It runs detached: after the snapshot check it starts itself again in a new
+   session (`setsid`, inside `systemd-run --scope`), appends its output to
+   `SNAP/activate.log` and the terminal only follows that log, so a dropped SSH
+   session does not stop it. Reconnect and read the log, or `tail -f` it. Ctrl-C
+   in the following terminal rolls the run back (it is passed on as SIGTERM);
+   with the terminal gone, `kill -TERM` the detached `activate.sh` to roll back.
+   `--attached` keeps it in the foreground (inside tmux or screen, or for tests).
 5. Measure, once `activate.sh` has passed its health checks and the host is idle:
    `scripts/cutover/measure.sh --host HOST [--port 8002] [--out DIR] [--window 600]`.
    It is read-only: it reads `/proc`, `/sys/fs/cgroup`, `systemctl show` and
