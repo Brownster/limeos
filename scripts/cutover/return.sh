@@ -10,6 +10,9 @@ source "${SCRIPT_DIR}/lib.sh"
 
 SITE_NAME=limeos-cutover.caddy
 FAILURES=0
+HASHES_CAPTURED=0
+WRITERS_RUNNING=0
+declare -A CURRENT_HASHES=()
 
 fct_usage() {
     cat <<'USAGE'
@@ -75,24 +78,33 @@ fct_frozen_writer_running() {
     return 1
 }
 
-fct_verify_hashes() {
-    local snap="${1}" tmp flag hash path record cur_hash baseline writers=0
-    local -A current=()
+# Hash the state before the frozen writers start again (a restored timer can rewrite its
+# live files within seconds). A failure is recorded and never stops the restore.
+fct_capture_hashes() {
+    local hashes record
     # A running frozen writer (the app, or a timer that fires at once) may legitimately
     # rewrite its live databases, so their baseline comparison only applies while all stopped.
-    if fct_frozen_writer_running; then writers=1; fi
-    tmp="$(mktemp)"
-    fct_state_hashes >"${tmp}"
+    if fct_frozen_writer_running; then WRITERS_RUNNING=1; fi
+    if ! hashes="$(fct_state_hashes)"; then
+        fct_fail 'cannot hash the state files (named above); state verification skipped'
+        return 0
+    fi
     # Current hashes by exact path (any byte but newline).
     while IFS= read -r record; do
-        if fct_parse_record "${record}"; then current["${REC_PATH}"]="${REC_HASH}"; fi
-    done <"${tmp}"
+        if fct_parse_record "${record}"; then CURRENT_HASHES["${REC_PATH}"]="${REC_HASH}"; fi
+    done <<<"${hashes}"
+    HASHES_CAPTURED=1
+}
+
+fct_verify_hashes() {
+    local snap="${1}" flag hash path record cur_hash baseline writers="${WRITERS_RUNNING}"
+    (( HASHES_CAPTURED )) || return 0
     baseline="${snap}/state.poststop.sha256"
     while IFS= read -r record; do
         [[ -n "${record}" ]] || continue
         if ! fct_parse_record "${record}"; then fct_fail "malformed state record in the snapshot: ${record}"; continue; fi
         flag="${REC_FLAG}" hash="${REC_HASH}" path="${REC_PATH}"
-        cur_hash="${current["${path}"]:-ABSENT}"
+        cur_hash="${CURRENT_HASHES["${path}"]:-ABSENT}"
         if [[ "${flag}" == S ]]; then
             [[ "${cur_hash}" == "${hash}" ]] || fct_fail "state file changed: ${path}"
         elif [[ "${cur_hash}" != "${hash}" ]]; then
@@ -107,7 +119,6 @@ fct_verify_hashes() {
             fi
         fi
     done <"${snap}/state.sha256"
-    rm -f -- "${tmp}"
 }
 
 # Only the managed set must match the snapshot; other changes are named, not failures.
@@ -168,17 +179,17 @@ fct_main() {
         fct_step systemctl stop limeos-storage-reader.service
     fi
     fct_restore_rust "${snap}"
-    # Hash the state before the frozen writers start again: a restored timer or app can
-    # rewrite its live files within seconds, which is not evidence of a late writer.
+    # Restore first, verify afterwards: nothing in verification may keep the frozen app down.
     if (( ! DRY_RUN )); then
-        fct_log 'return: verifying state files'
-        fct_verify_hashes "${snap}"
+        fct_log 'return: hashing the state files'
+        fct_capture_hashes
     fi
     fct_log 'return: restoring the frozen units'
     fct_restore_frozen "${snap}"
 
     if (( DRY_RUN )); then fct_log 'dry-run: verification commands are skipped'; return 0; fi
     fct_log 'return: verifying'
+    fct_verify_hashes "${snap}"
     fct_verify_docker "${snap}"
     fct_verify_untouched "${snap}"
     fct_verify_port "${port}"

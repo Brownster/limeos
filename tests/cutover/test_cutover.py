@@ -944,6 +944,21 @@ class ReturnTests(Harness):
         self.assertIn("state file changed: /etc/limeos/credentials.env", result.stderr)
         self.assertNotIn("CHANGED", result.stdout + result.stderr)
 
+    def test_frozen_units_are_restored_even_when_hashing_fails(self):
+        for tool, fragment in (("mktemp", None), ("sha256sum", "cannot hash")):
+            with self.subTest(tool=tool):
+                self.setUp()
+                self.activated()
+                self.fake_tool(tool)
+                result = self.do_return()
+                for name in FROZEN:
+                    self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
+                self.assertIn(":8002 ", (self.stub / "ss_out").read_text())
+                if fragment:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(fragment, result.stderr)
+                    self.assertIn("state verification skipped", result.stderr)
+
     def test_malformed_snapshot_record_fails_verification(self):
         self.activated()
         records = self.snap / "state.sha256"

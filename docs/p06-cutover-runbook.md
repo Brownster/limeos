@@ -131,7 +131,9 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    unless they were already running or enabled before the cutover), re-enables
    and starts the frozen units (helper, app, timers), then verifies state hashes,
    the managed containers' IDs and StartedAt (other containers only warn), and
-   that port 8002 answers over plain HTTP. Safe to repeat. The
+   that port 8002 answers over plain HTTP. It hashes the state files before the
+   frozen units restart but compares them afterwards, so a hashing failure is
+   reported and never leaves the frozen app stopped. Safe to repeat. The
    package stays installed.
 
 Stack status and whole-stack start/stop/restart need the reader and the catalog; `activate.sh`
