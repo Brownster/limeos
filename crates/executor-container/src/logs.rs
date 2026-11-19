@@ -111,12 +111,11 @@ impl Tail {
 fn decode(resource: String, bytes: &[u8], cut: bool) -> ContainerLogs {
     let clean = strip_controls(&String::from_utf8_lossy(bytes));
     let mut total = 0;
-    render(&clean, |piece| total += piece.len());
+    let omitted = render(&clean, |piece| total += piece.len());
     let mut text = String::new();
-    let mut truncated = cut;
+    // An omitted line is output that was not returned.
+    let mut truncated = cut || omitted;
     render(&clean, |piece| {
-        // The marker stands for output that was not returned.
-        truncated |= std::ptr::eq(piece, LONG_LINE);
         if total > CONTAINER_LOG_BYTES {
             total -= piece.len();
             truncated = true;
@@ -159,6 +158,7 @@ fn base64_token(text: &str, lengths: std::ops::RangeInclusive<usize>) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='))
 }
 /// Each output piece of `clean` in order: a line as it is, or its redaction.
+/// Returns whether a line was omitted for being too long.
 ///
 /// The output never shows where it starts: the Engine applies `tail=N` before
 /// anything arrives and our window may drop more. So, whether or not this
@@ -171,7 +171,8 @@ fn base64_token(text: &str, lengths: std::ops::RangeInclusive<usize>) -> bool {
 ///   (a block's last line). The first line that is neither ends this; such
 ///   lines only stay hidden while they open the output, so the cost is a
 ///   leading bare digest or token of that length.
-fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) {
+fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) -> bool {
+    let mut omitted = false;
     let mut private_key = clean
         .split_inclusive('\n')
         .find(|line| key_begin(line) || key_end(line))
@@ -216,6 +217,7 @@ fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) {
             continue;
         }
         emit(if line.len() > CONTAINER_LOG_BYTES {
+            omitted = true;
             LONG_LINE
         } else if credential(line) {
             CREDENTIAL_REDACTED
@@ -226,6 +228,7 @@ fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) {
     if leading && withheld {
         emit(WITHHELD);
     }
+    omitted
 }
 fn credential(line: &str) -> bool {
     let lower = line.to_ascii_lowercase();
@@ -457,6 +460,13 @@ mod tests {
             value.text,
             format!("{WITHHELD}{}", stamped(2, "Starting server"))
         );
+    }
+    #[test]
+    fn an_uncut_read_with_one_over_long_line_is_truncated() {
+        let raw = format!("before\n{}\nafter\n", "x".repeat(CONTAINER_LOG_BYTES + 1));
+        let value = decode_all(&frame(1, raw.as_bytes()), false).unwrap();
+        assert_eq!(value.text, format!("before\n{LONG_LINE}after\n"));
+        assert!(value.truncated);
     }
     #[test]
     fn private_key_blocks_on_one_or_many_lines_redact_only_the_block() {
