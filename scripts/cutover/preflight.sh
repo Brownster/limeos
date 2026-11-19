@@ -143,10 +143,11 @@ fct_main() {
             refusals+=("swap use is above ${MAX_SWAP_PERCENT}% (${swap_used} of ${swap_total} bytes)")
         fi
     fi
-    local hash path state_found=0
-    while read -r _ hash path; do
-        if [[ "${hash}" == ABSENT ]]; then
-            refusals+=("state path missing: ${path} (fix the state list from limeosctl migrate scan)")
+    local record state_found=0
+    while IFS= read -r record; do
+        fct_parse_record "${record}" || continue
+        if [[ "${REC_HASH}" == ABSENT ]]; then
+            refusals+=("state path missing: ${REC_PATH} (fix the state list from limeosctl migrate scan)")
         else
             state_found=1
         fi

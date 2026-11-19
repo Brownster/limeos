@@ -237,10 +237,11 @@ fct_main() {
     if (( ! DRY_RUN )); then
         # A hash failure here ends the script under set -e; the EXIT trap rolls back.
         fct_state_hashes >"${SNAP}/state.poststop.sha256"
-        local flag hash path
-        while read -r flag hash path; do
-            [[ "${flag}" == S ]] || continue
-            grep -qxF -- "S ${hash} ${path}" "${SNAP}/state.poststop.sha256" || fct_abort "state file changed before the cutover: ${path}"
+        local record
+        while IFS= read -r record; do
+            fct_parse_record "${record}" || fct_abort "malformed state record: ${record}"
+            [[ "${REC_FLAG}" == S ]] || continue
+            grep -qxF -- "${record}" "${SNAP}/state.poststop.sha256" || fct_abort "state file changed before the cutover: ${REC_PATH}"
         done <"${SNAP}/state.sha256"
     else
         printf '[dry-run] hash state files again and compare strict entries with the snapshot\n'

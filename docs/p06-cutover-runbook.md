@@ -154,7 +154,9 @@ retry the cutover: inspect the named failure by hand.
 - Hashes cover every path in the state list (copied into the snapshot as
   `state-paths.txt`, which `activate.sh` and `return.sh` reuse) and
   everything under `/etc/limeos` and `/var/lib/limeos` except the new package's
-  paths. On wybie the list must include the two edited `pi-health/config` files. SQLite files and journals can change while the writers run, so they are
+  paths. On wybie the list must include the two edited `pi-health/config` files.
+  Paths may hold any byte except a newline; a file whose name has one refuses
+  preflight. SQLite files and journals can change while the writers run, so they are
   checked against a baseline taken just after the writers stop (`return.sh`
   warns only if no baseline exists).
 - Snapshot contents are paths, hashes and unit/container names, never file contents.

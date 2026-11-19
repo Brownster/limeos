@@ -128,20 +128,23 @@ fct_hash_one() {
     printf '%s %s\n' "${flag}" "${out%% *}"
 }
 
-# "<flag> <hash> <path>" lines, sorted. Paths the new package owns are skipped. Fails
+# "<flag> <hash> <path>" lines, sorted; the path is every byte after the second space
+# (read them back with fct_parse_record). Paths the new package owns are skipped. Fails
 # when any path cannot be hashed (the group runs in a subshell, so exit leaves only it).
 fct_state_hashes() {
     local path dir found record
     {
-        while read -r path; do
+        while IFS= read -r path; do
             [[ -n "${path}" ]] || continue
             record="$(fct_hash_one "${path}")" || exit 1
             printf '%s %s\n' "${record}" "${path}"
         done < <(fct_state_files)
-        while read -r dir; do
+        while IFS= read -r dir; do
             [[ -n "${dir}" && -d "${CUTOVER_ROOT}${dir}" ]] || continue
             while IFS= read -r -d '' found; do
                 found="${found#"${CUTOVER_ROOT}"}"
+                # Records are one per line, so a name with a newline cannot be recorded.
+                if [[ "${found}" == *$'\n'* ]]; then fct_warn "state file name contains a newline: ${found@Q}"; exit 1; fi
                 record="$(fct_hash_one "${found}")" || exit 1
                 printf '%s %s\n' "${record}" "${found}"
             done < <(find "${CUTOVER_ROOT}${dir}" \

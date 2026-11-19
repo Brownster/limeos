@@ -76,20 +76,23 @@ fct_frozen_writer_running() {
 }
 
 fct_verify_hashes() {
-    local snap="${1}" tmp flag hash path line record cur_flag cur_hash baseline writers=0
+    local snap="${1}" tmp flag hash path record cur_hash baseline writers=0
+    local -A current=()
     # A running frozen writer (the app, or a timer that fires at once) may legitimately
     # rewrite its live databases, so their baseline comparison only applies while all stopped.
     if fct_frozen_writer_running; then writers=1; fi
     tmp="$(mktemp)"
     fct_state_hashes >"${tmp}"
+    # Current hashes by exact path (any byte but newline).
+    while IFS= read -r record; do
+        if fct_parse_record "${record}"; then current["${REC_PATH}"]="${REC_HASH}"; fi
+    done <"${tmp}"
     baseline="${snap}/state.poststop.sha256"
     while IFS= read -r record; do
         [[ -n "${record}" ]] || continue
         if ! fct_parse_record "${record}"; then fct_fail "malformed state record in the snapshot: ${record}"; continue; fi
         flag="${REC_FLAG}" hash="${REC_HASH}" path="${REC_PATH}"
-        line="$(awk -v p="${path}" '$3 == p { print; exit }' "${tmp}")"
-        # shellcheck disable=SC2034  # the flag field is not needed here
-        read -r cur_flag cur_hash _ <<<"${line:-V ABSENT x}"
+        cur_hash="${current["${path}"]:-ABSENT}"
         if [[ "${flag}" == S ]]; then
             [[ "${cur_hash}" == "${hash}" ]] || fct_fail "state file changed: ${path}"
         elif [[ "${cur_hash}" != "${hash}" ]]; then

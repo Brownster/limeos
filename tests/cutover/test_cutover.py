@@ -413,6 +413,30 @@ class PreflightTests(Harness):
         self.assertIn("cannot hash /etc/limeos/credentials.env", result.stderr)
         self.assertIn("REFUSED: state files could not all be hashed", result.stderr)
 
+    def test_paths_with_spaces_and_tabs_round_trip_through_activate_and_return(self):
+        odd = ["/srv/my app/settings.json", "/srv/tab\there.json", "/srv/trailing space "]
+        for path in odd:
+            self._write(path, "x")
+        self.state_list.write_text("".join(f"{p}\n" for p in odd))
+        self._write("/var/lib/limeos/backup  two spaces.json", "{}")
+        self.assertEqual(self.preflight().returncode, 0)
+        (self.stub / "calls.log").write_text("")
+        result = self.approved()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = self.do_return()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("changed", result.stderr)
+        # A changed odd path is still caught by name.
+        self._write("/srv/trailing space ", "y")
+        result = self.do_return()
+        self.assertIn("state file changed: /srv/trailing space ", result.stderr)
+
+    def test_a_state_file_name_with_a_newline_is_refused(self):
+        self._write("/var/lib/limeos/evil\nname.json", "{}")
+        result = self.preflight()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("contains a newline", result.stderr)
+
     def test_state_files_override_still_works(self):
         self.env["CUTOVER_STATE_FILES"] = "/etc/limeos/credentials.env"
         result = self.preflight(state_list=False)
