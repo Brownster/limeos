@@ -161,16 +161,16 @@ fn content(line: &str) -> &str {
         _ => line,
     }
 }
-/// A line's final whitespace-separated token, after the timestamp, when it
-/// uses only the base64 alphabet (with `=` padding): the text before it and
-/// its length.
-fn base64_tail(line: &str) -> Option<(&str, usize)> {
-    let text = content(line).trim_end();
-    let token = text.split_whitespace().next_back()?;
+/// A line's shape after the timestamp, when its final whitespace-separated
+/// token uses only the base64 alphabet (with `=` padding): how many tokens
+/// it has and the final token's length.
+fn base64_tail(line: &str) -> Option<(usize, usize)> {
+    let mut tokens = content(line).split_whitespace();
+    let token = tokens.next_back()?;
     let base64 = token
         .bytes()
         .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='));
-    Some((text.strip_suffix(token)?, token.len())).filter(|_| base64)
+    base64.then(|| (tokens.count() + 1, token.len()))
 }
 /// Each output piece of `clean` in order: a line as it is, or its redaction.
 /// Returns whether a line was omitted for being too long.
@@ -183,12 +183,14 @@ fn base64_tail(line: &str) -> Option<(&str, usize)> {
 /// - otherwise leading lines that look like a key body are withheld: a line
 ///   whose final token is 16 or more base64-alphabet characters, whatever
 ///   precedes it (a prefix, any wrapping width), then at most one line right
-///   after that run whose final token is a shorter base64-only one after
-///   exactly the same prefix as the run's last line (a key's last line,
-///   written the same way). The first leading line that matches neither
-///   ends this. It only ever applies to the leading run of a read, so the
-///   cost is a few leading lines that end in a digest, an id or a long
-///   single word.
+///   after that run whose final token is a shorter base64-only one and which
+///   has as many tokens as the run's last line (a key's last line, written
+///   the same way even if a prefix such as a clock varies per line). The
+///   first leading line that matches neither ends this. It only ever
+///   applies to the leading run of a read, so the cost is a few leading
+///   lines that end in a digest, an id or a long single word, plus an
+///   ordinary line right after them with the same token count that ends in
+///   a base64-alphabet word.
 fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) -> bool {
     let mut omitted = false;
     let mut private_key = clean
@@ -205,19 +207,19 @@ fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) -> bool {
         emit(KEY_REDACTED);
     }
     let mut leading = !private_key;
-    // The prefix of the last withheld line, once any is withheld.
-    let mut withheld: Option<&str> = None;
+    // The token count of the last withheld line, once any is withheld.
+    let mut withheld: Option<usize> = None;
     for line in clean.split_inclusive('\n') {
         if leading {
             let tail = base64_tail(line);
-            if let Some((prefix, 16..)) = tail {
-                withheld = Some(prefix);
+            if let Some((tokens, 16..)) = tail {
+                withheld = Some(tokens);
                 continue;
             }
             leading = false;
             if let Some(run) = withheld {
                 emit(WITHHELD);
-                if tail.is_some_and(|(prefix, _)| prefix == run) {
+                if tail.is_some_and(|(tokens, _)| tokens == run) {
                     continue;
                 }
             }
@@ -504,6 +506,30 @@ mod tests {
         }
     }
     #[test]
+    fn a_short_last_line_after_a_prefix_that_varies_per_line_is_withheld() {
+        let mut lines: Vec<_> = body(64, "")
+            .iter()
+            .enumerate()
+            .map(|(i, line)| format!("INFO [00:00:{i:02}] {line}"))
+            .collect();
+        lines.pop();
+        lines.push("INFO [00:00:59] AQIDBAUGBwg=".into());
+        lines.push("listening on :8080".into());
+        let raw: String = lines
+            .iter()
+            .enumerate()
+            .map(|(i, line)| stamped(i, line))
+            .collect();
+        let value = decode_all(raw.as_bytes(), true).unwrap();
+        assert_eq!(
+            value.text,
+            format!(
+                "{WITHHELD}{}",
+                stamped(lines.len() - 1, "listening on :8080")
+            )
+        );
+    }
+    #[test]
     fn a_lone_short_last_line_of_a_leading_key_body_is_withheld() {
         let raw: String = body(64, "")
             .iter()
@@ -528,7 +554,7 @@ mod tests {
         // The recorded cost: a leading line ending in a digest or id of 16 or
         // more base64-alphabet characters is withheld. The next line goes too
         // only if it could be that key's last line: a short base64-only final
-        // token after exactly the same prefix.
+        // token on a line with the same number of tokens.
         let digest = "0123456789abcdef".repeat(4);
         let raw = [
             stamped(1, &format!("pulled image {digest}")),
