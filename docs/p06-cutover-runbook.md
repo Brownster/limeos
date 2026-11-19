@@ -55,7 +55,10 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    MemAvailable below 1.5 GiB, swap above 90 %, a stopped managed container,
    Jellyfin playback, a listed state path that does not exist, a state path that
    is not a regular file (directories and symlinks included) or cannot be hashed,
-   no state found at all, or a missing/unsafe
+   no state found at all, a missing tool (each named: `flock`, `setsid`,
+   `systemd-run`, an `env` with `--default-signal` from coreutils 8.31 or newer,
+   and `python3` unless `--no-playback-check`; `activate.sh` checks the same
+   before any change), or a missing/unsafe
    `/etc/limeos/management-catalog.json` (the message names the command above).
    The key is sent to Jellyfin's `/Sessions` on curl's stdin, never on a command
    line or into the snapshot. It passes only on a complete HTTP 200 whose body

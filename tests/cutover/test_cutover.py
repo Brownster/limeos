@@ -228,6 +228,25 @@ class Harness(unittest.TestCase):
     def do_return(self, *extra):
         return self.run_script("return.sh", str(self.snap), *extra)
 
+    def path_without(self, tool):
+        """A PATH holding the stubs and every system command except TOOL."""
+        shadow = Path(self._tmp.name) / f"without-{tool}"
+        shadow.mkdir()
+        (self.bin / tool).unlink(missing_ok=True)
+        for directory in os.environ["PATH"].split(":"):
+            if not os.path.isdir(directory):
+                continue
+            for name in os.listdir(directory):
+                link = shadow / name
+                if name != tool and not link.exists() and not link.is_symlink():
+                    link.symlink_to(os.path.join(directory, name))
+        return f"{self.bin}:{shadow}"
+
+    def env_without_default_signal(self):
+        real = shutil.which("env")
+        self.fake_tool("env", 'if [[ "${1:-}" == --default-signal* ]]; then echo "env: unrecognized option" >&2; exit 125; fi\n'
+                              f'exec "{real}" "$@"')
+
     def fake_tool(self, name, script="exit 1"):
         """Shadow a real tool (sha256sum, mktemp, ...) with a script in the stub PATH."""
         tool = self.bin / name
@@ -410,6 +429,31 @@ class PreflightTests(Harness):
         self.refused("is not a regular file")
         self.assertFalse([l for l in self.calls() if SESSIONS in l])
 
+    def test_each_missing_requirement_is_refused_by_name(self):
+        cases = (
+            ("python3", "requirement: python3 is not installed (needed to read Jellyfin sessions; or pass --no-playback-check)"),
+            ("systemd-run", "requirement: systemd-run is not installed"),
+            ("flock", "requirement: flock is not installed"),
+            ("setsid", "requirement: setsid is not installed"),
+            ("env", "requirement: env does not support --default-signal (coreutils 8.31 or newer;"),
+        )
+        for tool, fragment in cases:
+            with self.subTest(tool=tool):
+                self.setUp()
+                if tool == "env":
+                    self.env_without_default_signal()
+                else:
+                    self.env["PATH"] = self.path_without(tool)
+                result = self.preflight()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(fragment, result.stderr)
+                self.assertNotIn("did not return a JSON list", result.stderr)
+
+    def test_python3_is_only_needed_for_the_playback_check(self):
+        self.env["PATH"] = self.path_without("python3")
+        result = self.preflight("--no-playback-check", jellyfin_key=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_requires_a_state_list(self):
         result = self.preflight(state_list=False)
         self.assertNotEqual(result.returncode, 0)
@@ -474,6 +518,7 @@ class PreflightTests(Harness):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("cannot hash /etc/limeos/credentials.env", result.stderr)
         self.assertIn("REFUSED: state files could not all be hashed", result.stderr)
+        self.assertNotIn("no frozen-app state found", result.stderr)
 
     def test_paths_with_spaces_and_tabs_round_trip_through_activate_and_return(self):
         odd = ["/srv/my app/settings.json", "/srv/tab\there.json", "/srv/trailing space "]
@@ -863,19 +908,21 @@ class ActivateTests(Harness):
                 for name in RUST:
                     self.assertEqual(self.unit_state(name), ("active", "enabled"))
 
-    def path_without(self, tool):
-        """A PATH holding the stubs and every system command except TOOL."""
-        shadow = Path(self._tmp.name) / f"without-{tool}"
-        shadow.mkdir()
-        (self.bin / tool).unlink(missing_ok=True)
-        for directory in os.environ["PATH"].split(":"):
-            if not os.path.isdir(directory):
-                continue
-            for name in os.listdir(directory):
-                link = shadow / name
-                if name != tool and not link.exists() and not link.is_symlink():
-                    link.symlink_to(os.path.join(directory, name))
-        return f"{self.bin}:{shadow}"
+    def test_activate_refuses_missing_requirements_before_any_change(self):
+        for tool in ("flock", "setsid", "env"):
+            with self.subTest(tool=tool):
+                self.setUp()
+                self.passing_snapshot()
+                if tool == "env":
+                    self.env_without_default_signal()
+                    fragment = "env does not support --default-signal"
+                else:
+                    self.env["PATH"] = self.path_without(tool)
+                    fragment = f"{tool} is not installed"
+                result = self.approved(attached=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(fragment, result.stdout + result.stderr)
+                self.assertEqual(self.mutating_calls(), [])
 
     def test_detaching_fails_closed_without_or_with_a_failing_systemd_run(self):
         for case in ("absent", "failing"):
@@ -889,7 +936,7 @@ class ActivateTests(Harness):
                 result = self.approved(attached=False)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(self.mutating_calls(), [])
-                expected = "systemd-run is required" if case == "absent" else "Failed to start transient scope unit"
+                expected = "systemd-run is not installed" if case == "absent" else "Failed to start transient scope unit"
                 self.assertIn(expected, result.stdout + result.stderr)
                 for name in FROZEN:
                     self.assertEqual(self.unit_state(name), ("active", "enabled"))

@@ -68,7 +68,7 @@ elif any(s.get("NowPlayingItem") is not None for s in sessions):
     print("active")
 else:
     print("idle")
-' "${1}" 2>/dev/null || printf 'invalid\n'
+' "${1}" 2>/dev/null || printf 'error\n'
 }
 
 fct_main() {
@@ -126,7 +126,11 @@ fct_main() {
     ss -H -ltn >"${out}/ports.txt" || true
     fct_docker_ids >"${out}/docker-ps.txt"
     fct_docker_started >"${out}/docker-started.txt"
-    fct_state_hashes >"${out}/state.sha256" || refusals+=('state files could not all be hashed (named above); fix the state list or the files')
+    local requirement hashed=1
+    while IFS= read -r requirement; do
+        refusals+=("requirement: ${requirement}")
+    done < <(fct_missing_requirements "$(( ! no_playback_check ))" 1)
+    fct_state_hashes >"${out}/state.sha256" || { hashed=0; refusals+=('state files could not all be hashed (named above); fix the state list or the files'); }
 
     local mem_line swap_line available swap_total swap_used
     free -b >"${out}/memory.txt"
@@ -171,7 +175,7 @@ fct_main() {
             state_found=1
         fi
     done <"${out}/state.sha256"
-    (( state_found )) || refusals+=("no frozen-app state found: no listed path exists and $(fct_state_dirs | paste -sd ' ' -) hold no files")
+    (( state_found || ! hashed )) || refusals+=("no frozen-app state found: no listed path exists and $(fct_state_dirs | paste -sd ' ' -) hold no files")
     local problem
     problem="$(fct_catalog_problem)"
     [[ -z "${problem}" ]] || refusals+=("stack management catalog: ${problem}")
@@ -186,6 +190,8 @@ fct_main() {
         warnings+=('Jellyfin playback was not checked (--no-playback-check); check the dashboard by hand')
     elif [[ -z "${key_file}" ]]; then
         refusals+=('no Jellyfin API key: pass --jellyfin-key-file FILE (root-only) or --no-playback-check')
+    elif ! command -v python3 >/dev/null 2>&1; then
+        : # refused above as a missing requirement; the answer could not be read anyway
     elif problem="$(fct_key_file_problem "${key_file}")" && [[ -n "${problem}" ]]; then
         refusals+=("Jellyfin API key file: ${problem}")
     else
@@ -208,6 +214,7 @@ fct_main() {
                 case "$(fct_sessions_verdict "${body}")" in
                     idle) ;;
                     active) refusals+=('Jellyfin has active playback') ;;
+                    error) refusals+=('could not read the Jellyfin answer: python3 failed') ;;
                     *) refusals+=('Jellyfin /Sessions did not return a JSON list of sessions; check the URL and key') ;;
                 esac
             fi

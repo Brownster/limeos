@@ -75,6 +75,23 @@ fct_catalog_problem() {
     fi
 }
 
+# One line per missing tool, so nothing is found missing halfway through a cutover.
+fct_missing_requirements() { # need_python need_systemd_run (0 or 1 each)
+    local tool
+    for tool in flock setsid; do
+        command -v "${tool}" >/dev/null 2>&1 || printf '%s is not installed (util-linux; activate.sh needs it)\n' "${tool}"
+    done
+    if (( ${2} )) && ! command -v systemd-run >/dev/null 2>&1; then
+        printf 'systemd-run is not installed (needed to run activate.sh detached; or use --attached inside tmux or screen)\n'
+    fi
+    env --default-signal=INT true >/dev/null 2>&1 \
+        || printf 'env does not support --default-signal (coreutils 8.31 or newer; activate.sh needs it to run detached)\n'
+    if (( ${1} )) && ! command -v python3 >/dev/null 2>&1; then
+        printf 'python3 is not installed (needed to read Jellyfin sessions; or pass --no-playback-check)\n'
+    fi
+    return 0
+}
+
 fct_unit_active() { systemctl is-active "${1}" 2>/dev/null || true; }
 fct_unit_enabled() { systemctl is-enabled "${1}" 2>/dev/null || true; }
 

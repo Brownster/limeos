@@ -289,6 +289,10 @@ fct_main() {
     [[ -f "${SNAP}/managed.txt" ]] || fct_die 'snapshot has no managed.txt (taken before managed sets were recorded); run preflight again'
     STATE_LIST="${SNAP}/state-paths.txt"
     fct_records_ok "${SNAP}/state.sha256" || fct_die 'the snapshot has a malformed state record; run preflight again'
+    local requirement
+    while IFS= read -r requirement; do
+        fct_need "requirement: ${requirement}; nothing was changed" false
+    done < <(fct_missing_requirements 0 "$(( ! ATTACHED && ! DRY_RUN ))")
     if (( ! DRY_RUN )); then fct_lock; fi
     fct_refuse_if_active
     if (( ! DRY_RUN && ! ATTACHED )); then
