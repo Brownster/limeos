@@ -58,8 +58,10 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    no state found at all, or a missing/unsafe
    `/etc/limeos/management-catalog.json` (the message names the command above).
    The key is sent to Jellyfin's `/Sessions` on curl's stdin, never on a command
-   line or into the snapshot; a key file that group or others can read, a
-   rejected key or an unreachable Jellyfin also refuses. Without a key file it
+   line or into the snapshot. It passes only on a complete HTTP 200 whose body
+   is a JSON list of sessions with none playing (parsed with `python3`); a key
+   file that is a symlink or that group or others can read, a rejected key, an
+   unreachable Jellyfin, a transfer cut short or any other body refuses. Without a key file it
    refuses unless you pass `--no-playback-check`; then check the dashboard
    yourself.
 3. Rehearse: `scripts/cutover/activate.sh SNAP --dry-run --package PATH

@@ -342,11 +342,33 @@ class PreflightTests(Harness):
 
     def test_refuses_a_rejected_key_or_an_unreachable_jellyfin(self):
         for code, fragment in (("401", "Jellyfin rejected the API key (HTTP 401)"),
-                               (None, "Jellyfin playback could not be checked (HTTP 000)")):
+                               (None, "Jellyfin playback could not be checked (HTTP 000, curl exit 7)")):
             with self.subTest(code=code):
                 self.setUp()
                 self.set_curl({SESSIONS: code} if code else {})
                 self.refused(fragment)
+
+    def test_a_200_that_is_cut_short_or_not_a_session_list_is_refused(self):
+        cases = (
+            ('200 []', "28", "Jellyfin playback could not be checked (HTTP 200, curl exit 28)"),
+            ('200 [{"Id":"a"', None, "Jellyfin /Sessions did not return a JSON list of sessions"),
+            ('200 <html>login</html>', None, "Jellyfin /Sessions did not return a JSON list of sessions"),
+            ('200 {"Items":[]}', None, "Jellyfin /Sessions did not return a JSON list of sessions"),
+        )
+        for answer, curl_exit, fragment in cases:
+            with self.subTest(answer=answer, curl_exit=curl_exit):
+                self.setUp()
+                self.set_curl({SESSIONS: answer})
+                if curl_exit:
+                    (self.stub / "curl_exit").write_text(curl_exit)
+                self.refused(fragment)
+
+    def test_refuses_a_symlinked_key_file(self):
+        target = Path(self._tmp.name) / "real.key"
+        self.key_file.rename(target)
+        self.key_file.symlink_to(target)
+        self.refused("is not a regular file")
+        self.assertFalse([l for l in self.calls() if SESSIONS in l])
 
     def test_requires_a_state_list(self):
         result = self.preflight(state_list=False)

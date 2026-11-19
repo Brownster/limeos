@@ -139,6 +139,8 @@ case "${tool}" in
             if [[ -f "${STUB_DIR}/curl_times" ]]; then times="$(cat "${STUB_DIR}/curl_times")"; fi
             printf '%s %s' "${code}" "${times}"
         elif (( want_code )); then printf '%s' "${code}"; fi
+        # curl_exit: fail after the headers and body, as a transfer cut short does.
+        if [[ -f "${STUB_DIR}/curl_exit" ]]; then exit "$(cat "${STUB_DIR}/curl_exit")"; fi
         if [[ "${code}" == 000 ]]; then exit 7; fi
         if (( fail_flag )) && (( code >= 400 )); then exit 22; fi ;;
     *) exit 99 ;;

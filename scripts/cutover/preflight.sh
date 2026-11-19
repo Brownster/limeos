@@ -29,8 +29,10 @@ files. Every listed path must exist. Every file under /etc/limeos and
 /var/lib/limeos is hashed as well.
 --jellyfin-key-file names a file holding a Jellyfin API key (Dashboard > API
 Keys), owned by root and readable by root only (chmod 600). The key goes to curl
-on stdin, never on a command line or into the snapshot. Active playback, a
-rejected key or an unreachable Jellyfin refuses. Without a key file, preflight
+on stdin, never on a command line or into the snapshot. Only a complete HTTP 200
+whose body is a JSON list of sessions, none playing, passes (python3 parses it);
+active playback, a rejected key, a failed or cut-short transfer or any other
+body refuses. Without a key file, preflight
 refuses unless --no-playback-check is given (then check the dashboard yourself).
 The stack management catalog (/etc/limeos/management-catalog.json, from
 `limeosctl migrate propose-catalog`) must exist: activate.sh starts the stack reader
@@ -50,6 +52,23 @@ fct_key_file_problem() { # file
     if [[ "${CUTOVER_ALLOW_NONROOT:-0}" != 1 && "${owner}" != 0 ]] || (( 8#${mode} & 8#077 )); then
         printf '%s must be owned by root and readable by root only (chmod 600; is %s:%s)\n' "${file}" "${owner}" "${mode}"
     fi
+}
+
+# "idle", "active" or "invalid" for a saved Jellyfin /Sessions body.
+fct_sessions_verdict() { # file
+    python3 -I -c '
+import json, sys
+try:
+    sessions = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    sessions = None
+if not isinstance(sessions, list) or not all(isinstance(s, dict) for s in sessions):
+    print("invalid")
+elif any(s.get("NowPlayingItem") is not None for s in sessions):
+    print("active")
+else:
+    print("idle")
+' "${1}" 2>/dev/null || printf 'invalid\n'
 }
 
 fct_main() {
@@ -177,13 +196,21 @@ fct_main() {
             refusals+=('Jellyfin API key file must hold one key (letters and digits) on its first line')
         else
             # The key goes to curl on stdin (printf is a builtin), never on a command line.
+            local curl_status=0
             code="$(printf 'Authorization: MediaBrowser Token="%s"\n' "${key}" \
-                | curl -sS --max-time 5 -H @- -o "${body}" -w '%{http_code}' "${jelly}" 2>/dev/null || true)"
-            case "${code}" in
-                200) if grep -q 'NowPlayingItem' "${body}"; then refusals+=('Jellyfin has active playback'); fi ;;
-                401|403) refusals+=("Jellyfin rejected the API key (HTTP ${code})") ;;
-                *) refusals+=("Jellyfin playback could not be checked (HTTP ${code:-none})") ;;
-            esac
+                | curl -sS --max-time 5 -H @- -o "${body}" -w '%{http_code}' "${jelly}" 2>/dev/null)" || curl_status=$?
+            if [[ "${code}" == 401 || "${code}" == 403 ]]; then
+                refusals+=("Jellyfin rejected the API key (HTTP ${code})")
+            elif [[ "${code}" != 200 ]] || (( curl_status != 0 )); then
+                refusals+=("Jellyfin playback could not be checked (HTTP ${code:-none}, curl exit ${curl_status})")
+            else
+                # Idle only when the whole body is a JSON list of sessions and none is playing.
+                case "$(fct_sessions_verdict "${body}")" in
+                    idle) ;;
+                    active) refusals+=('Jellyfin has active playback') ;;
+                    *) refusals+=('Jellyfin /Sessions did not return a JSON list of sessions; check the URL and key') ;;
+                esac
+            fi
         fi
         key=''
     fi
