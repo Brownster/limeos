@@ -316,8 +316,7 @@ fct_main() {
     if (( DRY_RUN )); then
         printf '[dry-run] install -m 0644 <rendered site> %s%s/%s\n' "${CUTOVER_ROOT}" "${SITE_DIR}" "${SITE_NAME}"
     else
-        ARMED=1
-        install -m 0644 -- "${rendered}" "${CUTOVER_ROOT}${SITE_DIR}/${SITE_NAME}" || fct_abort 'cannot install the Caddy site'
+        fct_do install -m 0644 -- "${rendered}" "${CUTOVER_ROOT}${SITE_DIR}/${SITE_NAME}"
         rm -f -- "${rendered}"
     fi
     fct_do caddy validate --adapter caddyfile --config "${caddyfile}"

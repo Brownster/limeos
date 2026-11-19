@@ -687,6 +687,20 @@ class ActivateTests(Harness):
                 # The stubbed step ran to the end before the rollback.
                 self.assertTrue((self.stub / finished).exists(), finished)
 
+    def test_terminal_ctrl_c_lets_the_caddy_site_install_finish_then_rolls_back(self):
+        self.passing_snapshot()
+        real = shutil.which("install")
+        self.fake_tool("install", (
+            'if [[ "$*" == *limeos-cutover.caddy* ]]; then kill -s INT -- "-$(ps -o pgid= -p "${PPID}" | tr -d " ")"; fi\n'
+            f'"{real}" "$@" || exit\n'
+            f'if [[ "$*" == *limeos-cutover.caddy* ]]; then touch "{self.stub}/site-installed"; fi'))
+        args = self.activate_args("--yes-i-have-operator-approval", "--attached")
+        args[0] = str(self.snap)
+        result = self.run_script("activate.sh", *args, now=NOW + 60, new_session=True)
+        self.assert_rolled_back(result)
+        self.assertIn("interrupted by SIGINT", result.stderr)
+        self.assertTrue((self.stub / "site-installed").exists())
+
     def test_signal_before_the_first_change_rolls_nothing_back(self):
         self.passing_snapshot()
         # The read-only validation of the rendered site, before any change.
