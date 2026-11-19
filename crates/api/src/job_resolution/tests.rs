@@ -301,6 +301,37 @@ async fn only_failed_password_decisions_spend_the_principal_budget() {
 }
 
 #[tokio::test]
+async fn malformed_passwords_are_refused_before_the_principal_budget() {
+    let stub = Stub::new(Err(Error(ErrorCode::Unauthenticated)));
+    let app = router(stub.clone(), "https://localhost".into());
+    for password in ["".to_owned(), "x".repeat(1025)] {
+        for _ in 0..12 {
+            let body = serde_json::json!({
+                "declared": "not_done",
+                "reason": "Checked by hand.",
+                "evidence_digest": "d".repeat(64),
+                "password": password,
+            });
+            let request = request("POST", true)
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap();
+            assert_eq!(
+                app.clone().oneshot(request).await.unwrap().status(),
+                StatusCode::BAD_REQUEST
+            );
+        }
+    }
+    assert_eq!(stub.decisions.load(Ordering::SeqCst), 0);
+    for _ in 0..10 {
+        assert_eq!(
+            app.clone().oneshot(post(true)).await.unwrap().status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+}
+
+#[tokio::test]
 async fn password_attempts_share_the_principal_rate_limit() {
     let stub = Stub::new(Err(Error(ErrorCode::Unauthenticated)));
     let app = router(stub.clone(), "https://localhost".into());

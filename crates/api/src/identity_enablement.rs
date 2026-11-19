@@ -11,7 +11,7 @@ pub(super) async fn enable<B: Backend>(State(app): State<App<B>>, request: Reque
             .await?
             .principal;
         let input: limeos_contracts::ObserveHealthEnable = operations::input(request).await?;
-        if input.password.is_empty() || input.password.len() > 1024 {
+        if !limeos_contracts::password_well_formed(&input.password) {
             return Err(Error(ErrorCode::InvalidInput));
         }
         // Failed password attempts are budgeted per authenticated principal.

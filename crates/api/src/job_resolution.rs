@@ -73,6 +73,9 @@ pub(super) async fn resolve<B: Backend>(
             .await?
             .principal;
         let value: ResolveJobInput = input(request).await?;
+        if !limeos_contracts::password_well_formed(&value.password) {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
         // Failed password attempts are budgeted per authenticated principal.
         password_attempt(
             &app,

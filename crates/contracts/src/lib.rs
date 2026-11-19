@@ -20,6 +20,20 @@ pub struct Login {
     pub username: String,
     pub password: String,
 }
+impl Login {
+    /// Could name an account and be checked. Anything else is refused before
+    /// any attempt budget or password work, by core and the HTTP layer alike.
+    pub fn well_formed(&self) -> bool {
+        limeos_domain::identifier(&self.username)
+            && self.username.len() <= 64
+            && password_well_formed(&self.password)
+    }
+}
+/// A password worth checking: non-empty and at most 1024 bytes. Every
+/// password-gated path refuses anything else before charging an attempt.
+pub fn password_well_formed(password: &str) -> bool {
+    !password.is_empty() && password.len() <= 1024
+}
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct ObserveHealthEnable {

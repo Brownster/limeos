@@ -17,7 +17,7 @@ impl Core {
         deadline: Instant,
     ) -> Result<limeos_contracts::ObserveHealthEnabled> {
         live(deadline)?;
-        if input.password.is_empty() || input.password.len() > 1024 {
+        if !limeos_contracts::password_well_formed(&input.password) {
             return Err(Error(ErrorCode::InvalidInput));
         }
         let session = limeos_identity::digest(&token);

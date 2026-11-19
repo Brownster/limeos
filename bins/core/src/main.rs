@@ -421,11 +421,7 @@ impl Backend for Core {
             .await
     }
     async fn login(&self, input: Login) -> Result<IssuedSession> {
-        if !limeos_domain::identifier(&input.username)
-            || input.username.len() > 64
-            || input.password.is_empty()
-            || input.password.len() > 1024
-        {
+        if !input.well_formed() {
             return Err(Error(ErrorCode::Unauthenticated));
         }
         let record = self

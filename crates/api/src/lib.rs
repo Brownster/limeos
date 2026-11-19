@@ -884,6 +884,10 @@ async fn login<B: Backend>(State(app): State<App<B>>, request: Request) -> Respo
         Ok(i) => i,
         Err(_) => return failure(Error(ErrorCode::InvalidInput)),
     };
+    // Malformed credentials are refused as core refuses them, uncharged.
+    if !input.well_formed() {
+        return failure(Error(ErrorCode::Unauthenticated));
+    }
     let username = input.username.clone();
     match password_attempt(&app, Attempt::Login(&username), app.backend.login(input)).await {
         Ok(issued) => {
@@ -1147,6 +1151,34 @@ mod tests {
         assert_eq!(
             status(&app, attempt("admin", "right")).await,
             StatusCode::TOO_MANY_REQUESTS
+        );
+    }
+    #[tokio::test]
+    async fn malformed_credentials_are_refused_without_spending_the_budget() {
+        let app = router(Accepting, "https://localhost".into());
+        for _ in 0..12 {
+            for (username, password) in [
+                ("admin", String::new()),
+                ("admin", "x".repeat(1025)),
+                ("bad name", "wrong".into()),
+                ("", "wrong".into()),
+                (&"a".repeat(65), "wrong".into()),
+            ] {
+                assert_eq!(
+                    status(&app, attempt(username, &password)).await,
+                    StatusCode::UNAUTHORIZED
+                );
+            }
+        }
+        for _ in 0..9 {
+            assert_eq!(
+                status(&app, attempt("admin", "wrong")).await,
+                StatusCode::UNAUTHORIZED
+            );
+        }
+        assert_eq!(
+            status(&app, attempt("admin", "right")).await,
+            StatusCode::OK
         );
     }
     #[test]
