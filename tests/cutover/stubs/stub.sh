@@ -11,11 +11,17 @@ if [[ -f "${STUB_DIR}/fail.txt" ]] && grep -qxF -- "${call}" "${STUB_DIR}/fail.t
     exit 1
 fi
 # "SIGNAL pattern" lines in signal.txt: send SIGNAL to the calling script when the call matches
-# the glob pattern, then carry on with the call.
+# the glob pattern, then carry on with the call. "group:SIGNAL" sends it to the caller's whole
+# process group instead, as a terminal's Ctrl-C does; a stub in that group dies of it.
 if [[ -f "${STUB_DIR}/signal.txt" ]]; then
     while read -r sig pattern; do
         # shellcheck disable=SC2053
-        if [[ "${call}" == ${pattern} ]]; then kill -s "${sig}" "${PPID}"; fi
+        [[ "${call}" == ${pattern} ]] || continue
+        if [[ "${sig}" == group:* ]]; then
+            kill -s "${sig#group:}" -- "-$(ps -o pgid= -p "${PPID}" | tr -d ' ')"
+        else
+            kill -s "${sig}" "${PPID}"
+        fi
     done <"${STUB_DIR}/signal.txt"
 fi
 unit_dir="${STUB_DIR}/units"

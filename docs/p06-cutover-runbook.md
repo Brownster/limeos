@@ -85,8 +85,9 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    restarting (twice, three seconds apart), and that `limeops-*`,
    `limeos-agent` and `flask-shutdown` are unchanged. Any failure runs
    `return.sh` and exits non-zero; so do SIGINT, SIGTERM, SIGHUP and any
-   unexpected exit after the first change. The rollback runs once and ignores
-   further signals until it ends.
+   unexpected exit after the first change. Each step runs in its own session, so
+   a Ctrl-C lets the running step (dpkg included) finish before the rollback
+   starts. The rollback runs once and ignores further signals until it ends.
    It runs detached: after the snapshot check it starts itself again in a new
    session (`setsid`, inside `systemd-run --scope`), appends its output to
    `SNAP/activate.log` and the terminal only follows that log, so a dropped SSH

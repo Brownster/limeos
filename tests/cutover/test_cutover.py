@@ -181,10 +181,11 @@ class Harness(unittest.TestCase):
         with open(self.stub / "fail.txt", "a") as handle:
             handle.write(call + "\n")
 
-    def run_script(self, name, *args, now=NOW):
+    def run_script(self, name, *args, now=NOW, new_session=False):
         env = {**self.env, "CUTOVER_NOW": str(now)}
         return subprocess.run(
-            ["bash", str(SCRIPTS / name), *args], env=env, capture_output=True, text=True, timeout=60)
+            ["bash", str(SCRIPTS / name), *args], env=env, capture_output=True, text=True, timeout=60,
+            start_new_session=new_session)
 
     def preflight(self, *extra, state_list=True, jellyfin_key=True):
         listed = ["--state-list", str(self.state_list)] if state_list else []
@@ -621,6 +622,26 @@ class ActivateTests(Harness):
                     # The EXIT trap after the rollback must not run it again.
                     self.assertEqual(result.stderr.count("ROLLBACK: running return.sh"), 1)
                     self.assertNotIn("ROLLBACK INCOMPLETE", result.stderr)
+
+    def test_terminal_ctrl_c_lets_each_step_finish_then_rolls_back(self):
+        # Ctrl-C at the terminal signals the whole foreground process group. The step must not
+        # be killed halfway (dpkg mid-install); the script's trap rolls back once it returns.
+        for point, finished in (("dpkg --force-confold -i /pkg/limeos_1.0.0_arm64.deb", "pkg_version"),
+                                ("systemctl start limeos-core.service", "core-started")):
+            with self.subTest(point=point):
+                self.setUp()
+                self.passing_snapshot()
+                hook = self.stub / "hook-start-limeos-core.service"
+                hook.write_text(f"#!/usr/bin/env bash\ntouch '{self.stub}/core-started'\n")
+                hook.chmod(0o755)
+                (self.stub / "signal.txt").write_text(f"group:INT {point}\n")
+                args = self.activate_args("--yes-i-have-operator-approval", "--attached")
+                args[0] = str(self.snap)
+                result = self.run_script("activate.sh", *args, now=NOW + 60, new_session=True)
+                self.assert_rolled_back(result)
+                self.assertIn("interrupted by SIGINT", result.stderr)
+                # The stubbed step ran to the end before the rollback.
+                self.assertTrue((self.stub / finished).exists(), finished)
 
     def test_signal_before_the_first_change_rolls_nothing_back(self):
         self.passing_snapshot()

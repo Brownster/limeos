@@ -33,8 +33,10 @@ DEBIAN_FRONTEND=noninteractive and --force-confold, so an existing
 address browsers use (core.json "origin" must be https://HOST:PORT). The default
 TLS mode is internal (Caddy local CA). --dry-run prints every command and changes
 nothing; a signal during it only stops it and never runs return.sh. Any failed
-step after the first change runs return.sh and exits 1, and so do SIGINT, SIGTERM, SIGHUP and an unexpected exit once a change has been made. The
-rollback runs once and to the end: signals are ignored while it runs.
+step after the first change runs return.sh and exits 1, and so do SIGINT, SIGTERM, SIGHUP and an unexpected exit once a change has been made. Each
+step runs in its own session, so a terminal Ctrl-C lets it finish (dpkg is never
+killed mid-install) before the rollback starts. The rollback runs once and to the
+end: signals are ignored while it runs.
 
 Detached by default: after the snapshot check the script runs itself again in a
 new session (setsid, inside a systemd-run --scope when systemd-run exists), with
@@ -93,9 +95,14 @@ fct_detach() { # original arguments
 }
 
 # Mutating step: from the first one on, any failure rolls back (never under --dry-run).
+# Each step runs in its own session, so a terminal Ctrl-C (sent to the whole foreground
+# process group) reaches only this script: the step (dpkg mid-install, say) finishes and
+# the trap rolls back after it returns.
 fct_do() {
-    if (( ! DRY_RUN )); then ARMED=1; fi
-    fct_run "$@" || fct_abort "command failed: $*"
+    if (( DRY_RUN )); then fct_run "$@"; return 0; fi
+    ARMED=1
+    printf '+ %s\n' "$*"
+    setsid --wait "$@" || fct_abort "command failed: $*"
 }
 
 # Read-only precondition. Host-presence problems only warn under --dry-run.
