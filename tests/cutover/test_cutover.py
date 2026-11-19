@@ -1316,7 +1316,7 @@ class ReturnTests(Harness):
                 if fragment:
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn(fragment, result.stderr)
-                    self.assertIn("state verification skipped", result.stderr)
+                    self.assertIn("cannot verify state file: /etc/limeos/credentials.env", result.stderr)
 
     def test_an_unterminated_last_record_fails_verification(self):
         self.activated()
@@ -1325,6 +1325,20 @@ class ReturnTests(Harness):
         result = self.do_return()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("malformed state record in the snapshot: S  /srv/config.json", result.stderr)
+        for name in FROZEN:
+            self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
+
+    def test_one_unreadable_path_does_not_hide_the_others(self):
+        self.activated()
+        media = self.root / "home/holly/pi-health/config/media_paths.json"
+        media.unlink()
+        media.mkdir()  # now a directory: it cannot be hashed
+        self._write("/etc/limeos/credentials.env", "PIHEALTH_USERS=holly:CHANGED\n")
+        result = self.do_return()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("cannot verify state file: /home/holly/pi-health/config/media_paths.json", result.stderr)
+        self.assertIn("state file changed: /etc/limeos/credentials.env", result.stderr)
+        self.assertNotIn("verification skipped", result.stderr)
         for name in FROZEN:
             self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
 

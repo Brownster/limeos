@@ -135,13 +135,19 @@ fct_hash_one() {
 
 # "<flag> <hash> <path>" lines, sorted; the path is every byte after the second space
 # (read them back with fct_parse_record). Paths the new package owns are skipped. Fails
-# when any path cannot be hashed (the group runs in a subshell, so exit leaves only it).
-fct_state_hashes() {
-    local path dir found record
+# when any path cannot be hashed (the group runs in a subshell, so exit leaves only it);
+# with "tolerant", prints "! <path>" for such a path instead and carries on.
+fct_state_hashes() { # [tolerant]
+    local path dir found record tolerant=0
+    [[ "${1:-}" != tolerant ]] || tolerant=1
     {
         while IFS= read -r path || [[ -n "${path}" ]]; do
             [[ -n "${path}" ]] || continue
-            record="$(fct_hash_one "${path}")" || exit 1
+            if ! record="$(fct_hash_one "${path}")"; then
+                (( tolerant )) || exit 1
+                printf '! %s\n' "${path}"
+                continue
+            fi
             printf '%s %s\n' "${record}" "${path}"
         done < <(fct_state_files)
         while IFS= read -r dir || [[ -n "${dir}" ]]; do
@@ -149,8 +155,17 @@ fct_state_hashes() {
             while IFS= read -r -d '' found; do
                 found="${found#"${CUTOVER_ROOT}"}"
                 # Records are one per line, so a name with a newline cannot be recorded.
-                if [[ "${found}" == *$'\n'* ]]; then fct_warn "state file name contains a newline: ${found@Q}"; exit 1; fi
-                record="$(fct_hash_one "${found}")" || exit 1
+                if [[ "${found}" == *$'\n'* ]]; then
+                    fct_warn "state file name contains a newline: ${found@Q}"
+                    (( tolerant )) || exit 1
+                    printf '! %s\n' "${found@Q}"
+                    continue
+                fi
+                if ! record="$(fct_hash_one "${found}")"; then
+                    (( tolerant )) || exit 1
+                    printf '! %s\n' "${found}"
+                    continue
+                fi
                 printf '%s %s\n' "${record}" "${found}"
             done < <(find "${CUTOVER_ROOT}${dir}" \
                 \( -path "${CUTOVER_ROOT}/var/lib/limeos/core" -o -path "${CUTOVER_ROOT}/var/lib/limeos/executors" \

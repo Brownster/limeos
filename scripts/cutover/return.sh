@@ -14,6 +14,7 @@ FORCE=0
 HASHES_CAPTURED=0
 WRITERS_RUNNING=0
 declare -A CURRENT_HASHES=()
+declare -A UNHASHABLE=()
 
 fct_usage() {
     cat <<'USAGE'
@@ -116,13 +117,18 @@ fct_capture_hashes() {
     # A running frozen writer (the app, or a timer that fires at once) may legitimately
     # rewrite its live databases, so their baseline comparison only applies while all stopped.
     if fct_frozen_writer_running; then WRITERS_RUNNING=1; fi
-    if ! hashes="$(fct_state_hashes)"; then
-        fct_fail 'cannot hash the state files (named above); state verification skipped'
+    # Each path on its own: one that cannot be hashed fails alone, the rest are still verified.
+    if ! hashes="$(fct_state_hashes tolerant)"; then
+        fct_fail 'cannot list the state files; state verification skipped'
         return 0
     fi
     # Current hashes by exact path (any byte but newline).
     while IFS= read -r record || [[ -n "${record}" ]]; do
-        if fct_parse_record "${record}"; then CURRENT_HASHES["${REC_PATH}"]="${REC_HASH}"; fi
+        if [[ "${record}" == '! '* ]]; then
+            UNHASHABLE["${record#! }"]=1
+        elif fct_parse_record "${record}"; then
+            CURRENT_HASHES["${REC_PATH}"]="${REC_HASH}"
+        fi
     done <<<"${hashes}"
     HASHES_CAPTURED=1
 }
@@ -135,6 +141,7 @@ fct_verify_hashes() {
         [[ -n "${record}" ]] || continue
         if ! fct_parse_record "${record}"; then fct_fail "malformed state record in the snapshot: ${record}"; continue; fi
         flag="${REC_FLAG}" hash="${REC_HASH}" path="${REC_PATH}"
+        if [[ -n "${UNHASHABLE["${path}"]:-}" ]]; then fct_fail "cannot verify state file: ${path} (named above)"; continue; fi
         cur_hash="${CURRENT_HASHES["${path}"]:-ABSENT}"
         if [[ "${flag}" == S ]]; then
             [[ "${cur_hash}" == "${hash}" ]] || fct_fail "state file changed: ${path}"
