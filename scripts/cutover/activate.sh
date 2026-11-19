@@ -192,6 +192,7 @@ fct_main() {
 
     fct_snapshot_check "${SNAP}" "${MAX_SNAPSHOT_AGE}"
     STATE_LIST="${SNAP}/state-paths.txt"
+    fct_records_ok "${SNAP}/state.sha256" || fct_die 'the snapshot has a malformed state record; run preflight again'
     if (( ! DRY_RUN && ! ATTACHED )); then
         local rc=0
         fct_detach "${original_args[@]}" || rc=$?
@@ -234,6 +235,7 @@ fct_main() {
     fct_do systemctl stop pihealth-helper.service
     for unit in "${FROZEN_UNITS[@]}"; do fct_do systemctl disable "${unit}"; done
     if (( ! DRY_RUN )); then
+        # A hash failure here ends the script under set -e; the EXIT trap rolls back.
         fct_state_hashes >"${SNAP}/state.poststop.sha256"
         local flag hash path
         while read -r flag hash path; do

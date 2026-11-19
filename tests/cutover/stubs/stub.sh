@@ -50,6 +50,7 @@ case "${tool}" in
             stop)
                 for u in "${args[@]}"; do
                     set_unit "${u}" active inactive
+                    if [[ -x "${STUB_DIR}/hook-stop-${u}" ]]; then "${STUB_DIR}/hook-stop-${u}"; fi
                     if [[ "${u}" == pi-health.service ]]; then
                         set_unit pihealth-helper.service active inactive
                         grep -v ':8002 ' "${STUB_DIR}/ss_out" >"${STUB_DIR}/ss_out.new" || true
@@ -64,7 +65,11 @@ case "${tool}" in
                     if [[ "${u}" == pi-health.service ]]; then printf 'LISTEN 0 128 0.0.0.0:8002 0.0.0.0:*\n' >>"${STUB_DIR}/ss_out"; fi
                 done ;;
             enable) for u in "${args[@]}"; do set_unit "${u}" enabled enabled; done ;;
-            disable) for u in "${args[@]}"; do set_unit "${u}" enabled disabled; done ;;
+            disable)
+                for u in "${args[@]}"; do
+                    set_unit "${u}" enabled disabled
+                    if [[ -x "${STUB_DIR}/hook-disable-${u}" ]]; then "${STUB_DIR}/hook-disable-${u}"; fi
+                done ;;
             show)
                 prop=''
                 for (( i=0; i<${#args[@]}; i++ )); do if [[ "${args[i]}" == -p ]]; then prop="${args[i+1]}"; fi; done

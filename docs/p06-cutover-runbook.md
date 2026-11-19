@@ -53,8 +53,9 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    --jellyfin-key-file /root/jellyfin.key`
    (writes `/var/lib/limeos-cutover/<ts>/`, or `--out DIR`). It refuses on
    MemAvailable below 1.5 GiB, swap above 90 %, a stopped managed container,
-   Jellyfin playback, a listed state path that does not exist, no state found at
-   all, or a missing/unsafe
+   Jellyfin playback, a listed state path that does not exist, a state path that
+   is not a regular file (directories and symlinks included) or cannot be hashed,
+   no state found at all, or a missing/unsafe
    `/etc/limeos/management-catalog.json` (the message names the command above).
    The key is sent to Jellyfin's `/Sessions` on curl's stdin, never on a command
    line or into the snapshot; a key file that group or others can read, a

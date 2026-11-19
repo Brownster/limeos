@@ -117,34 +117,59 @@ fct_state_dirs() {
 }
 
 # "<flag> <sha256|ABSENT>" for one logical path. V marks files a running writer
-# may legitimately change (SQLite and its journals); S is strict.
+# may legitimately change (SQLite and its journals); S is strict. Anything that exists
+# but is not a regular file, or cannot be hashed, fails with a warning naming it.
 fct_hash_one() {
-    local path="${1}" flag=S out
+    local path="${1}" flag=S out file="${CUTOVER_ROOT}${1}"
     case "${path}" in *.db|*.sqlite|*.sqlite3|*-wal|*-shm|*.db-journal) flag=V ;; esac
-    if [[ ! -e "${CUTOVER_ROOT}${path}" ]]; then printf '%s ABSENT\n' "${flag}"; return; fi
-    out="$(sha256sum -- "${CUTOVER_ROOT}${path}")" || fct_die "cannot hash ${path}"
+    if [[ ! -e "${file}" && ! -L "${file}" ]]; then printf '%s ABSENT\n' "${flag}"; return 0; fi
+    if [[ -L "${file}" || ! -f "${file}" ]]; then fct_warn "state path is not a regular file: ${path}"; return 1; fi
+    out="$(sha256sum <"${file}")" && [[ "${out%% *}" =~ ^[0-9a-f]{64}$ ]] || { fct_warn "cannot hash ${path}"; return 1; }
     printf '%s %s\n' "${flag}" "${out%% *}"
 }
 
-# "<flag> <hash> <path>" lines, sorted. Paths the new package owns are skipped.
+# "<flag> <hash> <path>" lines, sorted. Paths the new package owns are skipped. Fails
+# when any path cannot be hashed (the group runs in a subshell, so exit leaves only it).
 fct_state_hashes() {
-    local path dir found
+    local path dir found record
     {
         while read -r path; do
             [[ -n "${path}" ]] || continue
-            printf '%s %s\n' "$(fct_hash_one "${path}")" "${path}"
+            record="$(fct_hash_one "${path}")" || exit 1
+            printf '%s %s\n' "${record}" "${path}"
         done < <(fct_state_files)
         while read -r dir; do
             [[ -n "${dir}" && -d "${CUTOVER_ROOT}${dir}" ]] || continue
             while IFS= read -r -d '' found; do
                 found="${found#"${CUTOVER_ROOT}"}"
-                printf '%s %s\n' "$(fct_hash_one "${found}")" "${found}"
+                record="$(fct_hash_one "${found}")" || exit 1
+                printf '%s %s\n' "${record}" "${found}"
             done < <(find "${CUTOVER_ROOT}${dir}" \
                 \( -path "${CUTOVER_ROOT}/var/lib/limeos/core" -o -path "${CUTOVER_ROOT}/var/lib/limeos/executors" \
                 -o -path "${CUTOVER_ROOT}/var/lib/limeos/assistant" -o -path "${CUTOVER_ROOT}/etc/limeos/system-policy" \) -prune \
                 -o -type f ! -name core.json -print0)
         done < <(fct_state_dirs)
     } | sort -u
+}
+
+# Split one "<flag> <hash> <path>" record into REC_FLAG, REC_HASH and REC_PATH (the
+# path keeps every byte after the second space). Fails on a malformed record.
+fct_parse_record() { # line
+    local line="${1}" rest
+    [[ "${line}" == *' '*' '* ]] || return 1
+    REC_FLAG="${line%% *}"
+    rest="${line#* }"
+    REC_HASH="${rest%% *}"
+    REC_PATH="${rest#* }"
+    [[ "${REC_FLAG}" == [SV] && "${REC_PATH}" == /* ]] || return 1
+    [[ "${REC_HASH}" == ABSENT || "${REC_HASH}" =~ ^[0-9a-f]{64}$ ]]
+}
+# Every record in a hash file is well formed; warns about the first that is not.
+fct_records_ok() { # file
+    local line
+    while IFS= read -r line; do
+        fct_parse_record "${line}" || { fct_warn "malformed state record in ${1}: ${line}"; return 1; }
+    done <"${1}"
 }
 
 fct_docker_ids() { docker ps --no-trunc --format '{{.ID}} {{.Names}}' | sort; }

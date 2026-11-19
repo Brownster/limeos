@@ -208,6 +208,12 @@ class Harness(unittest.TestCase):
     def do_return(self, *extra):
         return self.run_script("return.sh", str(self.snap), *extra)
 
+    def fake_tool(self, name, script="exit 1"):
+        """Shadow a real tool (sha256sum, mktemp, ...) with a script in the stub PATH."""
+        tool = self.bin / name
+        tool.write_text(f"#!/usr/bin/env bash\n{script}\n")
+        tool.chmod(0o755)
+
     def calls(self):
         path = self.stub / "calls.log"
         return path.read_text().splitlines() if path.exists() else []
@@ -387,6 +393,25 @@ class PreflightTests(Harness):
         result = self.do_return()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("state file changed: /srv/app/config/settings.json", result.stderr)
+
+    def test_a_listed_directory_or_symlink_is_refused_not_hashed_as_present(self):
+        (self.root / "srv").mkdir()
+        (self.root / "srv/link.json").symlink_to(self.root / "etc/limeos/credentials.env")
+        for entry in ("/etc/limeos", "/srv/link.json"):
+            with self.subTest(entry=entry):
+                shutil.rmtree(self.root / "var/lib/limeos-cutover", ignore_errors=True)
+                self.state_list.write_text(f"/etc/limeos/credentials.env\n{entry}\n")
+                result = self.preflight()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"state path is not a regular file: {entry}", result.stderr)
+                self.assertIn("REFUSED: state files could not all be hashed", result.stderr)
+
+    def test_a_hash_failure_is_refused(self):
+        self.fake_tool("sha256sum")
+        result = self.preflight()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("cannot hash /etc/limeos/credentials.env", result.stderr)
+        self.assertIn("REFUSED: state files could not all be hashed", result.stderr)
 
     def test_state_files_override_still_works(self):
         self.env["CUTOVER_STATE_FILES"] = "/etc/limeos/credentials.env"
@@ -750,6 +775,32 @@ class ActivateTests(Harness):
                 self.assertIn(fragment, result.stderr)
                 self.assertEqual(self.mutating_calls(), [])
 
+    def test_a_hash_failure_after_the_writers_stop_rolls_back(self):
+        self.passing_snapshot()
+        hook = self.stub / "hook-disable-limeos-package-reconcile.timer"
+        self.fake_tool("sha256sum.later", "exit 1")
+        hook.write_text(f"#!/usr/bin/env bash\nmv '{self.bin}/sha256sum.later' '{self.bin}/sha256sum'\n")
+        hook.chmod(0o755)
+        # The rollback's own hashing must work again: return.sh stops limeos-core first.
+        undo = self.stub / "hook-stop-limeos-core.service"
+        undo.write_text(f"#!/usr/bin/env bash\nrm -f '{self.bin}/sha256sum'\n")
+        undo.chmod(0o755)
+        result = self.approved()
+        self.assert_rolled_back(result)
+        self.assertIn("cannot hash /etc/limeos/credentials.env", result.stderr)
+        self.assertIn("before activation completed", result.stderr)
+
+    def test_snapshot_record_without_a_hash_is_refused_before_any_change(self):
+        self.passing_snapshot()
+        records = self.snap / "state.sha256"
+        lines = records.read_text().splitlines()
+        lines[0] = "S  " + lines[0].split(" ", 2)[2]  # flag, empty hash, path
+        records.write_text("\n".join(lines) + "\n")
+        result = self.approved()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("malformed state record", result.stderr)
+        self.assertEqual(self.mutating_calls(), [])
+
     def test_container_change_rolls_back(self):
         self.passing_snapshot()
         snap_ps = self.snap / "docker-ps.txt"
@@ -868,6 +919,17 @@ class ReturnTests(Harness):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("state file changed: /etc/limeos/credentials.env", result.stderr)
         self.assertNotIn("CHANGED", result.stdout + result.stderr)
+
+    def test_malformed_snapshot_record_fails_verification(self):
+        self.activated()
+        records = self.snap / "state.sha256"
+        records.write_text(records.read_text().replace(" /etc/limeos/credentials.env", "", 1)
+                           .replace("S ", "S  ", 1))
+        result = self.do_return()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("malformed state record", result.stderr)
+        for name in FROZEN:
+            self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
 
     def test_detects_deleted_state_file(self):
         self.activated()

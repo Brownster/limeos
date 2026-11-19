@@ -107,7 +107,7 @@ fct_main() {
     ss -H -ltn >"${out}/ports.txt" || true
     fct_docker_ids >"${out}/docker-ps.txt"
     fct_docker_started >"${out}/docker-started.txt"
-    fct_state_hashes >"${out}/state.sha256"
+    fct_state_hashes >"${out}/state.sha256" || refusals+=('state files could not all be hashed (named above); fix the state list or the files')
 
     local mem_line swap_line available swap_total swap_used
     free -b >"${out}/memory.txt"
