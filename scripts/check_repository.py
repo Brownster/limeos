@@ -3,12 +3,14 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"Check dependency direction and tracked build-output hygiene."
+"Check dependency direction, tracked build-output hygiene and the evidence policy."
 
 import subprocess
 from pathlib import Path
 
 import tomllib
+
+from evidence_bundles import violations as evidence_violations
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED = {
@@ -59,6 +61,9 @@ if listing.returncode == 0:
             part in ["target", "node_modules", "dist", "__pycache__", ".ruff_cache"]
             for part in Path(file).parts
         ), f"tracked build output: {file}"
+    # Raw evidence lives in release bundles (docs/rewrite-evidence/README.md).
+    evidence = evidence_violations(ROOT, listing.stdout.splitlines())
+    assert not evidence, "evidence policy violation: " + "; ".join(evidence[:20])
 assert (ROOT / "Cargo.lock").is_file(), "Cargo.lock is required"
 assert not (ROOT / "Docs").exists(), "Only one docs root is allowed"
 print("Repository dependency and hygiene checks passed.")
