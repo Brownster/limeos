@@ -14,6 +14,7 @@ ARMED=0
 ROLLING_BACK=0
 ATTACHED=0
 DETACHED_PID=''
+TAIL_PID=''
 HEALTH_DETAIL=''
 SNAP=''
 SITE_DIR='/etc/caddy/conf.d'
@@ -39,13 +40,15 @@ killed mid-install) before the rollback starts. The rollback runs once and to th
 end: signals are ignored while it runs.
 
 Detached by default: after the snapshot check the script runs itself again in a
-new session (setsid, inside a systemd-run --scope when systemd-run exists), with
-output appended to SNAPSHOT_DIR/activate.log, and this process only follows that
-log and exits with the run's status. A dropped SSH session therefore cannot stop
-it mid-step; read the log afterwards. Ctrl-C (or SIGTERM) here is passed to the
-run as SIGTERM, which rolls back. To stop a run whose terminal is gone:
-kill -TERM <pid of the detached activate.sh>. --attached runs in the foreground
-instead (tests, or an operator inside tmux/screen).
+new session (systemd-run --scope, then setsid; systemd-run is required, and if it
+fails nothing has changed), with output appended to SNAPSHOT_DIR/activate.log.
+This process only follows that log and exits with the run's status. A dropped SSH
+session therefore cannot stop the run mid-step; read the log afterwards.
+Signals: Ctrl-C (SIGINT) here is passed to the run as SIGTERM, which rolls back.
+SIGTERM or SIGHUP here only stops following; the run carries on. The run itself
+rolls back on SIGINT, SIGTERM or SIGHUP: with the terminal gone, use
+kill -TERM <pid printed at the start>. --attached runs in the foreground instead
+(tests, or an operator inside tmux/screen).
 USAGE
 }
 
@@ -69,28 +72,37 @@ fct_on_exit() {
     if (( ARMED )); then fct_abort "exited with status ${status} before activation completed"; fi
 }
 
-# Follow the detached run's log; pass Ctrl-C or TERM on as TERM. (Background jobs of a
-# script start with SIGINT ignored, so the run itself could not trap INT.)
+# The follower passes the operator's Ctrl-C to the run as TERM (a rollback). A TERM or HUP
+# to the follower (logind, sudo, a closed terminal) only ends the follower.
 fct_forward() { if [[ -n "${DETACHED_PID}" ]]; then kill -s TERM "${DETACHED_PID}" 2>/dev/null || true; fi; }
+fct_stop_following() { # exit status
+    if [[ -n "${TAIL_PID}" ]]; then kill "${TAIL_PID}" 2>/dev/null || true; fi
+    printf 'activate: stopped following; the detached run (pid %s) carries on, see %s\n' "${DETACHED_PID}" "${SNAP}/activate.log" || true
+    exit "${1}"
+}
 
 fct_detach() { # original arguments
-    local log="${SNAP}/activate.log" offset rc tail_pid
-    local -a runner=(setsid --wait)
-    if command -v systemd-run >/dev/null 2>&1; then runner=(systemd-run --scope --quiet --collect -- "${runner[@]}"); fi
+    local log="${SNAP}/activate.log" offset rc
+    command -v systemd-run >/dev/null 2>&1 \
+        || fct_die 'systemd-run is required to run detached; nothing was changed (or run --attached inside tmux or screen)'
+    # A background job of a script starts with SIGINT ignored, and bash cannot trap a signal
+    # ignored at entry: env --default-signal=INT gives the run a SIGINT it can trap.
+    local -a runner=(systemd-run --scope --quiet --collect -- env --default-signal=INT setsid --wait)
     printf '=== activate.sh started %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"${log}"
     offset="$(stat -c %s -- "${log}")"
-    trap - HUP
-    trap fct_forward INT TERM
+    trap fct_forward INT
+    trap 'fct_stop_following 143' TERM
+    trap 'fct_stop_following 129' HUP
     "${runner[@]}" bash "${SCRIPT_DIR}/activate.sh" "$@" --attached </dev/null >>"${log}" 2>&1 &
     DETACHED_PID=$!
     fct_log "activate: running detached (pid ${DETACHED_PID}); a dropped SSH session does not stop it"
     fct_log "activate: log ${log}; Ctrl-C here rolls back"
-    tail -c "+$(( offset + 1 ))" -f --pid="${DETACHED_PID}" -- "${log}" &
-    tail_pid=$!
+    tail -c "+$(( offset + 1 ))" -s 0.2 -f --pid="${DETACHED_PID}" -- "${log}" &
+    TAIL_PID=$!
     while kill -0 "${DETACHED_PID}" 2>/dev/null; do wait "${DETACHED_PID}" || true; done
     rc=0
     wait "${DETACHED_PID}" || rc=$?
-    wait "${tail_pid}" || true
+    wait "${TAIL_PID}" || true
     return "${rc}"
 }
 

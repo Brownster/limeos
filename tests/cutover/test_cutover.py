@@ -610,13 +610,23 @@ class ActivateTests(Harness):
 
     def test_signal_at_each_mutating_step_rolls_back(self):
         # The signal arrives while the step runs; the step finishes, then the trap rolls back.
+        self.signal_matrix(attached=True)
+
+    def test_signal_at_each_mutating_step_rolls_back_the_detached_run(self):
+        # The stub signals its caller, which here is the detached run itself.
+        self.signal_matrix(attached=False)
+
+    def signal_matrix(self, attached):
         for point in ACTIVATE_STEPS:
             for sig in ("INT", "TERM", "HUP"):
                 with self.subTest(point=point, signal=sig):
                     self.setUp()
                     self.passing_snapshot()
                     (self.stub / "signal.txt").write_text(f"{sig} {point}\n")
-                    result = self.approved()
+                    result = self.approved(attached=attached)
+                    if not attached:  # the run's output arrives through the followed log
+                        result = types.SimpleNamespace(
+                            returncode=result.returncode, stdout=result.stdout, stderr=result.stdout + result.stderr)
                     self.assert_rolled_back(result)
                     self.assertIn(f"interrupted by SIG{sig}", result.stderr)
                     # The EXIT trap after the rollback must not run it again.
@@ -745,6 +755,56 @@ class ActivateTests(Harness):
         self.assert_rolled_back(result)
         self.assertEqual(proc.returncode, 1)
         self.assertIn("interrupted by SIGTERM", stdout)
+
+    def test_term_or_hup_to_the_follower_ends_only_the_follower(self):
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            with self.subTest(signal=sig.name):
+                self.setUp()
+                self.passing_snapshot()
+                reached, go = self.block_at_core_start()
+                proc = self.popen_detached()
+                self.wait_for(reached.exists)
+                proc.send_signal(sig)  # the follower only, as logind or sudo would
+                stdout, _ = proc.communicate(timeout=30)
+                self.assertNotEqual(proc.returncode, 0)
+                self.assertIn("stopped following", stdout)
+                go.touch()
+                log = self.snap / "activate.log"
+                self.wait_for(lambda: "activate complete" in log.read_text())
+                self.assertNotIn("ROLLBACK", log.read_text())
+                for name in RUST:
+                    self.assertEqual(self.unit_state(name), ("active", "enabled"))
+
+    def path_without(self, tool):
+        """A PATH holding the stubs and every system command except TOOL."""
+        shadow = Path(self._tmp.name) / f"without-{tool}"
+        shadow.mkdir()
+        (self.bin / tool).unlink(missing_ok=True)
+        for directory in os.environ["PATH"].split(":"):
+            if not os.path.isdir(directory):
+                continue
+            for name in os.listdir(directory):
+                link = shadow / name
+                if name != tool and not link.exists() and not link.is_symlink():
+                    link.symlink_to(os.path.join(directory, name))
+        return f"{self.bin}:{shadow}"
+
+    def test_detaching_fails_closed_without_or_with_a_failing_systemd_run(self):
+        for case in ("absent", "failing"):
+            with self.subTest(case=case):
+                self.setUp()
+                self.passing_snapshot()
+                if case == "absent":
+                    self.env["PATH"] = self.path_without("systemd-run")
+                else:
+                    self.fake_tool("systemd-run", "echo 'Failed to start transient scope unit: Access denied' >&2; exit 1")
+                result = self.approved(attached=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.mutating_calls(), [])
+                expected = "systemd-run is required" if case == "absent" else "Failed to start transient scope unit"
+                self.assertIn(expected, result.stdout + result.stderr)
+                for name in FROZEN:
+                    self.assertEqual(self.unit_state(name), ("active", "enabled"))
 
     def test_health_failures_roll_back(self):
         base = {

@@ -89,11 +89,14 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    a Ctrl-C lets the running step (dpkg included) finish before the rollback
    starts. The rollback runs once and ignores further signals until it ends.
    It runs detached: after the snapshot check it starts itself again in a new
-   session (`setsid`, inside `systemd-run --scope`), appends its output to
+   session (`systemd-run --scope`, then `setsid`), appends its output to
    `SNAP/activate.log` and the terminal only follows that log, so a dropped SSH
-   session does not stop it. Reconnect and read the log, or `tail -f` it. Ctrl-C
-   in the following terminal rolls the run back (it is passed on as SIGTERM);
-   with the terminal gone, `kill -TERM` the detached `activate.sh` to roll back.
+   session does not stop it. `systemd-run` is required; if it is missing or
+   fails, nothing has changed. Reconnect and read the log, or `tail -f` it.
+   Signals: Ctrl-C in the following terminal rolls the run back (passed on as
+   SIGTERM); SIGTERM or SIGHUP to the follower only stops following and the run
+   carries on; the run itself rolls back on SIGINT, SIGTERM or SIGHUP, so with
+   the terminal gone, `kill -TERM` the pid it printed at the start.
    `--attached` keeps it in the foreground (inside tmux or screen, or for tests).
 5. Measure, once `activate.sh` has passed its health checks and the host is idle:
    `scripts/cutover/measure.sh --host HOST [--port 8002] [--out DIR] [--window 600]`.
