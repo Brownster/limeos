@@ -147,10 +147,24 @@ impl Docker {
         Ok((status, bytes, false))
     }
     async fn json(&self, path: String, limit: usize) -> Result<Value> {
+        self.json_with(path, limit, |_| Error(ErrorCode::Unavailable))
+            .await
+    }
+    /// A GET naming one container, where the Engine's 404 and 409 mean that
+    /// container is gone or in conflict. Every other path keeps `json`.
+    async fn container_json(&self, path: String, limit: usize) -> Result<Value> {
+        self.json_with(path, limit, container_status).await
+    }
+    async fn json_with(
+        &self,
+        path: String,
+        limit: usize,
+        refused: fn(StatusCode) -> Error,
+    ) -> Result<Value> {
         tokio::time::timeout(Duration::from_secs(2), async {
             let (status, bytes) = self.request("GET", path, limit).await?;
             if status != StatusCode::OK {
-                return Err(Error(ErrorCode::Unavailable));
+                return Err(refused(status));
             }
             serde_json::from_slice(&bytes).map_err(|_| Error(ErrorCode::Unavailable))
         })
@@ -178,10 +192,21 @@ impl Docker {
                 8192,
             )
             .await?;
-        if status != StatusCode::NO_CONTENT {
-            return Err(Error(ErrorCode::Unavailable));
+        match status {
+            StatusCode::NO_CONTENT => Ok(()),
+            // Start of a running or stop of a stopped container. The effect's
+            // intended state already holds; fresh verification still decides.
+            StatusCode::NOT_MODIFIED if operation != ContainerAction::Restart => Ok(()),
+            other => Err(container_status(other)),
         }
-        Ok(())
+    }
+}
+/// The Engine's documented refusals for a request naming one container.
+fn container_status(status: StatusCode) -> Error {
+    match status {
+        StatusCode::NOT_FOUND => Error(ErrorCode::NotFound),
+        StatusCode::CONFLICT => Error(ErrorCode::Conflict),
+        _ => Error(ErrorCode::Unavailable),
     }
 }
 fn parse_api_version(value: &Value) -> Result<String> {
@@ -202,7 +227,7 @@ impl Docker {
             return Err(Error(ErrorCode::InvalidInput));
         }
         let value = self
-            .json(format!("/{version}/containers/{id}/json"), 512 * 1024)
+            .container_json(format!("/{version}/containers/{id}/json"), 512 * 1024)
             .await?;
         // Reject an inconsistent identity; never leak Config.Env, labels or paths.
         if value["Id"].as_str() != Some(id) {
@@ -261,7 +286,15 @@ impl Engine for Docker {
         let mut members = Vec::new();
         for row in rows {
             let id = row["Id"].as_str().ok_or(Error(ErrorCode::Unavailable))?;
-            let value = self.inspect_value(&version, id).await?;
+            // A member removed between listing and inspection is a changing
+            // project, not a missing one: keep the listing's refusal.
+            let value = self
+                .inspect_value(&version, id)
+                .await
+                .map_err(|e| match e.0 {
+                    ErrorCode::NotFound | ErrorCode::Conflict => Error(ErrorCode::Unavailable),
+                    _ => e,
+                })?;
             let labels = &value["Config"]["Labels"];
             if labels["com.docker.compose.project"].as_str() != Some(project) {
                 return Err(Error(ErrorCode::Unavailable));
