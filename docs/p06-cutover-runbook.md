@@ -98,6 +98,11 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    carries on; the run itself rolls back on SIGINT, SIGTERM or SIGHUP, so with
    the terminal gone, `kill -TERM` the pid it printed at the start.
    `--attached` keeps it in the foreground (inside tmux or screen, or for tests).
+   One run per snapshot: while a run holds `SNAP/activate.lock` a second
+   `activate.sh` on that snapshot is refused. After a completed activation the
+   snapshot is marked `SNAP/activated`; rerunning on it, or activating while the
+   cutover Caddy site exists, is refused before any change. After `return.sh`,
+   a new activation needs a new preflight.
 5. Measure, once `activate.sh` has passed its health checks and the host is idle:
    `scripts/cutover/measure.sh --host HOST [--port 8002] [--out DIR] [--window 600]`.
    It is read-only: it reads `/proc`, `/sys/fs/cgroup`, `systemctl show` and

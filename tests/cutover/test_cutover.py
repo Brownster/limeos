@@ -806,6 +806,59 @@ class ActivateTests(Harness):
                 for name in FROZEN:
                     self.assertEqual(self.unit_state(name), ("active", "enabled"))
 
+    def test_a_rerun_after_a_completed_activation_changes_nothing(self):
+        self.passing_snapshot()
+        self.assertEqual(self.approved().returncode, 0)
+        before = tree_digest(self.root), tree_digest(self.stub / "units")
+        (self.stub / "calls.log").write_text("")
+        for attached in (True, False):
+            with self.subTest(attached=attached):
+                result = self.approved(attached=attached)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("already activated", result.stdout + result.stderr)
+                self.assertNotIn("ROLLBACK", result.stdout + result.stderr)
+                self.assertEqual(self.mutating_calls(), [])
+                self.assertEqual(before, (tree_digest(self.root, skip=("calls.log", "activate.log")),
+                                          tree_digest(self.stub / "units")))
+
+    def test_an_active_cutover_site_refuses_a_new_activation(self):
+        self.passing_snapshot()
+        self._write("/etc/caddy/conf.d/limeos-cutover.caddy", "site from an earlier activation\n")
+        result = self.approved()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("the cutover is already active", result.stderr)
+        self.assertEqual(self.mutating_calls(), [])
+
+    def test_a_second_run_is_refused_while_the_first_holds_the_lock(self):
+        for attached in (True, False):
+            with self.subTest(first_attached=attached):
+                self.setUp()
+                self.passing_snapshot()
+                reached, go = self.block_at_core_start()
+                args = self.activate_args("--yes-i-have-operator-approval", *(["--attached"] if attached else []))
+                args[0] = str(self.snap)
+                first = subprocess.Popen(
+                    ["bash", str(SCRIPTS / "activate.sh"), *args], env={**self.env, "CUTOVER_NOW": str(NOW + 60)},
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+                self.wait_for(reached.exists)
+                if not attached:  # the follower's terminal goes away; the detached run keeps the lock
+                    os.killpg(first.pid, signal.SIGHUP)
+                    first.communicate(timeout=30)
+                calls_before = len(self.mutating_calls())
+                second = self.approved()
+                self.assertNotEqual(second.returncode, 0)
+                self.assertIn("another activate.sh is running on this snapshot", second.stderr)
+                self.assertEqual(len(self.mutating_calls()), calls_before)
+                go.touch()
+                log = self.snap / "activate.log"
+                if attached:
+                    out, err = first.communicate(timeout=60)
+                    self.assertEqual(first.returncode, 0, out + err)
+                else:
+                    self.wait_for(lambda: "activate complete" in log.read_text())
+                for name in RUST:
+                    self.assertEqual(self.unit_state(name), ("active", "enabled"))
+
     def test_health_failures_roll_back(self):
         base = {
             "http://127.0.0.1:8096/Sessions": "401",

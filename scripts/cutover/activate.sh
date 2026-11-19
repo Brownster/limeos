@@ -49,6 +49,11 @@ SIGTERM or SIGHUP here only stops following; the run carries on. The run itself
 rolls back on SIGINT, SIGTERM or SIGHUP: with the terminal gone, use
 kill -TERM <pid printed at the start>. --attached runs in the foreground instead
 (tests, or an operator inside tmux/screen).
+
+One run per snapshot: the run holds SNAPSHOT_DIR/activate.lock, and a second
+activate.sh on that snapshot is refused while it does. A snapshot that has
+completed an activation (SNAPSHOT_DIR/activated), or an existing cutover Caddy
+site, is refused before any change.
 USAGE
 }
 
@@ -106,6 +111,27 @@ fct_detach() { # original arguments
     return "${rc}"
 }
 
+# One activation per snapshot at a time: an exclusive lock on SNAPSHOT/activate.lock held
+# on fd 9. The detached run inherits the follower's fd 9 (the same open file, so the same
+# lock) and keeps the lock after the follower has gone.
+fct_lock() {
+    local lock="${SNAP}/activate.lock"
+    if [[ ! /proc/self/fd/9 -ef "${lock}" ]]; then
+        exec 9>>"${lock}" || fct_die "cannot open ${lock}"
+    fi
+    flock -n 9 || fct_die "another activate.sh is running on this snapshot (${lock} is locked); nothing was changed"
+}
+
+# Refuse before arming when the cutover is already in place: a rerun would stop nothing
+# useful, fail on the port Caddy holds and roll back a working cutover.
+fct_refuse_if_active() {
+    local site_file="${CUTOVER_ROOT}${SITE_DIR}/${SITE_NAME}"
+    if [[ -e "${SNAP}/activated" ]]; then
+        fct_need "this snapshot was already activated ($(head -n1 -- "${SNAP}/activated")); nothing was changed (return.sh goes back; a new activation needs a new preflight)" false
+    fi
+    fct_need "the cutover is already active (${SITE_DIR}/${SITE_NAME} exists); nothing was changed" test ! -e "${site_file}"
+}
+
 # Mutating step: from the first one on, any failure rolls back (never under --dry-run).
 # Each step runs in its own session, so a terminal Ctrl-C (sent to the whole foreground
 # process group) reaches only this script: the step (dpkg mid-install, say) finishes and
@@ -114,7 +140,7 @@ fct_do() {
     if (( DRY_RUN )); then fct_run "$@"; return 0; fi
     ARMED=1
     printf '+ %s\n' "$*"
-    setsid --wait "$@" || fct_abort "command failed: $*"
+    setsid --wait "$@" 9>&- || fct_abort "command failed: $*"
 }
 
 # Read-only precondition. Host-presence problems only warn under --dry-run.
@@ -215,6 +241,8 @@ fct_main() {
     [[ -f "${SNAP}/managed.txt" ]] || fct_die 'snapshot has no managed.txt (taken before managed sets were recorded); run preflight again'
     STATE_LIST="${SNAP}/state-paths.txt"
     fct_records_ok "${SNAP}/state.sha256" || fct_die 'the snapshot has a malformed state record; run preflight again'
+    if (( ! DRY_RUN )); then fct_lock; fi
+    fct_refuse_if_active
     if (( ! DRY_RUN && ! ATTACHED )); then
         local rc=0
         fct_detach "${original_args[@]}" || rc=$?
@@ -312,6 +340,10 @@ fct_main() {
     if (( ! DRY_RUN )); then sleep 3; fi
     fct_retry 'stack reader still ready after settling' fct_reader_ready
     ARMED=0
+    if (( ! DRY_RUN )); then
+        printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${site}" >"${SNAP}/activated" \
+            || fct_warn "could not mark ${SNAP} as activated"
+    fi
     fct_log "activate complete: ${site}"
 }
 
