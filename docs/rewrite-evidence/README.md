@@ -64,7 +64,11 @@ Without unit arguments, `verify` and `restore` handle every manifest. Restore
 checks every bundle and destination before writing, never follows a symbolic
 link, and refuses to replace a file with different content unless given
 `--force`, which lists each file it replaced. If a write fails, restore
-removes the files it created and puts replaced files back. A run's
+removes the files it created and puts replaced files back, and names any
+entry it could not undo. Only one build or restore runs at a time. If an
+interrupted run left `.<name>.evidence-restore-…` (unfinished copy) or
+`.<name>.evidence-backup-…` (what `--force` replaced) files, restore lists
+them and stops; it never deletes them itself. A run's
 `SHA256SUMS` then verifies as it did before the move. Scripts kept inside a
 run directory (such as a `verify.py`) read that run's raw files, so restore
 its bundle first. Restored files are for reading; do not commit them.

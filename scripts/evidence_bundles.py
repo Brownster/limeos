@@ -13,6 +13,9 @@ EVIDENCE-BUNDLE.json listing every moved file with its size and SHA-256.
 """
 
 import argparse
+import contextlib
+import errno
+import fcntl
 import gzip
 import hashlib
 import io
@@ -594,7 +597,41 @@ def destination_state(root, name, data, mode):
     return "same" if same and executable == bool(mode & 0o100) else "differs"
 
 
-TEMPORARY = re.compile(r"^\..+\.evidence-restore-[0-9a-f]{16}$")
+LEFTOVER = re.compile(r"^\..+\.evidence-(restore|backup)-[0-9a-f]{16}$")
+
+
+@contextlib.contextmanager
+def exclusive(root):
+    """Hold an exclusive lock on root so only one build or restore runs at a time."""
+    directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        try:
+            fcntl.flock(directory, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise EvidenceError(
+                f"another build or restore is running in {root}"
+            ) from None
+        yield
+    finally:
+        os.close(directory)
+
+
+def leftovers(root, units):
+    """Temporary and backup files an interrupted restore left in these units."""
+    found = []
+    for unit in units:
+        base = Path(root) / unit
+        if not base.is_dir() or base.is_symlink():
+            continue
+        for directory, subdirectories, files in os.walk(base):
+            if is_loose(unit):
+                subdirectories.clear()
+            found += [
+                (Path(directory) / name).relative_to(root).as_posix()
+                for name in files + subdirectories
+                if LEFTOVER.match(name)
+            ]
+    return sorted(found)
 
 
 def open_directory(root, parts, expected=None, create=False, created=None):
@@ -641,13 +678,6 @@ def entry_id(directory, name):
     return (status.st_dev, status.st_ino) if stat.S_ISREG(status.st_mode) else None
 
 
-def remove_stale_temporaries(directory):
-    """Delete regular files left by an interrupted forced restore in this directory."""
-    for name in os.listdir(directory):
-        if TEMPORARY.match(name) and entry_id(directory, name):
-            os.unlink(name, dir_fd=directory)
-
-
 def write_file(root, name, data, mode, replace, created_dirs):
     """Write one file below root without following links; return an undo record.
 
@@ -661,14 +691,13 @@ def write_file(root, name, data, mode, replace, created_dirs):
     token = secrets.token_hex(8)
     target = f".{leaf}.evidence-restore-{token}" if replace else leaf
     backup = None
-    created = False
+    identity = None
     try:
-        if replace:
-            remove_stale_temporaries(directory)
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
         handle = os.open(target, flags, 0o600, dir_fd=directory)
-        created = True
         with os.fdopen(handle, "wb") as stream:
+            status = os.fstat(stream.fileno())
+            identity = (status.st_dev, status.st_ino)
             stream.write(data)
             os.fchmod(stream.fileno(), mode)
         if replace:
@@ -681,16 +710,11 @@ def write_file(root, name, data, mode, replace, created_dirs):
                 follow_symlinks=False,
             )
             os.replace(target, leaf, src_dir_fd=directory, dst_dir_fd=directory)
-        return {
-            "parts": parts,
-            "dirs": ids,
-            "file": entry_id(directory, leaf),
-            "backup": backup,
-        }
+        return {"parts": parts, "dirs": ids, "file": identity, "backup": backup}
     except BaseException:
-        if created and entry_id(directory, target):
+        if identity and entry_id(directory, target) == identity:
             os.unlink(target, dir_fd=directory)
-        if backup and entry_id(directory, backup):
+        if backup and entry_id(directory, backup) == entry_id(directory, leaf):
             os.unlink(backup, dir_fd=directory)
         raise
     finally:
@@ -698,59 +722,69 @@ def write_file(root, name, data, mode, replace, created_dirs):
 
 
 def undo(root, records, created_dirs):
-    """Reverse what restore wrote, through directory handles; return what was skipped."""
-    skipped = []
+    """Reverse what restore wrote, through directory handles, attempting every entry.
+
+    A file is removed (or its backup put back) only while the entry is still
+    the inode this run created. Returns a description of every entry not undone.
+    """
+    failures = []
     for record in reversed(records):
-        parts = record["parts"]
+        name = "/".join(record["parts"])
         try:
-            directory, _ = open_directory(root, parts[:-1], expected=record["dirs"])
-        except (OSError, EvidenceError):
-            skipped.append("/".join(parts))
-            continue
-        try:
-            if entry_id(directory, parts[-1]) != record["file"]:
-                skipped.append("/".join(parts))
-            elif record["backup"]:
-                os.replace(
-                    record["backup"],
-                    parts[-1],
-                    src_dir_fd=directory,
-                    dst_dir_fd=directory,
-                )
-            else:
-                os.unlink(parts[-1], dir_fd=directory)
-        finally:
-            os.close(directory)
+            directory, _ = open_directory(
+                root, record["parts"][:-1], expected=record["dirs"]
+            )
+            try:
+                leaf = record["parts"][-1]
+                if entry_id(directory, leaf) != record["file"]:
+                    failures.append(f"{name}: changed since it was written")
+                elif record["backup"]:
+                    os.replace(
+                        record["backup"],
+                        leaf,
+                        src_dir_fd=directory,
+                        dst_dir_fd=directory,
+                    )
+                else:
+                    os.unlink(leaf, dir_fd=directory)
+            finally:
+                os.close(directory)
+        except (OSError, EvidenceError) as error:
+            failures.append(f"{name}: {error}")
     for parts, ids in reversed(created_dirs):
         try:
             directory, _ = open_directory(root, parts[:-1], expected=ids[:-1])
-        except (OSError, EvidenceError):
-            continue
-        try:
-            status = os.stat(parts[-1], dir_fd=directory, follow_symlinks=False)
-            if (status.st_dev, status.st_ino) == ids[-1]:
-                os.rmdir(parts[-1], dir_fd=directory)
-        except OSError:
-            pass
-        finally:
-            os.close(directory)
-    return skipped
+            try:
+                status = os.stat(parts[-1], dir_fd=directory, follow_symlinks=False)
+                if (status.st_dev, status.st_ino) == ids[-1]:
+                    os.rmdir(parts[-1], dir_fd=directory)
+            finally:
+                os.close(directory)
+        except OSError as error:
+            if error.errno != errno.ENOTEMPTY:
+                failures.append(f"{'/'.join(parts)}/: {error}")
+        except EvidenceError as error:
+            failures.append(f"{'/'.join(parts)}/: {error}")
+    return failures
 
 
 def drop_backups(root, records):
+    """Remove this run's backups after success; return those that could not go."""
+    failures = []
     for record in records:
         if not record["backup"]:
             continue
-        parts = record["parts"]
         try:
-            directory, _ = open_directory(root, parts[:-1], expected=record["dirs"])
-        except (OSError, EvidenceError):
-            continue
-        try:
-            if entry_id(directory, record["backup"]):
+            directory, _ = open_directory(
+                root, record["parts"][:-1], expected=record["dirs"]
+            )
+            try:
                 os.unlink(record["backup"], dir_fd=directory)
-        finally:
-            os.close(directory)
+            finally:
+                os.close(directory)
+        except (OSError, EvidenceError) as error:
+            failures.append(f"{record['backup']}: {error}")
+    return failures
 
 
 def restore_all(root, manifest_paths, bundles, force=False):
@@ -761,8 +795,15 @@ def restore_all(root, manifest_paths, bundles, force=False):
     """
     root = Path(root).resolve()
     actions = {}
-    for path in manifest_paths:
-        manifest = load_manifest(path, root)
+    loaded = [load_manifest(path, root) for path in manifest_paths]
+    left = leftovers(root, [manifest["unit"] for manifest in loaded])
+    if left:
+        raise EvidenceError(
+            f"files left by an interrupted restore: {left}; '-restore-' files are "
+            "unfinished copies and '-backup-' files hold what a forced restore "
+            "replaced; inspect or delete them, then run restore again"
+        )
+    for manifest in loaded:
         bundle = Path(bundles) / manifest["bundle"]["name"]
         for name, (data, mode) in read_bundle(manifest, bundle).items():
             if name in actions:
@@ -784,13 +825,15 @@ def restore_all(root, manifest_paths, bundles, force=False):
                     write_file(root, name, data, mode, state == "differs", created_dirs)
                 )
     except (OSError, EvidenceError) as error:
-        skipped = undo(root, records, created_dirs)
-        note = f"; left in place because they changed: {skipped}" if skipped else ""
+        failures = undo(root, records, created_dirs)
+        note = f"; not undone: {failures}" if failures else ""
         raise EvidenceError(f"{error}; restore undone{note}") from None
     except BaseException:
         undo(root, records, created_dirs)
         raise
-    drop_backups(root, records)
+    failures = drop_backups(root, records)
+    if failures:
+        raise EvidenceError(f"restored, but these backups remain: {failures}")
     replaced = [name for name, _, _, state in plan if state == "differs"]
     return len(plan), len(records), replaced
 
@@ -862,13 +905,14 @@ def main(argv=None):
                 except ValueError:
                     raise EvidenceError(f"{unit}: not under {root}") from None
                 units.append(check_unit(relative.as_posix()))
-            built = build(
-                root,
-                units or all_units(root),
-                args.out,
-                args.release,
-                remove=not args.keep_files,
-            )
+            with exclusive(root):
+                built = build(
+                    root,
+                    units or all_units(root),
+                    args.out,
+                    args.release,
+                    remove=not args.keep_files,
+                )
             for manifest in built:
                 record = manifest["bundle"]
                 print(
@@ -885,9 +929,10 @@ def main(argv=None):
             print(f"Verified {count} files from {len(found)} bundles")
         elif args.command == "restore":
             found = manifests(root, args.manifests)
-            count, written, replaced = restore_all(
-                root, found, args.bundles, force=args.force
-            )
+            with exclusive(root):
+                count, written, replaced = restore_all(
+                    root, found, args.bundles, force=args.force
+                )
             for name in replaced:
                 print(f"replaced {name}")
             print(

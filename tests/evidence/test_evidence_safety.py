@@ -545,29 +545,94 @@ class RollbackTests(Tree):
             (self.root / RUN / "logs/guest.log").read_bytes(), b"someone else's\n"
         )
 
-    def test_stale_temporary_files_do_not_block_a_forced_restore(self):
+    def test_leftovers_from_an_interrupted_run_stop_restore_untouched(self):
         self.assertEqual(self.restore()[0], 0)
         logs = self.root / RUN / "logs"
         write(self.root, f"{RUN}/logs/guest.log", b"local edit\n")
-        stale = logs / ".guest.log.evidence-restore-0123456789abcdef"
-        stale.write_bytes(b"partial")
-        unrelated = logs / ".guest.log.evidence-restore-mine"
-        unrelated.write_bytes(b"keep")
-        planted = logs / ".x.evidence-restore-fedcba9876543210"
-        planted.symlink_to(self.outside / "target")
+        temporary = logs / ".guest.log.evidence-restore-0123456789abcdef"
+        temporary.write_bytes(b"partial")
+        backup = self.root / RUN / ".record.json.gz.evidence-backup-fedcba9876543210"
+        backup.write_bytes(b"old")
+        before = snapshot(self.root)
+        for argv in [(), ("--force",)]:
+            with self.subTest(argv):
+                code, _out, err = self.restore(*argv)
+                self.assertEqual(code, 1)
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assertIn(temporary.name, err)
+                self.assertIn(backup.name, err)
+                self.assertIn("interrupted restore", err)
+                self.assertEqual(snapshot(self.root), before, "nothing deleted")
+
+    def test_a_successful_forced_restore_lists_replacements_and_leaves_nothing(self):
+        self.assertEqual(self.restore()[0], 0)
+        write(self.root, f"{RUN}/logs/guest.log", b"local edit\n")
         code, out, err = self.restore("--force")
         self.assertEqual(code, 0, err)
         self.assertIn(f"replaced {RUN}/logs/guest.log", out)
         self.assertIn("1 replaced", out)
-        self.assertFalse(stale.exists())
-        self.assertTrue(unrelated.exists())
-        self.assertTrue(planted.is_symlink(), "links are never removed or followed")
-        self.assertEqual((logs / "guest.log").read_bytes(), b"booted\n")
-        self.assertEqual(
-            sorted(self.leftovers()),
-            sorted([unrelated.name, planted.name]),
-            "no temporary or backup files remain",
+        self.assertEqual((self.root / RUN / "logs/guest.log").read_bytes(), b"booted\n")
+        self.assertEqual(self.leftovers(), [])
+
+    def test_ownership_is_taken_from_the_open_descriptor(self):
+        """A file swapped in right after it was written is never deleted."""
+        guest = self.root / RUN / "logs/guest.log"
+        original_entry_id = bundles.entry_id
+        original_write = bundles.write_file
+        swapped, calls = [], []
+
+        def swapping_entry_id(directory, name):
+            if name == "guest.log" and not swapped:
+                swapped.append(True)
+                guest.unlink()
+                guest.write_bytes(b"someone else's\n")
+            return original_entry_id(directory, name)
+
+        def failing(*args):
+            calls.append(args[1])
+            if len(calls) == 3:
+                raise OSError("simulated failure")
+            return original_write(*args)
+
+        with (
+            patch.object(bundles, "entry_id", swapping_entry_id),
+            patch.object(bundles, "write_file", failing),
+        ):
+            code, _out, err = self.restore()
+        self.assertEqual(code, 1)
+        self.assertTrue(swapped)
+        self.assertEqual(guest.read_bytes(), b"someone else's\n")
+        self.assertIn("logs/guest.log", err)
+
+    def test_every_undo_is_attempted_and_each_failure_reported(self):
+        original_unlink = os.unlink
+        original_write = bundles.write_file
+        calls = []
+
+        def stubborn_unlink(path, *args, **kwargs):
+            if path == "guest.log":
+                raise PermissionError("simulated unlink failure")
+            return original_unlink(path, *args, **kwargs)
+
+        def failing(*args):
+            calls.append(args[1])
+            if len(calls) == 3:
+                raise OSError("simulated failure")
+            return original_write(*args)
+
+        with (
+            patch.object(bundles.os, "unlink", stubborn_unlink),
+            patch.object(bundles, "write_file", failing),
+        ):
+            code, _out, err = self.restore()
+        self.assertEqual(code, 1)
+        self.assertIn("simulated unlink failure", err)
+        self.assertIn("logs/guest.log", err)
+        self.assertFalse(
+            (self.root / RUN / "deep/nested/checks.json").exists(),
+            "the earlier file was still undone",
         )
+        self.assertTrue((self.root / RUN / "logs/guest.log").exists())
 
     def test_a_failed_forced_restore_puts_replaced_files_back(self):
         self.assertEqual(self.restore()[0], 0)
@@ -589,6 +654,30 @@ class RollbackTests(Tree):
         self.assertEqual(code, 1)
         self.assertEqual(snapshot(self.root), before)
         self.assertEqual(self.leftovers(), [])
+
+
+class LockTests(Tree):
+    def test_a_second_build_or_restore_waits_for_nobody(self):
+        import fcntl
+
+        self.build(str(self.root / RUN))
+        holder = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            before = snapshot(self.root)
+            for argv in [
+                ("restore", "--bundles", str(self.out)),
+                ("build", "--release", "t", "--out", str(self.out)),
+            ]:
+                with self.subTest(argv[0]):
+                    code, _out, err = self.cli(*argv)
+                    self.assertEqual(code, 1)
+                    self.assertEqual(len(err.strip().splitlines()), 1, err)
+                    self.assertIn("another build or restore", err)
+                    self.assertEqual(snapshot(self.root), before)
+        finally:
+            os.close(holder)
+        self.assertEqual(self.restore()[0], 0, "works once the lock is free")
 
 
 class ManifestPathTests(Tree):
