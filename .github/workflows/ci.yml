@@ -17,6 +17,8 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+          # History for the exposure gate's base revision (merge base with main).
+          fetch-depth: 0
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
@@ -52,9 +54,22 @@ jobs:
           cargo build --locked -p limeos-core -p limeos-executor -p limeosctl
           sudo install -m 0755 target/debug/limeos-core target/debug/limeos-executor /usr/lib/limeos/
           systemd-analyze verify packaging/systemd/*.service
-      # Offline scoring needs systemd 250+ (24.04 ships 255); ceilings per unit.
+      # Offline scoring needs systemd 250+ (24.04 ships 255). Each unit must
+      # score no worse than at the merge base, under this same systemd-analyze,
+      # and within its recorded ceiling plus a small margin.
+      # Base: a pull request's merge base with its target (GITHUB_BASE_REF);
+      # a push's previous tip, since a long-lived branch may be ahead of main;
+      # otherwise the merge base with origin/main.
       - name: Unit exposure ceilings
-        run: python3 scripts/check_unit_exposure.py
+        env:
+          BEFORE: ${{ github.event_name == 'push' && github.event.before || '' }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -n "${BEFORE}" && "${BEFORE}" != 0000000000000000000000000000000000000000 ]] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            python3 scripts/check_unit_exposure.py --base "${BEFORE}"
+          else
+            python3 scripts/check_unit_exposure.py
+          fi
       - run: python3 scripts/check_repository.py
       - name: Repository check unit tests
         run: python3 -m unittest discover -s tests/repository -p 'test_*.py'

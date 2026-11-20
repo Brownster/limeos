@@ -177,15 +177,114 @@ class RootStorageUnitsSayWhatRemains(unittest.TestCase):
         self.assertIn("# Known gap: only the guardian's fixed helper needs CAP_SYS_ADMIN", text)
 
 
+STUB = """#!/bin/sh
+# A stand-in for systemd-analyze: scores a unit by its "# score: N.N" line.
+for unit; do :; done
+value=$(sed -n 's/^# score: //p' "$unit")
+[ -n "$value" ] && printf 'Overall exposure level for %s: %s OK\\n' "$(basename "$unit")" "$value"
+exit 0
+"""
+
+
 class ExposureGate(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.work = Path(directory.name)
+        self.analyze = self.work / "systemd-analyze"
+        self.analyze.write_text(STUB)
+        self.analyze.chmod(0o755)
+        (self.work / "now").mkdir()
+        (self.work / "base").mkdir()
+
+    def units(self, where, **scores):
+        for name, value in scores.items():
+            text = "[Service]\n" + (f"# score: {value}\n" if value is not None else "")
+            (self.work / where / f"{name}.service").write_text(text)
+
+    def check(self, ceilings, base=True):
+        return gate.check(
+            self.work / "now",
+            ceilings,
+            self.work / "base" if base else None,
+            analyze=str(self.analyze),
+        )
+
+    def test_a_unit_that_got_worse_fails_even_inside_its_ceiling(self):
+        self.units("base", a="1.0")
+        self.units("now", a="1.4")
+        problems = self.check({"a.service": 20})
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("worse than the base's 1.0", problems[0])
+
+    def test_a_scoring_version_that_moves_every_unit_does_not_fail(self):
+        # Another systemd weighs the same files 0.3 higher than the ceilings.
+        self.units("base", a="2.4", b="0.7")
+        self.units("now", a="2.4", b="0.7")
+        self.assertEqual(self.check({"a.service": 21, "b.service": 4}), [])
+        # And one that scores lower passes too, but the relative check still
+        # catches a loosened unit that stays under its ceiling.
+        self.units("base", a="1.0")
+        self.units("now", a="1.1")
+        self.assertIn("worse than the base", self.check({"a.service": 21, "b.service": 4})[0])
+
+    def test_the_backstop_fails_above_the_ceiling_plus_margin_even_when_unchanged(self):
+        self.units("base", a="2.5")
+        self.units("now", a="2.5")
+        problems = self.check({"a.service": 21})
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("above its ceiling 2.1 plus the 0.3 margin", problems[0])
+        self.assertEqual(self.check({"a.service": 22}), [])
+
+    def test_a_unit_new_since_the_base_has_the_backstop_only(self):
+        self.units("now", a="3.0")
+        self.assertEqual(self.check({"a.service": 30}), [])
+        self.assertIn("above its ceiling", self.check({"a.service": 20})[0])
+
+    def test_a_unit_without_a_ceiling_or_a_score_fails(self):
+        self.units("base", a="1.0", b="1.0")
+        self.units("now", a="1.0", b=None)
+        problems = self.check({"b.service": 20})
+        self.assertEqual(len(problems), 2, problems)
+        self.assertIn("a.service: no exposure ceiling recorded", problems[0])
+        self.assertIn("b.service: systemd-analyze gave no score", problems[1])
+        self.units("now", b="1.0")
+        self.units("base", b=None)
+        problems = self.check({"a.service": 20, "b.service": 20})
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("gave the base no score", problems[0])
+
+    def test_without_a_base_only_the_backstop_applies(self):
+        self.units("now", a="2.0")
+        self.assertEqual(self.check({"a.service": 20}, base=False), [])
+        self.assertEqual(len(self.check({"a.service": 10}, base=False)), 1)
+
+    def test_a_ceiling_for_a_missing_unit_fails(self):
+        problems = self.check({"gone.service": 10})
+        self.assertEqual(problems, ["gone.service: ceiling recorded for a unit that does not exist"])
+
+    def test_base_units_are_read_from_git_at_the_revision(self):
+        if shutil.which("git") is None:
+            self.skipTest("needs git")
+        head = gate.git("rev-parse", "HEAD")
+        if head.returncode != 0:
+            self.skipTest("not a git checkout")
+        gate.base_units("HEAD", self.work / "base")
+        names = sorted(path.name for path in (self.work / "base").glob("*.service"))
+        committed = gate.git("ls-tree", "--name-only", "HEAD:packaging/systemd").stdout.split()
+        self.assertEqual(names, sorted(n for n in committed if n.endswith(".service")))
+        self.assertEqual(gate.resolve_base("abc123"), "abc123")
+
     def test_every_packaged_unit_has_a_ceiling(self):
         self.assertEqual(
             set(gate.CEILINGS), {path.name for path in UNITS.glob("*.service")}
         )
 
+
+class ExposureGateWithSystemd(unittest.TestCase):
     @unittest.skipUnless(offline_analysis(), "needs systemd-analyze 250 or newer")
-    def test_packaged_units_are_within_their_ceilings(self):
-        self.assertEqual(gate.check(UNITS, gate.CEILINGS), [])
+    def test_packaged_units_are_within_their_ceilings_and_no_worse_than_themselves(self):
+        self.assertEqual(gate.check(UNITS, gate.CEILINGS, UNITS), [])
 
     @unittest.skipUnless(offline_analysis(), "needs systemd-analyze 250 or newer")
     def test_a_loosened_unit_fails(self):
@@ -195,10 +294,10 @@ class ExposureGate(unittest.TestCase):
                 shutil.copyfile(path, copy / path.name)
             unit = copy / "limeos-storaged.service"
             unit.write_text(unit.read_text().replace("PrivateNetwork=yes\n", ""))
-            problems = gate.check(copy, gate.CEILINGS)
-        self.assertEqual(len(problems), 1)
-        self.assertIn("limeos-storaged.service: exposure", problems[0])
-        self.assertIn("above its ceiling", problems[0])
+            problems = gate.check(copy, gate.CEILINGS, UNITS)
+        self.assertTrue(problems)
+        self.assertTrue(all(p.startswith("limeos-storaged.service: exposure") for p in problems))
+        self.assertTrue(any("worse than the base" in p for p in problems), problems)
 
     @unittest.skipUnless(offline_analysis(), "needs systemd-analyze 250 or newer")
     def test_a_unit_without_a_ceiling_fails(self):
@@ -207,9 +306,9 @@ class ExposureGate(unittest.TestCase):
             shutil.copyfile(
                 UNITS / "limeos-storaged.service", copy / "limeos-extra.service"
             )
-            problems = gate.check(copy, {"limeos-extra.service": 100})
+            problems = gate.check(copy, {"limeos-extra.service": 100}, None)
             self.assertEqual(problems, [])
-            problems = gate.check(copy, {})
+            problems = gate.check(copy, {}, None)
         self.assertEqual(len(problems), 1)
         self.assertIn("no exposure ceiling recorded", problems[0])
 
