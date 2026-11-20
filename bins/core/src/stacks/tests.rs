@@ -80,6 +80,7 @@ async fn setup(role: Role, resources: Vec<String>) -> (tempfile::TempDir, Core, 
         .unwrap();
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         password_workers: Arc::new(PasswordWorkers::new(1)),
         dummy_hash: "unused".into(),
@@ -91,6 +92,7 @@ async fn setup(role: Role, resources: Vec<String>) -> (tempfile::TempDir, Core, 
         storage_target_socket: Arc::new("/unused".into()),
         storage_mount_socket: Arc::new("/unused".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
     };
     core.stacks.update(&cohort()).unwrap();

@@ -107,6 +107,7 @@ fn router(backend: Stub) -> Router {
         origin: Arc::from("https://localhost"),
         limiter: Arc::new(Mutex::new(Limiter::default())),
         readers: Arc::new(Semaphore::new(2)),
+        streams: Default::default(),
     })
 }
 fn request(method: &str, path: &str, origin: &str, csrf: &str, body: &str) -> Request {

@@ -10,7 +10,7 @@ use limeos_persistence::{
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::{
     net::{TcpListener, UnixListener, UnixStream},
@@ -31,12 +31,14 @@ mod identity_enablement;
 mod job_resolution;
 mod operations;
 mod password_admission;
+mod reader_health;
 use password_admission::PasswordWorkers;
 mod stack_operations;
 mod stacks;
 mod storage;
 mod storage_mounts;
 mod storage_targets;
+mod supervision;
 
 fn now() -> i64 {
     SystemTime::now()
@@ -58,6 +60,7 @@ enum PasswordJob<'a> {
 #[derive(Clone)]
 struct Core {
     automation_status: automation_runtime::Status,
+    reader_health: reader_health::Status,
     db: Database,
     password_workers: Arc<PasswordWorkers>,
     dummy_hash: Arc<str>,
@@ -69,6 +72,11 @@ struct Core {
     storage_target_socket: Arc<PathBuf>,
     storage_mount_socket: Arc<PathBuf>,
     storage_readers: Arc<Semaphore>,
+    /// Jobs whose claim this process gave up on with its outcome unknown
+    /// (the store call was in doubt), so no execute request was sent for
+    /// them. The dispatcher's next sighting decides: still queued, the claim
+    /// never committed; running, it did, and the execute is sent then.
+    claims_in_doubt: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
     stacks: limeos_observations::stacks::Cache,
 }
 impl Core {
@@ -539,6 +547,14 @@ impl Backend for Core {
             expires_at,
         })
     }
+    /// On the store's query-only connection, never the writer's queue, so
+    /// an anonymous caller with a made-up cookie adds no store work and a
+    /// stuck writer cannot hold the health check.
+    async fn signed_in(&self, token: String) -> bool {
+        self.db
+            .session_live(limeos_identity::digest(&token), now(), SIGNED_IN_BOUND)
+            .await
+    }
     async fn logout(&self, token: String, csrf: String) -> Result<()> {
         // One call on the revocation lane checks the session and its CSRF and
         // removes it, so logout works with the queue, disk or audit table full.
@@ -549,12 +565,20 @@ impl Backend for Core {
         self.db.revoke(revocation, now()).await
     }
     async fn health(&self) -> Result<Health> {
-        self.db.call(|_| Ok(())).await?;
+        let store = self.store_health().await?;
         Ok(Health {
             version: VERSION,
             generation: self.db.generation,
             schema_version: limeos_persistence::SCHEMA_VERSION,
-            ready: true,
+            ready: store.is_none(),
+            degraded: self
+                .automation_status
+                .health()
+                .degraded()
+                .into_iter()
+                .chain(self.reader_health.degraded())
+                .chain(store)
+                .collect(),
         })
     }
     async fn observations(&self, token: String) -> Result<limeos_contracts::Overview> {
@@ -1015,8 +1039,41 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
 }
 async fn rpc_server(core: Core, listener: UnixListener) -> std::io::Result<()> {
     let permits = Arc::new(Semaphore::new(16));
+    let mut failures = 0u64;
+    // Sent from this loop, so systemd restarts core if it stops being run.
+    // It does not depend on the store's writer: a stuck writer is almost
+    // always the device (a hung fsync on a failing SD card) or a lock held
+    // from outside, which a new process meets again, so restarting would
+    // loop, and a thread in uninterruptible sleep would keep the old process
+    // from exiting. Store calls fail at their deadline instead, and health
+    // reports the store degraded and core not ready.
+    let mut watchdog = limeos_contracts::Watchdog::from_env();
     loop {
-        let (stream, _) = listener.accept().await?;
+        let accepted = tokio::select! {
+            accepted = listener.accept() => accepted,
+            () = watchdog.due() => {
+                if let Err(error) = watchdog.beat() {
+                    tracing::warn!(%error, "watchdog keep-alive could not be sent");
+                }
+                continue;
+            }
+        };
+        let stream = match accepted {
+            Ok((stream, _)) => {
+                failures = 0;
+                stream
+            }
+            // Descriptor exhaustion or an aborted peer: the listener still works.
+            Err(error) if limeos_contracts::accept_retryable(&error) => {
+                failures += 1;
+                if failures.is_power_of_two() {
+                    tracing::warn!(%error, failures, "local RPC accept failed; retrying");
+                }
+                tokio::time::sleep(limeos_contracts::ACCEPT_PAUSE).await;
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
         let Ok(permit) = permits.clone().try_acquire_owned() else {
             continue;
         };
@@ -1057,6 +1114,39 @@ fn bind_socket(path: &Path) -> Result<UnixListener> {
         .map_err(|_| Error(ErrorCode::Unavailable))?;
     Ok(listener)
 }
+/// An item the store's writer is still on after this is not legitimate work
+/// (each is a sub-second commit): the store is reported degraded.
+const STORE_STALL: Duration = Duration::from_secs(10);
+/// How long health waits for the writer to answer a probe; it never waits
+/// out the full call deadline.
+const STORE_PROBE: Duration = Duration::from_secs(2);
+/// How long health's signed-in check may take on the query-only connection.
+const SIGNED_IN_BOUND: Duration = Duration::from_millis(250);
+impl Core {
+    /// The store as a degraded subsystem, if its writer is stuck. Read from
+    /// the writer's activity, which needs no queue, and from a probe bounded
+    /// by `STORE_PROBE`, so health answers even when every call is stuck.
+    /// A closed writer or a full queue is an error, as before.
+    async fn store_health(&self) -> Result<Option<limeos_contracts::DegradedSubsystem>> {
+        let activity = self.db.writer_activity();
+        let stalled = activity.busy_for.filter(|busy| *busy >= STORE_STALL);
+        if stalled.is_none() {
+            if let Ok(answer) = tokio::time::timeout(STORE_PROBE, self.db.call(|_| Ok(()))).await {
+                return answer.map(|()| None);
+            }
+        }
+        let activity = self.db.writer_activity();
+        let busy = activity.busy_for.unwrap_or(STORE_PROBE);
+        Ok(Some(limeos_contracts::DegradedSubsystem {
+            subsystem: limeos_contracts::Subsystem::Store,
+            detail: Some(limeos_contracts::DegradedDetail {
+                code: ErrorCode::Unavailable,
+                since: now() - i64::try_from(busy.as_secs()).unwrap_or(i64::MAX / 2),
+                count: u32::try_from(activity.queued).unwrap_or(u32::MAX),
+            }),
+        }))
+    }
+}
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
     tracing_subscriber::fmt().json().with_target(false).init();
@@ -1076,7 +1166,16 @@ async fn run() -> Result<()> {
     std::fs::set_permissions(&state, std::os::unix::fs::PermissionsExt::from_mode(0o700))
         .map_err(|_| Error(ErrorCode::StateNotDurable))?;
     let store = state.join("core.sqlite");
-    let db = Database::open(&store).inspect_err(|_| {
+    // A schema upgrade inside `open` builds indexes over up to 64 MiB of
+    // audit history, which on SD storage has no stated bound: systemd's
+    // start timeout is extended while it runs (up to a cap), rather than
+    // killing core mid-upgrade to roll back and repeat it.
+    let opening = limeos_contracts::StartExtension::from_env(
+        "Opening the store; a schema upgrade can take several minutes",
+    );
+    let db = Database::open(&store);
+    drop(opening);
+    let db = db.inspect_err(|_| {
         if let Some(space) = limeos_persistence::upgrade_space(&store) {
             tracing::error!(
                 from = space.from,
@@ -1096,6 +1195,7 @@ async fn run() -> Result<()> {
     );
     let mut core = Core {
         automation_status: automation_runtime::Status::default(),
+        reader_health: Default::default(),
         stacks: limeos_observations::stacks::start_proxy(config.storage_socket.clone().into()),
         db,
         password_workers: Arc::new(PasswordWorkers::new(2)),
@@ -1107,6 +1207,7 @@ async fn run() -> Result<()> {
         storage_target_socket: Arc::new(config.storage_target_socket.into()),
         storage_mount_socket: Arc::new(config.storage_mount_socket.into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         compose_catalog: config::read_compose_catalog(
             &config_path.with_file_name("compose-catalog.json"),
         )?
@@ -1121,23 +1222,61 @@ async fn run() -> Result<()> {
         .map_err(|_| Error(ErrorCode::Unavailable))?;
     let rpc = bind_socket(&socket)?;
     tracing::info!(generation = core.db.generation, "core ready");
-    let app = limeos_api::router(core.clone(), config.origin);
+    // Type=notify: the store is open, the listeners are bound and serving
+    // starts below, so systemd counts core started (and starts its watchdog
+    // clock) only now.
+    if let Err(error) = limeos_contracts::notify_ready() {
+        tracing::warn!(%error, "could not tell systemd that core is ready");
+    }
+    let bridge = automation_store::ObservationStoreBridge::new(core.db.clone());
+    let reader = health_collection::HealthReader::new(
+        (*core.storage_socket).clone(),
+        core.storage_readers.clone(),
+    );
+    tokio::select! {
+        result=services(core,http,rpc,config.origin,bridge,reader,supervision::Backoff::STANDARD)=>result,
+        _=tokio::signal::ctrl_c()=>Ok(()),
+        _=async {if let Ok(mut signal)=tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()){signal.recv().await;}}=>Ok(()),
+    }
+}
+/// Everything core runs once started. Only a listener that can no longer
+/// accept ends it (systemd then restarts core). The dispatcher handles each
+/// job's errors itself and never returns; the observation runtime is
+/// restarted after a failure and reported in `Health::degraded` meanwhile;
+/// the storage reader's health is asked for and reported there too.
+async fn services(
+    core: Core,
+    http: TcpListener,
+    rpc: UnixListener,
+    origin: String,
+    bridge: automation_store::ObservationStoreBridge,
+    reader: health_collection::HealthReader,
+    backoff: supervision::Backoff,
+) -> Result<()> {
+    let app = limeos_api::router(core.clone(), origin);
+    let reader_health =
+        reader_health::Watcher::new((*core.storage_socket).clone(), core.reader_health.clone());
     let dispatcher = core.clone();
-    let automation = automation_runtime::ObservationRuntime::new(
-        automation_store::ObservationStoreBridge::new(core.db.clone()),
-        health_collection::HealthReader::new(
-            (*core.storage_socket).clone(),
-            core.storage_readers.clone(),
-        ),
-        core.automation_status.clone(),
+    let status = core.automation_status.clone();
+    let observation = supervision::supervise(
+        limeos_contracts::Subsystem::ObservationRuntime,
+        status.health(),
+        backoff,
+        move || {
+            automation_runtime::ObservationRuntime::new(
+                bridge.clone(),
+                reader.clone(),
+                status.clone(),
+            )
+            .run()
+        },
     );
     tokio::select! {
         result=limeos_api::serve(http,app)=>result.map_err(|_|Error(ErrorCode::Unavailable)),
         result=rpc_server(core,rpc)=>result.map_err(|_|Error(ErrorCode::Unavailable)),
         _=dispatcher.dispatcher()=>Err(Error(ErrorCode::Unavailable)),
-        result=automation.run()=>result,
-        _=tokio::signal::ctrl_c()=>Ok(()),
-        _=async {if let Ok(mut signal)=tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()){signal.recv().await;}}=>Ok(()),
+        _=observation=>Err(Error(ErrorCode::Unavailable)),
+        ()=reader_health.run()=>Err(Error(ErrorCode::Unavailable)),
     }
 }
 

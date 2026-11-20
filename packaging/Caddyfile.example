@@ -4,7 +4,15 @@ https://localhost {
     tls internal
     @api path /api/*
     handle @api {
-        reverse_proxy 127.0.0.1:8003
+        # Core closes a keep-alive connection after 30 s idle. Caddy keeps
+        # idle upstream connections for 2 minutes by default, so a request
+        # (a POST is not retried) could land on one core is closing and get
+        # a 502; drop them first.
+        reverse_proxy 127.0.0.1:8003 {
+            transport http {
+                keepalive 20s
+            }
+        }
     }
     handle {
         root * /usr/lib/limeos/ui

@@ -47,6 +47,9 @@ LIFECYCLE_KEYS = {
     "RestartSec",
     "TimeoutStartSec",
     "TimeoutStopSec",
+    # The reader's keep-alive comes from its accept loop; a probe command run
+    # under the reproduced confinement sends none, so it must not inherit it.
+    "WatchdogSec",
 }
 # Keys the reproduced confinement must carry over exactly, by `systemctl show` name.
 SHOW_NAMES = {

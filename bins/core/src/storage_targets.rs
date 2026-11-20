@@ -8,6 +8,10 @@ use std::time::Duration;
 impl Core {
     async fn target_executor(&self, request: Request, deadline: Duration) -> Result<Receipt> {
         tokio::time::timeout(deadline, async {
+            let expected_uid = 0;
+            // Private task-scoped native RPC fixtures; absent in production.
+            #[cfg(test)]
+            let expected_uid = tests::ROOT_UID.try_with(|uid| *uid).unwrap_or(expected_uid);
             let mut stream = UnixStream::connect(self.storage_target_socket.as_ref())
                 .await
                 .map_err(|_| Error(ErrorCode::Unavailable))?;
@@ -15,7 +19,7 @@ impl Core {
                 .peer_cred()
                 .map_err(|_| Error(ErrorCode::Unavailable))?
                 .uid()
-                != 0
+                != expected_uid
             {
                 return Err(Error(ErrorCode::Forbidden));
             }
@@ -153,35 +157,46 @@ impl Core {
         p: Principal,
         mut job: StorageTargetJob,
     ) -> Result<()> {
-        let receipt = if job.state == JobState::Queued {
-            let checked = p.clone();
-            if self
-                .db
-                .call(move |s| s.authorize_storage(&checked))
-                .await
-                .is_err()
-                || job.plan.grant_revision != p.grant_revision
-                || job.plan.validate(now()).is_err()
-            {
-                return self.mark_target(&job, JobState::PreconditionChanged).await;
+        // A claim that committed after this process gave up on it: no
+        // execute was sent, so it is sent now rather than looked up.
+        let resumed = self.claim_in_doubt(&job.id, job.state);
+        let receipt = if job.state == JobState::Queued || resumed {
+            if resumed {
+                self.claim_resumed(&job.id);
+            } else {
+                // Only a definite refusal rejects the job. A store that gives
+                // no answer leaves it queued for the next tick.
+                let checked = p.clone();
+                let authorized = match self.db.call(move |s| s.authorize_storage(&checked)).await {
+                    Ok(()) => true,
+                    Err(error) if super::operations::refused(error) => false,
+                    Err(error) => return Err(error),
+                };
+                if !authorized
+                    || job.plan.grant_revision != p.grant_revision
+                    || job.plan.validate(now()).is_err()
+                {
+                    return self.mark_target(&job, JobState::PreconditionChanged).await;
+                }
+                let id = job.id.clone();
+                if !self
+                    .db
+                    .call(move |s| s.storage_target_resources_available(&id))
+                    .await?
+                {
+                    return Ok(());
+                }
+                let current = self.target_snapshot(&job.plan.preparation.contract).await?;
+                if job.plan.preparation.check_current(&current, now()).is_err() {
+                    return self.mark_target(&job, JobState::PreconditionChanged).await;
+                }
+                let id = job.id.clone();
+                job = self
+                    .claim(&job.id, move |s| {
+                        s.claim_storage_targets(&p, &id, &current, now())
+                    })
+                    .await?;
             }
-            let id = job.id.clone();
-            if !self
-                .db
-                .call(move |s| s.storage_target_resources_available(&id))
-                .await?
-            {
-                return Ok(());
-            }
-            let current = self.target_snapshot(&job.plan.preparation.contract).await?;
-            if job.plan.preparation.check_current(&current, now()).is_err() {
-                return self.mark_target(&job, JobState::PreconditionChanged).await;
-            }
-            let id = job.id.clone();
-            job = self
-                .db
-                .call(move |s| s.claim_storage_targets(&p, &id, &current, now()))
-                .await?;
             // Once durable dispatch exists, timeout/death cannot restore Queued.
             match self
                 .target_executor(

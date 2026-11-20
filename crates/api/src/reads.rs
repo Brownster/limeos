@@ -86,6 +86,58 @@ pub(super) async fn history<B: Backend>(
         Err(e) => failure(e),
     }
 }
+/// A stream ends after this; EventSource reconnects and gets a full snapshot.
+pub(crate) const STREAM_LIFETIME: Duration = Duration::from_secs(25);
+/// Open streams one session may hold, so one viewer's tabs cannot take all
+/// eight. Hidden tabs close theirs, so two covers two visible windows.
+pub(super) const STREAMS_PER_SESSION: usize = 2;
+/// One of a session's stream places, given back when the stream ends.
+struct StreamSlot {
+    streams: Arc<Mutex<HashMap<String, usize>>>,
+    token: String,
+}
+impl StreamSlot {
+    fn take(streams: &Arc<Mutex<HashMap<String, usize>>>, token: &str) -> Option<Self> {
+        let mut open = streams.lock().ok()?;
+        let count = open.entry(token.to_owned()).or_default();
+        if *count >= STREAMS_PER_SESSION {
+            return None;
+        }
+        *count += 1;
+        Some(Self {
+            streams: streams.clone(),
+            token: token.to_owned(),
+        })
+    }
+}
+impl Drop for StreamSlot {
+    fn drop(&mut self) {
+        let mut open = self
+            .streams
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(count) = open.get_mut(&self.token) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                open.remove(&self.token);
+            }
+        }
+    }
+}
+fn session_streams_full() -> Response {
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        axum::Json(ErrorEnvelope {
+            code: ErrorCode::Overloaded,
+            message: format!(
+                "This session already has {STREAMS_PER_SESSION} live observation streams open. Close another window or tab and retry."
+            ),
+            retry: true,
+            audit_id: "http-session-streams".into(),
+        }),
+    )
+        .into_response()
+}
 pub(super) async fn stream<B: Backend>(State(app): State<App<B>>, headers: HeaderMap) -> Response {
     if headers
         .get("sec-fetch-site")
@@ -112,6 +164,10 @@ pub(super) async fn stream<B: Backend>(State(app): State<App<B>>, headers: Heade
         Ok(p) => p,
         Err(_) => return failure(Error(ErrorCode::Overloaded)),
     };
+    // Held with the global permit, so the map has at most eight entries.
+    let Some(slot) = StreamSlot::take(&app.streams, &token) else {
+        return session_streams_full();
+    };
     let initial = match app.backend.observations(token.clone()).await {
         Ok(v) => v,
         Err(e) => return failure(e),
@@ -124,19 +180,19 @@ pub(super) async fn stream<B: Backend>(State(app): State<App<B>>, headers: Heade
         Some(initial),
         tokio::time::Instant::now(),
         0usize,
-        permit,
+        (permit, slot),
     );
     let events = futures_util::stream::unfold(
         state,
         |(backend, token, mut changes, initial, start, mut bytes, permit)| async move {
-            if start.elapsed() > Duration::from_secs(25) {
+            if start.elapsed() > STREAM_LIFETIME {
                 return None;
             }
             let value = if let Some(v) = initial {
                 v
             } else {
                 // Revalidate identity/scopes even when sources stop producing events.
-                tokio::select! {_=tokio::time::sleep_until(start+Duration::from_secs(25))=>{return None;},_=tokio::time::sleep(Duration::from_secs(5))=>{},result=changes.changed()=>{if result.is_err(){return None;}}}
+                tokio::select! {_=tokio::time::sleep_until(start+STREAM_LIFETIME)=>{return None;},_=tokio::time::sleep(Duration::from_secs(5))=>{},result=changes.changed()=>{if result.is_err(){return None;}}}
                 match tokio::time::timeout(
                     Duration::from_secs(1),
                     backend.observations(token.clone()),

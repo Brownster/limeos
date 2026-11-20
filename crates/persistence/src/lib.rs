@@ -10,7 +10,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc,
-        atomic::{AtomicI64, Ordering},
+        atomic::{AtomicI64, AtomicU8, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -30,9 +30,100 @@ const PRIORITY_WAIT: Duration = Duration::from_secs(5);
 /// Revocations the writer serves before one ordinary item when both lanes
 /// have work, so neither lane can starve the other.
 const PRIORITY_BURST: usize = 4;
+/// How long a caller waits for the writer to answer one call, queueing
+/// included. The longest legitimate item is a sub-second commit (retention
+/// passes delete in bounded batches, SQLite gives up on a held lock after
+/// 500 ms, and the startup migration is not a call), so a full queue of 64
+/// still answers well inside it on SD storage. Past it the call fails: see
+/// [`Unanswered`] for what the caller then knows.
+pub const CALL_DEADLINE: Duration = Duration::from_secs(30);
+/// Why [`Database::try_call`] returned without the writer's answer. What
+/// each means for the work is exact, so a caller can tell "it did not
+/// happen" from "it may yet happen".
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Unanswered {
+    /// The queue was full: the work was never queued and never runs.
+    /// [`Database::call`] reports it as `Overloaded`.
+    Overloaded,
+    /// The work never ran and never will: the caller gave up before the
+    /// writer started it (the writer skips abandoned work), or the writer
+    /// has stopped. Safe to treat as a plain failure or to retry.
+    /// [`Database::call`] reports it as `Unavailable`.
+    NotExecuted,
+    /// The caller gave up while the writer was running the work: it may
+    /// still commit. Never a refusal and never proof that the write failed:
+    /// read the durable state again and continue from what is there.
+    /// [`Database::call`] reports it as `StateNotDurable` ("check the job
+    /// outcome before retrying").
+    InDoubt,
+}
+impl From<Unanswered> for Error {
+    fn from(unanswered: Unanswered) -> Self {
+        Error(match unanswered {
+            Unanswered::Overloaded => ErrorCode::Overloaded,
+            Unanswered::NotExecuted => ErrorCode::Unavailable,
+            Unanswered::InDoubt => ErrorCode::StateNotDurable,
+        })
+    }
+}
+/// Abandons a call's work that has not started when its caller stops
+/// waiting, however it stops.
+struct Abandon(Arc<AtomicU8>);
+impl Drop for Abandon {
+    fn drop(&mut self) {
+        let _ = self
+            .0
+            .compare_exchange(WAITING, ABANDONED, Ordering::SeqCst, Ordering::SeqCst);
+    }
+}
+/// A call's work, not yet started.
+const WAITING: u8 = 0;
+/// The writer has started the work.
+const STARTED: u8 = 1;
+/// The caller gave up first; the writer skips the work.
+const ABANDONED: u8 = 2;
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
 type Work = Box<dyn FnOnce(&mut Store) + Send>;
+
+/// What the writer thread is doing, readable without queueing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct WriterActivity {
+    /// How long it has been on its current item (a call, a revocation or a
+    /// retention pass); `None` while it waits for work.
+    pub busy_for: Option<Duration>,
+    /// Calls queued behind it.
+    pub queued: usize,
+}
+/// When the writer started its current item, as milliseconds after
+/// `origin` plus one; zero while idle.
+struct Busy {
+    origin: Instant,
+    started: AtomicU64,
+}
+impl Busy {
+    fn new() -> Self {
+        Self {
+            origin: Instant::now(),
+            started: AtomicU64::new(0),
+        }
+    }
+    fn run<T>(&self, item: impl FnOnce() -> T) -> T {
+        let since = u64::try_from(self.origin.elapsed().as_millis()).unwrap_or(u64::MAX - 1);
+        self.started.store(since + 1, Ordering::SeqCst);
+        let value = item();
+        self.started.store(0, Ordering::SeqCst);
+        value
+    }
+    fn busy_for(&self) -> Option<Duration> {
+        let started = self.started.load(Ordering::SeqCst).checked_sub(1)?;
+        Some(
+            self.origin
+                .elapsed()
+                .saturating_sub(Duration::from_millis(started)),
+        )
+    }
+}
 
 /// Wakes the writer thread without taking a slot in either queue. A sender
 /// rings after every successful send. The writer clears the flag when it
@@ -89,6 +180,9 @@ pub struct Database {
     bell: Arc<Bell>,
     audit: Arc<AtomicI64>,
     retention: Arc<std::sync::Mutex<Option<RetentionFailure>>>,
+    busy: Arc<Busy>,
+    /// `CALL_DEADLINE`; shorter in tests.
+    deadline: Duration,
     pub generation: i64,
     #[cfg(test)]
     admitted: Arc<std::sync::atomic::AtomicUsize>,
@@ -112,11 +206,13 @@ impl Database {
         let retention = Arc::new(std::sync::Mutex::new(None::<RetentionFailure>));
         let failures = retention.clone();
         let doorbell = bell.clone();
+        let busy = Arc::new(Busy::new());
+        let working = busy.clone();
         std::thread::Builder::new()
             .name("limeos-db".into())
             .spawn(move || {
                 let maintain = |store: &mut Store| {
-                    let Some(pass) = store.maintain(Instant::now()) else {
+                    let Some(pass) = working.run(|| store.maintain(Instant::now())) else {
                         return;
                     };
                     if let Some(usage) = pass.usage {
@@ -139,11 +235,11 @@ impl Database {
                         let Ok(work) = urgent.try_recv() else {
                             break;
                         };
-                        work(&mut store);
+                        working.run(|| work(&mut store));
                         served = true;
                     }
                     if let Ok(work) = receiver.try_recv() {
-                        work(&mut store);
+                        working.run(|| work(&mut store));
                         served = true;
                     }
                     maintain(&mut store);
@@ -180,10 +276,21 @@ impl Database {
             bell,
             audit,
             retention,
+            busy,
+            deadline: CALL_DEADLINE,
             generation,
             #[cfg(test)]
             admitted: Arc::default(),
         })
+    }
+    /// What the writer is doing now. Never queues, so core can report a
+    /// writer stuck on one item (a hung fsync, a lock held from outside)
+    /// while every call waits behind it.
+    pub fn writer_activity(&self) -> WriterActivity {
+        WriterActivity {
+            busy_for: self.busy.busy_for(),
+            queued: self.sender.max_capacity() - self.sender.capacity(),
+        }
     }
     /// Audit usage as of the writer's last retention pass (at most a minute
     /// old). Never queues, so health reporting works when the queue is full.
@@ -228,20 +335,93 @@ impl Database {
             .map_err(|_| Error(ErrorCode::Overloaded))?
             .map_err(|_| Error(ErrorCode::Unavailable))?;
         self.bell.ring();
-        receiver.await.map_err(|_| Error(ErrorCode::Unavailable))?
+        tokio::time::timeout(self.deadline, receiver)
+            .await
+            .map_err(|_| Error(ErrorCode::Unavailable))?
+            .map_err(|_| Error(ErrorCode::Unavailable))?
     }
+    /// Whether `digest` names a live session, read on the query-only
+    /// connection, so it puts nothing on either lane: for health to decide
+    /// how much it shows while the writer may be stuck. Never waits for the
+    /// connection (in use, the answer is no) nor past `bound`; false when
+    /// unsure.
+    pub async fn session_live(&self, digest: String, now: i64, bound: Duration) -> bool {
+        let reader = self.reader.clone();
+        let lookup = tokio::task::spawn_blocking(move || {
+            let Ok(conn) = reader.try_lock() else {
+                return false;
+            };
+            conn.as_ref()
+                .is_some_and(|conn| identity_store::authenticate(conn, &digest, None, now).is_ok())
+        });
+        matches!(tokio::time::timeout(bound, lookup).await, Ok(Ok(true)))
+    }
+    /// Runs `f` on the writer thread, as [`Database::try_call`], reporting
+    /// an unanswered call as an error: `Overloaded` (never queued),
+    /// `Unavailable` (never ran and never will) or `StateNotDurable` (may
+    /// still commit). See [`Unanswered`].
     pub async fn call<T: Send + 'static>(
         &self,
         f: impl FnOnce(&mut Store) -> Result<T> + Send + 'static,
     ) -> Result<T> {
-        let (sender, receiver) = oneshot::channel();
+        self.try_call(f).await?
+    }
+    /// Runs `f` on the writer thread and returns its answer, or why there is
+    /// none. A caller gives up after `CALL_DEADLINE`, queueing included. If
+    /// the writer has not started `f` by then, `f` never runs
+    /// ([`Unanswered::NotExecuted`]); if it has, `f` may still commit
+    /// ([`Unanswered::InDoubt`]). Dropping the returned future before it
+    /// finishes abandons `f` the same way: it never runs unless the writer
+    /// had already started it.
+    pub async fn try_call<T: Send + 'static>(
+        &self,
+        f: impl FnOnce(&mut Store) -> Result<T> + Send + 'static,
+    ) -> std::result::Result<Result<T>, Unanswered> {
+        let (sender, mut receiver) = oneshot::channel();
+        let ticket = Arc::new(AtomicU8::new(WAITING));
+        let start = ticket.clone();
         self.sender
             .try_send(Box::new(move |s| {
-                let _ = sender.send(f(s));
+                // Checked immediately before the work runs: work its caller
+                // has abandoned is dropped unrun.
+                if start
+                    .compare_exchange(WAITING, STARTED, Ordering::SeqCst, Ordering::SeqCst)
+                    .is_ok()
+                {
+                    let _ = sender.send(f(s));
+                }
             }))
-            .map_err(|_| Error(ErrorCode::Overloaded))?;
+            .map_err(|_| Unanswered::Overloaded)?;
         self.bell.ring();
-        receiver.await.map_err(|_| Error(ErrorCode::Unavailable))?
+        // A caller that stops waiting early (its own future dropped, as at
+        // an HTTP deadline) abandons the work the same way.
+        let _abandon = Abandon(ticket.clone());
+        match tokio::time::timeout(self.deadline, &mut receiver).await {
+            Ok(Ok(answer)) => Ok(answer),
+            // Dropped without an answer: never run (the writer stopped), or
+            // stopped while running it.
+            Ok(Err(_)) => Err(if ticket.load(Ordering::SeqCst) == STARTED {
+                Unanswered::InDoubt
+            } else {
+                Unanswered::NotExecuted
+            }),
+            Err(_) => {
+                if ticket
+                    .compare_exchange(WAITING, ABANDONED, Ordering::SeqCst, Ordering::SeqCst)
+                    .is_ok()
+                {
+                    return Err(Unanswered::NotExecuted);
+                }
+                // Started: it may have answered just now.
+                receiver.try_recv().map_err(|_| Unanswered::InDoubt)
+            }
+        }
+    }
+    /// The same handle with a shorter call deadline than `CALL_DEADLINE`,
+    /// for tests that stall the writer.
+    pub fn with_call_deadline(mut self, deadline: Duration) -> Self {
+        self.deadline = deadline;
+        self
     }
 }
 

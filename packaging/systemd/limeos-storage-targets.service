@@ -15,6 +15,14 @@ LimitCORE=0
 MemorySwapMax=0
 Restart=on-failure
 RestartSec=2s
+# No watchdog, as for limeos-storage-mounts. Target preparation (mkdir,
+# fchown, fsync of each target and its parent, journal fsyncs) and the
+# storage inventory run synchronously on the single runtime thread that
+# would send keep-alives; on slow storage one fsync can legitimately take
+# tens of seconds, and its 30 s operation deadline cannot interrupt it. A
+# watchdog would abort a healthy preparation mid-operation and leave a
+# Prepared receipt and locks to reconcile. A stuck loop shows in core: its
+# calls fail at their deadline and the job is held for reconciliation.
 TimeoutStartSec=15s
 TimeoutStopSec=5s
 NoNewPrivileges=yes

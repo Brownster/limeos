@@ -9,6 +9,8 @@ mod operations;
 pub use operations::*;
 mod resolution;
 pub use resolution::*;
+mod service;
+pub use service::*;
 
 pub const VERSION: u16 = 1;
 pub const FRAME_LIMIT: usize = 64 * 1024;
@@ -97,6 +99,64 @@ pub struct Health {
     pub generation: i64,
     pub schema_version: u32,
     pub ready: bool,
+    /// Subsystems not working as they should right now; an entry clears as
+    /// soon as its subsystem recovers. Core keeps serving requests while any
+    /// is listed; an empty list is healthy.
+    pub degraded: Vec<DegradedSubsystem>,
+}
+/// A part of the service that can fail on its own while core keeps serving.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema, TS,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Subsystem {
+    /// The 1 Hz health-observation and automation runtime.
+    ObservationRuntime,
+    /// The storage reader has a storage read stuck past its deadline (a
+    /// failing disk, typically); it refuses storage inventory until the read
+    /// returns and serves everything else.
+    StorageReader,
+    /// The store's single writer thread has been on one item for too long
+    /// (a hung fsync, a lock held from outside), or did not answer a probe
+    /// in time. Requests that need the store fail at their deadline
+    /// meanwhile, and core reports itself not ready.
+    Store,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct DegradedSubsystem {
+    pub subsystem: Subsystem,
+    /// What is wrong and since when. Given to an authenticated caller and to
+    /// `limeosctl status`; the unauthenticated health check names only the
+    /// subsystem.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<DegradedDetail>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct DegradedDetail {
+    /// The error that describes the current state: for the observation
+    /// runtime, the one that ended its latest run; for the storage reader
+    /// and the store, `unavailable`.
+    pub code: ErrorCode,
+    /// When the current state began (Unix seconds): for the storage reader,
+    /// when its oldest stuck read was abandoned; for the store, when its
+    /// writer started the item it is still on.
+    #[ts(type = "number")]
+    pub since: i64,
+    /// For the observation runtime, failures in the current run; it restarts
+    /// after a longer wait each time. For the storage reader, reads stuck.
+    /// For the store, calls waiting for its writer.
+    pub count: u32,
+}
+impl DegradedSubsystem {
+    /// The entry as the unauthenticated health check shows it.
+    pub fn redacted(self) -> Self {
+        Self {
+            subsystem: self.subsystem,
+            detail: None,
+        }
+    }
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]

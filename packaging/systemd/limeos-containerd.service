@@ -18,6 +18,15 @@ MemorySwapMax=0
 ProtectProc=invisible
 Restart=on-failure
 RestartSec=2s
+# No watchdog. Engine calls are async with deadlines, but the receipt
+# store's SQLite commits (synchronous=FULL) and directory fsyncs run on the
+# single runtime thread that would send keep-alives. Each is an fsync to the
+# SD card: milliseconds normally, with no upper bound while the card is busy
+# writing back (an image pull, say), so not provably under 10 s, a third of
+# a 30 s watchdog. A watchdog would abort a healthy execute mid-fsync and
+# leave receipts to reconcile, and a restart cannot speed up the device. A
+# stuck loop shows in core instead: calls fail at their deadline and jobs
+# are held for reconciliation.
 TimeoutStartSec=15s
 TimeoutStopSec=15s
 NoNewPrivileges=yes

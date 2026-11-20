@@ -712,6 +712,55 @@
           }
         ]
       },
+      "DegradedDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode",
+            "description": "The error that describes the current state: for the observation\nruntime, the one that ended its latest run; for the storage reader\nand the store, `unavailable`."
+          },
+          "count": {
+            "description": "For the observation runtime, failures in the current run; it restarts\nafter a longer wait each time. For the storage reader, reads stuck.\nFor the store, calls waiting for its writer.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "since": {
+            "description": "When the current state began (Unix seconds): for the storage reader,\nwhen its oldest stuck read was abandoned; for the store, when its\nwriter started the item it is still on.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "since",
+          "count"
+        ],
+        "type": "object"
+      },
+      "DegradedSubsystem": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DegradedDetail"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What is wrong and since when. Given to an authenticated caller and to\n`limeosctl status`; the unauthenticated health check names only the\nsubsystem."
+          },
+          "subsystem": {
+            "$ref": "#/components/schemas/Subsystem"
+          }
+        },
+        "required": [
+          "subsystem"
+        ],
+        "type": "object"
+      },
       "DeliveryChannel": {
         "enum": [
           "in_app",
@@ -3751,6 +3800,26 @@
           "preparation"
         ],
         "type": "object"
+      },
+      "Subsystem": {
+        "description": "A part of the service that can fail on its own while core keeps serving.",
+        "oneOf": [
+          {
+            "const": "observation_runtime",
+            "description": "The 1 Hz health-observation and automation runtime.",
+            "type": "string"
+          },
+          {
+            "const": "storage_reader",
+            "description": "The storage reader has a storage read stuck past its deadline (a\nfailing disk, typically); it refuses storage inventory until the read\nreturns and serves everything else.",
+            "type": "string"
+          },
+          {
+            "const": "store",
+            "description": "The store's single writer thread has been on one item for too long\n(a hung fsync, a lock held from outside), or did not answer a probe\nin time. Requests that need the store fail at their deadline\nmeanwhile, and core reports itself not ready.",
+            "type": "string"
+          }
+        ]
       },
       "TargetEvidence": {
         "additionalProperties": false,
@@ -12225,6 +12294,13 @@
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "additionalProperties": false,
                   "properties": {
+                    "degraded": {
+                      "description": "Subsystems not working as they should right now; an entry clears as\nsoon as its subsystem recovers. Core keeps serving requests while any\nis listed; an empty list is healthy.",
+                      "items": {
+                        "$ref": "#/components/schemas/DegradedSubsystem"
+                      },
+                      "type": "array"
+                    },
                     "generation": {
                       "format": "int64",
                       "type": "integer"
@@ -12248,7 +12324,8 @@
                     "version",
                     "generation",
                     "schema_version",
-                    "ready"
+                    "ready",
+                    "degraded"
                   ],
                   "title": "Health",
                   "type": "object"

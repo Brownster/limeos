@@ -18,6 +18,9 @@ UMask=0077
 LimitCORE=0
 MemorySwapMax=0
 Restart=no
+# No watchdog: an interrupted mount needs an operator (hence Restart=no), and
+# one mount operation, run on the loop's thread, may legitimately hold it
+# longer than any keep-alive interval on a slow device.
 TimeoutStartSec=15s
 TimeoutStopSec=5s
 KillMode=control-group

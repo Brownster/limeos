@@ -505,7 +505,9 @@ impl Core {
                     )
                 }
                 Finish::Pending(code) => {
-                    tracing::warn!(?code, "job resolution stays pending")
+                    if let Some(failures) = retry.failures.failed(&pending.request.job) {
+                        tracing::warn!(?code, failures, "job resolution stays pending")
+                    }
                 }
                 Finish::Superseded(state) => tracing::info!(
                     state = state.as_str(),

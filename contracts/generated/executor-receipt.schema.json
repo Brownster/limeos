@@ -210,6 +210,17 @@
         }
       ]
     },
+    "stranded_reads": {
+      "description": "Set on the storage reader's answer to `Health` while it has a stuck\nread.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StrandedReads"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "target_preparation": {
       "anyOf": [
         {
@@ -2178,6 +2189,27 @@
       "required": [
         "inventory",
         "targets"
+      ]
+    },
+    "StrandedReads": {
+      "description": "Storage reads the storage reader abandoned at their deadline and that are\nstill stuck (typically in the kernel, on a failing disk). Restarting the\nreader would not free them; it refuses further inventories meanwhile.",
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "since": {
+          "description": "When the oldest of them was abandoned (Unix seconds).",
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "count",
+        "since"
       ]
     },
     "TargetEvidence": {
