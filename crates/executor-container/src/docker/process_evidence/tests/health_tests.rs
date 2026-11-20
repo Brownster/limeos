@@ -519,3 +519,27 @@ async fn health_read_keeps_the_combined_profile_so_eighteen_containers_refuse() 
         Err(Error(ErrorCode::Unavailable))
     ));
 }
+#[tokio::test]
+async fn a_container_removed_during_the_read_is_reported_gone_not_unavailable() {
+    // Two `restart: always` containers; the second is removed (`--rm`) before
+    // its first or its second inspection. The first stays unknown-policy-safe.
+    for from in [1, 2] {
+        let f = fixture(Config {
+            count: 2,
+            all_running: true,
+            vanishing: Some((1, from)),
+            ..config()
+        })
+        .await;
+        let owner = inspect(&f).await.unwrap();
+        let snap = owner.snapshot();
+        let gone = format!("container:{:064x}", 1);
+        assert!(
+            snap.containers.iter().all(|row| row.resource != gone),
+            "{from}"
+        );
+        assert_eq!(snap.containers.len(), 1);
+        assert!(snap.complete, "{from}");
+        assert_eq!(snap.containers[0].health, HealthStatus::Healthy);
+    }
+}

@@ -883,14 +883,19 @@ async fn collect(
             let Some(value) = inspect(id).await? else {
                 let scope = scope.as_mut().ok_or_else(unavailable)?;
                 vanished.push(id);
-                left_out.add(
-                    projection,
-                    &format!("container:{id}"),
-                    None,
-                    OmissionReason::Changing,
-                    None,
-                    scope,
-                )?;
+                // The Engine says it is gone. The Compose view shows it as
+                // changing; a health read reports it gone, by leaving it out,
+                // rather than as an unavailable container of unknown policy.
+                if projection != Projection::Health {
+                    left_out.add(
+                        projection,
+                        &format!("container:{id}"),
+                        None,
+                        OmissionReason::Changing,
+                        None,
+                        scope,
+                    )?;
+                }
                 continue;
             };
             if admission.is_some() && value["State"]["Running"].as_bool() == Some(true) {
@@ -1050,6 +1055,7 @@ async fn collect(
                 .get(index)
                 .map(|c| c.container.resource.clone())
                 .ok_or_else(unavailable)?;
+            let gone = kept.get(index).is_some_and(|id| vanished.contains(id));
             let (member, known) = remove_at(
                 index,
                 &mut kept,
@@ -1058,6 +1064,10 @@ async fn collect(
                 &mut members,
                 &mut health_members,
             );
+            // Removed before its second inspection: gone, as above.
+            if gone && projection == Projection::Health {
+                continue;
+            }
             left_out.add(
                 projection,
                 &resource,
