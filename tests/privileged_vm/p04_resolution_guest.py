@@ -677,8 +677,12 @@ def cli_h2():
     nonadmin = fx.run(*CTL, "job", "show-resolution", facts["job"], "--admin", "operator-res", check=False)
     check(nonadmin.returncode != 0, "non-administrator accepted", out=nonadmin.stdout)
     detail["non_admin_rc"] = nonadmin.returncode
-    wrong = fx.run(*CTL, "job", "resolve", facts["job"], "--admin", ADMIN, "--outcome", "not-done", "--reason", "cli says nothing happened", check=False)
-    check(wrong.returncode == 1 and core_job(facts["job"]) == "needs_intervention", "unsupported CLI declaration not refused", rc=wrong.returncode, out=wrong.stdout[-800:], err=wrong.stderr[-800:])
+    # Two-step use, so the refusal is core's measured-state check, not the
+    # CLI's refusal to decide without a terminal or a digest.
+    digest = fresh_view(facts)["evidence_digest"]
+    wrong = fx.run(*CTL, "job", "resolve", facts["job"], "--admin", ADMIN, "--outcome", "not-done", "--reason", "cli says nothing happened", "--evidence-digest", digest, check=False)
+    check(wrong.returncode == 1 and "does not support that declaration" in wrong.stdout + wrong.stderr and core_job(facts["job"]) == "needs_intervention",
+          "unsupported CLI declaration not refused by core", rc=wrong.returncode, out=wrong.stdout[-800:], err=wrong.stderr[-800:])
     detail["unsupported_rc"] = wrong.returncode
     stale = fx.run(*CTL, "job", "resolve", facts["job"], "--admin", ADMIN, "--outcome", "verified-done", "--reason", "stale", "--evidence-digest", "0" * 64, check=False)
     check(stale.returncode == 1 and core_job(facts["job"]) == "needs_intervention", "stale CLI digest not refused", rc=stale.returncode, out=stale.stdout[-500:], err=stale.stderr[-500:])
@@ -697,7 +701,9 @@ def cli_n3():
     view = fresh_view(facts)
     check_view(facts, view)
     mark = sl.mark()
-    outcome = fx.run(*CTL, "job", "resolve", facts["job"], "--admin", ADMIN, "--outcome", "not-done", input="Nothing started: the container cannot exec.\n", check=False)
+    # No terminal here: the digest of the evidence just reviewed confirms it.
+    outcome = fx.run(*CTL, "job", "resolve", facts["job"], "--admin", ADMIN, "--outcome", "not-done", "--evidence-digest", view["evidence_digest"],
+                     input="Nothing started: the container cannot exec.\n", check=False)
     check(outcome.returncode == 0, "CLI not-done failed", rc=outcome.returncode, out=outcome.stdout[-1200:], err=outcome.stderr[-800:])
     time.sleep(3)
     check(lifecycle_events(mark) == [], "CLI resolution caused Engine events")
