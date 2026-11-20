@@ -1,12 +1,16 @@
 """Unit hardening contract and the exposure gate in scripts/check_unit_exposure.py."""
 
+import contextlib
 import importlib.util
+import io
+import os
 import re
 import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 UNITS = ROOT / "packaging/systemd"
@@ -202,12 +206,13 @@ class ExposureGate(unittest.TestCase):
             text = "[Service]\n" + (f"# score: {value}\n" if value is not None else "")
             (self.work / where / f"{name}.service").write_text(text)
 
-    def check(self, ceilings, base=True):
+    def check(self, ceilings, base=True, allowances=None):
         return gate.check(
             self.work / "now",
             ceilings,
             self.work / "base" if base else None,
             analyze=str(self.analyze),
+            allowances=allowances,
         )
 
     def test_a_unit_that_got_worse_fails_even_inside_its_ceiling(self):
@@ -259,6 +264,81 @@ class ExposureGate(unittest.TestCase):
         self.assertEqual(self.check({"a.service": 20}, base=False), [])
         self.assertEqual(len(self.check({"a.service": 10}, base=False)), 1)
 
+    def test_an_allowance_lets_a_unit_score_that_much_above_the_base_and_no_more(self):
+        self.units("base", a="2.3", b="1.0")
+        self.units("now", a="2.5", b="1.1")
+        allowances = {"a.service": (2, "accepted loosening")}
+        problems = self.check({"a.service": 25, "b.service": 10}, allowances=allowances)
+        # The allowance is per unit: b got worse and has none.
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("b.service: exposure 1.1 is worse than the base's 1.0", problems[0])
+        self.units("now", a="2.6", b="1.0")
+        problems = self.check({"a.service": 25, "b.service": 10}, allowances=allowances)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("worse than the base's 2.3 plus its 0.2 allowance", problems[0])
+        # The backstop still applies inside an allowance.
+        self.units("now", a="2.5")
+        problems = self.check({"a.service": 21, "b.service": 10}, allowances=allowances)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("above its ceiling 2.1", problems[0])
+
+    def test_an_unused_allowance_passes_and_says_so(self):
+        self.units("base", a="2.5")
+        self.units("now", a="2.5")
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            problems = self.check({"a.service": 25}, allowances={"a.service": (2, "why")})
+        self.assertEqual(problems, [])
+        self.assertIn("no longer needs its allowance (why); remove it", output.getvalue())
+
+    def test_an_allowance_for_a_missing_unit_fails(self):
+        self.units("now", a="1.0")
+        problems = self.check({"a.service": 10}, base=False, allowances={"gone.service": (1, "x")})
+        self.assertEqual(problems, ["gone.service: allowance recorded for a unit that does not exist"])
+
+    def test_recorded_allowances_are_small_explained_and_for_packaged_units(self):
+        for name, (tenths, reason) in gate.ALLOWANCES.items():
+            with self.subTest(unit=name):
+                self.assertTrue((UNITS / name).is_file())
+                self.assertTrue(0 < tenths <= 5, tenths)
+                self.assertTrue(reason.strip())
+        # Every allowance is commented in the script, not only described.
+        source = SCRIPT.read_text()
+        block = source[source.index("ALLOWANCES:") : source.index("}", source.index("ALLOWANCES:"))]
+        for name in gate.ALLOWANCES:
+            entry = block.index(f'"{name}"')
+            self.assertTrue(block[:entry].rstrip().splitlines()[-1].lstrip().startswith("#"), name)
+
+    def test_the_default_base_is_the_merge_base_with_the_default_branch_for_a_push_too(self):
+        # CI passes no revision of its own (never a push's previous tip) and
+        # names the default branch; the script finds the merge base with it.
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        step = workflow[workflow.index("- name: Unit exposure ceilings") :]
+        step = step[: step.index("\n      - ")]
+        self.assertNotIn("event.before", step)
+        self.assertNotIn("--base", step)
+        self.assertIn("DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}", step)
+        self.assertIn("run: python3 scripts/check_unit_exposure.py\n", step + "\n")
+        calls = []
+
+        def fake_git(*args):
+            calls.append(args)
+            ok = subprocess.CompletedProcess(args, 0, "", "")
+            if args[0] == "rev-parse":
+                ok.stdout = "head\n"
+            elif args[:2] == ("merge-base", "HEAD"):
+                if args[2] != "origin/trunk":
+                    return subprocess.CompletedProcess(args, 1, "", "")
+                ok.stdout = "base\n"
+            return ok
+
+        with mock.patch.object(gate, "git", fake_git), mock.patch.dict(
+            os.environ, {"DEFAULT_BRANCH": "trunk"}, clear=False
+        ):
+            os.environ.pop("GITHUB_BASE_REF", None)
+            self.assertEqual(gate.resolve_base(None), "base")
+        self.assertIn(("merge-base", "HEAD", "origin/trunk"), calls)
+
     def test_a_ceiling_for_a_missing_unit_fails(self):
         problems = self.check({"gone.service": 10})
         self.assertEqual(problems, ["gone.service: ceiling recorded for a unit that does not exist"])
@@ -284,7 +364,7 @@ class ExposureGate(unittest.TestCase):
 class ExposureGateWithSystemd(unittest.TestCase):
     @unittest.skipUnless(offline_analysis(), "needs systemd-analyze 250 or newer")
     def test_packaged_units_are_within_their_ceilings_and_no_worse_than_themselves(self):
-        self.assertEqual(gate.check(UNITS, gate.CEILINGS, UNITS), [])
+        self.assertEqual(gate.check(UNITS, gate.CEILINGS, UNITS, allowances=gate.ALLOWANCES), [])
 
     @unittest.skipUnless(offline_analysis(), "needs systemd-analyze 250 or newer")
     def test_a_loosened_unit_fails(self):

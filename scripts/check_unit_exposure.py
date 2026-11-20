@@ -14,9 +14,16 @@ spuriously or pass vacuously. Two checks, both with the same systemd-analyze in
 the same run:
 
 1. Must not get worse: each unit scores no higher than the same unit file at the
-   base revision (by default the merge base with origin/main, or the previous
-   commit when HEAD is on main). A unit new since the base has only check 2.
+   base revision (by default the merge base with the default branch, for a pull
+   request and a push alike, or the previous commit when HEAD is on it), plus
+   the unit's recorded ALLOWANCE if it has one. A unit new since the base has
+   only check 2.
 2. Backstop: each unit scores no higher than its recorded ceiling plus MARGIN.
+
+The base is never a push's previous tip: a worsening pushed once (its red run
+ignored) would then be the baseline the next push is compared with. A unit
+that is deliberately looser than on the default branch gets an explicit,
+commented ALLOWANCE instead, and the gate says when one is no longer needed.
 
 A unit without a recorded ceiling fails, so a new unit is scored deliberately.
 Ceilings are tenths of systemd's 0-10 exposure level (its --threshold scale).
@@ -42,6 +49,16 @@ CEILINGS = {
     "limeos-storage-reader.service": 35,
     "limeos-storage-ready.service": 32,
     "limeos-storage-targets.service": 36,
+}
+# Tenths a unit may score above the same file at the base, for a loosening that
+# was reviewed and accepted but is not on the default branch yet. Each entry
+# says what costs it and where it was accepted; remove it once the change is
+# on the default branch (the gate prints a reminder when it goes unused).
+ALLOWANCES: dict[str, tuple[int, str]] = {
+    # RestrictSUIDSGID=no (0.2 under systemd 258): its seccomp filter rejects
+    # openat2, which core's protected socket lookup needs (ce2e916, "permit
+    # protected reader lookup in Core profile"; the reason is in the unit).
+    "limeos-core.service": (2, "RestrictSUIDSGID=no for openat2 (ce2e916)"),
 }
 # Tenths of slack on the backstop for scoring differences between systemd
 # versions (a check one version adds or weighs differently moves a unit by a
@@ -70,13 +87,18 @@ def check(
     base: Path | None,
     analyze: str = "systemd-analyze",
     margin: int = MARGIN,
+    allowances: dict[str, tuple[int, str]] | None = None,
 ) -> list[str]:
     """Problems with the unit files in `units`, compared with those in `base`
-    (the same files at the base revision; None skips the comparison)."""
+    (the same files at the base revision; None skips the comparison), each
+    allowed its entry in `allowances` (tenths, reason) above the base."""
+    allowances = {} if allowances is None else allowances
     problems = []
     present = sorted(path.name for path in units.glob("*.service"))
     for name in sorted(set(ceilings) - set(present)):
         problems.append(f"{name}: ceiling recorded for a unit that does not exist")
+    for name in sorted(set(allowances) - set(present)):
+        problems.append(f"{name}: allowance recorded for a unit that does not exist")
     for name in present:
         if name not in ceilings:
             problems.append(f"{name}: no exposure ceiling recorded in {Path(__file__).name}")
@@ -103,12 +125,18 @@ def check(
             problems.append(f"{name}: systemd-analyze gave the base no score:\n{output.strip()}")
             continue
         print(line + f"; base {before / 10:.1f})")
-        if exposure > before:
+        allowance, reason = allowances.get(name, (0, ""))
+        if exposure > before + allowance:
+            allowed = f" plus its {allowance / 10:.1f} allowance" if allowance else ""
             problems.append(
                 f"{name}: exposure {exposure / 10:.1f} is worse than the base's "
-                f"{before / 10:.1f} under the same systemd-analyze"
+                f"{before / 10:.1f}{allowed} under the same systemd-analyze"
             )
-        elif exposure < ceiling:
+        elif exposure > before:
+            print(f"  {name} is {(exposure - before) / 10:.1f} above the base, allowed: {reason}")
+        elif allowance:
+            print(f"  {name} no longer needs its allowance ({reason}); remove it.")
+        if exposure <= before and exposure < ceiling:
             print(f"  {name} scores below its ceiling; lower the ceiling to keep the gain.")
     return problems
 
@@ -121,12 +149,14 @@ def git(*args: str) -> subprocess.CompletedProcess:
 
 def resolve_base(explicit: str | None) -> str | None:
     """The base revision: `explicit`, else the merge base of HEAD with the pull
-    request's target or origin/main (main when there is no remote), or HEAD's
-    parent when HEAD is already on that branch. None when none can be found."""
+    request's target (GITHUB_BASE_REF) or the default branch (DEFAULT_BRANCH,
+    else main; its origin copy first), or HEAD's parent when HEAD is already
+    on that branch. None when none can be found."""
     if explicit:
         return explicit
     target = os.environ.get("GITHUB_BASE_REF")
-    candidates = ([f"origin/{target}"] if target else []) + ["origin/main", "main"]
+    default = os.environ.get("DEFAULT_BRANCH") or "main"
+    candidates = ([f"origin/{target}"] if target else []) + [f"origin/{default}", default]
     head = git("rev-parse", "HEAD").stdout.strip()
     for candidate in candidates:
         found = git("merge-base", "HEAD", candidate)
@@ -177,7 +207,7 @@ def main() -> int:
                 return 1
             print(f"Comparing with {revision}.")
             base = base_units(revision, Path(directory))
-        problems = check(args.units, CEILINGS, base)
+        problems = check(args.units, CEILINGS, base, allowances=ALLOWANCES)
     for problem in problems:
         print(problem, file=sys.stderr)
     if not problems:

@@ -57,19 +57,15 @@ jobs:
       # Offline scoring needs systemd 250+ (24.04 ships 255). Each unit must
       # score no worse than at the merge base, under this same systemd-analyze,
       # and within its recorded ceiling plus a small margin.
-      # Base: a pull request's merge base with its target (GITHUB_BASE_REF);
-      # a push's previous tip, since a long-lived branch may be ahead of main;
-      # otherwise the merge base with origin/main.
+      # Base: the merge base with a pull request's target (GITHUB_BASE_REF)
+      # or, for a push, with the default branch; never a push's previous tip,
+      # which would make a worsening pushed once the next push's baseline. A
+      # unit deliberately looser than on the default branch has a commented
+      # allowance in the script instead.
       - name: Unit exposure ceilings
         env:
-          BEFORE: ${{ github.event_name == 'push' && github.event.before || '' }}
-        run: |
-          set -Eeuo pipefail
-          if [[ -n "${BEFORE}" && "${BEFORE}" != 0000000000000000000000000000000000000000 ]] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            python3 scripts/check_unit_exposure.py --base "${BEFORE}"
-          else
-            python3 scripts/check_unit_exposure.py
-          fi
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: python3 scripts/check_unit_exposure.py
       - run: python3 scripts/check_repository.py
       - name: Repository check unit tests
         run: python3 -m unittest discover -s tests/repository -p 'test_*.py'
