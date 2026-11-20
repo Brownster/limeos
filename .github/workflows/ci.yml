@@ -51,6 +51,8 @@ jobs:
           sudo install -m 0755 target/debug/limeos-core target/debug/limeos-executor /usr/lib/limeos/
           systemd-analyze verify packaging/systemd/*.service
       - run: python3 scripts/check_repository.py
+      - name: Repository check unit tests
+        run: python3 -m unittest discover -s tests/repository -p 'test_*.py'
       - run: python3 scripts/check_contracts.py
       - name: ARM64 qualification evidence and host guards
         run: python3 -m unittest discover -s tests/qualification/arm64 -p 'test_*.py'
