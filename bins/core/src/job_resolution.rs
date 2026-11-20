@@ -224,7 +224,7 @@ impl Core {
         // Detached: if the HTTP deadline drops this future the executor step and
         // completion still run, and the retry loop covers a crash.
         let (this, actor) = (self.clone(), principal.clone());
-        let finish = tokio::spawn(async move { this.finish_resolution(&pending, &actor).await })
+        let finish = super::detach(async move { this.finish_resolution(&pending, &actor).await })
             .await
             .map_err(|_| Error(ErrorCode::Unavailable))?;
         match finish {

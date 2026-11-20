@@ -322,6 +322,11 @@ pub struct Sim {
     side: Option<rusqlite::Connection>,
 }
 
+/// Real time a stopped core's store may take to close (its writer thread
+/// finishes its item and checkpoints; the runtime drops aborted tasks): a
+/// bound on a hang, never reached by a store that closes.
+const STOP_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
+
 /// Free space a tmpfs needs before the soak puts its stores there: every
 /// test of the binary at once peaks near 300 MiB.
 const TMPFS_ROOM: u64 = 1 << 30;
@@ -556,9 +561,26 @@ impl Sim {
     /// writer thread finishes and releases the core lock.
     async fn stop_core(&mut self) {
         self.core = None;
-        // A task core detached (a resolution's executor step) may still hold
-        // the store until it finishes; it runs on this thread.
+        // A task core detached (a resolution's executor step) dies with the
+        // process: aborted, it is never polled again, and the runtime drops
+        // it (and its handle on the store) at its next turn.
+        let aborted = crate::test_clock::abort_detached();
+        if aborted > 0 {
+            *self
+                .stats
+                .faults
+                .entry("detached task ended by a core stop")
+                .or_default() += aborted as u64;
+        }
+        let deadline = Instant::now() + STOP_LIMIT;
         while self.clock.sim().writers() > 0 {
+            assert!(
+                Instant::now() < deadline,
+                "[{}] {}: core's store is still open {} s after core stopped: something other than core's detached tasks holds it",
+                self.name,
+                self.when(),
+                STOP_LIMIT.as_secs()
+            );
             tokio::task::yield_now().await;
         }
         self.exec.crash.clear();

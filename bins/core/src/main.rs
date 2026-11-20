@@ -80,6 +80,43 @@ mod test_clock {
     pub(super) fn instant() -> Option<std::time::Instant> {
         CLOCK.with(|c| c.borrow().as_ref().map(|c| c.instant()))
     }
+    thread_local! {
+        static DETACHED: RefCell<Vec<tokio::task::AbortHandle>> = const { RefCell::new(Vec::new()) };
+    }
+    pub(super) fn detached(task: tokio::task::AbortHandle) {
+        DETACHED.with(|d| {
+            let mut tasks = d.borrow_mut();
+            tasks.retain(|t| !t.is_finished());
+            tasks.push(task);
+        });
+    }
+    /// Aborts every task core detached on this thread (`detach`) that is
+    /// still running: the soak's simulated crash, which a real process's
+    /// death does to every task it had. Returns how many were running.
+    pub(crate) fn abort_detached() -> usize {
+        DETACHED.with(|d| {
+            let tasks = std::mem::take(&mut *d.borrow_mut());
+            let running = tasks.iter().filter(|t| !t.is_finished()).count();
+            for task in tasks {
+                task.abort();
+            }
+            running
+        })
+    }
+}
+/// Spawns work that must finish even if its caller stops waiting (a
+/// request's deadline drops the caller's future). Unit tests record it on
+/// the calling thread, so a simulated crash can abort it as a real one ends
+/// it (`test_clock::abort_detached`).
+fn detach<F>(work: F) -> tokio::task::JoinHandle<F::Output>
+where
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    let task = tokio::spawn(work);
+    #[cfg(test)]
+    test_clock::detached(task.abort_handle());
+    task
 }
 /// Work for a password worker. A verification carries the request's attempt
 /// handle, so it cannot be issued without marking when its comparison starts.
