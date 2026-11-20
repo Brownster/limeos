@@ -2,31 +2,70 @@
 //! stripped, private keys and credential-bearing lines redacted.
 //!
 //! Redaction is line based. A line is credential-bearing by structure, not
-//! because a word such as "token" appears in prose:
-//! - a sensitive key (a key one of whose components is, or for some words
-//!   ends with, a credential word: `password`, `db_password`, `accessToken`,
-//!   `X-Api-Key`, `Cookie`, `session`) followed, after an optional closing
-//!   quote or bracket (also backslash-escaped, as in JSON inside a JSON
-//!   string), by a non-empty value through one of these separators: `=`,
-//!   `=>`, `:` or `:=` with optional spaces (`password=x`, `"api_key": "x"`,
-//!   `\"token\":\"x\"`, `user[password]=x`); spaces alone, when the value is
-//!   quoted (`PASSWORD 'x'`) or the key is a command-line option
-//!   (`--password x`); or a `"value":` sibling after a quoted key
-//!   (`{"name":"DB_PASSWORD","value":"x"}`). A quoted value is non-empty
-//!   when anything but its own closing quote follows the opening one, even a
-//!   space or a delimiter (`password=";a&b"`);
-//! - a value of a known secret shape anywhere in the line, after any amount
-//!   of whitespace: a bearer credential, a JWT, cloud and service key
+//! because a word such as "token" appears in prose. A *key* is a maximal run
+//! of ASCII letters, digits, `_`, `-` and `.`; its components are split at
+//! `_`, `-`, `.` and where a lower-case letter or digit meets an upper-case
+//! one. A key is *sensitive* when a component ends with a credential word
+//! (`password`, `passwd`, `passphrase`, `secret`, `token`, `apikey`,
+//! `privatekey`, `credential(s)`, `cookie`, `signature`), is exactly
+//! `session`, `sessionid`, `authorization` or `auth`, or is `key` after `api`
+//! or `private`: `db_password`, `accessToken`, `X-Api-Key`, `Set-Cookie`. A
+//! line is redacted when it has any of:
+//! - (a) **an assignment**: a sensitive key immediately followed by closing
+//!   bytes (quotes, `]`, URL-encoded `%22`, `%27`, `%5D`, and backslashes for
+//!   any escaping depth up to the bound below), optional spaces, an operator
+//!   (`=`, `:`, `=>`, `:=`, `%3D` or `%3A`), optional spaces and a non-empty
+//!   value. A quoted value is non-empty unless the same quote, at the same
+//!   escape depth, closes it at once; an unquoted one is anything but
+//!   whitespace or the line's end, punctuation included: `password=x`,
+//!   `"api_key": "x"`, `\"token\":\"x\"`, `user[password]=x`,
+//!   `DB_PASSWORD=;a&b`, `password=";a&b"`, `password%3Dx`;
+//! - (b) **a name/value record**: within one brace-delimited object, or at
+//!   the line's top level (one line of comma-separated pairs), a field keyed
+//!   `name`, `key`, `env` or `variable` whose value is a sensitive key, and a
+//!   field keyed `value` or `val` with a non-empty value (field keys in any
+//!   case), in either order and whatever lies between, quoted or not:
+//!   `{"name":"DB_PASSWORD","value":"x"}`, `{"value":"x","name":"DB_PASSWORD"}`,
+//!   `{"name":"DB_PASSWORD","type":"string","value":"x"}`,
+//!   `name: DB_PASSWORD, value: x`, `{ name: 'DB_PASSWORD', value: 'x' }`. A
+//!   field of a nested object belongs to that object only;
+//! - (c) **an option**: `--key value` or `-key value`, separated by spaces or
+//!   tabs, when the option name's *last* component is sensitive:
+//!   `--password x`, `--db-password x`, `--api-key x`, but not
+//!   `--token-ttl 3600` or `--session-timeout 30`, which name settings;
+//! - (d) **a bare keyword then a value**: a sensitive key written in upper
+//!   case, then spaces and a non-empty token, quoted or not (`PASSWORD 'x'`,
+//!   `PASSWORD hunter2`), and `IDENTIFIED [WITH plugin] BY x`. In lower or
+//!   mixed case the same shape is prose and is kept: `password reset email
+//!   sent`, `Secret "db-creds" not found`;
+//! - (e) **a value of a known secret shape** anywhere in the line, after any
+//!   amount of whitespace: a bearer credential, a JWT, cloud and service key
 //!   prefixes, URL userinfo.
 //!
 //! A word that only names a credential (`password reset`, `the token bucket`,
-//! `processed 4096 tokens`) is not redacted. Known limits, besides the ones
-//! below: a secret on the line after its key (YAML block style `password: |`,
-//! or `- name: DB_PASSWORD` then `value: x`); a key written with look-alike
-//! Unicode letters; a value wrapped in base64 or another encoding (a basic
-//! auth header is caught by its key, not its value); a secret stated in
-//! prose (`the password is hunter2`) or passed positionally
-//! (`htpasswd -b file bob hunter2`, `mysql -phunter2`).
+//! `processed 4096 tokens`, `{"metric":"session","value":42}`) is kept. The
+//! rules redact on structure, whatever the value, so some lines without a
+//! secret go too: a sensitive key assigned a non-secret (`TOKEN_TTL=3600`,
+//! `"token_type":"bearer"`, `limeos_core::session: started`), an upper-case
+//! key before any word (`SECRET_KEY not set`), and a record whose name field
+//! merely is a sensitive word (`{"name":"session","value":5}`).
+//!
+//! Bounds: every scan is one forward pass, reading a bounded number of bytes
+//! from each position (closing bytes and a value's opening escapes stop at
+//! `MAX_ESCAPE`, 72 bytes: a quote escaped for JSON nested six levels deep
+//! has 63 backslashes before it), and brace nesting is tracked to
+//! `MAX_DEPTH` (32) levels, deeper objects counting as the deepest one; so
+//! the cost is linear in the line and no input can make it panic.
+//!
+//! Known limits: a secret on the line after its key (YAML block style
+//! `password: |`, or `- name: DB_PASSWORD` then `value: x`); a key written
+//! with look-alike Unicode letters; a value wrapped in base64 or another
+//! encoding (a basic auth header is caught by its key, not its value); a
+//! secret stated in prose (`the password is hunter2`) or passed positionally
+//! (`mysql -phunter2`, `htpasswd -b file bob hunter2`); a keyword in lower
+//! case before a bare value (`alter role app password 'x'`, read as prose by
+//! rule (d)); JSON escaped more than six levels deep; a name/value record
+//! that is URL-encoded or split across lines.
 //!
 //! Key blocks with their BEGIN/END markers are
 //! reliable; a key body without markers (its BEGIN dropped by the Engine's
@@ -280,9 +319,10 @@ fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) -> bool {
     omitted
 }
 /// Whether a line carries a credential, judged by structure rather than by
-/// words in prose: a sensitive key given a value, or a value with a known
-/// secret shape. Each scan reads the line's bytes once or a bounded number
-/// of bytes per position, so the cost is linear in the line.
+/// words in prose: a sensitive key given a value (rules (a) to (d) in the
+/// module documentation), or a value with a known secret shape (rule (e)).
+/// Each scan reads the line's bytes once or a bounded number of bytes per
+/// position, so the cost is linear in the line.
 fn credential(line: &str) -> bool {
     let bytes = line.as_bytes();
     keyed_secret(bytes)
@@ -298,30 +338,6 @@ fn alnum(b: u8) -> bool {
 fn key_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.')
 }
-/// A sensitive key name followed by a separator and a value: `key=value`,
-/// `key: value`, `"key":"value"`, `key = 'value'`, a header, a query
-/// parameter, escaped JSON, `--key value`, `KEY 'value'` and a
-/// `"name":"KEY","value":...` pair. A key is a maximal run of letters,
-/// digits, `_`, `-` and `.`; the rule is in the module documentation.
-fn keyed_secret(bytes: &[u8]) -> bool {
-    let mut at = 0;
-    while at < bytes.len() {
-        let end = bytes
-            .get(at..)
-            .and_then(|rest| rest.iter().position(|&b| !key_byte(b)))
-            .map_or(bytes.len(), |len| at + len);
-        if end == at {
-            at += 1;
-            continue;
-        }
-        let key = bytes.get(at..end).unwrap_or_default();
-        if sensitive_key(key) && has_value(key, bytes.get(end..).unwrap_or_default(), true) {
-            return true;
-        }
-        at = end;
-    }
-    false
-}
 fn quote(b: u8) -> bool {
     matches!(b, b'"' | b'\'' | b'`')
 }
@@ -331,58 +347,119 @@ fn spaces(rest: &[u8]) -> usize {
         .take_while(|&&b| matches!(b, b' ' | b'\t'))
         .count()
 }
-/// What follows a sensitive `key` gives it a value: after at most four
-/// closing bytes (a quote, an escaped quote `\"` or `\\\"`, a bracket `]`)
-/// and optional spaces, either `=`, `=>`, `:` or `:=` and then a value; or,
-/// with `sibling` and a quoted key, `,` and a `"value":` key and its value;
-/// or spaces alone and then a quoted value, or any value when the key is a
-/// command-line option (`--password x`). A quoted value counts unless the
-/// same quote, at the same escape depth, closes it at once; an unquoted one
-/// unless it starts with a space or a delimiter. Every scan moves forward
-/// over bytes it reads once, except the spaces after the key, read at most
-/// twice, so the cost stays linear in the line.
-fn has_value(key: &[u8], rest: &[u8], sibling: bool) -> bool {
-    let closing = rest
-        .iter()
-        .take(4)
-        .take_while(|&&b| b == b'\\' || b == b']' || quote(b))
-        .count();
-    let quoted = rest
-        .get(..closing)
-        .is_some_and(|c| c.iter().any(|&b| quote(b)));
-    let rest = rest.get(closing..).unwrap_or_default();
-    let gap = spaces(rest);
-    let after = rest.get(gap..).unwrap_or_default();
-    let separator = match after {
-        [b'=', b'>', ..] | [b':', b'=', ..] => 2,
-        [b'=' | b':', ..] => 1,
-        [b',', tail @ ..] if sibling && quoted => return value_sibling(tail),
-        // Spaces alone: a quoted value, or an option's value.
-        _ if gap > 0 => return value(after, !key.starts_with(b"-")),
-        _ => return false,
-    };
-    let after = after.get(separator..).unwrap_or_default();
-    value(after.get(spaces(after)..).unwrap_or_default(), false)
+/// The longest run of closing bytes read between a key and its operator, and
+/// of backslashes before a value's opening quote. A quote escaped for JSON
+/// nested six levels deep inside JSON strings has 63 backslashes before it;
+/// deeper escaping is a known limit. The bound keeps every scan from one
+/// position constant.
+const MAX_ESCAPE: usize = 72;
+/// Brace nesting tracked for name/value records; deeper objects count as the
+/// deepest tracked one.
+const MAX_DEPTH: usize = 32;
+/// Field keys whose value names a variable (any case).
+const NAME_FIELDS: &[&[u8]] = &[b"name", b"key", b"env", b"variable"];
+/// Field keys whose value is that variable's value (any case).
+const VALUE_FIELDS: &[&[u8]] = &[b"value", b"val"];
+
+/// A sensitive key given a value, by the rules (a) to (d) in the module
+/// documentation. One forward pass over the line's keys (maximal runs of
+/// letters, digits, `_`, `-` and `.`) and braces; from each key it reads a
+/// bounded number of bytes, plus the token after it, which the pass then
+/// reads once more, so the cost stays linear in the line.
+fn keyed_secret(bytes: &[u8]) -> bool {
+    let mut records = Records::default();
+    let mut at = 0;
+    while let Some(&b) = bytes.get(at) {
+        if b == b'{' {
+            records.open();
+        } else if b == b'}' {
+            records.close();
+        } else if key_byte(b) {
+            let end = bytes
+                .get(at..)
+                .and_then(|rest| rest.iter().position(|&b| !key_byte(b)))
+                .map_or(bytes.len(), |len| at + len);
+            let key = bytes.get(at..end).unwrap_or_default();
+            if keyed(key, bytes.get(end..).unwrap_or_default(), &mut records) {
+                return true;
+            }
+            at = end;
+            continue;
+        }
+        at += 1;
+    }
+    false
 }
-/// After a key's `,`: a quoted `value` key (any case, escapes allowed) that
-/// itself has a value, as in `{"name":"DB_PASSWORD","value":"x"}`.
-fn value_sibling(rest: &[u8]) -> bool {
-    let rest = rest.get(spaces(rest)..).unwrap_or_default();
-    let escapes = rest.iter().take(4).take_while(|&&b| b == b'\\').count();
-    if !rest.get(escapes).copied().is_some_and(quote) {
+/// Whether `key`, followed by `rest`, gives a sensitive key a value, noting
+/// a name/value record's fields in `records` on the way.
+fn keyed(key: &[u8], rest: &[u8], records: &mut Records) -> bool {
+    if let Some(value) = assigned(rest) {
+        // (a) An assignment.
+        if sensitive_key(key) && non_empty(value) {
+            return true;
+        }
+        // (b) A name/value record's fields.
+        let field = |names: &[&[u8]]| names.iter().any(|name| key.eq_ignore_ascii_case(name));
+        if field(NAME_FIELDS) && sensitive_key(word(value)) {
+            records.name();
+        } else if field(VALUE_FIELDS) && non_empty(value) {
+            records.value();
+        }
+        return records.complete();
+    }
+    let gap = spaces(rest);
+    let next = rest.get(gap..).unwrap_or_default();
+    if gap == 0 {
         return false;
     }
-    let rest = rest.get(escapes + 1..).unwrap_or_default();
-    let word = rest.iter().take_while(|&&b| key_byte(b)).count();
-    rest.get(..word)
-        .is_some_and(|w| w.eq_ignore_ascii_case(b"value"))
-        && has_value(b"value", rest.get(word..).unwrap_or_default(), false)
+    if key.starts_with(b"-") {
+        // (c) An option whose name ends in a sensitive component.
+        return last_component_sensitive(key) && non_empty(next);
+    }
+    // (d) A bare keyword in upper case.
+    let shouted = key.iter().any(u8::is_ascii_uppercase) && !key.iter().any(u8::is_ascii_lowercase);
+    shouted
+        && ((sensitive_key(key) && non_empty(next))
+            || (key == b"IDENTIFIED" && identified_by(next)))
 }
-/// A non-empty value starts `rest`; with `quoted_only`, only a quoted one.
-fn value(rest: &[u8], quoted_only: bool) -> bool {
-    let escapes = rest.iter().take(4).take_while(|&&b| b == b'\\').count();
+/// After a key: closing bytes (quotes, `]`, URL-encoded quotes or bracket,
+/// backslashes), optional spaces, an operator (`=`, `:`, `=>`, `:=`, `%3D`,
+/// `%3A`) and optional spaces. Returns what follows, the value, when there is
+/// such an operator.
+fn assigned(rest: &[u8]) -> Option<&[u8]> {
+    let mut closing = 0;
+    while closing < MAX_ESCAPE {
+        let tail = rest.get(closing..).unwrap_or_default();
+        closing += match tail {
+            [b'\\' | b']', ..] => 1,
+            [q, ..] if quote(*q) => 1,
+            [b'%', b'2', b'2' | b'7', ..] | [b'%', b'5', b'D' | b'd', ..] => 3,
+            _ => break,
+        };
+    }
+    let rest = rest.get(closing..).unwrap_or_default();
+    let rest = rest.get(spaces(rest)..).unwrap_or_default();
+    let operator = match rest {
+        [b'=', b'>', ..] | [b':', b'=', ..] => 2,
+        [b'=' | b':', ..] => 1,
+        [b'%', b'3', b'D' | b'd' | b'A' | b'a', ..] => 3,
+        _ => return None,
+    };
+    let value = rest.get(operator..).unwrap_or_default();
+    Some(value.get(spaces(value)..).unwrap_or_default())
+}
+/// A non-empty value starts `rest`: a quoted one (after up to `MAX_ESCAPE`
+/// backslashes) unless the same quote at the same escape depth closes it at
+/// once or the line ends; otherwise anything but whitespace or the end,
+/// punctuation included.
+fn non_empty(rest: &[u8]) -> bool {
+    let escapes = rest
+        .iter()
+        .take(MAX_ESCAPE)
+        .take_while(|&&b| b == b'\\')
+        .count();
     match rest.get(escapes).copied() {
-        Some(q) if quote(q) && escapes < 4 => {
+        Some(q) if quote(q) => {
             let inner = rest.get(escapes + 1..).unwrap_or_default();
             let closes = inner
                 .get(..escapes)
@@ -390,10 +467,91 @@ fn value(rest: &[u8], quoted_only: bool) -> bool {
                 && inner.get(escapes) == Some(&q);
             !inner.is_empty() && !closes && !matches!(inner.first(), Some(b'\n' | b'\r'))
         }
-        _ if quoted_only => false,
-        _ => rest.first().is_some_and(|&b| {
-            !b.is_ascii_whitespace() && !matches!(b, b',' | b'}' | b']' | b';' | b'&')
-        }),
+        _ => rest.first().is_some_and(|b| !b.is_ascii_whitespace()),
+    }
+}
+/// The key that starts a value, after its opening quote and escapes.
+fn word(value: &[u8]) -> &[u8] {
+    let opening = value
+        .iter()
+        .take(MAX_ESCAPE)
+        .take_while(|&&b| b == b'\\' || quote(b))
+        .count();
+    let value = value.get(opening..).unwrap_or_default();
+    let len = value.iter().take_while(|&&b| key_byte(b)).count();
+    value.get(..len).unwrap_or_default()
+}
+/// After `IDENTIFIED` and spaces: an optional `WITH plugin`, then `BY` and a
+/// non-empty value (`IDENTIFIED BY 'x'`, `IDENTIFIED WITH p BY 'x'`).
+fn identified_by(rest: &[u8]) -> bool {
+    fn token(rest: &[u8]) -> usize {
+        rest.iter().take_while(|b| !b.is_ascii_whitespace()).count()
+    }
+    /// `rest` after `len` bytes and at least one space.
+    fn skip(rest: &[u8], len: usize) -> Option<&[u8]> {
+        let rest = rest.get(len..).unwrap_or_default();
+        let gap = spaces(rest);
+        (gap > 0).then(|| rest.get(gap..).unwrap_or_default())
+    }
+    let mut rest = rest;
+    if rest.starts_with(b"WITH") && token(rest) == 4 {
+        let Some(plugin) = skip(rest, 4) else {
+            return false;
+        };
+        let Some(after) = skip(plugin, token(plugin)) else {
+            return false;
+        };
+        rest = after;
+    }
+    rest.starts_with(b"BY") && token(rest) == 2 && skip(rest, 2).is_some_and(non_empty)
+}
+/// Name/value record state: for the line's top level and each enclosing
+/// brace-delimited object (up to `MAX_DEPTH`), whether a name field named a
+/// sensitive key and whether a value field had a value.
+struct Records {
+    levels: [(bool, bool); MAX_DEPTH],
+    depth: usize,
+    beyond: usize,
+}
+impl Default for Records {
+    fn default() -> Self {
+        Self {
+            levels: [(false, false); MAX_DEPTH],
+            depth: 0,
+            beyond: 0,
+        }
+    }
+}
+impl Records {
+    fn open(&mut self) {
+        if self.depth + 1 < MAX_DEPTH {
+            self.depth += 1;
+            if let Some(level) = self.levels.get_mut(self.depth) {
+                *level = (false, false);
+            }
+        } else {
+            self.beyond = self.beyond.saturating_add(1);
+        }
+    }
+    fn close(&mut self) {
+        if self.beyond > 0 {
+            self.beyond -= 1;
+        } else {
+            self.depth = self.depth.saturating_sub(1);
+        }
+    }
+    fn name(&mut self) {
+        if let Some(level) = self.levels.get_mut(self.depth) {
+            level.0 = true;
+        }
+    }
+    fn value(&mut self) {
+        if let Some(level) = self.levels.get_mut(self.depth) {
+            level.1 = true;
+        }
+    }
+    fn complete(&self) -> bool {
+        self.levels.get(self.depth) == Some(&(true, true))
     }
 }
 /// Words that make a key component sensitive when it ends with one.
@@ -416,6 +574,20 @@ const KEY_WORDS: &[&[u8]] = &[b"session", b"sessionid", b"authorization", b"auth
 /// `-`, `.` and a lower-case letter or digit followed by an upper-case one
 /// (`accessToken`); `api` or `private` followed by `key` counts as one.
 fn sensitive_key(key: &[u8]) -> bool {
+    let mut any = false;
+    components(key, |sensitive| any |= sensitive);
+    any
+}
+/// Whether a key's last component is sensitive (`--db-password`, not
+/// `--token-ttl`).
+fn last_component_sensitive(key: &[u8]) -> bool {
+    let mut last = false;
+    components(key, |sensitive| last = sensitive);
+    last
+}
+/// Calls `each` with whether each component of `key`, in order, is
+/// sensitive.
+fn components(key: &[u8], mut each: impl FnMut(bool)) {
     let mut previous = Vec::new();
     for word in key.split(|&b| matches!(b, b'_' | b'-' | b'.')) {
         let mut start = 0;
@@ -430,16 +602,14 @@ fn sensitive_key(key: &[u8]) -> bool {
             }
             let part = word.get(start..at).unwrap_or_default().to_ascii_lowercase();
             start = at;
-            if KEY_SUFFIXES.iter().any(|suffix| part.ends_with(suffix))
-                || KEY_WORDS.contains(&part.as_slice())
-                || (part == b"key" && matches!(previous.as_slice(), b"api" | b"private"))
-            {
-                return true;
-            }
+            each(
+                KEY_SUFFIXES.iter().any(|suffix| part.ends_with(suffix))
+                    || KEY_WORDS.contains(&part.as_slice())
+                    || (part == b"key" && matches!(previous.as_slice(), b"api" | b"private")),
+            );
             previous = part;
         }
     }
-    false
 }
 /// Whether a known secret value starts at `at`. Every check reads at most a
 /// fixed number of bytes, except the JWT scan, which starts only where the
@@ -1027,6 +1197,17 @@ mod tests {
             "--",
             "password",
             "`",
+            "{",
+            "}",
+            "%3D",
+            "%3a",
+            "name",
+            "Value",
+            "PASSWORD",
+            "IDENTIFIED",
+            "BY",
+            "WITH",
+            "\\\\\\\"",
         ];
         let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
         let mut next = |bound: usize| {
@@ -1066,6 +1247,18 @@ mod tests {
             "\"token\",",
             "\\\"token\\\":",
             "[token]",
+            "{",
+            "}",
+            "\\",
+            "\\\\\\\"token\\\\\\\":",
+            "{\"name\":\"PASSWORD\",",
+            "name: PASSWORD, ",
+            "%3D",
+            "token%3D",
+            "PASSWORD ",
+            "IDENTIFIED BY ",
+            "IDENTIFIED WITH x ",
+            "--db-token ",
         ] {
             let line = unit.repeat(CONTAINER_LOG_BYTES / unit.len() - 1);
             decode_all(line.as_bytes(), true).unwrap();
@@ -1086,11 +1279,38 @@ mod tests {
         "Authorization: Bearer                     abcDEF123456",
         "token=Bearer                                      abcDEF123456",
         "Bearer                                            abcDEF123456",
+        // Second review round.
+        "DB_PASSWORD=;a&b",
+        r#"{"value":"hunter2","name":"DB_PASSWORD"}"#,
+        r#"{"name":"DB_PASSWORD","type":"string","value":"hunter2"}"#,
+        "name: DB_PASSWORD, value: x",
+        "{ name: 'DB_PASSWORD', value: 'x' }",
+        "PASSWORD hunter2",
+        "password%3Dx",
+        r#"{"log":"{\\\"token\\\":\\\"s3cr3t\\\"}"}"#,
+        r#"{"log":"{\\\\\\\"token\\\\\\\":\\\\\\\"s3cr3t\\\\\\\"}"}"#,
+        "CREATE USER 'app'@'%' IDENTIFIED BY 'hunter2'",
+        "ALTER USER app IDENTIFIED WITH caching_sha2_password BY 'hunter2'",
     ];
     #[test]
     fn reported_misses_are_redacted() {
         for line in REPRODUCTIONS {
             assert_eq!(filtered(line), CREDENTIAL_REDACTED, "{line:?}");
+        }
+    }
+    /// Lines the reviewers found redacted though they carry no credential: a
+    /// sensitive word as a quoted value, an option that names a setting, a
+    /// sensitive word before a quoted name in prose.
+    const SURVIVORS: &[&str] = &[
+        r#"{"metric":"session","value":42}"#,
+        "--token-ttl 3600",
+        "--session-timeout 30",
+        r#"Secret "db-creds" not found"#,
+    ];
+    #[test]
+    fn reported_over_redactions_survive() {
+        for line in SURVIVORS {
+            assert_eq!(filtered(line), format!("{line}\n"), "{line:?}");
         }
     }
     /// The decision of the substring rule this module replaced (as of
@@ -1282,6 +1502,10 @@ mod tests {
         "Secret rotation scheduled",
         "invalid password for user bob",
         "the Authorization header is missing",
+        // A setting named after a token (its lifetime in seconds), and prose
+        // naming a Kubernetes Secret object: neither carries a value of one.
+        "--token-ttl 3600",
+        r#"Secret "db-creds" not found"#,
     ];
     /// The corpus: every credential line, each in a few surroundings, and the
     /// prose lines.
@@ -1312,7 +1536,158 @@ mod tests {
             ]);
         }
         lines.extend(PROSE_LINES.iter().map(|line| (*line).to_owned()));
+        lines.extend(SURVIVORS.iter().map(|line| (*line).to_owned()));
+        lines.extend(variants());
         lines
+    }
+    /// Keys for the systematic variants, as programs write them.
+    const VARIANT_KEYS: &[&str] = &[
+        "password",
+        "db_password",
+        "PGPASSWORD",
+        "passwd",
+        "passphrase",
+        "secret",
+        "client_secret",
+        "token",
+        "access_token",
+        "accessToken",
+        "api_key",
+        "X-Api-Key",
+        "apikey",
+        "authorization",
+        "cookie",
+        "session",
+        "private_key",
+        "credentials",
+        "signature",
+    ];
+    /// A double quote escaped for JSON nested `depth` levels inside JSON
+    /// strings: 0, 1, 3, 7, ... backslashes before it.
+    fn quote_at(depth: u32) -> String {
+        format!("{}\"", "\\".repeat((1 << depth) - 1))
+    }
+    /// Every sensitive key in every form (assignment, name/value record,
+    /// option, bare keyword), quoted and not, escaped zero to three levels
+    /// deep, with the record's fields in each order. Each line carries a
+    /// credential.
+    fn variants() -> Vec<String> {
+        let names = ["name", "key", "env", "variable", "Name", "Key", "NAME"];
+        let values = ["value", "Value", "val"];
+        let mut lines = Vec::new();
+        for (i, key) in VARIANT_KEYS.iter().enumerate() {
+            let upper = key.to_ascii_uppercase().replace('-', "_");
+            let (name, value) = (names[i % names.len()], values[i % values.len()]);
+            // (a) Assignment, through every operator.
+            for op in ["=", ":", " = ", ": ", ":=", " => ", "%3D", "%3A", "%3d"] {
+                for v in ["hunter2", ";a&b", "&x", ",abc"] {
+                    lines.push(format!("{key}{op}{v}"));
+                }
+                lines.push(format!("'{key}'{op}'hunter2'"));
+                for depth in 0..4 {
+                    let q = quote_at(depth);
+                    lines.push(format!("{q}{key}{q}{op}{q}hunter2{q}"));
+                    lines.push(format!("{{{q}user{q}:{q}bob{q},{q}{key}{q}{op}{q} x{q}}}"));
+                }
+            }
+            // (b) Name/value records, in each field order.
+            let orders: [&[usize]; 4] = [&[0, 1], &[1, 0], &[0, 2, 1], &[1, 2, 0]];
+            for order in orders {
+                for depth in 0..4 {
+                    let q = quote_at(depth);
+                    let fields = [
+                        format!("{q}{name}{q}:{q}{upper}{q}"),
+                        format!("{q}{value}{q}:{q}hunter2{q}"),
+                        format!("{q}type{q}:{q}string{q}"),
+                    ];
+                    let record: Vec<_> = order.iter().map(|&f| fields[f].as_str()).collect();
+                    lines.push(format!("{{{}}}", record.join(",")));
+                }
+                let node = [
+                    format!("{name}: '{upper}'"),
+                    format!("{value}: 'hunter2'"),
+                    "type: 'string'".to_owned(),
+                ];
+                let record: Vec<_> = order.iter().map(|&f| node[f].as_str()).collect();
+                lines.push(format!("{{ {} }}", record.join(", ")));
+                for op in [": ", "="] {
+                    let bare = [
+                        format!("{name}{op}{upper}"),
+                        format!("{value}{op}hunter2"),
+                        format!("type{op}string"),
+                    ];
+                    let record: Vec<_> = order.iter().map(|&f| bare[f].as_str()).collect();
+                    lines.push(record.join(", "));
+                }
+            }
+            // (c) Options whose last component is the sensitive key.
+            for form in [
+                "--{} x",
+                "-{} x",
+                "--db-{} x",
+                "--{}\tx",
+                "--{} 'x'",
+                "--{} \"x\"",
+            ] {
+                lines.push(form.replace("{}", key));
+            }
+            // (d) The key in upper case before a bare value.
+            for form in [
+                "{} hunter2",
+                "{} 'hunter2'",
+                "{} \"hunter2\"",
+                "WITH {} hunter2",
+            ] {
+                lines.push(form.replace("{}", &upper));
+            }
+        }
+        lines
+    }
+    #[test]
+    fn every_systematic_variant_is_redacted() {
+        let lines = variants();
+        assert!(lines.len() >= 2500, "{}", lines.len());
+        let missed: Vec<_> = lines.iter().filter(|line| !redacted(line)).collect();
+        assert!(missed.is_empty(), "{} missed: {missed:#?}", missed.len());
+    }
+    #[test]
+    fn escaping_and_nesting_are_bounded_and_still_redact_within_the_bound() {
+        // JSON escaped up to six levels deep (63 backslashes before a quote).
+        for depth in 0..7 {
+            let q = quote_at(depth);
+            for line in [
+                format!("{q}token{q}:{q}s3cr3t{q}"),
+                format!("{{{q}name{q}:{q}DB_PASSWORD{q},{q}value{q}:{q}x{q}}}"),
+            ] {
+                assert!(redacted(&line), "{depth}: {line}");
+            }
+        }
+        // A record nested past the depth bound still pairs its own fields.
+        let deep = "{".repeat(10_000);
+        let line = format!(r#"{deep}"name":"DB_PASSWORD","value":"x""#);
+        assert!(redacted(&line));
+        // The top level is one record, whatever objects lie between its
+        // fields; a field inside an object is not the top level's.
+        let shut = "}".repeat(10_000);
+        let line = format!(r#""name":"DB_PASSWORD",{deep}{shut},"value":"x""#);
+        assert!(redacted(&line));
+        let line = format!(r#"{deep}"name":"DB_PASSWORD"{shut},"value":"x""#);
+        assert!(!redacted(&line));
+        // Fields of different objects are not one record.
+        let line =
+            r#"[{"name":"DB_PASSWORD","valueFrom":{"ref":"db"}},{"name":"PORT","value":"8080"}]"#;
+        assert!(!redacted(line));
+        // An empty value gives nothing to redact.
+        for line in [
+            r#"{"password":""}"#,
+            r#"{"password":""}"#,
+            "password=",
+            "password:   ",
+            r#"{"name":"DB_PASSWORD","value":""}"#,
+            "--password",
+        ] {
+            assert!(!redacted(line), "{line}");
+        }
     }
     fn redacted(line: &str) -> bool {
         filtered(line) == CREDENTIAL_REDACTED
@@ -1320,7 +1695,7 @@ mod tests {
     #[test]
     fn every_corpus_line_the_substring_rule_redacted_is_still_redacted() {
         let corpus = corpus();
-        assert!(corpus.len() >= 450, "{}", corpus.len());
+        assert!(corpus.len() >= 3400, "{}", corpus.len());
         let emitted: Vec<_> = corpus
             .iter()
             .filter(|line| substring_rule(line) && !redacted(line))
