@@ -79,6 +79,22 @@ async fn core_owned_container_sockets_cannot_forge_storage_declarations() {
         ErrorCode::Forbidden
     );
 }
+/// A request queued behind a background health read that holds the gate
+/// for its whole window is still served, not refused with Overloaded.
+#[tokio::test]
+async fn an_interactive_read_outlasts_a_full_window_background_read() {
+    let gate = Arc::new(Semaphore::new(1));
+    let held = gate.clone().acquire_owned().await.unwrap();
+    tokio::spawn(async move {
+        tokio::time::sleep(crate::health_collection::WINDOW).await;
+        drop(held);
+    });
+    assert!(
+        storage::interactive_permit(&gate, storage::INTERACTIVE_WAIT)
+            .await
+            .is_ok()
+    );
+}
 #[tokio::test]
 async fn an_interactive_read_waits_a_bounded_time_and_the_background_read_yields_to_it() {
     let gate = Arc::new(Semaphore::new(1));

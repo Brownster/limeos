@@ -943,6 +943,9 @@ fn failure(error: Error) -> Response {
     )
         .into_response()
 }
+/// How long a handler may take before it is answered with `Unavailable`;
+/// an event stream's body is not counted, only producing its response.
+pub const HANDLER_DEADLINE: Duration = Duration::from_secs(10);
 async fn limits(request: Request, next: Next) -> Response {
     let header_bytes: usize = request
         .headers()
@@ -952,8 +955,7 @@ async fn limits(request: Request, next: Next) -> Response {
     if header_bytes > 8192 {
         return failure(Error(ErrorCode::InvalidInput));
     }
-    let mut response = match tokio::time::timeout(Duration::from_secs(10), next.run(request)).await
-    {
+    let mut response = match tokio::time::timeout(HANDLER_DEADLINE, next.run(request)).await {
         Ok(r) => r,
         Err(_) => failure(Error(ErrorCode::Unavailable)),
     };

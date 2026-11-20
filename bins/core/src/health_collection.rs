@@ -11,7 +11,9 @@ use std::{
 };
 use tokio::{net::UnixStream, sync::Semaphore};
 type Clock = Arc<dyn Fn() -> i64 + Send + Sync>;
-const WINDOW: Duration = Duration::from_secs(4);
+/// The longest the 1 Hz background health read holds core's storage read
+/// gate.
+pub(crate) const WINDOW: Duration = Duration::from_secs(4);
 const _: () = assert!(WINDOW.as_secs() < limeos_domain::CONTAINER_STORAGE_MAX_AGE_SECONDS as u64);
 const _: () =
     assert!(WINDOW.as_secs() < limeos_domain::automation::CONTAINER_HEALTH_SECONDS as u64);

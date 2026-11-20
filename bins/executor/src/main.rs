@@ -269,7 +269,7 @@ async fn run() -> std::io::Result<()> {
     let listener = UnixListener::bind(path)?;
     std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o660))?;
     let permits = Arc::new(Semaphore::new(8));
-    let storage_permit = Arc::new(Mutex::new(()));
+    let storage_permit = limeos_executor::read_gate::Gate::default();
     let read_supervisor = Arc::new(limeos_executor::read_supervision::Supervisor::default());
     let stacks = limeos_observations::stacks::Cache::new();
     if storage_reader && ceiling.allow_stack_read {
@@ -340,12 +340,10 @@ async fn run() -> std::io::Result<()> {
                 let mut receipt = ceiling.validate(peer.uid(), &request)?;
                 match request {
                     Request::ContainerHealth { nonce, .. } if storage_reader => {
-                        let guard = limeos_executor::read_gate::acquire(
-                            &storage_permit,
-                            limeos_executor::read_gate::INTERACTIVE_WAIT,
-                        )
-                        .await
-                        .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Overloaded))?;
+                        let guard = storage_permit
+                            .request(limeos_executor::read_gate::INTERACTIVE_WAIT)
+                            .await
+                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Overloaded))?;
                         let manager = read_supervisor.clone();
                         receipt.container_health = Some(
                             tokio::task::spawn_blocking(move || {
@@ -363,21 +361,17 @@ async fn run() -> std::io::Result<()> {
                     Request::ContainerStorageInventory { .. }
                         if source == limeos_contracts::Source::Docker =>
                     {
-                        let _single_flight = limeos_executor::read_gate::acquire(
-                            &storage_permit,
-                            limeos_executor::read_gate::INTERACTIVE_WAIT,
-                        )
-                        .await
-                        .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Overloaded))?;
+                        let _single_flight = storage_permit
+                            .request(limeos_executor::read_gate::INTERACTIVE_WAIT)
+                            .await
+                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Overloaded))?;
                         receipt.container_storage = Some(engine.storage_inventory().await?);
                     }
                     Request::StorageInventory { .. } if storage_reader => {
-                        let _single_flight = limeos_executor::read_gate::acquire(
-                            &storage_permit,
-                            limeos_executor::read_gate::INTERACTIVE_WAIT,
-                        )
-                        .await
-                        .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Overloaded))?;
+                        let _single_flight = storage_permit
+                            .request(limeos_executor::read_gate::INTERACTIVE_WAIT)
+                            .await
+                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Overloaded))?;
                         read_supervisor.ensure_not_poisoned().map_err(|_| {
                             limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
                         })?;

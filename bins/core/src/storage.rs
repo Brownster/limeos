@@ -27,10 +27,17 @@ pub(super) fn container_storage_receipt(
     Ok(inventory)
 }
 /// How long a request someone is waiting on queues for the storage read
-/// gate: past the longest background hold (the 4 s health read window is
-/// the bound; a pass is usually far shorter), and within the 10 s HTTP
-/// deadline together with the 5 s read that follows.
-const INTERACTIVE_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+/// gate: past the longest background hold (the 1 Hz health read holds it
+/// for at most its 4 s window; a pass is usually far shorter), so a request
+/// queued behind a full-window read is still served, and within the 10 s
+/// HTTP handler deadline together with the 5 s read that follows.
+pub(super) const INTERACTIVE_WAIT: std::time::Duration =
+    crate::health_collection::WINDOW.saturating_add(std::time::Duration::from_millis(500));
+const _: () = assert!(
+    INTERACTIVE_WAIT.as_millis() > crate::health_collection::WINDOW.as_millis()
+        && INTERACTIVE_WAIT.as_millis() + limeos_contracts::RPC_DEADLINE.as_millis()
+            < limeos_api::HANDLER_DEADLINE.as_millis()
+);
 /// The gate, queued with a deadline. The 1 Hz background health read only
 /// ever takes a free gate, so a waiting request is served next.
 pub(super) async fn interactive_permit(
