@@ -191,6 +191,11 @@ pub struct Database {
 }
 impl Database {
     pub fn open(path: &Path) -> Result<Self> {
+        Self::open_with(path, writer_clock::Clock::System)
+    }
+    /// `open`, with the writer thread on `clock` (the system clock, except
+    /// for the soak's `test_support::open`).
+    fn open_with(path: &Path, clock: writer_clock::Clock) -> Result<Self> {
         let mut store = Store::open(path)?;
         let generation = store.generation;
         let audit = Arc::new(AtomicI64::new(store.audit_usage()?.bytes));
@@ -208,13 +213,16 @@ impl Database {
         let doorbell = bell.clone();
         let busy = Arc::new(Busy::new());
         let working = busy.clone();
+        let mut time = writer_clock::WriterTime::new(clock, doorbell);
         std::thread::Builder::new()
             .name("limeos-db".into())
             .spawn(move || {
-                let maintain = |store: &mut Store| {
-                    let Some(pass) = working.run(|| store.maintain(Instant::now())) else {
+                time.begin();
+                let maintain = |store: &mut Store, time: &mut writer_clock::WriterTime| {
+                    let Some(pass) = working.run(|| store.maintain(time.now())) else {
                         return;
                     };
+                    time.passed(&pass);
                     if let Some(usage) = pass.usage {
                         observed.store(usage.bytes, Ordering::SeqCst);
                     }
@@ -225,7 +233,7 @@ impl Database {
                         }
                     }
                 };
-                maintain(&mut store);
+                maintain(&mut store, &mut time);
                 loop {
                     // Up to a burst of revocations, then one ordinary item:
                     // revocations wait behind at most one ordinary item, and
@@ -242,7 +250,7 @@ impl Database {
                         working.run(|| work(&mut store));
                         served = true;
                     }
-                    maintain(&mut store);
+                    maintain(&mut store, &mut time);
                     if !served {
                         if receiver.is_closed()
                             && urgent.is_closed()
@@ -253,7 +261,7 @@ impl Database {
                         }
                         // Idle: sleep until a send rings, and at least once a
                         // retention interval so an idle store is maintained.
-                        doorbell.wait(retention::INTERVAL);
+                        time.idle(retention::INTERVAL);
                     }
                 }
                 // Shutdown, in order: the reader closes first (without a
@@ -266,6 +274,10 @@ impl Database {
                         .take(),
                 );
                 let _ = store.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)");
+                // The store (and with it the core lock) goes before the clock
+                // learns the writer has stopped.
+                drop(store);
+                drop(time);
             })
             .map_err(|_| Error(ErrorCode::Unavailable))?;
         Ok(Self {
@@ -722,6 +734,8 @@ impl Store {
             rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW,
         )
         .map_err(durable)?;
+        #[cfg(feature = "test-support")]
+        retention::test_support::opened(&conn);
         std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
         if rusqlite::version_number() < 3_051_003 {
@@ -978,6 +992,7 @@ mod stack_plans;
 mod storage;
 mod storage_mounts;
 mod storage_targets;
+mod writer_clock;
 pub use compose::{
     AuthenticatedComposePreview, ComposeAuthorityKind, ComposeAuthorityObservation, compose_scopes,
 };

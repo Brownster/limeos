@@ -562,16 +562,29 @@ pub(super) struct Pass {
     pub(super) removed: Vec<(&'static str, i64)>,
 }
 
-/// The soak harness's seam (`bins/core/tests/soak`), compiled only with the
-/// `test-support` feature, which only dev-dependencies enable: the writer
-/// thread's own retention entry point, [`Store::maintain`] with its
-/// once-a-minute gate, on the caller's clock instead of the wall clock; and
-/// the rules' limits, so the harness asserts against these constants rather
-/// than copies of them.
+/// The soak harness's seam (`bins/core/src/soak`), compiled only with the
+/// `test-support` feature, which only dev-dependencies enable: a `Database`
+/// whose real writer thread runs on simulated time ([`open`], [`SimClock`]),
+/// so its own retention schedule is what the soak exercises; the writer's
+/// retention entry point, [`Store::maintain`] with its once-a-minute gate, on
+/// the caller's clock, for the tests that build a store's state directly;
+/// and the rules' limits, so the harness asserts against these constants
+/// rather than copies of them.
 #[cfg(feature = "test-support")]
 #[doc(hidden)]
 pub mod test_support {
     use super::{AuditUsage, ErrorCode, Instant, RULES, Store};
+    pub use crate::writer_clock::SimClock;
+    /// `Database::open`, with the writer thread on `clock`: its startup pass,
+    /// and one whenever `clock` has advanced a minute past the last, exactly
+    /// as the system clock drives it in production. Every pass is reported
+    /// to `clock` ([`SimClock::take_passes`]).
+    pub fn open(
+        path: &std::path::Path,
+        clock: &std::sync::Arc<SimClock>,
+    ) -> crate::Result<crate::Database> {
+        crate::Database::open_with(path, crate::writer_clock::Clock::Simulated(clock.clone()))
+    }
     /// Bytes `meta.audit_bytes` counts per row of `events`.
     pub const EVENT_BYTES: i64 = super::EVENT_BYTES;
     /// How far past the audit cap revocations and startup recovery may write.
@@ -585,10 +598,27 @@ pub mod test_support {
     }
     /// What one pass did: the audit usage after it, the rules whose batch
     /// failed, and the rows each rule's batch removed.
+    #[derive(Clone, Debug)]
     pub struct Pass {
         pub usage: Option<AuditUsage>,
         pub failed: Vec<(&'static str, ErrorCode)>,
         pub removed: Vec<(&'static str, i64)>,
+    }
+    thread_local! {
+        static OPEN_HOOK: std::cell::Cell<Option<fn(&rusqlite::Connection)>> =
+            const { std::cell::Cell::new(None) };
+    }
+    /// Every `Store::open` on this thread from now on hands its connection
+    /// to `hook` as soon as it exists, before any statement of startup runs:
+    /// the soak installs a statement trace there, so it measures what the
+    /// open itself executes.
+    pub fn on_open(hook: Option<fn(&rusqlite::Connection)>) {
+        OPEN_HOOK.with(|h| h.set(hook));
+    }
+    pub(crate) fn opened(conn: &rusqlite::Connection) {
+        if let Some(hook) = OPEN_HOOK.with(std::cell::Cell::get) {
+            hook(conn);
+        }
     }
     /// The writer thread's `maintain(now)`: `None` when the last pass was
     /// less than a minute before `now`.
