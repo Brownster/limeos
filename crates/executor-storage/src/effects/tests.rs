@@ -360,6 +360,20 @@ fn unexpected_trigger_cannot_modify_receipt_semantics() {
     ));
 }
 
+/// A child that another test thread is spawning holds a copy of every
+/// descriptor until it execs. A duplicate stands in for that copy: it shares
+/// the lock's open file description, so a journal that only closed its
+/// descriptor left the lock held, and the reopen in the tests above failed
+/// with `Conflict` whenever a spawn was slow to exec (under load).
+#[test]
+fn dropped_journal_releases_its_lock_while_a_child_shares_the_descriptor() {
+    let (directory, journal) = fixture();
+    let child_copy = journal._lock.0.try_clone().unwrap();
+    drop(journal);
+    assert!(reopen(directory.path()).is_ok());
+    drop(child_copy);
+}
+
 #[test]
 fn symlink_and_hardlink_journal_auxiliaries_refuse() {
     let (directory, journal) = fixture();

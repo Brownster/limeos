@@ -25,10 +25,26 @@ const SCHEMA: &str = "BEGIN IMMEDIATE; CREATE TABLE receipts(action TEXT PRIMARY
 /// it, after consuming genuine admission/supervision owners; wire receipts are
 /// stored facts, never a public request to grant execution or termination proof.
 pub struct MountJournal {
+    // Declared before `_lock`: fields drop in order, so the connection is
+    // closed before the process lock is released.
     conn: Connection,
-    _lock: OwnedFd,
+    _lock: ProcessLock,
     directory: OwnedFd,
     fresh_launch: Option<FreshLaunch>,
+}
+/// The process lock's descriptor. Dropping it releases the flock (LOCK_UN)
+/// before closing: a child that another thread is spawning shares the open
+/// file description until it execs (CLOEXEC acts only then), so a plain
+/// close would leave the lock held by that child and an immediate reopen in
+/// this process would be refused with `Conflict`. The container executor's
+/// receipt lock does the same.
+pub(crate) struct ProcessLock(pub(crate) OwnedFd);
+impl Drop for ProcessLock {
+    fn drop(&mut self) {
+        // If it fails, the close still releases the lock once the last
+        // descriptor is gone; never panic here.
+        let _ = rustix::fs::flock(&self.0, FlockOperation::Unlock);
+    }
 }
 struct FreshLaunch {
     action: String,
@@ -180,7 +196,7 @@ impl MountJournal {
         }
         let result = Self {
             conn,
-            _lock: lock,
+            _lock: ProcessLock(lock),
             directory,
             fresh_launch: None,
         };
@@ -242,7 +258,7 @@ impl MountJournal {
         rustix::fs::fsync(&directory).map_err(|_| Failure::StateNotDurable)?;
         let result = Self {
             conn,
-            _lock: lock,
+            _lock: ProcessLock(lock),
             directory,
             fresh_launch: None,
         };

@@ -212,8 +212,9 @@ pub async fn target_plan(contract: &StorageContract) -> Result<TargetPreparation
 }
 
 struct Journal {
+    // Declared before `_lock`, which unlocks on drop (`ProcessLock`).
     conn: Connection,
-    _lock: OwnedFd,
+    _lock: crate::effects::ProcessLock,
     directory: OwnedFd,
 }
 fn durable(_: rusqlite::Error) -> Failure {
@@ -279,7 +280,7 @@ impl Journal {
         }
         let journal = Self {
             conn,
-            _lock: lock,
+            _lock: crate::effects::ProcessLock(lock),
             directory,
         };
         journal.check()?;
@@ -375,7 +376,7 @@ impl Journal {
         rustix::fs::fsync(&sync).map_err(|_| Failure::StateNotDurable)?;
         let journal = Self {
             conn,
-            _lock: lock,
+            _lock: crate::effects::ProcessLock(lock),
             directory: sync,
         };
         journal.check()?;
