@@ -388,13 +388,14 @@ pub fn checkpoint(sim: &mut Sim) {
     receipt_accounting(sim, "daily checkpoint");
 }
 
-/// Receipts kept per standalone action and per stack: `RETAINED_ACTIONS`
-/// and `RETAINED_STACKS` in
+/// Receipts kept per standalone action and per stack, and the most one
+/// insert prunes: `RETAINED_ACTIONS`, `RETAINED_STACKS` and `PRUNE_BATCH` in
 /// `crates/executor-container/src/retention.rs`. They are `pub(crate)`
 /// there, so these are copies; widening that crate's API is out of this
 /// round's scope.
 pub const RETAINED_ACTIONS: i64 = 1024;
 pub const RETAINED_STACKS: i64 = 256;
+pub const RECEIPT_PRUNE_BATCH: i64 = 64;
 
 /// The core store's audit accounting, read on a side connection: before
 /// every restart (where `Store::open` would recompute the counter and hide

@@ -3,12 +3,13 @@
 //! (`limeos_executor_container::ReceiptStore`) through months of a household
 //! NAS's jobs, logins, polls, faults and restarts, and checks that no counter,
 //! table or cap turns that use into a refusal needing hand repair; separate
-//! tests check what it cannot. See `docs/soak.md` for what
+//! tests build the states that use never reaches. See `docs/soak.md` for what
 //! it covers and how to read a failure.
 //!
 //! - `soak_smoke`: three simulated days, in every `cargo test`.
 //! - `soak_ninety_days`: the acceptance run, core's store open from day 30.
 //! - `soak_ninety_days_restarts`: alongside it, restarts for all 90 days.
+//! - `caps::*`: both stores at their caps and with a retention backlog.
 //! - `writer_thread_runs_retention_unprompted`: the production schedule the
 //!   harness otherwise replaces with its own calls.
 //! - `automation_limit_at_minimum_interval`: the known automation limit,
@@ -16,6 +17,7 @@
 //!
 //! The ignored tests named `soak_*` are the CI soak step.
 mod automation;
+mod caps;
 mod checks;
 mod dispatch;
 mod engine;
