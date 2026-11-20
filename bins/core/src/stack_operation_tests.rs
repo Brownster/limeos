@@ -30,6 +30,9 @@ struct Engine {
     lookup_unavailable: bool,
     /// ResolveAction finds no row, as after retention pruned it.
     resolve_missing: bool,
+    /// The executor's prune watermark: a lookup without a row answers
+    /// `NeverRecorded` only for a plan expiring after it.
+    watermark: i64,
     /// The failing target's effect is lost: nothing proves it later.
     fail_without_effect: bool,
 }
@@ -286,7 +289,7 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
             }
             response.stack = Some(receipt);
         }
-        Request::StackReceipt { .. } => {
+        Request::StackReceipt { expires_at, .. } => {
             state.receipts += 1;
             if state.lookup_unavailable {
                 response.ready = false;
@@ -304,6 +307,12 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
                 receipt.state = aggregate_state(&receipt.members);
             }
             response.stack = state.receipt.clone();
+            if response.stack.is_none() {
+                response.absence = Some(limeos_domain::ReceiptAbsence::judge(
+                    expires_at,
+                    state.watermark,
+                ));
+            }
         }
         Request::VerifyStack { after, .. } => {
             state.verifies += 1;
@@ -349,12 +358,15 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
             evidence_digest,
             declared,
             resolved_by,
+            expires_at,
             ..
         } => {
             state.resolves += 1;
             if state.resolve_missing {
-                response.ready = false;
-                response.error = Some(ErrorCode::NotFound);
+                response.absence = Some(limeos_domain::ReceiptAbsence::judge(
+                    expires_at,
+                    state.watermark,
+                ));
                 return Some(response);
             }
             response.resolution = Some(limeos_domain::ResolveReceipt {
@@ -1215,6 +1227,10 @@ fn the_engine_bound_is_exactly_sixty_four_containers() {
 async fn claimed_before_retention(f: &Fixture, key: &str) -> StackJob {
     let t0 =
         now() - limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY - limeos_domain::PLAN_TTL_SECONDS - 60;
+    claimed_at(f, key, t0).await
+}
+/// A stack job planned, approved, queued and claimed at `t0`.
+async fn claimed_at(f: &Fixture, key: &str, t0: i64) -> StackJob {
     let principal = f.principal().await;
     let members = StackSnapshot::new("media", ordinary()).unwrap();
     let key = key.to_owned();
@@ -1246,11 +1262,11 @@ fn missing_events(progress: &limeos_contracts::StackJobProgress) -> usize {
 #[tokio::test]
 async fn a_pruned_receipt_of_an_executed_stack_never_releases_it_as_unsent() {
     let f = admin().await;
-    let job = claimed_before_retention(&f, "pruned").await;
-    assert!(!limeos_domain::receipt_absence_proves_unsent(
-        job.plan.expires_at,
-        now()
-    ));
+    // A young plan by core's clock: the executor pruned its receipt while the
+    // shared clock ran more than an hour ahead, and the clock has since stepped
+    // back. Its watermark is a durable fact and still covers the plan.
+    let job = claimed_at(&f, "pruned", now()).await;
+    f.engine.lock().unwrap().watermark = job.plan.expires_at;
     // The executor verified every member, but core crashed before recording it
     // and its restart left the job for reconciliation.
     let id = job.id.clone();
@@ -1318,6 +1334,7 @@ async fn an_operator_resolves_a_stack_whose_executor_receipt_was_pruned() {
         apply(ContainerAction::Restart, member);
     }
     f.engine.lock().unwrap().resolve_missing = true;
+    f.engine.lock().unwrap().watermark = job.plan.expires_at;
     let current = f.current(&job).await;
     f.core
         .dispatch_stack(f.principal().await, current)
@@ -1359,7 +1376,40 @@ async fn an_operator_resolves_a_stack_whose_executor_receipt_was_pruned() {
 }
 
 #[tokio::test]
-async fn within_the_window_a_missing_row_still_refuses_an_operator_resolution() {
+async fn an_old_never_sent_stack_is_released_without_waiting_for_any_window() {
+    // Claimed long ago; the executor never wrote a row and never pruned one
+    // for a plan this late, so nothing was sent, however old the plan is.
+    let f = admin().await;
+    let job = claimed_before_retention(&f, "never-sent").await;
+    f.engine.lock().unwrap().watermark = job.plan.expires_at - 1;
+    let current = f.current(&job).await;
+    f.core
+        .dispatch_stack(f.principal().await, current)
+        .await
+        .unwrap();
+    let progress = f
+        .core
+        .stack_job_progress(f.token.clone(), job.id.clone(), 0)
+        .await
+        .unwrap();
+    assert_eq!(progress.job.state, JobState::PreconditionChanged);
+    assert_eq!(missing_events(&progress), 0);
+    assert!(
+        f.core
+            .db
+            .call(|s| s.stack_candidates())
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let engine = f.engine.lock().unwrap();
+    assert_eq!((engine.executes, engine.receipts), (0, 1));
+    drop(engine);
+    f.task.abort();
+}
+
+#[tokio::test]
+async fn a_never_recorded_plan_is_resolved_only_once_it_has_expired() {
     use limeos_domain::DeclaredOutcome;
     let f = admin().await;
     {
@@ -1374,25 +1424,58 @@ async fn within_the_window_a_missing_row_still_refuses_an_operator_resolution() 
         .await
         .unwrap();
     assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
-    let admin = f.principal().await;
+    let operator = f.principal().await;
     let view = f
         .core
-        .resolution_view(admin.clone(), job.id.clone())
+        .resolution_view(operator.clone(), job.id.clone())
         .await
         .unwrap();
-    assert!(
-        f.core
-            .resolve_as(
-                admin,
-                job.id.clone(),
-                DeclaredOutcome::NotDone,
-                "Nothing happened.".into(),
-                view.evidence_digest.unwrap(),
-            )
-            .await
-            .is_err()
-    );
+    // A delayed ExecuteStack could still be accepted for an unexpired plan, so
+    // the request stays recorded and the job held until the plan expires.
+    let pending = f
+        .core
+        .resolve_as(
+            operator.clone(),
+            job.id.clone(),
+            DeclaredOutcome::NotDone,
+            "Nothing happened.".into(),
+            view.evidence_digest.unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(pending.status, limeos_contracts::ResolveStatus::Pending);
     assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    f.task.abort();
+    // An expired plan the executor never recorded: nothing can still start, so
+    // the decision completes without any retention window.
+    let f = admin().await;
+    f.engine.lock().unwrap().resolve_missing = true;
+    let job = claimed_at(&f, "expired", now() - limeos_domain::PLAN_TTL_SECONDS - 10).await;
+    let id = job.id.clone();
+    f.core
+        .db
+        .call(move |s| s.transition(&id, JobState::Running, JobState::NeedsIntervention, now()))
+        .await
+        .unwrap();
+    let operator = f.principal().await;
+    let view = f
+        .core
+        .resolution_view(operator.clone(), job.id.clone())
+        .await
+        .unwrap();
+    let done = f
+        .core
+        .resolve_as(
+            operator,
+            job.id.clone(),
+            DeclaredOutcome::NotDone,
+            "Nothing happened.".into(),
+            view.evidence_digest.unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(done.status, limeos_contracts::ResolveStatus::Resolved);
+    assert_eq!(f.state(&job).await, JobState::Resolved);
     f.task.abort();
 }
 

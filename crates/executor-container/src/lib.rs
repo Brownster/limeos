@@ -16,10 +16,10 @@ mod logs;
 mod resolution;
 mod retention;
 mod stack;
-pub use resolution::RESOLVED;
+pub use resolution::{RESOLVED, ResolveOutcome};
 /// The receipt store's schema (`PRAGMA user_version`) after every migration.
 /// Opening a newer store refuses; tests and documentation name this constant.
-pub const RECEIPT_SCHEMA_VERSION: u32 = 6;
+pub const RECEIPT_SCHEMA_VERSION: u32 = 7;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 pub use stack::member_action;
@@ -226,6 +226,14 @@ impl ReceiptStore {
             let legacy = retention::legacy_expiry_sql();
             conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0; ALTER TABLE stack_actions ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0; UPDATE actions SET expires_at={legacy}; UPDATE stack_actions SET expires_at={legacy}; CREATE INDEX actions_digest ON actions(digest); CREATE INDEX stack_actions_digest ON stack_actions(digest); PRAGMA user_version=6; COMMIT;")).map_err(durable)?;
         }
+        if version < 7 {
+            // The prune watermark and the legacy tombstones (see `retention`).
+            // Every row present now is legacy: its `expires_at` may be a
+            // back-filled estimate, not its plan's. A store already at 6 may
+            // have pruned without a watermark, so its history is unknown.
+            let watermark = retention::initial_watermark(version);
+            conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN legacy INTEGER NOT NULL DEFAULT 0 CHECK(legacy IN (0,1)); ALTER TABLE stack_actions ADD COLUMN legacy INTEGER NOT NULL DEFAULT 0 CHECK(legacy IN (0,1)); UPDATE actions SET legacy=1; UPDATE stack_actions SET legacy=1; CREATE TABLE retention(id INTEGER PRIMARY KEY CHECK(id=1),watermark INTEGER NOT NULL); INSERT INTO retention(id,watermark) VALUES(1,{watermark}); CREATE TABLE pruned_legacy(action TEXT PRIMARY KEY) WITHOUT ROWID; PRAGMA user_version=7; COMMIT;")).map_err(durable)?;
+        }
         // Every migration step ends at the named schema, or the store is refused.
         if conn
             .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
@@ -243,13 +251,17 @@ impl ReceiptStore {
         }
         // Check the expected schema before any effect can be considered.
         let _ = conn
-            .prepare("SELECT action,digest,resource,state,receipt,operation,resolution,expires_at FROM actions LIMIT 0")
+            .prepare("SELECT action,digest,resource,state,receipt,operation,resolution,expires_at,legacy FROM actions LIMIT 0")
             .map_err(durable)?;
         let _ = conn
             .prepare(
-                "SELECT action,digest,resource,state,receipt,operation,resolution,expires_at FROM stack_actions LIMIT 0",
+                "SELECT action,digest,resource,state,receipt,operation,resolution,expires_at,legacy FROM stack_actions LIMIT 0",
             )
             .map_err(durable)?;
+        let _ = conn
+            .prepare("SELECT action FROM pruned_legacy LIMIT 0")
+            .map_err(durable)?;
+        retention::watermark(&conn)?;
         File::open(directory)
             .and_then(|f| f.sync_all())
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;

@@ -435,7 +435,12 @@ async fn run() -> std::io::Result<()> {
                                 .await?,
                         );
                     }
-                    Request::RestartReceipt { action, digest, .. } => {
+                    Request::RestartReceipt {
+                        action,
+                        digest,
+                        expires_at,
+                        ..
+                    } => {
                         let store = receipts
                             .as_ref()
                             .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
@@ -449,6 +454,12 @@ async fn run() -> std::io::Result<()> {
                                 &value.before.resource,
                                 value.operation,
                             )?;
+                        } else {
+                            receipt.absence = Some(store.receipt_absence(
+                                limeos_domain::ResolveKind::Container,
+                                &action,
+                                expires_at,
+                            )?);
                         }
                     }
                     Request::VerifyRestart {
@@ -512,7 +523,12 @@ async fn run() -> std::io::Result<()> {
                                 .await?,
                         );
                     }
-                    Request::StackReceipt { action, digest, .. } => {
+                    Request::StackReceipt {
+                        action,
+                        digest,
+                        expires_at,
+                        ..
+                    } => {
                         let store = receipts
                             .as_ref()
                             .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
@@ -527,6 +543,12 @@ async fn run() -> std::io::Result<()> {
                                 value.operation,
                             )?;
                             receipt.stack = store.reconcile_stack(&action, &digest)?;
+                        } else {
+                            receipt.absence = Some(store.receipt_absence(
+                                limeos_domain::ResolveKind::Stack,
+                                &action,
+                                expires_at,
+                            )?);
                         }
                     }
                     Request::VerifyStack {
@@ -561,6 +583,7 @@ async fn run() -> std::io::Result<()> {
                         evidence_digest,
                         declared,
                         resolved_by,
+                        expires_at,
                         ..
                     } if source == limeos_contracts::Source::Docker => {
                         let store = receipts
@@ -570,21 +593,28 @@ async fn run() -> std::io::Result<()> {
                             limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
                         })?;
                         // Read-only re-verification; this arm never reaches an Engine effect.
-                        receipt.resolution = Some(
-                            store
-                                .resolve_action(
-                                    &engine,
-                                    &restart_ceiling,
-                                    peer.uid(),
-                                    kind,
-                                    &action,
-                                    &digest,
-                                    &evidence_digest,
-                                    declared,
-                                    &resolved_by,
-                                )
-                                .await?,
-                        );
+                        match store
+                            .resolve_action(
+                                &engine,
+                                &restart_ceiling,
+                                peer.uid(),
+                                kind,
+                                &action,
+                                &digest,
+                                &evidence_digest,
+                                declared,
+                                &resolved_by,
+                                expires_at,
+                            )
+                            .await?
+                        {
+                            limeos_executor_container::ResolveOutcome::Resolved(value) => {
+                                receipt.resolution = Some(value);
+                            }
+                            limeos_executor_container::ResolveOutcome::Absent(absence) => {
+                                receipt.absence = Some(absence);
+                            }
+                        }
                     }
                     Request::Health { .. } => {}
                     _ => return Err(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden)),

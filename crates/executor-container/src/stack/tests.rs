@@ -671,7 +671,7 @@ fn schema_three_upgrade_adds_the_stack_table_and_keeps_container_receipts() {
     let store = ReceiptStore::open(dir.path()).unwrap();
     store
         .conn
-        .execute_batch("DROP TABLE stack_actions; PRAGMA user_version=3;")
+        .execute_batch("DROP TABLE retention; DROP TABLE pruned_legacy; DROP TABLE stack_actions; PRAGMA user_version=3;")
         .unwrap();
     drop(store);
     let store = ReceiptStore::open(dir.path()).unwrap();

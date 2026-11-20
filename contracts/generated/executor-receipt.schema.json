@@ -3,6 +3,17 @@
   "title": "Receipt",
   "type": "object",
   "properties": {
+    "absence": {
+      "description": "Set by a receipt lookup or `ResolveAction` that found no row.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReceiptAbsence"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "container_health": {
       "anyOf": [
         {
@@ -1063,6 +1074,21 @@
         "verified",
         "precondition_changed",
         "outcome_unknown"
+      ]
+    },
+    "ReceiptAbsence": {
+      "description": "What the executor can say about an action it holds no receipt for. It is\ndecided from the receipt store's prune watermark, the greatest plan expiry\namong every receipt it ever pruned, never from the clock.",
+      "oneOf": [
+        {
+          "description": "The plan expires after the watermark, so no receipt for it was ever\npruned: none was ever written, and since a durable Prepared row precedes\nevery Engine call, nothing was sent.",
+          "type": "string",
+          "const": "never_recorded"
+        },
+        {
+          "description": "A receipt for the plan may have existed and been pruned, so absence\nproves nothing: the action may have run.",
+          "type": "string",
+          "const": "no_longer_held"
+        }
       ]
     },
     "ResolveKind": {

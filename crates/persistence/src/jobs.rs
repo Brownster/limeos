@@ -135,7 +135,8 @@ impl Store {
         })
     }
     /// A successful executor lookup found no receipt for this uncertain
-    /// container or stack job, and absence no longer proves nothing was sent.
+    /// container or stack job, and the executor answered that one may have
+    /// been pruned (`limeos_domain::ReceiptAbsence::NoLongerHeld`).
     /// The job moves to (or stays in) `needs_intervention` with every lock, and
     /// one `executor_receipt_missing` event records why. Repeating it changes
     /// nothing, so the recovery poll cannot grow the audit log.

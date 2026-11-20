@@ -19,8 +19,28 @@
 //! Pruning runs inside the transaction that inserts a new receipt, removes at
 //! most `PRUNE_BATCH` rows, oldest plan expiry first, and writes nothing when
 //! nothing is over budget. The row and file caps stay as last-resort stops.
+//!
+//! Absence. The same transaction raises the prune watermark, the greatest
+//! `expires_at` among every row ever pruned; it never decreases. A row stores
+//! its plan's `expires_at`, and a stack's member rows store the stack's, so a
+//! pruned receipt always has `expires_at <= watermark`. A lookup that finds no
+//! row for a plan expiring strictly after the watermark therefore proves that
+//! no receipt was ever written (`ReceiptAbsence::NeverRecorded`); at or below
+//! it a receipt may have been pruned (`NoLongerHeld`). This holds whatever the
+//! order of pruning and whatever the clock does; oldest-expiry-first only keeps
+//! the watermark low, at least an hour behind the clock that pruned, so a young
+//! plan is answered `NeverRecorded` at once.
+//!
+//! Rows written before schema 7 are `legacy`: schema 6 back-filled their
+//! `expires_at` from the upgrade clock, which need not be at or above their
+//! plan's real expiry. A pruned legacy row leaves its action ID in
+//! `pruned_legacy`, which answers `NoLongerHeld` for it regardless of the
+//! watermark. There is at most one tombstone per row that existed at the
+//! upgrade, each smaller than the row it replaces, so the table is bounded.
+//! A store opened at schema 6 may already have pruned without a watermark;
+//! its watermark starts at the maximum, so it never claims `NeverRecorded`.
 use super::*;
-use limeos_domain::PLAN_TTL_SECONDS;
+use limeos_domain::{PLAN_TTL_SECONDS, ReceiptAbsence, ResolveKind};
 use rusqlite::Transaction;
 
 /// Standalone container receipts kept. Stack member rows are counted with
@@ -33,9 +53,7 @@ pub(crate) const RETAINED_STACKS: u32 = 256;
 /// always fits, so every batch over budget makes progress.
 pub(crate) const PRUNE_BATCH: u32 = 64;
 const _: () = assert!((limeos_domain::MAX_STACK_MEMBERS as u32) < PRUNE_BATCH);
-/// A receipt outlives its plan's expiry by at least this many seconds. Core
-/// reads the same constant to decide when a missing receipt stops proving that
-/// nothing was sent (`limeos_domain::receipt_absence_proves_unsent`).
+/// A receipt outlives its plan's expiry by at least this many seconds.
 pub(crate) use limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY as RETAIN_AFTER_EXPIRY;
 const TERMINAL: &str = "('verified','precondition_changed')";
 const STACK_TERMINAL: &str = "('verified','precondition_changed','partly_done')";
@@ -51,10 +69,88 @@ pub(crate) fn legacy_expiry_sql() -> String {
     format!("CAST(strftime('%s','now') AS INTEGER)+{PLAN_TTL_SECONDS}")
 }
 
-/// Remove settled receipts beyond the budget. Returns the rows removed.
+/// The watermark a store starts with when it gains one (schema 7). Before
+/// schema 6 nothing was ever pruned; a schema 6 store may have pruned rows
+/// whose expiry nobody recorded.
+pub(crate) fn initial_watermark(version: u32) -> i64 {
+    if version == 6 { i64::MAX } else { i64::MIN }
+}
+
+/// The greatest plan expiry among every receipt ever pruned.
+pub(crate) fn watermark(conn: &Connection) -> Result<i64> {
+    conn.query_row("SELECT watermark FROM retention WHERE id=1", [], |r| {
+        r.get(0)
+    })
+    .map_err(durable)
+}
+
+/// Record one pruned row: its expiry for the watermark, its ID if legacy.
+fn retire(
+    tx: &Transaction<'_>,
+    action: &str,
+    legacy: bool,
+    highest: &mut Option<i64>,
+    expires_at: i64,
+) -> Result<()> {
+    if legacy {
+        tx.execute(
+            "INSERT OR IGNORE INTO pruned_legacy(action) VALUES(?1)",
+            [action],
+        )
+        .map_err(durable)?;
+    }
+    *highest = Some(highest.map_or(expires_at, |h| h.max(expires_at)));
+    Ok(())
+}
+
+impl ReceiptStore {
+    /// What the store can say about an action it holds no row for, asked with
+    /// the plan's `expires_at`. A row that exists is `Conflict`: look it up.
+    pub fn receipt_absence(
+        &self,
+        kind: ResolveKind,
+        action: &str,
+        expires_at: i64,
+    ) -> Result<ReceiptAbsence> {
+        if !opaque_id(action) {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
+        let table = match kind {
+            ResolveKind::Container => "actions",
+            ResolveKind::Stack => "stack_actions",
+        };
+        let held: bool = self
+            .conn
+            .query_row(
+                &format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE action=?1)"),
+                [action],
+                |r| r.get(0),
+            )
+            .map_err(durable)?;
+        if held {
+            return Err(Error(ErrorCode::Conflict));
+        }
+        let tombstone: bool = self
+            .conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM pruned_legacy WHERE action=?1)",
+                [action],
+                |r| r.get(0),
+            )
+            .map_err(durable)?;
+        if tombstone {
+            return Ok(ReceiptAbsence::NoLongerHeld);
+        }
+        Ok(ReceiptAbsence::judge(expires_at, watermark(&self.conn)?))
+    }
+}
+
+/// Remove settled receipts beyond the budget, raising the watermark in the
+/// same transaction. Returns the rows removed.
 pub(crate) fn prune(tx: &Transaction<'_>, now: i64) -> Result<u32> {
     let cutoff = now.saturating_sub(RETAIN_AFTER_EXPIRY);
     let mut removed = 0u32;
+    let mut highest = None;
     let stacks: u32 = tx
         .query_row("SELECT count(*) FROM stack_actions", [], |r| r.get(0))
         .map_err(durable)?;
@@ -62,22 +158,24 @@ pub(crate) fn prune(tx: &Transaction<'_>, now: i64) -> Result<u32> {
         let limit = (stacks - RETAINED_STACKS).min(PRUNE_BATCH);
         // Member rows share the stack's plan digest. A digest shared by two
         // stack rows, or any member row still active or resolved, keeps the stack.
-        let candidates: Vec<(String, String)> = {
+        let candidates: Vec<(String, String, i64, bool)> = {
             let mut statement = tx
                 .prepare(&format!(
-                    "SELECT s.action,s.digest FROM stack_actions s WHERE s.state IN {STACK_TERMINAL} AND s.expires_at<=?1 \
+                    "SELECT s.action,s.digest,s.expires_at,s.legacy FROM stack_actions s WHERE s.state IN {STACK_TERMINAL} AND s.expires_at<=?1 \
                      AND (SELECT count(*) FROM stack_actions t WHERE t.digest=s.digest)=1 \
                      AND NOT EXISTS (SELECT 1 FROM actions a WHERE a.digest=s.digest AND a.state NOT IN {TERMINAL}) \
                      ORDER BY s.expires_at,s.rowid LIMIT ?2"
                 ))
                 .map_err(durable)?;
             statement
-                .query_map(params![cutoff, limit], |r| Ok((r.get(0)?, r.get(1)?)))
+                .query_map(params![cutoff, limit], |r| {
+                    Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+                })
                 .map_err(durable)?
                 .collect::<rusqlite::Result<_>>()
                 .map_err(durable)?
         };
-        for (action, digest) in candidates {
+        for (action, digest, expires_at, legacy) in candidates {
             let rows: u32 = tx
                 .query_row(
                     &format!(
@@ -90,6 +188,24 @@ pub(crate) fn prune(tx: &Transaction<'_>, now: i64) -> Result<u32> {
             if removed.saturating_add(rows) > PRUNE_BATCH {
                 break;
             }
+            // Members share the stack's expiry; each is retired on its own all
+            // the same, so the watermark never rests on that invariant.
+            let retired: Vec<(String, bool, i64)> = {
+                let mut statement = tx
+                    .prepare(&format!(
+                        "SELECT action,legacy,expires_at FROM actions WHERE digest=?1 AND state IN {TERMINAL}"
+                    ))
+                    .map_err(durable)?;
+                statement
+                    .query_map([&digest], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+                    .map_err(durable)?
+                    .collect::<rusqlite::Result<_>>()
+                    .map_err(durable)?
+            };
+            for (member, member_legacy, member_expiry) in &retired {
+                retire(tx, member, *member_legacy, &mut highest, *member_expiry)?;
+            }
+            retire(tx, &action, legacy, &mut highest, expires_at)?;
             let members = tx
                 .execute(
                     &format!("DELETE FROM actions WHERE digest=?1 AND state IN {TERMINAL}"),
@@ -112,9 +228,37 @@ pub(crate) fn prune(tx: &Transaction<'_>, now: i64) -> Result<u32> {
             removed = removed.saturating_add(1);
         }
     }
-    if removed >= PRUNE_BATCH {
-        return Ok(removed);
+    if removed < PRUNE_BATCH {
+        removed = removed.saturating_add(prune_standalone(
+            tx,
+            cutoff,
+            PRUNE_BATCH - removed,
+            &mut highest,
+        )?);
     }
+    if let Some(highest) = highest {
+        if tx
+            .execute(
+                "UPDATE retention SET watermark=max(watermark,?1) WHERE id=1",
+                [highest],
+            )
+            .map_err(durable)?
+            != 1
+        {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
+    }
+    Ok(removed)
+}
+
+/// Standalone container receipts beyond their budget, at most `room` rows.
+fn prune_standalone(
+    tx: &Transaction<'_>,
+    cutoff: i64,
+    room: u32,
+    highest: &mut Option<i64>,
+) -> Result<u32> {
+    let mut removed = 0u32;
     let standalone: u32 = tx
         .query_row(
             "SELECT count(*) FROM actions a WHERE NOT EXISTS (SELECT 1 FROM stack_actions s WHERE s.digest=a.digest)",
@@ -123,18 +267,34 @@ pub(crate) fn prune(tx: &Transaction<'_>, now: i64) -> Result<u32> {
         )
         .map_err(durable)?;
     if standalone > RETAINED_ACTIONS {
-        let limit = (standalone - RETAINED_ACTIONS).min(PRUNE_BATCH - removed);
-        let deleted = tx
-            .execute(
-                &format!(
-                    "DELETE FROM actions WHERE rowid IN (SELECT a.rowid FROM actions a WHERE a.state IN {TERMINAL} AND a.expires_at<=?1 \
+        let limit = (standalone - RETAINED_ACTIONS).min(room);
+        let candidates: Vec<(i64, String, bool, i64)> = {
+            let mut statement = tx
+                .prepare(&format!(
+                    "SELECT a.rowid,a.action,a.legacy,a.expires_at FROM actions a WHERE a.state IN {TERMINAL} AND a.expires_at<=?1 \
                      AND NOT EXISTS (SELECT 1 FROM stack_actions s WHERE s.digest=a.digest) \
-                     ORDER BY a.expires_at,a.rowid LIMIT ?2)"
-                ),
-                params![cutoff, limit],
-            )
-            .map_err(durable)?;
-        removed = removed.saturating_add(u32::try_from(deleted).unwrap_or(u32::MAX));
+                     ORDER BY a.expires_at,a.rowid LIMIT ?2"
+                ))
+                .map_err(durable)?;
+            statement
+                .query_map(params![cutoff, limit], |r| {
+                    Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+                })
+                .map_err(durable)?
+                .collect::<rusqlite::Result<_>>()
+                .map_err(durable)?
+        };
+        for (rowid, action, legacy, expires_at) in candidates {
+            retire(tx, &action, legacy, highest, expires_at)?;
+            if tx
+                .execute("DELETE FROM actions WHERE rowid=?1", [rowid])
+                .map_err(durable)?
+                != 1
+            {
+                return Err(Error(ErrorCode::StateNotDurable));
+            }
+            removed = removed.saturating_add(1);
+        }
     }
     Ok(removed)
 }

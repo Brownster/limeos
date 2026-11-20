@@ -9,11 +9,21 @@
 //! stop or restart is ever issued from this path.
 use super::*;
 use limeos_domain::{
-    DeclaredOutcome, ResolutionEvidence, ResolveKind, ResolveReceipt, StackReceipt,
+    DeclaredOutcome, ReceiptAbsence, ResolutionEvidence, ResolveKind, ResolveReceipt, StackReceipt,
 };
 
 pub const RESOLVED: &str = "resolved";
 const ACTIVE: &str = "('prepared','effect_accepted','outcome_unknown')";
+
+/// What `resolve_action` came to, short of an error.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ResolveOutcome {
+    /// The row is `resolved`; returned for the original call and every repeat.
+    Resolved(ResolveReceipt),
+    /// The store holds no row for the action, so it has nothing to free; core
+    /// decides what the absence means (`ReceiptAbsence`).
+    Absent(ReceiptAbsence),
+}
 
 impl ReceiptStore {
     /// The stored confirmation for an action, if it was resolved. Pure lookup.
@@ -50,9 +60,8 @@ impl ReceiptStore {
     /// Settle one action. Idempotent by `action`: a repeat with the same
     /// evidence, declaration and administrator returns the stored confirmation
     /// without touching the Engine; anything else on a resolved row is
-    /// `Conflict`. A missing row is `NotFound` (core completes the resolution
-    /// itself once the plan is past `receipt_absence_proves_unsent`, since a
-    /// pruned row held nothing); a row that is not holding the
+    /// `Conflict`. A missing row is `Absent`, judged against the prune
+    /// watermark with the plan's `expires_at`; a row that is not holding the
     /// resource (already verified or never sent) is `Conflict`. A changed
     /// target (digest mismatch) or a declaration the evidence does not support
     /// is `Conflict`. Only read-only inspections reach the Engine.
@@ -68,7 +77,8 @@ impl ReceiptStore {
         evidence_digest: &str,
         declared: DeclaredOutcome,
         resolved_by: &str,
-    ) -> Result<ResolveReceipt> {
+        expires_at: i64,
+    ) -> Result<ResolveOutcome> {
         if ![action, digest, evidence_digest, resolved_by]
             .into_iter()
             .all(opaque_id)
@@ -85,16 +95,19 @@ impl ReceiptStore {
         // Authorize from the pure lookup, as for every other action.
         let (operation, before) = match kind {
             ResolveKind::Container => {
-                let receipt = self
-                    .receipt(action, digest)?
-                    .ok_or(Error(ErrorCode::NotFound))?;
+                let Some(receipt) = self.receipt(action, digest)? else {
+                    let absence = self.receipt_absence(kind, action, expires_at)?;
+                    return Ok(ResolveOutcome::Absent(absence));
+                };
                 ceiling.authorize(peer_uid, &receipt.before.resource, receipt.operation)?;
                 (receipt.operation, vec![receipt.before])
             }
             ResolveKind::Stack => {
-                let receipt: StackReceipt = self
-                    .stack_receipt(action, digest)?
-                    .ok_or(Error(ErrorCode::NotFound))?;
+                let Some(receipt): Option<StackReceipt> = self.stack_receipt(action, digest)?
+                else {
+                    let absence = self.receipt_absence(kind, action, expires_at)?;
+                    return Ok(ResolveOutcome::Absent(absence));
+                };
                 ceiling.authorize_stack(peer_uid, &receipt.before, receipt.operation)?;
                 let targets = receipt
                     .members
@@ -114,7 +127,7 @@ impl ReceiptStore {
         };
         if let Some(stored) = self.resolution(kind, action)? {
             return if stored == confirmation {
-                Ok(stored)
+                Ok(ResolveOutcome::Resolved(stored))
             } else {
                 Err(Error(ErrorCode::Conflict))
             };
@@ -179,7 +192,7 @@ impl ReceiptStore {
             }
         }
         tx.commit().map_err(durable)?;
-        Ok(confirmation)
+        Ok(ResolveOutcome::Resolved(confirmation))
     }
 }
 

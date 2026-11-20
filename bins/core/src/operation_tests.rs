@@ -9,6 +9,8 @@ struct EngineFixture {
     posts: usize,
     reads: usize,
     hold: bool,
+    /// The executor's prune watermark (see `ReceiptAbsence`).
+    watermark: i64,
 }
 #[tokio::test]
 async fn logs_recheck_revocation_after_reading_and_viewer_scope_never_reaches_executor() {
@@ -155,6 +157,7 @@ async fn fixture() -> (
         posts: 0,
         reads: 0,
         hold: false,
+        watermark: 0,
     }));
     let entered = Arc::new(tokio::sync::Notify::new());
     let release = Arc::new(tokio::sync::Notify::new());
@@ -205,7 +208,15 @@ async fn fixture() -> (
                         }
                         response.restart = state.receipt.clone();
                     }
-                    Request::RestartReceipt { .. } => response.restart = state.receipt.clone(),
+                    Request::RestartReceipt { expires_at, .. } => {
+                        response.restart = state.receipt.clone();
+                        if response.restart.is_none() {
+                            response.absence = Some(limeos_domain::ReceiptAbsence::judge(
+                                expires_at,
+                                state.watermark,
+                            ));
+                        }
+                    }
                     Request::VerifyRestart { .. } => {
                         state.receipt.as_mut().unwrap().state = ExecutionState::Verified;
                         response.restart = state.receipt.clone();
@@ -367,54 +378,84 @@ async fn recovery_without_an_accepted_receipt_never_dispatches_again() {
         task.abort();
     }
 }
+fn missing_events(progress: &limeos_contracts::JobProgress) -> usize {
+    progress
+        .events
+        .iter()
+        .filter(|e| e.event == limeos_domain::EventKind::ExecutorReceiptMissing)
+        .count()
+}
 #[tokio::test]
 async fn a_pruned_container_receipt_keeps_the_job_held_with_the_reason_recorded_once() {
-    let (_dir, core, token, _csrf, state, _, _, task) = fixture().await;
+    // An old plan, and a young one whose receipt was pruned while the clock ran
+    // more than an hour ahead before stepping back: the watermark decides both.
+    for age in [
+        limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY + limeos_domain::PLAN_TTL_SECONDS + 60,
+        0,
+    ] {
+        let (_dir, core, token, _csrf, state, _, _, task) = fixture().await;
+        let snapshot = state.lock().unwrap().current.clone();
+        let principal = core.session(token.clone(), None).await.unwrap().principal;
+        let t0 = now() - age;
+        let p = principal.clone();
+        let job = core
+            .db
+            .call(move |s| {
+                let plan =
+                    s.plan_container(&p, limeos_domain::ContainerAction::Restart, &snapshot, t0)?;
+                let approval = s.approve_container(&p, &plan.plan.id, &plan.digest, t0)?;
+                let queued = s.queue_container(&p, "old", &plan, &approval.token, &snapshot, t0)?;
+                s.claim_container(&p, &queued.id, &snapshot, t0)
+            })
+            .await
+            .unwrap();
+        // The executor executed and verified it, core never recorded the result,
+        // and retention has since pruned the receipt: lookups find no row.
+        assert!(state.lock().unwrap().receipt.is_none());
+        state.lock().unwrap().watermark = job.plan.expires_at;
+        for _ in 0..2 {
+            let id = job.id.clone();
+            let current = core
+                .db
+                .call(move |s| s.container_candidates())
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|(_, job)| job)
+                .find(|job| job.id == id)
+                .unwrap();
+            core.dispatch_one(principal.clone(), current).await.unwrap();
+            let progress = core
+                .restart_progress(token.clone(), job.id.clone(), 0)
+                .await
+                .unwrap();
+            assert_eq!(progress.job.state, JobState::NeedsIntervention);
+            assert_eq!(missing_events(&progress), 1);
+        }
+        assert_eq!(state.lock().unwrap().posts, 0);
+        task.abort();
+    }
+}
+#[tokio::test]
+async fn a_never_recorded_container_receipt_holds_the_job_without_the_missing_event() {
+    let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
     let snapshot = state.lock().unwrap().current.clone();
+    let (job, _) = queued(&core, &token, &csrf, snapshot.resource.clone()).await;
     let principal = core.session(token.clone(), None).await.unwrap().principal;
-    let t0 =
-        now() - limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY - limeos_domain::PLAN_TTL_SECONDS - 60;
-    let p = principal.clone();
-    let job = core
+    let (p, id) = (principal.clone(), job.id.clone());
+    let running = core
         .db
-        .call(move |s| {
-            let plan =
-                s.plan_container(&p, limeos_domain::ContainerAction::Restart, &snapshot, t0)?;
-            let approval = s.approve_container(&p, &plan.plan.id, &plan.digest, t0)?;
-            let queued = s.queue_container(&p, "old", &plan, &approval.token, &snapshot, t0)?;
-            s.claim_container(&p, &queued.id, &snapshot, t0)
-        })
+        .call(move |s| s.claim_container(&p, &id, &snapshot, now()))
         .await
         .unwrap();
-    // The executor executed and verified it, core never recorded the result,
-    // and retention has since pruned the receipt: lookups find no row.
-    assert!(state.lock().unwrap().receipt.is_none());
-    for _ in 0..2 {
-        let id = job.id.clone();
-        let current = core
-            .db
-            .call(move |s| s.container_candidates())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|(_, job)| job)
-            .find(|job| job.id == id)
-            .unwrap();
-        core.dispatch_one(principal.clone(), current).await.unwrap();
-        let progress = core
-            .restart_progress(token.clone(), job.id.clone(), 0)
-            .await
-            .unwrap();
-        assert_eq!(progress.job.state, JobState::NeedsIntervention);
-        assert_eq!(
-            progress
-                .events
-                .iter()
-                .filter(|e| e.event == limeos_domain::EventKind::ExecutorReceiptMissing)
-                .count(),
-            1
-        );
-    }
+    // ExecuteContainer never reached the store: no row, none ever pruned.
+    core.dispatch_one(principal, running).await.unwrap();
+    let progress = core
+        .restart_progress(token.clone(), job.id.clone(), 0)
+        .await
+        .unwrap();
+    assert_eq!(progress.job.state, JobState::NeedsIntervention);
+    assert_eq!(missing_events(&progress), 0);
     assert_eq!(state.lock().unwrap().posts, 0);
     task.abort();
 }

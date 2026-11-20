@@ -30,8 +30,8 @@ pub struct ResolutionSubject {
     /// The plan's targets as `expected`; inspect each, then
     /// `ResolutionEvidence::observe(operation, ..)`.
     pub targets: Vec<ContainerSnapshot>,
-    /// The plan's expiry: decides whether the executor may have pruned the
-    /// action's receipt (`limeos_domain::receipt_absence_proves_unsent`).
+    /// The plan's expiry: the executor judges a missing receipt against its
+    /// prune watermark with it (`limeos_domain::ReceiptAbsence`).
     pub expires_at: i64,
 }
 
@@ -41,6 +41,8 @@ pub struct PendingResolution {
     pub request: ResolutionRequest,
     pub kind: ResolveKind,
     pub plan_digest: String,
+    /// The plan's expiry, sent with `ResolveAction`.
+    pub expires_at: i64,
 }
 
 fn subject_of(id: &str, state: &str, intent: &str) -> Result<ResolutionSubject> {
@@ -379,6 +381,7 @@ impl Store {
                         request: open,
                         kind: subject.kind,
                         plan_digest: subject.plan_digest,
+                        expires_at: subject.expires_at,
                     })
                 } else {
                     Err(Error(ErrorCode::Conflict))
@@ -409,6 +412,7 @@ impl Store {
                 request,
                 kind: subject.kind,
                 plan_digest: subject.plan_digest,
+                expires_at: subject.expires_at,
             })
         })
     }
@@ -476,6 +480,7 @@ impl Store {
                     request,
                     kind: subject.kind,
                     plan_digest: subject.plan_digest,
+                    expires_at: subject.expires_at,
                 })
             })
             .collect()

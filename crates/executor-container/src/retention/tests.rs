@@ -498,57 +498,171 @@ fn pruning_removes_only_old_terminal_receipts_and_whole_settled_stacks() {
     assert_eq!(store.conn.total_changes(), changes);
 }
 
+fn watermark_of(store: &ReceiptStore) -> i64 {
+    watermark(&store.conn).unwrap()
+}
+fn absence(
+    store: &ReceiptStore,
+    kind: ResolveKind,
+    action: &str,
+    expires_at: i64,
+) -> ReceiptAbsence {
+    store.receipt_absence(kind, action, expires_at).unwrap()
+}
+fn id(tag: char, i: u32) -> String {
+    format!("{tag}{i:063x}")
+}
+/// One settled stack with one member, both rows at `expires_at`.
+fn settled_stack(store: &ReceiptStore, i: u32, expires_at: i64) {
+    let digest = format!("ds{i}");
+    insert(
+        store,
+        "stack_actions",
+        &id('5', i),
+        &digest,
+        &format!("stack:s{i}"),
+        "verified",
+        expires_at,
+    );
+    insert(
+        store,
+        "actions",
+        &id('6', i),
+        &digest,
+        &format!("container:s{i}"),
+        "verified",
+        expires_at,
+    );
+}
+
 #[test]
-fn no_receipt_is_pruned_while_core_still_reads_its_absence_as_never_sent() {
-    // Settled stacks the executor verified and core never recorded, one more
-    // than the budget, all with the same plan expiry.
+fn a_pruned_stack_is_no_longer_held_whatever_the_clock_does_and_a_new_plan_is_never_recorded() {
     let dir = private_dir();
     let mut store = ReceiptStore::open(dir.path()).unwrap();
+    // Nothing pruned yet: any plan without a row was never recorded.
+    assert_eq!(watermark_of(&store), i64::MIN);
+    assert_eq!(
+        absence(&store, ResolveKind::Stack, &id('5', 0), 0),
+        ReceiptAbsence::NeverRecorded
+    );
+    // One stack over budget, all plans expiring at 50_000, the oldest first.
     let expires = 50_000;
     for i in 0..=RETAINED_STACKS {
-        let digest = format!("dv{i}");
-        insert(
-            &store,
-            "stack_actions",
-            &format!("v{i}"),
-            &digest,
-            &format!("stack:v{i}"),
-            "verified",
-            expires,
+        settled_stack(&store, i, expires + i64::from(i));
+    }
+    // Nothing is pruned until a plan has been expired for the retention hour.
+    assert_eq!(prune_all(&mut store, expires + RETAIN_AFTER_EXPIRY - 1), 0);
+    assert_eq!(watermark_of(&store), i64::MIN);
+    let pruned_at = expires + RETAIN_AFTER_EXPIRY;
+    assert_eq!(prune_all(&mut store, pruned_at), 2);
+    assert_eq!(watermark_of(&store), expires);
+    // The executed and pruned stack: absence proves nothing, and the answer
+    // does not read the clock, so stepping it back an hour changes nothing.
+    for kind in [ResolveKind::Stack, ResolveKind::Container] {
+        let action = if kind == ResolveKind::Stack {
+            id('5', 0)
+        } else {
+            id('6', 0)
+        };
+        assert_eq!(
+            absence(&store, kind, &action, expires),
+            ReceiptAbsence::NoLongerHeld
         );
+    }
+    // Another plan with the same expiry may have been pruned too: equality errs
+    // towards "no longer held".
+    assert_eq!(
+        absence(&store, ResolveKind::Stack, &id('7', 0), expires),
+        ReceiptAbsence::NoLongerHeld
+    );
+    // A plan expiring after the watermark was never recorded, at once.
+    assert_eq!(
+        absence(&store, ResolveKind::Stack, &id('7', 0), expires + 1),
+        ReceiptAbsence::NeverRecorded
+    );
+    // A row that exists is looked up, not judged.
+    assert_eq!(
+        store
+            .receipt_absence(ResolveKind::Stack, &id('5', 1), expires)
+            .unwrap_err()
+            .0,
+        ErrorCode::Conflict
+    );
+    // Durable across a restart.
+    drop(store);
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    assert_eq!(watermark_of(&store), expires);
+    // Never decreases: a row with an older expiry pruned later, at a clock that
+    // stepped back, leaves the watermark where it was.
+    store
+        .conn
+        .execute(
+            &format!(
+                "UPDATE stack_actions SET expires_at={} WHERE action='{}'",
+                expires - 10_000,
+                id('5', 1)
+            ),
+            [],
+        )
+        .unwrap();
+    store
+        .conn
+        .execute(
+            &format!(
+                "UPDATE actions SET expires_at={} WHERE action='{}'",
+                expires - 10_000,
+                id('6', 1)
+            ),
+            [],
+        )
+        .unwrap();
+    settled_stack(&store, 9_999, expires + 9_999);
+    assert_eq!(prune_all(&mut store, expires - 1_000), 2);
+    assert_eq!(watermark_of(&store), expires);
+    assert_eq!(
+        absence(&store, ResolveKind::Stack, &id('5', 1), expires - 10_000),
+        ReceiptAbsence::NoLongerHeld
+    );
+}
+
+#[test]
+fn the_watermark_covers_standalone_receipts_and_moves_in_the_pruning_transaction() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    for i in 0..RETAINED_ACTIONS + 3 {
         insert(
             &store,
             "actions",
-            &format!("v{i}m"),
-            &digest,
-            &format!("container:v{i}m"),
+            &id('a', i),
+            &format!("da{i}"),
+            &format!("container:a{i}"),
             "verified",
-            expires,
+            1_000 + i64::from(i),
         );
     }
-    // Core's window, and the retention after it, prune nothing.
-    let last_unsent = expires + limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY
-        - limeos_domain::RECEIPT_ABSENCE_MARGIN
-        - 1;
-    assert!(limeos_domain::receipt_absence_proves_unsent(
-        expires,
-        last_unsent
-    ));
-    assert_eq!(prune_all(&mut store, last_unsent), 0);
-    assert_eq!(prune_all(&mut store, expires + RETAIN_AFTER_EXPIRY - 1), 0);
-    // The executor's earliest pruning is outside core's window.
-    let first_pruned = expires + RETAIN_AFTER_EXPIRY;
-    assert_eq!(prune_all(&mut store, first_pruned), 2);
-    assert!(!limeos_domain::receipt_absence_proves_unsent(
-        expires,
-        first_pruned
-    ));
+    // A pruning transaction that is rolled back leaves the watermark too.
+    {
+        let tx = store.conn.transaction().unwrap();
+        assert_eq!(prune(&tx, 100_000).unwrap(), 3);
+        tx.rollback().unwrap();
+    }
+    assert_eq!(watermark_of(&store), i64::MIN);
+    assert_eq!(prune_all(&mut store, 100_000), 3);
+    assert_eq!(watermark_of(&store), 1_002);
+    for i in 0..3 {
+        assert_eq!(
+            absence(
+                &store,
+                ResolveKind::Container,
+                &id('a', i),
+                1_000 + i64::from(i)
+            ),
+            ReceiptAbsence::NoLongerHeld
+        );
+    }
     assert_eq!(
-        count(
-            &store,
-            "SELECT count(*) FROM stack_actions WHERE action='v0'"
-        ),
-        0
+        absence(&store, ResolveKind::Container, &id('b', 0), 1_003),
+        ReceiptAbsence::NeverRecorded
     );
 }
 
@@ -717,11 +831,26 @@ fn a_process_killed_mid_prune_leaves_a_store_that_opens_with_every_row() {
         count(&store, "SELECT count(*) FROM actions"),
         RETAINED_ACTIONS + 500
     );
+    // The watermark moves with the deletions or not at all.
+    assert_eq!(watermark_of(&store), i64::MIN);
     assert!(prune_all(&mut store, 100_000) > 0);
+    assert_eq!(watermark_of(&store), 0);
     assert_eq!(
         count(&store, "SELECT count(*) FROM actions"),
         RETAINED_ACTIONS
     );
+}
+
+/// Turn a fresh store back into schema 5 or 6, keeping its rows.
+fn downgrade(store: ReceiptStore, to: u32) {
+    let mut sql = String::from(
+        "DROP TABLE retention; DROP TABLE pruned_legacy; ALTER TABLE actions DROP COLUMN legacy; ALTER TABLE stack_actions DROP COLUMN legacy;",
+    );
+    if to == 5 {
+        sql += "DROP INDEX actions_digest; DROP INDEX stack_actions_digest; ALTER TABLE actions DROP COLUMN expires_at; ALTER TABLE stack_actions DROP COLUMN expires_at;";
+    }
+    sql += &format!("PRAGMA user_version={to};");
+    store.conn.execute_batch(&sql).unwrap();
 }
 
 #[test]
@@ -737,11 +866,7 @@ fn schema_five_upgrade_keeps_receipts_and_retains_them_for_a_plan_lifetime() {
         "verified",
         0,
     );
-    store
-        .conn
-        .execute_batch("DROP INDEX actions_digest; DROP INDEX stack_actions_digest; ALTER TABLE actions DROP COLUMN expires_at; ALTER TABLE stack_actions DROP COLUMN expires_at; PRAGMA user_version=5;")
-        .unwrap();
-    drop(store);
+    downgrade(store, 5);
     let store = ReceiptStore::open(dir.path()).unwrap();
     let version: u32 = store
         .conn
@@ -761,4 +886,115 @@ fn schema_five_upgrade_keeps_receipts_and_retains_them_for_a_plan_lifetime() {
         )
         .unwrap();
     assert!((wall + PLAN_TTL_SECONDS - 5..=wall + PLAN_TTL_SECONDS + 5).contains(&expires));
+    // Schema 5 never pruned anything.
+    assert_eq!(watermark_of(&store), i64::MIN);
+}
+
+#[test]
+fn a_pruned_pre_upgrade_receipt_is_no_longer_held_even_above_its_back_filled_expiry() {
+    let dir = private_dir();
+    let store = ReceiptStore::open(dir.path()).unwrap();
+    for i in 0..RETAINED_ACTIONS + 1 {
+        insert(
+            &store,
+            "actions",
+            &id('a', i),
+            &format!("da{i}"),
+            &format!("container:a{i}"),
+            "verified",
+            0,
+        );
+    }
+    settled_stack(&store, 0, 0);
+    downgrade(store, 5);
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    assert_eq!(
+        count(&store, "SELECT count(*) FROM actions WHERE legacy=0"),
+        0
+    );
+    assert_eq!(
+        count(&store, "SELECT count(*) FROM stack_actions WHERE legacy=1"),
+        1
+    );
+    let back_filled: i64 = store
+        .conn
+        .query_row("SELECT max(expires_at) FROM actions", [], |r| r.get(0))
+        .unwrap();
+    // Rows written after the upgrade are not legacy.
+    insert(
+        &store,
+        "actions",
+        &id('b', 0),
+        "db0",
+        "container:b0",
+        "verified",
+        back_filled + 1,
+    );
+    assert_eq!(
+        count(&store, "SELECT count(*) FROM actions WHERE legacy=0"),
+        1
+    );
+    // Pruned once its back-filled expiry is an hour past.
+    let removed = prune_all(&mut store, back_filled + RETAIN_AFTER_EXPIRY);
+    assert_eq!(removed, 2);
+    assert_eq!(watermark_of(&store), back_filled);
+    // Its plan's real expiry is unknown; the back-fill assumed the clock never
+    // stepped back. Asked with any expiry, even far above the watermark, the
+    // pruned receipt is "no longer held", never "never recorded".
+    let pruned = count(&store, "SELECT count(*) FROM pruned_legacy");
+    assert_eq!(pruned, 2);
+    let gone: String = store
+        .conn
+        .query_row(
+            "SELECT action FROM pruned_legacy WHERE action LIKE 'a%'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        absence(&store, ResolveKind::Container, &gone, back_filled + 100_000),
+        ReceiptAbsence::NoLongerHeld
+    );
+    assert_eq!(
+        absence(
+            &store,
+            ResolveKind::Container,
+            &id('c', 0),
+            back_filled + 100_000
+        ),
+        ReceiptAbsence::NeverRecorded
+    );
+    // The tombstones survive a restart.
+    drop(store);
+    let store = ReceiptStore::open(dir.path()).unwrap();
+    assert_eq!(
+        absence(&store, ResolveKind::Container, &gone, back_filled + 100_000),
+        ReceiptAbsence::NoLongerHeld
+    );
+}
+
+#[test]
+fn a_schema_six_store_that_may_have_pruned_without_a_watermark_never_claims_never_recorded() {
+    let dir = private_dir();
+    let store = ReceiptStore::open(dir.path()).unwrap();
+    insert(
+        &store,
+        "actions",
+        &id('a', 0),
+        "da0",
+        "container:a0",
+        "verified",
+        1_000,
+    );
+    downgrade(store, 6);
+    let store = ReceiptStore::open(dir.path()).unwrap();
+    assert_eq!(watermark_of(&store), i64::MAX);
+    assert_eq!(
+        count(&store, "SELECT count(*) FROM actions WHERE legacy=1"),
+        1
+    );
+    assert_eq!(
+        absence(&store, ResolveKind::Container, &id('b', 0), i64::MAX - 1),
+        ReceiptAbsence::NoLongerHeld
+    );
 }

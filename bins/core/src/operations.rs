@@ -337,6 +337,7 @@ impl Core {
             &serde_json::to_string(&job.plan).map_err(|_| Error(ErrorCode::InvalidInput))?,
         );
         let recovering = job.state != JobState::Queued;
+        let mut absence = None;
         let receipt = if job.state == JobState::Queued {
             // Revocation and expiration are checked immediately before durable
             // dispatch intent. A resource lock conflict leaves this job queued.
@@ -383,24 +384,29 @@ impl Core {
             }
         } else {
             // Recovery is GET-like receipt lookup, never an effect request.
-            self.executor(
-                Request::RestartReceipt {
-                    version: VERSION,
-                    action: job.id.clone(),
-                    digest: digest.clone(),
-                },
-                limeos_contracts::RPC_DEADLINE,
-            )
-            .await?
-            .restart
+            let value = self
+                .executor(
+                    Request::RestartReceipt {
+                        version: VERSION,
+                        action: job.id.clone(),
+                        digest: digest.clone(),
+                        expires_at: job.plan.expires_at,
+                    },
+                    limeos_contracts::RPC_DEADLINE,
+                )
+                .await?;
+            absence = value.absence;
+            value.restart
         };
         let Some(mut receipt) = receipt else {
             if recovering {
                 // A lookup that succeeded and found no row. A single container
-                // has no "never sent" release: within the retention window the
-                // job is held as before, and after it the executor may have
-                // executed and pruned the action. Either way an operator decides,
-                // and the event says the executor no longer has a record.
+                // has no "never sent" release: it stays held for an operator
+                // either way. Only when the executor says a receipt may have
+                // been pruned does the event record that it no longer has one.
+                if absence == Some(limeos_domain::ReceiptAbsence::NeverRecorded) {
+                    return self.mark(&job, JobState::NeedsIntervention).await;
+                }
                 let id = job.id.clone();
                 return self
                     .db

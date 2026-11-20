@@ -120,10 +120,15 @@ pub enum Request {
         version: u16,
         request: limeos_domain::ContainerRequest,
     },
+    /// Pure lookup. With no receipt, the answer's `absence` says whether one
+    /// can ever have been pruned for a plan expiring at `expires_at`.
     RestartReceipt {
         version: u16,
         action: String,
         digest: String,
+        /// The plan's expiry, as core stored it.
+        #[ts(type = "number")]
+        expires_at: i64,
     },
     VerifyRestart {
         version: u16,
@@ -140,10 +145,13 @@ pub enum Request {
         version: u16,
         request: limeos_domain::StackRequest,
     },
+    /// As `RestartReceipt`, for a whole-stack action.
     StackReceipt {
         version: u16,
         action: String,
         digest: String,
+        #[ts(type = "number")]
+        expires_at: i64,
     },
     /// Fresh inspections of the plan's targets; never launches an effect.
     VerifyStack {
@@ -167,6 +175,9 @@ pub enum Request {
         declared: limeos_domain::DeclaredOutcome,
         /// The resolving administrator's principal ID, recorded in the row.
         resolved_by: String,
+        /// The plan's expiry: with no row, decides the answer's `absence`.
+        #[ts(type = "number")]
+        expires_at: i64,
     },
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
@@ -198,6 +209,9 @@ pub struct Receipt {
     pub stack_members: Option<limeos_domain::StackSnapshot>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolution: Option<limeos_domain::ResolveReceipt>,
+    /// Set by a receipt lookup or `ResolveAction` that found no row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub absence: Option<limeos_domain::ReceiptAbsence>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logs: Option<limeos_domain::ContainerLogs>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -478,6 +492,7 @@ impl Ceiling {
                 version,
                 action,
                 digest,
+                ..
             }
             | Request::VerifyStack {
                 version,
@@ -519,6 +534,7 @@ impl Ceiling {
                 version,
                 action,
                 digest,
+                ..
             }
             | Request::VerifyRestart {
                 version,
@@ -600,6 +616,7 @@ impl Receipt {
             stack: None,
             stack_members: None,
             resolution: None,
+            absence: None,
             logs: None,
             error: None,
             storage: None,
@@ -1088,6 +1105,7 @@ mod tests {
             evidence_digest: "f".repeat(64),
             declared: limeos_domain::DeclaredOutcome::NotDone,
             resolved_by: "a".repeat(64),
+            expires_at: 400,
         };
         use limeos_domain::ResolveKind::{Container, Stack};
         let ceiling = stack_ceiling();
@@ -1125,6 +1143,7 @@ mod tests {
             evidence_digest: "f".repeat(64),
             declared,
             resolved_by: "a".repeat(64),
+            expires_at: 400,
         };
         assert!(ceiling.validate(1001, &bad).is_err());
     }
@@ -1135,6 +1154,7 @@ mod tests {
             version,
             action: "d".repeat(64),
             digest: "e".repeat(64),
+            expires_at: 400,
         };
         assert!(ceiling.validate(1001, &receipt(VERSION)).is_ok());
         assert!(ceiling.validate(1001, &receipt(2)).is_err());

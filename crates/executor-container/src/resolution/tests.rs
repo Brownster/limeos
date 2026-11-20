@@ -171,7 +171,9 @@ async fn shown(engine: &RecordingEngine, targets: &[ContainerSnapshot]) -> Resol
 fn count(store: &ReceiptStore, sql: &str) -> u32 {
     store.conn.query_row(sql, [], |r| r.get(0)).unwrap()
 }
-async fn resolve(
+/// The plans above expire at 500.
+const EXPIRES: i64 = 500;
+async fn outcome(
     store: &mut ReceiptStore,
     engine: &RecordingEngine,
     kind: ResolveKind,
@@ -179,7 +181,7 @@ async fn resolve(
     digest: &str,
     evidence: &ResolutionEvidence,
     declared: DeclaredOutcome,
-) -> Result<ResolveReceipt> {
+) -> Result<ResolveOutcome> {
     store
         .resolve_action(
             engine,
@@ -191,8 +193,24 @@ async fn resolve(
             &evidence.digest().unwrap(),
             declared,
             &by(),
+            EXPIRES,
         )
         .await
+}
+/// As `outcome`, for a call that must settle a row or fail.
+async fn resolve(
+    store: &mut ReceiptStore,
+    engine: &RecordingEngine,
+    kind: ResolveKind,
+    action: &str,
+    digest: &str,
+    evidence: &ResolutionEvidence,
+    declared: DeclaredOutcome,
+) -> Result<ResolveReceipt> {
+    match outcome(store, engine, kind, action, digest, evidence, declared).await? {
+        ResolveOutcome::Resolved(receipt) => Ok(receipt),
+        other => panic!("not settled: {other:?}"),
+    }
 }
 
 #[tokio::test]
@@ -327,11 +345,13 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
             &"0".repeat(64),
             DeclaredOutcome::AcceptedDivergence,
             &by(),
+            EXPIRES,
         )
         .await;
     assert_eq!(wrong.unwrap_err().0, ErrorCode::Conflict);
+    // An action the store never recorded has nothing to free.
     assert_eq!(
-        resolve(
+        outcome(
             &mut store,
             &engine,
             kind,
@@ -341,9 +361,8 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
             DeclaredOutcome::VerifiedDone
         )
         .await
-        .unwrap_err()
-        .0,
-        ErrorCode::NotFound
+        .unwrap(),
+        ResolveOutcome::Absent(limeos_domain::ReceiptAbsence::NeverRecorded)
     );
     assert_eq!(
         resolve(
@@ -411,6 +430,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
                 &evidence.digest().unwrap(),
                 DeclaredOutcome::VerifiedDone,
                 &by(),
+                EXPIRES,
             )
             .await;
         assert_eq!(result.unwrap_err().0, ErrorCode::Forbidden);
@@ -426,6 +446,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
             &evidence.digest().unwrap(),
             DeclaredOutcome::VerifiedDone,
             &by(),
+            EXPIRES,
         )
         .await;
     assert_eq!(bad.unwrap_err().0, ErrorCode::InvalidInput);
@@ -508,6 +529,7 @@ async fn repeating_a_resolution_is_idempotent_and_a_different_one_is_refused() {
             &evidence.digest().unwrap(),
             DeclaredOutcome::VerifiedDone,
             &"8".repeat(64),
+            EXPIRES,
         )
         .await;
     assert_eq!(other_admin.unwrap_err().0, ErrorCode::Conflict);
@@ -553,7 +575,7 @@ async fn an_action_that_no_longer_holds_the_resource_is_not_resolvable() {
     );
     // Kind and table must agree: a container action is not a stack action.
     assert_eq!(
-        resolve(
+        outcome(
             &mut store,
             &engine,
             ResolveKind::Stack,
@@ -563,9 +585,8 @@ async fn an_action_that_no_longer_holds_the_resource_is_not_resolvable() {
             DeclaredOutcome::AcceptedDivergence
         )
         .await
-        .unwrap_err()
-        .0,
-        ErrorCode::NotFound
+        .unwrap(),
+        ResolveOutcome::Absent(limeos_domain::ReceiptAbsence::NeverRecorded)
     );
 }
 
@@ -807,7 +828,7 @@ fn schema_four_upgrade_keeps_rows_and_adds_the_resolved_state() {
     drop(ReceiptStore::open(dir.path()).unwrap());
     {
         let conn = Connection::open(dir.path().join("receipts.sqlite")).unwrap();
-        conn.execute_batch("DROP INDEX actions_resource_lock; DROP INDEX stack_actions_lock; DROP TABLE actions; DROP TABLE stack_actions; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL,operation TEXT NOT NULL DEFAULT 'restart' CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); CREATE TABLE stack_actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','partly_done')),receipt TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX stack_actions_lock ON stack_actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); INSERT INTO actions VALUES('a1','d','container:r','outcome_unknown','{}','restart'); PRAGMA user_version=4;").unwrap();
+        conn.execute_batch("DROP TABLE retention; DROP TABLE pruned_legacy; DROP INDEX actions_resource_lock; DROP INDEX stack_actions_lock; DROP TABLE actions; DROP TABLE stack_actions; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL,operation TEXT NOT NULL DEFAULT 'restart' CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); CREATE TABLE stack_actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','partly_done')),receipt TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX stack_actions_lock ON stack_actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); INSERT INTO actions VALUES('a1','d','container:r','outcome_unknown','{}','restart'); PRAGMA user_version=4;").unwrap();
     }
     let store = ReceiptStore::open(dir.path()).unwrap();
     let version: u32 = store

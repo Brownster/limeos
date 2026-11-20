@@ -462,6 +462,7 @@
       ]
     },
     {
+      "description": "Pure lookup. With no receipt, the answer's `absence` says whether one\ncan ever have been pruned for a plan expiring at `expires_at`.",
       "type": "object",
       "properties": {
         "action": {
@@ -469,6 +470,11 @@
         },
         "digest": {
           "type": "string"
+        },
+        "expires_at": {
+          "description": "The plan's expiry, as core stored it.",
+          "type": "integer",
+          "format": "int64"
         },
         "operation": {
           "type": "string",
@@ -486,7 +492,8 @@
         "operation",
         "version",
         "action",
-        "digest"
+        "digest",
+        "expires_at"
       ]
     },
     {
@@ -571,6 +578,7 @@
       ]
     },
     {
+      "description": "As `RestartReceipt`, for a whole-stack action.",
       "type": "object",
       "properties": {
         "action": {
@@ -578,6 +586,10 @@
         },
         "digest": {
           "type": "string"
+        },
+        "expires_at": {
+          "type": "integer",
+          "format": "int64"
         },
         "operation": {
           "type": "string",
@@ -595,7 +607,8 @@
         "operation",
         "version",
         "action",
-        "digest"
+        "digest",
+        "expires_at"
       ]
     },
     {
@@ -651,6 +664,11 @@
         "evidence_digest": {
           "type": "string"
         },
+        "expires_at": {
+          "description": "The plan's expiry: with no row, decides the answer's `absence`.",
+          "type": "integer",
+          "format": "int64"
+        },
         "kind": {
           "$ref": "#/$defs/ResolveKind"
         },
@@ -678,7 +696,8 @@
         "digest",
         "evidence_digest",
         "declared",
-        "resolved_by"
+        "resolved_by",
+        "expires_at"
       ]
     }
   ],
