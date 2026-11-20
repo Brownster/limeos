@@ -1,5 +1,5 @@
 use limeos_executor::{storage_mount_admission, storage_mount_supervision};
-use limeos_executor_container::{Engine, Lookup, ReceiptStore, RestartCeiling, docker::Docker};
+use limeos_executor_container::{Answer, Engine, ReceiptStore, RestartCeiling, docker::Docker};
 use limeos_executor_protocol::{Ceiling, Request};
 use std::{os::unix::fs::MetadataExt, path::Path, sync::Arc};
 use tokio::{
@@ -453,7 +453,7 @@ async fn run() -> std::io::Result<()> {
                             limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
                         })?;
                         // The plan must be the one `digest` names, row or not.
-                        match store.lookup(
+                        let lookup = store.lookup(
                             &restart_ceiling,
                             peer.uid(),
                             &action,
@@ -461,19 +461,8 @@ async fn run() -> std::io::Result<()> {
                             &plan,
                             close_if_absent,
                             clock(),
-                        )? {
-                            Lookup::Receipt {
-                                receipt: value,
-                                closed,
-                            } => {
-                                receipt.restart = Some(value);
-                                receipt.closed = closed;
-                            }
-                            Lookup::Absent { absence, closed } => {
-                                receipt.absence = Some(absence);
-                                receipt.closed = closed;
-                            }
-                        }
+                        )?;
+                        answer(&mut receipt, Answer::restart_lookup(lookup));
                     }
                     Request::VerifyRestart {
                         action,
@@ -551,7 +540,7 @@ async fn run() -> std::io::Result<()> {
                         let mut store = store.try_lock().map_err(|_| {
                             limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
                         })?;
-                        match store.lookup_stack(
+                        let lookup = store.lookup_stack(
                             &restart_ceiling,
                             peer.uid(),
                             &action,
@@ -559,19 +548,8 @@ async fn run() -> std::io::Result<()> {
                             &plan,
                             close_if_absent,
                             clock(),
-                        )? {
-                            Lookup::Receipt {
-                                receipt: value,
-                                closed,
-                            } => {
-                                receipt.stack = Some(value);
-                                receipt.closed = closed;
-                            }
-                            Lookup::Absent { absence, closed } => {
-                                receipt.absence = Some(absence);
-                                receipt.closed = closed;
-                            }
-                        }
+                        )?;
+                        answer(&mut receipt, Answer::stack_lookup(lookup));
                     }
                     Request::VerifyStack {
                         action,
@@ -615,7 +593,7 @@ async fn run() -> std::io::Result<()> {
                             limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
                         })?;
                         // Read-only re-verification; this arm never reaches an Engine effect.
-                        match store
+                        let outcome = store
                             .resolve_action(
                                 &engine,
                                 &restart_ceiling,
@@ -629,20 +607,8 @@ async fn run() -> std::io::Result<()> {
                                 &plan,
                                 clock(),
                             )
-                            .await?
-                        {
-                            limeos_executor_container::ResolveOutcome::Resolved(value) => {
-                                receipt.resolution = Some(value);
-                            }
-                            // The executor closed the action before answering.
-                            limeos_executor_container::ResolveOutcome::Absent(absence) => {
-                                receipt.absence = Some(absence);
-                                receipt.closed = true;
-                            }
-                            limeos_executor_container::ResolveOutcome::Refused(refusal) => {
-                                receipt.resolution_refusal = Some(refusal);
-                            }
-                        }
+                            .await?;
+                        answer(&mut receipt, Answer::resolve(outcome));
                     }
                     Request::Health { .. } => {}
                     _ => return Err(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden)),
@@ -664,6 +630,25 @@ async fn run() -> std::io::Result<()> {
             .await;
         });
     }
+}
+/// Copies a receipt-store answer into the response, field by same-named
+/// field; which fields an answer sets is decided (and tested) in
+/// `limeos_executor_container::Answer`.
+fn answer(receipt: &mut limeos_executor_protocol::Receipt, answer: Answer) {
+    let Answer {
+        restart,
+        stack,
+        resolution,
+        resolution_refusal,
+        absence,
+        closed,
+    } = answer;
+    receipt.restart = restart;
+    receipt.stack = stack;
+    receipt.resolution = resolution;
+    receipt.resolution_refusal = resolution_refusal;
+    receipt.absence = absence;
+    receipt.closed = closed;
 }
 /// An execute refused by the receipt store's clock-free barrier: its plan
 /// expires at or below the prune watermark (`retention`). Logged, because

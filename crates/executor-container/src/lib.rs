@@ -6,6 +6,7 @@ pub use limeos_domain::{
     ContainerReceipt, ContainerRequest, ExecutionState, RestartReceipt, RestartRequest,
     StackReceipt, StackRequest,
 };
+mod answer;
 mod closure;
 pub mod compose_files;
 pub mod compose_management;
@@ -17,6 +18,7 @@ mod logs;
 mod resolution;
 mod retention;
 mod stack;
+pub use answer::Answer;
 pub use closure::Lookup;
 pub use resolution::{RESOLVED, ResolveOutcome};
 pub use retention::verified_expiry;
