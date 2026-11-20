@@ -1,5 +1,7 @@
 //! Pure SnapRAID configuration and operation eligibility. These previews cannot execute.
-use crate::pools::{beneath, finding, finish, mount_path, name, overlap, require};
+#[cfg(feature = "deferred")]
+use crate::pools::beneath;
+use crate::pools::{finding, finish, mount_path, name, overlap, require};
 use crate::{
     PoolsConfig, StorageBlockDevice, StorageContract, StorageDevice, StorageInventory,
     StorageMediaIdentity, StoragePlanningFindingCode, StoragePlanningResult, StorageRole,
@@ -9,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use ts_rs::TS;
 
+#[cfg(feature = "deferred")]
 pub mod scrub;
 
 pub const PROTECTION_EVIDENCE_MAX_AGE_SECONDS: i64 = 5;
@@ -432,12 +435,14 @@ pub struct ProtectionSourceEvidence {
     pub inventory: StorageInventory,
     pub paths: Vec<ProtectionPathObservation>,
 }
+#[cfg(feature = "deferred")]
 pub(crate) fn recent(observed_at: i64, now: i64) -> bool {
     observed_at > 0
         && now
             .checked_sub(observed_at)
             .is_some_and(|age| (0..=PROTECTION_EVIDENCE_MAX_AGE_SECONDS).contains(&age))
 }
+#[cfg(feature = "deferred")]
 impl SnapraidPreview {
     fn check_sources(
         &self,
@@ -611,6 +616,7 @@ pub struct SnapraidSyncPreview {
     pub diff: SnapraidDiffEvidence,
 }
 
+#[cfg(feature = "deferred")]
 /// No force/override parameter exists. Future overrides need their own audited operation.
 pub fn plan_snapraid_sync(
     config: &SnapraidConfig,

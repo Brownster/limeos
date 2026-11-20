@@ -55,6 +55,7 @@ pub fn container_signal(
         summary,
     }))
 }
+#[cfg(feature = "deferred")]
 pub fn smart_signal(
     resource: &str,
     passed: Option<bool>,
@@ -86,6 +87,7 @@ pub fn smart_signal(
         summary: message,
     })
 }
+#[cfg(feature = "deferred")]
 /// `present=None` means collection is partial/unavailable, never verified absence.
 pub fn required_mount_signal(path: &str, present: Option<bool>) -> Result<AlertSignal> {
     if !path.starts_with('/') {
@@ -105,6 +107,7 @@ pub fn required_mount_signal(path: &str, present: Option<bool>) -> Result<AlertS
         summary: format!("{path} {suffix}"),
     })
 }
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProtectionHealth {
     Unconfigured,
@@ -113,6 +116,7 @@ pub enum ProtectionHealth {
     NeedsSync,
     Unavailable,
 }
+#[cfg(feature = "deferred")]
 pub fn protection_signal(
     state: ProtectionHealth,
     message: Option<&str>,

@@ -92,6 +92,7 @@ fn failed_or_acknowledged_opening_is_not_delivery_proof() {
     );
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn interrupted_delivery_preserves_original_identity_without_resend() {
     let started = incident(DeliveryChannel::External).begin(1000).unwrap();
@@ -109,6 +110,7 @@ fn interrupted_delivery_preserves_original_identity_without_resend() {
     assert!(started.recover_interrupted(999).is_err());
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn ambiguous_opening_never_releases_recovery() {
     let opening = incident(DeliveryChannel::InApp)

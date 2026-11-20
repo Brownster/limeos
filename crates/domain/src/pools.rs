@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 use std::fmt::Write;
 use ts_rs::TS;
 
+#[cfg(feature = "deferred")]
 pub mod document;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]

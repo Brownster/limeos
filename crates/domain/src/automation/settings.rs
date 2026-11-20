@@ -1,12 +1,16 @@
 //! Pure frozen health-settings migration. No file, credential, Store or authority access.
 use super::{AlertKind, AlertPolicy, Silence, valid_time};
 use serde::Serialize;
+#[cfg(feature = "deferred")]
 use serde::de::IgnoredAny;
+#[cfg(feature = "deferred")]
 use serde_json::{Map, Value};
 
 pub const MAX_POLICY_BYTES: usize = 64 * 1024;
 pub const MAX_ENVIRONMENT_BYTES: usize = 4096;
+#[cfg(feature = "deferred")]
 const MAX_JSON_DEPTH: usize = 64;
+#[cfg(feature = "deferred")]
 const KINDS: [(AlertKind, &str); 4] = [
     (AlertKind::Container, "container"),
     (AlertKind::Smart, "smart"),
@@ -79,7 +83,9 @@ pub struct SettingsReview {
     pub reason: ReviewReason,
     pub index: Option<usize>,
 }
+#[cfg(feature = "deferred")]
 type Result<T> = std::result::Result<T, SettingsReview>;
+#[cfg(feature = "deferred")]
 fn issue(field: SettingField, reason: ReviewReason) -> SettingsReview {
     SettingsReview {
         field,
@@ -158,9 +164,11 @@ impl PlannedHealthSettings {
 }
 
 // Python str.strip also includes these four ASCII information separators.
+#[cfg(feature = "deferred")]
 fn trim(value: &str) -> &str {
     value.trim_matches(|c: char| c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c))
 }
+#[cfg(feature = "deferred")]
 fn integer(value: Option<&str>, default: u32, field: SettingField) -> Result<u32> {
     let value = value.unwrap_or("").trim();
     if value.chars().any(|c| !c.is_ascii() && c.is_numeric()) {
@@ -195,6 +203,7 @@ fn integer(value: Option<&str>, default: u32, field: SettingField) -> Result<u32
     }
     Ok(number.max(1))
 }
+#[cfg(feature = "deferred")]
 fn json_depth(body: &str) -> Result<()> {
     let (mut depth, mut quoted, mut escape) = (0usize, false, false);
     for byte in body.bytes() {
@@ -217,6 +226,7 @@ fn json_depth(body: &str) -> Result<()> {
     }
     Ok(())
 }
+#[cfg(feature = "deferred")]
 fn read_policy(input: LegacyPolicyRead<'_>) -> Result<(Option<Value>, PolicyOrigin)> {
     let fallback = |reason| (None, PolicyOrigin::Environment(reason));
     let body = match input {
@@ -247,6 +257,7 @@ fn read_policy(input: LegacyPolicyRead<'_>) -> Result<(Option<Value>, PolicyOrig
     };
     Ok((Some(value), PolicyOrigin::Policy))
 }
+#[cfg(feature = "deferred")]
 fn falsey(value: &Value) -> bool {
     match value {
         Value::Null => true,
@@ -257,6 +268,7 @@ fn falsey(value: &Value) -> bool {
         Value::Object(value) => value.is_empty(),
     }
 }
+#[cfg(feature = "deferred")]
 fn mount(value: &str, mounts: &mut Vec<String>) -> Result<()> {
     if !value.starts_with('/') || value.contains('\0') {
         return Err(issue(
@@ -281,6 +293,7 @@ fn mount(value: &str, mounts: &mut Vec<String>) -> Result<()> {
     }
     Ok(())
 }
+#[cfg(feature = "deferred")]
 fn policy_mounts(object: &Map<String, Value>) -> Result<Vec<String>> {
     let mut mounts = Vec::new();
     if let Some(value) = object.get("required_mounts") {
@@ -304,6 +317,7 @@ fn policy_mounts(object: &Map<String, Value>) -> Result<Vec<String>> {
     }
     Ok(mounts)
 }
+#[cfg(feature = "deferred")]
 fn categories(object: &Map<String, Value>) -> Result<Vec<AlertKind>> {
     let mut disabled = Vec::new();
     if let Some(value) = object.get("categories") {
@@ -338,6 +352,7 @@ mod timestamp;
 pub(super) fn policy_timestamp(value: &str) -> Option<PlannedTimestamp> {
     timestamp::parse(value)
 }
+#[cfg(feature = "deferred")]
 fn silence(value: &Value, default_created_at: &str) -> Result<PlannedSilence> {
     let object = value
         .as_object()
@@ -411,6 +426,7 @@ fn silence(value: &Value, default_created_at: &str) -> Result<PlannedSilence> {
     })
 }
 
+#[cfg(feature = "deferred")]
 /// Produce all settings or one review issue. No partial candidate is returned.
 /// `default_created_at` is an explicit trusted migration observation time, used
 /// only where the legacy normalizer would supply its wall clock.

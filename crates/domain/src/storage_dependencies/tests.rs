@@ -1,5 +1,7 @@
 use super::*;
-use serde_json::{Value, json};
+#[cfg(feature = "deferred")]
+use serde_json::Value;
+use serde_json::json;
 
 fn consumer(id: char, source: &str, running: bool) -> ContainerStorageConsumer {
     ContainerStorageConsumer {
@@ -26,6 +28,7 @@ fn inventory() -> ContainerStorageInventory {
         containers: vec![consumer('a', "/mnt/storage/Media", true)],
     }
 }
+#[cfg(feature = "deferred")]
 fn contract() -> StorageContract {
     let fixtures: Value = serde_json::from_str(include_str!(
         "../../../../tests/fixtures/storage-contracts.json"
@@ -33,6 +36,7 @@ fn contract() -> StorageContract {
     .unwrap();
     serde_json::from_value(fixtures["cases"][0]["contract"].clone()).unwrap()
 }
+#[cfg(feature = "deferred")]
 #[test]
 fn declared_overlap_includes_stopped_ancestors_but_preserves_components_and_case() {
     let mut value = inventory();

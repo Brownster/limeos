@@ -1,6 +1,7 @@
 use super::*;
 use serde_json::json;
 
+#[cfg(feature = "deferred")]
 #[test]
 fn planned_configuration_preserves_silence_metadata_and_literal_mounts() {
     let planned=settings::plan_health_settings(settings::LegacyHealthEnvironment {

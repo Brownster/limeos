@@ -499,6 +499,7 @@ fn frozen_long_running_container_rules_ignore_one_shots() {
         SignalStatus::Healthy
     );
 }
+#[cfg(feature = "deferred")]
 #[test]
 fn collector_gaps_are_unavailable_and_mount_paths_remain_literal() {
     assert_eq!(
@@ -528,6 +529,7 @@ fn collector_gaps_are_unavailable_and_mount_paths_remain_literal() {
     assert!(required_mount_signal("relative", Some(true)).is_err());
     assert!(smart_signal(&"x".repeat(256), Some(false), None).is_err());
 }
+#[cfg(feature = "deferred")]
 #[test]
 fn frozen_protection_status_severity_without_new_thresholds() {
     assert!(

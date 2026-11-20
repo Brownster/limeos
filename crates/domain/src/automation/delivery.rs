@@ -143,6 +143,7 @@ impl Notification {
         };
         Ok(next)
     }
+    #[cfg(feature = "deferred")]
     /// Startup reconciliation uses the same identity and attempt count. An in-flight
     /// send may already have reached a receiver, so interruption is not rejection.
     /// The central supervisor decides which attempts were actually interrupted.

@@ -32,6 +32,7 @@ impl Default for HealthPolicyDefinition {
     }
 }
 impl HealthPolicyDefinition {
+    #[cfg(feature = "deferred")]
     pub fn from_planned(value: &settings::PlannedHealthSettings) -> Result<Self> {
         let result = Self {
             fail_threshold: value.fail_threshold(),
