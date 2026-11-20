@@ -1,13 +1,51 @@
 #!/usr/bin/env bash
-# Never delete authority databases, users, or credentials on removal.
+# Never delete authority databases, users, or credentials on removal or purge.
+#
+# remove and purge do the same, idempotent work: drop the enablement links of
+# the three enabled units (their unit files are already gone, so the links
+# are removed directly; every one is WantedBy=multi-user.target), drop the
+# prerm restart record under /run, and reload a running manager. They keep
+# /var/lib/limeos (authority, assistant state, executor receipts and
+# journals), the ceilings and every other file under /etc/limeos, operator
+# drop-ins under /etc/systemd/system, and the service accounts and groups.
+# dpkg itself deletes the conffile /etc/limeos/core.json on purge.
+# upgrade, failed-upgrade, abort-install, abort-upgrade and disappear change
+# nothing: postinst still needs the restart record after an upgrade.
 set -Eeuo pipefail
+ENABLED_UNITS=(limeos-core.service limeos-containerd.service limeos-storaged.service)
+RESTART_DIRECTORY=/run/limeos-package
+fct_systemd_running() { [[ -d "${DPKG_ROOT:-}/run/systemd/system" ]]; }
+fct_disable_units() {
+    local wants="${DPKG_ROOT:-}/etc/systemd/system/multi-user.target.wants" unit
+    for unit in "${ENABLED_UNITS[@]}"; do
+        # Only the link systemctl enable made; never an operator's file.
+        if [[ -L "${wants}/${unit}" ]]; then rm -f -- "${wants}/${unit}"; fi
+    done
+}
+fct_drop_restart_record() {
+    local directory="${DPKG_ROOT:-}${RESTART_DIRECTORY}"
+    if [[ -L "${directory}" ]]; then
+        rm -f -- "${directory}"
+    elif [[ -d "${directory}" ]]; then
+        rm -rf -- "${directory}"
+    fi
+}
 fct_main() {
     case "${1:-}" in
         remove|purge)
-            if [[ -d /run/systemd/system ]]; then
-                systemctl disable limeos-core.service limeos-containerd.service limeos-storaged.service
-                systemctl daemon-reload
+            fct_disable_units
+            fct_drop_restart_record
+            # The files are gone; a manager that cannot reload is not a reason
+            # to leave the package half-removed.
+            if fct_systemd_running && command -v systemctl >/dev/null; then
+                systemctl daemon-reload || printf '%s\n' 'Warning: systemctl daemon-reload failed after removing LimeOS units.' >&2
             fi
+            ;;
+        upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+            ;;
+        *)
+            printf 'postrm called with unknown argument: %s\n' "${1:-}" >&2
+            return 1
             ;;
     esac
 }

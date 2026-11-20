@@ -1,19 +1,63 @@
 #!/usr/bin/env bash
-# Stop before replacing binaries, preserving all state.
+# Stop before replacing or removing binaries, preserving all state.
+#
+# remove, upgrade, failed-upgrade and deconfigure all stop the services: core
+# first, then its executors, then the optional units. A unit whose file is
+# already gone (a second removal) or that was never started is skipped; a
+# unit that still has work, or a state the manager cannot vouch for, aborts.
+# Units that were running and that the package will start again (the core
+# units and the read-only storage reader, never an effect unit) are recorded
+# under /run first, so postinst can restart them after an upgrade or an abort.
+# Paths take dpkg's DPKG_ROOT prefix; without a running manager under it
+# (chroot or image build) nothing is stopped.
 set -Eeuo pipefail
-fct_on_error() { printf '%s\n' 'LimeOS services could not be stopped; package removal has stopped.' >&2; }
+fct_on_error() { printf '%s\n' 'LimeOS services could not be stopped; the package change has stopped.' >&2; }
 trap fct_on_error ERR
+CORE_UNIT=limeos-core.service
+EXECUTOR_UNITS=(limeos-containerd.service limeos-storaged.service)
+OPTIONAL_UNITS=(limeos-storage-mounts.service limeos-storage-reader.service limeos-storage-ready.service limeos-storage-targets.service)
+# Started again by postinst when they were running. Effect units stay dormant
+# until the operator starts them; the one-shot readiness check is its caller's.
+RESTARTED_UNITS=(limeos-core.service limeos-containerd.service limeos-storaged.service limeos-storage-reader.service)
+RESTART_DIRECTORY=/run/limeos-package
+fct_systemd_running() { [[ -d "${DPKG_ROOT:-}/run/systemd/system" ]]; }
 fct_optional_cgroup_state() {
-    local unit="${1}"
-    [[ -f /sys/fs/cgroup/cgroup.controllers ]] || return 1
-    if [[ -e "/sys/fs/cgroup/system.slice/${unit}" ]]; then
+    local unit="${1}" cgroup_root="${DPKG_ROOT:-}/sys/fs/cgroup"
+    [[ -f "${cgroup_root}/cgroup.controllers" ]] || return 1
+    if [[ -e "${cgroup_root}/system.slice/${unit}" ]]; then
         printf '%s\n' present
     else
         printf '%s\n' absent
     fi
 }
+# A unit without a file may be skipped only when it is inactive, has no
+# manager cgroup and no remaining unit cgroup in the unified hierarchy.
+fct_absent_unit_idle() {
+    local unit="${1}" state cgroup cgroup_state
+    state="$(systemctl show "${unit}" -p ActiveState --value)"
+    cgroup="$(systemctl show "${unit}" -p ControlGroup --value)"
+    cgroup_state="$(fct_optional_cgroup_state "${unit}")"
+    if [[ "${state}" != inactive || -n "${cgroup}" || "${cgroup_state}" != absent ]]; then
+        printf 'Absent unit still has active or uncertain work: %s\n' "${unit}" >&2
+        return 1
+    fi
+}
+# Core and executors: loaded or masked units are stopped (a stop of a masked
+# unit is allowed and ends any work it still has).
+fct_stop_service() {
+    local unit="${1}" load_state
+    load_state="$(systemctl show "${unit}" -p LoadState --value)"
+    case "${load_state}" in
+        loaded|masked) systemctl stop "${unit}" ;;
+        not-found) fct_absent_unit_idle "${unit}" ;;
+        *)
+            printf 'Refusing uncertain unit state: %s (%s)\n' "${unit}" "${load_state}" >&2
+            return 1
+            ;;
+    esac
+}
 fct_stop_optional_service() {
-    local unit="${1}" load_state state cgroup cgroup_state
+    local unit="${1}" load_state
     # A manager failure is a checked command error, never an absent unit.
     load_state="$(systemctl show "${unit}" -p LoadState --value)"
     case "${load_state}" in
@@ -25,13 +69,7 @@ fct_stop_optional_service() {
             fi
             ;;
         not-found)
-            state="$(systemctl show "${unit}" -p ActiveState --value)"
-            cgroup="$(systemctl show "${unit}" -p ControlGroup --value)"
-            cgroup_state="$(fct_optional_cgroup_state "${unit}")"
-            if [[ "${state}" != inactive || -n "${cgroup}" || "${cgroup_state}" != absent ]]; then
-                printf 'Absent optional unit still has active or uncertain work: %s\n' "${unit}" >&2
-                return 1
-            fi
+            fct_absent_unit_idle "${unit}"
             ;;
         *)
             printf 'Refusing uncertain optional unit state: %s (%s)\n' "${unit}" "${load_state}" >&2
@@ -56,7 +94,7 @@ fct_stop_mount_service() {
     fi
     cgroup="$(systemctl show "${unit}" -p ControlGroup --value)"
     if [[ -n "${cgroup}" ]]; then
-        if [[ "${cgroup}" != "/system.slice/${unit}" || ! -f "/sys/fs/cgroup${cgroup}/cgroup.events" || -L "/sys/fs/cgroup${cgroup}/cgroup.events" ]]; then
+        if [[ "${cgroup}" != "/system.slice/${unit}" || ! -f "${DPKG_ROOT:-}/sys/fs/cgroup${cgroup}/cgroup.events" || -L "${DPKG_ROOT:-}/sys/fs/cgroup${cgroup}/cgroup.events" ]]; then
             printf 'Unsupported mount service cgroup: %s\n' "${unit}" >&2
             return 1
         fi
@@ -68,24 +106,68 @@ fct_stop_mount_service() {
                 fi
                 populated="${value}"
             fi
-        done <"/sys/fs/cgroup${cgroup}/cgroup.events"
+        done <"${DPKG_ROOT:-}/sys/fs/cgroup${cgroup}/cgroup.events"
         [[ "${populated}" == 0 ]] || return 1
     fi
     # This controls package teardown only. It never refines a mount receipt,
     # discards a journal/claim, or treats an absent mount as helper termination.
 }
+# Add a running unit to the record before it is stopped, so a failed stop is
+# still restarted by postinst's abort handling. The record only grows here:
+# a second run (failed-upgrade after a failed upgrade) finds units already
+# stopped and must not lose them. postinst and the post-removal script delete it.
+fct_record_running() {
+    local unit="${1}" state directory="${DPKG_ROOT:-}${RESTART_DIRECTORY}" line temporary
+    local -a lines=()
+    state="$(systemctl show "${unit}" -p ActiveState --value)"
+    case "${state}" in
+        active|activating|reloading) ;;
+        *) return 0 ;;
+    esac
+    if [[ -L "${directory}" || -L "${directory}/units" ]]; then
+        printf 'Refusing symlinked restart record: %s\n' "${directory}" >&2
+        return 1
+    fi
+    [[ -d "${directory}" ]] || mkdir -m 0700 -- "${directory}"
+    if [[ -f "${directory}/units" ]]; then
+        while IFS= read -r line || [[ -n "${line}" ]]; do
+            [[ "${line}" != "${unit}" ]] || return 0
+            lines+=("${line}")
+        done <"${directory}/units"
+    fi
+    lines+=("${unit}")
+    temporary="$(mktemp "${directory}/.units.XXXXXX")"
+    printf '%s\n' "${lines[@]}" >"${temporary}"
+    mv -fT -- "${temporary}" "${directory}/units"
+}
+fct_restarted() {
+    local unit="${1}" candidate
+    for candidate in "${RESTARTED_UNITS[@]}"; do [[ "${candidate}" != "${unit}" ]] || return 0; done
+    return 1
+}
+fct_stop_all() {
+    local unit
+    fct_systemd_running || return 0
+    for unit in "${CORE_UNIT}" "${EXECUTOR_UNITS[@]}"; do
+        if fct_restarted "${unit}"; then fct_record_running "${unit}"; fi
+        fct_stop_service "${unit}"
+    done
+    for unit in "${OPTIONAL_UNITS[@]}"; do
+        # Earlier packages may lack the unit; masked/error/unknown
+        # states or surviving cgroups must not bypass teardown.
+        if fct_restarted "${unit}"; then fct_record_running "${unit}"; fi
+        fct_stop_optional_service "${unit}"
+    done
+}
 fct_main() {
     case "${1:-}" in
-        remove|deconfigure|upgrade)
-            if [[ -d /run/systemd/system ]]; then systemctl stop limeos-core.service limeos-containerd.service limeos-storaged.service; fi
-            if [[ -d /run/systemd/system ]]; then
-                local unit
-                for unit in limeos-storage-mounts.service limeos-storage-reader.service limeos-storage-ready.service limeos-storage-targets.service; do
-                    # Earlier packages may lack the unit; masked/error/unknown
-                    # states or surviving cgroups must not bypass teardown.
-                    fct_stop_optional_service "${unit}"
-                done
-            fi
+        remove|upgrade|failed-upgrade|deconfigure)
+            fct_stop_all
+            ;;
+        *)
+            trap - ERR
+            printf 'LimeOS pre-removal called with unknown argument: %s\n' "${1:-}" >&2
+            return 1
             ;;
     esac
 }
