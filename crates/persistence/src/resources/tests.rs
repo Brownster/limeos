@@ -595,3 +595,94 @@ fn real_process_kill_preserves_every_committed_claim() {
     assert_eq!(locks(&s, &id).len(), 4);
     check(&s.conn).unwrap();
 }
+
+#[test]
+fn v16_upgrade_adds_the_event_indexes_and_keeps_every_row() {
+    let (dir, mut s, p) = setup();
+    let path = dir.path().join("core.sqlite");
+    let job = queue(&mut s, &p, "upgraded", "a");
+    s.claim_container(&p, &job.id, &snapshot("a"), 203).unwrap();
+    let rows = |conn: &Connection| -> (i64, i64, i64, i64) {
+        conn.query_row("SELECT (SELECT count(*) FROM events),(SELECT count(*) FROM jobs),(SELECT count(*) FROM resource_locks),(SELECT audit_bytes FROM meta)",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).unwrap()
+    };
+    let before = rows(&s.conn);
+    crate::remove_v17_schema(&s.conn);
+    s.conn.execute_batch("PRAGMA user_version=16").unwrap();
+    // The reference check compares the index as it does triggers.
+    assert!(check(&s.conn).is_err());
+    drop(s);
+    let s = Store::open(&path).unwrap();
+    let version: u32 = s
+        .conn
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .unwrap();
+    assert_eq!(version, SCHEMA_VERSION);
+    check(&s.conn).unwrap();
+    // Startup recovered the claimed job: one more event, nothing lost.
+    let after = rows(&s.conn);
+    assert_eq!(after, (before.0 + 1, before.1, before.2, before.3 + 256));
+    assert_eq!(s.job_state(&job.id).unwrap(), "needs_intervention");
+    drop(s);
+    Store::open(&path).unwrap();
+}
+
+#[test]
+fn missing_or_changed_event_indexes_refuse_startup() {
+    for tamper in [
+        "DROP INDEX events_job",
+        "DROP INDEX events_job; CREATE INDEX events_job ON events(job)",
+        "DROP INDEX events_kind",
+    ] {
+        let (dir, s, _) = setup();
+        s.conn.execute_batch(tamper).unwrap();
+        drop(s);
+        assert_eq!(
+            Store::open(&dir.path().join("core.sqlite"))
+                .err()
+                .unwrap()
+                .0,
+            ErrorCode::StateNotDurable
+        );
+    }
+}
+
+#[test]
+fn event_reads_by_job_and_kind_use_the_indexes() {
+    let (_dir, s, _) = setup();
+    for (query, index) in [
+        (
+            "SELECT cursor,kind,created FROM events WHERE job=? AND principal=? AND cursor>? ORDER BY cursor LIMIT 128",
+            "events_job",
+        ),
+        (
+            "SELECT count(*),coalesce(min(created),-1),coalesce(sum(principal IS NOT ?),0) FROM events WHERE job=? AND kind=?",
+            "events_job",
+        ),
+        ("SELECT min(created) FROM events WHERE job=?", "events_job"),
+        (
+            "SELECT coalesce(max(json_extract(kind,'$.revision')),0) FROM events WHERE principal=? AND job IS NULL AND cursor<? AND json_extract(kind,'$.kind')='automation_health_policy_changed'",
+            "events_kind",
+        ),
+        (
+            "SELECT EXISTS(SELECT 1 FROM events WHERE json_extract(kind,'$.kind')='automation_notification_created' GROUP BY json_extract(kind,'$.notification') HAVING count(*)<>1)",
+            "events_kind",
+        ),
+    ] {
+        let plan: Vec<String> = s
+            .conn
+            .prepare(&format!("EXPLAIN QUERY PLAN {query}"))
+            .unwrap()
+            .query_map(
+                rusqlite::params_from_iter(std::iter::repeat_n("x", query.matches('?').count())),
+                |r| r.get(3),
+            )
+            .unwrap()
+            .collect::<std::result::Result<_, _>>()
+            .unwrap();
+        assert!(
+            plan.iter()
+                .any(|step| step.contains(&format!("INDEX {index} "))),
+            "{query}: {plan:?}"
+        );
+    }
+}

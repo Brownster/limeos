@@ -12,7 +12,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 16;
+pub const SCHEMA_VERSION: u32 = 17;
 pub const QUEUE_CAPACITY: usize = 64;
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
@@ -136,7 +136,7 @@ impl Store {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(durable)?;
         match version {
-            0..=15 => {
+            0..=16 => {
                 if version < 1 {
                     tx.execute_batch(include_str!("schema.sql"))
                         .map_err(durable)?;
@@ -197,7 +197,11 @@ impl Store {
                     tx.execute_batch(include_str!("migration-v15.sql"))
                         .map_err(durable)?;
                 }
-                tx.execute_batch(include_str!("migration-v16.sql"))
+                if version < 16 {
+                    tx.execute_batch(include_str!("migration-v16.sql"))
+                        .map_err(durable)?;
+                }
+                tx.execute_batch(include_str!("migration-v17.sql"))
                     .map_err(durable)?;
             }
             SCHEMA_VERSION => {}
@@ -312,7 +316,14 @@ fn remove_v10_schema(conn: &Connection) {
 }
 
 #[cfg(test)]
+fn remove_v17_schema(conn: &Connection) {
+    conn.execute_batch("DROP INDEX IF EXISTS events_kind; DROP INDEX IF EXISTS events_job;")
+        .unwrap();
+}
+
+#[cfg(test)]
 fn remove_v16_schema(conn: &Connection) {
+    remove_v17_schema(conn);
     // Back to the version-15 jobs CHECK (no `resolved`) and no resolution table.
     conn.execute_batch("DROP TRIGGER IF EXISTS jobs_resolved_update; DROP TRIGGER IF EXISTS jobs_resolved_insert; DROP TABLE IF EXISTS job_resolutions; PRAGMA writable_schema=ON; UPDATE sqlite_schema SET sql=replace(sql,',''resolved'')',')') WHERE type='table' AND name='jobs'; PRAGMA writable_schema=RESET;").unwrap();
 }
@@ -359,5 +370,7 @@ fn remove_v7_schema(conn: &Connection) {
         .unwrap();
 }
 
+#[cfg(test)]
+mod scale;
 #[cfg(test)]
 mod tests;
