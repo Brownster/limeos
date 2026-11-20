@@ -972,3 +972,40 @@ async fn a_project_that_appears_after_collection_blocks_the_stack_it_overlaps() 
         }
     }
 }
+#[tokio::test]
+async fn a_path_segment_the_stack_model_refuses_degrades_one_container_not_the_inventory() {
+    let long = format!("/opt/{}", "x".repeat(256));
+    let mut other = stack_labels("other", "app");
+    other["com.docker.compose.project.working_dir"] = json!(long);
+    let mut files = stack_labels("other", "app");
+    files["com.docker.compose.project.config_files"] = json!(format!("{long}/compose.yaml"));
+    for labels in [other, files] {
+        // Hidden by truncation, and inspected.
+        let truncated = crowded(vec![
+            (0, stack_labels("media", "app")),
+            (1, stack_labels("media", "db")),
+            (64, labels.clone()),
+        ]);
+        let inspected = Config {
+            count: 3,
+            all_running: true,
+            mounts: 0,
+            compose_labels: Some(vec![
+                stack_labels("media", "app"),
+                stack_labels("media", "db"),
+                labels.clone(),
+            ]),
+            ..config()
+        };
+        for config in [truncated, inspected] {
+            let fixture = fixture(config).await;
+            let owner = inspect(&fixture).await.unwrap();
+            assert_eq!(owner.snapshot().unattributed, 1, "{labels}");
+            assert!(owner.snapshot().hidden_projects.is_empty());
+            let view = stacks(&owner, &["media"]).await;
+            assert_eq!(view.unattributed_containers, Some(1));
+            assert_eq!(issues_of(&view, "media"), [StackIssue::IncompleteInventory]);
+            assert_eq!(view.stacks[0].counts.unwrap().running, 2);
+        }
+    }
+}

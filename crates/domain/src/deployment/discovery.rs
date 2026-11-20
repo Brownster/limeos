@@ -276,7 +276,10 @@ fn invalid() -> Error {
 fn limit() -> Error {
     Error(ErrorCode::Unavailable)
 }
-fn name(value: &str, project: bool) -> bool {
+/// A Compose project name (`project`) or service name as this model accepts
+/// it. The container executor reads Engine labels with this same rule, so a
+/// container it attributes is never one the model then refuses.
+pub fn compose_name(value: &str, project: bool) -> bool {
     !value.is_empty()
         && value.len() <= 64
         && value.as_bytes()[0].is_ascii_alphanumeric()
@@ -286,7 +289,13 @@ fn name(value: &str, project: bool) -> bool {
                 || (!project && b == b'.')
         })
 }
-fn path(value: &str) -> bool {
+fn name(value: &str, project: bool) -> bool {
+    compose_name(value, project)
+}
+/// A Compose working directory or config file path as this model accepts it:
+/// absolute, at most 512 bytes, 16 segments of at most 255 bytes, no empty,
+/// `.` or `..` segment, comma or control character. Shared with the executor.
+pub fn compose_path(value: &str) -> bool {
     value.starts_with('/')
         && value.len() <= 512
         && !value.contains(',')
@@ -295,6 +304,9 @@ fn path(value: &str) -> bool {
         && value[1..]
             .split('/')
             .all(|p| !matches!(p, "" | "." | "..") && p.len() <= 255)
+}
+fn path(value: &str) -> bool {
+    compose_path(value)
 }
 fn overlap(a: &str, b: &str) -> bool {
     a == b

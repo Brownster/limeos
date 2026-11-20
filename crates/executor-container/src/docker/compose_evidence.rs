@@ -141,25 +141,14 @@ impl Capture {
 fn refused() -> Error {
     Error(ErrorCode::Unavailable)
 }
+/// One rule with the stack model (`limeos_domain::deployment::discovery`): a
+/// label it would refuse is never attributed here, so it degrades that one
+/// container instead of the whole inventory.
 fn name(value: &str, project: bool) -> bool {
-    let first = value.as_bytes().first().copied();
-    value.len() <= 64
-        && first.is_some_and(|c| c.is_ascii_alphanumeric() && (!project || !c.is_ascii_uppercase()))
-        && value.bytes().all(|c| {
-            (c.is_ascii_alphanumeric() && (!project || !c.is_ascii_uppercase()))
-                || b"_-".contains(&c)
-                || (!project && c == b'.')
-        })
+    limeos_domain::deployment::discovery::compose_name(value, project)
 }
 fn path(value: &str) -> bool {
-    value.starts_with('/')
-        && value.len() <= 512
-        && !value.chars().any(char::is_control)
-        && !value.contains(',')
-        && value[1..].split('/').count() <= 16
-        && value[1..]
-            .split('/')
-            .all(|part| !matches!(part, "" | "." | ".."))
+    limeos_domain::deployment::discovery::compose_path(value)
 }
 /// The ordered config files of a label value, or `None` where an inspection
 /// would refuse them: one rule for inspected containers and listed rows.
