@@ -83,8 +83,9 @@ fn project_and_service_names_have_exact_literal_64_byte_grammars() {
 #[test]
 fn paths_accept_exact_byte_and_component_limits_and_refuse_noncanonical_names() {
     let mut value = labels();
-    value[DIRECTORY] = json!(format!("/{}", "d".repeat(511)));
-    value[FILES] = json!(format!("/{}", "f".repeat(511)));
+    // 512 bytes in two segments of the 255-byte segment limit.
+    value[DIRECTORY] = json!(format!("/{0}/{0}", "d".repeat(255)));
+    value[FILES] = json!(format!("/{0}/{0}", "f".repeat(255)));
     assert!(parsed(value.clone()).is_ok());
     for text in [
         "relative".into(),
@@ -96,6 +97,7 @@ fn paths_accept_exact_byte_and_component_limits_and_refuse_noncanonical_names() 
         "/private\nvalue".into(),
         "/a,b".into(),
         format!("/{}", "x".repeat(512)),
+        format!("/{}", "x".repeat(256)),
         format!("/{}", "d/".repeat(16) + "d"),
     ] {
         let mut bad = value.clone();

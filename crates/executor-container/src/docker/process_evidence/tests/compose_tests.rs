@@ -440,10 +440,11 @@ async fn combined_profile_count_running_and_selected_mount_ceilings_are_unchange
 #[tokio::test]
 async fn total_storage_and_compose_report_refuses_without_raising_the_original_ceiling() {
     let mut long = labels("media");
-    long["com.docker.compose.project.working_dir"] = json!(format!("/{}", "d".repeat(511)));
+    // Every path at 512 bytes, in segments within the 255-byte limit.
+    long["com.docker.compose.project.working_dir"] = json!(format!("/{0}/{0}", "d".repeat(255)));
     long["com.docker.compose.project.config_files"] = json!(
         (0..4)
-            .map(|i| format!("/{}{i}", "f".repeat(510)))
+            .map(|i| format!("/{}/{}{i}", "f".repeat(255), "f".repeat(254)))
             .collect::<Vec<_>>()
             .join(",")
     );
