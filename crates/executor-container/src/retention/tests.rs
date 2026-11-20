@@ -202,6 +202,79 @@ async fn a_replayed_id_whose_receipt_was_pruned_is_refused_even_if_the_clock_ste
     assert_eq!(engine.effects.load(Ordering::SeqCst), 1);
 }
 
+/// Replay protection covers a retained action id: the same id with any other
+/// plan is `Conflict`. Once the receipt is pruned the id is unknown, and a new
+/// valid plan under it executes like a fresh id would. That grants nothing: the
+/// executor trusts core within the root-owned ceiling and does not verify
+/// approvals, so core could mint a fresh id instead (ADR 0003). Pinned so a
+/// change to it is deliberate.
+#[tokio::test]
+async fn a_pruned_action_id_with_a_new_valid_plan_executes_like_a_fresh_id() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let engine = Engine1 {
+        current: Mutex::new(snapshot('a', 0, true)),
+        effects: AtomicUsize::new(0),
+    };
+    let first = restart(0, engine.current.lock().unwrap().clone());
+    store
+        .execute(&engine, &ceiling(), 1001, &first, || created(0) + 1)
+        .await
+        .unwrap();
+    let after = engine.current.lock().unwrap().clone();
+    store
+        .verify(
+            &engine,
+            &ceiling(),
+            1001,
+            &first.action,
+            &first.plan_digest,
+            &after,
+        )
+        .await
+        .unwrap();
+    // The same id, a later plan with fresh timestamps and its own digest.
+    let later = 1000;
+    let mut reused = restart(later, after.clone());
+    reused.action = first.action.clone();
+    let now = created(later) + 1;
+    assert!(now > first.plan.expires_at + RETAIN_AFTER_EXPIRY);
+    assert_eq!(
+        store
+            .execute(&engine, &ceiling(), 1001, &reused, || now)
+            .await
+            .unwrap_err()
+            .0,
+        ErrorCode::Conflict
+    );
+    assert_eq!(engine.effects.load(Ordering::SeqCst), 1);
+    // Over budget with young receipts only: retention prunes the first one.
+    for i in 0..RETAINED_ACTIONS {
+        insert(
+            &store,
+            "actions",
+            &format!("y{i}"),
+            &format!("dy{i}"),
+            &format!("container:y{i}"),
+            "verified",
+            now,
+        );
+    }
+    assert_eq!(prune_all(&mut store, now), 1);
+    assert!(
+        store
+            .receipt(&first.action, &first.plan_digest)
+            .unwrap()
+            .is_none()
+    );
+    let receipt = store
+        .execute(&engine, &ceiling(), 1001, &reused, || now)
+        .await
+        .unwrap();
+    assert_eq!(receipt.state, ExecutionState::EffectAccepted);
+    assert_eq!(engine.effects.load(Ordering::SeqCst), 2);
+}
+
 fn insert(
     store: &ReceiptStore,
     table: &str,
