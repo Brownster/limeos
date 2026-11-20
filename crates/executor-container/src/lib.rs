@@ -22,6 +22,25 @@ pub use answer::Answer;
 pub use closure::Lookup;
 pub use resolution::{RESOLVED, ResolveOutcome};
 pub use retention::verified_expiry;
+/// Rows of `actions` the store holds at most: an execute that would pass it is
+/// refused `Overloaded`, a last resort retention keeps far away.
+const MAX_ACTION_ROWS: u32 = 8192;
+/// The store's page cap (`PRAGMA max_page_count`): an insert past it fails.
+const MAX_PAGES: u32 = 4096;
+/// The largest store file `open` accepts.
+const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
+/// The store's limits, for the long-uptime soak to assert against rather
+/// than copies of them.
+#[doc(hidden)]
+pub mod limits {
+    pub const MAX_ACTION_ROWS: u32 = super::MAX_ACTION_ROWS;
+    pub const MAX_STACK_ROWS: u32 = super::stack::MAX_STACK_ROWS;
+    pub const MAX_PAGES: u32 = super::MAX_PAGES;
+    pub const MAX_FILE_BYTES: u64 = super::MAX_FILE_BYTES;
+    pub const RETAINED_ACTIONS: u32 = super::retention::RETAINED_ACTIONS;
+    pub const RETAINED_STACKS: u32 = super::retention::RETAINED_STACKS;
+    pub const PRUNE_BATCH: u32 = super::retention::PRUNE_BATCH;
+}
 /// The receipt store's schema (`PRAGMA user_version`) after every migration.
 /// Opening a newer store refuses; tests and documentation name this constant.
 pub const RECEIPT_SCHEMA_VERSION: u32 = 8;
@@ -201,7 +220,7 @@ impl ReceiptStore {
         let lock = ReceiptLock(lock);
         let path = directory.join("receipts.sqlite");
         if std::fs::symlink_metadata(&path).is_ok_and(|m| {
-            !m.is_file() || m.uid() != uid || m.mode() & 0o077 != 0 || m.len() > 16 * 1024 * 1024
+            !m.is_file() || m.uid() != uid || m.mode() & 0o077 != 0 || m.len() > MAX_FILE_BYTES
         }) {
             return Err(Error(ErrorCode::StateNotDurable));
         }
@@ -216,7 +235,7 @@ impl ReceiptStore {
         }
         conn.busy_timeout(Duration::from_millis(200))
             .map_err(durable)?;
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF; PRAGMA max_page_count=4096; PRAGMA wal_autocheckpoint=128; PRAGMA journal_size_limit=1048576;").map_err(durable)?;
+        conn.execute_batch(&format!("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF; PRAGMA max_page_count={MAX_PAGES}; PRAGMA wal_autocheckpoint=128; PRAGMA journal_size_limit=1048576;")).map_err(durable)?;
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(durable)?;
@@ -389,7 +408,7 @@ impl ReceiptStore {
         let count: u32 = tx
             .query_row("SELECT count(*) FROM actions", [], |r| r.get(0))
             .map_err(durable)?;
-        if count >= 8192 {
+        if count >= MAX_ACTION_ROWS {
             return Err(Error(ErrorCode::Overloaded));
         }
         tx.execute(
