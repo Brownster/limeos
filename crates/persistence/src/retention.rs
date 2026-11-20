@@ -56,6 +56,19 @@
 //! itself, with its final state, is never removed, and serves as the snapshot
 //! when its history is gone.
 //!
+//! # Known limit: automation results (solve before enabling a producer)
+//!
+//! Nothing here bounds automation results. `automation_observation_results`
+//! holds up to `MAX_RESULTS` (65,536) rows that no trigger lets anyone
+//! delete, each result pins its observation job's events (queued,
+//! transition, settlement and notification proofs, about four), and the
+//! `jobs` table is never pruned. Together they can fill the 64 MiB audit cap
+//! on their own: one observation schedule at the 30 s minimum gets there in
+//! about 23 days, after which every write but revocation is refused. No
+//! producer reserves observations yet; this must be solved (result
+//! retention that the completion check accepts, and job-row retention)
+//! before one is enabled.
+//!
 //! Occurrences (mirroring the `automation_occurrence_delete` trigger):
 //! - An occurrence whose job is not `succeeded`, `failed`, `canceled` or
 //!   `precondition_changed` (queued observation work).

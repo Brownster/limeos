@@ -33,6 +33,9 @@ const ROW_BYTES: usize = 4096;
 const RESOURCE_BYTES: usize = 512;
 const BATCH_BYTES: usize = 1024 * 1024;
 const LEASE_SECONDS: u64 = 10;
+/// Results are never deleted. Known limit, to solve before a producer is
+/// enabled: at this many results their pinned events alone fill the audit
+/// cap (see the retention module's "Known limit").
 const MAX_RESULTS: i64 = AUDIT_LIMIT / (4 * 256);
 
 pub(crate) struct ActiveObservation {
