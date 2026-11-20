@@ -28,8 +28,11 @@ use rusqlite::Transaction;
 pub(crate) const RETAINED_ACTIONS: u32 = 1024;
 /// Stack receipts kept; each carries at most `MAX_STACK_MEMBERS` member rows.
 pub(crate) const RETAINED_STACKS: u32 = 256;
-/// Rows removed by one insert, at most.
+/// Rows removed by one insert, at most. A stack is removed whole or not at
+/// all, so a batch stops before a stack that would exceed it; one whole stack
+/// always fits, so every batch over budget makes progress.
 pub(crate) const PRUNE_BATCH: u32 = 64;
+const _: () = assert!((limeos_domain::MAX_STACK_MEMBERS as u32) < PRUNE_BATCH);
 /// A receipt outlives its plan's expiry by at least this many seconds. Core
 /// reads the same constant to decide when a missing receipt stops proving that
 /// nothing was sent (`limeos_domain::receipt_absence_proves_unsent`).
@@ -75,7 +78,16 @@ pub(crate) fn prune(tx: &Transaction<'_>, now: i64) -> Result<u32> {
                 .map_err(durable)?
         };
         for (action, digest) in candidates {
-            if removed >= PRUNE_BATCH {
+            let rows: u32 = tx
+                .query_row(
+                    &format!(
+                        "SELECT count(*)+1 FROM actions WHERE digest=?1 AND state IN {TERMINAL}"
+                    ),
+                    [&digest],
+                    |r| r.get(0),
+                )
+                .map_err(durable)?;
+            if removed.saturating_add(rows) > PRUNE_BATCH {
                 break;
             }
             let members = tx

@@ -225,7 +225,8 @@ fn prune_all(store: &mut ReceiptStore, now: i64) -> u32 {
     loop {
         let tx = store.conn.transaction().unwrap();
         let removed = prune(&tx, now).unwrap();
-        assert!(removed <= PRUNE_BATCH + limeos_domain::MAX_STACK_MEMBERS as u32);
+        // The documented bound holds even when stacks are removed whole.
+        assert!(removed <= PRUNE_BATCH, "{removed} rows in one batch");
         tx.commit().unwrap();
         if removed == 0 {
             return total;
@@ -475,6 +476,53 @@ fn no_receipt_is_pruned_while_core_still_reads_its_absence_as_never_sent() {
             "SELECT count(*) FROM stack_actions WHERE action='v0'"
         ),
         0
+    );
+}
+
+#[test]
+fn a_batch_stops_before_a_stack_that_would_exceed_the_row_bound() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let members = limeos_domain::MAX_STACK_MEMBERS as u32;
+    for i in 0..RETAINED_STACKS + 10 {
+        let digest = format!("dw{i}");
+        insert(
+            &store,
+            "stack_actions",
+            &format!("w{i}"),
+            &digest,
+            &format!("stack:w{i}"),
+            "verified",
+            0,
+        );
+        for m in 0..members {
+            insert(
+                &store,
+                "actions",
+                &format!("w{i}m{m}"),
+                &digest,
+                &format!("container:w{i}m{m}"),
+                "verified",
+                0,
+            );
+        }
+    }
+    let tx = store.conn.transaction().unwrap();
+    let removed = prune(&tx, 100_000).unwrap();
+    tx.commit().unwrap();
+    // Whole stacks of 17 rows: three fit in 64, a fourth would not.
+    assert_eq!(removed, (PRUNE_BATCH / (members + 1)) * (members + 1));
+    assert_eq!(
+        count(&store, "SELECT count(*) FROM stack_actions"),
+        RETAINED_STACKS + 10 - PRUNE_BATCH / (members + 1)
+    );
+    assert_eq!(
+        prune_all(&mut store, 100_000),
+        (10 - PRUNE_BATCH / (members + 1)) * (members + 1)
+    );
+    assert_eq!(
+        count(&store, "SELECT count(*) FROM stack_actions"),
+        RETAINED_STACKS
     );
 }
 
