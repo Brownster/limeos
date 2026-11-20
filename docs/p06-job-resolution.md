@@ -6,7 +6,7 @@ Resolution is bookkeeping plus read-only verification. It never starts, stops or
 
 ## Who may do it
 
-Only an administrator, only on an interactive session. There is no grant, task scope, token or API key that carries it. The HTTP routes read the session cookie and nothing else; any `Authorization` or `X-API-Key` header is refused with 403. The decision also needs the usual `Origin` and `X-CSRF-Token` headers and the administrator's own password (fresh re-authentication; the repo's existing precedent is the observe-health enablement, which also takes `password` in the body). Wrong password is 401 `unauthenticated`: if `GET /api/v1/auth/session` still succeeds, the session is fine and the password was wrong. Failed password attempts are limited to ten per minute per administrator, shared with the observe-health enablement and separate from the login budget of any username; a correct password (even when the decision then fails) and a malformed body or password do not count (429 `overloaded` when exceeded). One administrator is enough; `accepted_divergence` does not need a second.
+Only an administrator, only on an interactive session. There is no grant, task scope, token or API key that carries it. The HTTP routes read the session cookie and nothing else: an `Authorization` header is ignored (a reverse proxy's basic authentication adds one; it never authenticates), and any `X-API-Key` header is refused with 403. The decision also needs the usual `Origin` and `X-CSRF-Token` headers and the administrator's own password (fresh re-authentication; the repo's existing precedent is the observe-health enablement, which also takes `password` in the body). Wrong password is 401 `unauthenticated`: if `GET /api/v1/auth/session` still succeeds, the session is fine and the password was wrong. Failed password attempts are limited to ten per minute per administrator, shared with the observe-health enablement and separate from the login budget of any username; a correct password (even when the decision then fails) and a malformed body or password do not count (429 `overloaded` when exceeded). One administrator is enough; `accepted_divergence` does not need a second.
 
 ## Outcomes
 
@@ -96,7 +96,7 @@ A browser or proxy deadline does not interrupt a decision that was already recor
 
 ## Finding other principals' stuck jobs
 
-`GET /api/v1/container/jobs` and `/api/v1/stack/jobs` list only the caller's own jobs, so an operator's stuck job would be invisible to an administrator, while its locks block everyone. `GET /api/v1/jobs/needs-attention` is the administrator's read-only view of all of them. Same credential rule as the evidence route: session cookie only, any `Authorization` or `X-API-Key` header is 403, 401 without a session, 403 for a non-administrator (who keep seeing only their own jobs). A GET, so no CSRF.
+`GET /api/v1/container/jobs` and `/api/v1/stack/jobs` list only the caller's own jobs, so an operator's stuck job would be invisible to an administrator, while its locks block everyone. `GET /api/v1/jobs/needs-attention` is the administrator's read-only view of all of them. Same credential rule as the evidence route: session cookie only, an `Authorization` header is ignored, any `X-API-Key` header is 403, 401 without a session, 403 for a non-administrator (who keep seeing only their own jobs). A GET, so no CSRF.
 
 ```json
 [

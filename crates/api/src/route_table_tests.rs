@@ -348,8 +348,9 @@ async fn every_mutating_route_refuses_no_session_no_csrf_a_foreign_origin_and_no
         }
         // Past the gate, the backend decides session, CSRF and scope in the
         // call itself, handed exactly the caller's credentials.
+        // A proxy's Authorization header alongside changes nothing.
         backend.clear();
-        let sent = request(
+        let mut sent = request(
             method,
             path,
             Some(VIEWER),
@@ -357,6 +358,8 @@ async fn every_mutating_route_refuses_no_session_no_csrf_a_foreign_origin_and_no
             Some(CSRF),
             body.clone(),
         );
+        sent.headers_mut()
+            .insert("authorization", HeaderValue::from_static("Basic YTpi"));
         let (status, got) = send(&backend, sent).await;
         assert_eq!(
             (status, got),
@@ -394,26 +397,32 @@ async fn every_read_needs_the_session_cookie_and_hands_its_token_to_the_backend(
         .await;
         assert_eq!(got, ErrorCode::Unauthenticated, "{path}");
         assert!(backend.calls().is_empty(), "{path}");
-        // A bearer or key header is never a credential, cookie or not.
-        let mut bearer = request(&entry.method, &path, Some(VIEWER), None, None, None);
-        bearer
-            .headers_mut()
-            .insert("authorization", HeaderValue::from_static("Bearer x"));
+        // There are no API keys: a key header is refused, cookie or not.
+        let mut key = request(&entry.method, &path, Some(VIEWER), None, None, None);
+        key.headers_mut()
+            .insert("x-api-key", HeaderValue::from_static("key"));
+        assert_eq!(send(&backend, key).await.1, ErrorCode::Forbidden, "{path}");
+        assert!(backend.calls().is_empty(), "{path}");
+        // An Authorization header is never a credential: alone it gets 401.
+        let mut bearer = request(&entry.method, &path, None, None, None, None);
+        bearer.headers_mut().insert(
+            "authorization",
+            HeaderValue::from_str(&format!("Bearer {VIEWER}")).unwrap(),
+        );
         assert_eq!(
             send(&backend, bearer).await.1,
-            ErrorCode::Forbidden,
+            ErrorCode::Unauthenticated,
             "{path}"
         );
         assert!(backend.calls().is_empty(), "{path}");
+        // Next to the cookie (a proxy's basic authentication adds one), it
+        // changes nothing: the cookie's token reaches the backend.
+        let mut signed = request(&entry.method, &path, Some(VIEWER), None, None, None);
+        signed
+            .headers_mut()
+            .insert("authorization", HeaderValue::from_static("Basic YTpi"));
         let response = router(backend.clone(), ORIGIN.into())
-            .oneshot(request(
-                &entry.method,
-                &path,
-                Some(VIEWER),
-                None,
-                None,
-                None,
-            ))
+            .oneshot(signed)
             .await
             .unwrap();
         let calls = backend.calls();

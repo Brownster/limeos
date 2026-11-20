@@ -20,6 +20,8 @@ const UNKNOWN: &str = "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 /// Well formed, and no session's CSRF value.
 const WRONG_CSRF: &str = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 const PASSWORD: &str = "legacy-password";
+/// What Caddy's `basic_auth` in front of LimeOS forwards on every request.
+const PROXY_BASIC: &str = "Basic b3BlcmF0b3I6aHVudGVyMg==";
 
 #[derive(Clone)]
 struct Session {
@@ -515,8 +517,19 @@ async fn every_route_is_authenticated_by_core_itself() {
                 misses.push(format!("{name}: {case}: {answer:?}"));
             }
         };
+        let bearer = format!("Bearer {}", sweep.admin.token);
         let mut cases = vec![
             (Ask::anonymous(), 401, "no cookie"),
+            // An Authorization header alone authenticates nothing, even one
+            // carrying a live session's token.
+            (
+                Ask {
+                    authorization: Some(&bearer),
+                    ..Ask::anonymous()
+                },
+                401,
+                "Authorization header, no cookie",
+            ),
             (
                 Ask {
                     cookie: Some(UNKNOWN),
@@ -605,8 +618,14 @@ async fn every_route_is_authenticated_by_core_itself() {
         // Authenticated and scoped: whatever core then answers, it is neither
         // "who are you" nor the 403 the CSRF and Origin cases expect, so
         // those cases above are refusals and not core's own answer.
+        // The administrator's request carries the Authorization header a
+        // proxy's basic authentication adds: it changes nothing.
         if name != "POST /api/v1/auth/logout" {
-            let answer = send(&sweep.core, route, &uri, Ask::signed(&sweep.admin), body).await;
+            let ask = Ask {
+                authorization: Some(PROXY_BASIC),
+                ..Ask::signed(&sweep.admin)
+            };
+            let answer = send(&sweep.core, route, &uri, ask, body).await;
             if matches!(answer.status, 401 | 403) {
                 misses.push(format!("{name}: administrator: {answer:?}"));
             }
@@ -637,7 +656,10 @@ async fn a_signed_in_scoped_request_passes_the_gate_in_each_access_class() {
         &sweep.core,
         &session,
         "/api/v1/auth/session",
-        Ask::signed(&sweep.admin),
+        Ask {
+            authorization: Some(PROXY_BASIC),
+            ..Ask::signed(&sweep.admin)
+        },
         None,
     )
     .await;
@@ -648,7 +670,10 @@ async fn a_signed_in_scoped_request_passes_the_gate_in_each_access_class() {
         &sweep.core,
         &logout,
         "/api/v1/auth/logout",
-        Ask::signed(&sweep.spare),
+        Ask {
+            authorization: Some(PROXY_BASIC),
+            ..Ask::signed(&sweep.spare)
+        },
         None,
     )
     .await;

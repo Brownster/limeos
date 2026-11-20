@@ -586,12 +586,19 @@ def refusals():
     check(status == 401, "wrong password was not 401", status=status, body=body)
     check(hx("/api/v1/auth/session")[0] == 200, "session lost after a wrong password")
     detail["wrong_password"] = status
-    # header credentials
-    for header in ({"Authorization": "Bearer " + "a" * 64}, {"X-API-Key": "b" * 64}):
-        name = next(iter(header))
-        statuses = [hx(resolution_path(d3["job"]), extra=header)[0], hx(resolution_path(d3["job"]), "POST", {"declared": "accepted_divergence", "reason": reason, "evidence_digest": "0" * 64, "password": PASSWORD}, extra=header)[0]]
-        check(statuses == [403, 403], f"{name} was not refused", statuses=statuses)
-        detail[name] = statuses
+    # header credentials: an API key is refused; an Authorization header is
+    # never a credential (alone it is anonymous) and, as a proxy's basic
+    # authentication adds one, it changes nothing next to the cookie
+    header = {"X-API-Key": "b" * 64}
+    statuses = [hx(resolution_path(d3["job"]), extra=header)[0], hx(resolution_path(d3["job"]), "POST", {"declared": "accepted_divergence", "reason": reason, "evidence_digest": "0" * 64, "password": PASSWORD}, extra=header)[0]]
+    check(statuses == [403, 403], "X-API-Key was not refused", statuses=statuses)
+    detail["X-API-Key"] = statuses
+    header = {"Authorization": "Bearer " + session["cookie"].split("=", 1)[1]}
+    statuses = [hx(resolution_path(d3["job"]), cookie=False, extra=header)[0], hx(resolution_path(d3["job"]), "POST", {"declared": "accepted_divergence", "reason": reason, "evidence_digest": "0" * 64, "password": PASSWORD}, cookie=False, extra=header)[0]]
+    check(statuses == [401, 401], "an Authorization header authenticated", statuses=statuses)
+    proxied = hx(resolution_path(d3["job"]), extra={"Authorization": "Basic b3BlcmF0b3I6aHVudGVyMg=="})[0]
+    check(proxied == 200, "a proxy's Authorization header was refused", status=proxied)
+    detail["Authorization"] = statuses + [proxied]
     # non-admin session
     scoped_id, secret = "e" * 64, "f" * 64
     sha = lambda value: __import__("hashlib").sha256(value.encode()).hexdigest()  # noqa: E731

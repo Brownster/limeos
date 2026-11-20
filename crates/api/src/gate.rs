@@ -303,10 +303,14 @@ pub(crate) fn mount<B: Backend>(app: &App<B>) -> Router<App<B>> {
         })
 }
 
-/// The session cookie is the only credential: a request that offers a bearer
-/// or key header is refused, with or without a cookie.
+/// The session cookie is the only credential. An `Authorization` header is
+/// never read: a reverse proxy's basic authentication (Caddy `basic_auth`)
+/// forwards one on every request, so it neither authenticates nor refuses.
+/// An `X-API-Key` header is refused, with or without a cookie: LimeOS has no
+/// API keys and no proxy adds one, so a client offering one is told so
+/// (docs/p06-job-resolution.md) rather than served as whoever its cookie is.
 fn cookie_only(headers: &HeaderMap) -> Result<()> {
-    if headers.contains_key("authorization") || headers.contains_key("x-api-key") {
+    if headers.contains_key("x-api-key") {
         return Err(Error(ErrorCode::Forbidden));
     }
     Ok(())
