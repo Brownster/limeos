@@ -8,6 +8,7 @@ Run: python3 -m unittest discover -s tests/cutover
 import fcntl
 import hashlib
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -845,6 +846,7 @@ class ActivateTests(Harness):
         self.assertNotIn("@SITE@", site)
         self.assertNotIn("@TLS@", site)
         self.assertIn("reverse_proxy 127.0.0.1:8003", site)
+        self.assertIn("keepalive 20s", site)
 
     def test_operator_certificate_mode(self):
         self._write("/etc/ssl/lime.crt", "c")
@@ -2602,6 +2604,27 @@ class LintTests(unittest.TestCase):
         scripts = sorted(str(p.relative_to(REPO)) for p in SCRIPTS.glob("*.sh"))
         result = subprocess.run(["shellcheck", *scripts], cwd=REPO, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+class ProxyKeepAliveTests(unittest.TestCase):
+    """Caddy must drop an idle upstream connection before core does, or a
+    request (a POST is not retried) can land on one core is closing: 502."""
+
+    def core_idle_seconds(self):
+        serve = (REPO / "crates/api/src/serve.rs").read_text()
+        match = re.search(r"idle: Duration::from_secs\((\d+)\)", serve)
+        self.assertIsNotNone(match, "core's idle limit not found")
+        return int(match.group(1))
+
+    def test_both_example_sites_keep_upstream_connections_shorter_than_core(self):
+        idle = self.core_idle_seconds()
+        for name in ("Caddyfile.example", "Caddyfile.cutover.example"):
+            with self.subTest(site=name):
+                text = (REPO / "packaging" / name).read_text()
+                proxy = text[text.index("reverse_proxy 127.0.0.1:8003"):]
+                match = re.search(r"transport http \{\s*keepalive (\d+)s\s*\}", proxy)
+                self.assertIsNotNone(match, f"{name}: no upstream keepalive")
+                self.assertLess(int(match.group(1)), idle)
 
 
 if __name__ == "__main__":
