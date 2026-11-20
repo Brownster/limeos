@@ -152,9 +152,10 @@ pub(super) fn settled(conn: &Connection) -> Result<i64> {
     .map_err(durable)
 }
 
-/// The oldest removable jobs (rules 1 to 6), with their events and resources.
-/// Parameters: the horizon's cutoff, each family's floor (the rowid of its
-/// `FLOOR`th newest settled job, or NULL while it has no more), the limit.
+/// The oldest removable jobs (rules 1 to 6), with their events, resources
+/// and family. Parameters: the horizon's cutoff, each family's floor (the
+/// rowid of its `FLOOR`th newest settled job, NULL while it has no more, or
+/// the largest rowid while it is not read yet), the limit.
 /// Settled jobs past the cutoff are found through `jobs_state`; each one's
 /// events through `events_job`, everything else by its primary or unique key.
 fn candidates() -> String {
@@ -169,13 +170,23 @@ fn candidates() -> String {
         })
         .collect::<Vec<_>>()
         .join(" OR ");
+    let family = format!(
+        "CASE {} END",
+        FAMILIES
+            .iter()
+            .enumerate()
+            .map(|(n, operations)| format!(
+                " WHEN json_extract(j.intent,'$.operation') IN {operations} THEN {n}"
+            ))
+            .collect::<String>()
+    );
     let protecting = PROTECTING
         .iter()
         .map(|table| format!(" AND NOT EXISTS(SELECT 1 FROM {table} x WHERE x.job=j.id)"))
         .collect::<String>();
     let limit = FAMILIES.len() + 2;
     format!(
-        "SELECT j.id,(SELECT count(*) FROM events e INDEXED BY events_job WHERE e.job=j.id),(SELECT count(*) FROM job_resources r WHERE r.job=j.id) FROM jobs j WHERE j.state IN {SETTLED_STATES} AND j.deadline<?1 AND ({families}) AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND (r.confirmation IS NULL OR r.completed>=?1)) AND NOT EXISTS(SELECT 1 FROM events e INDEXED BY events_job WHERE e.job=j.id AND (e.created>=?1 OR json_extract(e.kind,'$.kind') IN ({}))) AND NOT EXISTS(SELECT 1 FROM container_results x WHERE x.job=j.id AND x.recorded>=?1) AND NOT EXISTS(SELECT 1 FROM stack_results x WHERE x.job=j.id AND x.recorded>=?1){protecting} ORDER BY j.deadline,j.rowid LIMIT ?{limit}",
+        "SELECT j.id,(SELECT count(*) FROM events e INDEXED BY events_job WHERE e.job=j.id),(SELECT count(*) FROM job_resources r WHERE r.job=j.id),{family} FROM jobs j WHERE j.state IN {SETTLED_STATES} AND j.deadline<?1 AND ({families}) AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND (r.confirmation IS NULL OR r.completed>=?1)) AND NOT EXISTS(SELECT 1 FROM events e INDEXED BY events_job WHERE e.job=j.id AND (e.created>=?1 OR json_extract(e.kind,'$.kind') IN ({}))) AND NOT EXISTS(SELECT 1 FROM container_results x WHERE x.job=j.id AND x.recorded>=?1) AND NOT EXISTS(SELECT 1 FROM stack_results x WHERE x.job=j.id AND x.recorded>=?1){protecting} ORDER BY j.deadline,j.rowid LIMIT ?{limit}",
         quoted(&AUTHORITY_KINDS)
     )
 }
@@ -196,31 +207,60 @@ fn floor(tx: &Transaction<'_>, operations: &str) -> Result<Option<i64>> {
 
 /// One batch at `now`: at most `limit` (and [`BATCH`]) jobs, at most [`ROWS`]
 /// rows, or the oldest events of one job too long for a batch.
+///
+/// A family's floor is read (a walk of `jobs` from its newest row until the
+/// floor's worth of that family) only once that family has a job past the
+/// horizon: the candidates are read with no floor for a family whose floor
+/// is not known yet, then again with the floor of every family among them,
+/// until no new family appears (at most once per family more). Every job
+/// returned in the end is past its family's floor; a pass with nothing past
+/// the horizon reads no floor at all.
 pub(super) fn prune(tx: &Transaction<'_>, limit: i64, now: i64) -> Result<Removed> {
-    let mut floors = Vec::with_capacity(FAMILIES.len());
-    for operations in FAMILIES {
-        floors.push(floor(tx, operations)?);
-    }
-    if floors.iter().all(Option::is_none) {
-        return Ok(Removed::default());
-    }
     let cutoff = now.saturating_sub(HORIZON);
-    let mut values: Vec<rusqlite::types::Value> = vec![cutoff.into()];
-    values.extend(floors.into_iter().map(rusqlite::types::Value::from));
-    values.push(limit.min(BATCH).into());
-    let found: Vec<(String, i64, i64)> = tx
-        .prepare(&candidates())
-        .map_err(durable)?
-        .query_map(rusqlite::params_from_iter(values), |r| {
-            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
-        })
-        .map_err(durable)?
-        .collect::<std::result::Result<_, _>>()
-        .map_err(durable)?;
+    let sql = candidates();
+    let mut statement = tx.prepare_cached(&sql).map_err(durable)?;
+    // Per family: not read yet (`None`), or its floor (`Some(None)` while it
+    // has no more than `FLOOR` settled jobs, so none of them goes).
+    let mut floors: [Option<Option<i64>>; FAMILIES.len()] = [None; FAMILIES.len()];
+    let found = loop {
+        let mut values: Vec<rusqlite::types::Value> = vec![cutoff.into()];
+        values.extend(floors.iter().map(|floor| match floor {
+            None => i64::MAX.into(),
+            Some(floor) => rusqlite::types::Value::from(*floor),
+        }));
+        values.push(limit.min(BATCH).into());
+        let found: Vec<(String, i64, i64, usize)> = statement
+            .query_map(rusqlite::params_from_iter(values), |r| {
+                let family: i64 = r.get(3)?;
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    usize::try_from(family).unwrap_or(usize::MAX),
+                ))
+            })
+            .map_err(durable)?
+            .collect::<std::result::Result<_, _>>()
+            .map_err(durable)?;
+        let mut unread = false;
+        for (_, _, _, family) in &found {
+            if floors
+                .get(*family)
+                .ok_or(Error(ErrorCode::StateNotDurable))?
+                .is_none()
+            {
+                floors[*family] = Some(floor(tx, FAMILIES[*family])?);
+                unread = true;
+            }
+        }
+        if !unread {
+            break found;
+        }
+    };
     let mut removed = Removed::default();
     let mut rows = 0;
     let mut whole = Vec::new();
-    for (id, events, resources) in found {
+    for (id, events, resources, _) in found {
         // The job row, its plan, result and resolution, at most one each.
         let cost = events + resources + 4;
         if rows + cost <= ROWS {
