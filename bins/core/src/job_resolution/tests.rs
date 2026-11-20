@@ -1275,3 +1275,45 @@ async fn a_hundred_superseded_requests_do_not_starve_a_newer_one() {
     f.retry(&mut Rotation::default()).await;
     assert_eq!(f.state().await, JobState::Resolved);
 }
+
+/// The retry loop superseded (deleted) the request before a completion in
+/// flight could record the executor's confirmation: nothing remains to
+/// retry, so the operator is told the job already settled, with its state,
+/// never that the request is pending.
+#[tokio::test]
+async fn a_completion_whose_request_was_already_superseded_reports_the_settled_job() {
+    use limeos_domain::EventKind;
+    let f = fixture().await;
+    f.set(Mode::Down);
+    f.resolve(DeclaredOutcome::NotDone).await.unwrap();
+    let id = f.job.clone();
+    let pending = f
+        .core
+        .db
+        .call(move |s| s.pending_resolution(&id))
+        .await
+        .unwrap()
+        .unwrap();
+    settle_by_recovery(&f).await;
+    let superseded = f
+        .core
+        .db
+        .call(|s| s.supersede_resolutions(now()))
+        .await
+        .unwrap();
+    assert_eq!(superseded.len(), 1);
+    f.set(Mode::Ok);
+    let actor = f.session.view.principal.clone();
+    assert!(matches!(
+        f.core.finish_resolution(&pending, &actor).await,
+        Finish::Superseded(JobState::PreconditionChanged)
+    ));
+    assert_eq!(
+        superseded_events(&f).await,
+        vec![EventKind::JobResolutionSuperseded {
+            state: JobState::PreconditionChanged,
+        }]
+    );
+    assert_eq!(f.state().await, JobState::PreconditionChanged);
+    assert_eq!(f.counts().2, 0);
+}

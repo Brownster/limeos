@@ -40,6 +40,16 @@ fn awaiting(state: JobState) -> bool {
         JobState::NeedsIntervention | JobState::Running | JobState::Verifying
     )
 }
+/// The states in which a job still holds its locks (persistence's `HELD`).
+fn held(state: JobState) -> bool {
+    matches!(
+        state,
+        JobState::Running
+            | JobState::Verifying
+            | JobState::OutcomeUnknown
+            | JobState::NeedsIntervention
+    )
+}
 const PENDING_MESSAGE: &str = "The request is recorded and the job stays held. The executor could not confirm; core retries automatically. Repeat the same request or check again shortly.";
 
 fn view_of(
@@ -298,6 +308,20 @@ impl Core {
                         {
                             Ok(Some(state)) => Finish::Superseded(state),
                             Ok(None) => Finish::Pending(ErrorCode::Conflict),
+                            Err(e) => Finish::Pending(e.0),
+                        }
+                    }
+                    // No request left: the retry loop has already superseded
+                    // it, so nothing remains to retry. Report the state the
+                    // job settled as; a job still held lost its request some
+                    // other way and stays pending for the operator to see.
+                    Err(Error(ErrorCode::NotFound)) => {
+                        let job = request.job.clone();
+                        match self.db.call(move |s| s.job_state(&job)).await {
+                            Ok(state) => match serde_json::from_value::<JobState>(state.into()) {
+                                Ok(state) if !held(state) => Finish::Superseded(state),
+                                _ => Finish::Pending(ErrorCode::NotFound),
+                            },
                             Err(e) => Finish::Pending(e.0),
                         }
                     }
