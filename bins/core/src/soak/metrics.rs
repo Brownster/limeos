@@ -13,6 +13,14 @@
 //! after every fifteen samples keeps its 16-message queue from overflowing
 //! and orders the measurements. Its writes are counted on its own thread
 //! (`/proc/self/task/<tid>/io` of `limeos-telemetry`).
+//!
+//! It cannot pass empty: every night each view the store answers (24 hours,
+//! 7 days, 30 days, each at its own bucket size) must cover its whole range
+//! once that much history exists, with every point the average of exactly
+//! the samples written into its bucket; and the table must hold the full
+//! retained history (one row a minute, none missing), with its oldest row at
+//! the retention boundary: retention removes the oldest rows, and only
+//! those.
 use super::{
     sim::soak_dir,
     support::{DAY, HOUR, MINUTE, START, mib, slope},
@@ -27,7 +35,7 @@ const FILE_BOUND: u64 = 4 << 20;
 const ROWS: i64 = RETENTION / MINUTE + 5;
 
 /// Bytes and calls written so far by the telemetry writer thread.
-fn written() -> (u64, u64) {
+fn written_by_thread() -> (u64, u64) {
     let tasks = std::fs::read_dir("/proc/self/task").expect("per-thread accounting");
     let mut found = None;
     for task in tasks.flatten() {
@@ -51,11 +59,117 @@ fn written() -> (u64, u64) {
     found.expect("the telemetry writer thread is running")
 }
 
+/// The table holds the retained history: one row a minute with none
+/// missing, the newest no older than the unflushed samples (a flush is five
+/// of them), the oldest at the retention boundary once that much was
+/// written, so retention removed the oldest rows and only those.
+fn retained(path: &Path, at: i64, problems: &mut Vec<String>) {
+    let (rows, oldest, newest): (i64, i64, i64) = super::checks::reader(path)
+        .unwrap()
+        .query_row("SELECT count(*),min(at),max(at) FROM samples", [], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })
+        .unwrap();
+    let day = (at - START) as f64 / DAY as f64;
+    let flush = 5 * MINUTE;
+    let boundary = (at - RETENTION).max(START);
+    if rows != (newest - oldest) / MINUTE + 1 {
+        problems.push(format!(
+            "day {day:.2}: {rows} samples between {oldest} and {newest}: rows are missing inside the retained history"
+        ));
+    }
+    if newest < at - flush - MINUTE {
+        problems.push(format!(
+            "day {day:.2}: the newest sample is {} s old: samples are not written",
+            at - newest
+        ));
+    }
+    if oldest < boundary - flush || oldest > boundary + flush {
+        problems.push(format!(
+            "day {day:.2}: the oldest sample is {} s before now, the retention boundary {} s: retention removed {}",
+            at - oldest,
+            at - boundary,
+            if oldest > boundary { "more than the oldest" } else { "too little" }
+        ));
+    }
+    if at - START > RETENTION && rows < RETENTION / MINUTE - flush / MINUTE {
+        problems.push(format!(
+            "day {day:.2}: {rows} samples kept, less than the {} minutes of retained history",
+            RETENTION / MINUTE
+        ));
+    }
+}
+
 fn size(path: &Path) -> u64 {
     let len = |p: &Path| std::fs::metadata(p).map_or(0, |m| m.len());
     let mut wal = path.as_os_str().to_owned();
     wal.push("-wal");
     len(path) + len(Path::new(&wal))
+}
+
+/// The samples written for each minute, by time: what every view must
+/// average.
+fn written(at: i64) -> [f64; 4] {
+    let minute = (at - START) / MINUTE;
+    let m = sample(minute);
+    [
+        m.cpu_percent.unwrap(),
+        m.memory_percent.unwrap(),
+        m.temperature_celsius.unwrap(),
+        m.disk_percent.unwrap(),
+    ]
+}
+
+/// A view checked against what was written before `at` (exclusive): every
+/// bucket of its range from the first written sample, each point exactly
+/// the average of its bucket's samples.
+fn check_view(view: &limeos_contracts::MetricHistory, at: i64, problems: &mut Vec<String>) {
+    let (duration, bucket) = view.range.bounds();
+    let from = at - duration;
+    let first = from.max(START);
+    let key = |t: i64| from + ((t - from) / bucket).min(duration / bucket - 1) * bucket;
+    let mut expected = std::collections::BTreeMap::<i64, ([f64; 4], u32)>::new();
+    let mut t = first + (MINUTE - (first - START).rem_euclid(MINUTE)) % MINUTE;
+    while t < at {
+        let entry = expected.entry(key(t)).or_insert(([0.0; 4], 0));
+        for (sum, value) in entry.0.iter_mut().zip(written(t)) {
+            *sum += value;
+        }
+        entry.1 += 1;
+        t += MINUTE;
+    }
+    let day = (at - START) as f64 / DAY as f64;
+    if view.points.len() != expected.len() {
+        problems.push(format!(
+            "day {day:.2}: the {:?} view has {} points, {} buckets were written",
+            view.range,
+            view.points.len(),
+            expected.len()
+        ));
+        return;
+    }
+    for (point, (bucket_at, (sums, count))) in view.points.iter().zip(&expected) {
+        let got = [
+            point.cpu_percent,
+            point.memory_percent,
+            point.temperature_celsius,
+            point.disk_percent,
+        ];
+        let matches = point.at == *bucket_at
+            && got
+                .iter()
+                .zip(sums)
+                .all(|(got, sum)| got.is_some_and(|v| (v - sum / *count as f64).abs() < 1e-9));
+        if !matches {
+            problems.push(format!(
+                "day {day:.2}: the {:?} view's point at {} is {got:?}, the average of what was written is {:?}",
+                view.range,
+                point.at,
+                sums.map(|sum| sum / *count as f64)
+            ));
+            return;
+        }
+    }
 }
 
 fn sample(minute: i64) -> HostMetrics {
@@ -84,7 +198,7 @@ async fn soak_metrics_store_ninety_days() {
         let of_day = (at - START) % DAY;
         if of_day == 2 * HOUR || of_day == 3 * HOUR {
             telemetry.query(HistoryRange::Day, at).await.unwrap();
-            let now = written();
+            let now = written_by_thread();
             if of_day == 3 * HOUR {
                 let (bytes, calls): (u64, u64) = hour_start
                     .take()
@@ -92,6 +206,15 @@ async fn soak_metrics_store_ninety_days() {
                 let day = ((at - START) / DAY) as f64;
                 hours.push((day, bytes as f64, calls));
                 sizes.push((day, size(&path) as f64));
+                for range in [HistoryRange::Day, HistoryRange::Week, HistoryRange::Month] {
+                    match telemetry.query(range, at).await {
+                        Ok(view) => check_view(&view, at, &mut problems),
+                        Err(error) => problems.push(format!(
+                            "day {day}: the {range:?} view was refused: {error:?}"
+                        )),
+                    }
+                }
+                retained(&path, at, &mut problems);
                 if size(&path) > FILE_BOUND {
                     problems.push(format!(
                         "day {day}: metrics.sqlite and its WAL take {:.2} MiB (bound {:.0})",
