@@ -794,6 +794,28 @@ class ActivateTests(Harness):
         self.assertIn("still running after 2s: systemctl start limeos-core.service", result.stderr)
         self.assertIn("interrupted by SIGTERM", result.stderr)
 
+    def test_a_step_that_outlives_its_kill_does_not_hold_the_rollback(self):
+        # A dpkg that ignores TERM and, here, the last-resort signal too. The kernel always
+        # honours SIGKILL, so the test swaps in SIGUSR2 (CUTOVER_KILL_SIGNAL) to stand for a
+        # process stuck in uninterruptible I/O that KILL cannot end in time.
+        self.passing_snapshot()
+        # It lets go of the test's pipes, so the test can read the script's output while it lingers.
+        self.fake_tool("dpkg", "trap '' TERM USR2\nexec </dev/null >/dev/null 2>&1\nkill -s TERM \"${PPID}\"\n"
+                               "while :; do command -p sleep 0.1; done")
+        self.env.update({"CUTOVER_STEP_GRACE": "1", "CUTOVER_KILL_SIGNAL": "USR2"})
+        started = time.monotonic()
+        result = self.approved()
+        self.assertLess(time.monotonic() - started, 45)
+        self.assertRegex(result.stderr, r"step \(pid \d+\) has not exited after SIGUSR2: "
+                                        r"env DEBIAN_FRONTEND=noninteractive dpkg .*; rolling back regardless")
+        self.assertIn("ROLLBACK: running return.sh", result.stderr)
+        # return.sh finds the step still alive and says exactly what to do.
+        self.assertRegex(result.stderr, r"the activation's step \(pid \d+: env DEBIAN_FRONTEND=noninteractive dpkg [^)]*\) is still running")
+        self.assertIn("dpkg --audit", result.stderr)
+        self.assertIn("ROLLBACK INCOMPLETE", result.stderr)
+        for name in FROZEN:
+            self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
+
     def test_signal_before_the_first_change_rolls_nothing_back(self):
         self.passing_snapshot()
         # The read-only validation of the rendered site, before any change.

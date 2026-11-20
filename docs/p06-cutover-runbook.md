@@ -93,8 +93,12 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    starts. That wait is bounded: after 5 minutes (the longest legitimate step,
    `dpkg -i`, restarts three services within systemd's 90 s start timeouts) the
    step's session gets SIGTERM, then SIGKILL 10 s later, and the rollback goes
-   ahead with a TIMEOUT line naming the step. If that step was dpkg, run
-   `dpkg --audit` afterwards and finish or remove the package by hand. The rollback runs once and ignores further signals until it ends.
+   ahead with a TIMEOUT line naming the step. If even SIGKILL has not ended it
+   after 5 s (a dpkg stuck in uninterruptible I/O), the rollback starts anyway:
+   the TIMEOUT line names its pid and `SNAP/stuck-step` records it. `return.sh`
+   then fails with that pid if it is still alive. Wait for it to exit
+   (`ps -o pid,stat,args -p PID`), run `dpkg --audit`, then `dpkg --configure -a`
+   or `dpkg --remove limeos` as it reports, and run `return.sh SNAP` again. The rollback runs once and ignores further signals until it ends.
    It runs detached: after the snapshot check it starts itself again in a new
    session (`systemd-run --scope`, then `setsid`), appends its output to
    `SNAP/activate.log` and the terminal only follows that log, so a dropped SSH

@@ -158,7 +158,12 @@ fct_do() {
         wait "${STEP_PID}" || rc=$?
         if ! kill -0 "${STEP_PID}" 2>/dev/null; then break; fi
         # A signal interrupted wait while the step still runs: give it the grace period.
-        if [[ -n "${PENDING_SIGNAL}" ]]; then fct_finish_step "$*"; rc=0; wait "${STEP_PID}" || rc=$?; break; fi
+        if [[ -n "${PENDING_SIGNAL}" ]]; then
+            # Reap the step only once it has gone; one stuck in uninterruptible I/O must not hold
+            # the rollback (fct_finish_step recorded it for return.sh).
+            if fct_finish_step "$*"; then rc=0; wait "${STEP_PID}" || rc=$?; fi
+            break
+        fi
     done
     STEP_PID=''
     if [[ -n "${PENDING_SIGNAL}" ]]; then fct_abort "interrupted by SIG${PENDING_SIGNAL}"; fi
@@ -177,7 +182,17 @@ fct_finish_step() { # command text
     kill -s TERM -- "-${STEP_PID}" 2>/dev/null || true
     deadline=$(( SECONDS + 10 ))
     while kill -0 "${STEP_PID}" 2>/dev/null && (( SECONDS < deadline )); do fct_pause; done
-    kill -s KILL -- "-${STEP_PID}" 2>/dev/null || true
+    kill -0 "${STEP_PID}" 2>/dev/null || return 0
+    kill -s "${KILL_SIGNAL}" -- "-${STEP_PID}" 2>/dev/null || true
+    deadline=$(( SECONDS + 5 ))
+    while kill -0 "${STEP_PID}" 2>/dev/null && (( SECONDS < deadline )); do fct_pause; done
+    kill -0 "${STEP_PID}" 2>/dev/null || return 0
+    # Still there (a dpkg in uninterruptible I/O): roll back regardless, and leave a record so
+    # return.sh can tell whether it is still alive and say what to do.
+    printf 'TIMEOUT: step (pid %s) has not exited after SIG%s: %s; rolling back regardless\n' "${STEP_PID}" "${KILL_SIGNAL}" "${1}" >&2
+    printf '%s %s %s\n' "${STEP_PID}" "$(fct_proc_start "${STEP_PID}")" "${1}" >"${SNAP}/stuck-step" \
+        || fct_warn "could not record the stuck step in ${SNAP}/stuck-step"
+    return 1
 }
 fct_pause() { read -r -t 0.2 <> <(:) || true; }
 

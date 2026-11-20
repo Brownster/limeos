@@ -11,9 +11,12 @@
 export LC_ALL=C
 
 # Test hooks: LIMEOS_CUTOVER_ROOT prefixes every host path; CUTOVER_NOW fixes the
-# clock; CUTOVER_ALLOW_NONROOT skips the root check (stub-driven tests only).
+# clock; CUTOVER_ALLOW_NONROOT skips the root check (stub-driven tests only);
+# CUTOVER_KILL_SIGNAL replaces the last-resort KILL so a test can model a process KILL
+# cannot end in time (uninterruptible I/O), since the kernel always honours SIGKILL.
 CUTOVER_ROOT="${LIMEOS_CUTOVER_ROOT:-}"
 DRY_RUN=0
+KILL_SIGNAL="${CUTOVER_KILL_SIGNAL:-KILL}"
 
 # Frozen writers (stopped at cutover), in start order for the return path.
 FROZEN_UNITS=(pihealth-helper.service pi-health.service limeos-metrics-collector.timer limeos-package-reconcile.timer)

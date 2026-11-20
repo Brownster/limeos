@@ -102,6 +102,19 @@ fct_lock_snapshot() { # snap
     fct_record_holder "${lock}" return
 }
 
+# A step activate.sh could not end (SNAP/stuck-step: "PID START COMMAND") may still change
+# packages or restart services behind this return: report it with the exact follow-up.
+fct_check_stuck_step() { # snap
+    local file="${1}/stuck-step" pid start command
+    [[ -f "${file}" ]] || return 0
+    read -r pid start command <"${file}" || true
+    if [[ "${pid}" =~ ^[0-9]+$ && -n "${start}" && "$(fct_proc_start "${pid}")" == "${start}" ]]; then
+        fct_fail "the activation's step (pid ${pid}: ${command}) is still running and may still change packages or restart services. When it has exited (check: ps -o pid,stat,args -p ${pid}), run dpkg --audit, then dpkg --configure -a or dpkg --remove limeos as it reports, and run return.sh ${1} again"
+    else
+        fct_log "return: the activation's stuck step (pid ${pid:-?}: ${command:-?}) has exited since; run dpkg --audit to check the package state"
+    fi
+}
+
 fct_frozen_writer_running() {
     local unit
     for unit in "${FROZEN_UNITS[@]}"; do
@@ -262,6 +275,7 @@ fct_main() {
 
     if (( DRY_RUN )); then fct_log 'dry-run: verification commands are skipped'; return 0; fi
     fct_log 'return: verifying'
+    fct_check_stuck_step "${snap}"
     fct_verify_hashes "${snap}"
     fct_verify_docker "${snap}"
     fct_verify_untouched "${snap}"
