@@ -157,6 +157,28 @@ fn parse_refuses_everything_else() {
             "not-done",
         ],
         vec!["restart", &j, "--admin", "a"],
+        // A flag where a value belongs is refused, never taken as the value.
+        vec![
+            "resolve",
+            &j,
+            "--admin",
+            "a",
+            "--outcome",
+            "not-done",
+            "--reason",
+            "--version",
+        ],
+        vec!["resolve", &j, "--admin", "--help", "--outcome", "not-done"],
+        vec!["resolve", &j, "--admin", "a", "--outcome", "-h"],
+        vec![
+            "resolve",
+            &j,
+            "--admin",
+            "a",
+            "--outcome",
+            "not-done",
+            "--help",
+        ],
     ];
     for case in bad {
         assert!(parse(&args(&case)).is_err(), "{case:?}");
@@ -297,6 +319,10 @@ fn resolve(digest: Option<String>) -> Command {
         digest,
     }
 }
+/// A terminal on which the operator types `answer`.
+fn typed(answer: &'static str) -> impl FnMut() -> std::io::Result<String> {
+    move || Ok(format!("{answer}\n"))
+}
 fn done() -> ResolveJobResponse {
     ResolveJobResponse {
         status: ResolveStatus::Resolved,
@@ -318,7 +344,14 @@ async fn resolve_shows_evidence_then_submits_exactly_its_digest_with_the_stdin_r
         ],
     );
     let mut stdin: &[u8] = b"Verified in the engine by hand.\n";
-    execute(&socket, resolve(None), &mut stdin).await.unwrap();
+    execute(
+        &socket,
+        resolve(None),
+        &mut stdin,
+        Some(&mut typed("accepted-divergence")),
+    )
+    .await
+    .unwrap();
     let seen = seen.lock().unwrap();
     assert_eq!(seen.len(), 2);
     assert_eq!(seen[0]["request"], "read_resolution");
@@ -337,7 +370,7 @@ async fn a_digest_from_an_earlier_look_must_still_match_before_anything_is_decid
     let dir = tempfile::tempdir().unwrap();
     let (socket, seen) = fake_core(&dir, vec![CoreResponse::Resolution(view())]);
     let mut stdin: &[u8] = b"reason text";
-    let error = execute(&socket, resolve(Some("0".repeat(64))), &mut stdin)
+    let error = execute(&socket, resolve(Some("0".repeat(64))), &mut stdin, None)
         .await
         .unwrap_err();
     assert!(error.to_string().contains("state changed"), "{error}");
@@ -352,7 +385,7 @@ async fn a_digest_from_an_earlier_look_must_still_match_before_anything_is_decid
         ],
     );
     let mut stdin: &[u8] = b"reason text";
-    execute(&socket, resolve(view().evidence_digest), &mut stdin)
+    execute(&socket, resolve(view().evidence_digest), &mut stdin, None)
         .await
         .unwrap();
     assert_eq!(seen.lock().unwrap().len(), 2);
@@ -364,7 +397,16 @@ async fn no_reason_or_an_unsettled_answer_is_a_failure_with_nothing_sent_first()
     // No reason: refused before the socket is even used.
     let (socket, seen) = fake_core(&dir, vec![]);
     let mut stdin: &[u8] = b"";
-    assert!(execute(&socket, resolve(None), &mut stdin).await.is_err());
+    assert!(
+        execute(
+            &socket,
+            resolve(None),
+            &mut stdin,
+            Some(&mut typed("accepted-divergence"))
+        )
+        .await
+        .is_err()
+    );
     assert!(seen.lock().unwrap().is_empty());
     // Held pending: non-zero exit, message shown.
     let dir = tempfile::tempdir().unwrap();
@@ -379,9 +421,14 @@ async fn no_reason_or_an_unsettled_answer_is_a_failure_with_nothing_sent_first()
         ],
     );
     let mut stdin: &[u8] = b"reason text";
-    let error = execute(&socket, resolve(None), &mut stdin)
-        .await
-        .unwrap_err();
+    let error = execute(
+        &socket,
+        resolve(None),
+        &mut stdin,
+        Some(&mut typed("accepted-divergence")),
+    )
+    .await
+    .unwrap_err();
     assert!(error.to_string().contains("stays held"));
     // A job that is not awaiting resolution has no digest to decide on.
     let dir = tempfile::tempdir().unwrap();
@@ -390,7 +437,16 @@ async fn no_reason_or_an_unsettled_answer_is_a_failure_with_nothing_sent_first()
     settled.targets.clear();
     let (socket, seen) = fake_core(&dir, vec![CoreResponse::Resolution(settled)]);
     let mut stdin: &[u8] = b"reason text";
-    assert!(execute(&socket, resolve(None), &mut stdin).await.is_err());
+    assert!(
+        execute(
+            &socket,
+            resolve(None),
+            &mut stdin,
+            Some(&mut typed("accepted-divergence"))
+        )
+        .await
+        .is_err()
+    );
     assert_eq!(seen.lock().unwrap().len(), 1);
 }
 
@@ -406,10 +462,100 @@ async fn show_only_reads() {
             job: job(),
         },
         &mut stdin,
+        None,
     )
     .await
     .unwrap();
     let seen = seen.lock().unwrap();
     assert_eq!(seen.len(), 1);
     assert_eq!(seen[0]["request"], "read_resolution");
+}
+
+#[tokio::test]
+async fn without_a_digest_or_a_terminal_nothing_is_read_or_decided() {
+    let dir = tempfile::tempdir().unwrap();
+    let (socket, seen) = fake_core(&dir, vec![]);
+    let mut stdin: &[u8] = b"a reason that is never read";
+    let error = execute(&socket, resolve(None), &mut stdin, None)
+        .await
+        .unwrap_err();
+    let text = error.to_string();
+    assert!(
+        text.contains("show-resolution") && text.contains("--evidence-digest"),
+        "{text}"
+    );
+    assert!(seen.lock().unwrap().is_empty());
+    assert_eq!(stdin, b"a reason that is never read");
+}
+
+#[tokio::test]
+async fn on_a_terminal_anything_but_the_typed_outcome_cancels_after_the_evidence_is_shown() {
+    for answer in [
+        "yes",
+        "y",
+        "",
+        "verified-done",
+        "accepted-divergence please",
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let (socket, seen) = fake_core(&dir, vec![CoreResponse::Resolution(view())]);
+        let mut stdin: &[u8] = b"reason text";
+        let error = execute(&socket, resolve(None), &mut stdin, Some(&mut typed(answer)))
+            .await
+            .unwrap_err();
+        assert!(
+            error.to_string().contains("not confirmed"),
+            "{answer}: {error}"
+        );
+        // The evidence was read and shown; no decision was sent.
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 1, "{answer}");
+        assert_eq!(seen[0]["request"], "read_resolution");
+    }
+}
+
+#[tokio::test]
+async fn a_confirmed_decision_binds_to_the_digest_that_was_shown_and_asks_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let (socket, seen) = fake_core(
+        &dir,
+        vec![
+            CoreResponse::Resolution(view()),
+            CoreResponse::Resolved(done()),
+        ],
+    );
+    let mut asked = 0;
+    let mut confirm = || {
+        asked += 1;
+        Ok("  accepted-divergence \n".to_owned())
+    };
+    let mut stdin: &[u8] = b"reason text";
+    execute(&socket, resolve(None), &mut stdin, Some(&mut confirm))
+        .await
+        .unwrap();
+    assert_eq!(asked, 1);
+    {
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 2);
+        assert_eq!(seen[1]["evidence_digest"], view().evidence_digest.unwrap());
+    }
+    // A digest from an earlier look is its own confirmation: no question asked.
+    let dir = tempfile::tempdir().unwrap();
+    let (socket, _) = fake_core(
+        &dir,
+        vec![
+            CoreResponse::Resolution(view()),
+            CoreResponse::Resolved(done()),
+        ],
+    );
+    let mut never = || -> std::io::Result<String> { panic!("asked despite a digest") };
+    let mut stdin: &[u8] = b"reason text";
+    execute(
+        &socket,
+        resolve(view().evidence_digest),
+        &mut stdin,
+        Some(&mut never),
+    )
+    .await
+    .unwrap();
 }

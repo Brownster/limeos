@@ -8,9 +8,13 @@ use limeos_contracts::{
     CoreRequest, CoreResponse, ResolutionView, ResolveJobResponse, ResolveStatus, VERSION,
 };
 use limeos_domain::DeclaredOutcome;
-use std::io::Read;
+use std::io::{BufRead, IsTerminal, Read, Write};
 
-pub const USAGE: &str = "job show-resolution JOB_ID --admin USERNAME\n  root-only; fresh read-only evidence for a stuck container or stack job.\njob resolve JOB_ID --admin USERNAME --outcome verified-done|not-done|accepted-divergence [--reason TEXT] [--evidence-digest HEX]\n  root-only; records the decision under that administrator. The reason is read from\n  stdin when --reason is absent. Shows the evidence first and decides on its digest;\n  --evidence-digest from show-resolution refuses if the state has changed since.\n  Never starts, stops or restarts anything.";
+pub const USAGE: &str = "job show-resolution JOB_ID --admin USERNAME\n  root-only; fresh read-only evidence for a stuck container or stack job.\njob resolve JOB_ID --admin USERNAME --outcome verified-done|not-done|accepted-divergence [--reason TEXT] [--evidence-digest HEX]\n  root-only; records the decision under that administrator. The reason is read from\n  stdin when --reason is absent. Shows the evidence first; without --evidence-digest it\n  then asks you to type the outcome to confirm, so it needs a terminal. From a script,\n  run show-resolution, review it, and pass the digest it printed: resolve refuses if\n  the state has changed since. Never starts, stops or restarts anything.";
+/// Why a non-interactive resolve without a digest is refused.
+const TWO_STEP: &str = "job resolve without --evidence-digest needs a terminal to show the evidence and ask for confirmation; nothing was recorded. Without a terminal, decide in two steps: run `limeosctl job show-resolution JOB_ID --admin USERNAME`, review the evidence, then `limeosctl job resolve JOB_ID --admin USERNAME --outcome ... --evidence-digest HEX` with the digest it printed.";
+/// A typed confirmation is one short line.
+const ANSWER_LIMIT: u64 = 256;
 const REASON_LIMIT: u64 = 2048;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -50,15 +54,19 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
     }
     let (mut admin, mut declared, mut reason, mut digest) = (None, None, None, None);
     while let Some(flag) = flags.next() {
-        let value = flags
-            .next()
-            .ok_or_else(|| format!("missing value for {flag}"))?;
+        if !matches!(
+            flag.as_str(),
+            "--admin" | "--outcome" | "--reason" | "--evidence-digest"
+        ) {
+            return Err(format!("unknown argument {flag}; run limeosctl --help"));
+        }
+        // A value that looks like a flag (`--reason --version`) is refused, not taken.
+        let value = crate::args::value(flag, flags.next()).map_err(|usage| usage.0)?;
         let taken = match flag.as_str() {
             "--admin" => admin.replace(value.clone()).is_some(),
             "--outcome" => declared.replace(outcome(value)?).is_some(),
             "--reason" => reason.replace(value.clone()).is_some(),
-            "--evidence-digest" => digest.replace(value.clone()).is_some(),
-            _ => return Err(format!("unknown argument {flag}; run limeosctl --help")),
+            _ => digest.replace(value.clone()).is_some(),
         };
         if taken {
             return Err(format!("{flag} given more than once"));
@@ -219,18 +227,40 @@ async fn read(
     }
 }
 
+/// One typed line from the operator's terminal.
+type Confirm<'a> = &'a mut dyn FnMut() -> std::io::Result<String>;
+
 pub async fn run(socket: &str, args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
-    let command = parse(args)?;
+    // Help only straight after `job` or `job SUBCOMMAND`.
+    if crate::args::help_requested(args) {
+        println!("usage:\n{USAGE}");
+        return Ok(());
+    }
+    let command = parse(args).map_err(crate::args::Usage)?;
     if rustix::process::geteuid().as_raw() != 0 {
         return Err("job resolution over the local socket is root-only".into());
     }
-    execute(socket, command, &mut std::io::stdin()).await
+    let mut line = || {
+        let mut answer = String::new();
+        std::io::stdin()
+            .lock()
+            .take(ANSWER_LIMIT)
+            .read_line(&mut answer)
+            .map(|_| answer)
+    };
+    // The operator sees the evidence and answers only on a terminal.
+    let terminal = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+    let confirm: Option<Confirm<'_>> = if terminal { Some(&mut line) } else { None };
+    execute(socket, command, &mut std::io::stdin(), confirm).await
 }
 
+/// Without a digest from an earlier look, the decision binds to the evidence
+/// shown here, and only once the operator has typed the outcome back.
 async fn execute(
     socket: &str,
     command: Command,
     stdin: &mut impl Read,
+    confirm: Option<Confirm<'_>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match command {
         Command::Show { admin, job } => {
@@ -244,6 +274,9 @@ async fn execute(
             reason,
             digest,
         } => {
+            if digest.is_none() && confirm.is_none() {
+                return Err(TWO_STEP.into());
+            }
             let reason = reason_from(reason, stdin)?;
             let view = read(socket, &admin, &job).await?;
             print!("{}", render_view(&view));
@@ -251,8 +284,22 @@ async fn execute(
                 .evidence_digest
                 .clone()
                 .ok_or("the job is not awaiting resolution")?;
-            if digest.is_some_and(|expected| expected != shown) {
-                return Err("the state changed since that evidence digest; review the evidence above and decide again".into());
+            match (digest, confirm) {
+                (Some(expected), _) if expected != shown => {
+                    return Err("the state changed since that evidence digest; review the evidence above and decide again".into());
+                }
+                (Some(_), _) => {}
+                (None, Some(confirm)) => {
+                    let word = name(declared);
+                    print!(
+                        "Type {word} to record this decision on the evidence above, anything else to cancel: "
+                    );
+                    std::io::stdout().flush()?;
+                    if confirm()?.trim() != word {
+                        return Err("not confirmed; nothing was recorded".into());
+                    }
+                }
+                (None, None) => return Err(TWO_STEP.into()),
             }
             let CoreResponse::Resolved(response) = crate::rpc(
                 socket,
