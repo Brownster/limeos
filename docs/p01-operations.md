@@ -139,7 +139,7 @@ sudo /usr/lib/limeos/limeosctl status
 sudo dpkg --verify limeos
 ```
 
-The installer preserves corrupt files and exits with a repair instruction. Activation and removal errors surface to dpkg. Removal and purge preserve authority, account identities and ceilings; reinstall a compatible package to recover. Online backup, encrypted restore and the production updater are P04 work. Never copy an active SQLite database file without its WAL as a backup.
+The installer preserves corrupt files and exits with a repair instruction. Activation and removal errors surface to dpkg. Removal stops core, then its executors, then the optional storage units; removal and purge then drop the three services' enablement links and reload systemd. Both can be repeated and tolerate units that are already gone or were never enabled. Neither deletes `/var/lib/limeos` (authority, assistant state, executor receipts and journals), the ceilings or any other file under `/etc/limeos`, drop-ins under `/etc/systemd/system`, or the service accounts and groups; purge loses only `/etc/limeos/core.json`, which dpkg deletes as a conffile. Reinstall a compatible package to recover. An upgrade restarts the three services and starts the storage reader again if it was running; the storage target and mount services stay stopped until started by hand. An upgrade from a package built before this behaviour cannot know the reader was running: start it by hand once. Online backup, encrypted restore and the production updater are P04 work. Never copy an active SQLite database file without its WAL as a backup.
 
 ## Limits and verification
 
