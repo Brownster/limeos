@@ -37,6 +37,8 @@ tracing-subscriber.workspace = true
 tempfile.workspace = true
 rusqlite.workspace = true
 limeos-backup-archive = { path = "../../crates/backup-archive", version = "=0.2.0" }
+# The soak harness (tests/soak) drives the real receipt store; test-only.
+limeos-executor-container = { path = "../../crates/executor-container", version = "=0.2.0" }
 
 [[test]]
 name = "backup_preparation_binding"
