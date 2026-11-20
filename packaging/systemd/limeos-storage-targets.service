@@ -15,6 +15,9 @@ LimitCORE=0
 MemorySwapMax=0
 Restart=on-failure
 RestartSec=2s
+# Keep-alives are sent from the accept loop; systemd restarts the unit if
+# they stop.
+WatchdogSec=30s
 TimeoutStartSec=15s
 TimeoutStopSec=5s
 NoNewPrivileges=yes

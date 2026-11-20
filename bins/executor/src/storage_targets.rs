@@ -39,8 +39,10 @@ pub(super) async fn run(args: &[String]) -> std::io::Result<()> {
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o660))?;
     let connections = Arc::new(Semaphore::new(4));
     let operation = Arc::new(Semaphore::new(1));
+    let mut watchdog = limeos_contracts::Watchdog::from_env();
     loop {
-        let (mut stream, _) = listener.accept().await?;
+        let mut stream =
+            limeos_executor::service::next_connection(&listener, &mut watchdog, &|| true).await?;
         let Ok(connection) = connections.clone().try_acquire_owned() else {
             continue;
         };

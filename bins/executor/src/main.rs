@@ -305,11 +305,22 @@ async fn run() -> std::io::Result<()> {
             }
         });
     }
+    // At most one inventory read may be stuck in the kernel at a time; with
+    // one stranded the reader refuses inventories and withholds its watchdog
+    // keep-alive, so systemd restarts it unless the read returns first.
+    let inventory_reads = Arc::new(limeos_executor::blocking_read::BlockingReads::new(1));
+    let mut watchdog = limeos_contracts::Watchdog::from_env();
+    let health = inventory_reads.clone();
     loop {
-        let (mut stream, _) = listener.accept().await?;
+        let mut stream =
+            limeos_executor::service::next_connection(&listener, &mut watchdog, &|| {
+                health.healthy()
+            })
+            .await?;
         let Ok(permit) = permits.clone().try_acquire_owned() else {
             continue;
         };
+        let inventory_reads = inventory_reads.clone();
         let ceiling = ceiling.clone();
         let observations = observations.clone();
         let receipts = receipts.clone();
@@ -370,19 +381,25 @@ async fn run() -> std::io::Result<()> {
                         read_supervisor.ensure_not_poisoned().map_err(|_| {
                             limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
                         })?;
-                        receipt.storage = Some(
-                            tokio::time::timeout(
-                                std::time::Duration::from_secs(4),
-                                limeos_executor_storage::inventory(),
-                            )
+                        // Sysfs, block-device and blkid reads run on their own
+                        // thread and runtime: a read stuck in the kernel cannot
+                        // stall this accept loop, and the deadline is real.
+                        let inventory = inventory_reads
+                            .run("storage-inventory", INVENTORY_DEADLINE, || {
+                                tokio::runtime::Builder::new_current_thread()
+                                    .enable_all()
+                                    .build()
+                                    .map_err(|_| limeos_executor_storage::Failure::Unavailable)?
+                                    .block_on(limeos_executor_storage::inventory())
+                            })
                             .await
-                            .map_err(|_| {
+                            .map_err(|refusal| {
+                                note_inventory_refusal(refusal);
                                 limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
-                            })?
-                            .map_err(|_| {
-                                limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
-                            })?,
-                        );
+                            })?;
+                        receipt.storage = Some(inventory.map_err(|_| {
+                            limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
+                        })?);
                     }
                     Request::Observe {
                         source: requested,
@@ -649,6 +666,20 @@ async fn run() -> std::io::Result<()> {
             )
             .await;
         });
+    }
+}
+/// How long a storage inventory may take before it is abandoned.
+const INVENTORY_DEADLINE: std::time::Duration = std::time::Duration::from_secs(4);
+fn note_inventory_refusal(refusal: limeos_executor::blocking_read::Refusal) {
+    use limeos_executor::blocking_read::Refusal;
+    match refusal {
+        Refusal::Deadline => tracing::warn!(
+            "storage inventory missed its 4 s deadline and was abandoned; a disk may be failing (its read is left to finish)"
+        ),
+        Refusal::Stranded => tracing::warn!(
+            "storage inventory refused: an earlier read is still stuck; the reader restarts unless it returns"
+        ),
+        Refusal::Unavailable => tracing::warn!("storage inventory could not start"),
     }
 }
 /// Copies a receipt-store answer into the response, field by same-named

@@ -1023,8 +1023,19 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
 async fn rpc_server(core: Core, listener: UnixListener) -> std::io::Result<()> {
     let permits = Arc::new(Semaphore::new(16));
     let mut failures = 0u64;
+    // Sent from this loop, so systemd restarts core if it stops being run.
+    let mut watchdog = limeos_contracts::Watchdog::from_env();
     loop {
-        let stream = match listener.accept().await {
+        let accepted = tokio::select! {
+            accepted = listener.accept() => accepted,
+            () = watchdog.due() => {
+                if let Err(error) = watchdog.beat(true) {
+                    tracing::warn!(%error, "watchdog keep-alive could not be sent");
+                }
+                continue;
+            }
+        };
+        let stream = match accepted {
             Ok((stream, _)) => {
                 failures = 0;
                 stream
