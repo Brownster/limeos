@@ -264,13 +264,50 @@ fn symlinked_core_lock_is_refused_without_creating_authority_state() {
     assert_eq!(std::fs::read(&target).unwrap(), b"preserve operator bytes");
 }
 
+fn running(s: &mut Store, p: &Principal, key: &str) -> String {
+    let id = s
+        .queue_job(
+            p,
+            key,
+            &Intent::HealthProbe {
+                resource: key.into(),
+            },
+            400,
+            200,
+        )
+        .unwrap();
+    s.transition(&id, JobState::Queued, JobState::Running, 201)
+        .unwrap();
+    id
+}
+fn events(s: &Store) -> i64 {
+    s.conn
+        .query_row("SELECT count(*) FROM events", [], |r| r.get(0))
+        .unwrap()
+}
+
 #[test]
-fn startup_refuses_recovery_without_audit_capacity() {
-    let (d, s, _) = setup();
+fn startup_reconciles_a_wrong_audit_counter_instead_of_refusing() {
+    let (d, mut s, p) = setup();
+    let job = running(&mut s, &p, "interrupted");
     s.conn
         .execute("UPDATE meta SET audit_bytes=67108864", [])
         .unwrap();
+    drop(s);
+    let s = Store::open(&d.path().join("core.sqlite")).unwrap();
+    assert_eq!(s.job_state(&job).unwrap(), "needs_intervention");
+    assert_eq!(s.audit_usage().unwrap().bytes, events(&s) * 256);
+}
+
+#[test]
+fn startup_refuses_only_when_recovery_cannot_be_recorded_even_in_the_reserve() {
+    let (d, mut s, p) = setup();
+    running(&mut s, &p, "interrupted");
     let generation = s.generation;
+    // History that no retention rule may remove (schedule-change proofs)
+    // filling the cap and the reserve.
+    let rows = (AUDIT_LIMIT + retention::AUDIT_RESERVE) / 256;
+    s.conn.execute("WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<?) INSERT INTO events(principal,job,kind,created) SELECT ?,NULL,'{\"kind\":\"automation_schedule_changed\",\"schedule\":\"s\",\"revision\":2}',300 FROM c",params![rows,p.id]).unwrap();
     drop(s);
     assert_eq!(
         Store::open(&d.path().join("core.sqlite")).err().unwrap().0,
@@ -283,6 +320,67 @@ fn startup_refuses_recovery_without_audit_capacity() {
             .unwrap(),
         generation
     );
+    // With nothing to recover the same store opens, so reads keep working
+    // while ordinary writes stay refused at the cap.
+    conn.execute(
+        "UPDATE jobs SET state='needs_intervention' WHERE state='running'",
+        [],
+    )
+    .unwrap();
+    drop(conn);
+    let mut s = Store::open(&d.path().join("core.sqlite")).unwrap();
+    assert_eq!(s.audit_usage().unwrap().level(), AuditLevel::Full);
+    assert!(s.login_record("alice").unwrap().is_some());
+    assert!(s.set_budget("period", 1).is_err());
+}
+
+/// A live session and task token for `p`, for the revocation tests.
+fn revocable(s: &mut Store, p: &Principal, name: &str) {
+    let record = s.login_record("alice").unwrap().unwrap();
+    s.create_session(&record, None, name, "csrf", 200).unwrap();
+    s.issue_task(
+        p,
+        TaskGrant {
+            service_uid: 1001,
+            task: "task",
+            scopes: &[Scope {
+                operation: Operation::HealthRead,
+                resource: "system".into(),
+            }],
+            expires: 3000,
+        },
+        &format!("{name}-task"),
+        200,
+    )
+    .unwrap();
+}
+fn live(s: &Store, name: &str) -> (bool, bool) {
+    let scope = Scope {
+        operation: Operation::HealthRead,
+        resource: "system".into(),
+    };
+    (
+        s.authenticate(name, None, 300).is_ok(),
+        s.check_task(&format!("{name}-task"), 1001, "task", &scope, 300)
+            .is_ok(),
+    )
+}
+
+#[test]
+fn revocations_that_match_nothing_record_nothing() {
+    let (_d, mut s, p) = setup();
+    revocable(&mut s, &p, "session");
+    let before = events(&s);
+    s.revoke_session("missing", 210).unwrap();
+    s.revoke_task("missing", 210).unwrap();
+    assert_eq!(events(&s), before);
+    s.revoke_session("session", 211).unwrap();
+    s.revoke_task("session-task", 211).unwrap();
+    assert_eq!(events(&s), before + 2);
+    assert_eq!(live(&s, "session"), (false, false));
+    s.revoke_session("session", 212).unwrap();
+    s.revoke_task("session-task", 212).unwrap();
+    assert_eq!(events(&s), before + 2);
 }
 
 #[test]

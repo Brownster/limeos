@@ -121,12 +121,7 @@ pub(crate) fn fill(store: &mut Store, principal: &str, rows: i64, now: i64) {
     store
         .write(|tx| {
             let added = tx.execute("WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<?) INSERT INTO events(principal,job,kind,created) SELECT ?,NULL,?,? FROM c", params![rows, principal, kind, now]).map_err(durable)?;
-            tx.execute(
-                "UPDATE meta SET audit_bytes=audit_bytes+? WHERE id=1",
-                [added as i64 * 256],
-            )
-            .map_err(durable)?;
-            Ok(())
+            retention::account(tx, added as i64)
         })
         .unwrap();
 }

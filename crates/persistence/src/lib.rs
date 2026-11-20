@@ -8,7 +8,11 @@ use std::{
     fs::{File, OpenOptions},
     os::unix::fs::OpenOptionsExt,
     path::{Path, PathBuf},
-    time::Duration,
+    sync::{
+        Arc,
+        atomic::{AtomicI64, Ordering},
+    },
+    time::{Duration, Instant},
 };
 use tokio::sync::{mpsc, oneshot};
 
@@ -21,23 +25,44 @@ type Work = Box<dyn FnOnce(&mut Store) + Send>;
 #[derive(Clone)]
 pub struct Database {
     sender: mpsc::Sender<Work>,
+    audit: Arc<AtomicI64>,
     pub generation: i64,
 }
 impl Database {
     pub fn open(path: &Path) -> Result<Self> {
         let mut store = Store::open(path)?;
         let generation = store.generation;
+        let audit = Arc::new(AtomicI64::new(store.audit_usage()?.bytes));
         let (sender, mut receiver) = mpsc::channel::<Work>(QUEUE_CAPACITY);
+        let observed = audit.clone();
         std::thread::Builder::new()
             .name("limeos-db".into())
             .spawn(move || {
+                let maintain = |store: &mut Store| {
+                    if let Some(usage) = store.maintain(Instant::now()) {
+                        observed.store(usage.bytes, Ordering::SeqCst);
+                    }
+                };
+                maintain(&mut store);
                 while let Some(work) = receiver.blocking_recv() {
                     work(&mut store);
+                    maintain(&mut store);
                 }
                 let _ = store.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)");
             })
             .map_err(|_| Error(ErrorCode::Unavailable))?;
-        Ok(Self { sender, generation })
+        Ok(Self {
+            sender,
+            audit,
+            generation,
+        })
+    }
+    /// Audit usage as of the writer's last retention pass (at most a minute
+    /// old). Never queues, so health reporting works when the queue is full.
+    pub fn audit_usage(&self) -> AuditUsage {
+        AuditUsage {
+            bytes: self.audit.load(Ordering::SeqCst),
+        }
     }
     pub async fn call<T: Send + 'static>(
         &self,
@@ -62,6 +87,7 @@ pub struct Store {
     pub generation: i64,
     observation_leases: std::collections::HashMap<String, automation::ActiveObservation>,
     observation_watermarks: std::collections::HashMap<String, automation::PollWatermark>,
+    retained_at: Option<Instant>,
 }
 pub struct TaskGrant<'a> {
     pub service_uid: u32,
@@ -95,9 +121,7 @@ fn event(
         params![principal, job, json(&kind)?, now],
     )
     .map_err(durable)?;
-    tx.execute("UPDATE meta SET audit_bytes=audit_bytes+256 WHERE id=1", [])
-        .map_err(durable)?;
-    Ok(())
+    retention::account(tx, 1)
 }
 impl Store {
     pub fn open(path: &Path) -> Result<Self> {
@@ -219,18 +243,24 @@ impl Store {
         {
             return Err(Error(ErrorCode::StateNotDurable));
         }
-        let (audit_bytes, interrupted): (i64, i64) = tx.query_row(
-            "SELECT audit_bytes,(SELECT count(*) FROM jobs WHERE state IN ('running','verifying')) FROM meta WHERE id=1",
-            [], |r| Ok((r.get(0)?, r.get(1)?)),
-        ).map_err(durable)?;
-        if audit_bytes >= AUDIT_LIMIT || interrupted > (AUDIT_LIMIT - audit_bytes) / 256 {
+        let audit_bytes = retention::reconcile(&tx)?;
+        let interrupted: i64 = tx
+            .query_row(
+                "SELECT count(*) FROM jobs WHERE state IN ('running','verifying')",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(durable)?;
+        // Recovery records may use a reserve past the cap. Only when
+        // pinned history fills even that is startup refused.
+        if interrupted > 0
+            && interrupted.saturating_mul(retention::EVENT_BYTES)
+                > AUDIT_LIMIT + retention::AUDIT_RESERVE - audit_bytes
+        {
             return Err(Error(ErrorCode::StateNotDurable));
         }
-        tx.execute(
-            "UPDATE meta SET generation=generation+1,audit_bytes=audit_bytes+? WHERE id=1",
-            [interrupted * 256],
-        )
-        .map_err(durable)?;
+        tx.execute("UPDATE meta SET generation=generation+1 WHERE id=1", [])
+            .map_err(durable)?;
         let generation = tx
             .query_row("SELECT generation FROM meta WHERE id=1", [], |r| r.get(0))
             .map_err(durable)?;
@@ -241,10 +271,11 @@ impl Store {
             .unwrap_or_default()
             .as_secs()
             .min(i64::MAX as u64) as i64;
-        tx.execute(
+        let recovered = tx.execute(
             "INSERT INTO events(principal,job,kind,created) SELECT principal,id,?,? FROM jobs WHERE state IN ('running','verifying')",
             params![json(&EventKind::JobRecoveryRequired)?, recovered_at],
         ).map_err(durable)?;
+        retention::account(&tx, recovered as i64)?;
         tx.execute(
             "UPDATE jobs SET state='needs_intervention' WHERE state IN ('running','verifying')",
             [],
@@ -258,6 +289,7 @@ impl Store {
             generation,
             observation_leases: std::collections::HashMap::new(),
             observation_watermarks: std::collections::HashMap::new(),
+            retained_at: None,
         })
     }
     fn write<T>(&mut self, f: impl FnOnce(&Transaction<'_>) -> Result<T>) -> Result<T> {
@@ -299,6 +331,7 @@ mod job_resolutions;
 mod jobs;
 mod plans;
 mod resources;
+mod retention;
 mod stack_plans;
 mod storage;
 mod storage_mounts;
@@ -307,6 +340,7 @@ pub use compose::{
     AuthenticatedComposePreview, ComposeAuthorityKind, ComposeAuthorityObservation, compose_scopes,
 };
 pub use job_resolutions::{PendingResolution, ResolutionSubject};
+pub use retention::{AuditLevel, AuditUsage};
 pub use storage::storage_scope;
 
 #[cfg(test)]

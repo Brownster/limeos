@@ -240,10 +240,15 @@ impl Store {
             .map_err(durable)?
             .ok_or(Error(ErrorCode::Unauthenticated))
     }
+    /// Removing a session that is already gone records nothing.
     pub fn revoke_session(&mut self, digest: &str, now: i64) -> Result<()> {
         self.write(|tx| {
-            tx.execute("DELETE FROM sessions WHERE digest=?", [digest])
+            let removed = tx
+                .execute("DELETE FROM sessions WHERE digest=?", [digest])
                 .map_err(durable)?;
+            if removed == 0 {
+                return Ok(());
+            }
             event(tx, None, None, EventKind::SessionRevoked, now)
         })
     }
@@ -356,10 +361,18 @@ impl Store {
         limeos_policy::authorize(&principal, &self.grants(&principal)?, scope)?;
         Ok(principal)
     }
+    /// Revoking an unknown or already revoked token records nothing.
     pub fn revoke_task(&mut self, digest: &str, now: i64) -> Result<()> {
         self.write(|tx| {
-            tx.execute("UPDATE task_tokens SET revoked=1 WHERE digest=?", [digest])
+            let revoked = tx
+                .execute(
+                    "UPDATE task_tokens SET revoked=1 WHERE digest=? AND revoked=0",
+                    [digest],
+                )
                 .map_err(durable)?;
+            if revoked == 0 {
+                return Ok(());
+            }
             event(tx, None, None, EventKind::TaskRevoked, now)
         })
     }
