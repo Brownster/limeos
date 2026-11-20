@@ -39,6 +39,17 @@ fn router() -> Router {
         )
         .route("/echo", post(|body: Bytes| async move { body }))
         .route("/large", get(|| async { "x".repeat(LARGE) }))
+        .route(
+            "/ignore",
+            post(|body: Body| async move {
+                // Answered at once; the body is kept but never read.
+                tokio::spawn(async move {
+                    tokio::time::sleep(Duration::from_secs(10)).await;
+                    drop(body);
+                });
+                "x".repeat(HUGE)
+            }),
+        )
         .route("/endless", get(|| async { ticks(u64::MAX, 50) }))
         .route(
             "/stream/{ms}",
@@ -527,6 +538,68 @@ async fn a_response_never_read_is_cut_off_at_the_response_limit() {
     let mut received = Vec::new();
     client.read_to_end(&mut received).await.unwrap();
     assert!(received.len() < LARGE, "{}", received.len());
+}
+
+/// Far beyond the socket buffers, in one chunk, so hyper queues all of it
+/// and is done with the body long before it can be sent.
+const HUGE: usize = 1 << 20;
+
+/// A response answered at once without reading the request body, whose
+/// output a slow reader holds back. The body then arrives together with
+/// the next request: hyper reads the body to its end with the answer
+/// already in its write buffer, counts both as done, and starts the next
+/// request while that answer is still unsent. That later request must not
+/// extend the first response's limit: the connection is cut off at the
+/// response limit counted from the first response's start.
+#[tokio::test]
+async fn a_later_request_does_not_extend_the_limit_of_an_unsent_response() {
+    // Response 60 s scaled to 2 s; idle 30 s to 20 s, so only the response
+    // limit can end the connection in time. The second request arrives at
+    // 1.4 s: had it restarted the limit, the cut would come near 3.4 s.
+    let limits = Limits {
+        idle: Duration::from_secs(20),
+        response: Duration::from_secs(2),
+        ..SHORT
+    };
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket.set_send_buffer_size(4096).unwrap();
+    socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = socket.listen(16).unwrap();
+    let address = listener.local_addr().unwrap();
+    let client = tokio::net::TcpSocket::new_v4().unwrap();
+    client.set_recv_buffer_size(2048).unwrap();
+    let (client, accepted) = tokio::join!(client.connect(address), listener.accept());
+    let mut client = client.unwrap();
+    let served = tokio::spawn(serve::connection(accepted.unwrap().0, router(), limits));
+    let started = Instant::now();
+    // Only the headers: the answer is buffered before any of the body.
+    client
+        .write_all(b"POST /ignore HTTP/1.1\r\nhost: localhost\r\ncontent-length: 4\r\n\r\n")
+        .await
+        .unwrap();
+    // The reader is slow: it reads nothing for now, so the answer stays
+    // unsent. At 1.4 s the body arrives together with the next request.
+    tokio::time::sleep(Duration::from_millis(1400)).await;
+    client
+        .write_all(format!("abcd{}", request_line("/fast")).as_bytes())
+        .await
+        .unwrap();
+    let ended = tokio::time::timeout(Duration::from_secs(10), served)
+        .await
+        .expect("the server ended the connection");
+    ended.unwrap();
+    let waited = started.elapsed();
+    assert!(
+        waited >= Duration::from_millis(1800) && waited < Duration::from_millis(3000),
+        "{waited:?}"
+    );
+    // Most of the answer was never sent.
+    let mut received = 0;
+    let mut chunk = [0; 4096];
+    while let Ok(n @ 1..) = client.read(&mut chunk).await {
+        received += n;
+    }
+    assert!(received < HUGE, "{received}");
 }
 
 #[tokio::test]

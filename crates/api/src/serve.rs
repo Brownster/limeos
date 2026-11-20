@@ -43,7 +43,9 @@ pub struct Limits {
     /// From the end of the headers to the end of the response (its last
     /// byte written to the socket), so a client
     /// that stops reading cannot hold a connection; above the 25 s stream
-    /// lifetime plus the handler deadline.
+    /// lifetime plus the handler deadline. Absolute from the response's
+    /// start: a request hyper starts while this response is still unsent
+    /// is covered by the same limit and cannot extend it.
     pub response: Duration,
 }
 impl Limits {
@@ -213,7 +215,12 @@ impl HeadScan {
 const MAX_AFTER_HEAD: usize = 64 * 1024;
 struct State {
     phase: Phase,
+    /// When the current limit started. While a response is unsent this is
+    /// the start of the earliest response not yet written out, which no
+    /// later request can move: see `Activity::request`.
     since: Instant,
+    /// When the latest response started (its request's headers ended).
+    response: Instant,
     stream: Stream,
     /// A later request's first bytes reached hyper while this one was busy.
     next: bool,
@@ -282,6 +289,7 @@ impl Activity {
             state: Mutex::new(State {
                 phase: Phase::Head,
                 since: Instant::now(),
+                response: Instant::now(),
                 stream: Stream::Head(HeadScan::default()),
                 next: false,
             }),
@@ -293,9 +301,21 @@ impl Activity {
     }
     /// Hyper parsed a request's headers; `body` is its length on the wire.
     /// Returns whether the request's end is tracked.
+    ///
+    /// A response's limit is absolute from that response's start. Hyper
+    /// can start a request while the answer before it still waits in its
+    /// write buffer (it does once it has read a request body to its end
+    /// after buffering the answer), so a request arriving in `Draining`
+    /// keeps the earlier start: the limit then covers both answers, and
+    /// only a flush, never a later request, lets it start again.
     fn request(&self, body: Option<u64>) -> bool {
         let mut state = self.lock();
-        state.enter(Phase::Busy);
+        let now = Instant::now();
+        if matches!(state.phase, Phase::Head | Phase::Idle) {
+            state.since = now;
+        }
+        state.phase = Phase::Busy;
+        state.response = now;
         state.next = false;
         let after = match std::mem::replace(&mut state.stream, Stream::Untracked) {
             Stream::Parsed { after } => Some(after),
@@ -325,9 +345,14 @@ impl Activity {
     /// Hyper flushed the socket, which it does only with its write buffer
     /// empty: a finished response has been written out, so the next
     /// request's limit starts. Bytes of it already with hyper start its
-    /// header limit now.
+    /// header limit now. A response still being produced is then the
+    /// earliest one unsent, so its own start applies from here on.
     fn flushed(&self) {
         let mut state = self.lock();
+        if state.phase == Phase::Busy {
+            state.since = state.response;
+            return;
+        }
         if state.phase != Phase::Draining {
             return;
         }
