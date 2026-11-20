@@ -30,15 +30,6 @@ pub const LIFETIME: [ErrorCode; 3] = [
     ErrorCode::BeyondReceiptHistory,
 ];
 
-/// Errors core's dispatcher logs and moves on from: the executor is
-/// unreachable or lost an answer, a lock is held, or a receipt is refused.
-pub const DISPATCH_LEGIT: [ErrorCode; 4] = [
-    ErrorCode::Conflict,
-    ErrorCode::Unavailable,
-    ErrorCode::NotFound,
-    ErrorCode::Expired,
-];
-
 /// A core retention rule's limits, from the production rules
 /// (`retention::RULES`): (rows it keeps, most rows one batch removes).
 pub fn rule_limits(rule: &str) -> (i64, i64) {
@@ -71,11 +62,22 @@ pub enum JobFault {
     CoreCrashAfterExecute,
     /// Core restarts after the executor verified, before it reads it.
     CoreCrashAfterVerify,
-    /// The first recovery lookup's answer is lost.
+    /// The execute answer is lost (the job is held), and then the first
+    /// recovery lookup's answer too.
     LookupLost,
     /// Core restarts after recording an operator's decision, before the
     /// executor sees it: the retry loop completes it after startup.
     ResolutionInterrupted,
+    /// The executor handles the execute, its answer is lost, and it comes
+    /// back with its receipt store replaced: by an empty one, or (`older`)
+    /// by a copy from an earlier night, as a restore from a backup or a lost
+    /// disk would leave it.
+    ReceiptStoreLost { older: bool },
+    /// The execute answer is lost (the job is held), and the job is then
+    /// held open (`workload::HeldOpen`): the executor refuses its recovery
+    /// lookups (`Conflict`, its store busy) and its resolution (`Unavailable`)
+    /// until the harness releases them.
+    HeldOpen,
 }
 impl JobFault {
     /// A simulated core restart.
@@ -99,8 +101,15 @@ impl JobFault {
             Self::CoreCrashAfterClaim => "core restart between claim and execute",
             Self::CoreCrashAfterExecute => "core restart between execute answer and recording",
             Self::CoreCrashAfterVerify => "core restart between executor verify and recording",
-            Self::LookupLost => "recovery lookup answer lost",
+            Self::LookupLost => "execute and recovery lookup answers lost",
             Self::ResolutionInterrupted => "core restart between resolution request and executor",
+            Self::ReceiptStoreLost { older: false } => {
+                "execute answer lost, receipt store replaced by an empty one"
+            }
+            Self::ReceiptStoreLost { older: true } => {
+                "execute answer lost, receipt store replaced by an older copy"
+            }
+            Self::HeldOpen => "execute answer lost, the job held open for its resolution",
         }
     }
 }
@@ -182,6 +191,24 @@ pub struct Startup {
     /// For an open on a copy of core's store: what each of its statements
     /// read, from the open's own statement trace.
     pub trace: Option<super::startup::Trace>,
+    /// Committed WAL frames the open replayed (crash images).
+    pub replay: u64,
+}
+
+/// The reason of an orderly core restart.
+pub const DAILY: &str = "daily restart";
+
+/// Core's store files as a crash leaves them (`Sim::crash_image`).
+pub struct CrashImage {
+    pub db: Vec<u8>,
+    pub wal: Option<Vec<u8>>,
+}
+
+/// `path` with `suffix` appended (`core.sqlite-wal`).
+pub fn suffixed(path: &std::path::Path, suffix: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(suffix);
+    PathBuf::from(name)
 }
 
 /// Sizes of a database file and its WAL.
@@ -213,9 +240,11 @@ pub struct Stats {
     pub timing: BTreeMap<&'static str, std::time::Duration>,
     pub retention_passes: u64,
     pub reads: u64,
-    /// Failures core logged as `InvalidInput`: each a lost executor answer
-    /// (`checks::LOST_ANSWERS`).
-    pub lost_as_invalid: u64,
+    /// Lost recovery-lookup answers checked against what core logged in the
+    /// same dispatcher pass, and those that fell in a pass the executor died
+    /// in (unchecked: a dead executor's refused connections log the same).
+    pub lookups_checked: u64,
+    pub lookups_unchecked: u64,
 }
 
 impl Stats {
@@ -232,6 +261,8 @@ pub struct Logged {
     pub error: bool,
     pub message: String,
     pub code: Option<String>,
+    /// The module that logged it (its log site, with the message).
+    pub site: String,
 }
 /// Collects what core logs on the test thread: its dispatcher, recovery and
 /// resolution report failures with the error's code and move on, so this is
@@ -259,6 +290,7 @@ impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for Capture {
             error: level == tracing::Level::ERROR,
             message: fields.0,
             code: fields.1,
+            site: event.metadata().module_path().unwrap_or("?").to_owned(),
         });
     }
 }
@@ -286,8 +318,12 @@ pub struct Sim {
     /// Operator attempts per job, so a refused declaration is not repeated.
     pub attempts: std::collections::HashMap<String, u32>,
     pub stats: Stats,
-    /// What core logged without a code, by message (reported).
-    pub logged: BTreeMap<String, u64>,
+    /// Every warning and error core logged: by site, message and code.
+    pub logged: BTreeMap<(String, String, Option<String>), u64>,
+    /// Of the last batch `absorb` judged: the dispatcher's "remains pending"
+    /// warnings with the transport code (`checks::PENDING`), for container
+    /// and for stack jobs.
+    pub batch_pending_unavailable: (u64, u64),
     pub core_starts: Vec<Startup>,
     pub executor_starts: Vec<Startup>,
     /// When the next dispatcher pass is due.
@@ -317,8 +353,22 @@ pub struct Sim {
     /// keeps, and the highest prune watermark seen.
     pub receipts_reached: (bool, bool),
     pub last_watermark: i64,
+    /// The receipt store's creation floor: its first watermark (a new store
+    /// treats every plan expiring before it as pruned history).
+    pub receipt_creation: i64,
     /// Authority events at the last checkpoint: they never decrease.
     pub authority_seen: i64,
+    /// Jobs core held (dispatched, unsettled) when the executor's receipt
+    /// store changed (any executor start draws a new epoch; a replaced store
+    /// has also lost receipts): none may be released on a closure alone.
+    pub exposed: std::collections::HashSet<String>,
+    /// Days on which the next container job queued gets its receipt store
+    /// replaced (`JobFault::ReceiptStoreLost`), and whether by an older copy.
+    pub replacements: Vec<(i64, bool)>,
+    /// The job held open across retention passes with a resolution request
+    /// open (`workload::release_held`), once armed.
+    pub held: Option<String>,
+    pub held_open: Option<(i64, i64)>,
     side: Option<rusqlite::Connection>,
 }
 
@@ -402,6 +452,7 @@ impl Sim {
             attempts: Default::default(),
             stats: Stats::default(),
             logged: BTreeMap::new(),
+            batch_pending_unavailable: (0, 0),
             core_starts: Vec::new(),
             executor_starts: Vec::new(),
             next_pass: START,
@@ -417,7 +468,12 @@ impl Sim {
             core_restarts_until: core_restarts_until.map_or(i64::MAX, |day| START + day * DAY),
             receipts_reached: (false, false),
             last_watermark: i64::MIN,
+            receipt_creation: START + limeos_domain::PLAN_TTL_SECONDS,
             authority_seen: 0,
+            exposed: Default::default(),
+            replacements: Vec::new(),
+            held: None,
+            held_open: None,
             side: None,
         }
     }
@@ -540,7 +596,12 @@ impl Sim {
             storage_mount_socket: Arc::new("/nonexistent/limeos-soak-mounts".into()),
             storage_readers: Arc::new(Semaphore::new(1)),
             claims_in_doubt: Default::default(),
-            stacks: Default::default(),
+            // Core's clock: its stack proposals judge the inventory cohort's
+            // freshness on simulated time, as `propose_stack` does on the
+            // system clock.
+            stacks: limeos_observations::stacks::Cache::with_clock(|| {
+                (crate::now(), crate::monotonic())
+            }),
             compose_catalog: None,
         });
         self.dispatcher = Dispatcher::default();
@@ -552,6 +613,7 @@ impl Sim {
             wal,
             opened: opened_at,
             trace: None,
+            replay: 0,
         });
         self.absorb_passes();
         // The dispatcher's first tick is immediate: startup leftovers.
@@ -591,6 +653,11 @@ impl Sim {
     pub fn core_restarts(&self) -> bool {
         self.now() < self.core_restarts_until
     }
+    /// Core restarts. A daily restart is orderly (the writer checkpoints and
+    /// truncates its WAL as it stops); any other restart is a crash: core
+    /// reopens the store from its files as they were at that moment, the
+    /// database with its WAL (and no wal-index), so its startup replays
+    /// every frame committed since the last checkpoint, as after a kill.
     pub async fn restart_core(&mut self, reason: &'static str) {
         assert!(
             self.core_restarts(),
@@ -600,11 +667,67 @@ impl Sim {
         );
         self.absorb_passes();
         super::checks::core_accounting(self, reason);
+        let image = (reason != DAILY).then(|| self.crash_image());
+        if let Some(image) = &image {
+            *self
+                .stats
+                .faults
+                .entry("core crash with its WAL as it was")
+                .or_default() += 1;
+            if image
+                .wal
+                .as_deref()
+                .is_some_and(|w| super::startup::committed_frames(w) > 0)
+            {
+                *self
+                    .stats
+                    .faults
+                    .entry("of them: with committed frames to replay")
+                    .or_default() += 1;
+            }
+        }
         self.stop_core().await;
+        if let Some(image) = image {
+            self.restore(image);
+        }
         self.start_core(reason).await;
         super::checks::after_restart(self, reason);
     }
+    /// Core's store files as a crash would leave them now: the writer idle
+    /// (every call it was given has committed or rolled back), the database
+    /// and its WAL as they are on disk. The wal-index (`-shm`) is shared
+    /// memory a crash loses; it is not kept.
+    pub fn crash_image(&mut self) -> CrashImage {
+        self.clock.sim().settle();
+        let read = |path: &std::path::Path| std::fs::read(path).ok();
+        let db = read(&self.core_path).expect("core.sqlite");
+        let wal = read(&suffixed(&self.core_path, "-wal"));
+        CrashImage { db, wal }
+    }
+    /// Puts `image` in place of core's store files (core stopped).
+    fn restore(&mut self, image: CrashImage) {
+        self.side = None;
+        std::fs::write(&self.core_path, &image.db).expect("core.sqlite from the crash image");
+        let wal = suffixed(&self.core_path, "-wal");
+        match &image.wal {
+            Some(bytes) => std::fs::write(&wal, bytes).expect("its WAL from the crash image"),
+            None => {
+                let _ = std::fs::remove_file(&wal);
+            }
+        }
+        let _ = std::fs::remove_file(suffixed(&self.core_path, "-shm"));
+    }
     pub fn start_executor(&mut self, reason: &'static str) {
+        // A new open is a new store epoch: every job core holds now was
+        // dispatched under an earlier one.
+        if self.core.is_some() {
+            let held: Vec<String> = self
+                .side()
+                .prepare("SELECT id FROM jobs WHERE state IN ('running','verifying','outcome_unknown','needs_intervention')")
+                .and_then(|mut s| s.query_map([], |r| r.get(0))?.collect())
+                .unwrap_or_default();
+            self.exposed.extend(held);
+        }
         let now = self.now();
         let (file, wal) = sizes(&self.exec.dir.join("receipts.sqlite"));
         match self.exec.start(now) {
@@ -615,6 +738,7 @@ impl Sim {
                 wal,
                 opened,
                 trace: None,
+                replay: 0,
             }),
             Err(Error(code)) => panic!(
                 "[{}] {}: receipt store refused to open ({reason}): {code:?}",
@@ -675,45 +799,39 @@ impl Sim {
     /// an executor that died is restarted (or comes back later).
     pub async fn absorb(&mut self) {
         let logged = std::mem::take(&mut *self.log.lock().unwrap());
+        self.batch_pending_unavailable = (0, 0);
         for entry in logged {
             let code = entry.code.as_deref();
-            // A lost executor answer read as the caller's bad input
-            // (`checks::LOST_ANSWERS`): `read_frame` once reported the end of
-            // the stream so.
-            if code == Some("InvalidInput") && !entry.error {
-                self.stats.lost_as_invalid += 1;
-                self.violation(
-                    super::checks::LOST_ANSWERS,
-                    format!(
-                        "core logged a lost executor answer as InvalidInput: {}",
-                        entry.message
-                    ),
-                );
-                continue;
+            if code == Some("Unavailable") {
+                if entry.message == super::checks::PENDING[0] {
+                    self.batch_pending_unavailable.0 += 1;
+                } else if entry.message == super::checks::PENDING[1] {
+                    self.batch_pending_unavailable.1 += 1;
+                }
             }
             let lifetime = code.is_some_and(|c| LIFETIME.iter().any(|l| format!("{l:?}") == c));
-            let legit = code.is_some_and(|c| DISPATCH_LEGIT.iter().any(|l| format!("{l:?}") == c));
-            if entry.error || lifetime || (code.is_some() && !legit) {
-                let kind = if lifetime {
-                    "lifetime refusal"
-                } else if entry.error {
-                    "error"
-                } else {
-                    "unexpected refusal"
-                };
+            if lifetime {
                 self.violation(
                     super::checks::REFUSALS,
-                    format!("core logged {kind}: {} ({code:?})", entry.message),
+                    format!(
+                        "core logged a lifetime refusal: {} ({code:?}, {})",
+                        entry.message, entry.site
+                    ),
                 );
-            } else if let Some(code) = code {
-                *self
-                    .stats
-                    .refused
-                    .entry((format!("core: {}", entry.message), code.to_owned()))
-                    .or_default() += 1;
-            } else {
-                *self.logged.entry(entry.message).or_default() += 1;
+            } else if super::checks::expected_log(&entry).is_none() {
+                let level = if entry.error { "error" } else { "warning" };
+                self.violation(
+                    super::checks::LOGS,
+                    format!(
+                        "core logged an unexpected {level}: {} ({code:?}, {})",
+                        entry.message, entry.site
+                    ),
+                );
             }
+            *self
+                .logged
+                .entry((entry.site, entry.message, entry.code))
+                .or_default() += 1;
         }
         let violations = std::mem::take(&mut self.exec.faults().violations);
         for violation in violations {
@@ -722,6 +840,9 @@ impl Sim {
         if let Some(death) = self.exec.take_death() {
             super::checks::receipt_accounting(self, death.reason);
             self.exec.stop().await;
+            if let Some(older) = death.replace {
+                self.replace_receipts(older);
+            }
             match death.back_at {
                 Some(at) => self.executor_back_at = Some(at),
                 None => {
@@ -731,6 +852,56 @@ impl Sim {
             }
         }
         self.absorb_passes();
+    }
+    /// The stopped executor's receipt store replaced: by an empty one, or
+    /// (`older`) by the copy of an earlier night (`snapshot_receipts`), if
+    /// there is one. What retention promised of the old store no longer
+    /// binds the new one, so the accounting starts again.
+    fn replace_receipts(&mut self, older: bool) {
+        let path = self.exec.dir.join("receipts.sqlite");
+        for file in [
+            path.clone(),
+            suffixed(&path, "-wal"),
+            suffixed(&path, "-shm"),
+        ] {
+            let _ = std::fs::remove_file(file);
+        }
+        let snapshot = self.older_receipts();
+        if older && snapshot.exists() {
+            std::fs::copy(&snapshot, &path).expect("the older receipt store");
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        self.receipts_reached = (false, false);
+        self.last_watermark = i64::MIN;
+        if !(older && snapshot.exists()) {
+            self.receipt_creation = self.now() + limeos_domain::PLAN_TTL_SECONDS;
+        }
+        self.exec.faults().replaced_at = Some(self.now());
+    }
+    fn older_receipts(&self) -> PathBuf {
+        self._dir.path().join("receipts-older.sqlite")
+    }
+    /// At a checkpoint: a consistent copy of the receipt store, kept for an
+    /// older-copy replacement, when no action in it is active (an active row
+    /// is a lock a restore would bring back for a job core has settled).
+    pub fn snapshot_receipts(&mut self) {
+        let path = self.exec.dir.join("receipts.sqlite");
+        let Ok(conn) = super::checks::reader(&path) else {
+            return;
+        };
+        let active: i64 = conn
+            .query_row(
+                "SELECT (SELECT count(*) FROM actions WHERE state IN ('prepared','effect_accepted','outcome_unknown'))+(SELECT count(*) FROM stack_actions WHERE state IN ('prepared','effect_accepted','outcome_unknown'))",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(1);
+        drop(conn);
+        if active == 0 {
+            let snapshot = self.older_receipts();
+            let _ = std::fs::remove_file(&snapshot);
+            super::startup::copy(&path, &snapshot);
+        }
     }
     /// Every fault that fired, the executor's and the harness's.
     pub fn faults(&self) -> BTreeMap<&'static str, u64> {
@@ -742,4 +913,4 @@ impl Sim {
     }
 }
 
-use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};

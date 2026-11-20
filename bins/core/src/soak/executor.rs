@@ -9,7 +9,8 @@
 //! loop (the daemon's peer check is replaced by the ceiling's own) and the
 //! faults, decided per request from the job it names:
 //!
-//! - an answer lost (handled, then the connection closes unanswered);
+//! - an answer lost (handled, then the connection closes unanswered): an
+//!   execute's, or an execute's and then the first recovery lookup's;
 //! - the process dying with a request unread, inside the Engine call (the
 //!   `prepared` row committed), or between answering `ReceiptEpoch` and the
 //!   execute (the socket goes, so core's connect is refused);
@@ -84,6 +85,8 @@ impl Crash {
 pub struct Death {
     pub reason: &'static str,
     pub back_at: Option<i64>,
+    /// Its receipt store is replaced before it starts again: `Some(older)`.
+    pub replace: Option<bool>,
 }
 
 /// The faults armed per job, and what the executor saw and did.
@@ -113,8 +116,26 @@ pub struct Faults {
     /// answer lost, or the process dead with the request unread or inside
     /// the Engine (core's own deaths drop core's side first).
     pub dropped: u64,
+    /// The same, by the kind of request whose answer core never got.
+    pub lost: BTreeMap<&'static str, u64>,
+    /// Requests answered with a refusal, by kind and code.
+    pub refused: BTreeMap<(&'static str, String), u64>,
     /// Requests served, by kind.
     pub requests: BTreeMap<&'static str, u64>,
+    /// Times the process died (or stopped) on its own.
+    pub deaths: u64,
+    /// Jobs whose recovery lookup the executor answered with a closure.
+    pub closed_jobs: std::collections::HashSet<String>,
+    /// When its receipt store was last replaced: for a plan expiring within
+    /// `PLAN_TTL_SECONDS` of it, `BeyondReceiptHistory` is the store's right
+    /// answer (it cannot prove an action of so old a plan never ran).
+    pub replaced_at: Option<i64>,
+    /// Such refusals.
+    pub beyond_after_replacement: u64,
+    /// Jobs whose recovery lookups it refuses (`Conflict`), and whose
+    /// resolution it refuses (`Unavailable`), while held open.
+    pub held_lookups: std::collections::HashSet<String>,
+    pub held_resolutions: std::collections::HashSet<String>,
     died: Option<Death>,
 }
 
@@ -125,6 +146,8 @@ enum Before {
     DieUnread,
     /// Core dies first: the request is never handled.
     CoreDies,
+    /// Refused with this code, unhandled.
+    Refuse(limeos_domain::ErrorCode),
     /// The next Engine effect fails (or hangs: the process dies inside it).
     Engine(Fault),
 }
@@ -137,6 +160,9 @@ enum After {
     CoreDies,
     /// Answered; then the process stops until `back_at`.
     StopUntil(i64),
+    /// Handled; the answer is lost and the process dies, to come back with
+    /// its receipt store replaced (`Some(older)`).
+    LoseAndReplace(bool),
 }
 
 fn kind(request: &Request) -> &'static str {
@@ -212,7 +238,9 @@ impl Faults {
                 }
             }
             Request::RestartReceipt { action, .. } | Request::StackReceipt { action, .. } => {
-                if let Some(fault) = self.take(action, |f| f == JobFault::LookupLost) {
+                if self.held_lookups.contains(action) {
+                    before = Before::Refuse(limeos_domain::ErrorCode::Conflict);
+                } else if let Some(fault) = self.take(action, |f| f == JobFault::LookupLost) {
                     self.fired(fault);
                     after = After::Lose;
                 }
@@ -222,6 +250,8 @@ impl Faults {
                     && self.core_dies(fault)
                 {
                     before = Before::CoreDies;
+                } else if self.held_resolutions.contains(action) {
+                    before = Before::Refuse(limeos_domain::ErrorCode::Unavailable);
                 }
             }
             _ => {}
@@ -229,6 +259,10 @@ impl Faults {
         (before, after)
     }
     fn execute(&mut self, action: &str) -> (Before, After) {
+        // Left armed for the first recovery lookup, which loses its answer too.
+        if self.armed.get(action) == Some(&JobFault::LookupLost) {
+            return (Before::Handle, After::Lose);
+        }
         let Some(fault) = self.take(action, |f| {
             matches!(
                 f,
@@ -238,6 +272,8 @@ impl Faults {
                     | JobFault::EngineFailure { .. }
                     | JobFault::CoreCrashAfterClaim
                     | JobFault::CoreCrashAfterExecute
+                    | JobFault::ReceiptStoreLost { .. }
+                    | JobFault::HeldOpen
             )
         }) else {
             return (Before::Handle, After::Write);
@@ -245,6 +281,16 @@ impl Faults {
         match fault {
             JobFault::AnswerLost => {
                 self.fired(fault);
+                (Before::Handle, After::Lose)
+            }
+            JobFault::ReceiptStoreLost { older } => {
+                self.fired(fault);
+                (Before::Handle, After::LoseAndReplace(older))
+            }
+            JobFault::HeldOpen => {
+                self.fired(fault);
+                self.held_lookups.insert(action.to_owned());
+                self.held_resolutions.insert(action.to_owned());
                 (Before::Handle, After::Lose)
             }
             JobFault::LostBeforeStore => {
@@ -291,7 +337,18 @@ impl Serving {
     /// The process dies: it accepts nothing more and its socket goes, so a
     /// connect is refused (the request never leaves core).
     fn die(&self, reason: &'static str, back_at: Option<i64>) {
-        self.faults().died = Some(Death { reason, back_at });
+        self.die_replacing(reason, back_at, None);
+    }
+    fn die_replacing(&self, reason: &'static str, back_at: Option<i64>, replace: Option<bool>) {
+        {
+            let mut faults = self.faults();
+            faults.died = Some(Death {
+                reason,
+                back_at,
+                replace,
+            });
+            faults.deaths += 1;
+        }
         if let Some(accept) = self.accept.lock().unwrap().take() {
             accept.abort();
         }
@@ -323,11 +380,16 @@ async fn connection(serving: Arc<Serving>, mut stream: UnixStream) {
         return;
     };
     let now = serving.clock.now();
+    let what = kind(&request);
+    let lost = |faults: &mut Faults| {
+        faults.dropped += 1;
+        *faults.lost.entry(what).or_default() += 1;
+    };
     let (before, after) = serving.faults().decide(&request, now);
     let world = &serving.world;
     let hang = match before {
         Before::DieUnread => {
-            serving.faults().dropped += 1;
+            lost(&mut serving.faults());
             serving.die("executor crash with an execute unread", None);
             return;
         }
@@ -338,6 +400,19 @@ async fn connection(serving: Arc<Serving>, mut stream: UnixStream) {
         Before::Engine(fault) => {
             world.arm(fault);
             fault == Fault::Hang
+        }
+        Before::Refuse(code) => {
+            *serving
+                .faults()
+                .refused
+                .entry((what, format!("{code:?}")))
+                .or_default() += 1;
+            let _ = tokio::time::timeout(
+                limeos_contracts::RPC_DEADLINE,
+                limeos_contracts::write_frame(&mut stream, &refusal(limeos_domain::Error(code))),
+            )
+            .await;
+            return;
         }
         Before::Handle => false,
     };
@@ -401,7 +476,7 @@ async fn connection(serving: Arc<Serving>, mut stream: UnixStream) {
                             .entry("of them: killed after a pruning insert")
                             .or_default() += 1;
                     }
-                    serving.faults().dropped += 1;
+                    lost(&mut serving.faults());
                     serving.die("executor killed inside the Engine call", None);
                     return;
                 }
@@ -415,10 +490,21 @@ async fn connection(serving: Arc<Serving>, mut stream: UnixStream) {
         if let Some(action) = action {
             *faults.effects.entry(action).or_default() += world.effects() - effects;
         }
-        if let Some(code) = response.error.filter(|code| LIFETIME.contains(code)) {
-            faults
-                .violations
-                .push(format!("executor: lifetime refusal {code:?}"));
+        if let Some(code) = response.error {
+            *faults
+                .refused
+                .entry((what, format!("{code:?}")))
+                .or_default() += 1;
+            let replaced = faults
+                .replaced_at
+                .is_some_and(|at| now <= at + limeos_domain::PLAN_TTL_SECONDS);
+            if code == limeos_domain::ErrorCode::BeyondReceiptHistory && replaced {
+                faults.beyond_after_replacement += 1;
+            } else if LIFETIME.contains(&code) {
+                faults
+                    .violations
+                    .push(format!("executor: lifetime refusal {code:?}"));
+            }
         }
         if let Some((action, close)) = lookup
             && response.error.is_none()
@@ -436,12 +522,23 @@ async fn connection(serving: Arc<Serving>, mut stream: UnixStream) {
                 ));
             } else if response.closed {
                 faults.closures += 1;
+                faults.closed_jobs.insert(action.clone());
             }
         }
     }
     match after {
         After::Lose => {
-            serving.faults().dropped += 1;
+            lost(&mut serving.faults());
+            return;
+        }
+        After::LoseAndReplace(older) => {
+            lost(&mut serving.faults());
+            let reason = if older {
+                "receipt store replaced by an older copy"
+            } else {
+                "receipt store replaced by an empty one"
+            };
+            serving.die_replacing(reason, None, Some(older));
             return;
         }
         After::CoreDies => {
@@ -540,6 +637,16 @@ impl Executor {
         let mut faults = self.faults();
         faults.armed.insert(job.to_owned(), fault);
         faults.resources.insert(job.to_owned(), resource.to_owned());
+    }
+    /// Whether the process is running (listening on its socket).
+    pub fn running(&self) -> bool {
+        self.running.is_some()
+    }
+    /// Receipt-lookup answers it never wrote so far: container, stack.
+    pub fn lost_lookups(&self) -> (u64, u64) {
+        let faults = self.faults();
+        let lost = |kind| faults.lost.get(kind).copied().unwrap_or(0);
+        (lost("receipt lookup"), lost("stack receipt lookup"))
     }
     /// The process died on its own since the last call.
     pub fn take_death(&self) -> Option<Death> {

@@ -9,13 +9,11 @@
 //! (`propose_action`, `approve_container`, `submit`, `cancel_restart`,
 //! `restart_progress`, `observations`, `logout`, and their stack
 //! counterparts), and the operator decides through `rpc_resolution_view` and
-//! `rpc_resolve` (the root CLI's path). Two steps are not core's own: a
-//! login is the session write `login_checked` makes once the password
-//! workers have accepted the password (they are not driven), and a stack
-//! proposal is `propose_stack`'s calls with its members taken from the
-//! simulated Engine, because core takes them from an inventory cache that
-//! judges freshness on its own system clock (`plan_stack`, checked against
-//! the real `propose_stack` by `stack_proposals_match_core`).
+//! `rpc_resolve` (the root CLI's path), and stack proposals are core's
+//! `propose_stack`, its members from the inventory cache as the storage
+//! reader would fill it from the simulated Engine. One step is not core's
+//! own: a login is the session write `login_checked` makes once the password
+//! workers have accepted the password (they are not driven).
 //!
 //! # Rates (normal days), and why
 //!
@@ -77,6 +75,16 @@ pub struct Profile {
     /// begin; from then on it stays open, so nothing recomputes its counters,
     /// and startup is measured on copies. `None`: restarts throughout.
     pub core_restarts_until: Option<i64>,
+    /// Days on which the executor's receipt store is replaced (the next
+    /// container job's execute answer lost, the executor back with an empty
+    /// store, or `true`: a copy from an earlier night).
+    pub replacements: &'static [(i64, bool)],
+    /// (arming day, release day) of the held-open resolution
+    /// (`release_held`): the first container job queued on the arming day is
+    /// held for the operator, who decides it while the executor refuses to
+    /// resolve it, and on the release day it settles by another path with
+    /// the request still open, while retention prunes everything older.
+    pub held_open: Option<(i64, i64)>,
 }
 
 /// What a flow does after its proposal.
@@ -113,6 +121,11 @@ pub enum Step {
     OperatorReview,
     ExternalRestart,
     Checkpoint,
+    /// Startup measured on core's store as a crash would leave it now.
+    CrashImage,
+    /// The held-open job settles with its resolution request open
+    /// (`release_held`).
+    ReleaseHeld,
     IdleWindow,
     /// Provokes the refusals every run must tell apart from lifetime ones:
     /// an approval after the plan expired, a session used after expiry.
@@ -143,6 +156,8 @@ impl Step {
             Step::Provoke | Step::UseStale => "provocations",
             Step::ExternalRestart => "external restarts",
             Step::Checkpoint => "checkpoints and daily restarts",
+            Step::CrashImage => "startup on crash images",
+            Step::ReleaseHeld => "held-open resolution",
             Step::IdleWindow => "idle windows",
             Step::RunawayLogins { .. } => "runaway-login burst",
             Step::ScriptedContainer { .. } | Step::ScriptedStack { .. } => "action storm",
@@ -189,6 +204,8 @@ fn day_at(day: i64, hour: i64, minute: i64) -> i64 {
 
 pub async fn run(profile: Profile) -> Sim {
     let mut sim = Sim::new(profile.name, profile.seed, profile.core_restarts_until);
+    sim.replacements = profile.replacements.to_vec();
+    sim.held_open = profile.held_open;
     let mut agenda = Agenda::default();
     bootstrap(&mut sim).await;
     let end = START + profile.days * DAY;
@@ -214,6 +231,24 @@ pub async fn run(profile: Profile) -> Sim {
         if day % profile.idle_every == profile.idle_every - 1 {
             agenda.at(day_at(day, 2, 0), Step::IdleWindow);
         }
+    }
+    // Startup on a crash image, mid-afternoon with the house awake, every
+    // fifth day from day 2 and on the burst and storm days, while they run.
+    for day in 0..profile.days {
+        let (burst, storm) = (profile.session_burst, profile.action_burst);
+        let at = if day == burst.0 {
+            day_at(day, burst.1, burst.2.min(240) / 2)
+        } else if day == storm.0 {
+            day_at(day, storm.1, storm.2.min(240) / 2)
+        } else if day % 5 == 2 {
+            day_at(day, 15, 7)
+        } else {
+            continue;
+        };
+        agenda.at(at, Step::CrashImage);
+    }
+    if let Some((_, release)) = profile.held_open {
+        agenda.at(day_at(release, 10, 0), Step::ReleaseHeld);
     }
     agenda.at(day_at(0, 9, 0), Step::Provoke);
     let (day, hour, minutes) = profile.session_burst;
@@ -293,6 +328,10 @@ const RECOVERY_PAUSE: i64 = 30;
 pub async fn tick(sim: &mut Sim) {
     sim.stats.dispatcher_passes += 1;
     let at = Instant::now();
+    // Whether the executor runs throughout the pass: then every transport
+    // failure core logs in it is a lost answer.
+    let up = sim.exec.running() && sim.executor_back_at.is_none();
+    let (lost, deaths) = (sim.exec.lost_lookups(), sim.exec.faults().deaths);
     let core = sim.core();
     let crash = sim.exec.crash.clone();
     let crashed = guarded(&crash, core.dispatcher_pass(&mut sim.dispatcher))
@@ -302,7 +341,10 @@ pub async fn tick(sim: &mut Sim) {
     if crashed {
         sim.restart_core("core restart at an awkward moment").await;
     }
+    let died = sim.exec.faults().deaths != deaths;
     sim.absorb().await;
+    let now_lost = sim.exec.lost_lookups();
+    checks::lost_lookups(sim, (now_lost.0 - lost.0, now_lost.1 - lost.1), up && !died);
     sim.stats.time("dispatcher passes: core's pass", at);
     let (queued, held) = open_work(sim);
     let now = sim.now();
@@ -511,15 +553,12 @@ async fn propose_container(sim: &mut Sim, user: usize, fate: Fate) -> Option<u64
     Some(start_flow(sim, user, Planned::Container(planned), fate))
 }
 
-/// A stack proposal: core's `propose_stack` but for where it takes the
-/// members from. Core reads them from the storage reader's inventory cohort,
-/// a cache (`limeos_observations::stacks`) that checks every cohort's
-/// freshness (90 s) against its own system clock, which the simulated
-/// months cannot satisfy and which has no seam. So the harness makes the
-/// same calls in the same order with the members from the simulated Engine
-/// (what that cohort would list), and `stack_proposals_match_core` runs the
-/// real `propose_stack` beside this on the same Engine, at the system time,
-/// and fails when what it writes, asks or plans differs.
+/// Core's `propose_stack`: session, the stack's members from the storage
+/// reader's inventory cohort, authorization, a fresh Engine listing through
+/// the executor, plan. The cohort is what the storage reader would list from
+/// the simulated Engine now, handed to core's cache as its proxy hands it on
+/// (every few seconds in production); the cache judges its freshness on the
+/// simulated clock (`Cache::with_clock`, given core's clock at startup).
 async fn propose_stack(sim: &mut Sim, user: usize, fate: Fate) -> Option<u64> {
     let busy = busy(sim);
     let free: Vec<&str> = STACKS
@@ -549,7 +588,12 @@ async fn propose_stack(sim: &mut Sim, user: usize, fate: Fate) -> Option<u64> {
         ContainerAction::Restart
     };
     let (token, csrf) = session(sim, user, "propose stack action: session").await?;
-    let planned = plan_stack(sim, token, csrf, project, operation).await;
+    let core = sim.core();
+    let refreshed = core.stacks.update(&sim.world.cohort(sim.now()));
+    sim.judge("stack inventory refresh", refreshed, &[])?;
+    let planned = core
+        .propose_stack(token, csrf, project.into(), operation)
+        .await;
     sim.absorb().await;
     let planned = sim.judge(
         "propose stack action",
@@ -557,144 +601,6 @@ async fn propose_stack(sim: &mut Sim, user: usize, fate: Fate) -> Option<u64> {
         &[ErrorCode::Conflict, ErrorCode::Unavailable],
     )?;
     Some(start_flow(sim, user, Planned::Stack(planned), fate))
-}
-
-/// `Core::propose_stack` with the members from the simulated Engine (see
-/// `propose_stack`): the stack as the cohort lists it, the same
-/// authorization, fresh listing through core's `inspect_stack` and plan.
-async fn plan_stack(
-    sim: &Sim,
-    token: String,
-    csrf: String,
-    project: &'static str,
-    operation: ContainerAction,
-) -> limeos_domain::Result<limeos_domain::PlannedStackAction> {
-    let core = sim.core();
-    let principal = core
-        .session(token.clone(), Some(csrf.clone()))
-        .await?
-        .principal;
-    let members = HOST
-        .iter()
-        .filter(|(_, p)| *p == Some(project))
-        .map(|(n, _)| sim.world.snapshot(&container_id(n)).unwrap())
-        .collect::<Vec<_>>();
-    let planned = limeos_domain::StackSnapshot::new(project, members)?;
-    planned.validate_for(operation)?;
-    let (p, s) = (principal, planned.clone());
-    core.db
-        .call(move |store| store.authorize_stack(&p, project, &s))
-        .await?;
-    if core.inspect_stack(project).await? != planned {
-        return Err(limeos_domain::Error(ErrorCode::Conflict));
-    }
-    let now = sim.now();
-    let (digest, csrf) = (
-        limeos_identity::digest(&token),
-        limeos_identity::digest(&csrf),
-    );
-    core.db
-        .call(move |s| {
-            let principal = s.authenticate(&digest, Some(&csrf), now)?;
-            s.plan_stack(&principal, operation, project, &planned, now)
-        })
-        .await
-}
-
-/// What a stack proposal did: executor requests, events written by kind,
-/// and stack plans kept.
-fn proposal_effects(sim: &mut Sim) -> (BTreeMap<&'static str, u64>, Vec<(String, i64)>, i64) {
-    let requests = sim.exec.faults().requests.clone();
-    let side = sim.side();
-    let events = side
-        .prepare("SELECT json_extract(kind,'$.kind'),count(*) FROM events GROUP BY 1 ORDER BY 1")
-        .unwrap()
-        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
-        .unwrap()
-        .collect::<Result<_, _>>()
-        .unwrap();
-    let plans = side
-        .query_row("SELECT count(*) FROM stack_plans", [], |r| r.get(0))
-        .unwrap();
-    (requests, events, plans)
-}
-
-/// The stack-proposal shim against core's own `propose_stack`, on the same
-/// Engine, at the system time (so the inventory cache accepts the cohort):
-/// both must make the same executor requests, write the same events and
-/// rows, and plan the same members and operation.
-#[tokio::test(flavor = "current_thread")]
-async fn stack_proposals_match_core() {
-    let mut sim = Sim::new("stack-shim", 0x5eed_57ac, None);
-    bootstrap(&mut sim).await;
-    let wall = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
-    sim.advance(wall);
-    let (token, csrf) = session(&mut sim, 0, "session").await.unwrap();
-    let mut seen = Vec::new();
-    for (project, operation) in [
-        ("home", ContainerAction::Restart),
-        ("cloud", ContainerAction::Stop),
-    ] {
-        let before = proposal_effects(&mut sim);
-        let core = sim.core();
-        core.stacks
-            .update(&sim.world.cohort(sim.now()))
-            .expect("the inventory cohort is accepted");
-        let real = core
-            .propose_stack(token.clone(), csrf.clone(), project.into(), operation)
-            .await
-            .expect("core plans the stack action");
-        let middle = proposal_effects(&mut sim);
-        let shim = plan_stack(&sim, token.clone(), csrf.clone(), project, operation)
-            .await
-            .expect("the shim plans the stack action");
-        let after = proposal_effects(&mut sim);
-        let delta =
-            |a: &(BTreeMap<&'static str, u64>, Vec<(String, i64)>, i64),
-             b: &(BTreeMap<&'static str, u64>, Vec<(String, i64)>, i64)| {
-                let requests: BTreeMap<&str, u64> =
-                    b.0.iter()
-                        .map(|(k, v)| (*k, v - a.0.get(k).copied().unwrap_or(0)))
-                        .filter(|(_, v)| *v > 0)
-                        .collect();
-                let events: Vec<(String, i64)> =
-                    b.1.iter()
-                        .map(|(k, v)| {
-                            let was = a.1.iter().find(|(j, _)| j == k).map_or(0, |(_, n)| *n);
-                            (k.clone(), v - was)
-                        })
-                        .filter(|(_, v)| *v != 0)
-                        .collect();
-                (requests, events, b.2 - a.2)
-            };
-        let (core_did, shim_did) = (delta(&before, &middle), delta(&middle, &after));
-        assert_eq!(
-            core_did, shim_did,
-            "core's propose_stack ({project}) asked, wrote and kept {core_did:?}; the soak's shim {shim_did:?}"
-        );
-        assert_eq!(
-            (
-                &real.plan.expected,
-                real.plan.operation,
-                &real.plan.grant_revision
-            ),
-            (
-                &shim.plan.expected,
-                shim.plan.operation,
-                &shim.plan.grant_revision
-            ),
-            "core's propose_stack and the shim planned different stacks"
-        );
-        seen.push(core_did);
-    }
-    assert!(
-        seen.iter()
-            .all(|(requests, _, plans)| !requests.is_empty() && *plans == 1),
-        "the comparison saw no work: {seen:?}"
-    );
 }
 
 fn start_flow(sim: &mut Sim, user: usize, planned: Planned, fate: Fate) -> u64 {
@@ -821,7 +727,25 @@ async fn queue(sim: &mut Sim, agenda: &mut Agenda, flow: u64) {
     let Some((id, kind, operation, targets, resource)) = queued else {
         return;
     };
-    let fault = arm_fault(sim, &id, &resource);
+    let hold = sim.held.is_none()
+        && kind == Kind::Container
+        && sim
+            .held_open
+            .is_some_and(|(day, _)| sim.now() >= START + day * DAY + 8 * HOUR);
+    let fault = match sim.replacements.first().copied() {
+        _ if hold => {
+            sim.held = Some(id.clone());
+            sim.exec.arm(&id, &resource, JobFault::HeldOpen);
+            Some(JobFault::HeldOpen)
+        }
+        Some((day, older)) if kind == Kind::Container && sim.now() >= START + day * DAY => {
+            sim.replacements.remove(0);
+            let fault = JobFault::ReceiptStoreLost { older };
+            sim.exec.arm(&id, &resource, fault);
+            Some(fault)
+        }
+        _ => arm_fault(sim, &id, &resource),
+    };
     sim.ledger.insert(
         id.clone(),
         JobRecord {
@@ -1028,13 +952,16 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
             // deterministic series the startup checks judge.
             super::startup::core(sim);
             super::startup::receipts(sim);
+            sim.snapshot_receipts();
             // Both daemons restart every night (core only while its restarts
             // last): every restart is followed by the checks.
-            sim.restart_executor("daily restart").await;
+            sim.restart_executor(super::sim::DAILY).await;
             if sim.core_restarts() {
-                sim.restart_core("daily restart").await;
+                sim.restart_core(super::sim::DAILY).await;
             }
         }
+        Step::CrashImage => super::startup::core_crash(sim),
+        Step::ReleaseHeld => release_held(sim).await,
         Step::IdleWindow => checks::idle_window(sim).await,
         Step::RunawayLogins { until } => {
             for _ in 0..2 {
@@ -1065,6 +992,138 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
             }
         }
     }
+}
+
+/// Events retention would prune before `cursor`'s (job `job`'s first): the
+/// events rule's own candidates (`retention::loose_candidates`,
+/// `settled_candidates`), read on the side connection.
+fn prunable_before(sim: &mut Sim, cursor: i64, job: &str) -> i64 {
+    let authority = "'bootstrap_issued','administrator_enrolled','legacy_identity_imported','grants_revised','job_resolution_requested','job_resolution_withdrawn','job_resolution_superseded'";
+    sim.side()
+        .query_row(
+            &format!(
+                "SELECT count(*) FROM events e WHERE e.cursor<?1 AND json_extract(e.kind,'$.kind') NOT IN ({authority}) AND ((e.job IS NULL AND json_extract(e.kind,'$.kind') NOT GLOB 'automation_*') OR (e.job<>?2 AND EXISTS(SELECT 1 FROM jobs j WHERE j.id=e.job AND j.state IN ('succeeded','failed','canceled','precondition_changed','resolved') AND json_extract(j.intent,'$.operation') NOT IN ('automation_observe_health','storage_mount') AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND r.confirmation IS NULL))))"
+            ),
+            rusqlite::params![cursor, job],
+            |r| r.get(0),
+        )
+        .unwrap()
+}
+
+/// The held-open job (`JobFault::HeldOpen`, armed on `held_open`'s first
+/// day): its execute answer lost, it waits for the operator, who decides it
+/// while the executor refuses to resolve it, so the decision stays recorded
+/// and open; meanwhile the session burst's retention sweeps every older
+/// prunable event around its history. On the release day its recovery
+/// lookup is answered again and recovery settles it from its receipt, with
+/// the request still open, as when a recovery pass settles a job between the
+/// request being recorded and the retry loop superseding it. Core's
+/// dispatcher then stalls (a pass stuck behind a slow executor or store
+/// call): no pass supersedes the request while the writer thread keeps
+/// pruning, until everything retention would prune before the job's first
+/// event is gone, and once more. Its history (its `job_queued` event) must
+/// still be there (`HELD`): retention never prunes a job with an open
+/// request, whatever its state.
+async fn release_held(sim: &mut Sim) {
+    let Some(job) = sim.held.clone() else {
+        sim.violation(checks::HELD_OPEN, "no job was held open".into());
+        return;
+    };
+    let open = |sim: &mut Sim| -> (String, bool) {
+        sim.side()
+            .query_row(
+                "SELECT j.state,EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND r.confirmation IS NULL) FROM jobs j WHERE j.id=?",
+                [&job],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap()
+    };
+    let (state, requested) = open(sim);
+    if state != "needs_intervention" || !requested {
+        sim.violation(
+            checks::HELD_OPEN,
+            format!("the held-open job is {state} with a request open: {requested}; the operator never decided it while held"),
+        );
+        return;
+    }
+    sim.exec.faults().held_lookups.remove(&job);
+    for _ in 0..40 {
+        let at = sim.now() + RECOVERY_PAUSE;
+        sim.advance(at);
+        tick(sim).await;
+        if open(sim).0 != "needs_intervention" {
+            break;
+        }
+    }
+    let (state, requested) = open(sim);
+    let queued = |sim: &mut Sim| -> Option<i64> {
+        sim.side()
+            .query_row(
+                r#"SELECT min(cursor) FROM events WHERE job=? AND kind='{"kind":"job_queued"}'"#,
+                [&job],
+                |r| r.get(0),
+            )
+            .unwrap()
+    };
+    let Some(first) = queued(sim) else {
+        sim.violation(
+            checks::HELD_OPEN,
+            "the held-open job lost its history before it settled".into(),
+        );
+        return;
+    };
+    if !matches!(
+        state.as_str(),
+        "succeeded" | "failed" | "precondition_changed"
+    ) || !requested
+    {
+        sim.violation(
+            checks::HELD_OPEN,
+            format!(
+                "the held-open job did not settle with its request open: {state}, open {requested}"
+            ),
+        );
+        return;
+    }
+    // The dispatcher stalls; the writer prunes once a minute.
+    let mut passes = 0;
+    let removed_before: i64 = sim.stats.retention_removed.values().sum();
+    loop {
+        let older = prunable_before(sim, first, &job);
+        let last = older == 0;
+        // Each pair of a login and a logout writes two events: retention
+        // removes as many of the oldest prunable ones a minute later.
+        for _ in 0..(older / 2 + 1).min(512) {
+            if login(sim, 1).await {
+                let session = sim.users[1].session.take().unwrap();
+                let result = sim.core().logout(session.token, session.csrf).await;
+                sim.judge("logout", result, &[]);
+            }
+        }
+        let at = sim.now() + MINUTE;
+        sim.advance(at);
+        passes += 1;
+        if last || passes >= 120 {
+            break;
+        }
+    }
+    let removed = sim.stats.retention_removed.values().sum::<i64>() - removed_before;
+    let older = prunable_before(sim, first, &job);
+    sim.measures.insert(checks::HELD_PRUNED, removed as f64);
+    if older > 0 || removed == 0 {
+        sim.violation(
+            checks::HELD_OPEN,
+            format!("the held-open window was not decisive: {older} prunable events still older than the job's, {removed} pruned in {passes} passes"),
+        );
+    }
+    if queued(sim) != Some(first) || !open(sim).1 {
+        sim.violation(
+            checks::HELD_OPEN,
+            format!("the job settled ({state}) with its resolution request open lost its history: retention pruned {removed} events in {passes} passes"),
+        );
+    }
+    sim.exec.faults().held_resolutions.remove(&job);
+    sim.next_pass = sim.now();
 }
 
 /// Schedules a new flow's next step by its fate.

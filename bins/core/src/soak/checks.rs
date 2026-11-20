@@ -33,7 +33,99 @@ pub const EXPLAINED: &str = "core startup reads nothing its checks do not explai
 pub const MOUNT_PROOF: &str = "the storage-mount proof check reads little without storage mounts";
 pub const STARTUP_PER_JOB: &str = "core startup work grows only with the per-job tables";
 pub const CLOSURES: &str = "recovery closes every absent action it asks about";
-pub const LOST_ANSWERS: &str = "a lost executor answer reads as unavailable";
+pub const LOST_ANSWERS: &str = "every lost executor answer is logged once, as unavailable";
+pub const LOGS: &str = "core logs only the warnings it is expected to";
+pub const HELD_OPEN: &str = "a job's history stays while its resolution request is open";
+pub const EPOCHS: &str =
+    "no job dispatched before a receipt-store change is released on a closure alone";
+
+/// A warning or error core may log while the soak drives it: its message,
+/// exactly as core writes it, whether it is an error, the codes it may carry
+/// (none: it carries no code), and why the soak provokes it. Anything else
+/// core logs fails the run (`LOGS`), as does a lifetime refusal whatever its
+/// message (`REFUSALS`).
+pub struct ExpectedLog {
+    pub message: &'static str,
+    pub error: bool,
+    pub codes: &'static [&'static str],
+    pub why: &'static str,
+}
+
+/// Core's dispatcher's warning for a job whose pass failed (logged at a
+/// job's 1st, 2nd, 4th... failure in a row), container and stack.
+pub const PENDING: [&str; 2] = [
+    "container job remains pending or requires reconciliation",
+    "stack job remains pending or requires reconciliation",
+];
+
+/// Every warning core logs in the soak.
+pub const EXPECTED_LOGS: &[ExpectedLog] = &[
+    ExpectedLog {
+        message: PENDING[0],
+        error: false,
+        codes: &["Conflict", "Unavailable"],
+        why: "Conflict: a queued job meets a lock its resource's held job keeps (the workload acts \
+              on busy resources one time in twenty, and the storm on locked ones); Unavailable: \
+              the executor is down (stopped between epoch and execute, or dead in the pass) or a \
+              recovery lookup's answer was lost (counted, `lost_lookups`)",
+    },
+    ExpectedLog {
+        message: PENDING[1],
+        error: false,
+        codes: &["Conflict", "Unavailable"],
+        why: "the same, for stack jobs",
+    },
+    ExpectedLog {
+        message: EXECUTE_FAILED,
+        error: false,
+        codes: &["Unavailable"],
+        why: "an execute answer the executor never wrote (lost, or the process dead with the \
+              request unread or inside the Engine call): the job is held for reconciliation \
+              (counted exactly, `lost_answers`)",
+    },
+    ExpectedLog {
+        message: "job resolution stays pending",
+        error: false,
+        codes: &["Unavailable"],
+        why: "the held-open job's recorded decision, which the executor refuses to resolve until \
+              the harness releases it (`release_held`)",
+    },
+    ExpectedLog {
+        message: BEYOND_HISTORY,
+        error: false,
+        codes: &[],
+        why: "only within a plan's lifetime after the executor's receipt store was replaced \
+              (`JobFault::ReceiptStoreLost`): the new store cannot prove an action of an older \
+              plan never ran, so it refuses it before any row (counted exactly, `lost_answers`; \
+              any other `BeyondReceiptHistory` is a lifetime refusal)",
+    },
+    ExpectedLog {
+        message: "the container executor could not be reached; the execute request was never sent, and the job is released without effect",
+        error: false,
+        codes: &[],
+        why: "the executor stopped between answering `ReceiptEpoch` and the execute (its socket \
+              gone): the claimed job is released as refused",
+    },
+];
+
+/// The entry of `EXPECTED_LOGS` that admits `entry`, if any.
+pub fn expected_log(entry: &super::sim::Logged) -> Option<&'static ExpectedLog> {
+    EXPECTED_LOGS.iter().find(|expected| {
+        expected.message == entry.message
+            && expected.error == entry.error
+            && match &entry.code {
+                None => expected.codes.is_empty(),
+                Some(code) => expected.codes.contains(&code.as_str()),
+            }
+    })
+}
+
+/// Core's message for an execute the executor refused before any row.
+pub const BEYOND_HISTORY: &str = "executor refused the action: its plan expires within pruned receipt history, so the executor cannot tell whether an action with it already ran; check the system clock (nothing was recorded or run, and the job is settled as refused)";
+
+/// Core's message for an execute that failed after it was written: the one
+/// site every lost execute answer reaches, logged unconditionally.
+pub const EXECUTE_FAILED: &str = "execute call failed; the job is held for reconciliation";
 
 /// A check known to fail, the defect that makes it fail, and what is known
 /// about that defect: each pin names a measure the run records (`measures`)
@@ -52,14 +144,15 @@ pub const EXPECTED_FAILURES: &[Known] = &[
         check: PROJECTION,
         why: "core's per-job tables (jobs, job_resources, container_plans, container_results, \
               stack_plans, stack_results, job_resolutions) are never pruned, while every other table \
-              is flat (asserted by the flatness check without exemption): about 5 KiB per job, \
-              50 KiB a day at the household rate; core.sqlite passes its 80 MiB bound in about \
-              2.5 years. Needs job-row retention (with their plans, results, resources and \
-              completed resolutions)",
+              is flat (asserted by the flatness check without exemption): 4.5 to 4.8 KiB per \
+              job, 46 to 49 KiB a day at the household rate; core.sqlite passes its 80 MiB bound \
+              in 2.7 to 2.8 years. Needs job-row retention (with their plans, results, resources \
+              and completed resolutions). Pins: the range measured over three runs of each \
+              90-day scenario, widened by that range on each side",
         pins: &[
-            (PER_JOB_DAY, 25.0, 100.0),
-            (PER_JOB_JOB, 2.5, 10.0),
-            (PER_JOB_YEARS, 1.25, 5.0),
+            (PER_JOB_DAY, 42.0, 53.0),
+            (PER_JOB_JOB, 4.1, 5.2),
+            (PER_JOB_YEARS, 2.6, 2.9),
         ],
     },
     Known {
@@ -68,8 +161,9 @@ pub const EXPECTED_FAILURES: &[Known] = &[
               and the foreign-key check, and six startup statements scan the whole jobs table \
               (now larger than SQLite's page cache), so `Store::open` reads several pages more \
               for every page the per-job tables gain; the growth of everything else is asserted \
-              flat (`core startup work grows only with the per-job tables`)",
-        pins: &[(STARTUP_DAY, 32.0, 128.0), (STARTUP_YEARS, 1.0, 4.5)],
+              flat (`core startup work grows only with the per-job tables`): 57 to 64 page reads \
+              a night, the startup bound in 2.1 to 2.3 years. Pins as above",
+        pins: &[(STARTUP_DAY, 50.0, 72.0), (STARTUP_YEARS, 1.9, 2.45)],
     },
     Known {
         check: MOUNT_PROOF,
@@ -79,10 +173,13 @@ pub const EXPECTED_FAILURES: &[Known] = &[
               store with no storage mount at all it reads every `job_transition` event once per \
               such job. While that index range fits in SQLite's 2 MiB page cache it costs \
               little; once retention has replaced the bulk session events with job history it \
-              does not, and the open reads seven to nine times the file (from day 36 in one \
-              run, day 72 in another). \
-              Needs the subquery to search `events_job` (or the operation filtered first)",
-        pins: &[(PROOF_BY_KIND, 1.0, 1.0), (PROOF_FILES, 0.0, 15.0)],
+              does not: by day 90 it reads 5.7 to 6.5 times the file cold. Needs the subquery \
+              to search `events_job` (or the operation filtered first). Pinned to that range \
+              widened by itself on each side, and up to 8: the largest read of any earlier run \
+              was 7.3 files' worth (one run with another schedule of receipt-store replacements \
+              stayed below 0.3 to day 90, its blow-up not yet reached, and would fail this pin); \
+              read only in the 90-day runs: the 3-day smoke never reaches the jump",
+        pins: &[(PROOF_BY_KIND, 1.0, 1.0), (PROOF_FILES, 4.5, 8.0)],
     },
 ];
 
@@ -94,8 +191,6 @@ pub const STARTUP_DAY: &str = "core startup page reads (but the proof check) add
 pub const STARTUP_YEARS: &str = "years until a core open reaches its bound at that rate";
 pub const PROOF_BY_KIND: &str = "the proof check looks events up by kind (1 = on every copy)";
 pub const PROOF_FILES: &str = "the proof check's largest read, in files' worth of pages";
-pub const LOST_RATIO: &str =
-    "core failures logged as InvalidInput per connection the executor closed unanswered";
 
 /// Core's file and WAL: the events table at its 131,072-row budget is about
 /// 40 MiB of rows and indexes; the audit cap (twice that) is the hard stop.
@@ -123,6 +218,11 @@ pub const PAGE_SLACK: u64 = 256;
 /// check's), plus a fixed allowance. One more scan of the events table
 /// (about 7% of that work) does not fit.
 pub const EXPLAIN_PERCENT: u64 = 3;
+/// Page reads an open of a crash image may make per committed WAL frame it
+/// replays, beyond what its statements read cold on a consistent copy:
+/// recovery reads each frame once to rebuild the wal-index, and the
+/// statements then read replayed pages from the WAL.
+pub const REPLAY_READS: u64 = 2;
 pub const EXPLAIN_SLACK: u64 = 256;
 /// The most page reads an open on a copy of `bytes` may make.
 pub fn startup_page_bound(store: &str, bytes: u64) -> u64 {
@@ -472,7 +572,7 @@ pub fn receipt_accounting(sim: &mut Sim, when: &str) {
             ));
         }
     }
-    let creation = START + limeos_domain::PLAN_TTL_SECONDS;
+    let creation = sim.receipt_creation;
     let cutoff = sim.now() - limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY;
     if watermark < sim.last_watermark {
         problems.push(format!(
@@ -713,11 +813,7 @@ pub fn finish(sim: &mut Sim, profile: &Profile) {
 
 fn final_state(sim: &mut Sim) {
     idle_coverage(sim);
-    let dropped = sim.exec.faults().dropped;
-    sim.measures.insert(
-        LOST_RATIO,
-        sim.stats.lost_as_invalid as f64 / dropped.max(1) as f64,
-    );
+    lost_answers(sim);
     let core = reader(&sim.core_path).expect("core side connection");
     let states: BTreeMap<String, String> = core
         .prepare("SELECT id,state FROM jobs")
@@ -779,6 +875,42 @@ fn final_state(sim: &mut Sim) {
             ));
         }
     }
+    // A job core held when the executor's receipt store changed (a new
+    // epoch at every executor start, receipts lost with a replaced store)
+    // may have been executed under the old store: a closure from the new
+    // one proves nothing about it, so it must never be released on one
+    // (core marks it `executor_store_changed` and holds it for an operator).
+    let closed = sim.exec.faults().closed_jobs.clone();
+    let mut exposed_closed = 0;
+    for id in sim.exposed.intersection(&closed) {
+        exposed_closed += 1;
+        if states.get(id).map(String::as_str) == Some("precondition_changed") {
+            problems.push((
+                EPOCHS,
+                format!(
+                    "job {} was held when the receipt store changed, and released on a closure from the new store",
+                    &id[..12]
+                ),
+            ));
+        }
+    }
+    sim.measures
+        .insert(EXPOSED_CLOSED, f64::from(exposed_closed));
+    let replaced = sim
+        .faults()
+        .iter()
+        .filter(|(name, _)| name.contains("receipt store replaced"))
+        .map(|(_, n)| n)
+        .sum::<u64>();
+    if !sim.replacements.is_empty() || (replaced > 0 && exposed_closed == 0) {
+        problems.push((
+            EPOCHS,
+            format!(
+                "{} receipt-store replacements never happened, {replaced} did, and {exposed_closed} jobs held across a store change got a closure: the check saw nothing",
+                sim.replacements.len()
+            ),
+        ));
+    }
     // Authority events: far below their budget (4,096), so retention must
     // never have removed one (it is the only thing that deletes events), and
     // their count never went down between checkpoints.
@@ -818,6 +950,125 @@ fn final_state(sim: &mut Sim) {
         sim.violation(check, problem);
     }
 }
+
+/// Every execute whose answer the executor never wrote (it closed the
+/// connection with the request read: the answer lost, or the process dead
+/// with the request unread or inside the Engine call) is logged by core
+/// exactly once, at its execute site, with the transport code
+/// `Unavailable`; and every other code core logs there is a refusal the
+/// executor answered with that code, one for one. No code core logs anywhere
+/// is `InvalidInput` (`EXPECTED_LOGS` admits it nowhere).
+fn lost_answers(sim: &mut Sim) {
+    let (lost, refused) = {
+        let faults = sim.exec.faults();
+        (faults.lost.clone(), faults.refused.clone())
+    };
+    let executes = ["execute", "execute stack"];
+    let mut expected: BTreeMap<String, u64> = BTreeMap::new();
+    for kind in executes {
+        *expected.entry("Unavailable".into()).or_default() += lost.get(kind).copied().unwrap_or(0);
+    }
+    // A refusal before any row has its own message (`BEYOND_HISTORY`).
+    let mut beyond = 0;
+    for ((kind, code), count) in &refused {
+        if executes.contains(kind) {
+            if code == "BeyondReceiptHistory" {
+                beyond += count;
+            } else {
+                *expected.entry(code.clone()).or_default() += count;
+            }
+        }
+    }
+    expected.retain(|_, count| *count > 0);
+    let mut logged: BTreeMap<String, u64> = BTreeMap::new();
+    let mut logged_beyond = 0;
+    for ((_, message, code), count) in &sim.logged {
+        if message == EXECUTE_FAILED {
+            *logged
+                .entry(code.clone().unwrap_or_else(|| "none".into()))
+                .or_default() += count;
+        } else if message == BEYOND_HISTORY {
+            logged_beyond += count;
+        }
+    }
+    if logged_beyond != beyond {
+        sim.violation(
+            LOST_ANSWERS,
+            format!(
+                "core logged {logged_beyond} executes refused before any row; the executor refused {beyond}"
+            ),
+        );
+    }
+    let total: u64 = lost.values().sum();
+    sim.measures.insert(
+        LOST_EXECUTES,
+        expected.get("Unavailable").copied().unwrap_or(0) as f64,
+    );
+    sim.measures.insert(LOST_TOTAL, total as f64);
+    sim.measures
+        .insert(LOST_LOOKUPS, sim.stats.lookups_checked as f64);
+    let lookups = {
+        let (containers, stacks) = sim.exec.lost_lookups();
+        containers + stacks
+    };
+    if lookups != sim.stats.lookups_checked + sim.stats.lookups_unchecked {
+        sim.violation(
+            LOST_ANSWERS,
+            format!(
+                "{lookups} recovery-lookup answers lost, {} of them in dispatcher passes",
+                sim.stats.lookups_checked + sim.stats.lookups_unchecked
+            ),
+        );
+    }
+    if logged != expected {
+        sim.violation(
+            LOST_ANSWERS,
+            format!(
+                "core logged {logged:?} at its execute site; the executor lost {lost:?} answers and refused {refused:?}, so {expected:?} were due"
+            ),
+        );
+    }
+}
+pub const LOST_EXECUTES: &str =
+    "execute answers the executor never wrote (each logged as Unavailable)";
+pub const LOST_LOOKUPS: &str =
+    "recovery-lookup answers the executor never wrote, checked one for one";
+
+/// After a dispatcher pass, with the receipt-lookup answers the executor
+/// never wrote in it (`lost`: container, stack). When the executor ran
+/// throughout the pass (`checked`), nothing but a lost answer makes core's
+/// dispatcher log a job's failure with the transport code `Unavailable`
+/// (`PENDING`), so:
+/// - every lost container lookup (a held job's recovery lookup) is logged so
+///   once, one for one: core's log damping (a job's 1st, 2nd, 4th... failure
+///   in a row) cannot hide it, since the lookup follows a pass the job went
+///   through (its execute, answered or not, resets the count), so it is the
+///   job's first failure, or its second after a dead executor's refusal;
+/// - a lost stack lookup is the one `release_if_unsent` makes right after a
+///   failed execute, which holds the job for the operator without a log, so
+///   the stack site logs none.
+pub fn lost_lookups(sim: &mut Sim, lost: (u64, u64), checked: bool) {
+    let (containers, stacks) = sim.batch_pending_unavailable;
+    if !checked {
+        sim.stats.lookups_unchecked += lost.0 + lost.1;
+        return;
+    }
+    sim.stats.lookups_checked += lost.0 + lost.1;
+    if containers != lost.0 || stacks != 0 {
+        sim.violation(
+            LOST_ANSWERS,
+            format!(
+                "a dispatcher pass with the executor up lost {} container and {} stack receipt-lookup answers, and core logged {containers} container and {stacks} stack jobs as pending with Unavailable ({} and none due)",
+                lost.0, lost.1, lost.0
+            ),
+        );
+    }
+}
+pub const LOST_TOTAL: &str = "answers the executor never wrote, every kind";
+pub const HELD_PRUNED: &str =
+    "events pruned around the held-open job while its request stayed open";
+pub const EXPOSED_CLOSED: &str =
+    "jobs held across a receipt-store change that the new store answered with a closure";
 
 /// The last third of a full run against the middle third.
 fn trends(sim: &mut Sim) {
@@ -1073,7 +1324,7 @@ fn startup_bounds(sim: &mut Sim) {
                     ),
                 ));
             }
-            if s.reason != COPY {
+            if s.reason != COPY && s.reason != super::startup::CRASH {
                 continue;
             }
             // Core: its statements but the proof check, cold; the receipt
@@ -1095,28 +1346,17 @@ fn startup_bounds(sim: &mut Sim) {
                 ));
             }
             let Some(trace) = &s.trace else { continue };
-            if trace.outside > EXPLAIN_SLACK {
-                problems.push((
+            problems.extend(scan_problems(trace, s.replay).into_iter().map(|problem| {
+                (
                     EXPLAINED,
-                    format!(
-                        "core open on a copy at day {day:.2}: {} page reads outside every statement it executed",
-                        trace.outside
-                    ),
-                ));
-            }
-            for statement in trace.statements.iter().filter(|s| s.scans_events()) {
-                problems.push((
-                    EXPLAINED,
-                    format!(
-                        "core open on a copy at day {day:.2}: a startup statement scans the events table itself ({} page reads in the open, plan {:?}): {}",
-                        statement.reads,
-                        statement.plan,
-                        statement.short()
-                    ),
-                ));
-            }
+                    format!("core open on a copy at day {day:.2}: {problem}"),
+                )
+            }));
             let cold = trace.cold();
-            let allowed = cold + trace.cold_but_defect() * EXPLAIN_PERCENT / 100 + EXPLAIN_SLACK;
+            let allowed = cold
+                + trace.cold_but_defect() * EXPLAIN_PERCENT / 100
+                + EXPLAIN_SLACK
+                + s.replay * REPLAY_READS;
             if pages(s) > allowed {
                 problems.push((
                     EXPLAINED,
@@ -1170,6 +1410,201 @@ fn startup_bounds(sim: &mut Sim) {
     for (check, problem) in problems {
         sim.violation(check, problem);
     }
+}
+
+/// Tables whose rows grow with history: the events table (bounded by
+/// retention, but the store's largest) and every per-job table.
+pub fn history_table(table: &str) -> bool {
+    table == "events" || matches!(core_budget(table), Some(Budget::Grows(_)))
+}
+
+/// A startup statement allowed to walk tables that grow with history whole,
+/// known by a fragment of its own text: the tables it may walk, whether that
+/// includes the events table itself (not only an index of it), the most
+/// full-scan steps it may make per retained row of those tables, and why.
+pub struct ScanAllowance {
+    pub marker: &'static str,
+    pub tables: &'static [&'static str],
+    pub events_table: bool,
+    pub steps_per_row: u64,
+    pub why: &'static str,
+}
+
+/// Every startup statement that walks a table growing with history, found by
+/// reading every statement's bytecode on every copy. All but the first two
+/// are startup checks over the per-job tables, one walk of each listed table
+/// (one full-scan step per row), which grow with the pinned per-job defect.
+pub const SCAN_ALLOWANCES: &[ScanAllowance] = &[
+    ScanAllowance {
+        marker: "PRAGMA quick_check",
+        tables: &[
+            "events",
+            "jobs",
+            "job_resources",
+            "container_plans",
+            "container_results",
+            "stack_plans",
+            "stack_results",
+            "job_resolutions",
+        ],
+        events_table: true,
+        steps_per_row: 0,
+        why: "the integrity check reads every page of the file by design (its page reads are \
+              bounded per page of file by `startup under its bounds`); it makes no full-scan \
+              steps",
+    },
+    ScanAllowance {
+        marker: "(SELECT count(*) FROM events)",
+        tables: &["events"],
+        events_table: false,
+        steps_per_row: 0,
+        why: "the audit reconciliation counts the events table through its smallest index \
+              (`Count`, no full-scan steps); the events table is bounded by retention",
+    },
+    ScanAllowance {
+        marker: "SELECT EXISTS( SELECT 1 FROM jobs j WHERE NOT EXISTS( SELECT 1 FROM job_resources r",
+        tables: &["jobs", "job_resolutions"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the lock and resource invariants walk every job",
+    },
+    ScanAllowance {
+        marker: "SELECT id,principal,intent,digest,resource,revision,deadline FROM jobs WHERE json_extract(intent,'$.operation')",
+        tables: &["jobs"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the storage target and mount checks list their jobs by operation, a walk of jobs",
+    },
+    ScanAllowance {
+        marker: "SELECT EXISTS(SELECT 1 FROM backup_preparation_plans",
+        tables: &["jobs", "job_resources"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the backup-preparation check walks jobs and job resources once each",
+    },
+    ScanAllowance {
+        marker: "SELECT EXISTS(SELECT 1 FROM jobs j WHERE json_extract(j.intent,'$.operation')='backup_prepare_private",
+        tables: &["jobs"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the backup-preparation check walks jobs by operation",
+    },
+    ScanAllowance {
+        marker: "SELECT EXISTS(SELECT 1 FROM automation_occurrences o JOIN automation_schedules s",
+        tables: &["jobs"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the automation check walks jobs by operation",
+    },
+    ScanAllowance {
+        marker: "SELECT j.id,j.principal,j.idempotency,j.intent,j.digest,j.resource,j.state,j.revision,j.deadline,o.s",
+        tables: &["jobs"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the automation job listing walks jobs by operation",
+    },
+    ScanAllowance {
+        marker: "UPDATE jobs SET state='needs_intervention' WHERE state IN ('running','verifying')",
+        tables: &["jobs"],
+        events_table: false,
+        steps_per_row: 0,
+        why: "startup recovery: its lock-release trigger programs can walk jobs' indexes, but \
+              the statement itself searches `jobs_state` (no full-scan steps)",
+    },
+];
+
+/// Full-scan steps any startup statement may make beyond its allowance and
+/// its walks of bounded tables (each bounded table's rows, once per run): a
+/// walk's own last step and a statement's rounding, measured at most 2.
+pub const SMALL_SCAN_STEPS: u64 = 16;
+
+/// Page reads an open may make outside every statement it executes
+/// (preparing statements, reading the schema): measured 16 on every copy of
+/// every run (`outside`), the schema's pages; twice that.
+pub const OUTSIDE_READS: u64 = 32;
+
+/// The most VM steps the statements of one open (but the pinned proof check)
+/// may take: `VM_PER_ROW` per row retained in any table, plus `VM_FIXED`
+/// (the schema reads and checks of an empty store): linear in what the store
+/// holds. Measured (see `docs/soak.md`): see the report's
+/// "VM steps per retained row".
+pub const VM_PER_ROW: u64 = 64;
+pub const VM_FIXED: u64 = 200_000;
+
+/// What a traced open's statements do that its checks do not allow: judged
+/// on every b-tree each statement's program walks whole (`startup::Scan`),
+/// under any alias or `NOT INDEXED`, and on the full-scan steps it made.
+/// - No statement walks the events table itself unless its allowance says
+///   so (only the integrity check).
+/// - Only a statement in `SCAN_ALLOWANCES` walks a table growing with
+///   history (or an index of one), and only the tables listed for it.
+/// - Each statement's full-scan steps stay within its listed tables' rows
+///   times its steps per row, plus its walks of bounded tables (their rows,
+///   once per run), plus `SMALL_SCAN_STEPS`.
+/// - The open's VM steps, but the pinned proof check's, stay linear in the
+///   rows the store holds (`VM_PER_ROW`, `VM_FIXED`).
+pub fn scan_problems(trace: &super::startup::Trace, replay: u64) -> Vec<String> {
+    let mut problems = Vec::new();
+    for statement in &trace.statements {
+        let text = statement.text();
+        let allowance = SCAN_ALLOWANCES.iter().find(|a| text.contains(a.marker));
+        for scan in &statement.scans {
+            if scan.table == "events" && !scan.index && !allowance.is_some_and(|a| a.events_table) {
+                problems.push(format!(
+                    "a startup statement walks the events table itself ({} on {}; {} full-scan steps, {} page reads in the open): {}",
+                    scan.op,
+                    scan.btree,
+                    statement.full_scans,
+                    statement.reads,
+                    statement.short()
+                ));
+            } else if history_table(&scan.table)
+                && !allowance.is_some_and(|a| a.tables.contains(&scan.table.as_str()))
+            {
+                problems.push(format!(
+                    "a startup statement walks {} (a table growing with history) whole through {} ({}) without an allowance: {}",
+                    scan.table,
+                    scan.btree,
+                    scan.op,
+                    statement.short()
+                ));
+            }
+        }
+        let history = allowance.map_or(0, |a| {
+            a.tables.iter().map(|t| trace.rows_of(t)).sum::<u64>() * a.steps_per_row
+        });
+        let bounded: u64 = statement
+            .walked()
+            .into_iter()
+            .filter(|t| !history_table(t))
+            .map(|t| trace.rows_of(t))
+            .sum::<u64>()
+            * statement.runs.max(1);
+        let allowed = history + bounded + SMALL_SCAN_STEPS;
+        if statement.full_scans > allowed {
+            problems.push(format!(
+                "a startup statement made {} full-scan steps, more than the {allowed} allowed it ({history} for tables growing with history, {bounded} for bounded tables): {}",
+                statement.full_scans,
+                statement.short()
+            ));
+        }
+    }
+    let rows: u64 = trace.rows.values().sum();
+    let vm = trace.vm_steps_but_defect();
+    let vm_bound = rows * VM_PER_ROW + VM_FIXED;
+    if vm > vm_bound {
+        problems.push(format!(
+            "its statements but the proof check took {vm} VM steps for {rows} retained rows, more than the {vm_bound} linear in them ({VM_PER_ROW} a row and {VM_FIXED})"
+        ));
+    }
+    let outside = OUTSIDE_READS + replay * REPLAY_READS;
+    if trace.outside > outside {
+        problems.push(format!(
+            "{} page reads outside every statement it executed (at most {outside}: {OUTSIDE_READS}, and {REPLAY_READS} for each of {replay} WAL frames to replay)",
+            trace.outside
+        ));
+    }
+    problems
 }
 
 /// Page reads per page of file and WAL over a run's opens on copies:
@@ -1266,7 +1701,28 @@ fn report(sim: &Sim, profile: &Profile) {
             faults.requests, faults.closures
         );
     }
-    let _ = writeln!(p, "core's warnings without a code: {:?}", sim.logged);
+    let _ = writeln!(
+        p,
+        "core's warnings and errors (site, message, code: count):"
+    );
+    for ((site, message, code), count) in &sim.logged {
+        let why = EXPECTED_LOGS
+            .iter()
+            .find(|e| e.message == message)
+            .map_or("not expected", |e| e.why);
+        let _ = writeln!(
+            p,
+            "  {count:>6} {site}: {message} ({code:?}); expected: {why}"
+        );
+    }
+    {
+        let faults = sim.exec.faults();
+        let _ = writeln!(
+            p,
+            "executor: answers never written by kind {:?}; refusals by kind and code {:?}",
+            faults.lost, faults.refused
+        );
+    }
     let _ = writeln!(p, "restarts: {:?}", sim.stats.restarts);
     let _ = writeln!(
         p,
@@ -1348,17 +1804,73 @@ fn report(sim: &Sim, profile: &Profile) {
         for s in statements.iter().take(10) {
             let _ = writeln!(
                 p,
-                "  {:>6} in the open, {:>6} cold, {:>9} VM steps, {} runs: {}",
+                "  {:>6} in the open, {:>6} cold, {:>9} VM steps, {:>7} full-scan steps, {} runs: {}",
                 s.reads,
                 s.cold.map_or("-".into(), |c| c.to_string()),
                 s.vm_steps,
+                s.full_scans,
                 s.runs,
                 s.short()
             );
         }
+        let _ = writeln!(
+            p,
+            "  every statement walking a b-tree whole (VM steps, full-scan steps: walks):"
+        );
+        for s in &trace.statements {
+            if s.scans.is_empty() && s.full_scans == 0 {
+                continue;
+            }
+            let walks: Vec<String> = s
+                .scans
+                .iter()
+                .map(|w| format!("{} {}", w.op, w.btree))
+                .collect();
+            let text = s.text();
+            let allowed = SCAN_ALLOWANCES
+                .iter()
+                .find(|a| text.contains(a.marker))
+                .map_or("bounded tables only", |a| a.why);
+            let _ = writeln!(
+                p,
+                "    {:>9} {:>7}: {walks:?}: {} (allowed: {allowed})",
+                s.vm_steps,
+                s.full_scans,
+                s.short()
+            );
+        }
+        let rows: u64 = trace.rows.values().sum();
+        let _ = writeln!(
+            p,
+            "  {rows} rows retained; VM steps but the proof check's: {} ({:.1} a row); rows: {:?}",
+            trace.vm_steps_but_defect(),
+            trace.vm_steps_but_defect() as f64 / rows.max(1) as f64,
+            trace.rows
+        );
         if let Some(defect) = trace.defect() {
             let _ = writeln!(p, "  the pinned proof check's plan: {:?}", defect.plan);
         }
+    }
+    let _ = writeln!(
+        p,
+        "core opens on crash images (day, WAL frames replayed, MiB of WAL, page reads in the open, outside every statement, statements cold):"
+    );
+    for c in sim
+        .core_starts
+        .iter()
+        .filter(|s| s.reason == super::startup::CRASH)
+    {
+        let Some(trace) = &c.trace else { continue };
+        let _ = writeln!(
+            p,
+            "  {:>6.2} {:>5} {:>5.2} {:>6} {:>5} {:>6}",
+            (c.at - START) as f64 / DAY as f64,
+            c.replay,
+            mib(c.wal),
+            pages(c),
+            trace.outside,
+            trace.cold()
+        );
     }
     let worst = |starts: &[super::sim::Startup]| {
         starts
@@ -1460,7 +1972,12 @@ fn verdict(sim: &Sim, profile: &Profile) {
         ACCOUNTING,
         CLOSURES,
         LOST_ANSWERS,
+        LOGS,
+        EPOCHS,
     ];
+    if profile.held_open.is_some() {
+        checks.push(HELD_OPEN);
+    }
     if profile.trends {
         checks.extend([
             FLAT,
@@ -1480,6 +1997,8 @@ fn verdict(sim: &Sim, profile: &Profile) {
                 let outside: Vec<String> = known
                     .pins
                     .iter()
+                    // A short run never reaches the proof check's jump.
+                    .filter(|(measure, _, _)| profile.trends || *measure != PROOF_FILES)
                     .filter_map(|(measure, low, high)| {
                         let value = sim.measures.get(measure).copied();
                         match value {

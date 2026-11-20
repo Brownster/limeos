@@ -93,7 +93,112 @@ pub fn core(sim: &mut Sim) {
         wal,
         opened: child.opened,
         trace: child.trace,
+        replay: 0,
     });
+}
+
+/// WAL frames a reopen replays: the frames after the WAL's header that carry
+/// its current salts, up to the last one that commits a transaction (a
+/// nonzero database size). Frames of an earlier generation (the WAL is reused
+/// from its start after a checkpoint) carry other salts and are ignored, as
+/// SQLite's recovery ignores them.
+pub fn committed_frames(wal: &[u8]) -> u64 {
+    const HEADER: usize = 32;
+    const FRAME_HEADER: usize = 24;
+    let word = |bytes: &[u8], at: usize| -> Option<u32> {
+        Some(u32::from_be_bytes(bytes.get(at..at + 4)?.try_into().ok()?))
+    };
+    let (Some(page), Some(salt1), Some(salt2)) = (word(wal, 8), word(wal, 16), word(wal, 20))
+    else {
+        return 0;
+    };
+    let frame = FRAME_HEADER + page as usize;
+    let (mut at, mut seen, mut committed) = (HEADER, 0, 0);
+    while at + frame <= wal.len() {
+        if word(wal, at + 8) != Some(salt1) || word(wal, at + 12) != Some(salt2) {
+            break;
+        }
+        seen += 1;
+        if word(wal, at + 4).is_some_and(|size| size > 0) {
+            committed = seen;
+        }
+        at += frame;
+    }
+    committed
+}
+
+/// The reason of an open measured on a crash image.
+pub const CRASH: &str = "measured on a crash image";
+
+/// `Store::open` on core's store as a crash leaves it now (the database and
+/// its WAL as they are on disk, no wal-index), measured and traced alone in a
+/// child process like the nightly copies, with each statement run cold on a
+/// consistent copy taken at the same moment. Besides the startup checks,
+/// the open must keep every committed transaction: the jobs the live store
+/// holds, and at least its events.
+pub fn core_crash(sim: &mut Sim) {
+    let dir = scratch(sim, "startup-crash");
+    let path = dir.join("core.sqlite");
+    let image = sim.crash_image();
+    std::fs::write(&path, &image.db).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let frames = image.wal.as_deref().map_or(0, committed_frames);
+    if let Some(wal) = &image.wal {
+        let wal_path = super::sim::suffixed(&path, "-wal");
+        std::fs::write(&wal_path, wal).unwrap();
+        std::fs::set_permissions(&wal_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    let cold = dir.join("core.consistent.sqlite");
+    copy(&sim.core_path, &cold);
+    let (jobs, events) = durable(&super::checks::reader(&sim.core_path).unwrap());
+    let (file, wal) = sizes(&path);
+    let child = in_child_with("core", &path, Some(&cold), sim.now());
+    if let Some(refused) = &child.refused {
+        sim.violation(
+            super::checks::STARTUP,
+            format!("a crash image of the core store refused to open: {refused}"),
+        );
+    }
+    if child.jobs.as_deref() != Some(jobs.as_str()) || child.events < events {
+        sim.violation(
+            super::checks::STARTUP,
+            format!(
+                "a crash image of the core store lost committed work in its open ({frames} WAL frames to replay): jobs {} (live {jobs}), {} events (live {events})",
+                child.jobs.as_deref().unwrap_or("?"),
+                child.events
+            ),
+        );
+    }
+    std::fs::remove_dir_all(&dir).unwrap();
+    sim.core_starts.push(Startup {
+        at: sim.now(),
+        reason: CRASH,
+        file,
+        wal,
+        opened: child.opened,
+        trace: child.trace,
+        replay: frames,
+    });
+}
+
+/// What a store holds that a crash must not lose: a digest of its job ids
+/// (with their count), and its events.
+fn durable(conn: &rusqlite::Connection) -> (String, u64) {
+    let ids: Vec<String> = conn
+        .prepare("SELECT id FROM jobs ORDER BY id")
+        .and_then(|mut s| s.query_map([], |r| r.get(0))?.collect())
+        .unwrap_or_default();
+    let events: i64 = conn
+        .query_row("SELECT count(*) FROM events", [], |r| r.get(0))
+        .unwrap_or(0);
+    (
+        format!(
+            "{} ({})",
+            limeos_identity::digest(&ids.join(",")),
+            ids.len()
+        ),
+        u64::try_from(events).unwrap_or(0),
+    )
 }
 
 /// `ReceiptStore::open_at` on a copy of the live receipt store, measured
@@ -119,7 +224,23 @@ pub fn receipts(sim: &mut Sim) {
         wal,
         opened: child.opened,
         trace: None,
+        replay: 0,
     });
+}
+
+/// One b-tree a statement's program walks from one end rather than seeking
+/// into: a cursor opened on it (`OpenRead`/`OpenWrite`) and then positioned by
+/// `Rewind` or `Last`, or counted whole by `Count`. Read from the statement's
+/// own bytecode (`EXPLAIN`), so every node of its plan is judged, under any
+/// alias and whatever an `INDEXED BY`/`NOT INDEXED` clause says.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Scan {
+    /// The b-tree: a table, or an index (`index` true) of `table`.
+    pub btree: String,
+    pub table: String,
+    pub index: bool,
+    /// The opcode that walks it: `Rewind`, `Last` or `Count`.
+    pub op: String,
 }
 
 /// One statement core's open executed, as the trace saw it.
@@ -130,12 +251,17 @@ pub struct Statement {
     pub runs: u64,
     /// Page reads while it ran, inside the open.
     pub reads: u64,
+    /// VM steps and full-scan steps (`SQLITE_STMTSTATUS_VM_STEP`,
+    /// `SQLITE_STMTSTATUS_FULLSCAN_STEP`) over all its runs in the open:
+    /// deterministic for a given file, unlike page reads.
     pub vm_steps: u64,
     pub full_scans: u64,
     /// Page reads run alone and cold, if it only reads.
     pub cold: Option<u64>,
-    /// Its query plan (`EXPLAIN QUERY PLAN` details).
+    /// Its query plan (`EXPLAIN QUERY PLAN` details), for reports.
     pub plan: Vec<String>,
+    /// Every b-tree its program walks whole (`Scan`).
+    pub scans: Vec<Scan>,
 }
 impl Statement {
     /// The storage-mount proof check: the startup statement that reads
@@ -150,22 +276,21 @@ impl Statement {
             .iter()
             .any(|step| step.starts_with("SEARCH") && step.contains("USING INDEX events_kind"))
     }
-    /// Whether its plan scans the events table itself, not one of its
-    /// indexes: the audit history is the store's largest table, and startup
-    /// is meant to reach it only through an index.
-    pub fn scans_events(&self) -> bool {
-        self.plan
-            .iter()
-            .any(|step| step == "SCAN events" || step.starts_with("SCAN events "))
-            && !self
-                .plan
-                .iter()
-                .any(|step| step.starts_with("SCAN events USING"))
+    /// The tables whose b-trees (the table's, or an index's) its program
+    /// walks whole, each once.
+    pub fn walked(&self) -> Vec<&str> {
+        let mut tables: Vec<&str> = self.scans.iter().map(|scan| scan.table.as_str()).collect();
+        tables.sort_unstable();
+        tables.dedup();
+        tables
     }
-    /// The first line of its text, shortened, for a report.
+    /// Its text with every run of whitespace made one space.
+    pub fn text(&self) -> String {
+        self.sql.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+    /// Its text, shortened, for a report.
     pub fn short(&self) -> String {
-        let text: String = self.sql.split_whitespace().collect::<Vec<_>>().join(" ");
-        text.chars().take(100).collect()
+        self.text().chars().take(100).collect()
     }
 }
 
@@ -175,6 +300,8 @@ pub struct Trace {
     pub statements: Vec<Statement>,
     /// Page reads outside every statement: preparing, the schema.
     pub outside: u64,
+    /// Rows of every table of the copy, as the open found it.
+    pub rows: std::collections::BTreeMap<String, u64>,
 }
 impl Trace {
     /// The pinned defect: a storage-mount proof check that looks events up
@@ -197,6 +324,18 @@ impl Trace {
     pub fn reads(&self) -> u64 {
         self.statements.iter().map(|s| s.reads).sum::<u64>() + self.outside
     }
+    /// VM steps of every statement but the pinned defect's.
+    pub fn vm_steps_but_defect(&self) -> u64 {
+        let defect = self.defect().map(|s| s.sql.as_str());
+        self.statements
+            .iter()
+            .filter(|s| Some(s.sql.as_str()) != defect)
+            .map(|s| s.vm_steps)
+            .sum()
+    }
+    pub fn rows_of(&self, table: &str) -> u64 {
+        self.rows.get(table).copied().unwrap_or(0)
+    }
 }
 
 /// What a child process measured.
@@ -204,12 +343,24 @@ struct Child {
     opened: Opened,
     trace: Option<Trace>,
     refused: Option<String>,
+    /// What the opened store held afterwards (`durable`), for core.
+    jobs: Option<String>,
+    events: u64,
 }
 
 const MEASURE: &str = "LIMEOS_SOAK_MEASURE";
 
 /// Runs `measure_in_child` in a new process of this binary on `path`.
 fn in_child(store: &str, path: &Path, now: i64) -> Child {
+    in_child_with(store, path, None, now)
+}
+/// `in_child`, with each statement run cold on `cold` (a consistent copy of
+/// the same content) rather than on a copy of `path` the child makes.
+fn in_child_with(store: &str, path: &Path, cold: Option<&Path>, now: i64) -> Child {
+    let mut request = format!("{store}\n{now}\n{}", path.display());
+    if let Some(cold) = cold {
+        request.push_str(&format!("\n{}", cold.display()));
+    }
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .args([
             "soak::startup::measure_in_child",
@@ -219,7 +370,7 @@ fn in_child(store: &str, path: &Path, now: i64) -> Child {
             "--test-threads",
             "1",
         ])
-        .env(MEASURE, format!("{store}\n{now}\n{}", path.display()))
+        .env(MEASURE, request)
         .output()
         .expect("a child process of the soak binary");
     let text = String::from_utf8_lossy(&output.stdout);
@@ -243,7 +394,7 @@ fn in_child(store: &str, path: &Path, now: i64) -> Child {
                 runs: number(&s["runs"]),
                 reads: number(&s["reads"]),
                 vm_steps: number(&s["vm"]),
-                full_scans: number(&s["scans"]),
+                full_scans: number(&s["fullscan"]),
                 cold: s["cold"].as_u64(),
                 plan: s["plan"]
                     .as_array()
@@ -253,9 +404,31 @@ fn in_child(store: &str, path: &Path, now: i64) -> Child {
                             .collect()
                     })
                     .unwrap_or_default(),
+                scans: s["scans"]
+                    .as_array()
+                    .map(|scans| {
+                        scans
+                            .iter()
+                            .map(|x| Scan {
+                                btree: x["btree"].as_str().unwrap_or_default().to_owned(),
+                                table: x["table"].as_str().unwrap_or_default().to_owned(),
+                                index: x["index"].as_bool().unwrap_or(false),
+                                op: x["op"].as_str().unwrap_or_default().to_owned(),
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default(),
             })
             .collect(),
         outside: number(&value["outside"]),
+        rows: value["rows"]
+            .as_object()
+            .map(|rows| {
+                rows.iter()
+                    .map(|(table, n)| (table.clone(), number(n)))
+                    .collect()
+            })
+            .unwrap_or_default(),
     });
     Child {
         opened: Opened {
@@ -268,6 +441,8 @@ fn in_child(store: &str, path: &Path, now: i64) -> Child {
         },
         trace,
         refused: value["refused"].as_str().map(str::to_owned),
+        jobs: value["jobs"].as_str().map(str::to_owned),
+        events: number(&value["events"]),
     }
 }
 
@@ -296,8 +471,10 @@ impl Reads {
 struct Tracer {
     reads: Reads,
     last: u64,
-    /// Statements running, innermost last.
-    running: Vec<String>,
+    /// Statements running, innermost last, with their VM and full-scan step
+    /// counters when they started (a cached statement's counters run on
+    /// across its runs).
+    running: Vec<(String, u64, u64)>,
     order: Vec<String>,
     statements: HashMap<String, (Statement, Option<String>)>,
     outside: u64,
@@ -312,7 +489,7 @@ impl Tracer {
     }
     fn attribute(&mut self, reads: u64) {
         match self.running.last() {
-            Some(sql) => self.statements.get_mut(sql).unwrap().0.reads += reads,
+            Some((sql, _, _)) => self.statements.get_mut(sql).unwrap().0.reads += reads,
             None => self.outside += reads,
         }
     }
@@ -328,11 +505,18 @@ fn traced(event: TraceEvent<'_>) {
         };
         let reads = tracer.delta();
         tracer.attribute(reads);
+        let status =
+            |stmt: &rusqlite::trace::StmtRef<'_>, s| u64::try_from(stmt.get_status(s)).unwrap_or(0);
         match event {
             TraceEvent::Stmt(stmt, _) => {
                 let sql = stmt.sql().into_owned();
-                if tracer.running.last() != Some(&sql) {
-                    tracer.running.push(sql.clone());
+                // A trigger's program starts inside its statement's run.
+                if tracer.running.last().map(|r| &r.0) != Some(&sql) {
+                    tracer.running.push((
+                        sql.clone(),
+                        status(&stmt, StatementStatus::VmStep),
+                        status(&stmt, StatementStatus::FullscanStep),
+                    ));
                 }
                 if !tracer.statements.contains_key(&sql) {
                     tracer.order.push(sql.clone());
@@ -347,16 +531,17 @@ fn traced(event: TraceEvent<'_>) {
             }
             TraceEvent::Profile(stmt, _) => {
                 let sql = stmt.sql().into_owned();
-                if let Some(at) = tracer.running.iter().rposition(|s| *s == sql) {
-                    tracer.running.remove(at);
-                }
+                let started = tracer
+                    .running
+                    .iter()
+                    .rposition(|s| s.0 == sql)
+                    .map(|at| tracer.running.remove(at));
                 if let Some((statement, _)) = tracer.statements.get_mut(&sql) {
                     statement.runs += 1;
-                    let status = |s| u64::try_from(stmt.get_status(s)).unwrap_or(0);
-                    statement.vm_steps = statement.vm_steps.max(status(StatementStatus::VmStep));
-                    statement.full_scans = statement
-                        .full_scans
-                        .max(status(StatementStatus::FullscanStep));
+                    let (vm, scans) = started.map_or((0, 0), |(_, vm, scans)| (vm, scans));
+                    statement.vm_steps += status(&stmt, StatementStatus::VmStep).saturating_sub(vm);
+                    statement.full_scans +=
+                        status(&stmt, StatementStatus::FullscanStep).saturating_sub(scans);
                 }
             }
             _ => {}
@@ -370,12 +555,80 @@ fn hook(conn: &rusqlite::Connection) {
     );
 }
 
+/// Every b-tree `sql`'s program walks whole (`Scan`), read from its bytecode
+/// on `conn`: each cursor opened on the main database (`OpenRead`,
+/// `OpenWrite`, `ReopenIdx` with a literal root page) is named by its root
+/// page through `sqlite_schema`, and each `Rewind`, `Last` or `Count` on such
+/// a cursor is a walk of that b-tree from one end.
+fn scans(conn: &rusqlite::Connection, sql: &str) -> Vec<Scan> {
+    /// `OPFLAG_P2ISREG`: the root page is in a register, not literal.
+    const P2_IS_REGISTER: i64 = 0x02;
+    let mut roots: HashMap<i64, (String, String, bool)> = conn
+        .prepare("SELECT rootpage,name,tbl_name,type='index' FROM sqlite_schema WHERE rootpage>0")
+        .and_then(|mut s| {
+            s.query_map([], |r| Ok((r.get(0)?, (r.get(1)?, r.get(2)?, r.get(3)?))))?
+                .collect()
+        })
+        .unwrap_or_default();
+    roots.insert(1, ("sqlite_schema".into(), "sqlite_schema".into(), false));
+    let Ok(mut program) = conn.prepare(&format!("EXPLAIN {sql}")) else {
+        return Vec::new();
+    };
+    let Ok(rows) = program
+        .query_map([], |r| {
+            Ok((
+                r.get::<_, String>(1)?,
+                r.get::<_, i64>(2)?,
+                r.get::<_, i64>(3)?,
+                r.get::<_, i64>(4)?,
+                r.get::<_, i64>(6)?,
+            ))
+        })
+        .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())
+    else {
+        return Vec::new();
+    };
+    let mut cursors: HashMap<i64, i64> = HashMap::new();
+    let mut found = Vec::new();
+    for (op, p1, p2, p3, p5) in rows {
+        match op.as_str() {
+            "OpenRead" | "OpenWrite" | "ReopenIdx" if p3 == 0 && p5 & P2_IS_REGISTER == 0 => {
+                cursors.insert(p1, p2);
+            }
+            "Rewind" | "Last" | "Count" => {
+                if let Some((btree, table, index)) = cursors.get(&p1).and_then(|r| roots.get(r)) {
+                    let scan = Scan {
+                        btree: btree.clone(),
+                        table: table.clone(),
+                        index: *index,
+                        op,
+                    };
+                    if !found.contains(&scan) {
+                        found.push(scan);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    found
+}
+
 /// Each statement run alone and cold on its own connection to `path` (if it
-/// only reads), and its plan.
+/// only reads), its plan and the b-trees its program walks.
 fn cold(path: &Path, statements: &mut [(Statement, Option<String>)]) {
     let reads = Reads::open();
     for (statement, expanded) in statements {
         let sql = expanded.clone().unwrap_or_else(|| statement.sql.clone());
+        // Its bytecode, on a connection of its own (closed before the cold
+        // run, so that run starts with as empty a cache as before).
+        let program = rusqlite::Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .expect("a side connection to the copy");
+        statement.scans = scans(&program, &sql);
+        drop(program);
         let conn = rusqlite::Connection::open_with_flags(
             path,
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
@@ -407,6 +660,27 @@ fn cold(path: &Path, statements: &mut [(Statement, Option<String>)]) {
     }
 }
 
+/// Rows of every table of the store at `path`.
+fn table_rows(path: &Path) -> std::collections::BTreeMap<String, u64> {
+    let conn = super::checks::reader(path).expect("a side connection to the copy");
+    let mut names: Vec<String> = conn
+        .prepare("SELECT name FROM sqlite_schema WHERE type='table'")
+        .and_then(|mut s| s.query_map([], |r| r.get(0))?.collect())
+        .unwrap_or_default();
+    names.push("sqlite_schema".into());
+    names
+        .into_iter()
+        .filter_map(|name| {
+            let rows: i64 = conn
+                .query_row(&format!("SELECT count(*) FROM \"{name}\""), [], |r| {
+                    r.get(0)
+                })
+                .ok()?;
+            Some((name, u64::try_from(rows).unwrap_or(0)))
+        })
+        .collect()
+}
+
 /// The child half of `in_child`: a no-op unless run by it.
 #[test]
 #[ignore = "the child half of an isolated startup measurement, run by the soak itself"]
@@ -415,17 +689,21 @@ fn measure_in_child() {
         return;
     };
     let request = request.into_string().unwrap();
-    let mut parts = request.splitn(3, '\n');
-    let (store, now, path) = (
+    let mut parts = request.splitn(4, '\n');
+    let (store, now, path, consistent) = (
         parts.next().unwrap(),
         parts.next().unwrap().parse::<i64>().unwrap(),
         PathBuf::from(parts.next().unwrap()),
+        parts.next().map(PathBuf::from),
     );
     let result = if store == "core" {
         // A second copy, for each statement run cold: the open writes the
-        // first (recovery, the generation).
-        let second = path.with_extension("cold.sqlite");
-        std::fs::copy(&path, &second).unwrap();
+        // first (recovery, the generation). A crash image's comes with it.
+        let second = consistent.unwrap_or_else(|| {
+            let second = path.with_extension("cold.sqlite");
+            std::fs::copy(&path, &second).unwrap();
+            second
+        });
         let (io, at) = (Io::now(), Instant::now());
         let reads = Reads::open();
         let started = reads.now();
@@ -453,6 +731,8 @@ fn measure_in_child() {
             .map(|sql| tracer.statements.remove(sql).unwrap())
             .collect();
         cold(&second, &mut statements);
+        let rows = table_rows(&second);
+        let (jobs, events) = durable(&super::checks::reader(&path).unwrap());
         let total = statements.iter().map(|(s, _)| s.reads).sum::<u64>() + tracer.outside;
         json!({
             "syscr": total,
@@ -460,14 +740,23 @@ fn measure_in_child() {
             "micros": elapsed.as_micros() as u64,
             "refused": opened.err().map(|e| format!("{e:?}")),
             "outside": tracer.outside,
+            "rows": rows,
+            "jobs": jobs,
+            "events": events,
             "statements": statements.iter().map(|(s, _)| json!({
                 "sql": s.sql,
                 "runs": s.runs,
                 "reads": s.reads,
                 "vm": s.vm_steps,
-                "scans": s.full_scans,
+                "fullscan": s.full_scans,
                 "cold": s.cold,
                 "plan": s.plan,
+                "scans": s.scans.iter().map(|scan| json!({
+                    "btree": scan.btree,
+                    "table": scan.table,
+                    "index": scan.index,
+                    "op": scan.op,
+                })).collect::<Vec<_>>(),
             })).collect::<Vec<_>>(),
         })
     } else {

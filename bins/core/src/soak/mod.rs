@@ -48,6 +48,8 @@ const SMOKE: Profile = Profile {
     idle_every: 1,
     trends: false,
     core_restarts_until: Some(2),
+    replacements: &[(1, false), (2, true)],
+    held_open: None,
 };
 
 /// The acceptance run: core restarts (nightly and at awkward moments) in
@@ -62,6 +64,17 @@ const NINETY_DAYS: Profile = Profile {
     idle_every: 7,
     trends: true,
     core_restarts_until: Some(30),
+    // Empty stores only before the action storm refills them; none in the
+    // last third, whose flatness is asserted.
+    replacements: &[
+        (5, false),
+        (12, true),
+        (22, false),
+        (33, true),
+        (47, true),
+        (55, true),
+    ],
+    held_open: Some((19, 21)),
 };
 
 /// Alongside it, the recovery coverage: the same household with another
