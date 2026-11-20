@@ -76,8 +76,10 @@ pub struct Database {
     sender: mpsc::Sender<Work>,
     priority: mpsc::Sender<Work>,
     /// A query-only connection for revocation admission, so a request that
-    /// fails it touches neither lane.
-    reader: Arc<std::sync::Mutex<Connection>>,
+    /// fails it touches neither lane. The writer thread closes it (`None`)
+    /// before its final checkpoint, so a blocking task that still holds it
+    /// finds it gone rather than closing it after the store.
+    reader: Arc<std::sync::Mutex<Option<Connection>>>,
     bell: Arc<Bell>,
     audit: Arc<AtomicI64>,
     retention: Arc<std::sync::Mutex<Option<RetentionFailure>>>,
@@ -92,17 +94,8 @@ impl Database {
         let mut store = Store::open(path)?;
         let generation = store.generation;
         let audit = Arc::new(AtomicI64::new(store.audit_usage()?.bytes));
-        let reader = Connection::open_with_flags(
-            path,
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .map_err(durable)?;
-        reader
-            .busy_timeout(Duration::from_millis(500))
-            .map_err(durable)?;
-        reader
-            .execute_batch("PRAGMA query_only=ON; PRAGMA trusted_schema=OFF;")
-            .map_err(durable)?;
+        let reader = Arc::new(std::sync::Mutex::new(Some(open_reader(path)?)));
+        let closing = reader.clone();
         let (sender, mut receiver) = mpsc::channel::<Work>(QUEUE_CAPACITY);
         let (priority, mut urgent) = mpsc::channel::<Work>(PRIORITY_CAPACITY);
         let bell = Arc::new(Bell {
@@ -161,13 +154,22 @@ impl Database {
                         doorbell.wait(retention::INTERVAL);
                     }
                 }
+                // Shutdown, in order: the reader closes first (without a
+                // checkpoint), then the writer checkpoints, then the store
+                // closes its connection and releases the core lock.
+                drop(
+                    closing
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .take(),
+                );
                 let _ = store.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)");
             })
             .map_err(|_| Error(ErrorCode::Unavailable))?;
         Ok(Self {
             sender,
             priority,
-            reader: Arc::new(std::sync::Mutex::new(reader)),
+            reader,
             _last: Arc::new(LastHandle(bell.clone())),
             bell,
             audit,
@@ -200,7 +202,8 @@ impl Database {
         let reader = self.reader.clone();
         let (revocation, admitted) = tokio::task::spawn_blocking(move || {
             let conn = reader.lock().map_err(|_| Error(ErrorCode::Unavailable))?;
-            let admitted = revocation.admit(&conn, now)?;
+            let conn = conn.as_ref().ok_or(Error(ErrorCode::Unavailable))?;
+            let admitted = revocation.admit(conn, now)?;
             Ok::<_, Error>((revocation, admitted))
         })
         .await
@@ -234,6 +237,40 @@ impl Database {
         self.bell.ring();
         receiver.await.map_err(|_| Error(ErrorCode::Unavailable))?
     }
+}
+
+/// The query-only connection for revocation admission, opened with the
+/// store's path checks: the database must already be a regular file, and
+/// SQLite refuses a symlink put there since (`SQLITE_OPEN_NOFOLLOW`). It
+/// cannot write (`query_only`) and never checkpoints, not even on close when
+/// it is the last connection (`NO_CKPT_ON_CLOSE`): the writer's own close
+/// checkpoints, under the core lock.
+fn open_reader(path: &Path) -> Result<Connection> {
+    if !std::fs::symlink_metadata(path).is_ok_and(|m| m.is_file()) {
+        return Err(Error(ErrorCode::StateNotDurable));
+    }
+    let reader = Connection::open_with_flags(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
+            | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX
+            | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW,
+    )
+    .map_err(durable)?;
+    reader
+        .set_db_config(
+            rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+            true,
+        )
+        .map_err(durable)?;
+    reader
+        .busy_timeout(Duration::from_millis(500))
+        .map_err(durable)?;
+    reader
+        .execute_batch(
+            "PRAGMA query_only=ON; PRAGMA trusted_schema=OFF; PRAGMA wal_autocheckpoint=0;",
+        )
+        .map_err(durable)?;
+    Ok(reader)
 }
 
 pub struct Store {
@@ -487,7 +524,11 @@ impl Store {
         lock.try_lock_exclusive()
             .map_err(|_| Error(ErrorCode::Conflict))?;
         let lock = core_lock::CoreLock(lock);
-        let mut conn = Connection::open(path).map_err(durable)?;
+        let mut conn = Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW,
+        )
+        .map_err(durable)?;
         std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
         if rusqlite::version_number() < 3_051_003 {

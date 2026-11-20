@@ -264,6 +264,99 @@ fn symlinked_core_lock_is_refused_without_creating_authority_state() {
     assert_eq!(std::fs::read(&target).unwrap(), b"preserve operator bytes");
 }
 
+/// The revocation reader refuses a symlink at the database path, as the
+/// store does, instead of opening whatever it points to.
+#[test]
+fn the_reader_refuses_a_symlinked_database() {
+    let (d, s, _) = setup();
+    let linked = d.path().join("linked.sqlite");
+    std::os::unix::fs::symlink(d.path().join("core.sqlite"), &linked).unwrap();
+    assert_eq!(
+        open_reader(&linked).err().unwrap().0,
+        ErrorCode::StateNotDurable
+    );
+    assert_eq!(
+        open_reader(&d.path().join("missing.sqlite"))
+            .err()
+            .unwrap()
+            .0,
+        ErrorCode::StateNotDurable
+    );
+    assert!(!d.path().join("missing.sqlite").exists());
+    open_reader(&d.path().join("core.sqlite")).unwrap();
+    drop(s);
+}
+
+/// The reader cannot write and, closed last, does not checkpoint: the WAL
+/// it leaves is the writer's, untouched.
+#[test]
+fn the_reader_neither_writes_nor_checkpoints_on_close() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("core.sqlite");
+    let wal = path.with_extension("sqlite-wal");
+    let writer = Connection::open(&path).unwrap();
+    writer
+        .execute_batch("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE t(x); INSERT INTO t VALUES(1);")
+        .unwrap();
+    let reader = open_reader(&path).unwrap();
+    assert!(reader.execute("INSERT INTO t VALUES(2)", []).is_err());
+    let rows: i64 = reader
+        .query_row("SELECT count(*) FROM t", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(rows, 1);
+    // The writer goes first without its own checkpoint, as after a crash.
+    writer
+        .set_db_config(
+            rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+            true,
+        )
+        .unwrap();
+    drop(writer);
+    let frames = std::fs::metadata(&wal).unwrap().len();
+    assert!(frames > 0);
+    drop(reader);
+    assert_eq!(std::fs::metadata(&wal).unwrap().len(), frames);
+}
+
+/// Shutdown closes the reader on the writer thread, before the writer's
+/// final checkpoint and before the core lock is released, even while a
+/// revocation's blocking task still holds it: the writer's close is the
+/// last one, so it removes the WAL.
+#[tokio::test]
+async fn shutdown_closes_the_reader_before_the_writer_checkpoints() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("core.sqlite");
+    let db = Database::open(&path).unwrap();
+    // An admission that finds nothing to revoke: the reader has read.
+    db.revoke(
+        Revocation::Task {
+            digest: "missing".into(),
+        },
+        0,
+    )
+    .await
+    .unwrap();
+    let held = db.reader.clone();
+    drop(db);
+    let lock = std::fs::File::options()
+        .read(true)
+        .write(true)
+        .open(path.with_extension("lock"))
+        .unwrap();
+    let mut released = false;
+    for _ in 0..500 {
+        if lock.try_lock_exclusive().is_ok() {
+            released = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(released);
+    assert!(!path.with_extension("sqlite-wal").exists());
+    // A late admission finds the reader gone instead of reopening the store.
+    assert!(held.lock().unwrap().is_none());
+}
+
 fn running(s: &mut Store, p: &Principal, key: &str) -> String {
     let id = s
         .queue_job(
