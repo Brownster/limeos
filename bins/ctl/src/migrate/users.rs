@@ -117,11 +117,15 @@ fn read_env(path: &Path) -> Result<String, &'static str> {
 }
 
 pub async fn run(socket: &str, args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let usage = || crate::args::Usage("usage: migrate import-users --env-file PATH".into());
     let [flag, path] = args else {
-        return Err("usage: migrate import-users --env-file PATH".into());
+        return Err(usage().into());
     };
-    if flag != "--env-file" {
-        return Err("usage: migrate import-users --env-file PATH".into());
+    if flag != "--env-file" || path.starts_with('-') {
+        return Err(usage().into());
+    }
+    if rustix::process::geteuid().as_raw() != 0 {
+        return Err("migrate import-users is root-only".into());
     }
     let users = parse_env(&read_env(Path::new(path))?)?;
     let names: Vec<_> = users.iter().map(|u| u.username.clone()).collect();

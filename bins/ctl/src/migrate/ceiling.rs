@@ -174,15 +174,17 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
             "--stacks" => &mut stacks,
             "--out" => &mut out,
             "--core-uid" => &mut uid,
-            _ => return Err("unknown propose-ceiling argument; run limeosctl --help".into()),
+            _ => {
+                return Err(crate::args::Usage(
+                    "unknown propose-ceiling argument; run limeosctl --help".into(),
+                )
+                .into());
+            }
         };
-        *slot = Some(
-            it.next()
-                .ok_or("missing value for a propose-ceiling flag")?,
-        );
+        *slot = Some(crate::args::value(flag, it.next())?);
     }
     let (Some(ps), Some(stacks), Some(out), Some(uid)) = (ps, stacks, out, uid) else {
-        return Err("usage: migrate propose-ceiling --docker-ps FILE --stacks DIR --core-uid UID --out FILE".into());
+        return Err(crate::args::Usage("usage: migrate propose-ceiling --docker-ps FILE --stacks DIR --core-uid UID --out FILE".into()).into());
     };
     let uid: u32 = uid.parse().map_err(|_| "--core-uid must be a number")?;
     if std::fs::symlink_metadata(out).is_ok() {

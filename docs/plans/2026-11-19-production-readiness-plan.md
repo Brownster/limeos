@@ -87,6 +87,11 @@ batches, at most once a minute, and writes nothing when there is nothing to prun
 | PR-34 | `limeosctl job resolve` requires `--evidence-digest` or an interactive confirmation; `--help`/`--version` are parsed only as the first argument. | CLI tests. |
 | PR-35 | Uniform error envelope for query-extractor rejections; `Backend` methods without a default so an unwired route fails to compile; one session-check helper used by every handler. | No route returns axum's plain-text rejection; a route-table test asserts every mutating route checks session, CSRF and scope. |
 
+**Not done in PR-32** (the row above is unchanged; these two parts remain open):
+
+- *The storage reader still runs as root.* Core accepts storage evidence only from a UID 0 peer (`fresh_storage` in `bins/core/src/storage.rs`), and the reader and its sibling roles refuse a non-root effective UID. A dedicated user needs core to trust that user instead (as it trusts the container executor: the socket's owner, neither root nor core, must be the peer), and the reader to keep the device and protected-path reads it does as root, through file ownership, group access or a narrow capability.
+- *`CAP_SYS_ADMIN` is not held only in the mounts helper.* For a root service the bounding set gives `CAP_SYS_ADMIN`, `CAP_SYS_PTRACE` and `CAP_DAC_READ_SEARCH` to every child of the dormant mounts unit (its unit file records the gap). Confining it needs either a separate helper unit that alone holds the capability, reached over its own socket, or the role dropping it from its bounding and permitted sets in code before it starts anything but the helper.
+
 ## Phase 3 — Patterns and scope
 
 | Id | Change | Done when |

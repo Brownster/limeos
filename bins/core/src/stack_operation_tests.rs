@@ -57,10 +57,10 @@ fn snap(c: char, running: bool) -> ContainerSnapshot {
         running,
     }
 }
-fn ordinary() -> Vec<ContainerSnapshot> {
+pub(crate) fn ordinary() -> Vec<ContainerSnapshot> {
     vec![snap('a', true), snap('b', true), snap('c', false)]
 }
-fn cohort(members: &[ContainerSnapshot], declared: &[&str]) -> DiscoveryCohort {
+pub(crate) fn cohort(members: &[ContainerSnapshot], declared: &[&str]) -> DiscoveryCohort {
     crowded_cohort(members, declared, 0)
 }
 /// The same Engine, but read over the bound: `truncated` more containers exist.

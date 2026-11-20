@@ -46,7 +46,19 @@ RestrictSUIDSGID=no
 RestrictRealtime=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
+RestrictNamespaces=yes
+IPAddressDeny=any
 RestrictAddressFamilies=AF_UNIX
+# Known gap: only the guardian's fixed helper needs CAP_SYS_ADMIN (mount), and
+# only admission needs CAP_SYS_PTRACE and CAP_DAC_READ_SEARCH (other
+# processes' /proc entries, root-only reads). For a root service the bounding
+# set alone decides what every exec'd process holds, so the long-lived
+# socket-facing process, the guardian, mount(8) and every other child hold
+# all three; AmbientCapabilities adds nothing for root and is listed to make
+# that explicit. Holding CAP_SYS_ADMIN only in the helper needs the helper in
+# its own privileged unit, or capability dropping in code, which is a rewrite
+# of the guardian protocol; until then the opt-in, Restart=no profile and the
+# syscall filter below are the bound.
 CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE CAP_SYS_ADMIN
 AmbientCapabilities=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE CAP_SYS_ADMIN
 SystemCallArchitectures=native

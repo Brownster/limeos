@@ -10,7 +10,7 @@ pub(crate) struct ReadBackend {
     changes: tokio::sync::watch::Sender<u64>,
     size: usize,
 }
-impl Backend for ReadBackend {
+impl TestBackend for ReadBackend {
     async fn container_storage_inventory(
         &self,
         _: String,
@@ -31,8 +31,12 @@ impl Backend for ReadBackend {
     async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
     }
+    /// As core answers: live while authorized.
     async fn session(&self, _: String, _: Option<String>) -> Result<SessionView> {
-        Err(Error(ErrorCode::Unauthenticated))
+        if !self.authorized.load(Ordering::Relaxed) {
+            return Err(Error(ErrorCode::Unauthenticated));
+        }
+        crate::test_backend::live_session()
     }
     async fn logout(&self, _: String, _: String) -> Result<()> {
         Ok(())

@@ -1,5 +1,5 @@
 use super::*;
-use axum::extract::Path;
+use gate::Path;
 use operations::{credentials, input};
 // A valid reviewed mount proposal may occupy 24 KiB. Keep its queue wrapper
 // bounded without changing the 16 KiB parser used by other operation routes.
@@ -29,9 +29,6 @@ pub(super) async fn plan<B: Backend>(State(app): State<App<B>>, request: Request
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
         app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
-        app.backend
             .plan_storage_mount(token, csrf, input(request).await?)
             .await
     }
@@ -58,9 +55,6 @@ pub(super) async fn approve<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         let value: limeos_contracts::ApprovalInput = input(request).await?;
         app.backend
             .approve_storage_mount(token, csrf, id, value.digest)
@@ -75,9 +69,6 @@ pub(super) async fn approve<B: Backend>(
 pub(super) async fn queue<B: Backend>(State(app): State<App<B>>, request: Request) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend
             .queue_storage_mount(token, csrf, queue_input(request).await?)
             .await
@@ -105,9 +96,6 @@ pub(super) async fn cancel<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, &headers)?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend.cancel_storage_mount(token, csrf, id).await
     }
     .await;
@@ -123,9 +111,6 @@ pub(super) async fn cancel_job<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, &headers)?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend.cancel_storage_mount_job(token, csrf, id).await
     }
     .await;

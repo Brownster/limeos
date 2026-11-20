@@ -549,10 +549,19 @@ impl Backend for Core {
     }
     /// On the store's query-only connection, never the writer's queue, so
     /// an anonymous caller with a made-up cookie adds no store work and a
-    /// stuck writer cannot hold the health check.
-    async fn signed_in(&self, token: String) -> bool {
+    /// stuck writer or a full queue cannot hold health or the gate. The same
+    /// checks as `session` (`authenticate` with the CSRF digest), without
+    /// the expiry read; `Unavailable` when the reader cannot answer within
+    /// `SIGNED_IN_BOUND`.
+    async fn signed_in(&self, token: String, csrf: Option<String>) -> Result<()> {
+        let csrf = csrf.map(|s| limeos_identity::digest(&s));
         self.db
-            .session_live(limeos_identity::digest(&token), now(), SIGNED_IN_BOUND)
+            .session_confirm(
+                limeos_identity::digest(&token),
+                csrf,
+                now(),
+                SIGNED_IN_BOUND,
+            )
             .await
     }
     async fn logout(&self, token: String, csrf: String) -> Result<()> {
@@ -658,12 +667,15 @@ impl Backend for Core {
         csrf: String,
         selection: limeos_domain::ComposeSelection,
     ) -> Result<limeos_domain::PlannedCompose> {
-        let catalog = self.catalog()?;
+        // Authenticated before the catalog is consulted, so an anonymous
+        // caller cannot tell whether one is installed.
+        let catalog = self.catalog();
         let digest = limeos_identity::digest(&token);
         let csrf = limeos_identity::digest(&csrf);
         self.db
             .call(move |s| {
                 let principal = s.authenticate(&digest, Some(&csrf), now())?;
+                let catalog = catalog?;
                 s.plan_compose(&principal, &catalog, &selection, now())
             })
             .await
@@ -673,11 +685,12 @@ impl Backend for Core {
         token: String,
         id: String,
     ) -> Result<limeos_domain::PlannedCompose> {
-        let catalog = self.catalog()?;
+        let catalog = self.catalog();
         let digest = limeos_identity::digest(&token);
         self.db
             .call(move |s| {
                 let principal = s.authenticate(&digest, None, now())?;
+                let catalog = catalog?;
                 let preview = s.compose_plan(&principal, &catalog, &id, now())?;
                 let scopes = limeos_persistence::compose_scopes(&catalog, &preview.plan.selection)?;
                 Ok(
@@ -694,23 +707,25 @@ impl Backend for Core {
         id: String,
         plan_digest: String,
     ) -> Result<limeos_domain::PlanApproval> {
-        let catalog = self.catalog()?;
+        let catalog = self.catalog();
         let digest = limeos_identity::digest(&token);
         let csrf = limeos_identity::digest(&csrf);
         self.db
             .call(move |s| {
                 let principal = s.authenticate(&digest, Some(&csrf), now())?;
+                let catalog = catalog?;
                 s.approve_compose(&principal, &catalog, &id, &plan_digest, now())
             })
             .await
     }
     async fn cancel_compose(&self, token: String, csrf: String, id: String) -> Result<()> {
-        let catalog = self.catalog()?;
+        let catalog = self.catalog();
         let digest = limeos_identity::digest(&token);
         let csrf = limeos_identity::digest(&csrf);
         self.db
             .call(move |s| {
                 let principal = s.authenticate(&digest, Some(&csrf), now())?;
+                let catalog = catalog?;
                 s.cancel_compose(&principal, &catalog, &id, now())
             })
             .await

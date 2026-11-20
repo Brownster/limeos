@@ -1,8 +1,6 @@
 use super::*;
-use axum::{
-    extract::Query,
-    response::sse::{Event, Sse},
-};
+use axum::response::sse::{Event, Sse};
+use gate::Query;
 use limeos_contracts::{HistoryRange, ResourceKind, ResourcePage};
 use serde::Deserialize;
 use std::convert::Infallible;
@@ -28,10 +26,9 @@ pub(super) struct PageQuery {
 pub(super) async fn resources<B: Backend>(
     State(app): State<App<B>>,
     headers: HeaderMap,
-    query: std::result::Result<Query<PageQuery>, axum::extract::rejection::QueryRejection>,
+    Query(query): Query<PageQuery>,
 ) -> Response {
     let result = async {
-        let Query(query) = query.map_err(|_| Error(ErrorCode::InvalidInput))?;
         let limit = query.limit.unwrap_or(20);
         let offset = query.offset.unwrap_or(0);
         if !(1..=50).contains(&limit) || offset > 1024 {
@@ -74,13 +71,9 @@ pub(super) struct HistoryQuery {
 pub(super) async fn history<B: Backend>(
     State(app): State<App<B>>,
     headers: HeaderMap,
-    query: std::result::Result<Query<HistoryQuery>, axum::extract::rejection::QueryRejection>,
+    Query(q): Query<HistoryQuery>,
 ) -> Response {
-    let result = async {
-        let Query(q) = query.map_err(|_| Error(ErrorCode::InvalidInput))?;
-        app.backend.history(cookie(&headers)?, q.range).await
-    }
-    .await;
+    let result = async { app.backend.history(cookie(&headers)?, q.range).await }.await;
     match result {
         Ok(value) => axum::Json(value).into_response(),
         Err(e) => failure(e),

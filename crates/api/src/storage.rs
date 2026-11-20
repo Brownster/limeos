@@ -1,5 +1,5 @@
 use super::*;
-use axum::extract::Path;
+use gate::Path;
 use operations::{credentials, input};
 
 pub(super) async fn container_dependencies<B: Backend>(
@@ -28,9 +28,6 @@ pub(super) async fn target_plan<B: Backend>(
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
         app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
-        app.backend
             .plan_storage_targets(token, csrf, input(request).await?)
             .await
     }
@@ -57,9 +54,6 @@ pub(super) async fn target_approve<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         let value: limeos_contracts::ApprovalInput = input(request).await?;
         app.backend
             .approve_storage_targets(token, csrf, id, value.digest)
@@ -77,9 +71,6 @@ pub(super) async fn target_queue<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend
             .queue_storage_targets(token, csrf, input(request).await?)
             .await
@@ -107,9 +98,6 @@ pub(super) async fn target_cancel<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, &headers)?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend.cancel_storage_targets(token, csrf, id).await
     }
     .await;
@@ -125,9 +113,6 @@ pub(super) async fn target_cancel_job<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, &headers)?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend.cancel_storage_target_job(token, csrf, id).await
     }
     .await;
@@ -149,9 +134,6 @@ pub(super) async fn inventory<B: Backend>(
 pub(super) async fn plan<B: Backend>(State(app): State<App<B>>, request: Request) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend
             .plan_storage(token, csrf, input(request).await?)
             .await
@@ -179,9 +161,6 @@ pub(super) async fn approve<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         let value: limeos_contracts::ApprovalInput = input(request).await?;
         app.backend
             .approve_storage(token, csrf, id, value.digest)
@@ -200,9 +179,6 @@ pub(super) async fn cancel<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, &headers)?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend.cancel_storage(token, csrf, id).await
     }
     .await;

@@ -65,6 +65,8 @@ SHOW_NAMES = {
     "RestrictRealtime": ["RestrictRealtime"],
     "LockPersonality": ["LockPersonality"],
     "MemoryDenyWriteExecute": ["MemoryDenyWriteExecute"],
+    "RestrictNamespaces": ["RestrictNamespaces"],
+    "IPAddressDeny": ["IPAddressDeny"],
     "RestrictAddressFamilies": ["RestrictAddressFamilies"],
     "CapabilityBoundingSet": ["CapabilityBoundingSet"],
     "AmbientCapabilities": ["AmbientCapabilities"],

@@ -92,9 +92,13 @@ class StackReaderProfileTests(unittest.TestCase):
                     "CPUQuota": "50%",
                 }.items():
                     self.assertEqual(values[key], [expected], key)
+                # openat2 for protected reads; privileged calls removed after.
                 self.assertEqual(
-                    values["SystemCallFilter"], ["@system-service openat2"]
+                    values["SystemCallFilter"],
+                    ["@system-service openat2", "~@privileged"],
                 )
+                self.assertEqual(values["RestrictNamespaces"], ["yes"])
+                self.assertEqual(values["IPAddressDeny"], ["any"])
                 self.assertFalse(
                     set(values)
                     & {

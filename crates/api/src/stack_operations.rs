@@ -2,14 +2,11 @@
 //! the single-container routes; no file, path or container selection exists.
 use super::operations::{credentials, input};
 use super::*;
-use axum::extract::{Path, Query};
+use gate::{Path, Query};
 
 pub(super) async fn plan<B: Backend>(State(app): State<App<B>>, request: Request) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend
             .plan_stack(token, csrf, input(request).await?)
             .await
@@ -27,9 +24,6 @@ pub(super) async fn approve<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         let value: limeos_contracts::ApprovalInput = input(request).await?;
         app.backend
             .approve_stack(token, csrf, id, value.digest)
@@ -44,9 +38,6 @@ pub(super) async fn approve<B: Backend>(
 pub(super) async fn queue<B: Backend>(State(app): State<App<B>>, request: Request) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         let value: limeos_contracts::QueueStackInput = input(request).await?;
         app.backend.queue_stack(token, csrf, value).await
     }
@@ -89,9 +80,6 @@ pub(super) async fn progress<B: Backend>(
 async fn cancel<B: Backend>(app: App<B>, id: String, headers: HeaderMap, plan: bool) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, &headers)?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend.cancel_stack_action(token, csrf, id, plan).await
     }
     .await;

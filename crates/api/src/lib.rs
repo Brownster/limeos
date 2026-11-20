@@ -28,6 +28,7 @@ mod compose;
 #[cfg(feature = "deferred")]
 #[allow(dead_code)]
 mod deployment;
+mod gate;
 mod identity_enablement;
 mod job_resolution;
 #[cfg(test)]
@@ -36,7 +37,11 @@ mod operations;
 #[cfg(test)]
 mod read_tests;
 mod reads;
+#[cfg(test)]
+mod route_table_tests;
 mod serve;
+#[doc(hidden)]
+pub use gate::{Access, Route, respond, routes};
 pub use serve::{Limits, serve, serve_with};
 #[cfg(test)]
 mod serve_tests;
@@ -46,6 +51,10 @@ mod stack_operations;
 mod stacks;
 mod storage;
 mod storage_mounts;
+#[cfg(test)]
+mod test_backend;
+#[cfg(test)]
+use test_backend::TestBackend;
 
 pub struct IssuedSession {
     pub token: String,
@@ -100,305 +109,234 @@ impl<T> PasswordChecked<T> {
         )
     }
 }
+/// Everything the routes ask of core. No method has a default body: a route
+/// wired here that core does not implement fails to compile, rather than
+/// answering 503 at run time. Tests implement `TestBackend` instead.
 pub trait Backend: Clone + Send + Sync + 'static {
     fn observe_health_policy(
         &self,
-        _token: String,
-        _deadline: Instant,
-    ) -> impl Future<Output = Result<limeos_domain::automation::HealthPolicyView>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        deadline: Instant,
+    ) -> impl Future<Output = Result<limeos_domain::automation::HealthPolicyView>> + Send;
     fn replace_observe_health_policy(
         &self,
-        _token: String,
-        _csrf: String,
-        _input: limeos_domain::automation::ReplaceHealthPolicy,
-        _deadline: Instant,
-    ) -> impl Future<Output = Result<limeos_domain::automation::HealthPolicyView>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        input: limeos_domain::automation::ReplaceHealthPolicy,
+        deadline: Instant,
+    ) -> impl Future<Output = Result<limeos_domain::automation::HealthPolicyView>> + Send;
     fn observe_health_alerts(
         &self,
-        _token: String,
-        _after: Option<String>,
-        _deadline: Instant,
+        token: String,
+        after: Option<String>,
+        deadline: Instant,
     ) -> impl Future<
         Output = Result<
             limeos_domain::automation::AutomationPage<limeos_domain::automation::AlertState>,
         >,
-    > + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+    > + Send;
     fn observe_health_notifications(
         &self,
-        _token: String,
-        _after: Option<String>,
-        _deadline: Instant,
+        token: String,
+        after: Option<String>,
+        deadline: Instant,
     ) -> impl Future<
         Output = Result<
             limeos_domain::automation::AutomationPage<limeos_domain::automation::Notification>,
         >,
-    > + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+    > + Send;
     fn acknowledge_observe_health_notification(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-        _input: limeos_domain::automation::AcknowledgeNotification,
-        _deadline: Instant,
-    ) -> impl Future<Output = Result<limeos_domain::automation::Notification>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+        input: limeos_domain::automation::AcknowledgeNotification,
+        deadline: Instant,
+    ) -> impl Future<Output = Result<limeos_domain::automation::Notification>> + Send;
     /// Current stored session/grants and the shared stack cache only.
     fn stack_inventory(
         &self,
-        _token: String,
-    ) -> impl Future<Output = Result<limeos_domain::deployment::discovery::StackInventory>> + Send
-    {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+    ) -> impl Future<Output = Result<limeos_domain::deployment::discovery::StackInventory>> + Send;
     fn observe_health_schedules(
         &self,
-        _token: String,
-        _after: Option<String>,
-        _deadline: Instant,
+        token: String,
+        after: Option<String>,
+        deadline: Instant,
     ) -> impl Future<
         Output = Result<
             limeos_domain::automation::AutomationPage<limeos_domain::automation::ScheduleView>,
         >,
-    > + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+    > + Send;
     fn create_observe_health_schedule(
         &self,
-        _token: String,
-        _csrf: String,
-        _input: limeos_contracts::ObserveHealthScheduleInput,
-        _deadline: Instant,
-    ) -> impl Future<Output = Result<limeos_domain::automation::ScheduleView>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        input: limeos_contracts::ObserveHealthScheduleInput,
+        deadline: Instant,
+    ) -> impl Future<Output = Result<limeos_domain::automation::ScheduleView>> + Send;
     fn pause_observe_health_schedule(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-        _input: limeos_domain::automation::PauseSchedule,
-        _deadline: Instant,
-    ) -> impl Future<Output = Result<limeos_domain::automation::ScheduleView>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+        input: limeos_domain::automation::PauseSchedule,
+        deadline: Instant,
+    ) -> impl Future<Output = Result<limeos_domain::automation::ScheduleView>> + Send;
     fn enable_observe_health(
         &self,
-        _token: String,
-        _csrf: String,
-        _input: limeos_contracts::ObserveHealthEnable,
-        _deadline: Instant,
-        _attempt: PasswordAttempt,
-    ) -> impl Future<Output = PasswordChecked<limeos_contracts::ObserveHealthEnabled>> + Send {
-        async { PasswordChecked::not_reached(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        input: limeos_contracts::ObserveHealthEnable,
+        deadline: Instant,
+        attempt: PasswordAttempt,
+    ) -> impl Future<Output = PasswordChecked<limeos_contracts::ObserveHealthEnabled>> + Send;
     fn storage_mount_catalog(
         &self,
-        _token: String,
-    ) -> impl Future<Output = Result<limeos_domain::StorageMountCatalog>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+    ) -> impl Future<Output = Result<limeos_domain::StorageMountCatalog>> + Send;
     fn plan_storage_mount(
         &self,
-        _token: String,
-        _csrf: String,
-        _selection: limeos_domain::StorageMountSelection,
-    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageMount>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        selection: limeos_domain::StorageMountSelection,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageMount>> + Send;
     fn storage_mount_plan(
         &self,
-        _token: String,
-        _id: String,
-    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageMount>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        id: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageMount>> + Send;
     fn approve_storage_mount(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-        _digest: String,
-    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+        digest: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send;
     fn queue_storage_mount(
         &self,
-        _token: String,
-        _csrf: String,
-        _input: limeos_contracts::QueueStorageMountInput,
-    ) -> impl Future<Output = Result<limeos_domain::StorageMountJob>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        input: limeos_contracts::QueueStorageMountInput,
+    ) -> impl Future<Output = Result<limeos_domain::StorageMountJob>> + Send;
     fn storage_mount_job(
         &self,
-        _token: String,
-        _id: String,
-    ) -> impl Future<Output = Result<limeos_domain::StorageMountJob>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        id: String,
+    ) -> impl Future<Output = Result<limeos_domain::StorageMountJob>> + Send;
     fn storage_mount_jobs(
         &self,
-        _token: String,
-    ) -> impl Future<Output = Result<Vec<limeos_domain::StorageMountJob>>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+    ) -> impl Future<Output = Result<Vec<limeos_domain::StorageMountJob>>> + Send;
     fn cancel_storage_mount(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-    ) -> impl Future<Output = Result<()>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+    ) -> impl Future<Output = Result<()>> + Send;
     fn cancel_storage_mount_job(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-    ) -> impl Future<Output = Result<()>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
-
+        token: String,
+        csrf: String,
+        id: String,
+    ) -> impl Future<Output = Result<()>> + Send;
     fn container_storage_inventory(
         &self,
-        _token: String,
-    ) -> impl Future<Output = Result<limeos_domain::ContainerStorageInventoryView>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+    ) -> impl Future<Output = Result<limeos_domain::ContainerStorageInventoryView>> + Send;
     fn plan_storage_targets(
         &self,
-        _token: String,
-        _csrf: String,
-        _contract: limeos_domain::StorageContract,
-    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageTargets>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        contract: limeos_domain::StorageContract,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageTargets>> + Send;
     fn storage_target_plan(
         &self,
-        _token: String,
-        _id: String,
-    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageTargets>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        id: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageTargets>> + Send;
     fn approve_storage_targets(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-        _digest: String,
-    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+        digest: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send;
     fn queue_storage_targets(
         &self,
-        _token: String,
-        _csrf: String,
-        _input: limeos_contracts::QueueStorageTargetsInput,
-    ) -> impl Future<Output = Result<limeos_domain::StorageTargetJob>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        input: limeos_contracts::QueueStorageTargetsInput,
+    ) -> impl Future<Output = Result<limeos_domain::StorageTargetJob>> + Send;
     fn storage_target_job(
         &self,
-        _token: String,
-        _id: String,
-    ) -> impl Future<Output = Result<limeos_domain::StorageTargetJob>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        id: String,
+    ) -> impl Future<Output = Result<limeos_domain::StorageTargetJob>> + Send;
     fn cancel_storage_targets(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-    ) -> impl Future<Output = Result<()>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+    ) -> impl Future<Output = Result<()>> + Send;
     fn cancel_storage_target_job(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-    ) -> impl Future<Output = Result<()>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+    ) -> impl Future<Output = Result<()>> + Send;
     fn storage_inventory(
         &self,
-        _token: String,
-    ) -> impl Future<Output = Result<limeos_domain::StorageInventoryView>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+    ) -> impl Future<Output = Result<limeos_domain::StorageInventoryView>> + Send;
     fn plan_storage(
         &self,
-        _token: String,
-        _csrf: String,
-        _input: limeos_domain::StorageSetupInput,
-    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageSetup>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        input: limeos_domain::StorageSetupInput,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageSetup>> + Send;
     fn storage_plan(
         &self,
-        _token: String,
-        _id: String,
-    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageSetup>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        id: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStorageSetup>> + Send;
     fn approve_storage(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-        _digest: String,
-    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+        digest: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send;
     fn cancel_storage(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-    ) -> impl Future<Output = Result<()>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+    ) -> impl Future<Output = Result<()>> + Send;
     fn plan_compose(
         &self,
-        _token: String,
-        _csrf: String,
-        _selection: limeos_domain::ComposeSelection,
-    ) -> impl Future<Output = Result<limeos_domain::PlannedCompose>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        selection: limeos_domain::ComposeSelection,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedCompose>> + Send;
     fn compose_plan(
         &self,
-        _token: String,
-        _id: String,
-    ) -> impl Future<Output = Result<limeos_domain::PlannedCompose>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        id: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedCompose>> + Send;
     fn approve_compose(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-        _digest: String,
-    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+        digest: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send;
     fn cancel_compose(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-    ) -> impl Future<Output = Result<()>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+    ) -> impl Future<Output = Result<()>> + Send;
     fn login(
         &self,
         request: Login,
@@ -411,168 +349,135 @@ pub trait Backend: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<SessionView>> + Send;
     fn logout(&self, token: String, csrf: String) -> impl Future<Output = Result<()>> + Send;
     fn health(&self) -> impl Future<Output = Result<Health>> + Send;
-    /// Whether `token` names a live session, for how much health shows. It
+    /// Whether `token` names a live session and, with `csrf`, whether that is
+    /// its CSRF value: for how much health shows, and for the gate before it
+    /// releases an input or load refusal (`gate::authenticated_refusal`). It
     /// must answer promptly and add no work to the store's queue (core reads
-    /// its query-only connection); false when unsure.
-    fn signed_in(&self, token: String) -> impl Future<Output = bool> + Send {
-        async move { self.session(token, None).await.is_ok() }
-    }
+    /// its query-only connection). `Unauthenticated` for no live session,
+    /// `Forbidden` for a mismatched CSRF value, any other error when it
+    /// cannot tell. It confirms; it grants nothing: authority stays in the
+    /// call that does the work.
+    fn signed_in(
+        &self,
+        token: String,
+        csrf: Option<String>,
+    ) -> impl Future<Output = Result<()>> + Send;
     fn observations(
         &self,
-        _token: String,
-    ) -> impl Future<Output = Result<limeos_contracts::Overview>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+    ) -> impl Future<Output = Result<limeos_contracts::Overview>> + Send;
     fn history(
         &self,
-        _token: String,
-        _range: limeos_contracts::HistoryRange,
-    ) -> impl Future<Output = Result<limeos_contracts::MetricHistory>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
-    fn changes(&self) -> tokio::sync::watch::Receiver<u64> {
-        tokio::sync::watch::channel(0).1
-    }
+        token: String,
+        range: limeos_contracts::HistoryRange,
+    ) -> impl Future<Output = Result<limeos_contracts::MetricHistory>> + Send;
+    fn changes(&self) -> tokio::sync::watch::Receiver<u64>;
     fn plan_restart(
         &self,
-        _token: String,
-        _csrf: String,
-        _input: limeos_contracts::RestartInput,
-    ) -> impl Future<Output = Result<limeos_domain::PlannedRestart>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        input: limeos_contracts::RestartInput,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedRestart>> + Send;
     fn plan_container(
         &self,
-        _token: String,
-        _csrf: String,
-        _input: limeos_contracts::ContainerInput,
-    ) -> impl Future<Output = Result<limeos_domain::PlannedContainerAction>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        input: limeos_contracts::ContainerInput,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedContainerAction>> + Send;
     fn container_logs(
         &self,
-        _token: String,
-        _resource: String,
-        _options: limeos_domain::LogOptions,
-    ) -> impl Future<Output = Result<limeos_domain::ContainerLogs>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        resource: String,
+        options: limeos_domain::LogOptions,
+    ) -> impl Future<Output = Result<limeos_domain::ContainerLogs>> + Send;
     fn approve_container(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-        _digest: String,
-    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+        digest: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send;
     fn queue_container(
         &self,
-        _token: String,
-        _csrf: String,
-        _input: limeos_contracts::QueueRestartInput,
-    ) -> impl Future<Output = Result<limeos_domain::RestartJob>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        input: limeos_contracts::QueueRestartInput,
+    ) -> impl Future<Output = Result<limeos_domain::RestartJob>> + Send;
     fn restart_progress(
         &self,
-        _token: String,
-        _id: String,
-        _after: i64,
-    ) -> impl Future<Output = Result<limeos_contracts::JobProgress>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        id: String,
+        after: i64,
+    ) -> impl Future<Output = Result<limeos_contracts::JobProgress>> + Send;
     fn container_jobs(
         &self,
-        _token: String,
-    ) -> impl Future<Output = Result<Vec<limeos_domain::RestartJob>>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+    ) -> impl Future<Output = Result<Vec<limeos_domain::RestartJob>>> + Send;
     fn cancel_restart(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-        _plan: bool,
-    ) -> impl Future<Output = Result<()>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+        plan: bool,
+    ) -> impl Future<Output = Result<()>> + Send;
     fn plan_stack(
         &self,
-        _token: String,
-        _csrf: String,
-        _input: limeos_contracts::StackInput,
-    ) -> impl Future<Output = Result<limeos_domain::PlannedStackAction>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        input: limeos_contracts::StackInput,
+    ) -> impl Future<Output = Result<limeos_domain::PlannedStackAction>> + Send;
     fn approve_stack(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-        _digest: String,
-    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+        digest: String,
+    ) -> impl Future<Output = Result<limeos_domain::PlanApproval>> + Send;
     fn queue_stack(
         &self,
-        _token: String,
-        _csrf: String,
-        _input: limeos_contracts::QueueStackInput,
-    ) -> impl Future<Output = Result<limeos_domain::StackJob>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        input: limeos_contracts::QueueStackInput,
+    ) -> impl Future<Output = Result<limeos_domain::StackJob>> + Send;
     fn stack_job_progress(
         &self,
-        _token: String,
-        _id: String,
-        _after: i64,
-    ) -> impl Future<Output = Result<limeos_contracts::StackJobProgress>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        id: String,
+        after: i64,
+    ) -> impl Future<Output = Result<limeos_contracts::StackJobProgress>> + Send;
     fn stack_jobs(
         &self,
-        _token: String,
-    ) -> impl Future<Output = Result<Vec<limeos_domain::StackJob>>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+    ) -> impl Future<Output = Result<Vec<limeos_domain::StackJob>>> + Send;
     fn cancel_stack_action(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-        _plan: bool,
-    ) -> impl Future<Output = Result<()>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+        plan: bool,
+    ) -> impl Future<Output = Result<()>> + Send;
     /// Administrator session only. Fresh read-only inspection of the job's
     /// targets; never an Engine effect.
     fn job_resolution(
         &self,
-        _token: String,
-        _id: String,
-    ) -> impl Future<Output = Result<limeos_contracts::ResolutionView>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        id: String,
+    ) -> impl Future<Output = Result<limeos_contracts::ResolutionView>> + Send;
     /// Administrator session only. Read-only: every principal's container and
     /// stack jobs that hold locks until resolved, at most 64.
     fn needs_attention_jobs(
         &self,
-        _token: String,
-    ) -> impl Future<Output = Result<Vec<limeos_domain::NeedsAttentionJob>>> + Send {
-        async { Err(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+    ) -> impl Future<Output = Result<Vec<limeos_domain::NeedsAttentionJob>>> + Send;
     /// Administrator session, CSRF and the administrator's password.
     fn resolve_job(
         &self,
-        _token: String,
-        _csrf: String,
-        _id: String,
-        _input: limeos_contracts::ResolveJobInput,
-        _attempt: PasswordAttempt,
-    ) -> impl Future<Output = PasswordChecked<limeos_contracts::ResolveJobResponse>> + Send {
-        async { PasswordChecked::not_reached(Error(ErrorCode::Unavailable)) }
-    }
+        token: String,
+        csrf: String,
+        id: String,
+        input: limeos_contracts::ResolveJobInput,
+        attempt: PasswordAttempt,
+    ) -> impl Future<Output = PasswordChecked<limeos_contracts::ResolveJobResponse>> + Send;
 }
 #[derive(Clone)]
 struct App<B> {
@@ -734,195 +639,17 @@ impl Drop for Charge<'_> {
     }
 }
 pub fn router<B: Backend>(backend: B, origin: String) -> Router {
-    Router::new()
-        .route("/api/v1/deployment/stacks", get(stacks::inventory::<B>))
-        .route("/api/v1/health", get(health::<B>))
-        .route(
-            "/api/v1/storage/mounts/targets",
-            get(storage_mounts::catalog::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/plans",
-            post(storage_mounts::plan::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/plans/{id}",
-            get(storage_mounts::read::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/plans/{id}/approval",
-            post(storage_mounts::approve::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/plans/{id}/cancel",
-            post(storage_mounts::cancel::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/jobs",
-            get(storage_mounts::jobs::<B>).post(storage_mounts::queue::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/jobs/{id}",
-            get(storage_mounts::job::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/jobs/{id}/cancel",
-            post(storage_mounts::cancel_job::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/plans",
-            post(storage::target_plan::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/plans/{id}",
-            get(storage::target_read::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/plans/{id}/approval",
-            post(storage::target_approve::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/plans/{id}/cancel",
-            post(storage::target_cancel::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/jobs",
-            post(storage::target_queue::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/jobs/{id}",
-            get(storage::target_job::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/jobs/{id}/cancel",
-            post(storage::target_cancel_job::<B>),
-        )
-        .route("/api/v1/storage/inventory", get(storage::inventory::<B>))
-        .route(
-            "/api/v1/storage/container-dependencies",
-            get(storage::container_dependencies::<B>),
-        )
-        .route("/api/v1/storage/plans", post(storage::plan::<B>))
-        .route("/api/v1/storage/plans/{id}", get(storage::read::<B>))
-        .route(
-            "/api/v1/storage/plans/{id}/approval",
-            post(storage::approve::<B>),
-        )
-        .route(
-            "/api/v1/storage/plans/{id}/cancel",
-            post(storage::cancel::<B>),
-        )
-        .route("/api/v1/auth/login", post(login::<B>))
-        .route(
-            "/api/v1/auth/capabilities/observe-health/enable",
-            post(identity_enablement::enable::<B>),
-        )
-        .route("/api/v1/auth/session", get(session::<B>))
-        .route("/api/v1/auth/logout", post(logout::<B>))
-        .route("/api/v1/overview", get(reads::overview::<B>))
-        .route("/api/v1/resources", get(reads::resources::<B>))
-        .route("/api/v1/system/history", get(reads::history::<B>))
-        .route("/api/v1/observations/stream", get(reads::stream::<B>))
-        .route("/api/v1/compose/plans", post(compose::plan::<B>))
-        .route("/api/v1/compose/plans/{id}", get(compose::read::<B>))
-        .route(
-            "/api/v1/compose/plans/{id}/approval",
-            post(compose::approve::<B>),
-        )
-        .route(
-            "/api/v1/compose/plans/{id}/cancel",
-            post(compose::cancel::<B>),
-        )
-        .route(
-            "/api/v1/container/restart/plans",
-            post(operations::plan::<B>),
-        )
-        .route(
-            "/api/v1/container/plans",
-            post(operations::container_plan::<B>),
-        )
-        .route(
-            "/api/v1/container/plans/{id}/approval",
-            post(operations::approve::<B>),
-        )
-        .route(
-            "/api/v1/container/plans/{id}/cancel",
-            post(operations::cancel_plan::<B>),
-        )
-        .route(
-            "/api/v1/container/jobs",
-            post(operations::container_queue::<B>).get(operations::jobs::<B>),
-        )
-        .route(
-            "/api/v1/container/jobs/{id}",
-            get(operations::progress::<B>),
-        )
-        .route(
-            "/api/v1/container/jobs/{id}/cancel",
-            post(operations::cancel_job::<B>),
-        )
-        .route("/api/v1/containers/{id}/logs", get(operations::logs::<B>))
-        .route(
-            "/api/v1/container/restart/plans/{id}/approval",
-            post(operations::approve::<B>),
-        )
-        .route(
-            "/api/v1/container/restart/plans/{id}/cancel",
-            post(operations::cancel_plan::<B>),
-        )
-        .route(
-            "/api/v1/container/restart/jobs",
-            post(operations::queue::<B>).get(operations::jobs::<B>),
-        )
-        .route(
-            "/api/v1/container/restart/jobs/{id}",
-            get(operations::progress::<B>),
-        )
-        .route(
-            "/api/v1/container/restart/jobs/{id}/cancel",
-            post(operations::cancel_job::<B>),
-        )
-        .route("/api/v1/stack/plans", post(stack_operations::plan::<B>))
-        .route(
-            "/api/v1/stack/plans/{id}/approval",
-            post(stack_operations::approve::<B>),
-        )
-        .route(
-            "/api/v1/stack/plans/{id}/cancel",
-            post(stack_operations::cancel_plan::<B>),
-        )
-        .route(
-            "/api/v1/stack/jobs",
-            post(stack_operations::queue::<B>).get(stack_operations::jobs::<B>),
-        )
-        .route(
-            "/api/v1/stack/jobs/{id}",
-            get(stack_operations::progress::<B>),
-        )
-        .route(
-            "/api/v1/stack/jobs/{id}/cancel",
-            post(stack_operations::cancel_job::<B>),
-        )
-        .route(
-            "/api/v1/jobs/needs-attention",
-            get(job_resolution::needs_attention::<B>),
-        )
-        .route(
-            "/api/v1/jobs/{id}/resolution",
-            get(job_resolution::read::<B>).post(job_resolution::resolve::<B>),
-        )
-        .merge(automation_schedules::routes::<B>())
-        .merge(automation_history::routes::<B>())
-        .merge(automation_policy::routes::<B>())
+    let app = App {
+        backend,
+        origin: origin.into(),
+        limiter: Arc::new(Mutex::new(Limiter::default())),
+        readers: Arc::new(Semaphore::new(8)),
+        streams: Default::default(),
+    };
+    gate::mount(&app)
         .fallback(|| async { failure(Error(ErrorCode::NotFound)) })
         .layer(middleware::from_fn(limits))
-        .with_state(App {
-            backend,
-            origin: origin.into(),
-            limiter: Arc::new(Mutex::new(Limiter::default())),
-            readers: Arc::new(Semaphore::new(8)),
-            streams: Default::default(),
-        })
+        .with_state(app)
 }
 fn failure(error: Error) -> Response {
     let status = match error.0 {
@@ -1034,7 +761,8 @@ async fn health<B: Backend>(State(app): State<App<B>>, headers: HeaderMap) -> Re
     }
     axum::Json(health).into_response()
 }
-/// How long health waits to learn whether its caller is signed in.
+/// How long health, and the gate before releasing a refusal, wait to learn
+/// whether the caller is signed in.
 const SIGNED_IN_BOUND: Duration = Duration::from_millis(500);
 /// Whether the request carries a live session. Bounded by
 /// `SIGNED_IN_BOUND`, so a slow store cannot hold the health check: it then
@@ -1044,8 +772,8 @@ async fn signed_in<B: Backend>(app: &App<B>, headers: &HeaderMap) -> bool {
         return false;
     };
     matches!(
-        tokio::time::timeout(SIGNED_IN_BOUND, app.backend.signed_in(token)).await,
-        Ok(true)
+        tokio::time::timeout(SIGNED_IN_BOUND, app.backend.signed_in(token, None)).await,
+        Ok(Ok(()))
     )
 }
 async fn login<B: Backend>(State(app): State<App<B>>, request: Request) -> Response {
@@ -1138,7 +866,7 @@ mod tests {
     use tower::ServiceExt;
     #[derive(Clone)]
     struct Fake;
-    impl Backend for Fake {
+    impl TestBackend for Fake {
         async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
             PasswordChecked::rejected()
         }
@@ -1164,7 +892,7 @@ mod tests {
     struct StoreStuck {
         lookups: Arc<std::sync::atomic::AtomicUsize>,
     }
-    impl Backend for StoreStuck {
+    impl TestBackend for StoreStuck {
         async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
             PasswordChecked::rejected()
         }
@@ -1173,10 +901,10 @@ mod tests {
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Err(Error(ErrorCode::Unavailable))
         }
-        async fn signed_in(&self, _: String) -> bool {
+        async fn signed_in(&self, _: String, _: Option<String>) -> Result<()> {
             self.lookups
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            true
+            Ok(())
         }
         async fn logout(&self, _: String, _: String) -> Result<()> {
             panic!("unvalidated mutation")
@@ -1264,7 +992,7 @@ mod tests {
     struct Accepting {
         unknown: Arc<std::sync::atomic::AtomicUsize>,
     }
-    impl Backend for Accepting {
+    impl TestBackend for Accepting {
         async fn login(&self, input: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
             if input.username != "admin"
                 && self
@@ -1609,7 +1337,7 @@ mod tests {
         arrived: Arc<std::sync::atomic::AtomicUsize>,
         release: Arc<tokio::sync::Notify>,
     }
-    impl Backend for Held {
+    impl TestBackend for Held {
         async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
             self.arrived
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
