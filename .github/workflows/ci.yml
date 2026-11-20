@@ -31,13 +31,20 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
       # PR-41 (docs/soak.md): 90 simulated days of jobs, logins, polls, faults
-      # and restarts against the real stores. The stores live on a tmpfs so
-      # the runner's fsync cost stays out of the measurement.
+      # and restarts against the real stores, in two scenarios side by side,
+      # with the cap, backlog, occurrence and metrics tests: every ignored
+      # test named soak_*. The stores go on /dev/shm when it has room (a
+      # GitHub-hosted runner) and in the temp directory otherwise (a
+      # container's 64 MiB /dev/shm); the checks count work, not time. The
+      # harness's retention seam (persistence's test-support feature) must
+      # stay out of every shipped binary.
       - name: Long-uptime soak (90 simulated days)
         timeout-minutes: 10
-        env:
-          LIMEOS_SOAK_DIR: /dev/shm
-        run: cargo test -p limeos-core --test soak --locked -- --ignored --exact soak_ninety_days --nocapture
+        run: |
+          set -Eeuo pipefail
+          enabled=$(cargo tree --locked -e normal,build --prefix none -f '{p}|{f}' -p limeos-core -p limeos-executor -p limeosctl | awk -F'|' '$2 ~ /(^|,)test-support(,|$)/' | sort -u)
+          if [[ -n "$enabled" ]]; then printf 'Soak seam enabled in a shipped binary:\n%s\n' "$enabled" >&2; exit 1; fi
+          cargo test -p limeos-core --test soak --locked -- --ignored soak_ --nocapture
       # Deferred code (docs/deferred-code.md) is compiled and tested here only.
       # --workspace enables the feature on every member that declares it.
       - name: Clippy with deferred code

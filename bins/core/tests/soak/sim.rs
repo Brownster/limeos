@@ -301,10 +301,23 @@ pub struct Sim {
     pub last_watermark: i64,
 }
 
+/// Free space a tmpfs needs before the soak puts its stores there: every
+/// test of the binary at once peaks near 300 MiB.
+const TMPFS_ROOM: u64 = 1 << 30;
+
+/// Where a test's temporary stores go: `LIMEOS_SOAK_DIR` when set; else
+/// `/dev/shm` when it has room (a tmpfs keeps fsync out of the run time, and
+/// a GitHub-hosted runner's is large), else the system temp directory (Docker
+/// gives a container a 64 MiB `/dev/shm`). Every check counts work, not
+/// time, so the choice changes how long a run takes, not what it measures.
 pub fn soak_dir() -> tempfile::TempDir {
-    // A tmpfs keeps fsync out of the measurement; CI points this at /dev/shm.
     let base = std::env::var_os("LIMEOS_SOAK_DIR")
         .map(PathBuf::from)
+        .or_else(|| {
+            let shm = PathBuf::from("/dev/shm");
+            let stat = rustix::fs::statvfs(&shm).ok()?;
+            (stat.f_bavail.saturating_mul(stat.f_frsize) >= TMPFS_ROOM).then_some(shm)
+        })
         .unwrap_or_else(std::env::temp_dir);
     tempfile::Builder::new()
         .prefix("limeos-soak-")
