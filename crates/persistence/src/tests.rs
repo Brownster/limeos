@@ -482,7 +482,7 @@ fn grant_revisions_take_the_ordinary_write_gates() {
         resource: "*".into(),
     }];
     let refused = |s: &mut Store| {
-        let before = events(&s);
+        let before = events(s);
         assert_eq!(
             s.revise_grants(&p.id, Role::Administrator, &widen, 213)
                 .unwrap_err()
@@ -490,7 +490,7 @@ fn grant_revisions_take_the_ordinary_write_gates() {
             ErrorCode::StateNotDurable
         );
         assert_eq!(s.grants(&p).unwrap().len(), 5);
-        assert_eq!(events(&s), before);
+        assert_eq!(events(s), before);
     };
     s.conn
         .execute("UPDATE meta SET audit_bytes=?", [AUDIT_LIMIT])
