@@ -1092,3 +1092,42 @@ fn pending_requests_are_listed_in_pages_after_a_cursor() {
     assert_eq!(listed(&s, &jobs[0]), jobs[1..]);
     assert!(listed(&s, &jobs[2]).is_empty());
 }
+
+/// A request on a job core still trusts the store for is undisputed; one on
+/// a job held across a store change, or with a result core recorded, is
+/// disputed, both as recorded and as listed for the retry loop.
+#[test]
+fn a_request_is_disputed_when_core_holds_a_record_a_closure_would_contradict() {
+    let (_dir, mut store, p) = setup();
+    let job = running(&mut store, &p, "trusted", "a");
+    uncertain(&mut store, &job.id);
+    let e = evidence(&job, &job.plan.expected);
+    let pending = request(&mut store, &p, &job.id, DeclaredOutcome::NotDone, LONG, &e).unwrap();
+    assert!(!pending.disputed);
+    store.observe_executor_epoch(&"2".repeat(64), 301).unwrap();
+    assert!(store.pending_resolution(&job.id).unwrap().unwrap().disputed);
+    assert!(
+        request(&mut store, &p, &job.id, DeclaredOutcome::NotDone, LONG, &e)
+            .unwrap()
+            .disputed
+    );
+    // A result core recorded disputes a closure too, with no store change.
+    let ran = running(&mut store, &p, "ran", "c");
+    let receipt = limeos_domain::RestartReceipt {
+        action: ran.id.clone(),
+        plan_digest: limeos_identity::digest(&json(&ran.plan).unwrap()),
+        operation: ran.plan.operation,
+        before: ran.plan.expected.clone(),
+        state: limeos_domain::ExecutionState::OutcomeUnknown,
+        error: Some(ErrorCode::Unavailable),
+    };
+    store
+        .record_container_result(&ran, &receipt, None, 302)
+        .unwrap();
+    let e = evidence(&ran, &ran.plan.expected);
+    assert!(
+        request(&mut store, &p, &ran.id, DeclaredOutcome::NotDone, LONG, &e)
+            .unwrap()
+            .disputed
+    );
+}

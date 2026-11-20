@@ -284,6 +284,7 @@ impl Core {
                     declared: request.declared,
                     resolved_by: request.resolved_by.clone(),
                     plan: pending.plan.clone(),
+                    disputed: pending.disputed,
                 },
                 budget,
             )
@@ -353,7 +354,9 @@ impl Core {
                     // so it contradicts what a precondition_changed receipt
                     // contradicts ("verified done"), as the executor itself
                     // refuses it; checked here too, whatever it answered.
-                    Some(ReceiptAbsence::NeverRecorded) if receipt.closed => {
+                    // Not for a disputed job: core does not trust that
+                    // closure, so only the operator's measurement counts.
+                    Some(ReceiptAbsence::NeverRecorded) if receipt.closed && !pending.disputed => {
                         let recorded = limeos_domain::ExecutionState::PreconditionChanged;
                         if let Some(allowed) = limeos_domain::declarations_for_recorded(recorded)
                             && !allowed.contains(&request.declared)
@@ -375,9 +378,11 @@ impl Core {
                     // no lock to free, and it has closed the action: no
                     // execute request for it, however delayed, can run after
                     // core releases its locks, whatever either clock says.
-                    // A no_longer_held closure then rests on the operator's
-                    // decision and core's fresh measurement below.
-                    Some(ReceiptAbsence::NoLongerHeld) if receipt.closed => {}
+                    // A no_longer_held closure, or a never_recorded one for a
+                    // disputed job, then rests on the operator's decision and
+                    // core's fresh measurement below.
+                    Some(ReceiptAbsence::NoLongerHeld | ReceiptAbsence::NeverRecorded)
+                        if receipt.closed => {}
                     // An absence that is not closed proves nothing about an
                     // execute still on its way, and an answer without a
                     // confirmation settles nothing.

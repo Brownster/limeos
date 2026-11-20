@@ -661,6 +661,13 @@ async fn a_never_recorded_closure_is_not_resolved_as_verified_done() {
     assert_eq!(refused.status, ResolveStatus::UnsupportedDeclaration);
     assert!(refused.message.contains("precondition_changed"));
     assert_eq!(f.state().await, JobState::NeedsIntervention);
+    assert!(matches!(
+        f.exec.lock().unwrap().last,
+        Some(Request::ResolveAction {
+            disputed: false,
+            ..
+        })
+    ));
     let view = f.view().await;
     assert!(view.pending.is_none() && view.resolution.is_none());
     f.set(Mode::Absent(ReceiptAbsence::NoLongerHeld));
@@ -1315,5 +1322,30 @@ async fn a_completion_whose_request_was_already_superseded_reports_the_settled_j
         }]
     );
     assert_eq!(f.state().await, JobState::PreconditionChanged);
+    assert_eq!(f.counts().2, 0);
+}
+
+/// A job held across a change of the executor's receipt store is disputed:
+/// a never-recorded closure is not evidence for it, so "verified done" is
+/// allowed on the operator's own fresh measurement, and core tells the
+/// executor so. Without the dispute the restriction stays (see
+/// `a_never_recorded_closure_is_not_resolved_as_verified_done`).
+#[tokio::test]
+async fn a_disputed_job_accepts_every_declaration_its_evidence_supports() {
+    let f = fixture().await;
+    f.core
+        .db
+        .call(|s| s.observe_executor_epoch(&"2".repeat(64), now()))
+        .await
+        .unwrap();
+    f.exec.lock().unwrap().current = Some(engine_state(T1, true));
+    f.set(Mode::Absent(limeos_domain::ReceiptAbsence::NeverRecorded));
+    let done = f.resolve(DeclaredOutcome::VerifiedDone).await.unwrap();
+    assert_eq!(done.status, ResolveStatus::Resolved, "{}", done.message);
+    assert_eq!(f.state().await, JobState::Resolved);
+    assert!(matches!(
+        f.exec.lock().unwrap().last,
+        Some(Request::ResolveAction { disputed: true, .. })
+    ));
     assert_eq!(f.counts().2, 0);
 }

@@ -270,6 +270,7 @@ async fn a_stuck_job_whose_container_was_removed_can_be_resolved() {
             DeclaredOutcome::AcceptedDivergence,
             &"9".repeat(64),
             &limeos_domain::ActionPlan::Container(request.plan.clone()),
+            false,
             201,
         )
         .await

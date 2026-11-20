@@ -48,11 +48,21 @@ pub enum ResolveOutcome {
 /// execute wrote does, so it allows exactly what a `precondition_changed`
 /// receipt allows (`declarations_for_recorded`), and any other declaration is
 /// `Refused`. A `no_longer_held` closure claims nothing about what ran: every
-/// declaration is left to the operator and core's fresh measurement.
-pub(crate) fn closed_outcome(absence: ReceiptAbsence, declared: DeclaredOutcome) -> ResolveOutcome {
+/// declaration is left to the operator and core's fresh measurement. So is a
+/// `never_recorded` closure for a `disputed` action: core holds a record the
+/// closure contradicts (the store changed while it held the job, or it holds
+/// a result for it), so the store's word that nothing was recorded is not
+/// evidence, and only the operator's own measurement is.
+pub(crate) fn closed_outcome(
+    absence: ReceiptAbsence,
+    declared: DeclaredOutcome,
+    disputed: bool,
+) -> ResolveOutcome {
     let recorded = ExecutionState::PreconditionChanged;
     match (absence, declarations_for_recorded(recorded)) {
-        (ReceiptAbsence::NeverRecorded, Some(allowed)) if !allowed.contains(&declared) => {
+        (ReceiptAbsence::NeverRecorded, Some(allowed))
+            if !disputed && !allowed.contains(&declared) =>
+        {
             ResolveOutcome::Refused(ResolveRefusal {
                 recorded,
                 declared,
@@ -103,7 +113,8 @@ impl ReceiptStore {
     /// executor clock, for retention only) and answered `Absent`, judged
     /// against the prune watermark with that plan's own `expires_at`; a closure
     /// row already there is answered the same way, and either is `Refused` for
-    /// a declaration a never-recorded closure contradicts (`closed_outcome`).
+    /// a declaration a never-recorded closure contradicts, unless core says
+    /// the action is `disputed` (`closed_outcome`).
     /// A terminal row whose recorded
     /// outcome contradicts the declaration is `Refused`. A changed target
     /// (digest mismatch) or a declaration the evidence does not support is
@@ -121,6 +132,7 @@ impl ReceiptStore {
         declared: DeclaredOutcome,
         resolved_by: &str,
         plan: &ActionPlan,
+        disputed: bool,
         now: i64,
     ) -> Result<ResolveOutcome> {
         if ![action, digest, evidence_digest, resolved_by]
@@ -144,10 +156,10 @@ impl ReceiptStore {
             (ResolveKind::Container, ActionPlan::Container(plan)) => {
                 let Some(receipt) = self.receipt(action, digest)? else {
                     let (absence, _) = self.close_container(action, digest, plan, now)?;
-                    return Ok(closed_outcome(absence, declared));
+                    return Ok(closed_outcome(absence, declared, disputed));
                 };
                 if let Some(absence) = closed(self)? {
-                    return Ok(closed_outcome(absence, declared));
+                    return Ok(closed_outcome(absence, declared, disputed));
                 }
                 ceiling.authorize(peer_uid, &receipt.before.resource, receipt.operation)?;
                 (receipt.operation, receipt.state, vec![receipt.before])
@@ -156,10 +168,10 @@ impl ReceiptStore {
                 let Some(receipt): Option<StackReceipt> = self.stack_receipt(action, digest)?
                 else {
                     let (absence, _) = self.close_stack(action, digest, plan, now)?;
-                    return Ok(closed_outcome(absence, declared));
+                    return Ok(closed_outcome(absence, declared, disputed));
                 };
                 if let Some(absence) = closed(self)? {
-                    return Ok(closed_outcome(absence, declared));
+                    return Ok(closed_outcome(absence, declared, disputed));
                 }
                 ceiling.authorize_stack(peer_uid, &receipt.before, receipt.operation)?;
                 let targets = receipt

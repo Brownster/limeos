@@ -593,6 +593,7 @@ async fn run() -> std::io::Result<()> {
                         declared,
                         resolved_by,
                         plan,
+                        disputed,
                         ..
                     } if source == limeos_contracts::Source::Docker => {
                         let store = receipts
@@ -614,6 +615,7 @@ async fn run() -> std::io::Result<()> {
                                 declared,
                                 &resolved_by,
                                 &plan,
+                                disputed,
                                 clock(),
                             )
                             .await?;

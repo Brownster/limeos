@@ -199,6 +199,14 @@ pub enum Request {
         /// `digest`, or the request is invalid. With no row, its own
         /// `expires_at` decides the answer's `absence`.
         plan: limeos_domain::ActionPlan,
+        /// Core holds a record a `never_recorded` closure for the action
+        /// would contradict: the receipt store changed while core held the
+        /// job (`executor_store_changed`), or core recorded a result for it.
+        /// Such a closure is then not evidence, and every declaration is left
+        /// to the operator's fresh measurement; without it a `never_recorded`
+        /// closure allows only what a `precondition_changed` receipt allows.
+        #[serde(default)]
+        disputed: bool,
     },
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
@@ -1228,6 +1236,7 @@ mod tests {
             declared: limeos_domain::DeclaredOutcome::NotDone,
             resolved_by: "a".repeat(64),
             plan,
+            disputed: false,
         };
         let resolve = |kind| resolve_with(kind, plan_of(kind));
         let ceiling = stack_ceiling();
@@ -1248,6 +1257,16 @@ mod tests {
         assert_eq!(wire["operation"], "resolve_action");
         wire["force"] = serde_json::json!(true);
         assert!(serde_json::from_value::<Request>(wire).is_err());
+        // A request without the dispute flag is undisputed.
+        let mut plain = serde_json::to_value(resolve(Stack)).unwrap();
+        plain.as_object_mut().unwrap().remove("disputed");
+        assert!(matches!(
+            serde_json::from_value::<Request>(plain).unwrap(),
+            Request::ResolveAction {
+                disputed: false,
+                ..
+            }
+        ));
         let Request::ResolveAction {
             version,
             kind,
@@ -1266,6 +1285,7 @@ mod tests {
             declared,
             resolved_by: "a".repeat(64),
             plan: plan_of(Stack),
+            disputed: false,
         };
         assert!(ceiling.validate(1001, &bad).is_err());
         // The carried plan must be of the named kind and well formed.

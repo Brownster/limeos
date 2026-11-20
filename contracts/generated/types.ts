@@ -342,7 +342,16 @@ resolved_by: string,
  * `digest`, or the request is invalid. With no row, its own
  * `expires_at` decides the answer's `absence`.
  */
-plan: ActionPlan, };
+plan: ActionPlan,
+/**
+ * Core holds a record a `never_recorded` closure for the action
+ * would contradict: the receipt store changed while core held the
+ * job (`executor_store_changed`), or core recorded a result for it.
+ * Such a closure is then not evidence, and every declaration is left
+ * to the operator's fresh measurement; without it a `never_recorded`
+ * closure allows only what a `precondition_changed` receipt allows.
+ */
+disputed: boolean, };
 export type StackInventory = { version: number, generated_at: number, catalog: StackSourceStatus, engine: StackSourceStatus, engine_matches_catalog: boolean | null, stacks: Array<StackView>, other_projects: Array<StackOtherProjectView>, standalone_containers: number | null,
 /**
  * Engine containers left out because the Engine holds more than

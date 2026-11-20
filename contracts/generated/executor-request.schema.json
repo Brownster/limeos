@@ -690,6 +690,11 @@
           "description": "Digest of the stored plan, as for the receipt lookups.",
           "type": "string"
         },
+        "disputed": {
+          "description": "Core holds a record a `never_recorded` closure for the action\nwould contradict: the receipt store changed while core held the\njob (`executor_store_changed`), or core recorded a result for it.\nSuch a closure is then not evidence, and every declaration is left\nto the operator's fresh measurement; without it a `never_recorded`\nclosure allows only what a `precondition_changed` receipt allows.",
+          "type": "boolean",
+          "default": false
+        },
         "evidence_digest": {
           "type": "string"
         },

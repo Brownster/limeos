@@ -272,10 +272,8 @@ impl Store {
     }
 
     /// Whether a `never_recorded` closure (`body`, the receipt as recorded)
-    /// for this job contradicts what core holds: a result already recorded
-    /// in `results` other than this very closure, or an
-    /// `executor_store_changed` event, since the store it was dispatched to
-    /// may have lost the job's receipt. Pure lookup.
+    /// for this job contradicts what core holds (`record_disputes`), other
+    /// than this very closure recorded before. Pure lookup.
     pub(crate) fn closure_disputed(&self, id: &str, results: &str, body: &str) -> Result<bool> {
         let state: String = self
             .conn
@@ -296,16 +294,7 @@ impl Store {
             // The same closure, recorded before: a repeat.
             return Ok(false);
         }
-        if recorded.is_some() {
-            return Ok(true);
-        }
-        self.conn
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM events WHERE job=? AND kind=?)",
-                params![id, json(&EventKind::ExecutorStoreChanged)?],
-                |r| r.get(0),
-            )
-            .map_err(durable)
+        record_disputes(&self.conn, id, results)
     }
 
     /// A `never_recorded` closure contradicted what core holds
@@ -440,4 +429,32 @@ pub(crate) fn record_epoch(tx: &Transaction<'_>, epoch: &str, now: i64) -> Resul
         return Err(Error(ErrorCode::StateNotDurable));
     }
     Ok(marked)
+}
+
+/// Whether core holds a record that a `never_recorded` closure for this job
+/// contradicts, so the closure is not evidence for it: a result already
+/// recorded in `results` (`container_results` or `stack_results`), or an
+/// `executor_store_changed` event, since the store it was dispatched to may
+/// have lost the job's receipt. Core releases nothing on such a closure
+/// (`closure_disputed`), and an operator's resolution of such a job is told
+/// to the executor as disputed, so that both leave every declaration to the
+/// operator's own measurement. Pure lookup, on any connection or open
+/// transaction.
+pub(crate) fn record_disputes(conn: &Connection, id: &str, results: &str) -> Result<bool> {
+    let recorded: bool = conn
+        .query_row(
+            &format!("SELECT EXISTS(SELECT 1 FROM {results} WHERE job=?)"),
+            [id],
+            |r| r.get(0),
+        )
+        .map_err(durable)?;
+    if recorded {
+        return Ok(true);
+    }
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM events WHERE job=? AND kind=?)",
+        params![id, json(&EventKind::ExecutorStoreChanged)?],
+        |r| r.get(0),
+    )
+    .map_err(durable)
 }

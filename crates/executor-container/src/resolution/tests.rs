@@ -213,6 +213,7 @@ async fn outcome(
             declared,
             &by(),
             &plan_for(kind, digest),
+            false,
             201,
         )
         .await
@@ -366,6 +367,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
             DeclaredOutcome::AcceptedDivergence,
             &by(),
             &plan_for(kind, &first.plan_digest),
+            false,
             201,
         )
         .await;
@@ -454,6 +456,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
                 DeclaredOutcome::VerifiedDone,
                 &by(),
                 &plan_for(kind, &first.plan_digest),
+                false,
                 201,
             )
             .await;
@@ -471,6 +474,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
             DeclaredOutcome::VerifiedDone,
             &by(),
             &plan_for(kind, &first.plan_digest),
+            false,
             201,
         )
         .await;
@@ -555,6 +559,7 @@ async fn repeating_a_resolution_is_idempotent_and_a_different_one_is_refused() {
             DeclaredOutcome::VerifiedDone,
             &"8".repeat(64),
             &plan_for(kind, &first.plan_digest),
+            false,
             201,
         )
         .await;
@@ -941,6 +946,7 @@ async fn a_terminal_receipt_still_needs_fresh_matching_evidence_and_the_peer_cei
                 DeclaredOutcome::VerifiedDone,
                 &by(),
                 &plan_for(t.kind, &t.digest),
+                false,
                 201,
             )
             .await;

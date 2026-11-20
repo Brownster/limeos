@@ -412,6 +412,7 @@ async fn resolve_stack(
             DeclaredOutcome::NotDone,
             &"a".repeat(64),
             &ActionPlan::Stack(stack.plan.clone()),
+            false,
             ASKED,
         )
         .await
@@ -452,6 +453,21 @@ async fn resolve_declaring(
     plan: ActionPlan,
     declared: DeclaredOutcome,
 ) -> ResolveOutcome {
+    resolve_as(store, engine, kind, action, digest, plan, declared, false).await
+}
+
+/// As `resolve_declaring`, saying whether core disputes the action.
+#[allow(clippy::too_many_arguments)]
+async fn resolve_as(
+    store: &mut ReceiptStore,
+    engine: &Recorder,
+    kind: ResolveKind,
+    action: &str,
+    digest: &str,
+    plan: ActionPlan,
+    declared: DeclaredOutcome,
+    disputed: bool,
+) -> ResolveOutcome {
     store
         .resolve_action(
             engine,
@@ -464,6 +480,7 @@ async fn resolve_declaring(
             declared,
             &"a".repeat(64),
             &plan,
+            disputed,
             ASKED,
         )
         .await
@@ -545,6 +562,73 @@ async fn a_never_recorded_closure_refuses_a_verified_done_declaration() {
                 "{kind:?} {declared:?}"
             );
         }
+    }
+    assert!(engine.calls().is_empty());
+}
+
+/// Core disputes the action (the store changed while it held the job, or it
+/// holds a result the closure contradicts): a never-recorded closure is then
+/// not evidence, so every declaration is left to the operator's own
+/// measurement, whether the resolution writes the closure or finds it. The
+/// same closure without the dispute still refuses "verified done".
+#[tokio::test]
+async fn a_disputed_never_recorded_closure_leaves_every_declaration_to_the_operator() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let engine = Recorder::default();
+    let stack = stack_request(&"d".repeat(64));
+    let single = container_request(&"e".repeat(64), EXPIRES);
+    let cases = [
+        (
+            ResolveKind::Stack,
+            stack.action.clone(),
+            stack.plan_digest.clone(),
+            ActionPlan::Stack(stack.plan.clone()),
+        ),
+        (
+            ResolveKind::Container,
+            single.action.clone(),
+            single.plan_digest.clone(),
+            ActionPlan::Container(single.plan.clone()),
+        ),
+    ];
+    for (kind, action, digest, plan) in &cases {
+        // Written by the first ask, found by the rest.
+        for declared in [
+            DeclaredOutcome::VerifiedDone,
+            DeclaredOutcome::VerifiedDone,
+            DeclaredOutcome::NotDone,
+            DeclaredOutcome::AcceptedDivergence,
+        ] {
+            assert_eq!(
+                resolve_as(
+                    &mut store,
+                    &engine,
+                    *kind,
+                    action,
+                    digest,
+                    plan.clone(),
+                    declared,
+                    true
+                )
+                .await,
+                ResolveOutcome::Absent(ReceiptAbsence::NeverRecorded),
+                "{kind:?} {declared:?}"
+            );
+        }
+        assert!(matches!(
+            resolve_declaring(
+                &mut store,
+                &engine,
+                *kind,
+                action,
+                digest,
+                plan.clone(),
+                DeclaredOutcome::VerifiedDone
+            )
+            .await,
+            ResolveOutcome::Refused(_)
+        ));
     }
     assert!(engine.calls().is_empty());
 }

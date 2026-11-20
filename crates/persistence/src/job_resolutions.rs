@@ -62,6 +62,19 @@ pub struct PendingResolution {
     /// The plan's operation and targets, to measure the evidence again.
     pub operation: ContainerAction,
     pub targets: Vec<ContainerSnapshot>,
+    /// Core holds a record a `never_recorded` closure for the job would
+    /// contradict (`jobs::record_disputes`): such a closure is not evidence,
+    /// and every declaration rests on the operator's measurement. Sent with
+    /// `ResolveAction` so the executor applies the same rule.
+    pub disputed: bool,
+}
+
+/// The results table of a job of `kind`.
+fn results_of(kind: ResolveKind) -> &'static str {
+    match kind {
+        ResolveKind::Container => "container_results",
+        ResolveKind::Stack => "stack_results",
+    }
 }
 
 fn subject_of(id: &str, state: &str, intent: &str) -> Result<ResolutionSubject> {
@@ -329,10 +342,7 @@ impl Store {
     ) -> Result<Option<Vec<ResolutionMember>>> {
         let subject = self.resolution_subject(principal, job)?;
         let id = |resource: &str| resource.trim_start_matches("container:").to_owned();
-        let table = match subject.kind {
-            ResolveKind::Container => "container_results",
-            ResolveKind::Stack => "stack_results",
-        };
+        let table = results_of(subject.kind);
         let receipt: Option<String> = self
             .conn
             .query_row(
@@ -452,6 +462,7 @@ impl Store {
                 {
                     Ok(PendingResolution {
                         request: open,
+                        disputed: super::jobs::record_disputes(tx, job, results_of(subject.kind))?,
                         kind: subject.kind,
                         plan_digest: subject.plan_digest,
                         plan: subject.plan,
@@ -485,6 +496,7 @@ impl Store {
             )?;
             Ok(PendingResolution {
                 request,
+                disputed: super::jobs::record_disputes(tx, job, results_of(subject.kind))?,
                 kind: subject.kind,
                 plan_digest: subject.plan_digest,
                 plan: subject.plan,
@@ -580,6 +592,11 @@ impl Store {
                     .map_err(durable)?;
                 let subject = subject_of(&request.job, &state, &intent)?;
                 Ok(PendingResolution {
+                    disputed: super::jobs::record_disputes(
+                        &self.conn,
+                        &request.job,
+                        results_of(subject.kind),
+                    )?,
                     request,
                     kind: subject.kind,
                     plan_digest: subject.plan_digest,
