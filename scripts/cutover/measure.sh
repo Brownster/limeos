@@ -34,16 +34,23 @@ loopback (--requests, default 100), and the dpkg footprint of the limeos package
 adds the authenticated /api/v1/overview p95; without it that row is unmeasured.
 --measure-core-restart RESTARTS limeos-core to time readiness; off by default.
 
-Exit 0: every measured target passed. Exit 2: a target failed or a required process
-was missing (report still written; nothing is rolled back). Exit 1: error.
+A query that times out (30 s) or does not answer (systemctl show for a unit's
+processes, dpkg-query for the package) is reported as unknown, with the row's
+status "unknown" and no value, never as a number or a pass.
+
+Exit 0: every measured target passed. Exit 2: a target failed, a required process
+was missing or a row is unknown (report still written; nothing is rolled back).
+Exit 1: error.
 USAGE
 }
 
-# PIDs of a unit: its cgroup members, else MainPID; nothing when it is not running.
+# PIDs of a unit: its cgroup members, else MainPID; nothing when it is not running. Fails with 2
+# when systemd did not answer: then the unit's processes are unknown, and neither its main process
+# alone nor "not running" stands in for them.
 fct_unit_pids() {
     local unit="${1}" cg pid file
     local -a pids=()
-    cg="$(fct_query systemctl show -p ControlGroup --value "${unit}" || true)"
+    cg="$(fct_unit_property ControlGroup "${unit}")" || return 2
     if [[ "${cg}" =~ ^/[A-Za-z0-9@._/-]+$ && "${cg}" != *..* ]]; then
         file="${CUTOVER_ROOT}/sys/fs/cgroup${cg}/cgroup.procs"
         if [[ -r "${file}" ]]; then
@@ -51,8 +58,9 @@ fct_unit_pids() {
         fi
     fi
     if (( ${#pids[@]} == 0 )); then
-        pid="$(fct_query systemctl show -p MainPID --value "${unit}" || true)"
-        [[ "${pid}" =~ ^[1-9][0-9]*$ && -d "${CUTOVER_ROOT}/proc/${pid}" ]] && pids+=("${pid}")
+        pid="$(fct_unit_property MainPID "${unit}")" || return 2
+        [[ "${pid}" =~ ^[0-9]+$ ]] || return 2
+        [[ "${pid}" != 0 && -d "${CUTOVER_ROOT}/proc/${pid}" ]] && pids+=("${pid}")
     fi
     if (( ${#pids[@]} )); then printf '%s\n' "${pids[@]}"; fi
 }
@@ -79,13 +87,18 @@ fct_mem() {
 
 fct_uptime() { local up _; read -r up _ <"${CUTOVER_ROOT}/proc/uptime"; printf '%s\n' "${up}"; }
 
-# One sample of every unit: "sample PHASE UNIT PID START TICKS WRITE_BYTES" plus missing/absent lines.
+# One sample of every unit: "sample PHASE UNIT PID START TICKS WRITE_BYTES" plus missing/absent
+# lines, and "unknown PHASE UNIT" for a unit whose processes systemd did not report.
 fct_sample() {
-    local phase="${1}" unit pid line comm
+    local phase="${1}" unit pid line comm listed
     local -a pids
     printf 'uptime %s %s\n' "${phase}" "$(fct_uptime)"
     for unit in "${BASE_UNITS[@]}" "${EXTRA_UNITS[@]}"; do
-        mapfile -t pids < <(fct_unit_pids "${unit}")
+        if ! listed="$(fct_unit_pids "${unit}")"; then
+            printf 'unknown %s %s\n' "${phase}" "${unit}"
+            continue
+        fi
+        mapfile -t pids < <(fct_lines "${listed}")
         if (( ${#pids[@]} == 0 )); then
             if [[ " ${BASE_UNITS[*]} " == *" ${unit} "* ]]; then printf 'missing %s %s\n' "${phase}" "${unit}"
             else printf 'absent %s %s\n' "${phase}" "${unit}"; fi
@@ -115,16 +128,21 @@ fct_http() { # label host port url requests [extra curl args...]
     done
 }
 
-# "pkg NAME STATUS VERSION INSTALLED_SIZE_KIB FILE_BYTES FILE_COUNT" or "pkg NAME absent".
+# "pkg NAME STATUS VERSION INSTALLED_SIZE_KIB FILE_BYTES FILE_COUNT", "pkg NAME absent", or
+# "pkg NAME unknown" when dpkg-query could not answer (exit 2 or a timeout; exit 1 is not found).
 fct_pkg() {
-    local pkg="${1}" info status version size path total=0 count=0 bytes
+    local pkg="${1}" info status version size path total=0 count=0 bytes rc=0 listing
     local -a files=()
-    info="$(dpkg-query -W -f='${db:Status-Status} ${Version} ${Installed-Size}' "${pkg}" 2>/dev/null || true)"
+    # shellcheck disable=SC2016  # a dpkg-query format, expanded by dpkg-query
+    info="$(fct_query dpkg-query -W -f='${db:Status-Status} ${Version} ${Installed-Size}' "${pkg}")" || rc=$?
+    if (( rc != 0 && rc != 1 )); then printf 'pkg %s unknown\n' "${pkg}"; return 0; fi
     read -r status version size <<<"${info}"
     if [[ "${status:-}" != installed ]]; then printf 'pkg %s absent\n' "${pkg}"; return 0; fi
+    # The installed package's file list: one that cannot be read leaves the footprint unknown.
+    listing="$(fct_query dpkg-query -L "${pkg}")" || { printf 'pkg %s unknown\n' "${pkg}"; return 0; }
     while IFS= read -r path; do
         [[ -f "${CUTOVER_ROOT}${path}" && ! -L "${CUTOVER_ROOT}${path}" ]] && files+=("${CUTOVER_ROOT}${path}")
-    done < <(dpkg-query -L "${pkg}" 2>/dev/null || true)
+    done < <(fct_lines "${listing}")
     if (( ${#files[@]} )); then
         while read -r bytes; do total=$(( total + bytes )); count=$(( count + 1 )); done < <(stat -c '%s' -- "${files[@]}")
     fi
@@ -239,6 +257,7 @@ READY_MS = 1000.0            # core ready after a restart
 
 meta, samples, uptime, mem = {}, {"start": {}, "end": {}}, {}, []
 missing, absent, http, pkgs, restart = {"start": set(), "end": set()}, set(), {}, {}, None
+unknown = set()
 with open(raw_path) as handle:
     for line in handle:
         f = line.split()
@@ -261,6 +280,8 @@ with open(raw_path) as handle:
             missing[f[1]].add(f[2])
         elif kind == "absent":
             absent.add(f[2])
+        elif kind == "unknown":
+            unknown.add(f[2])
         elif kind == "http":
             http.setdefault(f[1], []).append(f[2:6])
         elif kind == "pkg":
@@ -275,8 +296,12 @@ gone = sorted(missing["start"] | missing["end"])
 measurements = []
 
 
-def add(ident, description, source, unit, target, comparison, value=None, reason=None, fail=None, **extra):
-    if fail:
+def add(ident, description, source, unit, target, comparison, value=None, reason=None, fail=None,
+        unknown_note=None, **extra):
+    # A row whose inputs could not be determined is "unknown", never a value or a pass.
+    if unknown_note:
+        status, value, reason, fail = "unknown", None, unknown_note, None
+    elif fail:
         status = "fail"
     elif value is None:
         status = "unmeasured"
@@ -290,21 +315,36 @@ def add(ident, description, source, unit, target, comparison, value=None, reason
            "target": target, "comparison": comparison, "status": status, "source": source}
     if fail or reason:
         row["note"] = fail or reason
+    if unknown_note:
+        row["note"] = unknown_note
     row.update(extra)
     measurements.append(row)
 
 
 not_running = f"required process not running: {', '.join(gone)}" if gone else None
 
+
+def unknown_text(units):
+    found = sorted(set(units) & unknown)
+    return (f"unknown: could not determine the processes of {', '.join(found)} "
+            "(systemctl show did not answer)") if found else None
+
+
+unknown_base = unknown_text(base)
+unknown_any = unknown_text(unknown)
+
 # Memory, sampled at the end of the idle window.
 base_mem = [m for m in mem if m["unit"] in base]
 add("core_base_idle_pss", "Core plus base executors, idle PSS combined", "/proc/PID/smaps_rollup Pss",
-    "bytes", CORE_PSS, "<=", None if gone else sum(m["pss_bytes"] for m in base_mem), not_running)
+    "bytes", CORE_PSS, "<=", None if gone else sum(m["pss_bytes"] for m in base_mem), not_running,
+    unknown_note=unknown_base)
 add("core_base_idle_swap", "Core plus base executors, idle swap (no steady-state swap)", "/proc/PID/smaps_rollup Swap",
     "bytes", 0, "==", None if gone else sum(m["swap_bytes"] for m in base_mem), not_running,
-    swap_pss_bytes=None if gone else sum(m["swap_pss_bytes"] or 0 for m in base_mem))
+    unknown_note=unknown_base,
+    swap_pss_bytes=None if gone or unknown_base else sum(m["swap_pss_bytes"] or 0 for m in base_mem))
 add("all_resident_idle_pss", "All resident LimeOS processes, idle PSS combined", "/proc/PID/smaps_rollup Pss",
     "bytes", ALL_PSS, "<=", None if gone else sum(m["pss_bytes"] for m in mem), not_running,
+    unknown_note=unknown_any,
     units=sorted({m["unit"] for m in mem}), not_running_optional=sorted(absent))
 
 # CPU and disk writes over the idle window, for processes present at both ends.
@@ -326,7 +366,7 @@ for unit, pid, start in matched:
     if age > 0:
         lifetime += samples["end"][(unit, pid, start)][0] / clk / age * 100
 add("backend_cpu_idle", "Backend CPU over the idle window, percent of one core", "/proc/PID/stat utime+stime+cutime+cstime",
-    "percent", CPU_PCT, "<", cpu, not_running or change_note,
+    "percent", CPU_PCT, "<", cpu, not_running or change_note, unknown_note=unknown_any,
     elapsed_s=round(elapsed, 3), elapsed_source=elapsed_source,
     since_start_percent=round(lifetime, 4))
 disk = None
@@ -338,7 +378,7 @@ if not gone:
         written = sum(samples["end"][k][1] - samples["start"][k][1] for k in matched)
         disk = round(written / elapsed * 86400 / 1e6, 3)
 add("resident_disk_writes", "Disk writes of resident LimeOS processes, extrapolated", "/proc/PID/io write_bytes",
-    "MB/day", DISK_MB_DAY, "<", disk, disk_reason, elapsed_s=round(elapsed, 3))
+    "MB/day", DISK_MB_DAY, "<", disk, disk_reason, unknown_note=unknown_any, elapsed_s=round(elapsed, 3))
 
 
 def p95(label, ident, description, url_path, absent_reason):
@@ -377,13 +417,17 @@ for name, fields in pkgs.items():
         version, size, files, count = fields[1:5]
         packages[name] = {"version": version, "installed_size_bytes": None if size == "NA" else int(size) * 1024,
                           "file_bytes": int(files), "file_count": int(count)}
-footprint, reason = None, "limeos package not installed"
-if "limeos" in packages:
+    elif fields[0] == "unknown":
+        packages[name] = {"status": "unknown"}
+footprint, reason, footprint_unknown = None, "limeos package not installed", None
+if packages.get("limeos", {}).get("status") == "unknown":
+    footprint_unknown = "unknown: could not determine the limeos package's state or files (dpkg-query did not answer)"
+elif "limeos" in packages:
     entry = packages["limeos"]
     footprint, reason = max(entry["installed_size_bytes"] or 0, entry["file_bytes"]), None
 add("installed_footprint", "Installed footprint of the limeos package (larger of dpkg Installed-Size and installed files)",
     "dpkg-query Installed-Size and -L with file sizes", "bytes", FOOTPRINT, "<", footprint, reason,
-    packages=packages)
+    unknown_note=footprint_unknown, packages=packages)
 
 if restart is None:
     add("core_restart_readiness", "Core ready after a restart", "systemctl restart then limeosctl status", "ms",
@@ -399,13 +443,13 @@ required = {"core_base_idle_pss", "core_base_idle_swap", "backend_cpu_idle", "re
             "health_http_p95", "installed_footprint"}
 if any(m["status"] == "fail" for m in measurements):
     verdict = "fail"
-elif gone or any(m["status"] == "unmeasured" for m in measurements if m["id"] in required):
+elif gone or unknown or any(m["status"] in ("unmeasured", "unknown") for m in measurements if m["id"] in required):
     verdict = "incomplete"
 else:
     verdict = "pass"
 
 processes = []
-for m in mem:
+for m in [m for m in mem if m["unit"] not in unknown]:
     key = next((k for k in matched if k[0] == m["unit"] and k[1] == str(m["pid"])), None)
     entry = dict(m)
     if key:
@@ -421,6 +465,7 @@ report = {
     "meta": meta,
     "verdict": verdict,
     "missing_units": gone,
+    "unknown_units": sorted(unknown),
     "processes": processes,
     "measurements": measurements,
 }
@@ -434,7 +479,7 @@ print(f"verdict: {verdict}")
 sys.exit(0 if verdict == "pass" else 2)
 PY
     fct_log "report: ${out#"${CUTOVER_ROOT}"}/report.json"
-    if (( code == 2 )); then fct_warn 'targets missed or unmeasured; nothing was rolled back, the operator decides'; return 2; fi
+    if (( code == 2 )); then fct_warn 'targets missed, unmeasured or unknown; nothing was rolled back, the operator decides'; return 2; fi
     (( code == 0 )) || fct_die "report generation failed (python3 exit ${code})"
 }
 

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # T4: read-only pre-cutover snapshot. Writes only into the snapshot directory.
 # Refuses (exit 1) on memory pressure, high swap, a stopped managed container,
-# active Jellyfin playback (or no way to check it), missing state or a missing stack
-# management catalog. Hashes state files; never prints or stores contents.
+# active Jellyfin playback (or no way to check it), missing state, a missing stack
+# management catalog, or any query (systemd, docker, dpkg, ss) that did not answer: the
+# snapshot never records a blank or guessed state. Hashes state files; never prints or
+# stores contents.
 set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR source=lib.sh
@@ -36,7 +38,10 @@ body refuses. Without a key file, preflight
 refuses unless --no-playback-check is given (then check the dashboard yourself).
 The stack management catalog (/etc/limeos/management-catalog.json, from
 `limeosctl migrate propose-catalog`) must exist: activate.sh starts the stack reader
-with it. Exit 0: snapshot written and every check passed. Exit 1: refused or failed.
+with it. Every unit state, the container list, the limeos package state and the
+listening ports are recorded as found; a query that times out (30 s) or gives no
+answer refuses, naming it, so a snapshot never holds a blank or guessed state.
+Exit 0: snapshot written and every check passed. Exit 1: refused or failed.
 USAGE
 }
 
@@ -122,10 +127,37 @@ fct_main() {
     fi
     printf '%s\n' "${managed[@]}" >"${out}/managed.txt"
 
+    # Every query below has three answers; "unknown" (it did not answer) is a refusal, never a guess.
+    local class unit active enabled listing docker_known=1
     fct_unit_report >"${out}/units.txt"
-    ss -H -ltn >"${out}/ports.txt" || true
-    fct_docker_ids >"${out}/docker-ps.txt"
-    fct_docker_started >"${out}/docker-started.txt"
+    while read -r class unit active enabled; do
+        if [[ "${unit}" == 'limeops-*' ]]; then
+            refusals+=('systemd did not list its unit files (systemctl list-unit-files, named above), so the limeops-* units that must stay untouched are unknown')
+            continue
+        fi
+        [[ "${active}" != unknown ]] || refusals+=("could not determine whether ${unit} is active (systemctl is-active, named above); the snapshot must record its state")
+        [[ "${enabled}" != unknown ]] || refusals+=("could not determine whether ${unit} is enabled (systemctl is-enabled, named above); the snapshot must record its state")
+    done <"${out}/units.txt"
+    : "${class}"
+    if listing="$(fct_query ss -H -ltn)"; then
+        fct_lines "${listing}" >"${out}/ports.txt"
+    else
+        : >"${out}/ports.txt"
+        refusals+=('could not list the listening TCP ports (ss -H -ltn failed or timed out)')
+    fi
+    if listing="$(fct_docker_ids)"; then
+        fct_lines "${listing}" >"${out}/docker-ps.txt"
+    else
+        : >"${out}/docker-ps.txt"
+        docker_known=0
+    fi
+    if listing="$(fct_docker_started)"; then
+        fct_lines "${listing}" >"${out}/docker-started.txt"
+    else
+        : >"${out}/docker-started.txt"
+        docker_known=0
+    fi
+    (( docker_known )) || refusals+=('could not list the running containers (docker ps or docker inspect failed or timed out, named above)')
     local requirement hashed=1
     while IFS= read -r requirement; do
         refusals+=("requirement: ${requirement}")
@@ -133,26 +165,35 @@ fct_main() {
     fct_state_hashes >"${out}/state.sha256" || { hashed=0; refusals+=('state files could not all be hashed (named above); fix the state list or the files'); }
 
     local mem_line swap_line available swap_total swap_used
-    free -b >"${out}/memory.txt"
+    # A free that fails leaves no Mem: line, which is refused below by name.
+    free -b >"${out}/memory.txt" || true
     mem_line="$(grep -m1 '^Mem:' "${out}/memory.txt" || true)"
     swap_line="$(grep -m1 '^Swap:' "${out}/memory.txt" || true)"
     read -r _ _ _ _ _ _ available <<<"${mem_line}"
     read -r _ swap_total swap_used _ <<<"${swap_line}"
-    getconf PAGESIZE >"${out}/pagesize.txt"
+    getconf PAGESIZE >"${out}/pagesize.txt" || refusals+=('could not read the page size (getconf PAGESIZE failed)')
 
     {
-        local proxy_found=no unit
+        local proxy_found=no state
         for unit in caddy nginx traefik; do
-            printf '%s %s\n' "${unit}" "$(fct_unit_active "${unit}.service")"
-            [[ "$(fct_unit_active "${unit}.service")" == active ]] && proxy_found=yes
+            state="$(fct_unit_active "${unit}.service")"
+            printf '%s %s\n' "${unit}" "${state}"
+            case "${state}" in
+                active) proxy_found=yes ;;
+                unknown)
+                    [[ "${proxy_found}" == yes ]] || proxy_found=unknown
+                    refusals+=("could not determine whether ${unit}.service is active (systemctl is-active, named above); the snapshot must record it")
+                    ;;
+            esac
         done
         printf 'caddy-binary %s\n' "$(command -v caddy >/dev/null 2>&1 && echo present || echo absent)"
         printf 'https-proxy-active %s\n' "${proxy_found}"
     } >"${out}/proxy.txt"
     {
         local version
-        version="$(dpkg-query -W -f='${Version}' limeos 2>/dev/null || true)"
-        printf 'limeos %s\n' "${version:-absent}"
+        version="$(fct_pkg_version limeos)"
+        printf 'limeos %s\n' "${version}"
+        [[ "${version}" != unknown ]] || refusals+=('could not determine whether the limeos package is installed (dpkg-query failed or timed out, named above)')
     } >"${out}/packages.txt"
 
     # Checks.
@@ -180,10 +221,14 @@ fct_main() {
     problem="$(fct_catalog_problem)"
     [[ -z "${problem}" ]] || refusals+=("stack management catalog: ${problem}")
     local running name
-    running="$(docker ps --format '{{.Names}}' | sort)"
-    for name in "${managed[@]}"; do
-        grep -qx -- "${name}" <<<"${running}" || refusals+=("managed container not running: ${name}")
-    done
+    # From the listing recorded above; when docker did not answer that is refused already, and
+    # no container is reported as stopped on its account.
+    if (( docker_known )); then
+        running="$(awk '{ print $2 }' "${out}/docker-ps.txt")"
+        for name in "${managed[@]}"; do
+            grep -qx -- "${name}" <<<"${running}" || refusals+=("managed container not running: ${name}")
+        done
+    fi
 
     local code key body="${out}/.jellyfin-body"
     if (( no_playback_check )); then

@@ -70,8 +70,14 @@ enters the scope and keeps the terminal.
 One run per snapshot: the run holds SNAPSHOT_DIR/activate.lock, and a second
 activate.sh on that snapshot is refused while it does. A snapshot that has
 completed an activation (SNAPSHOT_DIR/activated), one with an unfinished
-return.sh --force (SNAPSHOT_DIR/force-takeover), or an existing cutover Caddy
-site, is refused before any change.
+return.sh --force (SNAPSHOT_DIR/force-takeover), one whose units.txt lacks a
+definite state for a unit, or an existing cutover Caddy site, is refused before
+any change.
+
+Each health check is tried 30 times, a second apart. A query that times out
+(30 s) or does not answer counts as a failure of that check, never a pass: the
+check then fails with "could not determine" (and the last try's warnings),
+otherwise with "was false", and the activation rolls back.
 USAGE
 }
 
@@ -267,16 +273,28 @@ fct_need() { # message, then test command
     fct_die "${message}"
 }
 
-fct_retry() { # label, then command; up to 30 tries one second apart
-    local label="${1}" attempt
+# Up to 30 tries one second apart of a check that succeeds (yes), fails with 2 (it could not
+# determine: a query timed out or did not answer) or fails otherwise (no). The verdict is the last
+# try's: "could not determine" is never reported as "was false", and its warnings (a timed-out
+# query names itself) are printed with it rather than swallowed by the retries.
+fct_retry() { # label, then command
+    local label="${1}" attempt rc=0 err
     shift
     if (( DRY_RUN )); then printf '[dry-run] check %s: %s\n' "${label}" "$*"; return 0; fi
-    HEALTH_DETAIL=''
+    err="${SNAP}/health-check.err"
     for (( attempt=0; attempt<30; attempt++ )); do
-        if "$@" >/dev/null 2>&1; then printf 'ok: %s\n' "${label}"; return 0; fi
+        HEALTH_DETAIL=''
+        rc=0
+        "$@" >/dev/null 2>"${err}" || rc=$?
+        if (( rc == 0 )); then rm -f -- "${err}"; printf 'ok: %s\n' "${label}"; return 0; fi
         sleep 1
     done
-    fct_abort "health check failed: ${label}${HEALTH_DETAIL:+ (${HEALTH_DETAIL})}"
+    if [[ -s "${err}" ]]; then cat -- "${err}" >&2 || true; fi
+    rm -f -- "${err}"
+    if (( rc == 2 )); then
+        fct_abort "health check failed: ${label}: could not determine after 30 tries${HEALTH_DETAIL:+ (${HEALTH_DETAIL})}"
+    fi
+    fct_abort "health check failed: ${label}: was false after 30 tries${HEALTH_DETAIL:+ (${HEALTH_DETAIL})}"
 }
 
 fct_render() { # template site tls -> stdout
@@ -286,25 +304,82 @@ fct_render() { # template site tls -> stdout
     printf '%s\n' "${text//@TLS@/${3}}"
 }
 
-fct_port_free() { ! ss -H -ltn | grep -Eq "[:.]${1}[[:space:]]"; }
-fct_core_origin_ok() { tr -d ' \n' <"${CUTOVER_ROOT}/etc/limeos/core.json" | grep -qF "\"origin\":\"${1}\""; }
-fct_installed_version_ok() { [[ "$(dpkg-query -W -f='${Version}' limeos 2>/dev/null || true)" == "${1}" ]]; }
-# The stack reader (started, never enabled) is up, listening, and not crash-looping.
-fct_reader_ready() {
-    fct_query systemctl is-active --quiet "${STACK_READER}" || return 1
-    [[ -S "${CUTOVER_ROOT}${STACK_READER_SOCKET}" ]] || return 1
-    [[ "$(fct_query systemctl show -p NRestarts --value "${STACK_READER}" || echo 0)" == 0 ]]
+# "free", "used" or "unknown" (ss failed or timed out) for a TCP port.
+fct_port_state() { # port
+    local listing
+    if ! listing="$(fct_query ss -H -ltn)"; then printf 'unknown\n'; return 0; fi
+    if grep -Eq "[:.]${1}[[:space:]]" <<<"${listing}"; then printf 'used\n'; else printf 'free\n'; fi
 }
-fct_units_active() { local unit; for unit in "$@"; do fct_query systemctl is-active --quiet "${unit}" || return 1; done; }
+fct_core_origin_ok() { tr -d ' \n' <"${CUTOVER_ROOT}/etc/limeos/core.json" | grep -qF "\"origin\":\"${1}\""; }
+
+# Health checks: each succeeds (yes), fails with 1 (no) or with 2 (could not determine), and sets
+# HEALTH_DETAIL to say why it failed.
+fct_units_active() { # unit...
+    local unit state unknown=''
+    for unit in "$@"; do
+        state="$(fct_unit_active "${unit}")"
+        case "${state}" in
+            active) ;;
+            unknown) unknown+=" ${unit}" ;;
+            *) HEALTH_DETAIL="${unit} is ${state}"; return 1 ;;
+        esac
+    done
+    if [[ -n "${unknown}" ]]; then HEALTH_DETAIL="systemd did not report the state of${unknown}"; return 2; fi
+}
+# The stack reader (started, never enabled) is up, listening, and has never restarted. A restart
+# count that cannot be read is not zero: the reader's crash history is then unverified.
+fct_reader_ready() {
+    local restarts
+    fct_units_active "${STACK_READER}" || return
+    if [[ ! -S "${CUTOVER_ROOT}${STACK_READER_SOCKET}" ]]; then HEALTH_DETAIL="${STACK_READER_SOCKET} is not listening"; return 1; fi
+    if ! restarts="$(fct_unit_property NRestarts "${STACK_READER}")" || [[ ! "${restarts}" =~ ^[0-9]+$ ]]; then
+        HEALTH_DETAIL="systemd did not report the restart count (NRestarts) of ${STACK_READER}"
+        return 2
+    fi
+    if (( restarts != 0 )); then HEALTH_DETAIL="${STACK_READER} has restarted ${restarts} time(s)"; return 1; fi
+}
+# A curl probe through the proxy: curl's exit 28 (no answer within --max-time) is unknown; any
+# other failure (refused, an HTTP error with -f, a broken reply) is a definite no.
+fct_http_ok() { # curl command...
+    local rc=0
+    "$@" || rc=$?
+    case "${rc}" in
+        0) return 0 ;;
+        28) HEALTH_DETAIL='no answer within 5 s (curl exit 28)'; return 2 ;;
+        *) HEALTH_DETAIL="curl exit ${rc}"; return 1 ;;
+    esac
+}
+# limeosctl status answers within the query timeout; a timeout is unknown.
+fct_core_status() {
+    local rc=0
+    fct_query "${LIMEOSCTL}" --socket "${CORE_SOCKET}" status || rc=$?
+    case "${rc}" in
+        0) return 0 ;;
+        124) HEALTH_DETAIL="limeosctl status did not answer within ${QUERY_TIMEOUT}s"; return 2 ;;
+        *) HEALTH_DETAIL="limeosctl exit ${rc}"; return 1 ;;
+    esac
+}
 # Managed containers have the snapshot's IDs and StartedAt; HEALTH_DETAIL names any that do not.
 fct_docker_matches() {
     local changed
-    changed="$(fct_docker_changes "${SNAP}" | fct_managed_only "${SNAP}" | paste -sd ' ' -)"
+    if ! changed="$(fct_docker_changes "${SNAP}")"; then
+        HEALTH_DETAIL='docker did not answer (docker ps or docker inspect failed or timed out)'
+        return 2
+    fi
+    changed="$(fct_lines "${changed}" | fct_managed_only "${SNAP}" | paste -sd ' ' -)"
     HEALTH_DETAIL="${changed:+changed: ${changed}}"
     [[ -z "${changed}" ]]
 }
+# The untouched units' states are the snapshot's; one systemd did not report is unknown.
 fct_untouched_match() {
-    [[ "$(fct_unit_report | grep '^untouched ')" == "$(grep '^untouched ' "${SNAP}/units.txt")" ]]
+    local now unknown changed
+    now="$(fct_unit_report | grep '^untouched ' || true)"
+    unknown="$(awk '$3 == "unknown" || $4 == "unknown" { print $2 }' <<<"${now}" | paste -sd ' ' -)"
+    if [[ -n "${unknown}" ]]; then HEALTH_DETAIL="systemd did not report the state of ${unknown}"; return 2; fi
+    changed="$(comm -3 <(fct_lines "${now}" | sort) <(grep '^untouched ' "${SNAP}/units.txt" | sort) \
+        | awk '{ print $2 }' | sort -u | paste -sd ' ' -)"
+    HEALTH_DETAIL="${changed:+changed: ${changed}}"
+    [[ -z "${changed}" ]]
 }
 
 fct_main() {
@@ -366,7 +441,11 @@ fct_main() {
         unit="$(fct_scope_unit "${SNAP}")" || fct_die "cannot name the transient scope for ${SNAP}; nothing was changed"
         if [[ -n "${SCOPE_UNIT}" ]]; then
             [[ "${SCOPE_UNIT}" == "${unit}" ]] || fct_die "--scope-unit is internal (activate.sh passes it to itself, here ${unit}); nothing was changed"
-            [[ "$(fct_unit_active "${unit}")" == active ]] || fct_die "not running inside its transient scope ${unit}; nothing was changed"
+            case "$(fct_unit_active "${unit}")" in
+                active) ;;
+                unknown) fct_die "could not determine whether this run is inside its transient scope ${unit} (the systemd query named above did not answer); nothing was changed" ;;
+                *) fct_die "not running inside its transient scope ${unit}; nothing was changed" ;;
+            esac
         fi
         fct_lock "${unit}"
         fct_refuse_if_active
@@ -430,13 +509,28 @@ fct_main() {
     else
         printf '[dry-run] hash state files again and compare strict entries with the snapshot\n'
     fi
-    if (( ! DRY_RUN )) && ! fct_port_free "${port}"; then fct_abort "port ${port} is still in use after the frozen app stopped"; fi
+    if (( ! DRY_RUN )); then
+        case "$(fct_port_state "${port}")" in
+            free) ;;
+            used) fct_abort "port ${port} is still in use after the frozen app stopped" ;;
+            *) fct_abort "could not determine whether port ${port} is free after the frozen app stopped (ss -H -ltn failed or timed out)" ;;
+        esac
+    fi
 
     # 2. Install the pinned package; its postinst starts the services too. Never prompt, and
     # keep the operator's /etc/limeos/core.json (a conffile) when it differs from the package's.
     fct_do env DEBIAN_FRONTEND=noninteractive dpkg --force-confold -i "${package}"
-    if (( DRY_RUN )); then printf '[dry-run] check installed limeos version is %s\n' "${version}"
-    elif ! fct_installed_version_ok "${version}"; then fct_abort "installed limeos version is not ${version}"; fi
+    if (( DRY_RUN )); then
+        printf '[dry-run] check installed limeos version is %s\n' "${version}"
+    else
+        local installed
+        installed="$(fct_pkg_version limeos)"
+        if [[ "${installed}" == unknown ]]; then
+            fct_abort "could not determine the installed limeos version (dpkg-query failed or timed out, named above)"
+        elif [[ "${installed}" != "${version}" ]]; then
+            fct_abort "installed limeos version is not ${version} (dpkg reports ${installed})"
+        fi
+    fi
     fct_do systemctl daemon-reload
     for unit in "${RUST_UNITS[@]}"; do fct_do systemctl enable "${unit}"; done
     for unit in "${RUST_UNITS[@]}"; do fct_do systemctl start "${unit}"; done
@@ -455,17 +549,22 @@ fct_main() {
     fi
     fct_do caddy validate --adapter caddyfile --config "${caddyfile}"
     fct_do systemctl enable caddy.service
-    if (( DRY_RUN )) || [[ "$(fct_unit_active caddy.service)" != active ]]; then
-        fct_do systemctl start caddy.service
-    else
-        fct_do systemctl reload caddy.service
-    fi
+    local caddy_now=inactive
+    if (( ! DRY_RUN )); then caddy_now="$(fct_unit_active caddy.service)"; fi
+    case "${caddy_now}" in
+        active) fct_do systemctl reload caddy.service ;;
+        unknown)
+            fct_warn 'could not determine whether caddy.service is running (named above); using reload-or-restart, which loads the site either way (reloads a running Caddy, starts a stopped one)'
+            fct_do systemctl reload-or-restart caddy.service
+            ;;
+        *) fct_do systemctl start caddy.service ;;
+    esac
 
     # 4. Health checks.
     local curl_base=(curl -fsS -k --max-time 5 --resolve "${host}:${port}:127.0.0.1" -o /dev/null)
-    fct_retry 'core health via the proxy' "${curl_base[@]}" "${site}/api/v1/health"
-    fct_retry 'login page via the proxy' "${curl_base[@]}" "${site}/"
-    fct_retry 'limeosctl status' "${LIMEOSCTL}" --socket "${CORE_SOCKET}" status
+    fct_retry 'core health via the proxy' fct_http_ok "${curl_base[@]}" "${site}/api/v1/health"
+    fct_retry 'login page via the proxy' fct_http_ok "${curl_base[@]}" "${site}/"
+    fct_retry 'limeosctl status' fct_core_status
     fct_retry 'managed containers: docker ps and StartedAt identical to the snapshot' fct_docker_matches
     if (( ! DRY_RUN )); then fct_warn_unmanaged_changes "${SNAP}"; fi
     fct_retry 'untouched units unchanged' fct_untouched_match

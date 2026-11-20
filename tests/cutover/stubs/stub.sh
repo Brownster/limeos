@@ -13,6 +13,15 @@ if [[ -f "${STUB_DIR}/fail.txt" ]] && grep -qxF -- "${call}" "${STUB_DIR}/fail.t
     printf 'stub: injected failure for: %s\n' "${call}" >&2
     exit 1
 fi
+# Glob patterns in silent.txt: a matching call prints nothing and exits 2, as a tool that could not
+# answer does (systemctl that cannot reach systemd, a docker daemon that is down, a dpkg-query that
+# cannot read its database).
+if [[ -f "${STUB_DIR}/silent.txt" ]]; then
+    while IFS= read -r pattern; do
+        # shellcheck disable=SC2053
+        if [[ -n "${pattern}" && "${call}" == ${pattern} ]]; then exit 2; fi
+    done <"${STUB_DIR}/silent.txt"
+fi
 # Glob patterns in hang.txt: a matching call hangs for 90 s first (a stuck systemd query).
 if [[ -f "${STUB_DIR}/hang.txt" ]]; then
     while IFS= read -r pattern; do
@@ -22,15 +31,20 @@ if [[ -f "${STUB_DIR}/hang.txt" ]]; then
 fi
 # "SIGNAL pattern" lines in signal.txt: send SIGNAL to the calling script when the call matches
 # the glob pattern, then carry on with the call. "group:SIGNAL" sends it to the caller's whole
-# process group instead, as a terminal's Ctrl-C does; a stub in that group dies of it.
+# process group instead, as a terminal's Ctrl-C does; a stub in that group dies of it. A call the
+# script bounds with timeout(1) has timeout as its parent: the script is the one above it.
 if [[ -f "${STUB_DIR}/signal.txt" ]]; then
+    caller="${PPID}"
+    if [[ "$(ps -o comm= -p "${caller}" 2>/dev/null || true)" == timeout ]]; then
+        caller="$(ps -o ppid= -p "${caller}" | tr -d ' ')"
+    fi
     while read -r sig pattern; do
         # shellcheck disable=SC2053
         [[ "${call}" == ${pattern} ]] || continue
         if [[ "${sig}" == group:* ]]; then
-            kill -s "${sig#group:}" -- "-$(ps -o pgid= -p "${PPID}" | tr -d ' ')"
+            kill -s "${sig#group:}" -- "-$(ps -o pgid= -p "${caller}" | tr -d ' ')"
         else
-            kill -s "${sig}" "${PPID}"
+            kill -s "${sig}" "${caller}"
         fi
     done <"${STUB_DIR}/signal.txt"
 fi
@@ -167,11 +181,18 @@ case "${tool}" in
                 (( quiet )) || printf '%s\n' "${state}"
                 [[ "${state}" == active ]] ;;
             is-enabled)
+                # Older systemd prints nothing (and fails) for a unit file that does not exist; units
+                # whose $unit.loadstate says not-found, and that have no .enabled file, do that.
+                if [[ "$(get_unit "${args[0]}" loadstate loaded)" == not-found && ! -f "${unit_dir}/${args[0]}.enabled" ]]; then
+                    printf 'Failed to get unit file state for %s: No such file or directory\n' "${args[0]}" >&2
+                    exit 1
+                fi
                 state="$(get_unit "${args[0]}" enabled disabled)"
                 printf '%s\n' "${state}"
                 [[ "${state}" == enabled ]] ;;
             list-unit-files)
-                for f in "${unit_dir}"/limeops-*.enabled; do
+                # Every unit file the stub knows (a real host always has some).
+                for f in "${unit_dir}"/*.enabled; do
                     [[ -e "${f}" ]] || continue
                     b="$(basename -- "${f}" .enabled)"; printf '%s %s enabled\n' "${b}" "$(get_unit "${b}" enabled x)"
                 done ;;
@@ -192,6 +213,10 @@ case "${tool}" in
                     if [[ -x "${STUB_DIR}/hook-start-${u}" ]]; then "${STUB_DIR}/hook-start-${u}"; fi
                     if [[ "${u}" == pi-health.service ]]; then printf 'LISTEN 0 128 0.0.0.0:8002 0.0.0.0:*\n' >>"${STUB_DIR}/ss_out"; fi
                 done ;;
+            reload-or-restart)
+                # Starts a stopped unit, reloads a running one.
+                for u in "${args[@]}"; do set_unit "${u}" active active; done ;;
+            try-reload-or-restart) ;;  # reloads a running unit, leaves a stopped one alone
             enable) for u in "${args[@]}"; do set_unit "${u}" enabled enabled; done ;;
             disable)
                 for u in "${args[@]}"; do
@@ -204,6 +229,7 @@ case "${tool}" in
                 case "${prop}" in
                     MainPID) printf '%s\n' "$(get_unit "${args[-1]}" mainpid 0)" ;;
                     ControlGroup) printf '%s\n' "$(get_unit "${args[-1]}" cgroup '')" ;;
+                    LoadState) printf '%s\n' "$(get_unit "${args[-1]}" loadstate loaded)" ;;
                     *) printf '%s\n' "$(get_unit "${args[-1]}" restarts 0)" ;;
                 esac ;;
             daemon-reload|reload) ;;

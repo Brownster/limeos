@@ -38,10 +38,14 @@ CATALOG_PATH=/etc/limeos/management-catalog.json
 LIMEOSCTL="${LIMEOSCTL:-/usr/lib/limeos/limeosctl}"
 CORE_SOCKET="${CORE_SOCKET:-/run/limeos-core/core.sock}"
 
-# Every systemctl query runs under this bound (seconds), so a hung systemd becomes a named
-# failure instead of an indefinite stall.
+# Every query (systemctl, docker, dpkg-query, ss, limeosctl) runs under this bound (seconds), so a
+# hung systemd becomes a named failure instead of an indefinite stall.
 QUERY_TIMEOUT="${CUTOVER_QUERY_TIMEOUT:-30}"
 [[ "${QUERY_TIMEOUT}" =~ ^[1-9][0-9]*$ ]] || QUERY_TIMEOUT=30
+# Every query has three answers: yes, no, and "unknown" (it timed out or gave no usable answer).
+# The helpers below print the literal word "unknown" for the third, and every caller handles it:
+# preflight refuses, a health check fails, return.sh takes the restoring action anyway, and
+# measure.sh reports it as unknown.
 
 fct_log() { printf '%s\n' "$*"; }
 fct_warn() { printf 'WARN: %s\n' "$*" >&2; }
@@ -182,36 +186,119 @@ fct_query() { # command...
     return "${rc}"
 }
 
-fct_unit_active() { fct_query systemctl is-active "${1}" || true; }
-fct_unit_enabled() { fct_query systemctl is-enabled "${1}" || true; }
+# The state word systemd reports for a unit (is-active: active, inactive, failed, activating, ...;
+# is-enabled: enabled, disabled, static, ...), or "unknown" when the query timed out or printed no
+# single state word (systemctl that cannot reach systemd prints nothing). Always succeeds; an
+# unknown answer is named in a warning. Older systemd versions print nothing for is-enabled on a
+# unit file that does not exist (newer ones print not-found): then LoadState decides, and
+# "not-found" is a definite answer.
+fct_unit_query() { # is-active|is-enabled unit
+    local out='' rc=0
+    out="$(fct_query systemctl "${1}" "${2}")" || rc=$?
+    if (( rc != 124 )) && [[ "${out}" =~ ^[a-z][a-z-]*$ && "${out}" != unknown ]]; then
+        printf '%s\n' "${out}"
+        return 0
+    fi
+    if (( rc != 124 )) && [[ "${1}" == is-enabled && -z "${out}" ]]; then
+        rc=0
+        out="$(fct_query systemctl show -p LoadState --value "${2}")" || rc=$?
+        if (( rc == 0 )) && [[ "${out}" == not-found ]]; then printf 'not-found\n'; return 0; fi
+    fi
+    (( rc == 124 )) || fct_warn "no answer from: systemctl ${1} ${2}"
+    printf 'unknown\n'
+}
+fct_unit_active() { fct_unit_query is-active "${1}"; }
+fct_unit_enabled() { fct_unit_query is-enabled "${1}"; }
 
-# limeops-* units, discovered (names only).
+# One property of a unit (systemctl show -p PROP --value UNIT); fails with 2 when systemd did not
+# answer. The value may be empty (ControlGroup of a unit that is not running).
+fct_unit_property() { # property unit
+    local out rc=0
+    out="$(fct_query systemctl show -p "${1}" --value "${2}")" || rc=$?
+    if (( rc != 0 )); then
+        (( rc == 124 )) || fct_warn "no answer from: systemctl show -p ${1} --value ${2}"
+        return 2
+    fi
+    printf '%s\n' "${out}"
+}
+
+# limeos-* units, discovered (names only), from the list of every unit file: a host always has
+# some, so an empty or failed listing means systemd did not answer (fails with 2), never "none".
 fct_limeops_units() {
-    local name rest
-    while read -r name rest || [[ -n "${name}" ]]; do
-        [[ "${name}" == limeops-* ]] && printf '%s\n' "${name}"
-    done < <(fct_query systemctl list-unit-files 'limeops-*' --no-legend || true)
+    local listing name rest
+    if ! listing="$(fct_query systemctl list-unit-files --no-legend)" || [[ -z "${listing}" ]]; then
+        fct_warn 'no answer from: systemctl list-unit-files --no-legend'
+        return 2
+    fi
+    while read -r name rest; do
+        if [[ "${name}" == limeops-* ]]; then printf '%s\n' "${name}"; fi
+    done <<<"${listing}"
     return 0
 }
 
-fct_untouched_units() {
-    printf '%s\n' "${UNTOUCHED_FIXED[@]}"
-    fct_limeops_units
-}
-
-# "<class> <unit> <active> <enabled>" for every unit we care about, sorted.
+# "<class> <unit> <active> <enabled>" for every unit we care about, sorted. A state systemd did not
+# report is "unknown"; when the limeops-* units could not be listed, the line
+# "untouched limeops-* unknown unknown" stands for them. Never a blank field.
 fct_unit_report() {
-    local unit
+    local unit limeops='' listed=0
+    limeops="$(fct_limeops_units)" || listed=$?
     {
         for unit in "${FROZEN_UNITS[@]}" "${RUST_UNITS[@]}" caddy.service; do
             printf 'managed %s %s %s\n' "${unit}" "$(fct_unit_active "${unit}")" "$(fct_unit_enabled "${unit}")"
         done
-        while read -r unit || [[ -n "${unit}" ]]; do
+        while read -r unit; do
             [[ -n "${unit}" ]] || continue
             printf 'untouched %s %s %s\n' "${unit}" "$(fct_unit_active "${unit}")" "$(fct_unit_enabled "${unit}")"
-        done < <(fct_untouched_units)
+        done < <(printf '%s\n' "${UNTOUCHED_FIXED[@]}" "${limeops}")
+        if (( listed )); then printf 'untouched limeops-* unknown unknown\n'; fi
     } | sort
 }
+
+# Empty when a snapshot's units.txt records a definite state for every unit and has a record for
+# every managed unit; otherwise one line naming the first problem. A guessed state would decide
+# what return.sh restarts, so a blank, unknown or missing one is refused like a missing hash.
+fct_units_problem() { # file
+    local file="${1}" line unit
+    local -A seen=()
+    if [[ ! -s "${file}" ]]; then printf 'units.txt is missing or empty\n'; return 0; fi
+    if [[ -n "$(tail -c 1 -- "${file}")" ]]; then printf 'units.txt does not end in a newline (cut short?)\n'; return 0; fi
+    while IFS= read -r line; do
+        if [[ ! "${line}" =~ ^(managed|untouched)\ ([^ ]+)\ ([a-z][a-z-]*)\ ([a-z][a-z-]*)$ ]] \
+                || [[ "${BASH_REMATCH[3]}" == unknown || "${BASH_REMATCH[4]}" == unknown ]]; then
+            printf 'units.txt has a record with a missing or unknown state: "%s"\n' "${line}"
+            return 0
+        fi
+        if [[ "${BASH_REMATCH[1]}" == managed ]]; then seen["${BASH_REMATCH[2]}"]=1; fi
+    done <"${file}"
+    for unit in "${FROZEN_UNITS[@]}" "${RUST_UNITS[@]}" caddy.service; do
+        if [[ -z "${seen["${unit}"]:-}" ]]; then printf 'units.txt has no record for %s\n' "${unit}"; return 0; fi
+    done
+}
+
+# Sets SNAP_ACTIVE and SNAP_ENABLED from a snapshot's record of a managed unit (fct_snapshot_check
+# has checked that every managed unit has one, with definite states).
+fct_snapshot_unit() { # snapshot_dir unit
+    local states
+    states="$(awk -v u="${2}" '$1 == "managed" && $2 == u { print $3, $4; exit }' "${1}/units.txt")"
+    read -r SNAP_ACTIVE SNAP_ENABLED <<<"${states}"
+    [[ -n "${SNAP_ACTIVE}" && -n "${SNAP_ENABLED}" ]] || fct_die "${1}/units.txt has no record for ${2}"
+}
+
+# The installed version of a package; "absent" when dpkg does not have it, "unknown" when
+# dpkg-query could not answer (exit 2 or a timeout; exit 1 means not found).
+fct_pkg_version() { # package
+    local out rc=0
+    # shellcheck disable=SC2016  # a dpkg-query format, expanded by dpkg-query
+    out="$(fct_query dpkg-query -W -f='${Version}' "${1}")" || rc=$?
+    case "${rc}" in
+        0) printf '%s\n' "${out:-absent}" ;;
+        1) printf 'absent\n' ;;
+        *) (( rc == 124 )) || fct_warn "no answer from: dpkg-query -W ${1} (exit ${rc})"; printf 'unknown\n' ;;
+    esac
+}
+
+# Prints TEXT followed by a newline when it is not empty, and nothing otherwise.
+fct_lines() { if [[ -n "${1}" ]]; then printf '%s\n' "${1}"; fi; }
 
 # Paths of the frozen app's state files: one absolute path per line in STATE_LIST (preflight's
 # --state-list, built from the `limeosctl migrate scan` report and copied into the snapshot as
@@ -304,12 +391,23 @@ fct_records_ok() { # file
     done <"${1}"
 }
 
-fct_docker_ids() { docker ps --no-trunc --format '{{.ID}} {{.Names}}' | sort; }
+# The running containers ("ID NAME", sorted). Fails with 2, printing nothing, when docker did not
+# answer (daemon down, a timeout): that is not an empty list.
+fct_docker_ids() {
+    local out
+    out="$(fct_query docker ps --no-trunc --format '{{.ID}} {{.Names}}')" || { fct_warn 'no answer from: docker ps'; return 2; }
+    fct_lines "${out}" | sort
+}
+# "ID /NAME STARTEDAT" of each running container, sorted; fails with 2 like fct_docker_ids.
 fct_docker_started() {
-    local ids
-    mapfile -t ids < <(docker ps --no-trunc --format '{{.ID}}' | sort)
+    local out
+    local -a ids=()
+    out="$(fct_query docker ps --no-trunc --format '{{.ID}}')" || { fct_warn 'no answer from: docker ps'; return 2; }
+    mapfile -t ids < <(fct_lines "${out}" | sort)
     if (( ${#ids[@]} == 0 )); then return 0; fi
-    docker inspect --format '{{.Id}} {{.Name}} {{.State.StartedAt}}' "${ids[@]}" | sort
+    out="$(fct_query docker inspect --format '{{.Id}} {{.Name}} {{.State.StartedAt}}' "${ids[@]}")" \
+        || { fct_warn 'no answer from: docker inspect'; return 2; }
+    fct_lines "${out}" | sort
 }
 
 # Names of containers whose line differs between a snapshot file and the current
@@ -317,10 +415,14 @@ fct_docker_started() {
 fct_docker_diff_names() { # snapshot_file current_file
     comm -3 <(sort -- "${1}") <(sort -- "${2}") | awk '{ n = $2; sub(/^\//, "", n); print n }' | sort -u
 }
+# Fails with 2, printing nothing, when docker did not answer.
 fct_docker_changes() { # snapshot_dir
+    local ids started
+    ids="$(fct_docker_ids)" || return 2
+    started="$(fct_docker_started)" || return 2
     {
-        fct_docker_diff_names "${1}/docker-ps.txt" <(fct_docker_ids)
-        fct_docker_diff_names "${1}/docker-started.txt" <(fct_docker_started)
+        fct_docker_diff_names "${1}/docker-ps.txt" <(fct_lines "${ids}")
+        fct_docker_diff_names "${1}/docker-started.txt" <(fct_lines "${started}")
     } | sort -u
 }
 # Filter names on stdin by the snapshot's managed set (managed.txt, written by preflight).
@@ -330,19 +432,27 @@ fct_unmanaged_only() { if [[ -f "${1}/managed.txt" ]]; then grep -vFxf "${1}/man
 # Only the managed set must be unchanged; a change elsewhere (watchtower updating an unmanaged
 # container, say) is named and otherwise ignored.
 fct_warn_unmanaged_changes() { # snapshot_dir
-    local name
-    while read -r name || [[ -n "${name}" ]]; do
+    local name changes
+    if ! changes="$(fct_docker_changes "${1}")"; then
+        fct_warn 'could not check the containers outside the managed set: docker did not answer'
+        return 0
+    fi
+    while read -r name; do
         if [[ -n "${name}" ]]; then fct_warn "container outside the managed set changed (not rolled back): ${name}"; fi
-    done < <(fct_docker_changes "${1}" | fct_unmanaged_only "${1}")
+    done < <(fct_lines "${changes}" | fct_unmanaged_only "${1}")
 }
 
-# Snapshot must be complete, from a passing preflight, and fresh (max 0 = any age).
-fct_snapshot_check() { # dir max_age_seconds
-    local dir="${1}" max="${2}" meta ts age
+# Snapshot must be complete, from a passing preflight, record a definite state for every unit,
+# and be fresh (max 0 = any age). ADVICE is what to do about a snapshot whose unit states cannot
+# be used.
+fct_snapshot_check() { # dir max_age_seconds [advice]
+    local dir="${1}" max="${2}" meta ts age problem
     meta="${dir}/meta.env"
     [[ -f "${meta}" ]] || fct_die "not a preflight snapshot: ${dir}"
     [[ "$(fct_meta_get "${meta}" complete)" == 1 ]] || fct_die 'snapshot is incomplete'
     [[ "$(fct_meta_get "${meta}" preflight)" == pass ]] || fct_die 'snapshot records a refused preflight'
+    problem="$(fct_units_problem "${dir}/units.txt")"
+    [[ -z "${problem}" ]] || fct_die "the snapshot's ${problem}; nothing was changed. ${3:-Run preflight again.}"
     if (( max > 0 )); then
         ts="$(fct_meta_get "${meta}" epoch)"
         [[ "${ts}" =~ ^[0-9]+$ ]] || fct_die 'snapshot has no valid timestamp'

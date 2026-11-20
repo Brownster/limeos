@@ -44,7 +44,8 @@ RUST = ["limeos-storaged.service", "limeos-containerd.service", "limeos-core.ser
 READER = "limeos-storage-reader.service"
 READER_SOCKET = "run/limeos-storage-reader/executor.sock"
 CATALOG = "etc/limeos/management-catalog.json"
-MUTATING_VERBS = {"stop", "start", "restart", "enable", "disable", "reload", "daemon-reload", "kill"}
+MUTATING_VERBS = {"stop", "start", "restart", "enable", "disable", "reload", "daemon-reload", "kill",
+                  "reload-or-restart", "try-reload-or-restart"}
 # Every mutating call of a successful activation, in order.
 ACTIVATE_STEPS = [
     "systemctl stop limeos-metrics-collector.timer limeos-package-reconcile.timer",
@@ -212,10 +213,20 @@ class Harness(unittest.TestCase):
         with open(self.stub / "fail.txt", "a") as handle:
             handle.write(call + "\n")
 
-    def run_script(self, name, *args, now=NOW, new_session=False):
+    def hang(self, *patterns):
+        """Stub calls matching any glob PATTERN hang for 90 s (a stuck systemd query)."""
+        with open(self.stub / "hang.txt", "a") as handle:
+            handle.write("".join(p + "\n" for p in patterns))
+
+    def silent(self, *patterns):
+        """Stub calls matching any glob PATTERN print nothing and fail (the tool could not answer)."""
+        with open(self.stub / "silent.txt", "a") as handle:
+            handle.write("".join(p + "\n" for p in patterns))
+
+    def run_script(self, name, *args, now=NOW, new_session=False, timeout=60):
         env = {**self.env, "CUTOVER_NOW": str(now)}
         return subprocess.run(
-            ["bash", str(SCRIPTS / name), *args], env=env, capture_output=True, text=True, timeout=60,
+            ["bash", str(SCRIPTS / name), *args], env=env, capture_output=True, text=True, timeout=timeout,
             start_new_session=new_session)
 
     def preflight(self, *extra, state_list=True, jellyfin_key=True):
@@ -230,13 +241,13 @@ class Harness(unittest.TestCase):
             "--expected-version", "1.0.0", "--host", HOST, *extra,
         ]
 
-    def activate(self, *extra, now=NOW + 60, attached=True):
+    def activate(self, *extra, now=NOW + 60, attached=True, timeout=60):
         args = self.activate_args(*extra, *(["--attached"] if attached else []))
         args[0] = str(self.snap)
-        return self.run_script("activate.sh", *args, now=now)
+        return self.run_script("activate.sh", *args, now=now, timeout=timeout)
 
-    def approved(self, *extra, now=NOW + 60, attached=True):
-        return self.activate("--yes-i-have-operator-approval", *extra, now=now, attached=attached)
+    def approved(self, *extra, now=NOW + 60, attached=True, timeout=60):
+        return self.activate("--yes-i-have-operator-approval", *extra, now=now, attached=attached, timeout=timeout)
 
     def do_return(self, *extra):
         return self.run_script("return.sh", str(self.snap), *extra)
@@ -664,6 +675,94 @@ class PreflightTests(Harness):
         result = self.approved()
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.mutating_calls(), [])
+
+    def test_a_hung_query_for_the_frozen_app_is_refused_and_never_recorded_blank(self):
+        # Scenario A: preflight's query for pi-health hangs. A blank state would let activation stop the
+        # app and a later return skip restarting it; instead preflight refuses, naming the query.
+        self.env["CUTOVER_QUERY_TIMEOUT"] = "1"
+        self.hang("systemctl is-active pi-health.service")
+        result = self.preflight()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("timed out after 1s: systemctl is-active pi-health.service", result.stderr)
+        self.assertIn("REFUSED: could not determine whether pi-health.service is active", result.stderr)
+        self.assertIn("preflight=refused", (self.snap / "meta.env").read_text())
+        units = (self.snap / "units.txt").read_text()
+        self.assertIn("managed pi-health.service unknown enabled\n", units)
+        for line in units.splitlines():
+            self.assertEqual(len(line.split(" ")), 4, line)
+            self.assertNotIn("", line.split(" "), line)
+        (self.stub / "hang.txt").unlink()
+        result = self.approved()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("snapshot records a refused preflight", result.stderr)
+        self.assertEqual(self.mutating_calls(), [])
+
+    def test_every_unanswered_query_is_a_named_refusal(self):
+        cases = (
+            ("systemctl is-active limeos-agent.service", "could not determine whether limeos-agent.service is active"),
+            ("systemctl is-enabled pi-health.service", "could not determine whether pi-health.service is enabled"),
+            ("systemctl list-unit-files *", "systemd did not list its unit files"),
+            ("systemctl is-active nginx.service", "could not determine whether nginx.service is active"),
+            ("docker ps *", "could not list the running containers"),
+            ("docker inspect *", "could not list the running containers"),
+            ("dpkg-query *", "could not determine whether the limeos package is installed"),
+            ("ss *", "could not list the listening TCP ports"),
+        )
+        for pattern, fragment in cases:
+            with self.subTest(query=pattern):
+                self.setUp()
+                self.silent(pattern)
+                result = self.preflight()
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn(f"REFUSED: {fragment}", result.stderr)
+                self.assertIn("preflight=refused", (self.snap / "meta.env").read_text())
+                # A container list that could not be read is not a list of stopped containers.
+                self.assertNotIn("managed container not running", result.stderr)
+                self.assertEqual(self.mutating_calls(), [])
+
+    def test_a_unit_file_that_does_not_exist_is_recorded_as_not_found(self):
+        # Older systemd's is-enabled prints nothing for a unit file that does not exist (the Rust
+        # units before the package is installed). That is a definite answer, not a missing one.
+        for name in RUST:
+            (self.stub / "units" / f"{name}.enabled").unlink()
+            (self.stub / "units" / f"{name}.loadstate").write_text("not-found\n")
+        result = self.preflight()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        units = (self.snap / "units.txt").read_text()
+        for name in RUST:
+            self.assertIn(f"managed {name} inactive not-found\n", units)
+            self.assertIn(f"systemctl show -p LoadState --value {name}", self.calls())
+        (self.stub / "calls.log").write_text("")
+        self.assertEqual(self.approved().returncode, 0)
+        result = self.do_return()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for name in RUST:
+            self.assertEqual(self.unit_state(name), ("inactive", "disabled"), name)
+
+    def test_a_snapshot_with_a_blank_or_unknown_unit_state_is_refused_by_activate_and_return(self):
+        # A snapshot from the preflight before this check could hold a blank state; neither script
+        # may guess one (a guessed "not active" would leave the frozen app down after a return).
+        cases = (
+            ("blank", "managed pi-health.service  enabled"),
+            ("unknown", "managed pi-health.service unknown enabled"),
+            ("short", "managed pi-health.service active"),
+            ("missing", None),
+        )
+        for label, record in cases:
+            with self.subTest(record=label):
+                self.setUp()
+                self.passing_snapshot()
+                path = self.snap / "units.txt"
+                lines = [l for l in path.read_text().splitlines() if " pi-health.service " not in l]
+                if record:
+                    lines.append(record)
+                path.write_text("\n".join(sorted(lines)) + "\n")
+                for script, result in (("activate", self.approved()), ("return", self.do_return())):
+                    self.assertEqual(result.returncode, 1, script + result.stdout + result.stderr)
+                    self.assertIn("units.txt", result.stderr, script)
+                    self.assertIn("pi-health.service", result.stderr, script)
+                    self.assertIn("nothing was changed", result.stderr, script)
+                    self.assertEqual(self.mutating_calls(), [], script)
 
 
 class ActivateTests(Harness):
@@ -1475,11 +1574,6 @@ class ActivateTests(Harness):
                 self.assertTrue(self.alive(member.pid))
                 self.assertFalse((self.snap / "force-takeover").exists())
 
-    def hang(self, *patterns):
-        """Stub calls matching any glob PATTERN hang for 90 s (a stuck systemd query)."""
-        with open(self.stub / "hang.txt", "a") as handle:
-            handle.write("".join(p + "\n" for p in patterns))
-
     def test_a_slow_plain_return_cannot_strand_the_rollback(self):
         # After the frozen app has stopped, an operator's plain return.sh starts while the
         # activation is mid-step, and every systemd query it could make hangs past the old 60 s
@@ -1547,6 +1641,66 @@ class ActivateTests(Harness):
         self.assertIn(f"timed out after 1s: systemctl is-active {unit}", result.stderr)
         self.assertIn(f"cannot tell whether the activation's scope {unit} is empty", result.stderr)
         self.assertEqual(self.mutating_calls(), calls_before)
+
+    def test_a_timed_out_restart_count_fails_the_reader_check_and_rolls_back(self):
+        # The restart count could not be read: the reader's crash history is unverified, so the check
+        # fails after its retries, says it could not determine, and the activation rolls back.
+        self.passing_snapshot()
+        self.env["CUTOVER_QUERY_TIMEOUT"] = "1"
+        self.hang(f"systemctl show -p NRestarts --value {READER}")
+        result = self.approved(timeout=150)
+        self.assertIn("health check failed: stack reader ready: could not determine", result.stderr)
+        self.assertNotIn("was false", result.stderr)
+        # The retries do not swallow the warning that names the query.
+        self.assertIn(f"timed out after 1s: systemctl show -p NRestarts --value {READER}", result.stderr)
+        self.assert_reader_stopped_by_rollback(result)
+
+    def test_every_health_check_fails_on_an_unanswered_query(self):
+        cases = (
+            ("systemctl is-active limeos-core.service", "Rust services active"),
+            ("docker inspect *", "managed containers: docker ps and StartedAt identical to the snapshot"),
+            ("systemctl is-enabled limeops-worker.service", "untouched units unchanged"),
+            (f"systemctl is-active {READER}", "stack reader ready"),
+        )
+        for pattern, label in cases:
+            with self.subTest(query=pattern):
+                self.setUp()
+                self.passing_snapshot()
+                self.silent(pattern)
+                result = self.approved()
+                self.assertIn(f"health check failed: {label}: could not determine", result.stderr)
+                self.assert_rolled_back(result)
+
+    def test_a_crash_looping_reader_is_reported_false_not_unknown(self):
+        self.passing_snapshot()
+        (self.stub / "units" / f"{READER}.restarts").write_text("2\n")
+        result = self.approved()
+        self.assertIn("health check failed: stack reader ready: was false", result.stderr)
+        self.assertNotIn("could not determine", result.stderr)
+        self.assert_reader_stopped_by_rollback(result)
+
+    def test_an_unknown_caddy_state_on_activation_reloads_or_starts_it(self):
+        self._unit("caddy.service", "active", "enabled")
+        self.passing_snapshot()
+        self.silent("systemctl is-active caddy.service")
+        result = self.approved()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("could not determine whether caddy.service is running", result.stderr)
+        self.assertIn("systemctl reload-or-restart caddy.service", self.calls())
+
+    def test_an_unknown_installed_version_rolls_back_as_could_not_determine(self):
+        self.passing_snapshot()
+        self.silent("dpkg-query *")
+        result = self.approved()
+        self.assertIn("could not determine the installed limeos version", result.stderr)
+        self.assert_rolled_back(result)
+
+    def test_an_unknown_port_state_after_the_stop_rolls_back(self):
+        self.passing_snapshot()
+        self.silent("ss *")
+        result = self.approved()
+        self.assertIn("could not determine whether port 8002 is free", result.stderr)
+        self.assert_rolled_back(result)
 
     def test_health_failures_roll_back(self):
         base = {
@@ -2037,6 +2191,76 @@ class ReturnTests(Harness):
         self._write("/etc/limeos/credentials.env", "PIHEALTH_USERS=holly:CHANGED\n")
         self.assertNotEqual(self.do_return().returncode, 0)
 
+    def test_an_unknown_caddy_state_still_reloads_it_and_says_so(self):
+        # Scenario B: Caddy served other sites before the cutover; during the return its state query
+        # times out. The reload that drops the cutover site must happen anyway.
+        self._unit("caddy.service", "active", "enabled")
+        self.activated()
+        self.env["CUTOVER_QUERY_TIMEOUT"] = "1"
+        self.hang("systemctl is-active caddy.service")
+        result = self.do_return()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("timed out after 1s: systemctl is-active caddy.service", result.stderr)
+        self.assertIn("could not determine whether caddy.service is running", result.stderr)
+        self.assertIn("systemctl try-reload-or-restart caddy.service", self.calls())
+        self.assertFalse((self.root / "etc/caddy/conf.d/limeos-cutover.caddy").exists())
+        self.assertEqual(self.unit_state("caddy.service"), ("active", "enabled"))
+
+    def test_an_unknown_reader_state_still_stops_it(self):
+        self.activated()
+        self.silent(f"systemctl is-active {READER}")
+        result = self.do_return()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f"could not determine whether {READER} is running", result.stderr)
+        self.assertIn(f"systemctl stop {READER}", self.calls())
+        self.assertEqual(self.unit_state(READER), ("inactive", "disabled"))
+
+    def test_a_corrective_action_that_times_out_is_reported_and_the_rest_still_runs(self):
+        self.activated()
+        self.env["CUTOVER_ACTION_TIMEOUT"] = "1"
+        self.hang("systemctl stop caddy.service")
+        started = time.monotonic()
+        result = self.do_return()
+        self.assertLess(time.monotonic() - started, 30)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("timed out after 1s: systemctl stop caddy.service", result.stderr)
+        self.assertIn("run by hand: systemctl stop caddy.service", result.stderr)
+        self.assertIn("return incomplete", result.stderr)
+        # Every later step still ran.
+        self.assertIn("systemctl disable caddy.service", self.calls())
+        self.assertFalse((self.root / "etc/caddy/conf.d/limeos-cutover.caddy").exists())
+        self.assertEqual(self.unit_state(READER), ("inactive", "disabled"))
+        for name in RUST:
+            self.assertEqual(self.unit_state(name), ("inactive", "disabled"), name)
+        for name in FROZEN:
+            self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
+        self.assertIn("return: verifying", result.stdout)
+
+    def test_unanswered_queries_during_verification_fail_it_by_name(self):
+        def late_writer():
+            self._write("/var/lib/limeos/metrics.db", "written-by-a-late-writer")
+        cases = (
+            ("docker ps *", None, "could not determine the containers' IDs and StartedAt"),
+            ("systemctl is-active limeos-agent.service", None,
+             "could not determine the state of untouched unit limeos-agent.service"),
+            ("systemctl is-active pi-health.service", late_writer,
+             "whether the frozen writers were running could not be determined"),
+        )
+        for pattern, setup, fragment in cases:
+            with self.subTest(query=pattern):
+                self.setUp()
+                self.activated()
+                if setup:
+                    setup()
+                self.silent(pattern)
+                result = self.do_return()
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn(fragment, result.stderr)
+                self.assertNotIn("changed state", result.stderr)
+                self.assertNotIn("IDs differ", result.stderr)
+                for name in FROZEN:
+                    self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
+
     def test_live_database_difference_only_warns_without_baseline(self):
         self.passing_snapshot()
         self._write("/var/lib/limeos/metrics.db", "writer-ran-before-stop")
@@ -2272,6 +2496,37 @@ class MeasureTests(Harness):
         row = self.rows()["core_restart_readiness"]
         self.assertEqual(row["status"], "pass")
         self.assertIsInstance(row["value"], float)
+
+    def test_an_unanswered_systemd_query_is_reported_unknown_not_a_value(self):
+        # Before: a timed-out ControlGroup query fell back to MainPID and reported the main process's
+        # numbers as the unit's, or reported the unit as not running.
+        self.env["CUTOVER_QUERY_TIMEOUT"] = "1"
+        self.hang("systemctl show -p ControlGroup --value limeos-core.service")
+        result = self.measure("--window", "5")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("timed out after 1s: systemctl show -p ControlGroup --value limeos-core.service", result.stderr)
+        report = self.report()
+        self.assertEqual(report["verdict"], "incomplete")
+        self.assertEqual(report["missing_units"], [])
+        self.assertEqual(report["unknown_units"], ["limeos-core.service"])
+        rows = self.rows()
+        for ident in ("core_base_idle_pss", "core_base_idle_swap", "all_resident_idle_pss",
+                      "backend_cpu_idle", "resident_disk_writes"):
+            self.assertEqual(rows[ident]["status"], "unknown", ident)
+            self.assertIsNone(rows[ident]["value"], ident)
+            self.assertIn("could not determine", rows[ident]["note"], ident)
+        self.assertNotIn(1201, [p["pid"] for p in report["processes"]])
+        self.assertIn("UNKNOWN", result.stdout)
+
+    def test_an_unanswered_package_query_is_reported_unknown(self):
+        self.silent("dpkg-query *")
+        result = self.measure("--window", "5")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        row = self.rows()["installed_footprint"]
+        self.assertEqual(row["status"], "unknown")
+        self.assertIsNone(row["value"])
+        self.assertIn("could not determine", row["note"])
+        self.assertEqual(self.report()["verdict"], "incomplete")
 
     def test_rejects_bad_arguments_and_a_used_output_directory(self):
         for args in (("--window", "0"), ("--window", "ten"), ("--requests", "0"), ("--host", "x}\nevil"),

@@ -67,6 +67,18 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    unreachable Jellyfin, a transfer cut short or any other body refuses. Without a key file it
    refuses unless you pass `--no-playback-check`; then check the dashboard
    yourself.
+   Every query preflight records or gates on has three answers: yes, no, and
+   unknown (it timed out after 30 s or gave no answer). Unknown is a refusal
+   naming the query, never a guess: `could not determine whether UNIT is active`
+   (or `enabled`), `systemd did not list its unit files` (the `limeops-*` units),
+   `could not list the running containers`, `could not determine whether the
+   limeos package is installed`, `could not list the listening TCP ports`. So
+   `SNAP/units.txt` always records a definite state for every unit; a unit file
+   that does not exist is recorded as `not-found` (when `is-enabled` prints
+   nothing for it, as older systemd versions do, preflight asks for its
+   `LoadState`; to confirm on the host which form systemd 252 uses). `activate.sh` and
+   `return.sh` refuse, before any change, a snapshot whose `units.txt` has a
+   blank, unknown or missing state, as they refuse a missing hash.
 3. Rehearse: `scripts/cutover/activate.sh SNAP --dry-run --package PATH
    --expected-version V --host HOST` prints every command and changes nothing;
    interrupting it never starts a rollback.
@@ -106,8 +118,17 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    (pid P, state S) since T`. That holder either finishes the return or refuses
    (seeing the activation's lock) and releases it, and the kernel releases it if
    the holder dies. If the state is `T` (a `return.sh` suspended with Ctrl-Z),
-   resume it with `kill -CONT P`. Every `systemctl` query the scripts make gives
-   up after 30 s with a `timed out after 30s: ...` warning naming it.
+   resume it with `kill -CONT P`. Every query the scripts make (`systemctl`,
+   `docker`, `dpkg-query`, `ss`, `limeosctl status`) gives up after 30 s with a
+   `timed out after 30s: ...` warning naming it; one that answers with nothing
+   is named in a `no answer from: ...` warning. Each health check is tried 30
+   times; if the last try could not get an answer, the check fails with
+   `health check failed: LABEL: could not determine after 30 tries (DETAIL)`
+   followed by that try's warnings, otherwise with `...: was false after 30
+   tries (DETAIL)`; either way the activation rolls back. An unreadable restart
+   count of the stack reader is such a failure, never a zero. If systemd cannot
+   say whether Caddy runs when the site is installed, the step is `systemctl
+   reload-or-restart caddy.service`, which loads the site either way.
    The step is signalled by its process group, which a helper process in that
    group keeps from being reused until the script has finished with the step.
    Every activation runs inside a transient systemd scope named for the
@@ -142,7 +163,10 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    `/opt/stacks` or the frozen app's files. Over the idle window (`--window`,
    default 600 s) it records the
    [architecture section 10](plans/2026-10-04-rust-rewrite-architecture.md#10-observations-performance-and-footprint)
-   targets, each as pass, fail or unmeasured:
+   targets, each as pass, fail, unmeasured or unknown. A row is unknown (no
+   value, a note saying what could not be determined, and `unknown_units` in the
+   report) when `systemctl show` did not answer for a unit's processes or
+   `dpkg-query` for the package; it is never reported as a number or a pass:
    - PSS and swap (`/proc/PID/smaps_rollup`) of every process in the
      `limeos-core`, `limeos-storaged` and `limeos-containerd` cgroups: at most
      30 MiB PSS combined, no swap; with any running `limeos-storage-*` executor,
@@ -163,8 +187,8 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
      restarts `limeos-core` to time it, which is the only change the script can
      make. Use it only with the household's agreement.
 
-   Exit 0 means every measured target passed; exit 2 means a target failed or a
-   LimeOS process was missing (the report is still written). A miss never runs
+   Exit 0 means every measured target passed; exit 2 means a target failed, a
+   LimeOS process was missing or a row is unknown (the report is still written). A miss never runs
    `return.sh`: read the report and decide yourself whether it is an abort
    criterion. Keep `report.json` with the cutover evidence.
 6. Log in through the browser (trust the Caddy CA first under `internal`).
@@ -237,6 +261,28 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    `state.sha256` are compared and every container must match; `activate.sh`
    refuses such a snapshot. The
    package stays installed.
+
+   Frozen units always follow the snapshot. When systemd cannot say what state
+   a unit is in now, `return.sh` takes the restoring action anyway and says the
+   state was unknown: `could not determine whether caddy.service is running
+   ...; reloading it anyway` (`systemctl try-reload-or-restart caddy.service`,
+   which reloads a running Caddy and leaves a stopped one alone) and `could not
+   determine whether limeos-storage-reader.service is running ...; stopping it
+   anyway`. Each corrective action gives up after 180 s (twice systemd's default
+   start/stop timeout); one that does not finish is reported as `timed out after
+   180s: CMD; this step of the return is incomplete ...; check it, then run by
+   hand: CMD`, the remaining steps still run, and `return.sh` ends with `return
+   incomplete: N failure(s)` (exit 1; under `activate.sh` this prints `ROLLBACK
+   INCOMPLETE`). During verification a query that cannot answer is a failure that
+   says so (`could not determine the containers' IDs and StartedAt`, `could not
+   determine the state of untouched unit UNIT`), and a live database that differs
+   from the baseline is not excused when whether the frozen writers were running
+   could not be determined.
+
+   A snapshot from an older preflight may hold a blank unit state; `return.sh`
+   refuses it before any change, naming the record. Write the state the unit had
+   before the cutover into `SNAP/units.txt` (for example `managed
+   pi-health.service active enabled`) and run it again, or restore by hand.
 
 Stack status and whole-stack start/stop/restart need the reader and the catalog; `activate.sh`
 starts the reader (it has no Install section, so it never starts at boot) and `return.sh` stops

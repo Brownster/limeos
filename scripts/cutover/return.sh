@@ -21,6 +21,11 @@ FORCE_WAIT="${CUTOVER_FORCE_WAIT:-15}"
 [[ "${FORCE_WAIT}" =~ ^[0-9]+$ ]] || FORCE_WAIT=15
 # Written by --force before it ends the activation, removed once the activation's scope is empty.
 TAKEOVER=force-takeover
+# Every corrective action (systemctl stop/start/reload/enable/disable) runs under this bound
+# (seconds): twice systemd's default 90 s start and stop timeouts. One that times out is reported
+# with the command to run by hand, and the remaining steps still run.
+ACTION_TIMEOUT="${CUTOVER_ACTION_TIMEOUT:-180}"
+[[ "${ACTION_TIMEOUT}" =~ ^[1-9][0-9]*$ ]] || ACTION_TIMEOUT=180
 
 fct_usage() {
     cat <<'USAGE'
@@ -29,7 +34,17 @@ Usage: return.sh SNAPSHOT_DIR [--site-dir DIR] [--force] [--dry-run] [--help]
 Restores the frozen app from a preflight snapshot. Safe to run repeatedly.
 Exit 0 only when hashes, the managed containers' IDs and StartedAt (from the
 snapshot's managed.txt; other containers only warn) and the frozen port all
-verify. Rust units return to their snapshot state.
+verify. Rust units return to their snapshot state. A snapshot whose units.txt
+lacks a definite state for a unit is refused before any change (write the state
+the unit had before the cutover into it, or restore by hand).
+
+When systemd cannot say what state a unit is in now (a query times out after
+30 s or does not answer), return.sh takes the restoring action anyway and says
+the state was unknown: it reloads Caddy (try-reload-or-restart) and stops the
+stack reader. Frozen units always follow the snapshot. Each corrective action
+gives up after 180 s; one that does not finish is reported with the command to
+run by hand, the remaining steps still run, and the return ends incomplete
+(exit 1). A query that cannot answer during verification fails verification.
 
 It first takes SNAPSHOT_DIR/return.lock, so only one return.sh runs per snapshot,
 and holds it to the end. Then it takes activate.lock without waiting (activate.sh's
@@ -57,46 +72,65 @@ USAGE
 
 fct_fail() { FAILURES=$(( FAILURES + 1 )); printf 'FAIL: %s\n' "$*" >&2; }
 
-# Run a step; record a failure and keep going so one error cannot block the rest.
+# Run a step, bounded by ACTION_TIMEOUT; record a failure and keep going so one error cannot block
+# the rest. A step that times out is named with the command to run by hand.
 fct_step() {
-    if ! fct_run "$@"; then fct_fail "command failed: $*"; fi
+    local rc=0
+    if (( DRY_RUN )); then fct_run "$@"; return 0; fi
+    printf '+ %s\n' "$*"
+    timeout --kill-after=5 "${ACTION_TIMEOUT}" "$@" || rc=$?
+    if (( rc == 124 || rc == 137 )); then
+        fct_fail "timed out after ${ACTION_TIMEOUT}s: $*; this step of the return is incomplete (systemd may still finish a job it queued); check it, then run by hand: $*"
+    elif (( rc != 0 )); then
+        fct_fail "command failed: $*"
+    fi
 }
 
 fct_stop_proxy() {
-    local site_file="${1}" caddy_state="${2}"
+    local site_file="${1}" caddy_state="${2}" caddy_enabled="${3}" now
     fct_step rm -f -- "${site_file}"
     if [[ "${caddy_state}" == active ]]; then
-        # Caddy served other sites before the cutover: reload without our site.
-        if [[ "$(fct_unit_active caddy.service)" == active ]]; then fct_step systemctl reload caddy.service; fi
+        # Caddy served other sites before the cutover: reload without our site. When systemd cannot
+        # say whether it runs, reload it anyway: try-reload-or-restart reloads a running Caddy and
+        # leaves a stopped one alone, exactly what the two definite answers do.
+        now="$(fct_unit_active caddy.service)"
+        case "${now}" in
+            active) fct_step systemctl reload caddy.service ;;
+            unknown)
+                fct_warn 'could not determine whether caddy.service is running (named above); reloading it anyway so it drops the cutover site'
+                fct_step systemctl try-reload-or-restart caddy.service
+                ;;
+        esac
     else
         fct_step systemctl stop caddy.service
         if [[ "${caddy_enabled}" != enabled ]]; then fct_step systemctl disable caddy.service; fi
     fi
 }
 
+# The frozen units follow the snapshot, which records a definite state for each (checked by
+# fct_snapshot_check); their current state is never consulted.
 fct_restore_frozen() {
-    local snap="${1}" class unit active enabled
+    local snap="${1}" unit
     for unit in "${FROZEN_UNITS[@]}"; do
-        read -r class _ active enabled < <(grep -m1 -F "managed ${unit} " "${snap}/units.txt" || echo 'managed - inactive disabled')
-        [[ "${enabled}" == enabled ]] && fct_step systemctl enable "${unit}"
-        [[ "${active}" == active ]] && fct_step systemctl start "${unit}"
+        fct_snapshot_unit "${snap}" "${unit}"
+        if [[ "${SNAP_ENABLED}" == enabled ]]; then fct_step systemctl enable "${unit}"; fi
+        if [[ "${SNAP_ACTIVE}" == active ]]; then fct_step systemctl start "${unit}"; fi
     done
-    : "${class:-}"
 }
 
 # Rust units back to their snapshot state: stopped and disabled unless they already ran or
 # were enabled before the cutover (a package installed earlier, for example).
 fct_restore_rust() {
-    local snap="${1}" unit active enabled
+    local snap="${1}" unit
     for unit in limeos-core.service limeos-containerd.service limeos-storaged.service; do
-        read -r _ _ active enabled < <(grep -m1 -F "managed ${unit} " "${snap}/units.txt" || echo 'managed - inactive disabled')
-        if [[ "${active}" != active ]]; then fct_step systemctl stop "${unit}"; fi
-        if [[ "${enabled}" != enabled ]]; then fct_step systemctl disable "${unit}"; fi
+        fct_snapshot_unit "${snap}" "${unit}"
+        if [[ "${SNAP_ACTIVE}" != active ]]; then fct_step systemctl stop "${unit}"; fi
+        if [[ "${SNAP_ENABLED}" != enabled ]]; then fct_step systemctl disable "${unit}"; fi
     done
     for unit in "${RUST_UNITS[@]}"; do
-        read -r _ _ active enabled < <(grep -m1 -F "managed ${unit} " "${snap}/units.txt" || echo 'managed - inactive disabled')
-        if [[ "${enabled}" == enabled ]]; then fct_step systemctl enable "${unit}"; fi
-        if [[ "${active}" == active ]]; then fct_step systemctl start "${unit}"; fi
+        fct_snapshot_unit "${snap}" "${unit}"
+        if [[ "${SNAP_ENABLED}" == enabled ]]; then fct_step systemctl enable "${unit}"; fi
+        if [[ "${SNAP_ACTIVE}" == active ]]; then fct_step systemctl start "${unit}"; fi
     done
 }
 
@@ -179,7 +213,13 @@ fct_claim_activation() { # snap
         fct_die "$(fct_lock_holder_text "${lock}")"
     fi
     unit="$(fct_recorded_scope "${snap}")"
-    if [[ -n "${unit}" ]]; then cgroup="$(fct_scope_cgroup "${unit}")"; fi
+    if [[ -n "${unit}" ]] && ! cgroup="$(fct_scope_cgroup "${unit}")"; then
+        # Only --force needs the control group (to check the holder is inside it before a kill).
+        if (( held )); then
+            fct_die "--force: could not determine the control group of the activation's scope ${unit} (the systemd query named above did not answer); nothing was killed or changed; run it again"
+        fi
+        cgroup=''
+    fi
     if (( ! held )); then
         if [[ -z "${unit}" ]]; then return 0; fi
         fct_scope_empty "${unit}" "${cgroup}" || empty=$?
@@ -238,21 +278,25 @@ fct_check_holder_in_scope() { # lock unit cgroup
     fi
 }
 
-# The scope's control group path (/system.slice/UNIT), or nothing when systemd has no such unit.
+# The scope's control group path (/system.slice/UNIT), or nothing when systemd has no such unit;
+# fails with 2 when systemd did not answer.
 fct_scope_cgroup() { # unit
     local cgroup
-    cgroup="$(fct_query systemctl show -p ControlGroup --value "${1}" || true)"
+    cgroup="$(fct_unit_property ControlGroup "${1}")" || return 2
     if [[ "${cgroup}" == /*"/${1}" && "${cgroup}" != *..* ]]; then printf '%s\n' "${cgroup}"; fi
 }
 
 # The scope has no process left: systemd reports it inactive (it goes inactive only once its
 # cgroup is empty, and a kill never stops it early), and its cgroup, when known, is gone or
-# unpopulated. Fails with 1 while it has processes, 2 when systemd did not answer in time.
+# unpopulated. Fails with 1 while it has processes, 2 when systemd did not answer.
 fct_scope_empty() { # unit [cgroup]
-    local state='' events='' rc=0
-    state="$(fct_query systemctl is-active "${1}")" || rc=$?
-    if (( rc == 124 )); then return 2; fi
-    [[ "${state}" == inactive || "${state}" == failed ]] || return 1
+    local state='' events=''
+    state="$(fct_unit_active "${1}")"
+    case "${state}" in
+        unknown) return 2 ;;
+        inactive|failed) ;;
+        *) return 1 ;;
+    esac
     [[ -n "${2:-}" ]] || return 0
     { events="$(<"${CUTOVER_ROOT}/sys/fs/cgroup${2}/cgroup.events")"; } 2>/dev/null || return 0
     [[ "${events}" != *'populated 1'* ]]
@@ -336,8 +380,16 @@ fct_end_scope() { # snap unit cgroup
     fct_warn "--force: ending the activation, every process in scope ${unit} (activate.sh, its rollback and its steps); if it was inside dpkg, run dpkg --audit after this return"
     fct_kill_scope "${unit}" "${cgroup}"
     deadline=$(( SECONDS + FORCE_WAIT ))
-    until fct_scope_empty "${unit}" "${cgroup}"; do
-        if (( SECONDS >= deadline )); then
+    local empty
+    while :; do
+        empty=0
+        fct_scope_empty "${unit}" "${cgroup}" || empty=$?
+        (( empty )) || break
+        if (( SECONDS >= deadline && empty == 2 )); then
+            fct_refuse_scope "${snap}" "${unit}" "${cgroup}" \
+                "--force: could not determine whether the activation's scope ${unit} is empty ${FORCE_WAIT}s after SIGKILL (the systemd query named above did not answer); it may still have processes:" \
+                "The activation's automatic rollback was ended with it, and the old service is still stopped; this return changed nothing else."
+        elif (( SECONDS >= deadline )); then
             fct_refuse_scope "${snap}" "${unit}" "${cgroup}" \
                 "--force: the activation's scope ${unit} still has processes ${FORCE_WAIT}s after SIGKILL (a process in uninterruptible I/O, such as dpkg waiting on a disk, cannot exit until that I/O ends):" \
                 "The activation's automatic rollback was ended with it, and the old service is still stopped; this return changed nothing else."
@@ -366,21 +418,28 @@ fct_check_stuck_step() { # snap
     fi
 }
 
+# 0 when a frozen writer is active, 1 when none is, 2 when none is known active but systemd did
+# not report every one.
 fct_frozen_writer_running() {
-    local unit
+    local unit unknown=0
     for unit in "${FROZEN_UNITS[@]}"; do
-        [[ "$(fct_unit_active "${unit}")" == active ]] && return 0
+        case "$(fct_unit_active "${unit}")" in
+            active) return 0 ;;
+            unknown) unknown=1 ;;
+        esac
     done
-    return 1
+    return $(( unknown ? 2 : 1 ))
 }
 
 # Hash the state before the frozen writers start again (a restored timer can rewrite its
 # live files within seconds). A failure is recorded and never stops the restore.
 fct_capture_hashes() {
-    local hashes record
+    local hashes record running=0
     # A running frozen writer (the app, or a timer that fires at once) may legitimately
     # rewrite its live databases, so their baseline comparison only applies while all stopped.
-    if fct_frozen_writer_running; then WRITERS_RUNNING=1; fi
+    # WRITERS_RUNNING: 0 stopped, 1 running, 2 unknown (a difference then cannot be excused).
+    fct_frozen_writer_running || running=$?
+    case "${running}" in 0) WRITERS_RUNNING=1 ;; 2) WRITERS_RUNNING=2 ;; esac
     # Each path on its own: one that cannot be hashed fails alone, the rest are still verified.
     if ! hashes="$(fct_state_hashes tolerant)"; then
         fct_fail 'cannot list the state files; state verification skipped'
@@ -430,8 +489,10 @@ fct_verify_hashes() {
         elif (( have_baseline )); then
             against_baseline=$(( against_baseline + 1 ))
             if [[ "${cur_hash}" != "${base_hash}" ]]; then
-                if (( writers )); then
+                if (( writers == 1 )); then
                     fct_warn "live state file differs from the post-stop baseline (frozen writers are running): ${path}"
+                elif (( writers == 2 )); then
+                    fct_fail "live state file differs from the post-stop baseline, and whether the frozen writers were running could not be determined (named above), so the difference cannot be excused: ${path}"
                 else
                     fct_fail "live state file changed after the writers stopped: ${path} (checked against the post-stop baseline)"
                 fi
@@ -448,23 +509,32 @@ fct_verify_hashes() {
 
 # Only the managed set must match the snapshot; other changes are named, not failures.
 fct_verify_docker() {
-    local snap="${1}" ids started
-    ids="$(fct_docker_diff_names "${snap}/docker-ps.txt" <(fct_docker_ids) | fct_managed_only "${snap}" | paste -sd ' ' -)"
-    started="$(fct_docker_diff_names "${snap}/docker-started.txt" <(fct_docker_started) | fct_managed_only "${snap}" | paste -sd ' ' -)"
+    local snap="${1}" ids started now_ids now_started
+    if ! now_ids="$(fct_docker_ids)" || ! now_started="$(fct_docker_started)"; then
+        fct_fail "could not determine the containers' IDs and StartedAt: docker did not answer (named above), so the managed containers were not verified"
+        return 0
+    fi
+    ids="$(fct_docker_diff_names "${snap}/docker-ps.txt" <(fct_lines "${now_ids}") | fct_managed_only "${snap}" | paste -sd ' ' -)"
+    started="$(fct_docker_diff_names "${snap}/docker-started.txt" <(fct_lines "${now_started}") | fct_managed_only "${snap}" | paste -sd ' ' -)"
     if [[ -n "${ids}" ]]; then fct_fail "docker ps IDs differ from the snapshot: ${ids}"; fi
     if [[ -n "${started}" ]]; then fct_fail "container StartedAt differs from the snapshot (a restart happened): ${started}"; fi
     fct_warn_unmanaged_changes "${snap}"
 }
 
 fct_verify_port() {
-    local port="${1}" attempt code=''
+    local port="${1}" attempt code='' rc=0
     for (( attempt=0; attempt<20; attempt++ )); do
-        code="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${port}/" 2>/dev/null || true)"
+        rc=0
+        code="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${port}/" 2>/dev/null)" || rc=$?
         case "${code}" in 200|301|302|303|307|308|401) return 0 ;; esac
         (( DRY_RUN )) && return 0
         sleep 1
     done
-    fct_fail "port ${port} does not serve the frozen app over HTTP (last code: ${code:-none})"
+    if (( rc == 28 )); then
+        fct_fail "could not determine whether port ${port} serves the frozen app: no answer within 5 s on the last of 20 tries (curl exit 28)"
+    else
+        fct_fail "port ${port} does not serve the frozen app over HTTP (last code: ${code:-none})"
+    fi
 }
 
 fct_verify_untouched() {
@@ -472,8 +542,13 @@ fct_verify_untouched() {
     while read -r class unit active enabled || [[ -n "${class}" ]]; do
         [[ "${class}" == untouched ]] || continue
         now="$(fct_unit_active "${unit}")"
-        [[ "${now}" == "${active}" ]] || fct_fail "untouched unit changed state: ${unit}"
+        if [[ "${now}" == unknown ]]; then
+            fct_fail "could not determine the state of untouched unit ${unit} (named above), so it was not verified"
+        elif [[ "${now}" != "${active}" ]]; then
+            fct_fail "untouched unit changed state: ${unit}"
+        fi
     done <"${snap}/units.txt"
+    : "${enabled:-}"
 }
 
 fct_main() {
@@ -490,7 +565,7 @@ fct_main() {
     done
     [[ -n "${snap}" ]] || { fct_usage >&2; fct_die 'a snapshot directory is required'; }
     fct_require_root
-    fct_snapshot_check "${snap}" 0
+    fct_snapshot_check "${snap}" 0 "This return cannot follow it: write the state the unit had before the cutover into ${snap}/units.txt as 'managed UNIT ACTIVE ENABLED' (for example 'managed pi-health.service active enabled') and run return.sh again, or restore by hand (docs/p06-cutover-runbook.md)."
     if (( ! DRY_RUN )); then fct_lock_snapshot "${snap}"; fi
     # return.sh is the safety path, so it still accepts a snapshot from before state lists
     # and managed sets, with the rules that snapshot was taken under.
@@ -503,18 +578,23 @@ fct_main() {
     if [[ ! -f "${snap}/managed.txt" ]]; then
         fct_warn 'older snapshot with no managed.txt: every container must match the snapshot'
     fi
-    local port caddy_state caddy_enabled class unit active enabled
+    local port
     port="$(fct_meta_get "${snap}/meta.env" frozen_port)"
-    read -r class unit caddy_state caddy_enabled < <(grep -m1 -F 'managed caddy.service ' "${snap}/units.txt" || echo 'managed caddy.service inactive disabled')
+    fct_snapshot_unit "${snap}" caddy.service
 
     fct_log 'return: stopping the proxy site'
-    fct_stop_proxy "${CUTOVER_ROOT}${site_dir}/${SITE_NAME}" "${caddy_state}"
+    fct_stop_proxy "${CUTOVER_ROOT}${site_dir}/${SITE_NAME}" "${SNAP_ACTIVE}" "${SNAP_ENABLED}"
     fct_log 'return: restoring the Rust services to their snapshot state'
     # The stack reader has no Install section: activate.sh starts it (never enables it) and
-    # it is stopped here, whoever started it.
-    if [[ "$(fct_unit_active limeos-storage-reader.service)" == active ]]; then
-        fct_step systemctl stop limeos-storage-reader.service
-    fi
+    # it is stopped here, whoever started it; also when systemd cannot say whether it runs.
+    case "$(fct_unit_active "${STACK_READER}")" in
+        inactive|failed) ;;
+        unknown)
+            fct_warn "could not determine whether ${STACK_READER} is running (named above); stopping it anyway"
+            fct_step systemctl stop "${STACK_READER}"
+            ;;
+        *) fct_step systemctl stop "${STACK_READER}" ;;
+    esac
     fct_restore_rust "${snap}"
     # Restore first, verify afterwards: nothing in verification may keep the frozen app down.
     if (( ! DRY_RUN )); then
@@ -531,7 +611,7 @@ fct_main() {
     fct_verify_docker "${snap}"
     fct_verify_untouched "${snap}"
     fct_verify_port "${port}"
-    if (( FAILURES > 0 )); then fct_die "return finished with ${FAILURES} failure(s); do not retry cutover until resolved"; fi
+    if (( FAILURES > 0 )); then fct_die "return incomplete: ${FAILURES} failure(s), each named above (with the command to run by hand where a step did not finish); do not retry cutover until resolved"; fi
     fct_log 'return verified: frozen app serving, state and containers match the snapshot'
 }
 
