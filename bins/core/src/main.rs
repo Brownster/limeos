@@ -1075,7 +1075,18 @@ async fn run() -> Result<()> {
     std::fs::create_dir_all(&state).map_err(|_| Error(ErrorCode::StateNotDurable))?;
     std::fs::set_permissions(&state, std::os::unix::fs::PermissionsExt::from_mode(0o700))
         .map_err(|_| Error(ErrorCode::StateNotDurable))?;
-    let db = Database::open(&state.join("core.sqlite"))?;
+    let store = state.join("core.sqlite");
+    let db = Database::open(&store).inspect_err(|_| {
+        if let Some(space) = limeos_persistence::upgrade_space(&store) {
+            tracing::error!(
+                from = space.from,
+                to = limeos_persistence::SCHEMA_VERSION,
+                needed = space.needed,
+                available = space.available,
+                "the database schema upgrade needs more free space in the state directory; free space there and restart"
+            );
+        }
+    })?;
     let telemetry =
         limeos_observations::telemetry::Telemetry::open(&state.join("metrics.sqlite")).ok();
     let observations = limeos_observations::start_core(

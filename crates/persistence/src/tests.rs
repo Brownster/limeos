@@ -532,7 +532,9 @@ fn revocation_succeeds_below_the_free_space_reserve() {
     assert_eq!(events(&s), before + 2);
 }
 
-#[tokio::test]
+/// Worker threads make the order in which tasks run (and the two revocations
+/// enter their lane) arbitrary; the outcome must not depend on it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn revocation_succeeds_with_the_queue_full_and_overtakes_it() {
     use std::sync::Mutex;
     let d = tempfile::tempdir().unwrap();
@@ -566,7 +568,17 @@ async fn revocation_succeeds_with_the_queue_full_and_overtakes_it() {
         let (db, seen) = (db.clone(), seen.clone());
         ordinary.push(tokio::spawn(async move {
             db.call(move |s| {
-                let state = live(s, "session");
+                // The reopen already retired the token (a new generation), so
+                // its revocation shows in the row, not in `check_task`.
+                let revoked: bool = s
+                    .conn
+                    .query_row(
+                        "SELECT revoked FROM task_tokens WHERE digest='session-task'",
+                        [],
+                        |r| r.get(0),
+                    )
+                    .map_err(durable)?;
+                let state = (s.authenticate("session", None, 300).is_ok(), revoked);
                 seen.lock().unwrap().push(state);
                 Ok(())
             })
@@ -607,7 +619,7 @@ async fn revocation_succeeds_with_the_queue_full_and_overtakes_it() {
     // Every queued item ran after both revocations.
     let seen = std::mem::take(&mut *seen.lock().unwrap());
     assert_eq!(seen.len(), QUEUE_CAPACITY);
-    assert!(seen.iter().all(|state| *state == (false, false)));
+    assert!(seen.iter().all(|state| *state == (false, true)), "{seen:?}");
     let events: i64 = db
         .call(|s| {
             s.conn

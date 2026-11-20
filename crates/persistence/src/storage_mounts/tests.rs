@@ -678,3 +678,41 @@ fn never_dispatched_precondition_change_needs_no_effect_receipt() {
         JobState::PreconditionChanged
     );
 }
+
+/// A settled mount job keeps every event through retention: its startup
+/// check reads the `running` transition to decide whether a result must
+/// exist.
+#[test]
+fn retention_keeps_every_event_of_a_storage_mount_job() {
+    let (dir, mut store, principal, current) = setup();
+    let (_, _, job) = queued(&mut store, &principal, &current);
+    let running = store
+        .claim_storage_mount(&principal, &job.id, &current, 203)
+        .unwrap();
+    let (receipt, after) = verified(&running);
+    assert_eq!(
+        store
+            .record_storage_mount_result(&running, &receipt, Some(&after), None, 205)
+            .unwrap(),
+        JobState::Succeeded
+    );
+    let history = |store: &Store| -> Vec<(i64, String)> {
+        store
+            .conn
+            .prepare("SELECT cursor,kind FROM events WHERE job=? ORDER BY cursor")
+            .unwrap()
+            .query_map([&job.id], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<std::result::Result<_, _>>()
+            .unwrap()
+    };
+    let kept = history(&store);
+    assert!(kept.iter().any(|(_, kind)| kind.contains("\"running\"")));
+    // Bulk history behind it, twice the budget.
+    crate::scale::fill(&mut store, &principal.id, 2 * 128 * 1024, 206);
+    while !store.prune().unwrap().is_empty() {}
+    assert!(crate::scale::events(&store) <= 128 * 1024);
+    assert_eq!(history(&store), kept);
+    drop(store);
+    Store::open(&dir.path().join("core.sqlite")).unwrap();
+}

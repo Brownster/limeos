@@ -626,6 +626,44 @@ fn v16_upgrade_adds_the_event_indexes_and_keeps_every_row() {
     Store::open(&path).unwrap();
 }
 
+/// On a nearly full disk the v17 upgrade is refused before it builds its
+/// indexes: nothing is written, the store stays at version 16, and
+/// `upgrade_space` says how much space the upgrade needs.
+#[test]
+fn v16_upgrade_on_a_nearly_full_disk_refuses_before_building_indexes() {
+    let (dir, mut s, p) = setup();
+    let path = dir.path().join("core.sqlite");
+    crate::scale::fill(&mut s, &p.id, 100_000, 300);
+    crate::remove_v17_schema(&s.conn);
+    s.conn.execute_batch("PRAGMA user_version=16").unwrap();
+    drop(s);
+    let needed = 100_000 * 128 + 8 * 1024 * 1024;
+    crate::OPEN_FREE_BYTES.set(Some(needed));
+    let space = crate::upgrade_space(&path).unwrap();
+    assert_eq!(space.from, 16);
+    assert_eq!(space.available, needed);
+    assert!(space.needed > needed);
+    assert_eq!(
+        Store::open(&path).err().unwrap().0,
+        ErrorCode::StateNotDurable
+    );
+    let conn = Connection::open(&path).unwrap();
+    let (version, indexes): (u32, i64) = conn
+        .query_row(
+            "SELECT (SELECT user_version FROM pragma_user_version),(SELECT count(*) FROM sqlite_schema WHERE type='index' AND name IN ('events_job','events_kind'))",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((version, indexes), (16, 0));
+    drop(conn);
+    // With the space it asked for, the upgrade goes through.
+    crate::OPEN_FREE_BYTES.set(Some(space.needed));
+    assert_eq!(crate::upgrade_space(&path), None);
+    Store::open(&path).unwrap();
+    assert_eq!(crate::upgrade_space(&path), None);
+}
+
 #[test]
 fn missing_or_changed_event_indexes_refuse_startup() {
     for tamper in [

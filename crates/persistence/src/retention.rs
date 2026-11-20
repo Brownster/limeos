@@ -444,10 +444,11 @@ impl Store {
             .map_err(durable)?;
         Ok(AuditUsage { bytes })
     }
-    /// A retention pass if a minute has passed since the last one. Returns the
-    /// audit usage it observed, or `None` when no pass was due. A failed batch
-    /// is retried on the next pass; it never fails the caller's work.
-    pub(super) fn maintain(&mut self, now: Instant) -> Option<AuditUsage> {
+    /// A retention pass if a minute has passed since the last one, or `None`
+    /// when none was due. Every rule runs, each on its own: a failed batch
+    /// is reported in the pass and retried on the next one, and never fails
+    /// the caller's work or stops another rule.
+    pub(super) fn maintain(&mut self, now: Instant) -> Option<Pass> {
         if self
             .retained_at
             .is_some_and(|at| now.saturating_duration_since(at) < INTERVAL)
@@ -455,21 +456,64 @@ impl Store {
             return None;
         }
         self.retained_at = Some(now);
-        let _ = self.prune();
-        self.audit_usage().ok()
+        let failed = self
+            .prune_each()
+            .into_iter()
+            .filter_map(|(rule, result)| result.err().map(|error| (rule, error.0)))
+            .collect();
+        Some(Pass {
+            usage: self.audit_usage().ok(),
+            failed,
+        })
     }
-    /// One batch for every table over its budget, each in its own transaction.
-    /// Returns the rows removed per table, omitting tables with none.
+    /// One batch for every table over its budget, each in its own transaction,
+    /// whatever the others did. The rows removed or the error, per rule.
+    fn prune_each(&mut self) -> Vec<(&'static str, Result<i64>)> {
+        RULES
+            .iter()
+            .map(|rule| {
+                #[cfg(test)]
+                if self.failing_rule == Some(rule.table) {
+                    return (rule.table, Err(Error(ErrorCode::StateNotDurable)));
+                }
+                (rule.table, run(&mut self.conn, rule))
+            })
+            .collect()
+    }
+    /// [`Self::prune_each`], with the rows removed per table (omitting tables
+    /// with none), or the first error once every rule has run.
+    #[cfg(test)]
     pub(super) fn prune(&mut self) -> Result<Vec<(&'static str, i64)>> {
         let mut removed = Vec::new();
-        for rule in &RULES {
-            let rows = run(&mut self.conn, rule)?;
-            if rows > 0 {
-                removed.push((rule.table, rows));
+        let mut failed = None;
+        for (table, result) in self.prune_each() {
+            match result {
+                Ok(0) => {}
+                Ok(rows) => removed.push((table, rows)),
+                Err(error) => {
+                    failed.get_or_insert(error);
+                }
             }
         }
-        Ok(removed)
+        failed.map_or(Ok(removed), Err)
     }
+}
+
+/// What a retention pass observed: the audit usage after it (`None` if that
+/// read failed) and the rules whose batch failed.
+pub(super) struct Pass {
+    pub(super) usage: Option<AuditUsage>,
+    pub(super) failed: Vec<(&'static str, ErrorCode)>,
+}
+
+/// The latest failed retention batch, for the daemon's log.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RetentionFailure {
+    /// The rule (table) whose batch failed.
+    pub rule: &'static str,
+    pub code: ErrorCode,
+    /// Failed batches since the store opened, across all rules.
+    pub count: u64,
 }
 
 #[cfg(test)]

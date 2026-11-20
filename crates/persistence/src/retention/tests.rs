@@ -902,7 +902,74 @@ fn occurrence_pruning_keeps_queued_work_the_watermark_and_each_newest() {
     Store::open(&dir.path().join("core.sqlite")).unwrap();
 }
 
-/// The minimum interval for 30 simulated days: a job-less schedule settles
+/// A rule whose batch fails is reported, and the other rules still run in
+/// the same pass; the writer thread keeps the latest failure for the log.
+#[test]
+fn a_failing_rule_is_reported_and_the_others_still_run() {
+    let (_dir, mut store, actor) = setup();
+    let base = 1_000_020;
+    let backup = scale::schedule(&mut store, &actor, ScheduledOperation::Backup, 30, base);
+    let mut row = backup.clone();
+    for i in 0..OCCURRENCE_BUDGET + OCCURRENCE_BATCH {
+        let now = base + 30 * i;
+        let DueDecision::Ready(key) = row.due(now).unwrap() else {
+            panic!("backup due")
+        };
+        store
+            .automation_reserve(&backup, &Settlement::AdapterUnavailable(key), now)
+            .unwrap();
+        row.settled_through = Some(now);
+    }
+    fill(&mut store, &actor.id, BUDGET_ROWS + EVENT_BATCH, base);
+    let occurrences = |store: &Store| -> i64 {
+        store
+            .conn
+            .query_row("SELECT count(*) FROM automation_occurrences", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+    };
+    let (rows, before) = (events(&store), occurrences(&store));
+    store.failing_rule = Some("events");
+    let pass = store.maintain(Instant::now()).unwrap();
+    assert_eq!(pass.failed, vec![("events", ErrorCode::StateNotDurable)]);
+    assert_eq!(pass.usage, Some(store.audit_usage().unwrap()));
+    assert_eq!(events(&store), rows);
+    assert_eq!(occurrences(&store), before - OCCURRENCE_BATCH);
+    // `prune` runs every rule too, then reports the failure.
+    assert!(store.prune().is_err());
+    assert_eq!(occurrences(&store), OCCURRENCE_BUDGET);
+    store.failing_rule = None;
+    assert_eq!(store.prune().unwrap(), vec![("events", EVENT_BATCH)]);
+}
+
+#[tokio::test]
+async fn the_writer_keeps_the_latest_retention_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Database::open(&dir.path().join("core.sqlite")).unwrap();
+    assert_eq!(db.retention_failure(), None);
+    for expected in 1..=2 {
+        db.call(|s| {
+            s.failing_rule = Some("automation_occurrences");
+            s.retained_at = None;
+            Ok(())
+        })
+        .await
+        .unwrap();
+        // The pass runs after that call, before this one.
+        db.call(|_| Ok(())).await.unwrap();
+        assert_eq!(
+            db.retention_failure(),
+            Some(RetentionFailure {
+                rule: "automation_occurrences",
+                code: ErrorCode::StateNotDurable,
+                count: expected,
+            })
+        );
+    }
+}
+
+/// The minimum interval for 30 simulated days/// The minimum interval for 30 simulated days: a job-less schedule settles
 /// every 30 s and an observation schedule runs hourly, with the pass every
 /// simulated minute. Without pruning the 4097th occurrence (day 1.4) would be
 /// refused as overloaded.

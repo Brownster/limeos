@@ -80,6 +80,7 @@ pub struct Database {
     reader: Arc<std::sync::Mutex<Connection>>,
     bell: Arc<Bell>,
     audit: Arc<AtomicI64>,
+    retention: Arc<std::sync::Mutex<Option<RetentionFailure>>>,
     pub generation: i64,
     #[cfg(test)]
     admitted: Arc<std::sync::atomic::AtomicUsize>,
@@ -109,13 +110,24 @@ impl Database {
             ring: std::sync::Condvar::new(),
         });
         let observed = audit.clone();
+        let retention = Arc::new(std::sync::Mutex::new(None::<RetentionFailure>));
+        let failures = retention.clone();
         let doorbell = bell.clone();
         std::thread::Builder::new()
             .name("limeos-db".into())
             .spawn(move || {
                 let maintain = |store: &mut Store| {
-                    if let Some(usage) = store.maintain(Instant::now()) {
+                    let Some(pass) = store.maintain(Instant::now()) else {
+                        return;
+                    };
+                    if let Some(usage) = pass.usage {
                         observed.store(usage.bytes, Ordering::SeqCst);
+                    }
+                    if let Ok(mut latest) = failures.lock() {
+                        for (rule, code) in pass.failed {
+                            let count = latest.map_or(0, |f| f.count) + 1;
+                            *latest = Some(RetentionFailure { rule, code, count });
+                        }
                     }
                 };
                 maintain(&mut store);
@@ -159,6 +171,7 @@ impl Database {
             _last: Arc::new(LastHandle(bell.clone())),
             bell,
             audit,
+            retention,
             generation,
             #[cfg(test)]
             admitted: Arc::default(),
@@ -170,6 +183,11 @@ impl Database {
         AuditUsage {
             bytes: self.audit.load(Ordering::SeqCst),
         }
+    }
+    /// The latest failed retention batch and how many have failed since the
+    /// store opened, for the daemon to log. Never queues.
+    pub fn retention_failure(&self) -> Option<RetentionFailure> {
+        self.retention.lock().ok().and_then(|latest| *latest)
     }
     /// Session and task revocation. Admission first reads the session (with
     /// its CSRF digest) or the token on a query-only connection: an unknown or
@@ -230,6 +248,9 @@ pub struct Store {
     retained_at: Option<Instant>,
     #[cfg(test)]
     free_bytes: Option<u64>,
+    /// Tests: this rule's batches fail.
+    #[cfg(test)]
+    failing_rule: Option<&'static str>,
 }
 pub struct TaskGrant<'a> {
     pub service_uid: u32,
@@ -254,6 +275,48 @@ fn available_space(directory: &Path) -> Result<u64> {
 #[cfg(test)]
 thread_local! {
     static OPEN_FREE_BYTES: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+}
+/// Free space the upgrade to schema 17 needs for `events` rows: its two
+/// indexes take about 52 bytes per event (13 MB at 250,000 events), written
+/// once to the WAL and once to the database file, plus margin, above the
+/// 8 MiB reserve. At most about 42 MiB, at the audit cap.
+const UPGRADE_BYTES_PER_EVENT: u64 = 128;
+fn upgrade_bytes(rows: i64) -> u64 {
+    u64::try_from(rows)
+        .unwrap_or(u64::MAX)
+        .saturating_mul(UPGRADE_BYTES_PER_EVENT)
+        .saturating_add(MIN_FREE_BYTES)
+}
+/// A pending schema upgrade that needs more free space than the store's
+/// directory has: what `Store::open` refused, in bytes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UpgradeSpace {
+    pub from: u32,
+    pub needed: u64,
+    pub available: u64,
+}
+/// After `Database::open` fails: whether a pending upgrade lacks free space,
+/// so the daemon can say how much it needs. Reads the store without changing
+/// it; `None` when no upgrade is pending, it fits, or the store is unreadable.
+pub fn upgrade_space(path: &Path) -> Option<UpgradeSpace> {
+    let conn =
+        Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
+    let from: u32 = conn
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .ok()?;
+    if !(1..SCHEMA_VERSION).contains(&from) {
+        return None;
+    }
+    let rows: i64 = conn
+        .query_row("SELECT count(*) FROM events", [], |r| r.get(0))
+        .ok()?;
+    let available = available_space(path.parent()?).ok()?;
+    let needed = upgrade_bytes(rows);
+    (available < needed).then_some(UpgradeSpace {
+        from,
+        needed,
+        available,
+    })
 }
 fn interrupted_jobs(conn: &Connection) -> Result<i64> {
     conn.query_row(
@@ -396,6 +459,16 @@ impl Store {
                     tx.execute_batch(include_str!("migration-v16.sql"))
                         .map_err(durable)?;
                 }
+                // Version 17 builds two indexes over `events` inside this
+                // transaction. Refuse before building them, writing nothing,
+                // when they would not fit above the free-space reserve; core
+                // then logs the space needed (`upgrade_space`).
+                let rows: i64 = tx
+                    .query_row("SELECT count(*) FROM events", [], |r| r.get(0))
+                    .map_err(durable)?;
+                if available_space(&directory)? < upgrade_bytes(rows) {
+                    return Err(Error(ErrorCode::StateNotDurable));
+                }
                 tx.execute_batch(include_str!("migration-v17.sql"))
                     .map_err(durable)?;
             }
@@ -460,6 +533,8 @@ impl Store {
             retained_at: None,
             #[cfg(test)]
             free_bytes: None,
+            #[cfg(test)]
+            failing_rule: None,
         })
     }
     fn free_bytes(&self) -> Result<u64> {
@@ -536,7 +611,7 @@ pub use compose::{
 };
 pub use identity_store::Revocation;
 pub use job_resolutions::{PendingResolution, ResolutionSubject};
-pub use retention::{AuditLevel, AuditUsage};
+pub use retention::{AuditLevel, AuditUsage, RetentionFailure};
 pub use storage::storage_scope;
 
 #[cfg(test)]
