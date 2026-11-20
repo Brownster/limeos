@@ -753,7 +753,8 @@ async fn collect(
             projection,
             path: &list_path,
         };
-        let (ids, truncated) = listing.ids(scope.as_mut()).await?;
+        let selected = listing.ids(scope.as_mut()).await?;
+        let (ids, truncated) = (&selected.ids, selected.truncated);
         // Storage evidence refuses on any odd or changing container. A display
         // projection leaves that one container out with a reason instead.
         let tolerant = projection != Projection::Storage;
@@ -780,7 +781,7 @@ async fn collect(
         let mut total_mounts = 0;
         let mut running_pids = BTreeSet::new();
         let mut running_count = 0;
-        for id in &ids {
+        for id in ids {
             let value = get(format!("/{version}/containers/{id}/json"), 512 * 1024).await?;
             if admission.is_some() && value["State"]["Running"].as_bool() == Some(true) {
                 running_count += 1;
@@ -953,10 +954,19 @@ async fn collect(
             )?;
         }
         let mut comparison = admission.map(Admission::scope);
-        if listing.ids(comparison.as_mut()).await? != (ids.clone(), truncated) {
+        if listing.ids(comparison.as_mut()).await? != selected {
             return Err(conflict());
         }
         drop(comparison);
+        let (hidden_projects, unattributed) = if capture_compose {
+            hidden(
+                selected.compose,
+                &members,
+                scope.as_mut().ok_or_else(unavailable)?,
+            )?
+        } else {
+            (Vec::new(), 0)
+        };
         let declarations = ContainerStorageInventory {
             version: 1,
             engine_id: engine_identity,
@@ -1002,6 +1012,8 @@ async fn collect(
                 containers: members,
                 truncated: u16::try_from(truncated).map_err(|_| unavailable())?,
                 omitted: left_out.compose,
+                hidden_projects,
+                unattributed,
             })
         } else {
             None
@@ -1058,8 +1070,8 @@ struct Listing<'a> {
 impl Listing<'_> {
     /// Storage evidence refuses an Engine over its bound. The Compose display
     /// projection keeps the first containers, running ones first, and counts
-    /// the rest.
-    async fn ids(&self, scope: Option<&mut Scope>) -> Result<(Vec<String>, usize)> {
+    /// the rest, with the Compose project of every listed row.
+    async fn ids(&self, scope: Option<&mut Scope>) -> Result<super::storage::Selected> {
         if self.projection == Projection::Compose {
             let admission = self.admission.ok_or_else(unavailable)?;
             let rows = self
@@ -1084,8 +1096,55 @@ impl Listing<'_> {
             )
             .await?;
         let ids = super::storage::parse_storage_container_ids_with_admission(&list, scope)?;
-        Ok((ids, 0))
+        Ok(super::storage::Selected {
+            ids,
+            truncated: 0,
+            compose: Vec::new(),
+        })
     }
+}
+/// The Compose projects of listed containers that are not members (truncated
+/// or omitted), each once, and the number of listed containers whose project is
+/// unknown: labels that do not decode, or beyond the hidden-project bounds.
+fn hidden(
+    listed: Vec<(String, super::storage::ListedCompose)>,
+    members: &[ComposeContainerMembership],
+    scope: &mut Scope,
+) -> Result<(Vec<compose_evidence::ComposeProjectIdentity>, u16)> {
+    use limeos_domain::deployment::discovery::{MAX_HIDDEN_PROJECTS, MAX_HIDDEN_TEXT};
+    let mut projects: Vec<compose_evidence::ComposeProjectIdentity> = Vec::new();
+    let (mut text, mut unattributed) = (0_usize, 0_u16);
+    for (id, compose) in listed {
+        let identity = match compose {
+            super::storage::ListedCompose::None => continue,
+            super::storage::ListedCompose::Undecodable => None,
+            super::storage::ListedCompose::Project(identity) => Some(identity),
+        };
+        let member = members
+            .iter()
+            .any(|m| m.container.resource.strip_prefix("container:") == Some(id.as_str()));
+        match identity {
+            Some(_) if member => {}
+            Some(identity) if projects.contains(&identity) => {}
+            Some(identity) => {
+                let size = identity
+                    .config_files
+                    .iter()
+                    .chain([&identity.name, &identity.working_directory])
+                    .map(String::len)
+                    .sum::<usize>();
+                if projects.len() < MAX_HIDDEN_PROJECTS && text + size <= MAX_HIDDEN_TEXT {
+                    text += size;
+                    scope.reserve(&mut projects, 1)?;
+                    projects.push(identity);
+                } else {
+                    unattributed = unattributed.saturating_add(1);
+                }
+            }
+            None => unattributed = unattributed.saturating_add(1),
+        }
+    }
+    Ok((projects, unattributed))
 }
 /// One container's first-pass facts in the selected projection.
 struct Admitted {

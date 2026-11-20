@@ -21,6 +21,8 @@ fn sample(at: i64) -> DiscoveryCohort {
             members: vec![],
             truncated: 0,
             omitted: Vec::new(),
+            hidden_projects: Vec::new(),
+            unattributed: 0,
         }),
     )
     .unwrap()

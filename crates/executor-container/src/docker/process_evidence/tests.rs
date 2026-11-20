@@ -41,6 +41,8 @@ struct Config {
     clock_on_final_info: Option<(Arc<AtomicI64>, i64)>,
     compose_labels: Option<Vec<Value>>,
     compose_labels_after: Option<Vec<Value>>,
+    /// List-row labels by index where they differ from the inspected ones.
+    list_labels: Option<Vec<(usize, Value)>>,
     health_inspect: Option<Value>,
     health_inspect_after: Option<Value>,
     /// Only this container sees `health_inspect_after` (one health flip).
@@ -73,6 +75,7 @@ impl Default for Config {
             clock_on_final_info: None,
             compose_labels: None,
             compose_labels_after: None,
+            list_labels: None,
             health_inspect: None,
             health_inspect_after: None,
             health_after_only: None,
@@ -203,11 +206,26 @@ async fn fixture(config: Config) -> Fixture {
                 } else {
                     config.count
                 };
+                // The Engine lists each container's labels as first inspected:
+                // a container's labels never change.
+                let labels = config.compose_labels.as_ref();
                 json!(
                     (0..count)
-                        .map(|i| json!({"Id": format!("{i:064x}"),
-                            "State": if is_running(&config, i) { "running" } else { "exited" },
-                            "Names": [format!("/c{i:03}")]}))
+                        .map(|i| {
+                            let listed = config
+                                .list_labels
+                                .as_ref()
+                                .and_then(|l| l.iter().find(|(at, _)| *at == i))
+                                .map(|(_, v)| v.clone());
+                            let labels = listed.unwrap_or_else(|| match labels {
+                                Some(labels) => labels.get(i).cloned().unwrap_or(Value::Null),
+                                None => json!({}),
+                            });
+                            json!({"Id": format!("{i:064x}"),
+                                "State": if is_running(&config, i) { "running" } else { "exited" },
+                                "Names": [format!("/c{i:03}")],
+                                "Labels": labels})
+                        })
                         .collect::<Vec<_>>()
                 )
             } else {

@@ -12,11 +12,13 @@ use limeos_domain::{
 use serde::Serialize;
 use serde_json::Value;
 
-const PREFIX: &str = "com.docker.compose.";
-const PROJECT: &str = "com.docker.compose.project";
+pub(super) const PREFIX: &str = "com.docker.compose.";
+pub(super) const PROJECT: &str = "com.docker.compose.project";
 const SERVICE: &str = "com.docker.compose.service";
-const DIRECTORY: &str = "com.docker.compose.project.working_dir";
-const FILES: &str = "com.docker.compose.project.config_files";
+pub(super) const DIRECTORY: &str = "com.docker.compose.project.working_dir";
+pub(super) const FILES: &str = "com.docker.compose.project.config_files";
+/// Longest config-files label: four maximal paths and their commas.
+pub(super) const FILES_LABEL: usize = 4 * 512 + 3;
 const ONEOFF: &str = "com.docker.compose.oneoff";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -57,11 +59,18 @@ pub struct EngineComposeSnapshot {
     /// Containers inspected but left out: changing between the two passes, or
     /// of a shape this reader does not model. Never in `containers`.
     pub omitted: Vec<OmittedContainer>,
+    /// Distinct Compose projects that listed containers outside `containers`
+    /// (truncated or omitted) declare in their labels.
+    pub hidden_projects: Vec<ComposeProjectIdentity>,
+    /// Listed containers whose Compose project is unknown: labels that do not
+    /// decode, or beyond the hidden-project bounds.
+    pub unattributed: u16,
 }
 impl EngineComposeSnapshot {
-    /// Every Engine container is in `containers`: nothing truncated or omitted.
+    /// Every Engine container is in `containers`: nothing truncated, omitted or
+    /// of unknown project.
     pub fn complete(&self) -> bool {
-        self.truncated == 0 && self.omitted.is_empty()
+        self.truncated == 0 && self.omitted.is_empty() && self.unattributed == 0
     }
 }
 /// Fixed-endpoint opaque owner. JSON cannot restore its socket, ledger or lifetime.
@@ -151,6 +160,40 @@ fn path(value: &str) -> bool {
             .split('/')
             .all(|part| !matches!(part, "" | "." | ".."))
 }
+/// The ordered config files of a label value, or `None` where an inspection
+/// would refuse them: one rule for inspected containers and listed rows.
+fn config_files(files: &str) -> Option<Vec<&str>> {
+    if files.len() > FILES_LABEL {
+        return None;
+    }
+    let mut selected: Vec<&str> = Vec::new();
+    for file in files.split(',') {
+        if selected.len() == 4 || !path(file) || selected.contains(&file) {
+            return None;
+        }
+        selected.push(file);
+    }
+    Some(selected)
+}
+/// The project identity a listed row's labels declare, validated exactly as
+/// `parse` validates an inspected container's: `None` where it would refuse.
+pub(super) fn listed_identity(
+    project: &str,
+    directory: &str,
+    files: &str,
+) -> Option<ComposeProjectIdentity> {
+    if !name(project, true) || !path(directory) {
+        return None;
+    }
+    Some(ComposeProjectIdentity {
+        name: project.to_owned(),
+        working_directory: directory.to_owned(),
+        config_files: config_files(files)?
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+    })
+}
 fn unsupported() -> Refusal {
     Refusal::Unsupported
 }
@@ -215,19 +258,13 @@ pub(super) fn parse(
                 "False" => false,
                 _ => return Err(unsupported()),
             };
-            if !name(project, true)
-                || !name(service, false)
-                || !path(directory)
-                || files.len() > 4 * 512 + 3
-            {
+            if !name(project, true) || !name(service, false) || !path(directory) {
                 return Err(unsupported());
             }
+            let files = config_files(files).ok_or_else(unsupported)?;
             let mut selected = Vec::new();
-            for file in files.split(',') {
-                if selected.len() == 4 || !path(file) || selected.iter().any(|p| p == file) {
-                    return Err(unsupported());
-                }
-                scope.reserve(&mut selected, 1)?;
+            scope.reserve(&mut selected, files.len())?;
+            for file in files {
                 selected.push(scope.string(file)?);
             }
             ComposeOwnership::Compose {

@@ -135,6 +135,8 @@ fn crowded_cohort(
             members: engine,
             truncated: 0,
             omitted: Vec::new(),
+            hidden_projects: Vec::new(),
+            unattributed: 0,
         }),
     )
     .unwrap()
@@ -1392,4 +1394,35 @@ async fn within_the_window_a_missing_row_still_refuses_an_operator_resolution() 
     );
     assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
     f.task.abort();
+}
+
+#[tokio::test]
+async fn a_hidden_overlapping_project_or_an_unattributed_container_refuses_planning() {
+    let overlapping = ProjectIdentity {
+        name: "other".into(),
+        working_directory: "/opt/Media".into(),
+        config_files: vec!["/opt/Media/other.yaml".into()],
+    };
+    for (hidden, unattributed) in [(vec![overlapping], 0), (Vec::new(), 1)] {
+        let mut f = admin().await;
+        f.core.stacks = Default::default();
+        let base = truncated_cohort(&ordinary(), 1);
+        let cohort = DiscoveryCohort::new(
+            base.catalog().cloned(),
+            Some(EngineFacts {
+                hidden_projects: hidden,
+                unattributed,
+                ..base.engine().unwrap().clone()
+            }),
+        )
+        .unwrap();
+        f.core.stacks.update(&cohort).unwrap();
+        assert_eq!(
+            f.plan(ContainerAction::Restart).await.unwrap_err().0,
+            ErrorCode::Conflict
+        );
+        // Refused from the cohort, before any executor contact.
+        assert_eq!(f.engine.lock().unwrap().inspects, 0);
+        f.task.abort();
+    }
 }

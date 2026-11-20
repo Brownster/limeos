@@ -697,6 +697,13 @@
         "engine_id": {
           "type": "string"
         },
+        "hidden_projects": {
+          "description": "Distinct Compose projects that Engine containers outside `members`\n(truncated or omitted) declare in their list labels: a stack named by\none has an unread member, and each takes part in the overlap checks.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StackProjectIdentity"
+          }
+        },
         "members": {
           "type": "array",
           "items": {
@@ -720,6 +727,13 @@
           "format": "uint16",
           "maximum": 65535,
           "minimum": 0
+        },
+        "unattributed": {
+          "description": "Listed containers whose Compose project could not be established: list\nlabels that do not decode, or beyond the hidden-project bounds.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
         }
       },
       "required": [
@@ -727,7 +741,9 @@
         "sampled_at",
         "members",
         "truncated",
-        "omitted"
+        "omitted",
+        "hidden_projects",
+        "unattributed"
       ]
     },
     "ErrorCode": {

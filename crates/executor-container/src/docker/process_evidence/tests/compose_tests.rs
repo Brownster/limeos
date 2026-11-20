@@ -748,10 +748,132 @@ async fn an_image_mount_and_a_five_file_label_mark_only_their_containers_unsuppo
             .issues
             .clone()
     };
-    assert_eq!(issues("media"), [StackIssue::OmittedMembers]);
-    assert_eq!(issues("tools"), [StackIssue::OmittedMembers]);
-    assert!(issues("other").is_empty());
+    // The five-file label decodes neither inspected nor listed: that container
+    // could overlap any stack, so every stack is blocked, and still shown.
+    assert_eq!(snapshot.unattributed, 1);
+    assert_eq!(view.unattributed_containers, Some(1));
+    assert_eq!(
+        issues("media"),
+        [StackIssue::OmittedMembers, StackIssue::IncompleteInventory]
+    );
+    assert_eq!(
+        issues("tools"),
+        [StackIssue::OmittedMembers, StackIssue::IncompleteInventory]
+    );
+    assert_eq!(issues("other"), [StackIssue::IncompleteInventory]);
     // Storage evidence refuses the unknown mount type whole, as before.
     assert!(fixture.inspect().await.is_err());
     assert!(fixture.docker.storage_inventory().await.is_err());
+}
+
+fn issues_of(
+    view: &limeos_domain::deployment::discovery::StackInventory,
+    p: &str,
+) -> Vec<StackIssue> {
+    view.stacks
+        .iter()
+        .find(|s| s.project == p)
+        .unwrap()
+        .issues
+        .clone()
+}
+/// 65 containers: the first 64 run, the 65th is stopped and so truncated.
+fn crowded(labels: Vec<(usize, Value)>) -> Config {
+    let mut all = vec![Value::Null; 65];
+    for (at, value) in labels {
+        all[at] = value;
+    }
+    Config {
+        count: 65,
+        running_count: Some(64),
+        mounts: 0,
+        compose_labels: Some(all),
+        ..config()
+    }
+}
+#[tokio::test]
+async fn a_hidden_project_sharing_the_stack_directory_blocks_the_stack() {
+    let mut other = stack_labels("other", "app");
+    other["com.docker.compose.project.working_dir"] = json!("/opt/stacks/media");
+    // Hidden by truncation, and hidden as an unsupported container.
+    let truncated = crowded(vec![
+        (0, stack_labels("media", "app")),
+        (1, stack_labels("media", "db")),
+        (64, other.clone()),
+    ]);
+    let unsupported = Config {
+        count: 3,
+        all_running: true,
+        mount_type: Some((2, "image")),
+        compose_labels: Some(vec![
+            stack_labels("media", "app"),
+            stack_labels("media", "db"),
+            other,
+        ]),
+        ..config()
+    };
+    for config in [truncated, unsupported] {
+        let fixture = fixture(config).await;
+        let owner = inspect(&fixture).await.unwrap();
+        let snapshot = owner.snapshot();
+        assert!(
+            snapshot
+                .containers
+                .iter()
+                .all(|m| !matches!(&m.ownership, ComposeOwnership::Compose { project, .. } if project.name == "other"))
+        );
+        assert_eq!(snapshot.hidden_projects.len(), 1);
+        let view = stacks(&owner, &["media"]).await;
+        // As if the Engine had been read whole: the overlap refuses planning.
+        assert!(issues_of(&view, "media").contains(&StackIssue::OverlappingProject));
+        assert_eq!(
+            view.stacks[0].runtime,
+            limeos_domain::deployment::discovery::RuntimeStatus::Conflict
+        );
+    }
+}
+#[tokio::test]
+async fn a_truncated_member_is_attributed_to_its_stack() {
+    let fixture = fixture(crowded(vec![
+        (0, stack_labels("media", "app")),
+        (64, stack_labels("media", "db")),
+        (1, stack_labels("tools", "app")),
+    ]))
+    .await;
+    let owner = inspect(&fixture).await.unwrap();
+    let snapshot = owner.snapshot();
+    assert_eq!(snapshot.truncated, 1);
+    assert_eq!(snapshot.unattributed, 0);
+    let view = stacks(&owner, &["media", "tools"]).await;
+    assert_eq!(issues_of(&view, "media"), [StackIssue::OmittedMembers]);
+    assert!(issues_of(&view, "tools").is_empty());
+}
+#[tokio::test]
+async fn an_undecodable_listed_row_blocks_every_stack_but_the_read_still_returns_them() {
+    for labels in [
+        json!({"com.docker.compose.project":"media","com.docker.compose.project.working_dir":"relative",
+            "com.docker.compose.project.config_files":"/opt/stacks/media/compose.yaml"}),
+        json!({"com.docker.compose.project":"media"}),
+        json!({"com.docker.compose.project":7}),
+        json!({"unrelated":["not","text"]}),
+        json!(["not", "a", "map"]),
+    ] {
+        let mut config = crowded(vec![
+            (0, stack_labels("media", "app")),
+            (1, stack_labels("media", "db")),
+            (2, stack_labels("tools", "app")),
+        ]);
+        config.list_labels = Some(vec![(64, labels.clone())]);
+        let fixture = fixture(config).await;
+        let owner = inspect(&fixture).await.unwrap();
+        assert_eq!(owner.snapshot().unattributed, 1, "{labels}");
+        let view = stacks(&owner, &["media", "tools"]).await;
+        assert_eq!(view.unattributed_containers, Some(1));
+        assert_eq!(view.stacks.len(), 2);
+        for project in ["media", "tools"] {
+            assert_eq!(issues_of(&view, project), [StackIssue::IncompleteInventory]);
+            let stack = view.stacks.iter().find(|s| s.project == project).unwrap();
+            assert!(stack.counts.is_some(), "the known members are still shown");
+        }
+    }
 }

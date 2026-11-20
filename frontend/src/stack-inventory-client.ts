@@ -73,7 +73,7 @@ export function decodeStackInventory(value: unknown): StackInventory {
       for (const name of names) choice(name, ["compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"]);
     }
     if (files.state === "unsupported") choice(files.reason, ["yaml", "environment", "include", "interpolation", "other"]);
-    for (const issue of list(s.issues, 4)) choice(issue, ["identity_conflict", "overlapping_project", "undeclared_services", "omitted_members"]);
+    for (const issue of list(s.issues, 5)) choice(issue, ["identity_conflict", "overlapping_project", "undeclared_services", "omitted_members", "incomplete_inventory"]);
     services(s.services, 32);
   }
   const projects = new Set<string>();

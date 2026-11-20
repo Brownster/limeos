@@ -57,6 +57,16 @@
       "maximum": 65535,
       "minimum": 0
     },
+    "unattributed_containers": {
+      "description": "Listed Engine containers whose Compose project could not be read; when\nabove zero every stack carries `incomplete_inventory`. `None` while the\nEngine source is not fresh.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    },
     "version": {
       "type": "integer",
       "format": "uint16",
@@ -222,9 +232,14 @@
           ]
         },
         {
-          "description": "A container of this project was left out of the read (changing or\nunsupported), so its membership is incomplete and it is not planned.",
+          "description": "A container of this project was left out of the read (changing,\nunsupported or truncated), so its membership is incomplete and it is\nnot planned.",
           "type": "string",
           "const": "omitted_members"
+        },
+        {
+          "description": "Some Engine container's Compose labels could not be read, so whether it\nbelongs to or overlaps this stack is unknown. Every stack carries it and\nnone is planned.",
+          "type": "string",
+          "const": "incomplete_inventory"
         }
       ]
     },

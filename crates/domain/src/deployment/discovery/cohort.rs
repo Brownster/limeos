@@ -20,6 +20,13 @@ pub struct EngineFacts {
     pub truncated: u16,
     /// Inspected containers left out of `members`, with their reason.
     pub omitted: Vec<OmittedContainer>,
+    /// Distinct Compose projects that Engine containers outside `members`
+    /// (truncated or omitted) declare in their list labels: a stack named by
+    /// one has an unread member, and each takes part in the overlap checks.
+    pub hidden_projects: Vec<ProjectIdentity>,
+    /// Listed containers whose Compose project could not be established: list
+    /// labels that do not decode, or beyond the hidden-project bounds.
+    pub unattributed: u16,
 }
 impl EngineFacts {
     /// Left-out containers are distinct, never members, and with the members
@@ -40,6 +47,27 @@ impl EngineFacts {
             {
                 return Err(invalid());
             }
+        }
+        if self.hidden_projects.len() > MAX_HIDDEN_PROJECTS {
+            return Err(limit());
+        }
+        let mut text = 0_usize;
+        for (i, project) in self.hidden_projects.iter().enumerate() {
+            if !name(&project.name, true)
+                || !path(&project.working_directory)
+                || !files_valid(&project.config_files)
+                || self.hidden_projects[..i].contains(project)
+            {
+                return Err(invalid());
+            }
+            text = project
+                .config_files
+                .iter()
+                .chain([&project.name, &project.working_directory])
+                .fold(text, |total, field| total.saturating_add(field.len()));
+        }
+        if text > MAX_HIDDEN_TEXT {
+            return Err(limit());
         }
         Ok(())
     }
@@ -86,6 +114,8 @@ impl<'de> Deserialize<'de> for DiscoveryCohort {
                 members: e.members.into_iter().map(Into::into).collect(),
                 truncated: e.truncated,
                 omitted: e.omitted.into_iter().map(Into::into).collect(),
+                hidden_projects: e.hidden_projects.into_iter().map(Into::into).collect(),
+                unattributed: e.unattributed,
             }),
             wire.catalog_current,
             wire.engine_current,
@@ -181,6 +211,9 @@ impl DiscoveryCohort {
             now,
             catalog,
             engine,
+            self.engine
+                .as_ref()
+                .map_or(&[][..], |e| e.hidden_projects.as_slice()),
             catalog_current && self.catalog_current,
             engine_current && self.engine_current,
         )?;
@@ -195,14 +228,19 @@ impl DiscoveryCohort {
         if let (Some(count), Some(engine)) = (view.truncated_containers.as_mut(), &self.engine) {
             *count = engine.truncated;
             view.omitted_containers = engine.omitted.clone();
+            view.unattributed_containers = Some(engine.unattributed);
             for stack in &mut view.stacks {
-                if engine
+                let unread = engine
                     .omitted
                     .iter()
-                    .any(|o| o.project.as_deref() == Some(stack.project.as_str()))
-                    && !stack.issues.contains(&StackIssue::OmittedMembers)
-                {
+                    .filter_map(|o| o.project.as_deref())
+                    .chain(engine.hidden_projects.iter().map(|p| p.name.as_str()))
+                    .any(|project| project == stack.project);
+                if unread && !stack.issues.contains(&StackIssue::OmittedMembers) {
                     stack.issues.push(StackIssue::OmittedMembers);
+                }
+                if engine.unattributed > 0 {
+                    stack.issues.push(StackIssue::IncompleteInventory);
                 }
             }
             view.check_size()?;
@@ -338,6 +376,13 @@ struct EngineWire {
         deserialize_with = "bounded::<_, OmittedWire, MAX_ENGINE_CONTAINERS>"
     )]
     omitted: Vec<OmittedWire>,
+    #[serde(
+        default,
+        deserialize_with = "bounded::<_, ProjectWire, MAX_HIDDEN_PROJECTS>"
+    )]
+    hidden_projects: Vec<ProjectWire>,
+    #[serde(default)]
+    unattributed: u16,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -436,6 +481,15 @@ struct ProjectWire {
     #[serde(deserialize_with = "bounded::<_, Text<512>, 4>")]
     config_files: Vec<Text<512>>,
 }
+impl From<ProjectWire> for ProjectIdentity {
+    fn from(w: ProjectWire) -> Self {
+        Self {
+            name: w.name.0,
+            working_directory: w.working_directory.0,
+            config_files: w.config_files.into_iter().map(|v| v.0).collect(),
+        }
+    }
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ContainerWire {
@@ -487,11 +541,7 @@ impl TryFrom<MemberFields> for MembershipWire {
                     container: w.container.into(),
                     service: service.0,
                     one_off,
-                    project: ProjectIdentity {
-                        name: project.name.0,
-                        working_directory: project.working_directory.0,
-                        config_files: project.config_files.into_iter().map(|v| v.0).collect(),
-                    },
+                    project: project.into(),
                 }
             }
             _ => return Err("invalid stack member shape"),

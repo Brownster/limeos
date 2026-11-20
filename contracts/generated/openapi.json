@@ -2695,7 +2695,12 @@
           },
           {
             "const": "omitted_members",
-            "description": "A container of this project was left out of the read (changing or\nunsupported), so its membership is incomplete and it is not planned.",
+            "description": "A container of this project was left out of the read (changing,\nunsupported or truncated), so its membership is incomplete and it is\nnot planned.",
+            "type": "string"
+          },
+          {
+            "const": "incomplete_inventory",
+            "description": "Some Engine container's Compose labels could not be read, so whether it\nbelongs to or overlaps this stack is unknown. Every stack carries it and\nnone is planned.",
             "type": "string"
           }
         ]
@@ -11998,6 +12003,16 @@
                     },
                     "truncated_containers": {
                       "description": "Engine containers left out because the Engine holds more than\n`MAX_ENGINE_CONTAINERS`; running ones are kept first. Counts above are\nof the containers shown. `None` while the Engine source is not fresh.",
+                      "format": "uint16",
+                      "maximum": 65535,
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "unattributed_containers": {
+                      "description": "Listed Engine containers whose Compose project could not be read; when\nabove zero every stack carries `incomplete_inventory`. `None` while the\nEngine source is not fresh.",
                       "format": "uint16",
                       "maximum": 65535,
                       "minimum": 0,

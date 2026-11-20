@@ -145,9 +145,36 @@ fn engine_facts(engine: &EngineComposeSnapshot, changed: &[String]) -> Result<En
     if engine.version != 1 || engine.containers.len() > model::MAX_ENGINE_CONTAINERS {
         return Err(Error(ErrorCode::Unavailable));
     }
+    let identity =
+        |project: &crate::docker::compose_evidence::ComposeProjectIdentity| ProjectIdentity {
+            name: project.name.clone(),
+            working_directory: project.working_directory.clone(),
+            config_files: project.config_files.clone(),
+        };
     let mut omitted = engine.omitted.clone();
+    let mut hidden: Vec<ProjectIdentity> = engine.hidden_projects.iter().map(identity).collect();
+    let mut unattributed = engine.unattributed;
+    let size = |p: &ProjectIdentity| {
+        p.config_files
+            .iter()
+            .chain([&p.name, &p.working_directory])
+            .map(String::len)
+            .sum::<usize>()
+    };
     for member in &engine.containers {
         if changed.contains(&member.container.resource) {
+            // A member shown as changing still takes part in the overlap checks.
+            if let ComposeOwnership::Compose { project, .. } = &member.ownership {
+                let project = identity(project);
+                if !hidden.contains(&project) {
+                    let text = hidden.iter().map(size).sum::<usize>() + size(&project);
+                    if hidden.len() < model::MAX_HIDDEN_PROJECTS && text <= model::MAX_HIDDEN_TEXT {
+                        hidden.push(project);
+                    } else {
+                        unattributed = unattributed.saturating_add(1);
+                    }
+                }
+            }
             omitted.push(model::OmittedContainer {
                 resource: member.container.resource.clone(),
                 project: match &member.ownership {
@@ -173,11 +200,7 @@ fn engine_facts(engine: &EngineComposeSnapshot, changed: &[String]) -> Result<En
                 one_off,
             } => Membership::Compose {
                 container: member.container.clone(),
-                project: ProjectIdentity {
-                    name: project.name.clone(),
-                    working_directory: project.working_directory.clone(),
-                    config_files: project.config_files.clone(),
-                },
+                project: identity(project),
                 service: service.clone(),
                 one_off: *one_off,
             },
@@ -189,6 +212,8 @@ fn engine_facts(engine: &EngineComposeSnapshot, changed: &[String]) -> Result<En
         members,
         truncated: engine.truncated,
         omitted,
+        hidden_projects: hidden,
+        unattributed,
     })
 }
 
@@ -227,6 +252,8 @@ mod tests {
             version: 1,
             truncated: 0,
             omitted: Vec::new(),
+            hidden_projects: Vec::new(),
+            unattributed: 0,
             engine_id: "engine-a".into(),
             containers_observed_at: 100,
             containers: vec![],
@@ -257,6 +284,8 @@ mod tests {
             version: 1,
             truncated: 0,
             omitted: Vec::new(),
+            hidden_projects: Vec::new(),
+            unattributed: 0,
             engine_id: "other".into(),
             containers_observed_at: 100,
             containers: vec![],
@@ -274,6 +303,8 @@ mod tests {
             version: 1,
             truncated: 0,
             omitted: Vec::new(),
+            hidden_projects: Vec::new(),
+            unattributed: 0,
             engine_id: "engine-a".into(),
             containers_observed_at: 100,
             containers: (0..count)

@@ -39,7 +39,8 @@ export function StackManagement({ value, loading = false, stale = false, error =
         {stack.issues.includes("identity_conflict") && <p className="error">Engine project labels differ from the registered directory or ordered Compose files.</p>}
         {stack.issues.includes("overlapping_project") && <p className="error">Another Engine project overlaps this stack. Membership counts are withheld.</p>}
         {stack.issues.includes("undeclared_services") && <p className="notice">Additional services are absent from the registration and are shown below.</p>}
-        {stack.issues.includes("omitted_members") && <p className="notice">A container of this stack is changing or unsupported and is not shown; stack actions wait until it is read whole.</p>}
+        {stack.issues.includes("omitted_members") && <p className="notice">A container of this stack is changing, unsupported or beyond the first 64 and is not shown; stack actions wait until it is read whole.</p>}
+        {stack.issues.includes("incomplete_inventory") && <p className="notice">An Engine container's Compose labels could not be read, so it may belong to or overlap this stack; stack actions wait until every container is identified.</p>}
         <details><summary>Services and members · {stack.services.length}</summary>
           <p>Expected configuration files</p><ul>{stack.config_files.map(file => <li key={file}><code style={{ overflowWrap: "anywhere" }}>{file}</code></li>)}</ul>
           <Services value={stack.services} stale={stale} />
@@ -53,6 +54,7 @@ export function StackManagement({ value, loading = false, stale = false, error =
         </details>)}</>}
       <p>{stale || value.standalone_containers === null ? "Current standalone-container count is unavailable." : `${value.standalone_containers} standalone containers observed outside Compose projects.`}</p>
       {!stale && value.truncated_containers ? <p className="notice">{value.truncated_containers} more Engine containers are not shown: the inventory keeps the first 64, running ones first, and counts only those.</p> : null}
+      {!stale && value.unattributed_containers ? <p className="notice">{value.unattributed_containers} Engine {value.unattributed_containers === 1 ? "container's" : "containers'"} Compose project could not be identified.</p> : null}
     </>}
     {operations && <StackJobs csrf={operations.csrf} revision={operations.revision} expired={operations.expired} admin={operations.admin} changed={operations.changed} />}
   </section>;

@@ -17,6 +17,11 @@ const _: () = assert!(
         && MAX_ENGINE_CONTAINERS > crate::MAX_STACK_MEMBERS
 );
 pub const MAX_INPUT_TEXT: usize = 48 * 1024;
+/// Distinct Compose projects of containers outside the members (truncated or
+/// omitted) that a cohort names, and their text. Beyond either bound a
+/// container counts as unattributed instead.
+pub const MAX_HIDDEN_PROJECTS: usize = 16;
+pub const MAX_HIDDEN_TEXT: usize = 8 * 1024;
 pub const MAX_REPORT_BYTES: usize = 64 * 1024;
 pub const MAX_AGE_SECONDS: i64 = 90;
 const MAX_TIME: i64 = 253_402_300_799;
@@ -169,9 +174,14 @@ pub enum StackIssue {
     IdentityConflict,
     OverlappingProject,
     UndeclaredServices,
-    /// A container of this project was left out of the read (changing or
-    /// unsupported), so its membership is incomplete and it is not planned.
+    /// A container of this project was left out of the read (changing,
+    /// unsupported or truncated), so its membership is incomplete and it is
+    /// not planned.
     OmittedMembers,
+    /// Some Engine container's Compose labels could not be read, so whether it
+    /// belongs to or overlaps this stack is unknown. Every stack carries it and
+    /// none is planned.
+    IncompleteInventory,
 }
 /// Why one inspected Engine container is not among the members.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
@@ -254,6 +264,10 @@ pub struct StackInventory {
     /// Inspected containers left out, each with its reason; a registered
     /// stack with one of them carries `omitted_members`. Empty unless fresh.
     pub omitted_containers: Vec<OmittedContainer>,
+    /// Listed Engine containers whose Compose project could not be read; when
+    /// above zero every stack carries `incomplete_inventory`. `None` while the
+    /// Engine source is not fresh.
+    pub unattributed_containers: Option<u16>,
 }
 
 fn invalid() -> Error {
@@ -516,13 +530,17 @@ pub fn discover(
     catalog: Option<CatalogInput<'_>>,
     engine: Option<EngineInput<'_>>,
 ) -> Result<StackInventory> {
-    discover_current(now, catalog, engine, true, true)
+    discover_current(now, catalog, engine, &[], true, true)
 }
 
+/// `hidden` are the Compose projects of Engine containers outside the members
+/// (truncated or omitted): they take part in the identity and overlap checks,
+/// so a stack is never shown free of a project the read could not inspect.
 fn discover_current(
     now: i64,
     catalog: Option<CatalogInput<'_>>,
     engine: Option<EngineInput<'_>>,
+    hidden: &[ProjectIdentity],
     catalog_current: bool,
     engine_current: bool,
 ) -> Result<StackInventory> {
@@ -562,20 +580,16 @@ fn discover_current(
         }
     }
     projects.sort_by(|a, b| a.name.cmp(&b.name));
+    let hidden = if engine_fresh { hidden } else { &[] };
     let mut stacks = Vec::new();
     for declaration in declarations {
         let mut issues = Vec::new();
         if joined {
-            if projects
-                .iter()
-                .any(|p| p.name == declaration.project && !matches(declaration, p))
-            {
+            let all = || projects.iter().copied().chain(hidden);
+            if all().any(|p| p.name == declaration.project && !matches(declaration, p)) {
                 issues.push(StackIssue::IdentityConflict);
             }
-            if projects
-                .iter()
-                .any(|p| p.name != declaration.project && overlaps(declaration, p))
-            {
+            if all().any(|p| p.name != declaration.project && overlaps(declaration, p)) {
                 issues.push(StackIssue::OverlappingProject);
             }
         }
@@ -654,6 +668,7 @@ fn discover_current(
         }),
         truncated_containers: engine_fresh.then_some(0),
         omitted_containers: Vec::new(),
+        unattributed_containers: engine_fresh.then_some(0),
     };
     report.check_size()?;
     Ok(report)

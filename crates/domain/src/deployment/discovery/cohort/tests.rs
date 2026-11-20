@@ -8,7 +8,7 @@ fn fixture() -> Value {
     }]},"engine":{"engine_id":"engine","sampled_at":99,"members":[{
         "kind":"compose","container":{"resource":format!("container:{:064x}",1),"image":format!("sha256:{}","a".repeat(64)),"started_at":"2026-10-20T00:00:00Z","running":true},
         "project":{"name":"media","working_directory":"/opt/stacks/Media","config_files":["/opt/stacks/Media/compose.yaml"]},"service":"web","one_off":false
-    }],"truncated":0,"omitted":[]}})
+    }],"truncated":0,"omitted":[],"hidden_projects":[],"unattributed":0}})
 }
 fn decode(value: Value) -> Result<DiscoveryCohort> {
     DiscoveryCohort::decode(&serde_json::to_vec(&value).unwrap())
@@ -27,6 +27,14 @@ fn round_trip_preserves_source_clocks_and_failed_source_withholds_counts() {
     let mut older = fixture();
     older["engine"].as_object_mut().unwrap().remove("truncated");
     older["engine"].as_object_mut().unwrap().remove("omitted");
+    older["engine"]
+        .as_object_mut()
+        .unwrap()
+        .remove("hidden_projects");
+    older["engine"]
+        .as_object_mut()
+        .unwrap()
+        .remove("unattributed");
     assert_eq!(decode(older).unwrap().engine().unwrap().truncated, 0);
     let mut over = fixture();
     over["engine"]["truncated"] = json!(3);
@@ -86,6 +94,64 @@ fn an_omitted_member_marks_its_stack_and_only_while_the_engine_is_fresh() {
     let one = json!({"resource":format!("container:{:064x}",2),"project":null,"reason":"changing"});
     repeated["engine"]["omitted"] = json!([one.clone(), one]);
     assert!(decode(repeated).is_err());
+}
+
+#[test]
+fn hidden_projects_attribute_overlap_and_unattributed_containers_block_every_stack() {
+    let hidden = |name: &str, directory: &str| json!({"name":name,"working_directory":directory,"config_files":[format!("{directory}/compose.yaml")]});
+    // A hidden container of the stack's own project: an unread member.
+    let mut value = fixture();
+    value["engine"]["hidden_projects"] = json!([hidden("media", "/opt/stacks/Media")]);
+    let view = decode(value).unwrap().project(101).unwrap();
+    assert_eq!(view.stacks[0].issues, [StackIssue::OmittedMembers]);
+    // A hidden project sharing the directory, or the name with another
+    // directory: as if it had been read whole.
+    for (other, issue) in [
+        (
+            hidden("other", "/opt/stacks/Media"),
+            StackIssue::OverlappingProject,
+        ),
+        (
+            hidden("media", "/opt/stacks/Other"),
+            StackIssue::IdentityConflict,
+        ),
+    ] {
+        let mut value = fixture();
+        value["engine"]["hidden_projects"] = json!([other]);
+        let cohort = decode(value).unwrap();
+        let view = cohort.project(101).unwrap();
+        assert!(view.stacks[0].issues.contains(&issue));
+        assert_eq!(view.stacks[0].runtime, RuntimeStatus::Conflict);
+        assert!(
+            cohort.project_sources(101, true, false).unwrap().stacks[0]
+                .issues
+                .is_empty()
+        );
+    }
+    let mut value = fixture();
+    value["engine"]["unattributed"] = json!(2);
+    let cohort = decode(value).unwrap();
+    let view = cohort.project(101).unwrap();
+    assert_eq!(view.unattributed_containers, Some(2));
+    assert_eq!(view.stacks[0].issues, [StackIssue::IncompleteInventory]);
+    assert_eq!(view.stacks[0].runtime, RuntimeStatus::Running);
+    let stale = cohort.project_sources(101, true, false).unwrap();
+    assert_eq!(stale.unattributed_containers, None);
+    assert!(stale.stacks[0].issues.is_empty());
+    // Malformed, repeated or too many hidden projects are refused.
+    let many: Vec<_> = (0..=MAX_HIDDEN_PROJECTS)
+        .map(|i| hidden(&format!("p{i}"), &format!("/opt/p{i}")))
+        .collect();
+    for bad in [
+        json!([hidden("Bad Name", "/opt/x")]),
+        json!([hidden("x", "relative")]),
+        json!([hidden("x", "/opt/x"), hidden("x", "/opt/x")]),
+        json!(many),
+    ] {
+        let mut value = fixture();
+        value["engine"]["hidden_projects"] = bad;
+        assert!(decode(value).is_err());
+    }
 }
 
 #[test]

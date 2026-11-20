@@ -327,7 +327,13 @@ truncated_containers: number | null,
  * Inspected containers left out, each with its reason; a registered
  * stack with one of them carries `omitted_members`. Empty unless fresh.
  */
-omitted_containers: Array<StackOmittedContainer>, };
+omitted_containers: Array<StackOmittedContainer>,
+/**
+ * Listed Engine containers whose Compose project could not be read; when
+ * above zero every stack carries `incomplete_inventory`. `None` while the
+ * Engine source is not fresh.
+ */
+unattributed_containers: number | null, };
 export type StackSourceStatus = { state: StackSourceState, sampled_at: number | null, max_age_seconds: number,
 /**
  * Remaining display lifetime, shortened by every cache/transport layer.
@@ -338,7 +344,7 @@ export type StackRuntimeStatus = "unknown" | "no_containers" | "stopped" | "runn
 export type StackCounts = { ordinary: number, running: number, one_offs: number, one_off_running: number, };
 export type StackMemberView = { container: ContainerSnapshot, one_off: boolean, };
 export type StackServiceView = { name: string, declared: boolean, runtime: StackRuntimeStatus, counts: StackCounts | null, members: Array<StackMemberView>, };
-export type StackIssue = "identity_conflict" | "overlapping_project" | "undeclared_services" | "omitted_members";
+export type StackIssue = "identity_conflict" | "overlapping_project" | "undeclared_services" | "omitted_members" | "incomplete_inventory";
 export type StackOmissionReason = "changing" | "unsupported";
 export type StackOmittedContainer = { resource: string, project: string | null, reason: StackOmissionReason, };
 export type StackView = { stack: string, project: string, working_directory: string, config_files: Array<string>, files: StackFileStatus, runtime: StackRuntimeStatus, counts: StackCounts | null, missing_services: number | null, services: Array<StackServiceView>, issues: Array<StackIssue>, };
@@ -356,7 +362,18 @@ truncated: number,
 /**
  * Inspected containers left out of `members`, with their reason.
  */
-omitted: Array<StackOmittedContainer>, };
+omitted: Array<StackOmittedContainer>,
+/**
+ * Distinct Compose projects that Engine containers outside `members`
+ * (truncated or omitted) declare in their list labels: a stack named by
+ * one has an unread member, and each takes part in the overlap checks.
+ */
+hidden_projects: Array<StackProjectIdentity>,
+/**
+ * Listed containers whose Compose project could not be established: list
+ * labels that do not decode, or beyond the hidden-project bounds.
+ */
+unattributed: number, };
 export type StackDeclaration = { stack: string, project: string, working_directory: string, config_files: Array<string>, services: Array<string>, files: StackFileStatus, };
 export type StackMembership = { "kind": "standalone", container: ContainerSnapshot, } | { "kind": "compose", container: ContainerSnapshot, project: StackProjectIdentity, service: string, one_off: boolean, };
 export type DiscoveryCohort = { version: number, catalog: CatalogFacts | null, engine: EngineFacts | null, catalog_current: boolean, engine_current: boolean, catalog_valid_for_millis: number, engine_valid_for_millis: number, };
