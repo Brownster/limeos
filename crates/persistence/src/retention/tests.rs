@@ -578,6 +578,85 @@ fn a_kill_between_passes_leaves_a_pruned_job_and_resumes() {
     Store::open(&path).unwrap();
 }
 
+/// The plans of both candidate queries: job-less rows through `events_job`,
+/// settled jobs through `jobs_state` and then their events through
+/// `events_job`. No step scans the events table.
+#[test]
+fn candidate_queries_use_the_indexes() {
+    let (_dir, store, _) = setup();
+    let plan = |sql: String| -> Vec<String> {
+        store
+            .conn
+            .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+            .unwrap()
+            .query_map([EVENT_BATCH], |r| r.get::<_, String>(3))
+            .unwrap()
+            .collect::<std::result::Result<_, _>>()
+            .unwrap()
+    };
+    let loose = plan(loose_candidates());
+    assert!(
+        loose
+            .iter()
+            .any(|step| step.starts_with("SEARCH e USING") && step.contains("INDEX events_job")),
+        "{loose:?}"
+    );
+    let settled = plan(settled_candidates());
+    assert!(
+        settled
+            .iter()
+            .any(|step| step.starts_with("SEARCH j USING") && step.contains("INDEX jobs_state")),
+        "{settled:?}"
+    );
+    assert!(
+        settled
+            .iter()
+            .any(|step| step.starts_with("SEARCH e USING") && step.contains("INDEX events_job")),
+        "{settled:?}"
+    );
+    for step in loose.iter().chain(&settled) {
+        assert!(!step.starts_with("SCAN e"), "{step}");
+    }
+}
+
+/// Pinned history at the start of the table (here 50,000 events of a job
+/// that is still queued) is not visited again by every pass: the candidate
+/// queries cost about what they return.
+#[test]
+fn a_pass_does_not_rescan_pinned_history() {
+    let (_dir, mut store, actor) = setup();
+    let open = probe(&mut store, &actor, "open", "open", 300);
+    let kind = json(&EventKind::JobTransition {
+        state: JobState::Queued,
+    })
+    .unwrap();
+    store
+        .write(|tx| {
+            let added = tx.execute("WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<50000) INSERT INTO events(principal,job,kind,created) SELECT ?,?,?,301 FROM c", params![actor.id, open, kind]).map_err(durable)?;
+            account(tx, added as i64)
+        })
+        .unwrap();
+    let settled = probe(&mut store, &actor, "settled", "settled", 302);
+    store
+        .transition(&settled, JobState::Queued, JobState::Canceled, 302)
+        .unwrap();
+    fill(&mut store, &actor.id, 16, 303);
+    for (sql, expected) in [(loose_candidates(), 16 + 3), (settled_candidates(), 2)] {
+        let mut stmt = store.conn.prepare(&sql).unwrap();
+        let rows = stmt
+            .query_map([EVENT_BATCH], |r| r.get::<_, i64>(0))
+            .unwrap()
+            .count();
+        // Enrolment's three job-less events are prunable too.
+        assert_eq!(rows, expected);
+        let steps = stmt.get_status(rusqlite::StatementStatus::VmStep);
+        assert!(steps < 2_000, "{steps} steps for {rows} rows: {sql}");
+    }
+    let removed = store.prune().unwrap();
+    assert!(removed.is_empty(), "under budget: {removed:?}");
+    assert_eq!(count(&store, &open), 50_001);
+}
+
 #[test]
 fn prune_crash_helper() {
     let Some(path) = std::env::var_os("LIMEOS_PRUNE_CRASH_PATH") else {

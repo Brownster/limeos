@@ -184,36 +184,66 @@ fn occurrences(conn: &Connection) -> Result<i64> {
     .map_err(durable)
 }
 
+/// The oldest prunable job-less events. Walks only job-less rows, in cursor
+/// order through `events_job`; the pinned ones among them are automation
+/// proofs, which stay few.
+fn loose_candidates() -> String {
+    format!(
+        "SELECT e.cursor FROM events e INDEXED BY events_job WHERE {} ORDER BY e.cursor LIMIT ?",
+        loose()
+    )
+}
+/// The oldest events of settled jobs. Jobs are filtered first, by state
+/// through `jobs_state` and then by operation and open request once per job,
+/// so the events of open and pinned jobs, which accumulate at the start of the
+/// table, are never visited.
+fn settled_candidates() -> String {
+    format!(
+        "SELECT e.cursor FROM jobs j CROSS JOIN events e ON e.job=j.id WHERE {SETTLED} ORDER BY e.cursor LIMIT ?"
+    )
+}
+
 /// Removes the oldest `limit` eligible events, and never more: a job whose
 /// history is longer is finished by later passes (see [`RETAINED_HISTORY`]).
+/// The cost of a pass follows the settled jobs and the prunable rows, not
+/// the pinned history in front of them.
 fn prune_events(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
-    let loose = loose();
-    let horizon: Option<i64> = tx
-        .query_row(
-            &format!("SELECT max(cursor) FROM (SELECT e.cursor FROM events e LEFT JOIN jobs j ON j.id=e.job WHERE ({loose}) OR (e.job IS NOT NULL AND {SETTLED}) ORDER BY e.cursor LIMIT ?)"),
-            [limit],
-            |r| r.get(0),
-        )
-        .map_err(durable)?;
-    let Some(horizon) = horizon else {
-        return Ok(0);
+    let select = |sql: String| -> Result<Vec<i64>> {
+        let mut stmt = tx.prepare(&sql).map_err(durable)?;
+        stmt.query_map([limit], |r| r.get(0))
+            .map_err(durable)?
+            .collect::<std::result::Result<_, _>>()
+            .map_err(durable)
     };
-    // Eligibility does not change inside the transaction, so the two deletes
-    // remove exactly the rows selected above.
-    let mut removed = tx
-        .execute(
-            &format!("DELETE FROM events AS e WHERE e.cursor<=? AND {loose}"),
-            [horizon],
+    // Each list holds its own oldest `limit`, so together they hold the
+    // oldest `limit` overall.
+    let mut cursors: Vec<(i64, bool)> = select(loose_candidates())?
+        .into_iter()
+        .map(|cursor| (cursor, true))
+        .chain(
+            select(settled_candidates())?
+                .into_iter()
+                .map(|cursor| (cursor, false)),
         )
-        .map_err(durable)?;
+        .collect();
+    cursors.sort_unstable();
+    cursors.truncate(usize::try_from(limit).map_err(|_| Error(ErrorCode::InvalidInput))?);
+    if cursors.is_empty() {
+        return Ok(0);
+    }
+    let (loose, settled): (Vec<_>, Vec<_>) = cursors.into_iter().partition(|(_, loose)| *loose);
+    let delete = |rows: Vec<(i64, bool)>| -> Result<usize> {
+        let rows: Vec<i64> = rows.into_iter().map(|(cursor, _)| cursor).collect();
+        tx.execute(
+            "DELETE FROM events WHERE cursor IN (SELECT value FROM json_each(?))",
+            [json(&rows)?],
+        )
+        .map_err(durable)
+    };
+    let mut removed = delete(loose)?;
     #[cfg(test)]
     tests::pause_mid_batch();
-    removed += tx
-        .execute(
-            &format!("DELETE FROM events AS e WHERE e.cursor<=? AND e.job IN (SELECT j.id FROM jobs j WHERE {SETTLED})"),
-            [horizon],
-        )
-        .map_err(durable)?;
+    removed += delete(settled)?;
     let removed = i64::try_from(removed).map_err(|_| Error(ErrorCode::StateNotDurable))?;
     account(tx, -removed)?;
     Ok(removed)
