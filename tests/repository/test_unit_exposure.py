@@ -64,6 +64,57 @@ class HostObservationRunsUnprivileged(unittest.TestCase):
             values["SystemCallFilter"], ["@system-service", "~@privileged @resources"]
         )
 
+    def test_package_hands_the_host_ceiling_to_the_service_group_on_every_configure(self):
+        """An upgrade keeps a root:root 0600 host.json; the new user must read it."""
+        script = (ROOT / "packaging/debian/postinst").read_text()
+        function = re.search(r"^fct_reader_access\(\) \{\n.*?^\}\n", script, re.M | re.S)
+        self.assertIsNotNone(function, "postinst defines fct_reader_access")
+        group = service("limeos-storaged.service")["Group"][0]
+        call = f"fct_reader_access /etc/limeos/system-policy/host.json {group}"
+        self.assertIn(call, script)
+        # After every ceiling is validated or created, before any restart, and
+        # after both directories above it are forced to 0755 (search for all).
+        loop_end = script.index("done", script.index("for target in host container storage"))
+        position = script.index(call)
+        self.assertLess(loop_end, position)
+        self.assertLess(position, script.index("systemctl restart"))
+        for directory in ("/etc/limeos root 0755", "/etc/limeos/system-policy root 0755"):
+            self.assertLess(script.index(f"fct_directory {directory}"), position)
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            calls = work / "calls"
+            ceiling = work / "host.json"
+            ceiling.write_text("{}")
+            ceiling.chmod(0o600)
+            link = work / "link.json"
+            link.symlink_to(ceiling)
+            program = (
+                f"chown() {{ printf '%s\\n' \"$*\" >>{calls}; }}\n"
+                + function[0]
+                + f"fct_reader_access {ceiling} {group}\n"
+                + f"if fct_reader_access {link} {group}; then exit 9; fi\n"
+                + f"if fct_reader_access {work}/missing.json {group}; then exit 9; fi\n"
+            )
+            result = subprocess.run(
+                ["/bin/bash", "--noprofile", "--norc", "-c", program],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(calls.read_text(), f"root:{group} {ceiling}\n")
+            self.assertEqual(ceiling.stat().st_mode & 0o7777, 0o640)
+            self.assertIn("Refusing non-regular ceiling", result.stderr)
+
+    def test_core_reaches_the_runtime_directory_and_socket_through_the_service_group(self):
+        storaged = service("limeos-storaged.service")
+        self.assertEqual(storaged["RuntimeDirectory"], ["limeos-storaged"])
+        self.assertEqual(storaged["RuntimeDirectoryMode"], ["0750"])
+        self.assertNotIn("StateDirectory", storaged)
+        core = service("limeos-core.service")
+        self.assertIn(storaged["Group"][0], core["SupplementaryGroups"][0].split())
+
     def test_package_creates_the_account_without_docker_access(self):
         script = (ROOT / "packaging/debian/postinst").read_text()
         accounts = re.search(r"for account in ([^;]+); do fct_account", script)[1]

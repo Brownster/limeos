@@ -22,6 +22,17 @@ fct_directory() {
     if [[ -L "${directory}" ]]; then printf 'Refusing symlink: %s\n' "${directory}" >&2; return 1; fi
     install -d -o "${owner}" -g "${owner}" -m "${mode}" "${directory}"
 }
+# A ceiling loaded by an unprivileged role: root-owned, readable through the
+# group the role's unit runs with (its primary group, so no membership in
+# /etc/group is needed) and writable only by root. Applied on every configure,
+# because an older package created host.json root:root and an operator may
+# have left it 0600 or 0640, which limeos-storaged cannot read.
+fct_reader_access() {
+    local file="${1}" group="${2}"
+    if [[ -L "${file}" || ! -f "${file}" ]]; then printf 'Refusing non-regular ceiling: %s\n' "${file}" >&2; return 1; fi
+    chown root:"${group}" "${file}"
+    chmod 0640 "${file}"
+}
 fct_execute_this() {
     [[ "${1:-}" == configure ]] || return 0
     /usr/lib/limeos/limeosctl check-config /etc/limeos/core.json
@@ -60,6 +71,12 @@ fct_execute_this() {
         mv -fT "${temporary}" "/etc/limeos/system-policy/${target}.json"
         sync -f /etc/limeos/system-policy
     done
+    # limeos-storaged reads host.json (its directories are 0755 above); its
+    # runtime directory and socket are created at each start by systemd and
+    # the role, owned by it with group limeos-host-access, which core holds as
+    # a supplementary group; it has no state directory. container.json and
+    # storage.json keep their owners: their readers never changed.
+    fct_reader_access /etc/limeos/system-policy/host.json limeos-host-access
     if [[ -d /run/systemd/system ]]; then
         systemctl daemon-reload
         systemctl enable limeos-core.service limeos-containerd.service limeos-storaged.service

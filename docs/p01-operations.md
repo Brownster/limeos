@@ -108,7 +108,7 @@ User names contain at most 64 ASCII letters, digits or `_-.:`. Enrollment is loc
 | Host executor | `limeos-storaged`, primary group `limeos-host-access` | `/run/limeos-storaged` (0750) | Root-owned policy; host observation and health, no capabilities, private network namespace; no Docker group |
 | Reserved assistant | `limeos-assistant` | `/var/lib/limeos/assistant` (0700) | No Docker or executor access; no P01 service |
 | Packaged code/UI/contracts | root | `/usr/lib/limeos` | Services cannot modify it |
-| Independent ceilings | root | `/etc/limeos/system-policy` | Exact core UID, protocol version and allow-health flag |
+| Independent ceilings | root (`host.json` group `limeos-host-access`, 0640, reset on every configure) | `/etc/limeos/system-policy` | Exact core UID, protocol version and allow-health flag |
 
 Each socket uses mode 0660 and a distinct access group. Executors inspect kernel peer credentials before allocating a request frame. Having the socket's group does not substitute for the configured core UID. The root ceiling is independent of core's user policy and is read on executor startup; restart the affected executor after an operator changes it. Protocols accept no shell, executable, arbitrary file content or caller-provided principal.
 
