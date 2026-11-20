@@ -151,8 +151,10 @@ impl Store {
         })?;
         Ok(next)
     }
-    /// Nothing was sent: the executor holds no row for this action, and every
-    /// Engine call is preceded by a durable Prepared row. Releases the locks.
+    /// Nothing was sent: the executor holds no row for this action, every
+    /// Engine call is preceded by a durable Prepared row, and the plan is young
+    /// enough that no receipt can have been pruned (core checks
+    /// `limeos_domain::receipt_absence_proves_unsent`). Releases the locks.
     pub fn record_stack_unsent(&mut self, job: &StackJob, now: i64) -> Result<()> {
         self.write(|tx| {
             let (state, intent): (String, String) = tx

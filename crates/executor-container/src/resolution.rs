@@ -50,7 +50,9 @@ impl ReceiptStore {
     /// Settle one action. Idempotent by `action`: a repeat with the same
     /// evidence, declaration and administrator returns the stored confirmation
     /// without touching the Engine; anything else on a resolved row is
-    /// `Conflict`. A missing row is `NotFound`; a row that is not holding the
+    /// `Conflict`. A missing row is `NotFound` (core completes the resolution
+    /// itself once the plan is past `receipt_absence_proves_unsent`, since a
+    /// pruned row held nothing); a row that is not holding the
     /// resource (already verified or never sent) is `Conflict`. A changed
     /// target (digest mismatch) or a declaration the evidence does not support
     /// is `Conflict`. Only read-only inspections reach the Engine.

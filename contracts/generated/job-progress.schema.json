@@ -305,6 +305,20 @@
           ]
         },
         {
+          "description": "The executor answered that it holds no receipt for this job, after its\nreceipt may have been pruned: whether the action ran is unknown, and the\njob stays held for an operator.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "executor_receipt_missing"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
           "type": "object",
           "properties": {
             "kind": {

@@ -28,6 +28,8 @@ struct Engine {
     execute_error: Option<ErrorCode>,
     /// Receipt lookups fail.
     lookup_unavailable: bool,
+    /// ResolveAction finds no row, as after retention pruned it.
+    resolve_missing: bool,
     /// The failing target's effect is lost: nothing proves it later.
     fail_without_effect: bool,
 }
@@ -348,6 +350,11 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
             ..
         } => {
             state.resolves += 1;
+            if state.resolve_missing {
+                response.ready = false;
+                response.error = Some(ErrorCode::NotFound);
+                return Some(response);
+            }
             response.resolution = Some(limeos_domain::ResolveReceipt {
                 kind,
                 action,
@@ -1199,4 +1206,190 @@ fn the_engine_bound_is_exactly_sixty_four_containers() {
     // 3 + 1 one-off + 60 = 64 is the whole-Engine bound; one more is refused.
     let at_bound = crowded_cohort(&members, &["web"], 60);
     assert_eq!(at_bound.engine().unwrap().members.len(), 64);
+}
+
+/// A stack job claimed long ago: its plan expired more than the receipt
+/// retention before now, so the executor may since have pruned its receipt.
+async fn claimed_before_retention(f: &Fixture, key: &str) -> StackJob {
+    let t0 =
+        now() - limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY - limeos_domain::PLAN_TTL_SECONDS - 60;
+    let principal = f.principal().await;
+    let members = StackSnapshot::new("media", ordinary()).unwrap();
+    let key = key.to_owned();
+    f.core
+        .db
+        .call(move |s| {
+            let plan = s.plan_stack(
+                &principal,
+                ContainerAction::Restart,
+                "registered",
+                &members,
+                t0,
+            )?;
+            let approval = s.approve_stack(&principal, &plan.plan.id, &plan.digest, t0)?;
+            let queued = s.queue_stack(&principal, &key, &plan, &approval.token, &members, t0)?;
+            s.claim_stack(&principal, &queued.id, &members, t0)
+        })
+        .await
+        .unwrap()
+}
+fn missing_events(progress: &limeos_contracts::StackJobProgress) -> usize {
+    progress
+        .events
+        .iter()
+        .filter(|e| e.event == limeos_domain::EventKind::ExecutorReceiptMissing)
+        .count()
+}
+
+#[tokio::test]
+async fn a_pruned_receipt_of_an_executed_stack_never_releases_it_as_unsent() {
+    let f = admin().await;
+    let job = claimed_before_retention(&f, "pruned").await;
+    assert!(!limeos_domain::receipt_absence_proves_unsent(
+        job.plan.expires_at,
+        now()
+    ));
+    // The executor verified every member, but core crashed before recording it
+    // and its restart left the job for reconciliation.
+    let id = job.id.clone();
+    f.core
+        .db
+        .call(move |s| s.transition(&id, JobState::Running, JobState::NeedsIntervention, now()))
+        .await
+        .unwrap();
+    for member in &mut f.engine.lock().unwrap().members {
+        apply(ContainerAction::Restart, member);
+    }
+    // Then retention pruned the executor's receipt: every lookup finds no row.
+    assert!(f.engine.lock().unwrap().receipt.is_none());
+    for _ in 0..2 {
+        let current = f.current(&job).await;
+        f.core
+            .dispatch_stack(f.principal().await, current)
+            .await
+            .unwrap();
+        let progress = f
+            .core
+            .stack_job_progress(f.token.clone(), job.id.clone(), 0)
+            .await
+            .unwrap();
+        assert_eq!(progress.job.state, JobState::NeedsIntervention);
+        // The reason is recorded once, however often recovery polls.
+        assert_eq!(missing_events(&progress), 1);
+    }
+    // Every lock is still held: no single-container job can claim a member.
+    assert_eq!(
+        f.core
+            .db
+            .call(|s| s.stack_candidates())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    let member = f.engine.lock().unwrap().members[0].clone();
+    let principal = f.principal().await;
+    let claimed = f
+        .core
+        .db
+        .call(move |s| {
+            let plan = s.plan_container(&principal, ContainerAction::Restart, &member, now())?;
+            let approval = s.approve_container(&principal, &plan.plan.id, &plan.digest, now())?;
+            let queued =
+                s.queue_container(&principal, "after", &plan, &approval.token, &member, now())?;
+            s.claim_container(&principal, &queued.id, &member, now())
+        })
+        .await;
+    assert!(claimed.is_err());
+    let engine = f.engine.lock().unwrap();
+    assert_eq!((engine.executes, engine.receipts), (0, 2));
+    drop(engine);
+    f.task.abort();
+}
+
+#[tokio::test]
+async fn an_operator_resolves_a_stack_whose_executor_receipt_was_pruned() {
+    use limeos_domain::DeclaredOutcome;
+    let f = admin().await;
+    let job = claimed_before_retention(&f, "resolve-pruned").await;
+    for member in &mut f.engine.lock().unwrap().members {
+        apply(ContainerAction::Restart, member);
+    }
+    f.engine.lock().unwrap().resolve_missing = true;
+    let current = f.current(&job).await;
+    f.core
+        .dispatch_stack(f.principal().await, current)
+        .await
+        .unwrap();
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    let admin = f.principal().await;
+    let view = f
+        .core
+        .resolution_view(admin.clone(), job.id.clone())
+        .await
+        .unwrap();
+    assert!(view.allowed.contains(&DeclaredOutcome::VerifiedDone));
+    // The executor answers that it holds no row; it has nothing to free, so the
+    // decision completes on core's fresh evidence.
+    let done = f
+        .core
+        .resolve_as(
+            admin,
+            job.id.clone(),
+            DeclaredOutcome::VerifiedDone,
+            "Both members restarted; the receipt was pruned.".into(),
+            view.evidence_digest.unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(done.status, limeos_contracts::ResolveStatus::Resolved);
+    assert_eq!(f.state(&job).await, JobState::Resolved);
+    assert!(
+        f.core
+            .db
+            .call(|s| s.stack_candidates())
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(f.engine.lock().unwrap().resolves, 1);
+    f.task.abort();
+}
+
+#[tokio::test]
+async fn within_the_window_a_missing_row_still_refuses_an_operator_resolution() {
+    use limeos_domain::DeclaredOutcome;
+    let f = admin().await;
+    {
+        let mut engine = f.engine.lock().unwrap();
+        engine.execute_error = Some(ErrorCode::Unavailable);
+        engine.lookup_unavailable = true;
+        engine.resolve_missing = true;
+    }
+    let job = f.queued(ContainerAction::Restart, "young").await;
+    f.core
+        .dispatch_stack(f.principal().await, job.clone())
+        .await
+        .unwrap();
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    let admin = f.principal().await;
+    let view = f
+        .core
+        .resolution_view(admin.clone(), job.id.clone())
+        .await
+        .unwrap();
+    assert!(
+        f.core
+            .resolve_as(
+                admin,
+                job.id.clone(),
+                DeclaredOutcome::NotDone,
+                "Nothing happened.".into(),
+                view.evidence_digest.unwrap(),
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    f.task.abort();
 }

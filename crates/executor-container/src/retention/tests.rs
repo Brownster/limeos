@@ -424,6 +424,60 @@ fn pruning_removes_only_old_terminal_receipts_and_whole_settled_stacks() {
     assert_eq!(store.conn.total_changes(), changes);
 }
 
+#[test]
+fn no_receipt_is_pruned_while_core_still_reads_its_absence_as_never_sent() {
+    // Settled stacks the executor verified and core never recorded, one more
+    // than the budget, all with the same plan expiry.
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let expires = 50_000;
+    for i in 0..=RETAINED_STACKS {
+        let digest = format!("dv{i}");
+        insert(
+            &store,
+            "stack_actions",
+            &format!("v{i}"),
+            &digest,
+            &format!("stack:v{i}"),
+            "verified",
+            expires,
+        );
+        insert(
+            &store,
+            "actions",
+            &format!("v{i}m"),
+            &digest,
+            &format!("container:v{i}m"),
+            "verified",
+            expires,
+        );
+    }
+    // Core's window, and the retention after it, prune nothing.
+    let last_unsent = expires + limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY
+        - limeos_domain::RECEIPT_ABSENCE_MARGIN
+        - 1;
+    assert!(limeos_domain::receipt_absence_proves_unsent(
+        expires,
+        last_unsent
+    ));
+    assert_eq!(prune_all(&mut store, last_unsent), 0);
+    assert_eq!(prune_all(&mut store, expires + RETAIN_AFTER_EXPIRY - 1), 0);
+    // The executor's earliest pruning is outside core's window.
+    let first_pruned = expires + RETAIN_AFTER_EXPIRY;
+    assert_eq!(prune_all(&mut store, first_pruned), 2);
+    assert!(!limeos_domain::receipt_absence_proves_unsent(
+        expires,
+        first_pruned
+    ));
+    assert_eq!(
+        count(
+            &store,
+            "SELECT count(*) FROM stack_actions WHERE action='v0'"
+        ),
+        0
+    );
+}
+
 /// Stack actions every 100 seconds, so the count budget, not the expiry
 /// margin, decides what is kept.
 fn stack_created(i: u32) -> i64 {

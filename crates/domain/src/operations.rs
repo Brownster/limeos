@@ -6,6 +6,25 @@ use ts_rs::TS;
 
 pub const PLAN_TTL_SECONDS: i64 = 300;
 pub const RESTART_VERSION: u16 = 1;
+/// The container executor keeps a settled receipt until its plan has been
+/// expired for at least this many seconds, and may prune it afterwards. Core
+/// reads the same value, so the two cannot disagree on when a receipt can vanish.
+pub const RECEIPT_RETAIN_AFTER_EXPIRY: i64 = 3600;
+/// How long before the executor may prune a receipt core stops reading its
+/// absence as proof: poll latency and a small step of the shared clock.
+pub const RECEIPT_ABSENCE_MARGIN: i64 = 600;
+const _: () =
+    assert!(RECEIPT_ABSENCE_MARGIN > 0 && RECEIPT_ABSENCE_MARGIN < RECEIPT_RETAIN_AFTER_EXPIRY);
+
+/// Whether an executor lookup that succeeds and finds no receipt for a plan
+/// expiring at `expires_at` still proves that nothing was ever sent. Every
+/// Engine call follows a durable Prepared row, and no receipt can have been
+/// pruned yet, so absence means "never written". From the margin before the
+/// earliest pruning onward absence means only "no longer known": the executor
+/// may have executed, verified and since pruned the action.
+pub fn receipt_absence_proves_unsent(expires_at: i64, now: i64) -> bool {
+    now < expires_at.saturating_add(RECEIPT_RETAIN_AFTER_EXPIRY - RECEIPT_ABSENCE_MARGIN)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Risk {
@@ -339,6 +358,20 @@ mod tests {
             started_at: "2026-10-05T07:00:00.000000000Z".into(),
             running: true,
         }
+    }
+    #[test]
+    fn a_missing_receipt_proves_nothing_once_the_executor_may_have_pruned_it() {
+        let expires = 10_000;
+        assert!(receipt_absence_proves_unsent(expires, expires));
+        let last = expires + RECEIPT_RETAIN_AFTER_EXPIRY - RECEIPT_ABSENCE_MARGIN;
+        assert!(receipt_absence_proves_unsent(expires, last - 1));
+        assert!(!receipt_absence_proves_unsent(expires, last));
+        // The executor's earliest pruning is never inside the window.
+        assert!(!receipt_absence_proves_unsent(
+            expires,
+            expires + RECEIPT_RETAIN_AFTER_EXPIRY
+        ));
+        assert!(!receipt_absence_proves_unsent(i64::MAX, i64::MAX));
     }
     #[test]
     fn lifecycle_preconditions_and_verification_bind_the_selected_incarnation() {

@@ -367,3 +367,54 @@ async fn recovery_without_an_accepted_receipt_never_dispatches_again() {
         task.abort();
     }
 }
+#[tokio::test]
+async fn a_pruned_container_receipt_keeps_the_job_held_with_the_reason_recorded_once() {
+    let (_dir, core, token, _csrf, state, _, _, task) = fixture().await;
+    let snapshot = state.lock().unwrap().current.clone();
+    let principal = core.session(token.clone(), None).await.unwrap().principal;
+    let t0 =
+        now() - limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY - limeos_domain::PLAN_TTL_SECONDS - 60;
+    let p = principal.clone();
+    let job = core
+        .db
+        .call(move |s| {
+            let plan =
+                s.plan_container(&p, limeos_domain::ContainerAction::Restart, &snapshot, t0)?;
+            let approval = s.approve_container(&p, &plan.plan.id, &plan.digest, t0)?;
+            let queued = s.queue_container(&p, "old", &plan, &approval.token, &snapshot, t0)?;
+            s.claim_container(&p, &queued.id, &snapshot, t0)
+        })
+        .await
+        .unwrap();
+    // The executor executed and verified it, core never recorded the result,
+    // and retention has since pruned the receipt: lookups find no row.
+    assert!(state.lock().unwrap().receipt.is_none());
+    for _ in 0..2 {
+        let id = job.id.clone();
+        let current = core
+            .db
+            .call(move |s| s.container_candidates())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|(_, job)| job)
+            .find(|job| job.id == id)
+            .unwrap();
+        core.dispatch_one(principal.clone(), current).await.unwrap();
+        let progress = core
+            .restart_progress(token.clone(), job.id.clone(), 0)
+            .await
+            .unwrap();
+        assert_eq!(progress.job.state, JobState::NeedsIntervention);
+        assert_eq!(
+            progress
+                .events
+                .iter()
+                .filter(|e| e.event == limeos_domain::EventKind::ExecutorReceiptMissing)
+                .count(),
+            1
+        );
+    }
+    assert_eq!(state.lock().unwrap().posts, 0);
+    task.abort();
+}

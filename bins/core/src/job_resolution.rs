@@ -11,7 +11,8 @@ use limeos_contracts::{
     ResolutionTargetView, ResolutionView, ResolveJobInput, ResolveJobResponse, ResolveStatus,
 };
 use limeos_domain::{
-    DeclaredOutcome, JobResolution, JobState, Principal, ResolutionEvidence, validate_reason,
+    DeclaredOutcome, JobResolution, JobState, Principal, ResolutionEvidence, ResolveReceipt,
+    receipt_absence_proves_unsent, validate_reason,
 };
 use limeos_executor_protocol::Request;
 use limeos_persistence::{PendingResolution, ResolutionSubject};
@@ -239,13 +240,9 @@ impl Core {
                 budget,
             )
             .await;
-        match confirmation {
-            Ok(receipt) => {
-                // An answer without a confirmation settles nothing.
-                let Some(confirmation) = receipt.resolution else {
-                    return Finish::Pending(ErrorCode::Unavailable);
-                };
-                let job = request.job.clone();
+        let complete = |confirmation: ResolveReceipt| {
+            let job = request.job.clone();
+            async move {
                 match self
                     .db
                     .call(move |s| s.complete_resolution(&job, &confirmation, now()))
@@ -254,6 +251,30 @@ impl Core {
                     Ok(resolution) => Finish::Done(resolution),
                     Err(e) => Finish::Pending(e.0),
                 }
+            }
+        };
+        match confirmation {
+            Ok(receipt) => {
+                // An answer without a confirmation settles nothing.
+                let Some(confirmation) = receipt.resolution else {
+                    return Finish::Pending(ErrorCode::Unavailable);
+                };
+                complete(confirmation).await
+            }
+            // The executor holds no row. Once the plan is old enough that the
+            // receipt may have been pruned, that is not a refusal: no row holds
+            // an executor lock, no effect can start for an expired plan, and the
+            // administrator decided on core's fresh evidence. Core records the
+            // confirmation itself. Earlier, a missing row is a definite "no".
+            Err(Error(ErrorCode::NotFound)) if self.receipt_may_be_pruned(actor, request).await => {
+                complete(ResolveReceipt {
+                    kind: pending.kind,
+                    action: request.job.clone(),
+                    evidence_digest: request.evidence_digest.clone(),
+                    declared: request.declared,
+                    resolved_by: request.resolved_by.clone(),
+                })
+                .await
             }
             // Only these are a definite "no": the executor answered and did not
             // free anything. Everything else, including a lost connection, may
@@ -274,6 +295,20 @@ impl Core {
             }
             Err(e) => Finish::Pending(e.0),
         }
+    }
+
+    /// Whether the executor may have pruned this job's receipt, by the rule
+    /// the stack and container recovery paths use too. Unknown is "no".
+    async fn receipt_may_be_pruned(
+        &self,
+        actor: &Principal,
+        request: &limeos_domain::ResolutionRequest,
+    ) -> bool {
+        let (actor, job) = (actor.clone(), request.job.clone());
+        self.db
+            .call(move |s| s.resolution_subject(&actor, &job))
+            .await
+            .is_ok_and(|subject| !receipt_absence_proves_unsent(subject.expires_at, now()))
     }
 
     /// Retry every recorded request that is not yet complete: run once at

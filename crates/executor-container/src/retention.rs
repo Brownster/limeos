@@ -30,8 +30,10 @@ pub(crate) const RETAINED_ACTIONS: u32 = 1024;
 pub(crate) const RETAINED_STACKS: u32 = 256;
 /// Rows removed by one insert, at most.
 pub(crate) const PRUNE_BATCH: u32 = 64;
-/// A receipt outlives its plan's expiry by at least this many seconds.
-pub(crate) const RETAIN_AFTER_EXPIRY: i64 = 3600;
+/// A receipt outlives its plan's expiry by at least this many seconds. Core
+/// reads the same constant to decide when a missing receipt stops proving that
+/// nothing was sent (`limeos_domain::receipt_absence_proves_unsent`).
+pub(crate) use limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY as RETAIN_AFTER_EXPIRY;
 const TERMINAL: &str = "('verified','precondition_changed')";
 const STACK_TERMINAL: &str = "('verified','precondition_changed','partly_done')";
 // Retained totals stay well inside the last-resort row cap.

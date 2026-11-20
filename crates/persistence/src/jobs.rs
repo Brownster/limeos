@@ -134,6 +134,80 @@ impl Store {
             event(tx,Some(&principal),Some(id),EventKind::JobTransition { state: to },now)
         })
     }
+    /// A successful executor lookup found no receipt for this uncertain
+    /// container or stack job, and absence no longer proves nothing was sent.
+    /// The job moves to (or stays in) `needs_intervention` with every lock, and
+    /// one `executor_receipt_missing` event records why. Repeating it changes
+    /// nothing, so the recovery poll cannot grow the audit log.
+    pub fn record_receipt_missing(&mut self, id: &str, now: i64) -> Result<()> {
+        self.write(|tx| {
+            let (principal, state, intent): (String, String, String) = tx
+                .query_row(
+                    "SELECT principal,state,intent FROM jobs WHERE id=?",
+                    [id],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .optional()
+                .map_err(durable)?
+                .ok_or(Error(ErrorCode::NotFound))?;
+            if !matches!(
+                parse::<Intent>(&intent)?,
+                Intent::ContainerRestart { .. }
+                    | Intent::ContainerStart { .. }
+                    | Intent::ContainerStop { .. }
+                    | Intent::StackRestart { .. }
+                    | Intent::StackStart { .. }
+                    | Intent::StackStop { .. }
+            ) {
+                return Err(Error(ErrorCode::Forbidden));
+            }
+            if !matches!(
+                state.as_str(),
+                "running" | "verifying" | "outcome_unknown" | "needs_intervention"
+            ) {
+                return Err(Error(ErrorCode::Conflict));
+            }
+            if state != JobState::NeedsIntervention.as_str() {
+                if tx
+                    .execute(
+                        "UPDATE jobs SET state='needs_intervention' WHERE id=? AND state=?",
+                        params![id, state],
+                    )
+                    .map_err(durable)?
+                    != 1
+                {
+                    return Err(Error(ErrorCode::Conflict));
+                }
+                event(
+                    tx,
+                    Some(&principal),
+                    Some(id),
+                    EventKind::JobTransition {
+                        state: JobState::NeedsIntervention,
+                    },
+                    now,
+                )?;
+            }
+            let kind = json(&EventKind::ExecutorReceiptMissing)?;
+            let recorded: i64 = tx
+                .query_row(
+                    "SELECT count(*) FROM events WHERE job=? AND kind=?",
+                    params![id, kind],
+                    |r| r.get(0),
+                )
+                .map_err(durable)?;
+            if recorded == 0 {
+                event(
+                    tx,
+                    Some(&principal),
+                    Some(id),
+                    EventKind::ExecutorReceiptMissing,
+                    now,
+                )?;
+            }
+            Ok(())
+        })
+    }
     pub fn job_state(&self, id: &str) -> Result<String> {
         self.conn
             .query_row("SELECT state FROM jobs WHERE id=?", [id], |r| r.get(0))

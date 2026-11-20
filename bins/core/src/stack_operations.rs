@@ -6,7 +6,8 @@ use limeos_domain::{
     ContainerAction, ContainerSnapshot, ExecutionState, JobState, PlanApproval, PlannedStackAction,
     Principal, StackJob, StackSnapshot,
     deployment::discovery::{RuntimeStatus, SourceState},
-    stack_definition, stack_project, stack_resource, verify_stack_member,
+    receipt_absence_proves_unsent, stack_definition, stack_project, stack_resource,
+    verify_stack_member,
 };
 use limeos_executor_protocol::Request;
 use std::time::{Duration, Instant};
@@ -214,10 +215,31 @@ impl Core {
             .await
     }
 
+    /// A lookup that succeeded and found no row. While the plan is young
+    /// enough that no receipt can have been pruned, that proves nothing was
+    /// sent, since a durable Prepared row precedes every Engine call: the locks
+    /// are released as `precondition_changed`. Later the executor may have
+    /// executed, verified and pruned the action, so absence is unknown: the job
+    /// stays held in `needs_intervention` for an operator, with the reason.
+    async fn settle_missing_receipt(&self, job: &StackJob) -> Result<()> {
+        let job = job.clone();
+        if receipt_absence_proves_unsent(job.plan.expires_at, now()) {
+            return self
+                .db
+                .call(move |s| s.record_stack_unsent(&job, now()))
+                .await;
+        }
+        tracing::warn!(
+            "executor holds no receipt for an uncertain stack job; held for an operator"
+        );
+        self.db
+            .call(move |s| s.record_receipt_missing(&job.id, now()))
+            .await
+    }
+
     /// After a failed ExecuteStack call, one receipt lookup decides. A lookup
-    /// that succeeds and finds no row proves nothing was sent; the locks are
-    /// released as `precondition_changed`. A failed lookup, or any row, keeps
-    /// the stack held for reconciliation.
+    /// that succeeds and finds no row is settled by `settle_missing_receipt`.
+    /// A failed lookup, or any row, keeps the stack held for reconciliation.
     async fn release_if_unsent(&self, job: &StackJob, digest: &str) -> Result<()> {
         let lookup = self
             .executor(
@@ -230,12 +252,7 @@ impl Core {
             )
             .await;
         match lookup {
-            Ok(value) if value.stack.is_none() => {
-                let unsent = job.clone();
-                self.db
-                    .call(move |s| s.record_stack_unsent(&unsent, now()))
-                    .await
-            }
+            Ok(value) if value.stack.is_none() => self.settle_missing_receipt(job).await,
             _ => self.mark_stack(job, JobState::NeedsIntervention).await,
         }
     }
@@ -316,14 +333,8 @@ impl Core {
         };
         let Some(mut receipt) = receipt else {
             if recovering {
-                // The lookup succeeded and the executor holds no row: nothing
-                // was ever sent, since a durable Prepared row precedes every
-                // Engine call.
-                let unsent = job.clone();
-                self.db
-                    .call(move |s| s.record_stack_unsent(&unsent, now()))
-                    .await?;
-                return Ok(());
+                // The lookup succeeded and the executor holds no row.
+                return self.settle_missing_receipt(&job).await;
             }
             self.mark_stack(&job, JobState::NeedsIntervention).await?;
             return Ok(());

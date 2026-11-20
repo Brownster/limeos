@@ -336,6 +336,7 @@ impl Core {
         let digest = limeos_identity::digest(
             &serde_json::to_string(&job.plan).map_err(|_| Error(ErrorCode::InvalidInput))?,
         );
+        let recovering = job.state != JobState::Queued;
         let receipt = if job.state == JobState::Queued {
             // Revocation and expiration are checked immediately before durable
             // dispatch intent. A resource lock conflict leaves this job queued.
@@ -394,6 +395,18 @@ impl Core {
             .restart
         };
         let Some(mut receipt) = receipt else {
+            if recovering {
+                // A lookup that succeeded and found no row. A single container
+                // has no "never sent" release: within the retention window the
+                // job is held as before, and after it the executor may have
+                // executed and pruned the action. Either way an operator decides,
+                // and the event says the executor no longer has a record.
+                let id = job.id.clone();
+                return self
+                    .db
+                    .call(move |s| s.record_receipt_missing(&id, now()))
+                    .await;
+            }
             self.mark(&job, JobState::NeedsIntervention).await?;
             return Ok(());
         };

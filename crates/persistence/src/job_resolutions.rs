@@ -30,6 +30,9 @@ pub struct ResolutionSubject {
     /// The plan's targets as `expected`; inspect each, then
     /// `ResolutionEvidence::observe(operation, ..)`.
     pub targets: Vec<ContainerSnapshot>,
+    /// The plan's expiry: decides whether the executor may have pruned the
+    /// action's receipt (`limeos_domain::receipt_absence_proves_unsent`).
+    pub expires_at: i64,
 }
 
 /// A recorded request together with the executor addressing for step 2.
@@ -42,7 +45,7 @@ pub struct PendingResolution {
 
 fn subject_of(id: &str, state: &str, intent: &str) -> Result<ResolutionSubject> {
     let state = parse::<JobState>(&format!("\"{state}\""))?;
-    let (kind, operation, plan_digest, targets) = match parse::<Intent>(intent)? {
+    let (kind, operation, plan_digest, targets, expires_at) = match parse::<Intent>(intent)? {
         Intent::ContainerRestart { plan }
         | Intent::ContainerStart { plan }
         | Intent::ContainerStop { plan } => (
@@ -50,6 +53,7 @@ fn subject_of(id: &str, state: &str, intent: &str) -> Result<ResolutionSubject> 
             plan.operation,
             limeos_identity::digest(&json(&plan)?),
             vec![plan.expected.clone()],
+            plan.expires_at,
         ),
         Intent::StackRestart { plan }
         | Intent::StackStart { plan }
@@ -58,6 +62,7 @@ fn subject_of(id: &str, state: &str, intent: &str) -> Result<ResolutionSubject> 
             plan.operation,
             limeos_identity::digest(&json(&plan)?),
             plan.targets().into_iter().cloned().collect(),
+            plan.expires_at,
         ),
         _ => return Err(Error(ErrorCode::Forbidden)),
     };
@@ -68,6 +73,7 @@ fn subject_of(id: &str, state: &str, intent: &str) -> Result<ResolutionSubject> 
         operation,
         plan_digest,
         targets,
+        expires_at,
     })
 }
 

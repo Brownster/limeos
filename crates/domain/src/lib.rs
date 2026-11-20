@@ -198,6 +198,10 @@ pub enum EventKind {
     TaskRevoked,
     JobQueued,
     JobRecoveryRequired,
+    /// The executor answered that it holds no receipt for this job, after its
+    /// receipt may have been pruned: whether the action ran is unknown, and the
+    /// job stays held for an operator.
+    ExecutorReceiptMissing,
     JobTransition {
         state: JobState,
     },
