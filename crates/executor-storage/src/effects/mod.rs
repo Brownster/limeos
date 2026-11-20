@@ -25,10 +25,35 @@ const SCHEMA: &str = "BEGIN IMMEDIATE; CREATE TABLE receipts(action TEXT PRIMARY
 /// it, after consuming genuine admission/supervision owners; wire receipts are
 /// stored facts, never a public request to grant execution or termination proof.
 pub struct MountJournal {
+    // Declared before `_lock`: fields drop in order, so the connection is
+    // closed before the process lock is released.
     conn: Connection,
-    _lock: OwnedFd,
+    _lock: ProcessLock,
     directory: OwnedFd,
     fresh_launch: Option<FreshLaunch>,
+}
+/// The process lock's descriptor. Dropping it releases the flock (LOCK_UN)
+/// before closing: a child that another thread is spawning shares the open
+/// file description until it execs (CLOEXEC acts only then), so a plain
+/// close would leave the lock held by that child and an immediate reopen in
+/// this process would be refused with `Conflict`. The container executor's
+/// receipt lock does the same.
+pub(crate) struct ProcessLock(pub(crate) OwnedFd);
+impl ProcessLock {
+    /// Takes the flock and wraps the descriptor in one step, so every error
+    /// between locking and building the journal unlocks too, not only the
+    /// journal's own drop.
+    pub(crate) fn acquire(lock: OwnedFd, operation: FlockOperation) -> Result<Self> {
+        rustix::fs::flock(&lock, operation).map_err(|_| Failure::Conflict)?;
+        Ok(Self(lock))
+    }
+}
+impl Drop for ProcessLock {
+    fn drop(&mut self) {
+        // If it fails, the close still releases the lock once the last
+        // descriptor is gone; never panic here.
+        let _ = rustix::fs::flock(&self.0, FlockOperation::Unlock);
+    }
 }
 struct FreshLaunch {
     action: String,
@@ -151,8 +176,7 @@ impl MountJournal {
         )
         .map_err(|_| Failure::StateNotDurable)?;
         private_file(&lock, 0)?;
-        rustix::fs::flock(&lock, FlockOperation::NonBlockingLockShared)
-            .map_err(|_| Failure::Conflict)?;
+        let lock = ProcessLock::acquire(lock, FlockOperation::NonBlockingLockShared)?;
         check_files(&directory, 0)?;
         let file = rustix::fs::openat(
             &directory,
@@ -196,8 +220,7 @@ impl MountJournal {
         )
         .map_err(|_| Failure::StateNotDurable)?;
         private_file(&lock, owner)?;
-        rustix::fs::flock(&lock, FlockOperation::NonBlockingLockExclusive)
-            .map_err(|_| Failure::Conflict)?;
+        let lock = ProcessLock::acquire(lock, FlockOperation::NonBlockingLockExclusive)?;
         check_files(&directory, owner)?;
         let file = rustix::fs::openat(
             &directory,
