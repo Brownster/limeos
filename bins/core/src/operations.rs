@@ -337,7 +337,7 @@ impl Core {
             &serde_json::to_string(&job.plan).map_err(|_| Error(ErrorCode::InvalidInput))?,
         );
         let recovering = job.state != JobState::Queued;
-        let mut absence = None;
+        let (mut absence, mut closed) = (None, false);
         let receipt = if job.state == JobState::Queued {
             // Revocation and expiration are checked immediately before durable
             // dispatch intent. A resource lock conflict leaves this job queued.
@@ -383,7 +383,10 @@ impl Core {
                 }
             }
         } else {
-            // Recovery is GET-like receipt lookup, never an effect request.
+            // Recovery is a receipt lookup, never an effect request. Core lost
+            // the execute answer, so the lookup closes an action no execute
+            // recorded: a closure of a never-recorded action comes back as a
+            // `precondition_changed` receipt and releases the job below.
             let value = self
                 .executor(
                     Request::RestartReceipt {
@@ -391,21 +394,22 @@ impl Core {
                         action: job.id.clone(),
                         digest: digest.clone(),
                         plan: job.plan.clone(),
-                        close_if_absent: false,
+                        close_if_absent: true,
                     },
                     limeos_contracts::RPC_DEADLINE,
                 )
                 .await?;
-            absence = value.absence;
+            (absence, closed) = (value.absence, value.closed);
             value.restart
         };
         let Some(mut receipt) = receipt else {
             if recovering {
-                // A lookup that succeeded and found no row. A single container
-                // has no "never sent" release: it stays held for an operator
-                // either way. Only when the executor says a receipt may have
-                // been pruned does the event record that it no longer has one.
-                if absence == Some(limeos_domain::ReceiptAbsence::NeverRecorded) {
+                // A lookup that succeeded with no receipt to act on. An
+                // absence that is not closed proves nothing about an execute
+                // still on its way: held, and asked again. Otherwise the
+                // executor may have run and pruned the action (`no_longer_held`):
+                // held for an operator, and the event records why.
+                if absence == Some(limeos_domain::ReceiptAbsence::NeverRecorded) && !closed {
                     return self.mark(&job, JobState::NeedsIntervention).await;
                 }
                 let id = job.id.clone();

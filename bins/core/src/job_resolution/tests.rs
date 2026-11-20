@@ -17,8 +17,11 @@ enum Mode {
     Lost,
     /// A definite error code.
     Refuse(ErrorCode),
-    /// The store holds no row for the action and answers with this absence.
+    /// The store holds no row for the action, closes it, and answers with
+    /// this absence.
     Absent(limeos_domain::ReceiptAbsence),
+    /// As `Absent`, from an executor that did not close the action.
+    Unclosed(limeos_domain::ReceiptAbsence),
 }
 struct Executor {
     /// `None`: the Engine no longer has the container.
@@ -101,7 +104,11 @@ fn answer(exec: &mut Executor, request: Request) -> Option<Receipt> {
                     return None;
                 }
                 Mode::Refuse(code) => refuse(&mut response, code),
-                Mode::Absent(absence) => response.absence = Some(absence),
+                Mode::Absent(absence) => {
+                    response.absence = Some(absence);
+                    response.closed = true;
+                }
+                Mode::Unclosed(absence) => response.absence = Some(absence),
             }
         }
         _ => exec.effects += 1,
@@ -608,49 +615,77 @@ async fn the_retry_loop_completes_withdraws_throttles_and_waits_for_young_reques
 }
 
 #[tokio::test]
-async fn without_an_executor_receipt_a_resolution_completes_only_once_the_plan_has_expired() {
-    use limeos_domain::{EXPIRY_SETTLE_MARGIN, PLAN_TTL_SECONDS, ReceiptAbsence};
+async fn without_an_executor_receipt_a_resolution_completes_once_the_action_is_closed() {
+    use limeos_domain::ReceiptAbsence;
     for absence in [ReceiptAbsence::NeverRecorded, ReceiptAbsence::NoLongerHeld] {
-        // The plan is still valid: an execute request sent for it may not yet
-        // have reached the receipt store and could still run after core frees
-        // its locks. A store upgraded from schema 6 answers `no_longer_held`
-        // even for a plan it never saw, so the kind of absence cannot decide.
+        // The plan is still valid, but the executor closed the action before it
+        // answered: no execute request sent for it can run after core frees its
+        // locks, whatever either clock says. It completes now on core's fresh
+        // measurement of exactly the approved evidence.
         let f = fixture().await;
-        f.set(Mode::Absent(absence));
-        let pending = f.resolve(DeclaredOutcome::NotDone).await.unwrap();
-        assert_eq!(pending.status, ResolveStatus::Pending, "{absence:?}");
-        assert!(
-            pending.message.contains("plan") && pending.message.contains("expire"),
-            "{}",
-            pending.message
-        );
-        assert_eq!(f.state().await, JobState::NeedsIntervention, "{absence:?}");
-        assert!(f.view().await.pending.is_some(), "{absence:?}");
-        // The retry loop asks again and still waits.
-        f.retry(&mut HashMap::new()).await;
-        assert_eq!(f.state().await, JobState::NeedsIntervention, "{absence:?}");
-        assert!(f.view().await.pending.is_some(), "{absence:?}");
-        // Expired, but within the margin for the executor's own check.
-        let f = fixture_at(Some(now() - PLAN_TTL_SECONDS)).await;
-        f.set(Mode::Absent(absence));
-        let pending = f.resolve(DeclaredOutcome::NotDone).await.unwrap();
-        assert_eq!(pending.status, ResolveStatus::Pending, "{absence:?}");
-        assert_eq!(f.state().await, JobState::NeedsIntervention, "{absence:?}");
-        // Past expiry and margin: nothing can still run, so it completes on
-        // core's fresh measurement of exactly the approved evidence.
-        let f = fixture_at(Some(now() - PLAN_TTL_SECONDS - EXPIRY_SETTLE_MARGIN - 5)).await;
         f.set(Mode::Absent(absence));
         let done = f.resolve(DeclaredOutcome::NotDone).await.unwrap();
         assert_eq!(done.status, ResolveStatus::Resolved, "{absence:?}");
         assert_eq!(f.state().await, JobState::Resolved, "{absence:?}");
         assert_eq!(f.counts().2, 0);
+        // An absence the executor did not close proves nothing about a request
+        // still on its way: recorded, held, and retried.
+        let f = fixture().await;
+        f.set(Mode::Unclosed(absence));
+        let pending = f.resolve(DeclaredOutcome::NotDone).await.unwrap();
+        assert_eq!(pending.status, ResolveStatus::Pending, "{absence:?}");
+        assert_eq!(f.state().await, JobState::NeedsIntervention, "{absence:?}");
+        f.retry(&mut HashMap::new()).await;
+        assert_eq!(f.state().await, JobState::NeedsIntervention, "{absence:?}");
+        assert!(f.view().await.pending.is_some(), "{absence:?}");
+        // Once the executor closes it, the retry loop completes it.
+        f.set(Mode::Absent(absence));
+        f.retry(&mut HashMap::new()).await;
+        assert_eq!(f.state().await, JobState::Resolved, "{absence:?}");
     }
+}
+
+#[tokio::test]
+async fn a_closed_absence_withdraws_the_request_when_the_evidence_has_changed() {
+    use limeos_domain::ReceiptAbsence;
+    let f = fixture().await;
+    let view = f.view().await;
+    let evidence = limeos_domain::ResolutionEvidence {
+        targets: view.targets.iter().map(|t| t.measured.clone()).collect(),
+    };
+    let (p, id, digest) = (
+        f.session.view.principal.clone(),
+        f.job.clone(),
+        view.evidence_digest.unwrap(),
+    );
+    f.core
+        .db
+        .call(move |s| {
+            s.request_resolution(
+                &p,
+                &id,
+                DeclaredOutcome::NotDone,
+                LONG,
+                &evidence,
+                &digest,
+                now(),
+            )
+        })
+        .await
+        .unwrap();
+    f.set(Mode::Absent(ReceiptAbsence::NeverRecorded));
+    f.exec.lock().unwrap().current = Some(engine_state(T1, true));
+    f.retry(&mut HashMap::new()).await;
+    let after = f.view().await;
+    assert_eq!(f.state().await, JobState::NeedsIntervention);
+    assert!(after.pending.is_none() && after.resolution.is_none());
+    assert_eq!(f.counts().2, 0);
 }
 
 /// Core crashed after the executor recorded `resolved` and before completing
 /// the resolution. Its retry completes from the stored confirmation; once the
-/// executor has pruned the resolved row it answers `no_longer_held`, and core
-/// completes on the guarded fallback: plan expired, fresh evidence unchanged.
+/// executor has pruned the resolved row it closes the action and answers
+/// `no_longer_held`, and core completes on its fresh evidence, unchanged.
 #[tokio::test]
 async fn a_crash_after_the_executor_resolved_completes_on_retry_even_once_pruned() {
     use limeos_domain::{PLAN_TTL_SECONDS, RECEIPT_RETAIN_AFTER_EXPIRY, ReceiptAbsence};

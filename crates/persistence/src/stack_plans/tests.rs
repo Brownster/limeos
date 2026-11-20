@@ -620,29 +620,3 @@ fn partly_done_releases_locks_as_failed_never_succeeded_and_needs_proof_of_sent_
     );
     assert_eq!(locks(&store, &other.id).len(), 5);
 }
-
-#[test]
-fn an_unsent_job_is_released_only_when_no_result_exists() {
-    let (_dir, mut store, p) = setup();
-    let job = queued(&mut store, &p, ContainerAction::Restart, "unsent", 200);
-    // Queued work cannot be declared unsent: it was never dispatched.
-    assert!(store.record_stack_unsent(&job, 201).is_err());
-    store.claim_stack(&p, &job.id, &stack(), 205).unwrap();
-    assert_eq!(locks(&store, &job.id).len(), 5);
-    store.record_stack_unsent(&job, 206).unwrap();
-    assert_eq!(
-        store.stack_job(&p, &job.id).unwrap().state,
-        JobState::PreconditionChanged
-    );
-    assert!(locks(&store, &job.id).is_empty());
-    store.record_stack_unsent(&job, 207).unwrap();
-    // Any recorded executor evidence forbids the release.
-    let sent = queued(&mut store, &p, ContainerAction::Restart, "sent", 210);
-    store.claim_stack(&p, &sent.id, &stack(), 215).unwrap();
-    let evidence = receipt(&sent, &[ExecutionState::OutcomeUnknown; 2]);
-    store
-        .record_stack_result(&sent, &evidence, None, 216)
-        .unwrap();
-    assert!(store.record_stack_unsent(&sent, 217).is_err());
-    assert_eq!(locks(&store, &sent.id).len(), 5);
-}

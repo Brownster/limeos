@@ -554,11 +554,11 @@ async fn expired_plans_and_bad_digests_are_refused_before_any_engine_contact() {
     assert_eq!(rows(&store, "stack_actions"), 0);
 }
 
-/// Core releases a job on a missing receipt only once its own clock, read
-/// before the lookup, is past the plan's expiry plus a margin
-/// (`limeos_domain::execution_closed`). That is safe only because every execute
-/// path checks the plan's own `expires_at` twice: before it prepares, and after
-/// the durable Prepared row, immediately before the Engine call.
+/// Every execute path checks the plan's own `expires_at` twice: before it
+/// prepares, and after the durable Prepared row, immediately before the
+/// Engine call. Core no longer relies on this to release a job without a
+/// receipt (a closure does that, whatever the clock says; see `closure`), but
+/// it still keeps an expired plan from acting.
 #[tokio::test]
 async fn every_execute_path_refuses_its_plan_from_expiry_before_and_after_preparing() {
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -566,10 +566,7 @@ async fn every_execute_path_refuses_its_plan_from_expiry_before_and_after_prepar
     let single = single_restart(&snap('a', true));
     assert_eq!(stack.plan.expires_at, single.plan.expires_at);
     let expires_at = stack.plan.expires_at;
-    // The earliest clock at which core may act on a missing receipt.
-    let settle = expires_at + limeos_domain::EXPIRY_SETTLE_MARGIN;
-    assert!(limeos_domain::execution_closed(expires_at, settle));
-    assert!(!limeos_domain::execution_closed(expires_at, settle - 1));
+    let settle = expires_at + 5;
     // A request that reaches the store at or after expiry: refused before
     // any Engine contact, and no row is written.
     for at in [expires_at, settle, expires_at + 3600] {

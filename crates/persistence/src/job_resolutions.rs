@@ -44,9 +44,6 @@ pub struct PendingResolution {
     pub request: ResolutionRequest,
     pub kind: ResolveKind,
     pub plan_digest: String,
-    /// The plan's expiry, which decides when core may complete without an
-    /// executor receipt.
-    pub expires_at: i64,
     /// The stored plan, sent with `ResolveAction`.
     pub plan: ActionPlan,
     /// The plan's operation and targets, to measure the evidence again.
@@ -393,7 +390,6 @@ impl Store {
                         request: open,
                         kind: subject.kind,
                         plan_digest: subject.plan_digest,
-                        expires_at: subject.expires_at,
                         plan: subject.plan,
                         operation: subject.operation,
                         targets: subject.targets,
@@ -427,7 +423,6 @@ impl Store {
                 request,
                 kind: subject.kind,
                 plan_digest: subject.plan_digest,
-                expires_at: subject.expires_at,
                 plan: subject.plan,
                 operation: subject.operation,
                 targets: subject.targets,
@@ -498,7 +493,6 @@ impl Store {
                     request,
                     kind: subject.kind,
                     plan_digest: subject.plan_digest,
-                    expires_at: subject.expires_at,
                     plan: subject.plan,
                     operation: subject.operation,
                     targets: subject.targets,

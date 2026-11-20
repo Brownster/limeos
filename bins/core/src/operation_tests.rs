@@ -11,6 +11,13 @@ struct EngineFixture {
     hold: bool,
     /// The executor's prune watermark (see `ReceiptAbsence`).
     watermark: i64,
+    /// A lookup asked to close an absent action records a closure. Off, it
+    /// answers as a status read would: the bare absence.
+    closes: bool,
+    /// What the closure recorded, once there is one.
+    closed: Option<limeos_domain::ReceiptAbsence>,
+    /// Lookups that did not ask to close: core never sends one.
+    plain_reads: usize,
 }
 #[tokio::test]
 async fn logs_recheck_revocation_after_reading_and_viewer_scope_never_reaches_executor() {
@@ -158,6 +165,9 @@ async fn fixture() -> (
         reads: 0,
         hold: false,
         watermark: 0,
+        closes: true,
+        closed: None,
+        plain_reads: 0,
     }));
     let entered = Arc::new(tokio::sync::Notify::new());
     let release = Arc::new(tokio::sync::Notify::new());
@@ -190,6 +200,14 @@ async fn fixture() -> (
                         });
                     }
                     Request::Restart { request, .. }
+                    | Request::ExecuteContainer { request, .. }
+                        if state.closed.is_some() =>
+                    {
+                        // A closed action never reaches the Engine.
+                        assert_eq!(request.action, state.receipt.as_ref().unwrap().action);
+                        response.restart = state.receipt.clone();
+                    }
+                    Request::Restart { request, .. }
                     | Request::ExecuteContainer { request, .. } => {
                         state.posts += 1;
                         state.receipt = Some(RestartReceipt {
@@ -208,18 +226,48 @@ async fn fixture() -> (
                         }
                         response.restart = state.receipt.clone();
                     }
-                    Request::RestartReceipt { digest, plan, .. } => {
+                    Request::RestartReceipt {
+                        action,
+                        digest,
+                        plan,
+                        close_if_absent,
+                        ..
+                    } => {
                         // Core sends the stored plan with the digest it names.
                         assert_eq!(
                             limeos_identity::digest(&serde_json::to_string(&plan).unwrap()),
                             digest
                         );
-                        response.restart = state.receipt.clone();
-                        if response.restart.is_none() {
-                            response.absence = Some(limeos_domain::ReceiptAbsence::judge(
+                        if !close_if_absent {
+                            state.plain_reads += 1;
+                        }
+                        if state.receipt.is_none() && state.closed.is_none() {
+                            let absence = limeos_domain::ReceiptAbsence::judge(
                                 plan.expires_at,
                                 state.watermark,
-                            ));
+                            );
+                            if close_if_absent && state.closes {
+                                state.closed = Some(absence);
+                                if absence == limeos_domain::ReceiptAbsence::NeverRecorded {
+                                    state.receipt = Some(RestartReceipt {
+                                        operation: plan.operation,
+                                        action,
+                                        plan_digest: digest,
+                                        before: plan.expected.clone(),
+                                        state: ExecutionState::PreconditionChanged,
+                                        error: Some(ErrorCode::Expired),
+                                    });
+                                }
+                            } else {
+                                response.absence = Some(absence);
+                            }
+                        }
+                        response.closed = state.closed.is_some();
+                        match state.closed {
+                            Some(absence @ limeos_domain::ReceiptAbsence::NoLongerHeld) => {
+                                response.absence = Some(absence)
+                            }
+                            _ => response.restart = state.receipt.clone(),
                         }
                     }
                     Request::VerifyRestart { .. } => {
@@ -343,7 +391,7 @@ async fn revoking_a_session_during_inspection_prevents_plan_persistence() {
     task.abort();
 }
 #[tokio::test]
-async fn recovery_without_an_accepted_receipt_never_dispatches_again() {
+async fn recovery_never_dispatches_again_and_closes_an_action_nothing_recorded() {
     for prepared in [false, true] {
         let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
         let snapshot = state.lock().unwrap().current.clone();
@@ -376,9 +424,15 @@ async fn recovery_without_an_accepted_receipt_never_dispatches_again() {
         running.state = JobState::NeedsIntervention;
         core.dispatch_one(principal, running).await.unwrap();
         assert_eq!(state.lock().unwrap().posts, 0);
+        // A Prepared row may have been sent: held. No row at all: the lookup
+        // closed the action, so nothing was or can be sent, and it is released.
         assert_eq!(
             core.db.call(move |s| s.job_state(&job.id)).await.unwrap(),
-            "needs_intervention"
+            if prepared {
+                "needs_intervention"
+            } else {
+                "precondition_changed"
+            }
         );
         task.abort();
     }
@@ -441,22 +495,88 @@ async fn a_pruned_container_receipt_keeps_the_job_held_with_the_reason_recorded_
         task.abort();
     }
 }
-#[tokio::test]
-async fn a_never_recorded_container_receipt_holds_the_job_without_the_missing_event() {
-    let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
+async fn principal_of(core: &Core, token: &str) -> limeos_domain::Principal {
+    core.session(token.into(), None).await.unwrap().principal
+}
+/// A claimed container job whose ExecuteContainer never reached the store:
+/// no row, none ever pruned.
+async fn claimed_unsent(
+    core: &Core,
+    token: &str,
+    csrf: &str,
+    state: &Arc<Mutex<EngineFixture>>,
+) -> (limeos_domain::Principal, limeos_domain::RestartJob) {
     let snapshot = state.lock().unwrap().current.clone();
-    let (job, _) = queued(&core, &token, &csrf, snapshot.resource.clone()).await;
-    let principal = core.session(token.clone(), None).await.unwrap().principal;
+    let (job, _) = queued(core, token, csrf, snapshot.resource.clone()).await;
+    let principal = core.session(token.into(), None).await.unwrap().principal;
     let (p, id) = (principal.clone(), job.id.clone());
     let running = core
         .db
         .call(move |s| s.claim_container(&p, &id, &snapshot, now()))
         .await
         .unwrap();
-    // ExecuteContainer never reached the store: no row, none ever pruned.
-    core.dispatch_one(principal, running).await.unwrap();
+    (principal, running)
+}
+#[tokio::test]
+async fn a_never_recorded_container_action_is_closed_and_released_at_once() {
+    let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
+    let (principal, running) = claimed_unsent(&core, &token, &csrf, &state).await;
+    // The plan is still valid: nothing waits for it to expire.
+    assert!(running.plan.validate(now()).is_ok());
+    core.dispatch_one(principal, running.clone()).await.unwrap();
     let progress = core
-        .restart_progress(token.clone(), job.id.clone(), 0)
+        .restart_progress(token.clone(), running.id.clone(), 0)
+        .await
+        .unwrap();
+    assert_eq!(progress.job.state, JobState::PreconditionChanged);
+    assert_eq!(missing_events(&progress), 0);
+    // The closure receipt is the recorded result.
+    let (admin, id) = (principal_of(&core, &token).await, running.id.clone());
+    let members = core
+        .db
+        .call(move |s| s.resolution_members(&admin, &id))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(members.len(), 1);
+    assert_eq!(members[0].state, ExecutionState::PreconditionChanged);
+    assert_eq!(members[0].error, Some(ErrorCode::Expired));
+    let snapshot = {
+        let fixture = state.lock().unwrap();
+        assert_eq!(fixture.posts, 0);
+        assert_eq!(fixture.plain_reads, 0);
+        fixture.current.clone()
+    };
+    // The lock is free: the next job on the same container is claimable.
+    let p = principal_of(&core, &token).await;
+    let next = core
+        .db
+        .call(move |s| {
+            let plan = s.plan_container(
+                &p,
+                limeos_domain::ContainerAction::Restart,
+                &snapshot,
+                now(),
+            )?;
+            let approval = s.approve_container(&p, &plan.plan.id, &plan.digest, now())?;
+            let queued = s.queue_container(&p, "next", &plan, &approval.token, &snapshot, now())?;
+            s.claim_container(&p, &queued.id, &snapshot, now())
+        })
+        .await
+        .unwrap();
+    assert_eq!(next.state, JobState::Running);
+    task.abort();
+}
+#[tokio::test]
+async fn an_absence_the_executor_did_not_close_holds_the_job_without_the_missing_event() {
+    let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
+    // An executor that answers a bare absence, as to a status read: an execute
+    // request may still be on its way, so nothing proves it was never sent.
+    state.lock().unwrap().closes = false;
+    let (principal, running) = claimed_unsent(&core, &token, &csrf, &state).await;
+    core.dispatch_one(principal, running.clone()).await.unwrap();
+    let progress = core
+        .restart_progress(token.clone(), running.id.clone(), 0)
         .await
         .unwrap();
     assert_eq!(progress.job.state, JobState::NeedsIntervention);

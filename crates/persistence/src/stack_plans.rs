@@ -151,60 +151,6 @@ impl Store {
         })?;
         Ok(next)
     }
-    /// Nothing was sent: the executor holds no row for this action and
-    /// answered that none can ever have been pruned
-    /// (`limeos_domain::ReceiptAbsence::NeverRecorded`), every Engine call
-    /// is preceded by a durable Prepared row, and the plan had expired when
-    /// core asked (`limeos_domain::execution_closed`), so no delayed request
-    /// can still write one. Releases the locks.
-    pub fn record_stack_unsent(&mut self, job: &StackJob, now: i64) -> Result<()> {
-        self.write(|tx| {
-            let (state, intent): (String, String) = tx
-                .query_row(
-                    "SELECT state,intent FROM jobs WHERE id=? AND principal=?",
-                    params![job.id, job.plan.principal],
-                    |r| Ok((r.get(0)?, r.get(1)?)),
-                )
-                .optional()
-                .map_err(durable)?
-                .ok_or(Error(ErrorCode::NotFound))?;
-            if parse::<Intent>(&intent)? != Intent::stack(job.plan.clone()) {
-                return Err(Error(ErrorCode::Conflict));
-            }
-            if state == JobState::PreconditionChanged.as_str() {
-                return Ok(());
-            }
-            let results: i64 = tx
-                .query_row(
-                    "SELECT count(*) FROM stack_results WHERE job=?",
-                    [&job.id],
-                    |r| r.get(0),
-                )
-                .map_err(durable)?;
-            if results != 0
-                || !matches!(
-                    state.as_str(),
-                    "running" | "verifying" | "outcome_unknown" | "needs_intervention"
-                )
-            {
-                return Err(Error(ErrorCode::Conflict));
-            }
-            tx.execute(
-                "UPDATE jobs SET state='precondition_changed' WHERE id=?",
-                [&job.id],
-            )
-            .map_err(durable)?;
-            event(
-                tx,
-                Some(&job.plan.principal),
-                Some(&job.id),
-                EventKind::JobTransition {
-                    state: JobState::PreconditionChanged,
-                },
-                now,
-            )
-        })
-    }
     /// The last recorded per-member evidence for a job, if any.
     #[allow(clippy::type_complexity)]
     pub fn stack_result(

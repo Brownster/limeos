@@ -4,9 +4,9 @@
 use super::*;
 use limeos_domain::{
     ContainerAction, ContainerSnapshot, ExecutionState, JobState, PlanApproval, PlannedStackAction,
-    Principal, ReceiptAbsence, StackJob, StackSnapshot,
+    Principal, ReceiptAbsence, StackJob, StackReceipt, StackSnapshot,
     deployment::discovery::{RuntimeStatus, SourceState},
-    execution_closed, stack_definition, stack_project, stack_resource, verify_stack_member,
+    stack_definition, stack_project, stack_resource, verify_stack_member,
 };
 use limeos_executor_protocol::Request;
 use std::time::{Duration, Instant};
@@ -214,37 +214,28 @@ impl Core {
             .await
     }
 
-    /// A lookup that succeeded and found no row; `asked_at` is core's clock
-    /// read before that lookup was sent. Only the executor's `NeverRecorded`
-    /// proves no receipt was ever written, since no receipt for this plan was
-    /// ever pruned. That proves nothing was sent only once no execute request
-    /// can still be accepted: one delivered earlier may not yet have reached the
-    /// receipt store, and would then prepare and run while the plan is valid.
-    /// The executor refuses a plan from its expiry, before preparing and again
-    /// before the Engine call, so once `limeos_domain::execution_closed` holds
-    /// the locks are released as `precondition_changed`; until then the job
-    /// keeps its state and its locks, and the recovery poll asks again.
-    /// `NoLongerHeld`, or no answer at all, means the executor may have
-    /// executed, verified and pruned the action: the job stays held in
-    /// `needs_intervention` for an operator, with the reason.
+    /// A lookup that succeeded with no receipt to act on. Core asks with
+    /// `close_if_absent`, so the executor has closed the action (`closed`): no
+    /// execute request for it can run any more, whatever either clock says. A
+    /// closure of an action the executor never recorded comes back as its
+    /// receipt and is recorded like any refusal, so what reaches this point is
+    /// `NoLongerHeld` (or no answer at all): the executor may have executed,
+    /// verified and pruned the action, so the job stays held in
+    /// `needs_intervention` for an operator, with the reason. An absence that
+    /// is not closed proves nothing about an execute request still on its way;
+    /// the job keeps its state and locks and the next recovery poll asks again.
     async fn settle_missing_receipt(
         &self,
         job: &StackJob,
         absence: Option<ReceiptAbsence>,
-        asked_at: i64,
+        closed: bool,
     ) -> Result<()> {
         let job = job.clone();
-        if absence == Some(ReceiptAbsence::NeverRecorded) {
-            if !execution_closed(job.plan.expires_at, asked_at) {
-                tracing::info!(
-                    "executor holds no receipt for a stack job whose plan is still valid; held until it expires"
-                );
-                return Ok(());
-            }
-            return self
-                .db
-                .call(move |s| s.record_stack_unsent(&job, now()))
-                .await;
+        if absence == Some(ReceiptAbsence::NeverRecorded) && !closed {
+            tracing::info!(
+                "executor holds no receipt for a stack job and has not closed it; held for the next lookup"
+            );
+            return Ok(());
         }
         tracing::warn!(
             "executor no longer holds a receipt for an uncertain stack job; held for an operator"
@@ -254,12 +245,38 @@ impl Core {
             .await
     }
 
-    /// After a failed ExecuteStack call, one receipt lookup decides. A lookup
-    /// that succeeds and finds no row is settled by `settle_missing_receipt`.
-    /// A failed lookup, or any row, keeps the stack held for reconciliation.
+    /// The receipt of a closure the lookup made: nothing was sent, and no
+    /// execute for this action can run any more. It releases the locks as
+    /// `precondition_changed`, like any refusal, once it matches the job.
+    async fn record_closure(
+        &self,
+        job: &StackJob,
+        digest: &str,
+        receipt: StackReceipt,
+    ) -> Result<()> {
+        if receipt.validate().is_err()
+            || receipt.action != job.id
+            || receipt.plan_digest != digest
+            || receipt.before != job.plan.expected
+            || receipt.operation != job.plan.operation
+            || receipt.state != ExecutionState::PreconditionChanged
+        {
+            self.mark_stack(job, JobState::NeedsIntervention).await?;
+            return Err(Error(ErrorCode::Conflict));
+        }
+        let job = job.clone();
+        self.db
+            .call(move |s| s.record_stack_result(&job, &receipt, None, now()))
+            .await
+            .map(|_| ())
+    }
+
+    /// After a failed ExecuteStack call, one closing receipt lookup decides.
+    /// A closure releases the job at once (`record_closure`); a lookup with no
+    /// receipt to act on is settled by `settle_missing_receipt`. A failed
+    /// lookup, or a receipt an execute wrote, keeps the stack held for
+    /// reconciliation.
     async fn release_if_unsent(&self, job: &StackJob, digest: &str) -> Result<()> {
-        // Read before the lookup: the executor's answer is no older than this.
-        let asked_at = now();
         let lookup = self
             .executor(
                 Request::StackReceipt {
@@ -267,17 +284,23 @@ impl Core {
                     action: job.id.clone(),
                     digest: digest.to_owned(),
                     plan: job.plan.clone(),
-                    close_if_absent: false,
+                    // Core has lost the answer: close the action if no execute
+                    // recorded it, so a delayed request cannot run later.
+                    close_if_absent: true,
                 },
                 limeos_contracts::RPC_DEADLINE,
             )
             .await;
         match lookup {
-            Ok(value) if value.stack.is_none() => {
-                self.settle_missing_receipt(job, value.absence, asked_at)
-                    .await
-            }
-            _ => self.mark_stack(job, JobState::NeedsIntervention).await,
+            Ok(value) => match value.stack {
+                None => {
+                    self.settle_missing_receipt(job, value.absence, value.closed)
+                        .await
+                }
+                Some(receipt) if value.closed => self.record_closure(job, digest, receipt).await,
+                Some(_) => self.mark_stack(job, JobState::NeedsIntervention).await,
+            },
+            Err(_) => self.mark_stack(job, JobState::NeedsIntervention).await,
         }
     }
 
@@ -291,10 +314,7 @@ impl Core {
         );
         let project = job.plan.expected.project()?.to_owned();
         let recovering = job.state != JobState::Queued;
-        let mut absence = None;
-        // Read before the recovery lookup below; an earlier read only errs
-        // towards holding the job (`settle_missing_receipt`).
-        let asked_at = now();
+        let (mut absence, mut closed) = (None, false);
         let receipt = if job.state == JobState::Queued {
             // Revocation, expiry and member drift are all decided before the
             // durable dispatch intent. A held lock leaves this job queued.
@@ -347,7 +367,10 @@ impl Core {
                 }
             }
         } else {
-            // Recovery is GET-like receipt lookup, never an effect request.
+            // Recovery is a receipt lookup, never an effect request. Core lost
+            // the execute answer (a crash or a failed call), so the lookup
+            // closes an action no execute recorded; a closure comes back as a
+            // `precondition_changed` receipt and releases the job below.
             let value = self
                 .executor(
                     Request::StackReceipt {
@@ -355,18 +378,18 @@ impl Core {
                         action: job.id.clone(),
                         digest: digest.clone(),
                         plan: job.plan.clone(),
-                        close_if_absent: false,
+                        close_if_absent: true,
                     },
                     limeos_contracts::RPC_DEADLINE,
                 )
                 .await?;
-            absence = value.absence;
+            (absence, closed) = (value.absence, value.closed);
             value.stack
         };
         let Some(mut receipt) = receipt else {
             if recovering {
-                // The lookup succeeded and the executor holds no row.
-                return self.settle_missing_receipt(&job, absence, asked_at).await;
+                // The lookup succeeded with no receipt to act on.
+                return self.settle_missing_receipt(&job, absence, closed).await;
             }
             self.mark_stack(&job, JobState::NeedsIntervention).await?;
             return Ok(());
