@@ -123,8 +123,15 @@ impl State {
         .with_remaining(self.catalog.remaining(at), self.engine.remaining(at))
     }
 }
+/// The clock a cache judges freshness by: the wall time (seconds since the
+/// Unix epoch) and the monotonic instant, read together.
+pub type Clock = fn() -> (i64, Instant);
+/// The system clocks, which every cache but a test's reads.
+fn system_clock() -> (i64, Instant) {
+    (super::now(), Instant::now())
+}
 #[derive(Clone)]
-pub struct Cache(Arc<RwLock<State>>);
+pub struct Cache(Arc<RwLock<State>>, Clock);
 impl Default for Cache {
     fn default() -> Self {
         Self::new()
@@ -132,15 +139,25 @@ impl Default for Cache {
 }
 impl Cache {
     pub fn new() -> Self {
-        let at = Instant::now();
-        Self(Arc::new(RwLock::new(State {
-            catalog: Source::new(at),
-            engine: Source::new(at),
-            wall_high_water: super::now(),
-        })))
+        Self::with_clock(system_clock)
+    }
+    /// A cache that reads `clock` wherever [`Cache::new`]'s reads the system
+    /// clocks. Core's unit tests (the soak) pass core's own clock, so its
+    /// stack proposals judge the cohort's freshness on simulated time.
+    pub fn with_clock(clock: Clock) -> Self {
+        let (wall, at) = clock();
+        Self(
+            Arc::new(RwLock::new(State {
+                catalog: Source::new(at),
+                engine: Source::new(at),
+                wall_high_water: wall,
+            })),
+            clock,
+        )
     }
     pub fn update(&self, cohort: &DiscoveryCohort) -> Result<()> {
-        self.update_at(cohort, super::now(), Instant::now())
+        let (wall, at) = (self.1)();
+        self.update_at(cohort, wall, at)
     }
     fn update_at(&self, cohort: &DiscoveryCohort, wall: i64, at: Instant) -> Result<()> {
         let mut state = self.0.write().unwrap_or_else(|e| e.into_inner());
@@ -184,7 +201,8 @@ impl Cache {
         state.engine.current = false;
     }
     pub fn cohort(&self) -> Result<DiscoveryCohort> {
-        self.cohort_at(super::now(), Instant::now())
+        let (wall, at) = (self.1)();
+        self.cohort_at(wall, at)
     }
     fn cohort_at(&self, wall: i64, at: Instant) -> Result<DiscoveryCohort> {
         let mut state = self.0.write().unwrap_or_else(|e| e.into_inner());
@@ -192,7 +210,7 @@ impl Cache {
         state.cohort(at)
     }
     pub fn snapshot(&self) -> Result<StackInventory> {
-        self.cohort()?.project(super::now())
+        self.cohort()?.project((self.1)().0)
     }
 }
 
