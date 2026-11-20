@@ -15,6 +15,7 @@ HASHES_CAPTURED=0
 WRITERS_RUNNING=0
 declare -A CURRENT_HASHES=()
 declare -A UNHASHABLE=()
+declare -A END_TREE=() END_SESSIONS=()
 
 fct_usage() {
     cat <<'USAGE'
@@ -28,8 +29,10 @@ verify. Rust units return to their snapshot state.
 It takes the snapshot's activate.lock without waiting (activate.sh's own rollback
 uses the lock it already holds). While an activation holds it, return.sh refuses
 and names that activation's pid: it rolls back by itself on failure, and
-kill -TERM <pid> makes it roll back now. --force goes on regardless, only for an
-activation that is hung.
+kill -TERM <pid> makes it roll back now. --force is for a hung activation: it
+first ends that activate.sh and every step it started (SIGKILL to the script so
+its own rollback cannot start, then TERM and KILL to its steps), and goes on only
+when all of them are gone; if any survives, it stops with nothing changed.
 USAGE
 }
 
@@ -93,11 +96,16 @@ fct_lock_snapshot() { # snap
     if [[ /proc/self/fd/9 -ef "${lock}" ]] && flock -n 9; then return 0; fi
     exec 9>>"${lock}" || fct_die "cannot open ${lock}"
     if ! flock -n 9; then
-        if (( FORCE )) && fct_live_holder "${lock}"; then
-            fct_warn "activate.sh (pid ${HOLDER_PID}) still holds ${lock}; going on because of --force"
-            return 0
+        # --force overrides only a current activate.sh record; never a stale one or another return.
+        if ! (( FORCE )) || ! fct_live_holder "${lock}" || [[ "${HOLDER_ROLE}" != activate ]]; then
+            fct_die "$(fct_lock_holder_text "${lock}")"
         fi
-        fct_die "$(fct_lock_holder_text "${lock}")"
+        fct_end_activation "${HOLDER_PID}" "${HOLDER_START}"
+        local deadline=$(( SECONDS + 5 ))
+        until flock -n 9; do
+            (( SECONDS < deadline )) || fct_die "--force: activate.sh has ended, but ${lock} is still held (find the holder: fuser -v ${lock}); nothing was changed on the host by this return"
+            fct_pause
+        done
     fi
     fct_record_holder "${lock}" return
 }
@@ -112,6 +120,58 @@ fct_check_stuck_step() { # snap
         fct_fail "the activation's step (pid ${pid}: ${command}) is still running and may still change packages or restart services. When it has exited (check: ps -o pid,stat,args -p ${pid}), run dpkg --audit, then dpkg --configure -a or dpkg --remove limeos as it reports, and run return.sh ${1} again"
     else
         fct_log "return: the activation's stuck step (pid ${pid:-?}: ${command:-?}) has exited since; run dpkg --audit to check the package state"
+    fi
+}
+
+# Live processes of the activation being ended: the holder and its descendants (pid and start
+# time as recorded), and anything in a session one of them leads (each step runs in its own,
+# and a step's children stay in it after their parent has gone).
+fct_end_targets() {
+    local pid ppid sid start state
+    while read -r pid ppid sid start state; do
+        [[ "${pid}" != "$$" && "${state}" != Z ]] || continue
+        if [[ "${END_TREE["${pid}"]:-}" == "${start}" || -n "${END_SESSIONS["${sid}"]:-}" ]]; then printf '%s\n' "${pid}"; fi
+    done < <(fct_proc_table)
+}
+
+# --force: end the activate.sh that holds the lock, and every step it started, before this
+# return changes anything, so a stalled step cannot resume behind it (restart the Rust
+# services, take port 8002 first). If any of it survives the last-resort signal, stop with
+# nothing changed: proceeding would race a process that may still install packages or start
+# services, and the operator who chose --force is there to wait for it and run again.
+fct_end_activation() { # holder_pid holder_start
+    local holder="${1}" table pid ppid sid start state grew=1 signal wait_s survivors
+    table="$(fct_proc_table)"
+    while read -r pid ppid sid start state; do
+        if [[ "${pid}" == "${holder}" ]]; then END_TREE["${pid}"]="${start}"; fi
+    done <<<"${table}"
+    [[ "${END_TREE["${holder}"]:-}" == "${2}" ]] || fct_die "--force: activate.sh (pid ${holder}) changed or exited while being checked; run return.sh again"
+    while (( grew )); do
+        grew=0
+        while read -r pid ppid sid start state; do
+            if [[ -n "${END_TREE["${ppid}"]:-}" && -z "${END_TREE["${pid}"]:-}" ]]; then END_TREE["${pid}"]="${start}"; grew=1; fi
+        done <<<"${table}"
+    done
+    while read -r pid ppid sid start state; do
+        if [[ -n "${END_TREE["${pid}"]:-}" && "${pid}" == "${sid}" ]]; then END_SESSIONS["${sid}"]=1; fi
+    done <<<"${table}"
+    fct_warn "--force: ending activate.sh (pid ${holder}) and its steps before returning"
+    # The holder at once with a real SIGKILL: TERM (or any signal bash can catch, since its EXIT
+    # trap makes bash catch them) would start its own rollback beside this one.
+    kill -s KILL "${holder}" 2>/dev/null || true
+    for signal in TERM "${KILL_SIGNAL}"; do
+        if [[ "${signal}" == TERM ]]; then wait_s=10; else wait_s=5; fi
+        while read -r pid; do kill -s "${signal}" "${pid}" 2>/dev/null || true; done < <(fct_end_targets)
+        local deadline=$(( SECONDS + wait_s ))
+        while [[ -n "$(fct_end_targets)" ]] && (( SECONDS < deadline )); do fct_pause; done
+    done
+    survivors=''
+    while read -r pid; do
+        read -r state < <(awk '{ sub(/^.*\) /, ""); print $1 }' "/proc/${pid}/stat" 2>/dev/null || echo '?')
+        survivors+="pid ${pid} (state ${state}) $(tr '\0' ' ' <"/proc/${pid}/cmdline" 2>/dev/null); "
+    done < <(fct_end_targets)
+    if [[ -n "${survivors}" ]]; then
+        fct_die "--force: still alive after SIG${KILL_SIGNAL}: ${survivors}nothing was changed on the host by this return (activate.sh itself was ended). Wait for these to exit (ps -o pid,stat,args -p PID), then run return.sh --force again"
     fi
 }
 

@@ -194,7 +194,6 @@ fct_finish_step() { # command text
         || fct_warn "could not record the stuck step in ${SNAP}/stuck-step"
     return 1
 }
-fct_pause() { read -r -t 0.2 <> <(:) || true; }
 
 # A signal during a step lets the step finish (bounded by STEP_GRACE) before the rollback;
 # anywhere else it rolls back at once.

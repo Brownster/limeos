@@ -88,6 +88,20 @@ fct_proc_start() { # pid
     printf '%s\n' "${fields[19]:-}"
 }
 
+# "PID PPID SID START STATE" for every process (from /proc/PID/stat; START as fct_proc_start).
+fct_proc_table() {
+    local stat_file stat pid
+    local -a fields=()
+    for stat_file in /proc/[0-9]*/stat; do
+        { IFS= read -r stat <"${stat_file}"; } 2>/dev/null || continue
+        pid="${stat_file#/proc/}"
+        pid="${pid%/stat}"
+        read -r -a fields <<<"${stat##*) }"
+        printf '%s %s %s %s %s\n' "${pid}" "${fields[1]}" "${fields[3]}" "${fields[19]}" "${fields[0]}"
+    done
+}
+fct_pause() { read -r -t 0.2 <> <(:) || true; }
+
 # The snapshot lock (SNAP/activate.lock, held on fd 9) records its holder as one line,
 # "ROLE PID START", written by whichever script takes it.
 fct_record_holder() { # lock role
@@ -100,6 +114,7 @@ fct_live_holder() { # lock
     { read -r role pid start <"${1}"; } 2>/dev/null || true
     HOLDER_ROLE="${role:-none}"
     HOLDER_PID="${pid:-?}"
+    HOLDER_START="${start:-?}"
     [[ "${pid}" =~ ^[0-9]+$ && "${start}" =~ ^[0-9]+$ ]] || return 1
     [[ "$(fct_proc_start "${pid}")" == "${start}" ]]
 }

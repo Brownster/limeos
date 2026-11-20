@@ -154,8 +154,13 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    names the activation's pid (each script records its role, pid and start time
    in `SNAP/activate.lock`; a record whose process has gone is reported as stale,
    never as a pid to signal). That run rolls back by itself if it fails;
-   `kill -TERM PID` makes it roll back now. `--force` goes on regardless and is
-   only for an activation that is hung. Otherwise: removes the Caddy
+   `kill -TERM PID` makes it roll back now. `--force` is only for an activation
+   that is hung: it first ends that `activate.sh` (SIGKILL, so its own rollback
+   cannot start alongside) and every step it started (TERM, then KILL after
+   10 s), and goes on only once all of them are gone. If any survives (a dpkg
+   in uninterruptible I/O), it stops having changed nothing else and lists
+   what is still alive: wait for it to exit, then run `return.sh --force` again.
+   It never acts on a stale holder record. Otherwise: removes the Caddy
    site, returns the Rust services to their snapshot state (stopped and disabled
    unless they were already running or enabled before the cutover), re-enables
    and starts the frozen units (helper, app, timers), then verifies state hashes,

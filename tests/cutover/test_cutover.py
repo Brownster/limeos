@@ -123,17 +123,30 @@ class Harness(unittest.TestCase):
         self._seed_host()
 
     @staticmethod
-    def kill_strays(stub_dir):
-        """SIGKILL every process whose environment carries this harness's STUB_DIR."""
+    def marked_pids(stub_dir):
+        """Live processes whose environment carries this harness's STUB_DIR."""
         marker = b"\0STUB_DIR=" + os.fsencode(str(stub_dir)) + b"\0"
+        found = []
         for entry in os.listdir("/proc"):
             if not entry.isdigit() or int(entry) == os.getpid():
                 continue
             try:
                 with open(f"/proc/{entry}/environ", "rb") as handle:
                     environ = b"\0" + handle.read()
-                if marker in environ:
-                    os.kill(int(entry), signal.SIGKILL)
+                with open(f"/proc/{entry}/stat") as handle:
+                    state = handle.read().rsplit(") ", 1)[1].split()[0]
+            except OSError:
+                continue
+            if marker in environ and state != "Z":
+                found.append(int(entry))
+        return found
+
+    @classmethod
+    def kill_strays(cls, stub_dir):
+        """SIGKILL every process whose environment carries this harness's STUB_DIR."""
+        for pid in cls.marked_pids(stub_dir):
+            try:
+                os.kill(pid, signal.SIGKILL)
             except OSError:
                 pass
 
@@ -1028,7 +1041,7 @@ class ActivateTests(Harness):
         self.assertIn("port 8002 does not serve the frozen app", result.stderr)
         self.assertIn("ROLLBACK INCOMPLETE: follow docs/p06-cutover-runbook.md", result.stderr)
 
-    def test_return_refuses_while_an_activation_holds_the_lock_unless_forced(self):
+    def test_return_refuses_while_an_activation_holds_the_lock(self):
         self.passing_snapshot()
         reached, go = self.block_at_core_start()
         args = self.activate_args("--yes-i-have-operator-approval", "--attached")
@@ -1044,14 +1057,60 @@ class ActivateTests(Harness):
         self.assertIn(f"kill -TERM {first.pid}", result.stderr)
         self.assertIn("return.sh --force", result.stderr)
         self.assertEqual(len(self.mutating_calls()), calls_before)
-        # A hung activation: --force goes ahead and says so.
+        # (--force is covered by test_forced_return_ends_the_stalled_activation_first.)
+        go.touch()
+        out, err = first.communicate(timeout=60)
+        self.assertEqual(first.returncode, 0, out + err)
+
+    def stalled_activation(self, hook_body=""):
+        """An attached activation stuck for good inside `systemctl start limeos-core.service`."""
+        self.passing_snapshot()
+        reached = self.stub / "reached"
+        hook = self.stub / "hook-start-limeos-core.service"
+        hook.write_text(f"#!/usr/bin/env bash\n{hook_body}\ntouch '{reached}'\n"
+                        "while :; do command -p sleep 0.05; done\n")
+        hook.chmod(0o755)
+        args = self.activate_args("--yes-i-have-operator-approval", "--attached")
+        args[0] = str(self.snap)
+        first = subprocess.Popen(
+            ["bash", str(SCRIPTS / "activate.sh"), *args], env={**self.env, "CUTOVER_NOW": str(NOW + 60)},
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        self.wait_for(reached.exists)
+        return first
+
+    def test_forced_return_ends_the_stalled_activation_first(self):
+        first = self.stalled_activation()
+        self.assertTrue(self.marked_pids(self.stub))
         result = self.do_return("--force")
-        self.assertIn(f"activate.sh (pid {first.pid}) still holds", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f"--force: ending activate.sh (pid {first.pid}) and its steps before returning", result.stderr)
+        # The activation and its stalled step are gone, and the activation never ran its own rollback.
+        self.assertEqual(self.marked_pids(self.stub), [])
+        _, err = first.communicate(timeout=10)
+        self.assertEqual(first.returncode, -signal.SIGKILL)
+        self.assertNotIn("ROLLBACK", err)
+        self.assertEqual((self.snap / "activate.lock").read_text().split()[0], "return")
         for name in FROZEN:
             self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
-        os.killpg(first.pid, signal.SIGKILL)  # the "hung" activation; its blocked step goes with the cleanup
-        go.touch()
-        first.communicate(timeout=30)
+        for name in RUST:
+            self.assertEqual(self.unit_state(name), ("inactive", "disabled"), name)
+        self.assertEqual(self.unit_state("caddy.service"), ("inactive", "disabled"))
+        self.assertIn(":8002 ", (self.stub / "ss_out").read_text())
+
+    def test_forced_return_stops_when_part_of_the_activation_survives(self):
+        # The step's helper ignores TERM and the last-resort signal (SIGUSR2 standing in for a
+        # KILL that cannot take effect yet), so the forced return must not go ahead.
+        first = self.stalled_activation(hook_body="trap '' TERM USR2")
+        calls_before = len(self.mutating_calls())
+        self.env["CUTOVER_KILL_SIGNAL"] = "USR2"
+        result = self.do_return("--force")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertRegex(result.stderr, r"still alive after SIGUSR2: pid \d+ \(state \w+\)")
+        self.assertIn("nothing was changed", result.stderr)
+        self.assertEqual(len(self.mutating_calls()), calls_before)
+        self.assertTrue(self.marked_pids(self.stub))  # the survivor, left for the operator to see
+        # The activation itself was ended with SIGKILL, so it could not start its own rollback.
+        self.assertEqual(first.wait(timeout=10), -signal.SIGKILL)
 
     def test_health_failures_roll_back(self):
         base = {
