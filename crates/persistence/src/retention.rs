@@ -36,6 +36,12 @@
 //!   policy-check proofs. Any other job-less `automation_*` kind is pinned too
 //!   unless listed in [`UNREAD_AUTOMATION_KINDS`], so a future kind fails safe.
 //!
+//! Authority events ([`AUTHORITY_KINDS`]) are a class of their own: the events
+//! rule never removes them, whatever the pressure from bulk history. Their own
+//! rule keeps the newest [`AUTHORITY_BUDGET`] and removes older ones oldest
+//! first, skipping any whose job still has its history, so it never leaves a
+//! gap in a retained job.
+//!
 //! Every batch removes at most its limit of rows, oldest first by cursor, so a
 //! job with a long history (a health probe cycling through `verifying` and
 //! `outcome_unknown`) is removed over several passes. A job's `job_queued`
@@ -76,6 +82,11 @@ const EVENT_BATCH: i64 = 1024;
 /// rows a minute, which one batch removes.
 const OCCURRENCE_BUDGET: i64 = 1024;
 const OCCURRENCE_BATCH: i64 = 512;
+/// Authority events kept: 1 MiB of the cap, decades of administration at any
+/// plausible rate (a few enrolments, imports and grant revisions, and a
+/// resolution request per intervention).
+const AUTHORITY_BUDGET: i64 = 4096;
+const AUTHORITY_BATCH: i64 = 256;
 pub(super) const INTERVAL: Duration = Duration::from_secs(60);
 
 /// Job-less automation kinds that a startup check or live read depends on.
@@ -96,14 +107,37 @@ const UNREAD_AUTOMATION_KINDS: [&str; 2] = [
     "automation_occurrence_settled",
 ];
 
-/// A job-less event that no check reads: any kind outside the automation
-/// family, or an automation kind listed as unread.
-fn loose() -> String {
-    let unread = UNREAD_AUTOMATION_KINDS
+/// Low-volume, high-value events, kept apart from the bulk: who issued a
+/// bootstrap token, who enrolled or imported an administrator, who revised
+/// grants, and what was declared in a resolution request and that it was
+/// withdrawn (a withdrawn request's row is deleted, so its events are the only
+/// record). Not `task_issued`: once assistant tasks issue tokens it is one per
+/// task, for authority that expires within the hour and with the core
+/// generation. Not session events, the bulk of the table.
+pub(super) const AUTHORITY_KINDS: [&str; 6] = [
+    "bootstrap_issued",
+    "administrator_enrolled",
+    "legacy_identity_imported",
+    "grants_revised",
+    "job_resolution_requested",
+    "job_resolution_withdrawn",
+];
+fn quoted(kinds: &[&str]) -> String {
+    kinds
+        .iter()
         .map(|kind| format!("'{kind}'"))
-        .join(",");
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// A job-less event that no check reads and that is not an authority event:
+/// any other kind outside the automation family, or an automation kind listed
+/// as unread.
+fn loose() -> String {
+    let unread = quoted(&UNREAD_AUTOMATION_KINDS);
+    let authority = quoted(&AUTHORITY_KINDS);
     format!(
-        "e.job IS NULL AND (json_extract(e.kind,'$.kind') NOT GLOB 'automation_*' OR json_extract(e.kind,'$.kind') IN ({unread}))"
+        "e.job IS NULL AND (json_extract(e.kind,'$.kind') NOT GLOB 'automation_*' OR json_extract(e.kind,'$.kind') IN ({unread})) AND json_extract(e.kind,'$.kind') NOT IN ({authority})"
     )
 }
 /// True while the job of the `events` row in scope still has its whole
@@ -123,13 +157,20 @@ struct Rule {
     rows: fn(&Connection) -> Result<i64>,
     prune: fn(&Transaction<'_>, i64) -> Result<i64>,
 }
-const RULES: [Rule; 2] = [
+const RULES: [Rule; 3] = [
     Rule {
         table: "events",
         budget: EVENT_BUDGET / EVENT_BYTES,
         batch: EVENT_BATCH,
         rows: audited_events,
         prune: prune_events,
+    },
+    Rule {
+        table: "authority events",
+        budget: AUTHORITY_BUDGET,
+        batch: AUTHORITY_BATCH,
+        rows: authority_events,
+        prune: prune_authority,
     },
     Rule {
         table: "automation_occurrences",
@@ -221,6 +262,18 @@ fn audited_events(conn: &Connection) -> Result<i64> {
     Ok(bytes / EVENT_BYTES)
 }
 
+fn authority_events(conn: &Connection) -> Result<i64> {
+    conn.query_row(
+        &format!(
+            "SELECT count(*) FROM events WHERE json_extract(kind,'$.kind') IN ({})",
+            quoted(&AUTHORITY_KINDS)
+        ),
+        [],
+        |r| r.get(0),
+    )
+    .map_err(durable)
+}
+
 fn occurrences(conn: &Connection) -> Result<i64> {
     conn.query_row("SELECT count(*) FROM automation_occurrences", [], |r| {
         r.get(0)
@@ -243,7 +296,16 @@ fn loose_candidates() -> String {
 /// table, are never visited.
 fn settled_candidates() -> String {
     format!(
-        "SELECT e.cursor FROM jobs j CROSS JOIN events e ON e.job=j.id WHERE {SETTLED} ORDER BY e.cursor LIMIT ?"
+        "SELECT e.cursor FROM jobs j CROSS JOIN events e ON e.job=j.id WHERE {SETTLED} AND json_extract(e.kind,'$.kind') NOT IN ({}) ORDER BY e.cursor LIMIT ?",
+        quoted(&AUTHORITY_KINDS)
+    )
+}
+/// The oldest authority events, through `events_kind`, except those of a job
+/// that still has its history.
+fn authority_candidates() -> String {
+    format!(
+        "SELECT cursor FROM events WHERE json_extract(kind,'$.kind') IN ({}) AND (job IS NULL OR NOT {RETAINED_HISTORY}) ORDER BY cursor LIMIT ?",
+        quoted(&AUTHORITY_KINDS)
     )
 }
 
@@ -288,6 +350,30 @@ fn prune_events(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
     #[cfg(test)]
     tests::pause_mid_batch();
     removed += delete(settled)?;
+    let removed = i64::try_from(removed).map_err(|_| Error(ErrorCode::StateNotDurable))?;
+    account(tx, -removed)?;
+    Ok(removed)
+}
+
+/// Removes the oldest `limit` authority events that may go (see
+/// [`authority_candidates`]); only ever called above [`AUTHORITY_BUDGET`].
+fn prune_authority(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
+    let cursors: Vec<i64> = tx
+        .prepare(&authority_candidates())
+        .map_err(durable)?
+        .query_map([limit], |r| r.get(0))
+        .map_err(durable)?
+        .collect::<std::result::Result<_, _>>()
+        .map_err(durable)?;
+    if cursors.is_empty() {
+        return Ok(0);
+    }
+    let removed = tx
+        .execute(
+            "DELETE FROM events WHERE cursor IN (SELECT value FROM json_each(?))",
+            [json(&cursors)?],
+        )
+        .map_err(durable)?;
     let removed = i64::try_from(removed).map_err(|_| Error(ErrorCode::StateNotDurable))?;
     account(tx, -removed)?;
     Ok(removed)

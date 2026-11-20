@@ -54,6 +54,19 @@ fn pinned_loose(store: &Store) -> Vec<(i64, String)> {
         .collect::<std::result::Result<_, _>>()
         .unwrap()
 }
+fn authority(store: &Store) -> Vec<(i64, String)> {
+    store
+        .conn
+        .prepare(&format!(
+            "SELECT cursor,kind FROM events WHERE json_extract(kind,'$.kind') IN ({}) ORDER BY cursor",
+            quoted(&AUTHORITY_KINDS)
+        ))
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .collect::<std::result::Result<_, _>>()
+        .unwrap()
+}
 fn audit(store: &Store) -> i64 {
     store.audit_usage().unwrap().bytes
 }
@@ -84,8 +97,31 @@ fn pinned_kind_lists_match_the_sql() {
     }
     // A kind no list knows about fails safe.
     assert!(!loose("automation_future_proof"));
-    for kind in ["session_created", "task_revoked", "plan_created"] {
+    for kind in [
+        "session_created",
+        "session_revoked",
+        "task_issued",
+        "task_revoked",
+        "plan_created",
+    ] {
         assert!(loose(kind));
+    }
+    // Authority events are their own class, never bulk.
+    for kind in AUTHORITY_KINDS {
+        assert!(!loose(kind), "{kind} is an authority event");
+    }
+    for kind in [
+        EventKind::BootstrapIssued,
+        EventKind::AdministratorEnrolled,
+        EventKind::LegacyIdentityImported,
+        EventKind::GrantsRevised,
+        EventKind::JobResolutionRequested {
+            declared: limeos_domain::DeclaredOutcome::NotDone,
+        },
+        EventKind::JobResolutionWithdrawn,
+    ] {
+        let value: serde_json::Value = serde_json::from_str(&json(&kind).unwrap()).unwrap();
+        assert!(AUTHORITY_KINDS.contains(&value["kind"].as_str().unwrap()));
     }
     // Every job-less automation kind the store writes is in one of the lists.
     for kind in [
@@ -175,9 +211,37 @@ fn ten_times_the_audit_cap_keeps_the_store_opening_and_writing() {
         .transition(&requested, JobState::Running, JobState::Failed, base)
         .unwrap();
     let settled = probe(&mut store, &actor, "settled", "settled", base);
+    // A withdrawn resolution request on a job that settles later: its events
+    // are the only record of it and outlive the job's history.
+    store
+        .write(|tx| {
+            event(
+                tx,
+                Some(&actor.id),
+                Some(&settled),
+                EventKind::JobResolutionRequested {
+                    declared: limeos_domain::DeclaredOutcome::NotDone,
+                },
+                base,
+            )?;
+            event(
+                tx,
+                Some(&actor.id),
+                Some(&settled),
+                EventKind::JobResolutionWithdrawn,
+                base,
+            )
+        })
+        .unwrap();
     store
         .transition(&settled, JobState::Queued, JobState::Canceled, base)
         .unwrap();
+    store
+        .import_legacy_user("bob", "pbkdf2:sha256:1000000$IgjABokZwwl2gggv$686315920b24fb807abeb0a436ce6385be3f3026e35d934ffbaf15be1a0e7ce1", base)
+        .unwrap();
+    let granted = authority(&store);
+    // Enrolment, the grant revision, the request, its withdrawal, the import.
+    assert_eq!(granted.len(), 6);
     let kept: Vec<_> = [&automation.id, &held, &queued, &stuck, &requested]
         .into_iter()
         .map(|job| (job.clone(), job_events(&store, job)))
@@ -215,7 +279,9 @@ fn ten_times_the_audit_cap_keeps_the_store_opening_and_writing() {
         assert!(job_events(&store, job).starts_with(rows));
     }
     assert_eq!(pinned_loose(&store), loose);
-    assert!(job_events(&store, &settled).is_empty());
+    // Bulk pressure evicted no authority event, not even the pruned job's.
+    assert_eq!(authority(&store), granted);
+    assert_eq!(job_events(&store, &settled).len(), 2);
     assert_eq!(store.job_state(&settled).unwrap(), "canceled");
     assert_eq!(store.job_state(&stuck).unwrap(), "needs_intervention");
     drop(store);
@@ -578,6 +644,48 @@ fn a_kill_between_passes_leaves_a_pruned_job_and_resumes() {
     Store::open(&path).unwrap();
 }
 
+/// Over its budget, the authority class loses its oldest events and nothing
+/// else, and never an event of a job whose history is still retained.
+#[test]
+fn authority_events_are_pruned_only_against_their_own_budget() {
+    let (_dir, mut store, actor) = setup();
+    let open = container(&mut store, &actor, "open", "e");
+    store
+        .write(|tx| {
+            event(
+                tx,
+                Some(&actor.id),
+                Some(&open),
+                EventKind::JobResolutionWithdrawn,
+                300,
+            )
+        })
+        .unwrap();
+    let enrolment = authority(&store);
+    assert_eq!(enrolment.len(), 4);
+    let kind = json(&EventKind::GrantsRevised).unwrap();
+    store
+        .write(|tx| {
+            let added = tx.execute("WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<?) INSERT INTO events(principal,job,kind,created) SELECT ?,NULL,?,301 FROM c", params![AUTHORITY_BUDGET + 6, actor.id, kind]).map_err(durable)?;
+            account(tx, added as i64)
+        })
+        .unwrap();
+    let before = authority(&store);
+    let bulk = events(&store) - before.len() as i64;
+    assert_eq!(store.prune().unwrap(), vec![("authority events", 10)]);
+    let after = authority(&store);
+    assert_eq!(after.len() as i64, AUTHORITY_BUDGET);
+    // Oldest first: enrolment's three job-less events and the seven oldest
+    // revisions; the open job's withdrawal stays with its history.
+    let removed: Vec<_> = before.iter().filter(|row| !after.contains(row)).collect();
+    assert_eq!(removed.len(), 10);
+    assert!(enrolment[..3].iter().all(|row| removed.contains(&row)));
+    assert!(after.contains(&enrolment[3]));
+    assert_eq!(events(&store) - after.len() as i64, bulk);
+    assert_eq!(audit(&store), events(&store) * EVENT_BYTES);
+    assert!(store.prune().unwrap().is_empty());
+}
+
 /// The plans of both candidate queries: job-less rows through `events_job`,
 /// settled jobs through `jobs_state` and then their events through
 /// `events_job`. No step scans the events table.
@@ -641,13 +749,13 @@ fn a_pass_does_not_rescan_pinned_history() {
         .transition(&settled, JobState::Queued, JobState::Canceled, 302)
         .unwrap();
     fill(&mut store, &actor.id, 16, 303);
-    for (sql, expected) in [(loose_candidates(), 16 + 3), (settled_candidates(), 2)] {
+    for (sql, expected) in [(loose_candidates(), 16), (settled_candidates(), 2)] {
         let mut stmt = store.conn.prepare(&sql).unwrap();
         let rows = stmt
             .query_map([EVENT_BATCH], |r| r.get::<_, i64>(0))
             .unwrap()
             .count();
-        // Enrolment's three job-less events are prunable too.
+        // Enrolment's job-less events are authority events, not bulk.
         assert_eq!(rows, expected);
         let steps = stmt.get_status(rusqlite::StatementStatus::VmStep);
         assert!(steps < 2_000, "{steps} steps for {rows} rows: {sql}");
