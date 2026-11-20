@@ -14,6 +14,13 @@ test = false
 
 [features]
 read-worker-probe = []
+# Code with no production caller; see docs/deferred-code.md.
+deferred = [
+    "limeos-domain/deferred",
+    "limeos-executor-container/deferred",
+    "limeos-executor-storage/deferred",
+    "limeos-observations/deferred",
+]
 
 [[bin]]
 name = "limeos-read-worker-probe"

@@ -9,6 +9,13 @@ publish.workspace = true
 [lints]
 workspace = true
 
+# Deferred code stays out of the shipped binary; see docs/deferred-code.md.
+[features]
+deferred = [
+    "limeos-domain/deferred",
+    "limeos-observations/deferred",
+]
+
 [dependencies]
 limeos-observations = { path = "../../crates/observations", version = "=0.2.0" }
 limeos-api = { path = "../../crates/api", version = "=0.2.0" }

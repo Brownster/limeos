@@ -9,6 +9,10 @@ publish.workspace = true
 [lints]
 workspace = true
 
+# Planners with no production caller; see docs/deferred-code.md.
+[features]
+deferred = []
+
 [dependencies]
 serde.workspace = true
 schemars.workspace = true
