@@ -1178,8 +1178,15 @@ async fn a_stalled_writer_fails_calls_at_their_deadline_and_shows_how_long_it_ha
     let mut db = Database::open(&d.path().join("core.sqlite")).unwrap();
     db.deadline = Duration::from_millis(300);
     assert_eq!(db.call(|_| Ok(1)).await, Ok(1));
-    let idle = db.writer_activity();
-    assert_eq!((idle.busy_for, idle.queued), (None, 0));
+    // The answer is sent from inside the item, so the writer marks itself
+    // idle just after; then it waits with nothing to report.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while db.writer_activity() != WriterActivity::default() {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("an idle writer reports nothing");
     let (release, stuck) = std::sync::mpsc::channel::<()>();
     let (entered, started) = std::sync::mpsc::channel::<()>();
     let blocker = db.clone();
