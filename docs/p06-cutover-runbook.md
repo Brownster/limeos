@@ -96,23 +96,33 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    ahead with a TIMEOUT line naming the step. If even SIGKILL has not ended it
    after 5 s (a dpkg stuck in uninterruptible I/O), the rollback starts anyway:
    the TIMEOUT line names its pid and `SNAP/stuck-step` records it. `return.sh`
-   then fails with that pid if it is still alive. Wait for it to exit
+   then fails with that pid if it is still alive, and a later `return.sh` refuses
+   while it is (see step 7). Wait for it to exit
    (`ps -o pid,stat,args -p PID`), run `dpkg --audit`, then `dpkg --configure -a`
    or `dpkg --remove limeos` as it reports, and run `return.sh SNAP` again. The rollback runs once and ignores further signals until it ends.
-   It runs detached: after the snapshot check it starts itself again in a new
-   session (`systemd-run --scope`, then `setsid`), appends its output to
+   The step is signalled by its process group, which a helper process in that
+   group keeps from being reused until the script has finished with the step.
+   Every activation runs inside a transient systemd scope named for the
+   snapshot, `limeos-cutover-activate-<snapshot>-<checksum>.scope` (printed at the
+   start and recorded in `SNAP/activate.lock`); everything it starts, steps and
+   rollback included, stays in that scope. `systemd-run` is required, with
+   `--attached` too; if it is missing or cannot create the scope, nothing has
+   changed.
+   It runs detached: after the snapshot check it starts itself again in that
+   scope and a new session (`setsid`), appends its output to
    `SNAP/activate.log` and the terminal only follows that log, so a dropped SSH
-   session does not stop it. `systemd-run` is required; if it is missing or
-   fails, nothing has changed. Reconnect and read the log, or `tail -f` it.
+   session does not stop it. Reconnect and read the log, or `tail -f` it.
    Signals: Ctrl-C in the following terminal rolls the run back (passed on as
    SIGTERM); SIGTERM or SIGHUP to the follower only stops following and the run
    carries on; the run itself rolls back on SIGINT, SIGTERM or SIGHUP, so with
    the terminal gone, `kill -TERM` the pid it printed at the start.
-   `--attached` keeps it in the foreground (inside tmux or screen, or for tests).
+   `--attached` keeps it in the foreground (inside tmux or screen, or for tests):
+   the same process enters the scope and keeps the terminal.
    One run per snapshot: while a run holds `SNAP/activate.lock` a second
    `activate.sh` on that snapshot is refused. After a completed activation the
-   snapshot is marked `SNAP/activated`; rerunning on it, or activating while the
-   cutover Caddy site exists, is refused before any change. After `return.sh`,
+   snapshot is marked `SNAP/activated`; rerunning on it, activating while the
+   cutover Caddy site exists, or activating while `SNAP/force-takeover` records an
+   unfinished `return.sh --force`, is refused before any change. After `return.sh`,
    a new activation needs a new preflight.
 5. Measure, once `activate.sh` has passed its health checks and the host is idle:
    `scripts/cutover/measure.sh --host HOST [--port 8002] [--out DIR] [--window 600]`.
@@ -150,17 +160,47 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    criterion. Keep `report.json` with the cutover evidence.
 6. Log in through the browser (trust the Caddy CA first under `internal`).
 7. `scripts/cutover/return.sh SNAP [--dry-run] [--force]` at any time, except
-   while an activation on that snapshot is still running: then it refuses and
-   names the activation's pid (each script records its role, pid and start time
-   in `SNAP/activate.lock`; a record whose process has gone is reported as stale,
-   never as a pid to signal). That run rolls back by itself if it fails;
-   `kill -TERM PID` makes it roll back now. `--force` is only for an activation
-   that is hung: it first ends that `activate.sh` (SIGKILL, so its own rollback
-   cannot start alongside) and every step it started (TERM, then KILL after
-   10 s), and goes on only once all of them are gone. If any survives (a dpkg
-   in uninterruptible I/O), it stops having changed nothing else and lists
-   what is still alive: wait for it to exit, then run `return.sh --force` again.
-   It never acts on a stale holder record. Otherwise: removes the Caddy
+   while an activation on that snapshot is still running. Only one `return.sh`
+   runs per snapshot: each takes `SNAP/return.lock` first and holds it to the end,
+   so a second one is refused and names the first. Then it takes
+   `SNAP/activate.lock`; while an activation holds that, it refuses and names the
+   activation's pid and scope (each script records its role, pid and start time
+   in the locks; a record whose process has gone is reported as stale, never as a
+   pid to signal). That run rolls back by itself if it fails; `kill -TERM PID`
+   makes it roll back now. It also refuses while the activation's scope still
+   has processes after `activate.sh` itself has gone (a step it left behind), and
+   lists them.
+
+   `--force` is only for an activation that is hung. It ends the activation by its
+   scope, never by pid: `systemctl kill --kill-whom=all --signal=KILL UNIT`
+   reaches `activate.sh`, its automatic rollback and every step, including any
+   started a moment before, and nothing outside the scope (a backup started from
+   the same shell is untouched). It then waits up to 15 s for the scope to empty
+   and only then takes `activate.lock` and returns, holding `return.lock` the
+   whole time. If the activation was inside dpkg, run `dpkg --audit` afterwards.
+   Before the kill it writes `SNAP/force-takeover` and removes it once the scope
+   is empty.
+
+   If the scope does not empty (a process in uninterruptible I/O, such as dpkg
+   waiting on a failing disk, cannot exit until that I/O ends), `--force` stops
+   having changed nothing else and holding no lock, and prints one message: the
+   unit, each process still in it (pid, state, command; one that exits while the
+   list is made is shown as such), that the activation's automatic rollback was
+   ended and the old service is still stopped, and the next step: wait until
+   `systemctl is-active UNIT` prints `inactive`, then run `return.sh SNAP --force`
+   again. Until then a plain `return.sh` explains that an earlier forced return
+   did not finish (instead of reporting a stale lock), and a new activation is
+   refused. Once the scope is empty, a plain `return.sh` completes the return too.
+   To inspect the unit:
+
+   ```sh
+   systemctl status limeos-cutover-activate-...scope     # name from the message or SNAP/activate.lock
+   systemd-cgls --unit limeos-cutover-activate-...scope
+   cat /sys/fs/cgroup/system.slice/limeos-cutover-activate-...scope/cgroup.procs
+   ps -o pid,stat,wchan:32,args -p PID                   # state D: waiting on I/O
+   ```
+
+   Otherwise: removes the Caddy
    site, returns the Rust services to their snapshot state (stopped and disabled
    unless they were already running or enabled before the cutover), re-enables
    and starts the frozen units (helper, app, timers), then verifies state hashes,
