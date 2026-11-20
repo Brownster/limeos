@@ -83,6 +83,7 @@ pub struct EngineStorageProcessSnapshot {
     running: Vec<EngineRunningProcess>,
 }
 
+#[cfg(feature = "deferred")]
 /// Stable declared facts for a review identity; original observation age stays separate.
 #[derive(Serialize)]
 pub(crate) struct EngineReviewFacts<'a> {
@@ -110,6 +111,7 @@ pub struct EngineStorageProcessEvidence {
     _launch: Option<Scope>,
 }
 impl EngineStorageProcessEvidence {
+    #[cfg(feature = "deferred")]
     pub(crate) fn review_facts(&self) -> EngineReviewFacts<'_> {
         EngineReviewFacts {
             version: self.snapshot.version,

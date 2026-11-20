@@ -1,5 +1,6 @@
 use super::*;
 
+#[cfg(feature = "deferred")]
 impl ComposeFileEvidence {
     pub(crate) fn exhaust_local_reads(&self) {
         self.budget.spent.store(READ_BYTES, Ordering::Relaxed);
@@ -33,6 +34,7 @@ fn refusal<T>(result: Result<T>, code: ErrorCode) {
     }
 }
 
+#[cfg(feature = "deferred")]
 fn json_fixture(managed: bool) -> Fixture {
     let f = Fixture::new(ComposeFileName::ComposeYaml, managed);
     f.write(
@@ -48,6 +50,7 @@ fn json_fixture(managed: bool) -> Fixture {
     f
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn typed_body_read_uses_original_ledger_and_preserves_issues_and_descriptors() {
     for managed in [false, true] {
@@ -75,6 +78,7 @@ fn typed_body_read_uses_original_ledger_and_preserves_issues_and_descriptors() {
     }
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn held_body_reads_charge_requested_bytes_and_eof_and_refuse_changed_bytes() {
     let f = json_fixture(false);
@@ -106,6 +110,7 @@ fn held_body_reads_charge_requested_bytes_and_eof_and_refuse_changed_bytes() {
     );
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn typed_admission_parse_failure_cancel_expiry_reentrancy_and_unwind_poison() {
     let f = Fixture::new(ComposeFileName::ComposeYaml, false);
@@ -158,6 +163,7 @@ fn typed_admission_parse_failure_cancel_expiry_reentrancy_and_unwind_poison() {
     }
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn late_named_replacement_after_body_admission_refuses_and_poisoned_owner_cannot_retry() {
     let f = json_fixture(false);
@@ -185,6 +191,7 @@ fn late_named_replacement_after_body_admission_refuses_and_poisoned_owner_cannot
     refusal(f.validate(&e, 101, &|| false), ErrorCode::Conflict);
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn held_body_maximum_sentinel_growth_and_identity_change_during_read_refuse() {
     let f = json_fixture(false);

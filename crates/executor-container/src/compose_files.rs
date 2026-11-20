@@ -268,6 +268,7 @@ impl ComposeFileEvidence {
     pub fn retained_descriptor_count(&self) -> usize {
         1 + usize::from(self.root.view.is_some()) + self.ancestors.len() + self.files.len()
     }
+    #[cfg(feature = "deferred")]
     // Typed, crate-private admission only. Original policy, lease and ledger apply.
     pub(crate) fn admit_json_sources(
         &self,
@@ -275,6 +276,7 @@ impl ComposeFileEvidence {
     ) -> Result<crate::compose_source::ComposeJsonSources> {
         self.admit_json_with(cancelled, host_root, now)
     }
+    #[cfg(feature = "deferred")]
     fn admit_json_with(
         &self,
         cancelled: &dyn Fn() -> bool,
@@ -310,7 +312,7 @@ impl ComposeFileEvidence {
         })?;
         admitted.ok_or_else(unavailable)
     }
-    #[cfg(test)]
+    #[cfg(all(test, feature = "deferred"))]
     pub(crate) fn admit_json_local(
         &self,
         root: &Path,
@@ -488,6 +490,7 @@ impl ComposeFileEvidence {
     }
 }
 
+#[cfg(feature = "deferred")]
 fn read_body(
     file: &File,
     owner: u32,

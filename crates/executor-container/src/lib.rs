@@ -8,6 +8,7 @@ pub use limeos_domain::{
 };
 pub mod compose_files;
 pub mod compose_management;
+#[cfg(feature = "deferred")]
 pub mod compose_source;
 pub mod deployment;
 pub mod docker;
