@@ -3,6 +3,22 @@
 //! route core does not implement fails to compile instead of answering 503.
 use super::*;
 
+/// A live session as core reports it, for fakes whose credentials are all
+/// valid: the gate asks for it only before releasing an input or load
+/// refusal (`gate::authenticated_refusal`), never for authority, which
+/// stays in the call that does the work.
+pub(crate) fn live_session() -> Result<SessionView> {
+    Ok(SessionView {
+        principal: limeos_domain::Principal {
+            id: "fixture".into(),
+            role: limeos_domain::Role::Viewer,
+            grant_revision: 1,
+        },
+        csrf_token: "c".repeat(64),
+        expires_at: i64::MAX,
+    })
+}
+
 pub(crate) trait TestBackend: Clone + Send + Sync + 'static {
     /// Where every method a fake does not override lands, with its name and
     /// the credentials the route handed it. Unavailable by default.

@@ -577,7 +577,25 @@ async fn every_route_is_authenticated_by_core_itself() {
         } else if !NO_SCOPE_NEEDED.contains(&name.as_str()) {
             cases.push((Ask::signed(&sweep.viewer), 403, "signed in without scope"));
         }
-        for (ask, status, case) in cases {
+        let mut cases: Vec<_> = cases.into_iter().map(|(a, s, c)| (a, s, c, body)).collect();
+        if mutate && body.is_some() {
+            // The CSRF value is verified before an input refusal is released,
+            // and that refusal reaches only an authenticated caller.
+            let admin = Ask::signed(&sweep.admin);
+            cases.extend([
+                (
+                    Ask {
+                        csrf: Some(WRONG_CSRF),
+                        ..admin
+                    },
+                    403,
+                    "wrong CSRF, body not JSON",
+                    Some("not json"),
+                ),
+                (admin, 400, "body not JSON", Some("not json")),
+            ]);
+        }
+        for (ask, status, case, body) in cases {
             let before = state(&sweep.db);
             let answer = send(&sweep.core, route, &uri, ask, body).await;
             refused(&answer, status, case);
@@ -654,4 +672,64 @@ async fn a_signed_in_scoped_request_passes_the_gate_in_each_access_class() {
     )
     .await;
     assert_eq!(answer.status, 200, "{answer:?}");
+}
+
+/// What an unauthenticated caller may learn from any route: that it is not
+/// signed in, and nothing that depends on its input or the server's state.
+#[tokio::test]
+async fn no_route_answers_an_unauthenticated_request_from_its_input_or_server_state() {
+    let expected = Answer {
+        status: 401,
+        envelope: Some((
+            "unauthenticated".into(),
+            "Authentication is required.".into(),
+            false,
+        )),
+    };
+    // With and without a compose catalog: core must not consult it first.
+    for catalog in [true, false] {
+        let sweep = fixture(catalog).await;
+        for route in limeos_api::routes::<Core>() {
+            if route.access == Access::Public {
+                continue;
+            }
+            let name = format!("{} {}", route.method, route.path);
+            let mutate = route.access == Access::Mutate;
+            let good = uri(route.path);
+            let mut inputs: Vec<(String, Option<String>, &str)> = vec![(
+                good.clone(),
+                if mutate { body(route.path) } else { None },
+                "valid input",
+            )];
+            if mutate {
+                inputs.push((
+                    good.clone(),
+                    Some(r#"{"unexpected":true}"#.into()),
+                    "wrong body",
+                ));
+                inputs.push((good.clone(), Some("not json".into()), "not JSON"));
+            } else {
+                inputs.push((format!("{good}?unexpected=%FF"), None, "bad query"));
+            }
+            if route.path.contains('{') {
+                inputs.push((good.replace(ID, "%FF%FE"), None, "bad id"));
+            }
+            for (uri, body, input) in &inputs {
+                for (cookie, who) in [(None, "no cookie"), (Some(UNKNOWN), "unknown session")] {
+                    let before = state(&sweep.db);
+                    let ask = Ask {
+                        cookie,
+                        ..Ask::anonymous()
+                    };
+                    let answer = send(&sweep.core, &route, uri, ask, body.as_deref()).await;
+                    assert_eq!(
+                        answer, expected,
+                        "{name}: {who}, {input}, catalog {catalog}"
+                    );
+                    let changed = changed(&before, &state(&sweep.db));
+                    assert!(changed.is_empty(), "{name}: {who}, {input}: {changed:?}");
+                }
+            }
+        }
+    }
 }

@@ -60,8 +60,10 @@ impl TestBackend for Stub {
     async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
     }
+    /// Authority is in each call; this only confirms the session before
+    /// the gate releases an input refusal.
     async fn session(&self, _: String, _: Option<String>) -> Result<SessionView> {
-        panic!("Store authenticates")
+        crate::test_backend::live_session()
     }
     async fn logout(&self, _: String, _: String) -> Result<()> {
         panic!("unrelated")

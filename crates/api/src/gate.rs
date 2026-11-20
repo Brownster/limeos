@@ -3,10 +3,13 @@
 //! The router is built only from `table`, and each entry's access decides the
 //! gate wrapped around its handler before the handler runs: a read needs the
 //! session cookie; a mutation also needs the exact Origin (and no cross-site
-//! fetch) and a CSRF header. The gate never reads the body and never calls
-//! core. The session itself, its CSRF binding and the principal's scope are
-//! checked by core in the same store call as the work, so every handler hands
-//! the backend the token (and CSRF value) and does not pre-check the session.
+//! fetch) and a CSRF header. The gate never reads the body. The session
+//! itself, its CSRF binding and the principal's scope are checked by core in
+//! the same store call as the work, so every handler hands the backend the
+//! token (and CSRF value) and does not pre-check the session. The gate asks
+//! core about the session only before releasing an input or load refusal a
+//! handler made before calling core (see `authenticated_refusal`), so an
+//! unauthenticated caller always gets core's 401.
 //!
 //! Extractor rejections (path, query) use the API's error envelope through
 //! the `Path` and `Query` wrappers below, never axum's plain-text answer.
@@ -308,9 +311,13 @@ fn cookie_only(headers: &HeaderMap) -> Result<()> {
     }
     Ok(())
 }
-async fn read_gate<B: Backend>(State(_): State<App<B>>, request: Request, next: Next) -> Response {
+async fn read_gate<B: Backend>(
+    State(app): State<App<B>>,
+    request: Request,
+    next: Next,
+) -> Response {
     match cookie_only(request.headers()).and_then(|()| cookie(request.headers())) {
-        Ok(_) => next.run(request).await,
+        Ok(token) => authenticated_refusal(&app, next.run(request).await, token, None).await,
         Err(error) => failure(error),
     }
 }
@@ -322,7 +329,34 @@ async fn mutate_gate<B: Backend>(
     match cookie_only(request.headers())
         .and_then(|()| operations::credentials(&app, request.headers()))
     {
-        Ok(_) => next.run(request).await,
+        Ok((token, csrf)) => {
+            authenticated_refusal(&app, next.run(request).await, token, Some(csrf)).await
+        }
+        Err(error) => failure(error),
+    }
+}
+/// A handler checks its own input (path, query, body) before it calls core,
+/// and a few reads refuse for load before it, so their 400 or 429 could be
+/// answered to a caller core never authenticated, telling it something about
+/// its input or the server's state. Such an answer is released only after
+/// core confirms the session (and, for a mutation, its CSRF value);
+/// otherwise core's refusal is the answer. Nothing else runs before core
+/// authenticates: the handlers do no store, executor or file work first.
+/// The happy path costs nothing: there core authenticates in the call.
+async fn authenticated_refusal<B: Backend>(
+    app: &App<B>,
+    response: Response,
+    token: String,
+    csrf: Option<String>,
+) -> Response {
+    if !matches!(
+        response.status(),
+        StatusCode::BAD_REQUEST | StatusCode::TOO_MANY_REQUESTS
+    ) {
+        return response;
+    }
+    match app.backend.session(token, csrf).await {
+        Ok(_) => response,
         Err(error) => failure(error),
     }
 }

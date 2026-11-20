@@ -177,9 +177,11 @@ impl Core {
         csrf: String,
         input: StorageSetupInput,
     ) -> Result<PlannedStorageSetup> {
-        input.validate()?;
+        // Authenticated before the input is judged: an anonymous caller
+        // learns nothing from its body.
         self.storage_principal(token.clone(), Some(csrf.clone()))
             .await?;
+        input.validate()?;
         let inventory = self.fresh_storage().await?;
         let digest = limeos_identity::digest(&token);
         let csrf = limeos_identity::digest(&csrf);
