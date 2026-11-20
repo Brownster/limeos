@@ -2,7 +2,7 @@
 //! built through the store where its API can, and with plain SQL rows where
 //! only the row count matters (session events, which nothing reads back).
 //! Every fixture lives in the test's own temporary directory.
-use crate::support::START;
+use super::support::START;
 use limeos_domain::Principal;
 use limeos_persistence::Store;
 use rusqlite::{Connection, params};
@@ -60,7 +60,7 @@ pub const SESSION: &str = r#"{"kind":"session_created"}"#;
 
 /// One integer from a store, read on a side connection.
 pub fn value(path: &Path, sql: &str) -> i64 {
-    crate::checks::reader(path)
+    super::checks::reader(path)
         .unwrap()
         .query_row(sql, [], |r| r.get(0))
         .unwrap()

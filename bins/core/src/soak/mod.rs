@@ -1,10 +1,15 @@
-//! PR-41: the long-uptime soak. One simulated clock drives the real core
-//! store (`limeos_persistence::Store`) and the real container receipt store
-//! (`limeos_executor_container::ReceiptStore`) through months of a household
-//! NAS's jobs, logins, polls, faults and restarts, and checks that no counter,
-//! table or cap turns that use into a refusal needing hand repair; separate
-//! tests build the states that use never reaches. See `docs/soak.md` for what
-//! it covers and how to read a failure.
+//! PR-41: the long-uptime soak. One simulated clock drives core's own code
+//! (the real `Core`: its dispatcher pass, recovery, resolution retries and
+//! request handlers, its store's writer thread and retention schedule)
+//! against the real core store (`limeos_persistence`) and, over a real Unix
+//! socket, the container executor's own request handling around the real
+//! receipt store (`limeos_executor::container_requests`,
+//! `limeos_executor_container::ReceiptStore`), through months of a household
+//! NAS's jobs, logins, polls, faults and restarts, and checks that no
+//! counter, table or cap turns that use into a refusal needing hand repair;
+//! separate tests build the states that use never reaches. It is a unit-test
+//! module of the core binary so that it can call core's code. See
+//! `docs/soak.md` for what it covers and how to read a failure.
 //!
 //! - `soak_smoke`: three simulated days, in every `cargo test`.
 //! - `soak_ninety_days`: the acceptance run, core's store open from day 30.
@@ -12,8 +17,8 @@
 //! - `caps::*`: both stores at their caps and with a retention backlog.
 //! - `occurrences::*`, `metrics::*`: the occurrence pruner and
 //!   `metrics.sqlite`, which the household run does not exercise.
-//! - `writer_thread_runs_retention_unprompted`: the production schedule the
-//!   harness otherwise replaces with its own calls.
+//! - `writer::*`: the writer thread's own retention schedule, at startup and
+//!   once a simulated minute, with no help from the harness.
 //! - `automation_limit_at_minimum_interval`: the known automation limit,
 //!   measured (`--ignored`; not a pass/fail gate of the shipped scope).
 //!
@@ -21,7 +26,6 @@
 mod automation;
 mod caps;
 mod checks;
-mod dispatch;
 mod engine;
 mod executor;
 mod fixtures;
@@ -81,7 +85,7 @@ async fn soak_smoke() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-#[ignore = "the 90-day acceptance run: the soak CI step (cargo test -p limeos-core --test soak -- --ignored soak_)"]
+#[ignore = "the 90-day acceptance run: the soak CI step (cargo test -p limeos-core --bin limeos-core -- --ignored soak_)"]
 async fn soak_ninety_days() {
     soak(NINETY_DAYS).await;
 }

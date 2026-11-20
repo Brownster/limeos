@@ -10,8 +10,7 @@
 //! core's startup when recovery needs room past the reserve and nothing can
 //! be pruned; core's ordinary writes at the cap until a pass frees room; the
 //! receipt store's last-resort row and file caps while nothing is prunable.
-use crate::{
-    checks::{RECEIPT_PRUNE_BATCH, RETAINED_ACTIONS},
+use super::{
     engine::{HOST, container_id},
     fixtures::{SESSION, add_events, core_store, value, writer},
     sim::{JobRecord, Kind, Sim, rule_limits, soak_dir},
@@ -21,6 +20,7 @@ use limeos_contracts::VERSION;
 use limeos_domain::{
     ContainerAction, ContainerSnapshot, Error, ErrorCode, Principal, RestartRequest,
 };
+use limeos_executor_container::limits;
 use limeos_executor_protocol::Request;
 use limeos_persistence::{AuditLevel, AuditUsage, LoginRecord, Store, test_support};
 use std::{
@@ -351,13 +351,14 @@ fn fill_receipts(dir: &Path, rows: i64, expires: i64, body: i64) {
 }
 
 /// Fills a receipt store until SQLite refuses another row under the
-/// store's own page cap (`max_page_count` 4096): large rows, then small
+/// store's own page cap (`limits::MAX_PAGES`): large rows, then small
 /// ones, all expiring at `expires`.
 fn fill_to_cap(dir: &Path, expires: i64) {
     let path = dir.join("receipts.sqlite");
     fill_receipts(dir, 3_600, expires, 2_900);
     let conn = writer(&path);
-    conn.execute_batch("PRAGMA max_page_count=4096").unwrap();
+    conn.execute_batch(&format!("PRAGMA max_page_count={}", limits::MAX_PAGES))
+        .unwrap();
     for body in [1_000, 200, 16] {
         while conn
             .execute(
@@ -375,34 +376,27 @@ fn receipts(sim: &Sim) -> (i64, u64) {
     (rows, std::fs::metadata(&path).unwrap().len())
 }
 
-/// A container job through core and the executor: queued, then one
-/// dispatcher pass. Returns the executor's answer to the execute, as the
-/// job's final state or the refusal the dispatcher recorded.
-async fn run_job(sim: &mut Sim, n: usize) -> String {
-    let names = ["pihole", "syncthing", "uptime-kuma"];
-    let id = container_id(names[n % names.len()]);
-    let snapshot = sim.world.snapshot(&id).unwrap();
+/// Plans, approves and queues a restart of container `name` as the first
+/// administrator, through the store (the plan is the workload's business
+/// elsewhere; here only the receipt store's state matters). Returns it.
+async fn queued(sim: &mut Sim, name: &str, key: String) -> limeos_domain::RestartJob {
+    let snapshot = sim.world.snapshot(&container_id(name)).unwrap();
     let admin = sim.users[0].principal.clone();
     let now = sim.now();
-    let planned = sim
-        .db()
-        .plan_container(&admin, ContainerAction::Restart, &snapshot, now)
-        .unwrap();
-    let approval = sim
-        .db()
-        .approve_container(&admin, &planned.plan.id, &planned.digest, now)
-        .unwrap();
-    let job = sim
-        .db()
-        .queue_container(
-            &admin,
-            &format!("cap-{n}"),
-            &planned,
-            &approval.token,
-            &snapshot,
-            now,
-        )
-        .unwrap();
+    sim.call(move |s| {
+        let planned = s.plan_container(&admin, ContainerAction::Restart, &snapshot, now)?;
+        let approval = s.approve_container(&admin, &planned.plan.id, &planned.digest, now)?;
+        s.queue_container(&admin, &key, &planned, &approval.token, &snapshot, now)
+    })
+    .await
+    .unwrap()
+}
+
+/// A container job through core's dispatcher and the executor: queued, then
+/// one dispatcher pass. Returns the job's state after it.
+async fn run_job(sim: &mut Sim, n: usize) -> String {
+    let names = ["pihole", "syncthing", "uptime-kuma"];
+    let job = queued(sim, names[n % names.len()], format!("cap-{n}")).await;
     sim.ledger.insert(
         job.id.clone(),
         JobRecord {
@@ -411,42 +405,27 @@ async fn run_job(sim: &mut Sim, n: usize) -> String {
             targets: 1,
             fault: None,
             declared: None,
+            user: 0,
         },
     );
-    crate::workload::tick(sim).await;
-    sim.store.as_ref().unwrap().job_state(&job.id).unwrap()
+    super::workload::tick(sim).await;
+    let id = job.id;
+    sim.call(move |s| s.job_state(&id)).await.unwrap()
 }
 
-/// The execute itself, as core sends it for a claimed job: the executor's
-/// error, if any.
+/// The execute itself, as core sends it for a claimed job (through core's
+/// own `exchange`): the executor's refusal, if any.
 async fn execute(sim: &mut Sim, n: usize) -> Option<ErrorCode> {
     // A different container each time: the job is left claimed, holding
     // its lock in both stores.
-    let id = container_id(HOST[n].0);
-    let snapshot = sim.world.snapshot(&id).unwrap();
-    let admin = sim.users[0].principal.clone();
-    let now = sim.now();
-    let store = sim.db();
-    let planned = store
-        .plan_container(&admin, ContainerAction::Restart, &snapshot, now)
-        .unwrap();
-    let approval = store
-        .approve_container(&admin, &planned.plan.id, &planned.digest, now)
-        .unwrap();
-    let job = store
-        .queue_container(
-            &admin,
-            &format!("raw-{n}"),
-            &planned,
-            &approval.token,
-            &snapshot,
-            now,
-        )
-        .unwrap();
-    let epoch = sim.receipt_epoch().await.unwrap();
+    let job = queued(sim, HOST[n].0, format!("raw-{n}")).await;
+    let core = sim.core();
+    let epoch = core.receipt_epoch().await.unwrap();
+    let (admin, now) = (sim.users[0].principal.clone(), sim.now());
+    let snapshot = sim.world.snapshot(&container_id(HOST[n].0)).unwrap();
     let job = sim
-        .db()
-        .claim_container(&admin, &job.id, &snapshot, &epoch, now)
+        .call(move |s| s.claim_container(&admin, &job.id, &snapshot, &epoch, now))
+        .await
         .unwrap();
     let request = Request::ExecuteContainer {
         version: VERSION,
@@ -456,16 +435,18 @@ async fn execute(sim: &mut Sim, n: usize) -> Option<ErrorCode> {
             plan: job.plan.clone(),
         },
     };
-    sim.exec.handle(request, now).await.error
+    let answer = core.exchange(request, Duration::from_secs(38)).await;
+    sim.absorb().await;
+    answer.err().map(|failure| failure.error.0)
 }
 
 /// A Sim whose receipt store was filled before the executor started.
-fn receipt_sim(name: &'static str, fill: impl FnOnce(&Path)) -> Sim {
+async fn receipt_sim(name: &'static str, fill: impl FnOnce(&Path)) -> Sim {
     let mut sim = Sim::new(name, 0x5eed_0c47, None);
     sim.start_executor("creating the store");
-    sim.exec.stop();
+    sim.exec.stop().await;
     fill(&sim.exec.dir.clone());
-    crate::workload::bootstrap(&mut sim);
+    super::workload::bootstrap(&mut sim).await;
     sim
 }
 
@@ -476,14 +457,19 @@ fn receipt_sim(name: &'static str, fill: impl FnOnce(&Path)) -> Sim {
 #[tokio::test(flavor = "current_thread")]
 async fn soak_receipt_store_at_its_caps() {
     let mut problems = Vec::new();
-    const ROW_CAP: i64 = 8192;
+    let row_cap = i64::from(limits::MAX_ACTION_ROWS);
+    let (retained, prune_batch) = (
+        i64::from(limits::RETAINED_ACTIONS),
+        i64::from(limits::PRUNE_BATCH),
+    );
     // Row cap, prunable: expired well past the retention margin.
     let mut sim = receipt_sim("receipts-row-cap-prunable", |dir| {
-        fill_receipts(dir, ROW_CAP, START - 2 * DAY, 64)
-    });
+        fill_receipts(dir, row_cap, START - 2 * DAY, 64)
+    })
+    .await;
     let mut previous = receipts(&sim).0;
     for n in 0.. {
-        sim.clock.set(sim.now() + MINUTE);
+        sim.advance(sim.now() + MINUTE);
         let state = run_job(&mut sim, n).await;
         let rows = receipts(&sim).0;
         if state != "succeeded" {
@@ -492,13 +478,13 @@ async fn soak_receipt_store_at_its_caps() {
             ));
             break;
         }
-        if previous + 1 - rows > RECEIPT_PRUNE_BATCH {
+        if previous + 1 - rows > prune_batch {
             problems.push(format!(
-                "row cap, prunable: one insert pruned {} rows (limit {RECEIPT_PRUNE_BATCH})",
+                "row cap, prunable: one insert pruned {} rows (limit {prune_batch})",
                 previous + 1 - rows
             ));
         }
-        if rows <= RETAINED_ACTIONS + 1 {
+        if rows <= retained + 1 {
             break;
         }
         if rows >= previous || n > 200 {
@@ -511,16 +497,17 @@ async fn soak_receipt_store_at_its_caps() {
     }
     // Row cap, nothing prunable: the plans expire in ten minutes.
     let mut sim = receipt_sim("receipts-row-cap-young", |dir| {
-        fill_receipts(dir, ROW_CAP, START + 600, 64)
-    });
-    sim.clock.set(START + MINUTE);
+        fill_receipts(dir, row_cap, START + 600, 64)
+    })
+    .await;
+    sim.advance(START + MINUTE);
     match execute(&mut sim, 0).await {
         Some(ErrorCode::Overloaded) => {}
         other => problems.push(format!(
             "row cap, nothing prunable: the execute answered {other:?}, not the documented Overloaded"
         )),
     }
-    sim.clock.set(START + 600 + HOUR + MINUTE);
+    sim.advance(START + 600 + HOUR + MINUTE);
     if let Some(code) = execute(&mut sim, 1).await {
         problems.push(format!(
             "row cap, aged rows: the execute was still refused: {code:?}"
@@ -531,14 +518,15 @@ async fn soak_receipt_store_at_its_caps() {
     for (name, expires) in [("prunable", START - 2 * DAY), ("young", START + 600)] {
         let mut sim = receipt_sim("receipts-file-cap", |dir| {
             fill_to_cap(dir, expires);
-        });
+        })
+        .await;
         let (_, before) = receipts(&sim);
-        sim.clock.set(START + MINUTE);
+        sim.advance(START + MINUTE);
         let answers: Vec<Option<ErrorCode>> = {
             let mut answers = Vec::new();
             for n in 0..16 {
                 answers.push(execute(&mut sim, n).await);
-                sim.clock.set(sim.now() + MINUTE);
+                sim.advance(sim.now() + MINUTE);
             }
             answers
         };
@@ -547,7 +535,7 @@ async fn soak_receipt_store_at_its_caps() {
         match name {
             "prunable" if !refused.is_empty() => problems.push(format!(
                 "file cap, prunable: executes refused {refused:?} in a {:.1} MiB store",
-                crate::support::mib(before)
+                super::support::mib(before)
             )),
             "young" if !refused.iter().all(|c| **c == ErrorCode::StateNotDurable) || refused.is_empty() => {
                 problems.push(format!(
@@ -556,14 +544,14 @@ async fn soak_receipt_store_at_its_caps() {
             }
             _ => {}
         }
-        if after > 16 << 20 {
+        if after > limits::MAX_FILE_BYTES {
             problems.push(format!(
                 "file cap, {name}: the file grew to {:.1} MiB, past the 16 MiB its open refuses",
-                crate::support::mib(after)
+                super::support::mib(after)
             ));
         }
         // It still opens.
-        sim.exec.stop();
+        sim.exec.stop().await;
         if let Err(error) = sim.exec.start(sim.now()) {
             problems.push(format!(
                 "file cap, {name}: the store no longer opens: {error:?}"
@@ -582,7 +570,7 @@ async fn soak_receipt_store_at_its_caps() {
     if std::fs::metadata(store_dir.join("receipts.sqlite"))
         .unwrap()
         .len()
-        <= 16 << 20
+        <= limits::MAX_FILE_BYTES
     {
         problems.push("file cap: the oversized fixture is not past 16 MiB".into());
     }

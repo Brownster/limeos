@@ -13,7 +13,7 @@
 //! after every fifteen samples keeps its 16-message queue from overflowing
 //! and orders the measurements. Its writes are counted on its own thread
 //! (`/proc/self/task/<tid>/io` of `limeos-telemetry`).
-use crate::{
+use super::{
     sim::soak_dir,
     support::{DAY, HOUR, MINUTE, START, mib, slope},
 };
@@ -143,7 +143,7 @@ async fn soak_metrics_store_ninety_days() {
             grown / 1024.0
         ));
     }
-    let rows: i64 = crate::checks::reader(&path)
+    let rows: i64 = super::checks::reader(&path)
         .unwrap()
         .query_row("SELECT count(*) FROM samples", [], |r| r.get(0))
         .unwrap();

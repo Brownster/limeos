@@ -16,7 +16,7 @@
 //! reservations keep succeeding. Without the pruner, the store refuses every
 //! reservation once the table reaches its cap (`MAX_OCCURRENCES`, 4096),
 //! after 34 hours.
-use crate::{
+use super::{
     fixtures::core_store,
     sim::{rule_limits, soak_dir},
     support::{DAY, HOUR, START},
@@ -79,7 +79,7 @@ fn soak_occurrences_stay_at_their_budget() {
     let mut store = Store::open(&path).unwrap();
     let schedule = observe_health_schedule(&mut store);
     let (budget, batch) = rule_limits("automation_occurrences");
-    let side = crate::checks::reader(&path).unwrap();
+    let side = super::checks::reader(&path).unwrap();
     let occurrences = || -> i64 {
         side.query_row("SELECT count(*) FROM automation_occurrences", [], |r| {
             r.get(0)

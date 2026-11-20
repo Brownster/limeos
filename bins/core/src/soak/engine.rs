@@ -4,10 +4,22 @@
 //! where the HTTP fixture in `docker/tests.rs` is not: a restart gives a
 //! container a new start time from the simulated clock, a stop keeps it, and
 //! the harness can restart a container behind LimeOS's back (an update tool, a
-//! crash loop) or make the next effect fail or hang.
-use crate::support::{Clock, START, rfc3339};
-use limeos_domain::{ContainerAction, ContainerSnapshot, Error, ErrorCode, Result};
-use std::{collections::BTreeMap, future::Future, sync::Mutex};
+//! crash loop) or make the next effect fail or hang. The executor's request
+//! handling (`limeos_executor::container_requests`) reaches it through
+//! [`Docker`], as the daemon reaches the real Engine through its client.
+use super::support::{Clock, START, rfc3339};
+use limeos_domain::{
+    ContainerAction, ContainerSnapshot, Error, ErrorCode, Result,
+    deployment::discovery::{
+        CatalogFacts, Declaration, DiscoveryCohort, EngineFacts, FileStatus, Membership,
+        ProjectIdentity,
+    },
+};
+use std::{
+    collections::BTreeMap,
+    future::Future,
+    sync::{Arc, Mutex},
+};
 
 /// The reference host (wybie): 18 containers, 15 of them in four Compose
 /// stacks, the rest standalone.
@@ -59,6 +71,8 @@ struct Inner {
 pub struct World {
     clock: Clock,
     inner: Mutex<Inner>,
+    /// Notified when an effect hangs: the request is parked in the Engine.
+    pub hung: tokio::sync::Notify,
 }
 
 pub fn container_id(name: &str) -> String {
@@ -74,7 +88,7 @@ impl World {
                     container_id(name),
                     Container {
                         image: limeos_identity::digest(&format!("soak-image:{name}")),
-                        started: (START - 30 * crate::support::DAY, 0),
+                        started: (START - 30 * super::support::DAY, 0),
                         running: true,
                         project: *project,
                     },
@@ -88,6 +102,7 @@ impl World {
                 fault: Fault::None,
                 effects: 0,
             }),
+            hung: tokio::sync::Notify::new(),
         }
     }
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
@@ -119,11 +134,72 @@ impl World {
             c.running = true;
         }
     }
+    /// The inventory cohort the storage reader would read from this Engine
+    /// now (`Core::propose_stack` takes a stack's members from it): every
+    /// Compose project registered in the catalog as a stack of its own name,
+    /// one service per container, and the Engine's membership.
+    pub fn cohort(&self, now: i64) -> DiscoveryCohort {
+        let inner = self.lock();
+        let identity = |project: &str| ProjectIdentity {
+            name: project.into(),
+            working_directory: format!("/opt/{project}"),
+            config_files: vec![format!("/opt/{project}/compose.yaml")],
+        };
+        let members = HOST
+            .iter()
+            .map(|(name, project)| {
+                let id = container_id(name);
+                let container = snapshot(&id, &inner.containers[&id]);
+                match project {
+                    Some(project) => Membership::Compose {
+                        container,
+                        project: identity(project),
+                        service: (*name).into(),
+                        one_off: false,
+                    },
+                    None => Membership::Standalone { container },
+                }
+            })
+            .collect();
+        let stacks = STACKS
+            .iter()
+            .map(|project| Declaration {
+                stack: (*project).into(),
+                project: (*project).into(),
+                working_directory: identity(project).working_directory,
+                config_files: identity(project).config_files,
+                services: HOST
+                    .iter()
+                    .filter(|(_, p)| *p == Some(*project))
+                    .map(|(name, _)| (*name).into())
+                    .collect(),
+                files: FileStatus::NotInspected,
+            })
+            .collect();
+        DiscoveryCohort::new(
+            Some(CatalogFacts {
+                engine_id: "soak-engine".into(),
+                sampled_at: now,
+                stacks,
+            }),
+            Some(EngineFacts {
+                engine_id: "soak-engine".into(),
+                sampled_at: now,
+                members,
+                truncated: 0,
+                omitted: Vec::new(),
+                hidden_projects: Vec::new(),
+                unattributed: 0,
+            }),
+        )
+        .expect("the reference host's inventory cohort")
+    }
     fn effect(&self, id: &str, action: ContainerAction) -> (Result<()>, bool) {
         let now = self.clock.now();
         let mut inner = self.lock();
         let fault = std::mem::take(&mut inner.fault);
         if fault == Fault::Hang {
+            self.hung.notify_one();
             return (Ok(()), true);
         }
         let Some(c) = inner.containers.get_mut(id) else {
@@ -180,24 +256,28 @@ fn snapshot(id: &str, c: &Container) -> ContainerSnapshot {
     }
 }
 
-impl limeos_executor_container::Engine for World {
+/// The simulated Engine as the executor's request handling holds it.
+#[derive(Clone)]
+pub struct Docker(pub Arc<World>);
+
+impl limeos_executor_container::Engine for Docker {
     fn inspect(&self, id: &str) -> impl Future<Output = Result<ContainerSnapshot>> + Send {
-        std::future::ready(self.snapshot(id).ok_or(Error(ErrorCode::NotFound)))
+        std::future::ready(self.0.snapshot(id).ok_or(Error(ErrorCode::NotFound)))
     }
     fn restart(&self, id: &str) -> impl Future<Output = Result<()>> + Send {
-        self.effect_future(id, ContainerAction::Restart)
+        self.0.effect_future(id, ContainerAction::Restart)
     }
     fn start(&self, id: &str) -> impl Future<Output = Result<()>> + Send {
-        self.effect_future(id, ContainerAction::Start)
+        self.0.effect_future(id, ContainerAction::Start)
     }
     fn stop(&self, id: &str) -> impl Future<Output = Result<()>> + Send {
-        self.effect_future(id, ContainerAction::Stop)
+        self.0.effect_future(id, ContainerAction::Stop)
     }
     fn project_members(
         &self,
         project: &str,
     ) -> impl Future<Output = Result<Vec<ContainerSnapshot>>> + Send {
-        let inner = self.lock();
+        let inner = self.0.lock();
         let members = inner
             .containers
             .iter()

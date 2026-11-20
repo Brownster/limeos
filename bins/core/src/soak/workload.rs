@@ -1,5 +1,22 @@
 //! The household workload and the driver that runs it on the simulated clock.
 //!
+//! # Through core's own code
+//!
+//! Every step a person or core takes goes through the code core runs: the
+//! dispatcher tick is `Core::dispatcher_pass` (resolution retries, stack and
+//! container dispatch and recovery), container proposals, approvals, queueing,
+//! cancellation, progress and dashboard polls and logouts are core's handlers
+//! (`propose_action`, `approve_container`, `submit`, `cancel_restart`,
+//! `restart_progress`, `observations`, `logout`, and their stack
+//! counterparts), and the operator decides through `rpc_resolution_view` and
+//! `rpc_resolve` (the root CLI's path). Two steps are not core's own: a
+//! login is the session write `login_checked` makes once the password
+//! workers have accepted the password (they are not driven), and a stack
+//! proposal is `propose_stack`'s calls with its members taken from the
+//! simulated Engine, because core takes them from an inventory cache that
+//! judges freshness on its own system clock (`plan_stack`, checked against
+//! the real `propose_stack` by `stack_proposals_match_core`).
+//!
 //! # Rates (normal days), and why
 //!
 //! Waking hours are 07:00 to 24:00; the house is quiet at night, which is
@@ -33,13 +50,14 @@
 //!   every 40 s and a stack action every 45 s: 1,080 + 960 proposals, enough
 //!   to overflow both receipt budgets (1,024 standalone, 256 stacks) although
 //!   many of them meet a lock held by a job waiting for the operator.
-use crate::{
+use super::{
     checks,
     engine::{HOST, STACKS, container_id},
-    sim::{Flow, Halt, JobFault, JobRecord, Kind, Planned, Session, Sim, User},
+    sim::{CoreCrash, Flow, JobFault, JobRecord, Kind, Planned, Session, Sim, User, guarded},
     support::{DAY, HOUR, MINUTE, START},
 };
-use limeos_domain::{ContainerAction, ErrorCode, StackSnapshot};
+use limeos_api::Backend;
+use limeos_domain::{ContainerAction, DeclaredOutcome, ErrorCode, JobState};
 use std::{collections::BTreeMap, time::Instant};
 
 #[derive(Clone, Copy)]
@@ -172,7 +190,7 @@ fn day_at(day: i64, hour: i64, minute: i64) -> i64 {
 pub async fn run(profile: Profile) -> Sim {
     let mut sim = Sim::new(profile.name, profile.seed, profile.core_restarts_until);
     let mut agenda = Agenda::default();
-    bootstrap(&mut sim);
+    bootstrap(&mut sim).await;
     let end = START + profile.days * DAY;
     for user in 0..sim.users.len() {
         let at = waking(&mut sim, START + 7 * HOUR, HOUR);
@@ -215,29 +233,38 @@ pub async fn run(profile: Profile) -> Sim {
     sim
 }
 
-/// Advances to the next thing due before `end` and does it. False at `end`.
-async fn drive(sim: &mut Sim, agenda: &mut Agenda, end: i64) -> bool {
-    let next = agenda
+/// The next moment the driver acts: the next step, dispatcher tick or
+/// executor return, and at least every simulated minute, so the store's
+/// writer thread gets its once-a-minute retention gate as it would on the
+/// system clock (it runs it on its own when the clock advances).
+fn next_moment(sim: &Sim, agenda: &Agenda) -> i64 {
+    agenda
         .next_time()
         .min(sim.next_pass)
-        .min(sim.last_retention + MINUTE)
-        .min(sim.executor_back_at.unwrap_or(i64::MAX));
-    if next >= end {
-        sim.clock.set(end);
-        return false;
-    }
-    sim.clock.set(next.max(sim.now()));
-    let now = sim.now();
-    if sim.executor_back_at.is_some_and(|at| at <= now) {
+        .min(sim.now() + MINUTE)
+        .min(sim.executor_back_at.unwrap_or(i64::MAX))
+}
+
+/// Brings a stopped executor back when it is due.
+fn executor_back(sim: &mut Sim) {
+    if sim.executor_back_at.is_some_and(|at| at <= sim.now()) {
         sim.executor_back_at = None;
         sim.start_executor("executor back after a stop");
     }
-    if now >= sim.last_retention + MINUTE {
-        let at = Instant::now();
-        sim.retention_pass();
-        sim.stats.time("retention passes", at);
+}
+
+/// Advances to the next thing due before `end` and does it. False at `end`.
+async fn drive(sim: &mut Sim, agenda: &mut Agenda, end: i64) -> bool {
+    let next = next_moment(sim, agenda);
+    if next >= end {
+        sim.advance(end);
+        return false;
     }
-    if now >= sim.next_pass {
+    let at = Instant::now();
+    sim.advance(next);
+    sim.stats.time("clock and retention passes", at);
+    executor_back(sim);
+    if sim.now() >= sim.next_pass {
         let at = Instant::now();
         tick(sim).await;
         sim.stats.time("dispatcher passes", at);
@@ -253,42 +280,73 @@ async fn drive(sim: &mut Sim, agenda: &mut Agenda, end: i64) -> bool {
 /// The longest gap between two dispatcher passes while nothing is queued or
 /// held. Core ticks every 2 s; such a pass only reads.
 const IDLE_TICK: i64 = 5 * MINUTE;
+/// Least time between two receipt lookups for one held job (core's
+/// `operations::RECOVERY_PAUSE`).
+const RECOVERY_PAUSE: i64 = 30;
 
-/// One dispatcher pass, and when the next is due. Core ticks every 2 s; a
-/// pass with no queued job cannot change anything until a job is queued or
-/// a held job's recovery pause ends, so the harness skips the empty ticks in
-/// between (up to `IDLE_TICK` while nothing is held; queueing a job brings
-/// the next pass forward to the next second).
+/// One dispatcher tick, core's own (`Core::dispatcher_pass`), and when the
+/// next is due. Core ticks every 2 s; a tick with nothing queued, held or
+/// pending cannot change anything until a job is queued or a held job's
+/// recovery pause ends, so the harness skips the empty ticks in between (up
+/// to `IDLE_TICK` while nothing is held; queueing a job brings the next tick
+/// forward to the next second).
 pub async fn tick(sim: &mut Sim) {
-    sim.seen_queued = 0;
-    sim.seen_held = 0;
-    if let Err(Halt::CoreCrash) = sim.dispatcher_pass().await {
-        sim.restart_core("core restart at an awkward moment");
+    sim.stats.dispatcher_passes += 1;
+    let at = Instant::now();
+    let core = sim.core();
+    let crash = sim.exec.crash.clone();
+    let crashed = guarded(&crash, core.dispatcher_pass(&mut sim.dispatcher))
+        .await
+        .is_err();
+    drop(core);
+    if crashed {
+        sim.restart_core("core restart at an awkward moment").await;
     }
+    sim.absorb().await;
+    sim.stats.time("dispatcher passes: core's pass", at);
+    let (queued, held) = open_work(sim);
     let now = sim.now();
-    sim.next_pass = if sim.seen_queued > 0 {
+    sim.next_pass = if queued > 0 {
         now + 2
-    } else if sim.seen_held > 0 {
-        now + crate::sim::RECOVERY_PAUSE
+    } else if held > 0 {
+        now + RECOVERY_PAUSE
     } else {
         now + IDLE_TICK
     };
 }
 
-pub fn bootstrap(sim: &mut Sim) {
+/// Jobs queued, and jobs held or with a pending resolution request.
+fn open_work(sim: &mut Sim) -> (i64, i64) {
+    sim.side()
+        .query_row(
+            "SELECT (SELECT count(*) FROM jobs WHERE state='queued'),(SELECT count(*) FROM jobs WHERE state IN ('running','verifying','outcome_unknown','needs_intervention'))+(SELECT count(*) FROM job_resolutions WHERE confirmation IS NULL)",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap()
+}
+
+pub async fn bootstrap(sim: &mut Sim) {
     sim.start_executor("first start");
-    sim.start_core("first start");
+    sim.start_core("first start").await;
     let now = sim.now();
     let token = sim.rng.hex();
     let digest = limeos_identity::digest(&token);
-    let issued = sim.db().issue_bootstrap(&digest, now);
+    let issued = {
+        let digest = digest.clone();
+        sim.call(move |s| s.issue_bootstrap(&digest, now)).await
+    };
     sim.judge("issue bootstrap", issued, &[]).unwrap();
-    let enrolled = sim.db().enroll(
-        &digest,
-        "marc",
-        "$argon2id$v=19$m=19456,t=2,p=1$soak$soak",
-        now,
-    );
+    let enrolled = sim
+        .call(move |s| {
+            s.enroll(
+                &digest,
+                "marc",
+                "$argon2id$v=19$m=19456,t=2,p=1$soak$soak",
+                now,
+            )
+        })
+        .await;
     sim.judge("enroll administrator", enrolled, &[]).unwrap();
     // The second household administrator, imported from the old app.
     let fixtures: serde_json::Value = serde_json::from_str(include_str!(
@@ -296,76 +354,75 @@ pub fn bootstrap(sim: &mut Sim) {
     ))
     .unwrap();
     let hash = fixtures[0]["hash"].as_str().unwrap().to_owned();
-    let imported = sim.db().import_legacy_users(&[("anna".into(), hash)], now);
+    let imported = sim
+        .call(move |s| s.import_legacy_users(&[("anna".into(), hash)], now))
+        .await;
     sim.judge("import legacy administrator", imported, &[])
         .unwrap();
     for name in ["marc", "anna"] {
-        let principal = sim.db().login_record(name).unwrap().unwrap().principal;
+        let principal = sim
+            .call(move |s| s.login_record(name))
+            .await
+            .unwrap()
+            .unwrap()
+            .principal;
         sim.users.push(User {
             name,
             principal,
             session: None,
         });
     }
-    *sim.stats.ops.entry("authority: expected").or_default() += 3;
 }
 
-/// Logs a user in through the store, as `Core::login_checked` does once the
-/// password check passed.
-fn login(sim: &mut Sim, user: usize) -> bool {
+/// Logs a user in: the session write `Core::login_checked` makes once the
+/// password workers accepted the password (they are not driven).
+async fn login(sim: &mut Sim, user: usize) -> bool {
     let now = sim.now();
     let name = sim.users[user].name;
-    let Some(Some(record)) = sim.judge(
-        "login record",
-        sim.store.as_ref().unwrap().login_record(name),
-        &[],
-    ) else {
+    let record = sim.call(move |s| s.login_record(name)).await;
+    let Some(Some(record)) = sim.judge("login record", record, &[]) else {
         return false;
     };
     let token = sim.rng.hex();
     let csrf = limeos_identity::digest(&format!("csrf:{token}"));
     let session = Session { token, csrf };
-    let created = sim.db().create_session(
-        &record,
-        None,
-        &session.digest(),
-        &session.csrf_digest(),
-        now,
-    );
+    let principal = record.principal.clone();
+    let (digest, csrf_digest) = (session.digest(), session.csrf_digest());
+    let created = sim
+        .call(move |s| s.create_session(&record, None, &digest, &csrf_digest, now))
+        .await;
     if sim.judge("login", created, &[]).is_none() {
         return false;
     }
-    sim.users[user].principal = record.principal;
+    sim.users[user].principal = principal;
     sim.users[user].session = Some(session);
     true
 }
 
-/// The user's current principal through their session (`authenticate` with
-/// the CSRF digest, as every mutating handler does); logs in again when the
-/// session has expired or was evicted, which is a legitimate refusal.
-fn session(sim: &mut Sim, user: usize, op: &'static str) -> Option<limeos_domain::Principal> {
-    let now = sim.now();
+/// The user's live session (token and CSRF token), checked by core's own
+/// `session` handler with its CSRF token as every mutating handler checks
+/// it; logs in again when it has expired or was evicted, which is a
+/// legitimate refusal.
+async fn session(sim: &mut Sim, user: usize, op: &'static str) -> Option<(String, String)> {
     if let Some(session) = &sim.users[user].session {
-        let result = sim.store.as_ref().unwrap().authenticate(
-            &session.digest(),
-            Some(&session.csrf_digest()),
-            now,
-        );
+        let (token, csrf) = (session.token.clone(), session.csrf.clone());
+        let result = sim.core().session(token.clone(), Some(csrf.clone())).await;
         match sim.judge(op, result, &[ErrorCode::Unauthenticated]) {
-            Some(principal) => return Some(principal),
+            Some(view) => {
+                sim.users[user].principal = view.principal;
+                return Some((token, csrf));
+            }
             None => sim.users[user].session = None,
         }
     }
-    if !login(sim, user) {
+    if !login(sim, user).await {
         return None;
     }
-    sim.users[user]
-        .session
-        .as_ref()
-        .map(|_| sim.users[user].principal.clone())
+    let session = sim.users[user].session.as_ref()?;
+    Some((session.token.clone(), session.csrf.clone()))
 }
 
-pub fn arm_fault(sim: &mut Sim, job: &str) -> Option<JobFault> {
+pub fn arm_fault(sim: &mut Sim, job: &str, resource: &str) -> Option<JobFault> {
     let roll = sim.rng.below(1000);
     let table = [
         (15, JobFault::AnswerLost),
@@ -386,7 +443,7 @@ pub fn arm_fault(sim: &mut Sim, job: &str) -> Option<JobFault> {
             if fault.restarts_core() && !sim.core_restarts() {
                 return None;
             }
-            sim.armed.insert(job.to_owned(), fault);
+            sim.exec.arm(job, resource, fault);
             return Some(fault);
         }
     }
@@ -410,9 +467,9 @@ fn busy(sim: &mut Sim) -> std::collections::HashSet<String> {
     if sim.rng.per_mille(50) {
         return Default::default();
     }
-    let conn = checks::reader(&sim.core_path).expect("core side connection");
-    let mut stmt = conn
-        .prepare("SELECT resource FROM resource_locks UNION SELECT r.resource FROM job_resources r JOIN jobs j ON j.id=r.job WHERE j.state='queued'")
+    let mut stmt = sim
+        .side()
+        .prepare_cached("SELECT resource FROM resource_locks UNION SELECT r.resource FROM job_resources r JOIN jobs j ON j.id=r.job WHERE j.state='queued'")
         .unwrap();
     stmt.query_map([], |r| r.get(0))
         .unwrap()
@@ -420,7 +477,8 @@ fn busy(sim: &mut Sim) -> std::collections::HashSet<String> {
         .unwrap()
 }
 
-/// `Core::propose_action`: session, fresh inspection, plan.
+/// Core's `propose_action`: session, authorization, fresh inspection
+/// through the executor, plan.
 async fn propose_container(sim: &mut Sim, user: usize, fate: Fate) -> Option<u64> {
     let busy = busy(sim);
     let ids: Vec<String> = HOST
@@ -439,29 +497,29 @@ async fn propose_container(sim: &mut Sim, user: usize, fate: Fate) -> Option<u64
     } else {
         ContainerAction::Restart
     };
-    let principal = session(sim, user, "propose container action: session")?;
-    let resource = format!("container:{id}");
-    let snapshot = match sim.inspect(&resource).await {
-        Ok(snapshot) => snapshot,
-        Err(e) => {
-            sim.judge::<()>(
-                "propose container action: inspect",
-                Err(e),
-                &[ErrorCode::Unavailable],
-            );
-            return None;
-        }
-    };
-    let now = sim.now();
+    let (token, csrf) = session(sim, user, "propose container action: session").await?;
     let planned = sim
-        .db()
-        .plan_container(&principal, operation, &snapshot, now);
-    let planned = sim.judge("propose container action", planned, &[ErrorCode::Conflict])?;
+        .core()
+        .propose_action(token, csrf, operation, format!("container:{id}"))
+        .await;
+    sim.absorb().await;
+    let planned = sim.judge(
+        "propose container action",
+        planned,
+        &[ErrorCode::Conflict, ErrorCode::Unavailable],
+    )?;
     Some(start_flow(sim, user, Planned::Container(planned), fate))
 }
 
-/// `Core::propose_stack`: the members as the inventory cohort lists them,
-/// authorized, checked against a fresh Engine listing, planned.
+/// A stack proposal: core's `propose_stack` but for where it takes the
+/// members from. Core reads them from the storage reader's inventory cohort,
+/// a cache (`limeos_observations::stacks`) that checks every cohort's
+/// freshness (90 s) against its own system clock, which the simulated
+/// months cannot satisfy and which has no seam. So the harness makes the
+/// same calls in the same order with the members from the simulated Engine
+/// (what that cohort would list), and `stack_proposals_match_core` runs the
+/// real `propose_stack` beside this on the same Engine, at the system time,
+/// and fails when what it writes, asks or plans differs.
 async fn propose_stack(sim: &mut Sim, user: usize, fate: Fate) -> Option<u64> {
     let busy = busy(sim);
     let free: Vec<&str> = STACKS
@@ -479,44 +537,164 @@ async fn propose_stack(sim: &mut Sim, user: usize, fate: Fate) -> Option<u64> {
         return None;
     }
     let project = *sim.rng.pick(&free);
-    let members = HOST
+    let stopped = HOST
         .iter()
         .filter(|(_, p)| *p == Some(project))
-        .map(|(n, _)| sim.world.snapshot(&container_id(n)).unwrap())
-        .collect::<Vec<_>>();
-    let operation = if members.iter().any(|m| !m.running) {
+        .any(|(n, _)| !sim.world.running(&container_id(n)));
+    let operation = if stopped {
         ContainerAction::Start
     } else if sim.rng.per_mille(200) {
         ContainerAction::Stop
     } else {
         ContainerAction::Restart
     };
-    let planned = StackSnapshot::new(project, members).unwrap();
-    let principal = session(sim, user, "propose stack action: session")?;
-    let authorized = sim
-        .store
-        .as_ref()
-        .unwrap()
-        .authorize_stack(&principal, project, &planned);
-    sim.judge("propose stack action: authorize", authorized, &[])?;
-    match sim.inspect_stack(project).await {
-        Ok(current) if current == planned => {}
-        Ok(_) => return None,
-        Err(e) => {
-            sim.judge::<()>(
-                "propose stack action: inspect",
-                Err(e),
-                &[ErrorCode::Unavailable],
-            );
-            return None;
-        }
+    let (token, csrf) = session(sim, user, "propose stack action: session").await?;
+    let planned = plan_stack(sim, token, csrf, project, operation).await;
+    sim.absorb().await;
+    let planned = sim.judge(
+        "propose stack action",
+        planned,
+        &[ErrorCode::Conflict, ErrorCode::Unavailable],
+    )?;
+    Some(start_flow(sim, user, Planned::Stack(planned), fate))
+}
+
+/// `Core::propose_stack` with the members from the simulated Engine (see
+/// `propose_stack`): the stack as the cohort lists it, the same
+/// authorization, fresh listing through core's `inspect_stack` and plan.
+async fn plan_stack(
+    sim: &Sim,
+    token: String,
+    csrf: String,
+    project: &'static str,
+    operation: ContainerAction,
+) -> limeos_domain::Result<limeos_domain::PlannedStackAction> {
+    let core = sim.core();
+    let principal = core
+        .session(token.clone(), Some(csrf.clone()))
+        .await?
+        .principal;
+    let members = HOST
+        .iter()
+        .filter(|(_, p)| *p == Some(project))
+        .map(|(n, _)| sim.world.snapshot(&container_id(n)).unwrap())
+        .collect::<Vec<_>>();
+    let planned = limeos_domain::StackSnapshot::new(project, members)?;
+    planned.validate_for(operation)?;
+    let (p, s) = (principal, planned.clone());
+    core.db
+        .call(move |store| store.authorize_stack(&p, project, &s))
+        .await?;
+    if core.inspect_stack(project).await? != planned {
+        return Err(limeos_domain::Error(ErrorCode::Conflict));
     }
     let now = sim.now();
-    let result = sim
-        .db()
-        .plan_stack(&principal, operation, project, &planned, now);
-    let result = sim.judge("propose stack action", result, &[ErrorCode::Conflict])?;
-    Some(start_flow(sim, user, Planned::Stack(result), fate))
+    let (digest, csrf) = (
+        limeos_identity::digest(&token),
+        limeos_identity::digest(&csrf),
+    );
+    core.db
+        .call(move |s| {
+            let principal = s.authenticate(&digest, Some(&csrf), now)?;
+            s.plan_stack(&principal, operation, project, &planned, now)
+        })
+        .await
+}
+
+/// What a stack proposal did: executor requests, events written by kind,
+/// and stack plans kept.
+fn proposal_effects(sim: &mut Sim) -> (BTreeMap<&'static str, u64>, Vec<(String, i64)>, i64) {
+    let requests = sim.exec.faults().requests.clone();
+    let side = sim.side();
+    let events = side
+        .prepare("SELECT json_extract(kind,'$.kind'),count(*) FROM events GROUP BY 1 ORDER BY 1")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    let plans = side
+        .query_row("SELECT count(*) FROM stack_plans", [], |r| r.get(0))
+        .unwrap();
+    (requests, events, plans)
+}
+
+/// The stack-proposal shim against core's own `propose_stack`, on the same
+/// Engine, at the system time (so the inventory cache accepts the cohort):
+/// both must make the same executor requests, write the same events and
+/// rows, and plan the same members and operation.
+#[tokio::test(flavor = "current_thread")]
+async fn stack_proposals_match_core() {
+    let mut sim = Sim::new("stack-shim", 0x5eed_57ac, None);
+    bootstrap(&mut sim).await;
+    let wall = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    sim.advance(wall);
+    let (token, csrf) = session(&mut sim, 0, "session").await.unwrap();
+    let mut seen = Vec::new();
+    for (project, operation) in [
+        ("home", ContainerAction::Restart),
+        ("cloud", ContainerAction::Stop),
+    ] {
+        let before = proposal_effects(&mut sim);
+        let core = sim.core();
+        core.stacks
+            .update(&sim.world.cohort(sim.now()))
+            .expect("the inventory cohort is accepted");
+        let real = core
+            .propose_stack(token.clone(), csrf.clone(), project.into(), operation)
+            .await
+            .expect("core plans the stack action");
+        let middle = proposal_effects(&mut sim);
+        let shim = plan_stack(&sim, token.clone(), csrf.clone(), project, operation)
+            .await
+            .expect("the shim plans the stack action");
+        let after = proposal_effects(&mut sim);
+        let delta =
+            |a: &(BTreeMap<&'static str, u64>, Vec<(String, i64)>, i64),
+             b: &(BTreeMap<&'static str, u64>, Vec<(String, i64)>, i64)| {
+                let requests: BTreeMap<&str, u64> =
+                    b.0.iter()
+                        .map(|(k, v)| (*k, v - a.0.get(k).copied().unwrap_or(0)))
+                        .filter(|(_, v)| *v > 0)
+                        .collect();
+                let events: Vec<(String, i64)> =
+                    b.1.iter()
+                        .map(|(k, v)| {
+                            let was = a.1.iter().find(|(j, _)| j == k).map_or(0, |(_, n)| *n);
+                            (k.clone(), v - was)
+                        })
+                        .filter(|(_, v)| *v != 0)
+                        .collect();
+                (requests, events, b.2 - a.2)
+            };
+        let (core_did, shim_did) = (delta(&before, &middle), delta(&middle, &after));
+        assert_eq!(
+            core_did, shim_did,
+            "core's propose_stack ({project}) asked, wrote and kept {core_did:?}; the soak's shim {shim_did:?}"
+        );
+        assert_eq!(
+            (
+                &real.plan.expected,
+                real.plan.operation,
+                &real.plan.grant_revision
+            ),
+            (
+                &shim.plan.expected,
+                shim.plan.operation,
+                &shim.plan.grant_revision
+            ),
+            "core's propose_stack and the shim planned different stacks"
+        );
+        seen.push(core_did);
+    }
+    assert!(
+        seen.iter()
+            .all(|(requests, _, plans)| !requests.is_empty() && *plans == 1),
+        "the comparison saw no work: {seen:?}"
+    );
 }
 
 fn start_flow(sim: &mut Sim, user: usize, planned: Planned, fate: Fate) -> u64 {
@@ -536,25 +714,24 @@ fn start_flow(sim: &mut Sim, user: usize, planned: Planned, fate: Fate) -> u64 {
     id
 }
 
+/// Core's `approve_container` / `approve_stack_plan`.
 async fn approve(sim: &mut Sim, flow: u64) -> bool {
     let Some(user) = sim.flows.get(&flow).map(|f| f.user) else {
         return false;
     };
-    let Some(principal) = session(sim, user, "approve: session") else {
+    let Some((token, csrf)) = session(sim, user, "approve: session").await else {
         return false;
     };
-    let now = sim.now();
-    let Flow { planned, .. } = &sim.flows[&flow];
-    let (id, digest) = match planned {
-        Planned::Container(p) => (p.plan.id.clone(), p.digest.clone()),
-        Planned::Stack(p) => (p.plan.id.clone(), p.digest.clone()),
-    };
-    let stack = matches!(planned, Planned::Stack(_));
-    let store = sim.db();
-    let approval = if stack {
-        store.approve_stack(&principal, &id, &digest, now)
-    } else {
-        store.approve_container(&principal, &id, &digest, now)
+    let core = sim.core();
+    let approval = match &sim.flows[&flow].planned {
+        Planned::Container(p) => {
+            core.approve_container(token, csrf, p.plan.id.clone(), p.digest.clone())
+                .await
+        }
+        Planned::Stack(p) => {
+            core.approve_stack_plan(token, csrf, p.plan.id.clone(), p.digest.clone())
+                .await
+        }
     };
     // A plan approved too late is refused as expired, or, once a later
     // proposal has swept it away, as not found.
@@ -574,8 +751,8 @@ async fn approve(sim: &mut Sim, flow: u64) -> bool {
     }
 }
 
-/// `Core::submit` / `Core::submit_stack`: replay check, fresh inspection,
-/// queue; then the job is in the ledger and its fault (if any) is armed.
+/// Core's `submit` / `submit_stack`: replay check, fresh inspection, queue;
+/// then the job is in the ledger and its fault (if any) is armed.
 async fn queue(sim: &mut Sim, agenda: &mut Agenda, flow: u64) {
     let Some(Flow {
         user,
@@ -587,7 +764,7 @@ async fn queue(sim: &mut Sim, agenda: &mut Agenda, flow: u64) {
     else {
         return;
     };
-    let Some(principal) = session(sim, user, "queue job: session") else {
+    let Some((token, csrf)) = session(sim, user, "queue job: session").await else {
         return;
     };
     let legit = [
@@ -595,67 +772,56 @@ async fn queue(sim: &mut Sim, agenda: &mut Agenda, flow: u64) {
         ErrorCode::Conflict,
         ErrorCode::Unavailable,
     ];
-    let queued = match &planned {
+    let core = sim.core();
+    let queued = match planned {
         Planned::Container(proposal) => {
-            let replay = sim
-                .store
-                .as_ref()
-                .unwrap()
-                .replay_container(&principal, &key, proposal, &approval);
-            if sim
-                .judge("queue job: replay check", replay, &legit)
-                .is_none()
-            {
-                return;
-            }
-            let snapshot = match sim.inspect(&proposal.plan.expected.resource).await {
-                Ok(s) => s,
-                Err(e) => {
-                    sim.judge::<()>("queue job: inspect", Err(e), &legit);
-                    return;
-                }
-            };
-            let now = sim.now();
-            let job = sim
-                .db()
-                .queue_container(&principal, &key, proposal, &approval, &snapshot, now);
-            sim.judge("queue container job", job, &legit)
-                .map(|job| (job.id, Kind::Container, job.plan.operation, 1))
+            let job = core
+                .submit(
+                    token,
+                    csrf,
+                    limeos_contracts::QueueRestartInput {
+                        proposal,
+                        approval,
+                        idempotency_key: key,
+                    },
+                )
+                .await;
+            sim.absorb().await;
+            sim.judge("queue container job", job, &legit).map(|job| {
+                let resource = job.plan.expected.resource.clone();
+                (job.id, Kind::Container, job.plan.operation, 1, resource)
+            })
         }
         Planned::Stack(proposal) => {
-            let replay = sim
-                .store
-                .as_ref()
-                .unwrap()
-                .replay_stack(&principal, &key, proposal, &approval);
-            if sim
-                .judge("queue job: replay check", replay, &legit)
-                .is_none()
-            {
-                return;
-            }
-            let project = proposal.plan.expected.project().unwrap().to_owned();
-            let snapshot = match sim.inspect_stack(&project).await {
-                Ok(s) => s,
-                Err(e) => {
-                    sim.judge::<()>("queue job: inspect", Err(e), &legit);
-                    return;
-                }
-            };
-            let now = sim.now();
-            let job = sim
-                .db()
-                .queue_stack(&principal, &key, proposal, &approval, &snapshot, now);
+            let job = core
+                .submit_stack(
+                    token,
+                    csrf,
+                    limeos_contracts::QueueStackInput {
+                        proposal,
+                        approval,
+                        idempotency_key: key,
+                    },
+                )
+                .await;
+            sim.absorb().await;
             sim.judge("queue stack job", job, &legit).map(|job| {
                 let targets = job.plan.targets().len();
-                (job.id, Kind::Stack, job.plan.operation, targets)
+                let project = job.plan.expected.project().unwrap_or_default().to_owned();
+                (
+                    job.id,
+                    Kind::Stack,
+                    job.plan.operation,
+                    targets,
+                    format!("stack:{project}"),
+                )
             })
         }
     };
-    let Some((id, kind, operation, targets)) = queued else {
+    let Some((id, kind, operation, targets, resource)) = queued else {
         return;
     };
-    let fault = arm_fault(sim, &id);
+    let fault = arm_fault(sim, &id, &resource);
     sim.ledger.insert(
         id.clone(),
         JobRecord {
@@ -664,6 +830,7 @@ async fn queue(sim: &mut Sim, agenda: &mut Agenda, flow: u64) {
             targets,
             fault,
             declared: None,
+            user,
         },
     );
     sim.next_pass = sim.next_pass.min(sim.now() + 1);
@@ -680,7 +847,7 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
     };
     match step {
         Step::Login(user) => {
-            if login(sim, user) {
+            if login(sim, user).await {
                 agenda.at(now + 30, Step::Dashboard { user, left: 30 });
                 if sim.rng.per_mille(400) {
                     agenda.at(now + sim.rng.around(30 * MINUTE), Step::Logout(user));
@@ -694,12 +861,12 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
             // The refusal itself is core's, not driven here.
             let user = sim.rng.below(sim.users.len() as u64) as usize;
             let name = sim.users[user].name;
-            let record = sim.store.as_ref().unwrap().login_record(name);
+            let record = sim.call(move |s| s.login_record(name)).await;
             sim.judge("failed login: account read", record, &[]);
             again(sim, agenda, 17 * HOUR / 3, Step::FailedLogin);
         }
         Step::UnknownLogin => {
-            let record = sim.store.as_ref().unwrap().login_record("nobody");
+            let record = sim.call(|s| s.login_record("nobody")).await;
             if let Some(Some(_)) = sim.judge("failed login: account read", record, &[]) {
                 sim.violation(checks::INVARIANTS, "an unknown name has an account".into());
             }
@@ -707,30 +874,18 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
         }
         Step::Logout(user) => {
             if let Some(session) = sim.users[user].session.take() {
-                // `Database::revoke`: admission on the reader, then the write.
-                let checked = sim.store.as_ref().unwrap().authenticate(
-                    &session.digest(),
-                    Some(&session.csrf_digest()),
-                    now,
-                );
-                if sim
-                    .judge("logout: admission", checked, &[ErrorCode::Unauthenticated])
-                    .is_some()
-                {
-                    let revoked = sim.db().revoke_session(&session.digest(), now);
-                    sim.judge("logout", revoked, &[]);
-                }
+                // Core's `logout`: admission on the query-only connection,
+                // then the revocation lane.
+                let result = sim.core().logout(session.token, session.csrf).await;
+                sim.judge("logout", result, &[ErrorCode::Unauthenticated]);
             }
         }
         Step::Dashboard { user, left } => {
-            // `Core::observations`: authenticate and read grants, no CSRF.
+            // Core's `observations`: the session (no CSRF) and its grants.
             let Some(session) = &sim.users[user].session else {
                 return;
             };
-            let store = sim.store.as_ref().unwrap();
-            let read = store
-                .authenticate(&session.digest(), None, now)
-                .and_then(|p| store.grants(&p).map(|_| ()));
+            let read = sim.core().observations(session.token.clone()).await;
             sim.stats.reads += 1;
             if sim
                 .judge("dashboard poll", read, &[ErrorCode::Unauthenticated])
@@ -748,13 +903,35 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
             }
         }
         Step::Progress { job, left } => {
-            // The page's 2 s progress poll (`restart_progress`).
-            let state = sim.store.as_ref().unwrap().job_state(&job);
+            // The page's 2 s progress poll, with its owner's session.
+            let Some(record) = sim.ledger.get(&job) else {
+                return;
+            };
+            let (kind, user) = (record.kind, record.user);
+            let Some(token) = sim.users[user].session.as_ref().map(|s| s.token.clone()) else {
+                return;
+            };
+            let core = sim.core();
+            let state = match kind {
+                Kind::Container => core
+                    .restart_progress(token, job.clone(), 0)
+                    .await
+                    .map(|p| p.job.state),
+                Kind::Stack => core
+                    .stack_progress(token, job.clone(), 0)
+                    .await
+                    .map(|p| p.job.state),
+            };
             sim.stats.reads += 1;
-            if let Some(state) = sim.judge("job progress poll", state, &[]) {
+            if let Some(state) =
+                sim.judge("job progress poll", state, &[ErrorCode::Unauthenticated])
+            {
                 let terminal = !matches!(
-                    state.as_str(),
-                    "queued" | "running" | "verifying" | "outcome_unknown"
+                    state,
+                    JobState::Queued
+                        | JobState::Running
+                        | JobState::Verifying
+                        | JobState::OutcomeUnknown
                 );
                 if !terminal && left > 0 {
                     agenda.at(
@@ -797,14 +974,13 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
         Step::Queue(flow) => queue(sim, agenda, flow).await,
         Step::CancelPlan(flow) => {
             if let Some(Flow { user, planned, .. }) = sim.flows.remove(&flow) {
-                if let Some(principal) = session(sim, user, "cancel plan: session") {
+                if let Some((token, csrf)) = session(sim, user, "cancel plan: session").await {
+                    let core = sim.core();
                     let result = match planned {
                         Planned::Container(p) => {
-                            sim.db().cancel_container_plan(&principal, &p.plan.id, now)
+                            core.cancel_restart(token, csrf, p.plan.id, true).await
                         }
-                        Planned::Stack(p) => {
-                            sim.db().cancel_stack_plan(&principal, &p.plan.id, now)
-                        }
+                        Planned::Stack(p) => core.cancel_stack(token, csrf, p.plan.id, true).await,
                     };
                     sim.judge("cancel plan", result, &[]);
                 }
@@ -815,7 +991,7 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
             if let Some(flow) = propose_container(sim, 0, Fate::LateApproval).await {
                 schedule_flow(sim, agenda, flow);
             }
-            if login(sim, 0) {
+            if login(sim, 0).await {
                 let session = sim.users[0].session.as_ref().unwrap();
                 sim.stale = Some(Session {
                     token: session.token.clone(),
@@ -826,11 +1002,7 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
         }
         Step::UseStale => {
             if let Some(session) = sim.stale.take() {
-                let result = sim.store.as_ref().unwrap().authenticate(
-                    &session.digest(),
-                    Some(&session.csrf_digest()),
-                    now,
-                );
+                let result = sim.core().session(session.token, Some(session.csrf)).await;
                 sim.judge(
                     "provoked: session used after it expired",
                     result,
@@ -854,22 +1026,22 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
             checks::checkpoint(sim);
             // Startup, measured on copies of both stores every night: the
             // deterministic series the startup checks judge.
-            crate::startup::core(sim);
-            crate::startup::receipts(sim);
+            super::startup::core(sim);
+            super::startup::receipts(sim);
             // Both daemons restart every night (core only while its restarts
             // last): every restart is followed by the checks.
-            sim.restart_executor("daily restart");
+            sim.restart_executor("daily restart").await;
             if sim.core_restarts() {
-                sim.restart_core("daily restart");
+                sim.restart_core("daily restart").await;
             }
         }
         Step::IdleWindow => checks::idle_window(sim).await,
         Step::RunawayLogins { until } => {
             for _ in 0..2 {
-                if login(sim, 1) {
+                if login(sim, 1).await {
                     let session = sim.users[1].session.take().unwrap();
-                    let revoked = sim.db().revoke_session(&session.digest(), now);
-                    sim.judge("logout", revoked, &[]);
+                    let result = sim.core().logout(session.token, session.csrf).await;
+                    sim.judge("logout", result, &[]);
                 }
             }
             if now + 1 < until {
@@ -913,35 +1085,102 @@ fn schedule_flow(sim: &mut Sim, agenda: &mut Agenda, flow: u64) {
 
 /// The operator works through the needs-attention list.
 pub async fn operator_review(sim: &mut Sim) {
-    let Some(Some(admin)) = sim.judge(
-        "operator: record",
-        sim.store.as_ref().unwrap().login_record("marc"),
-        &[],
-    ) else {
+    let record = sim.call(|s| s.login_record("marc")).await;
+    let Some(Some(admin)) = sim.judge("operator: record", record, &[]) else {
         return;
     };
     let admin = admin.principal;
-    let listed = sim.store.as_ref().unwrap().needs_attention_jobs(&admin);
+    let listed = sim.call(move |s| s.needs_attention_jobs(&admin)).await;
     let Some(jobs) = sim.judge("operator: needs-attention list", listed, &[]) else {
         return;
     };
     for job in jobs {
-        match sim.resolve_as(admin.clone(), job.job).await {
-            Ok(Some(finish)) => sim.note_finish(finish),
-            Ok(None) => {}
-            Err(Halt::CoreCrash) => {
-                sim.restart_core("core restart between resolution request and executor");
-                return;
-            }
-            Err(Halt::Error(_, e)) => {
-                sim.judge::<()>(
-                    "operator: resolve",
-                    Err(e),
-                    &[ErrorCode::Conflict, ErrorCode::Unavailable],
-                );
-            }
+        if resolve(sim, job.job).await.is_err() {
+            return;
         }
     }
+}
+
+/// The operator decides one job through core's own resolution path (the
+/// root CLI's `rpc_resolution_view` and `rpc_resolve`): fresh evidence, the
+/// declaration the evidence supports (on a second attempt, an accepted
+/// divergence), then core's crash-safe request, executor, completion order.
+/// One decision in ten, while core may restart, is interrupted by a core
+/// restart between the recorded request and the executor; the retry loop
+/// completes it after startup.
+async fn resolve(sim: &mut Sim, job: String) -> Result<(), CoreCrash> {
+    let view = sim
+        .core()
+        .rpc_resolution_view("marc".into(), job.clone())
+        .await;
+    sim.absorb().await;
+    let Some(view) = sim.judge(
+        "operator: evidence",
+        view,
+        &[ErrorCode::Conflict, ErrorCode::Unavailable],
+    ) else {
+        return Ok(());
+    };
+    let awaiting = matches!(
+        view.state,
+        JobState::NeedsIntervention | JobState::Running | JobState::Verifying
+    );
+    let Some(digest) = view.evidence_digest.clone() else {
+        return Ok(());
+    };
+    if view.resolution.is_some() || view.pending.is_some() || !awaiting {
+        return Ok(());
+    }
+    let attempt = {
+        let count = sim.attempts.entry(job.clone()).or_default();
+        *count += 1;
+        *count
+    };
+    let declared = if attempt == 1 && view.allowed.contains(&DeclaredOutcome::VerifiedDone) {
+        DeclaredOutcome::VerifiedDone
+    } else if attempt == 1 && view.allowed.contains(&DeclaredOutcome::NotDone) {
+        DeclaredOutcome::NotDone
+    } else {
+        DeclaredOutcome::AcceptedDivergence
+    };
+    let reason = match declared {
+        DeclaredOutcome::AcceptedDivergence => {
+            "checked the containers by hand; accepting their state"
+        }
+        _ => "checked by the soak operator",
+    };
+    if let Some(record) = sim.ledger.get_mut(&job) {
+        record.declared = Some(declared);
+    }
+    if sim.core_restarts() && sim.rng.per_mille(100) {
+        sim.exec.arm(&job, "", JobFault::ResolutionInterrupted);
+    }
+    let core = sim.core();
+    let crash = sim.exec.crash.clone();
+    let decided = guarded(
+        &crash,
+        core.rpc_resolve("marc".into(), job, declared, reason.into(), digest),
+    )
+    .await;
+    drop(core);
+    match decided {
+        Err(CoreCrash) => {
+            sim.restart_core("core restart between resolution request and executor")
+                .await;
+            sim.absorb().await;
+            return Err(CoreCrash);
+        }
+        Ok(Ok(response)) => sim.stats.op(&format!("resolution: {:?}", response.status)),
+        Ok(Err(e)) => {
+            sim.judge::<()>(
+                "operator: resolve",
+                Err(e),
+                &[ErrorCode::Conflict, ErrorCode::Unavailable],
+            );
+        }
+    }
+    sim.absorb().await;
+    Ok(())
 }
 
 /// After the last day: no new work; dispatch, recover and resolve until
@@ -950,21 +1189,10 @@ async fn drain(sim: &mut Sim, agenda: &mut Agenda) {
     let limit = sim.now() + 2 * DAY;
     let mut review = sim.now();
     while sim.now() < limit {
-        let next = sim
-            .next_pass
-            .min(sim.last_retention + MINUTE)
-            .min(review)
-            .min(agenda.next_time())
-            .min(sim.executor_back_at.unwrap_or(i64::MAX));
-        sim.clock.set(next.max(sim.now()));
+        let next = next_moment(sim, agenda).min(review);
+        sim.advance(next);
+        executor_back(sim);
         let now = sim.now();
-        if sim.executor_back_at.is_some_and(|at| at <= now) {
-            sim.executor_back_at = None;
-            sim.start_executor("executor back after a stop");
-        }
-        if now >= sim.last_retention + MINUTE {
-            sim.retention_pass();
-        }
         if now >= sim.next_pass {
             tick(sim).await;
         }

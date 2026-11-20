@@ -1,9 +1,7 @@
 //! The simulated clock, a seeded PRNG, Engine timestamps and the per-thread
 //! I/O counters the harness measures work with.
-use std::sync::{
-    Arc,
-    atomic::{AtomicI64, Ordering},
-};
+use limeos_persistence::test_support::SimClock;
+use std::sync::Arc;
 
 /// 2026-01-01T00:00:00Z: day 0 of every run.
 pub const START: i64 = 1_767_225_600;
@@ -11,22 +9,27 @@ pub const MINUTE: i64 = 60;
 pub const HOUR: i64 = 3_600;
 pub const DAY: i64 = 86_400;
 
-/// The one simulated clock. Every component reads it: the harness passes it
-/// as `now` to the core store, as the `clock` of the receipt store and to the
-/// fake Engine for container start times. It only moves forward, and only
-/// when the driver advances it; nothing reads the wall clock for a decision.
+/// The one simulated clock (the store's `SimClock`). Every component reads
+/// it: core's own code (`now()` and its recovery pacing, on the test thread
+/// and on the store's writer thread), the writer thread's retention gate,
+/// the receipt store through the executor's request handling, and the fake
+/// Engine for container start times. It only moves forward, and only when
+/// the driver advances it; advancing it returns once the writer thread has
+/// run its retention gate at the new time.
 #[derive(Clone)]
-pub struct Clock(Arc<AtomicI64>);
+pub struct Clock(Arc<SimClock>);
 impl Clock {
     pub fn new(at: i64) -> Self {
-        Self(Arc::new(AtomicI64::new(at)))
+        Self(SimClock::new(at))
     }
     pub fn now(&self) -> i64 {
-        self.0.load(Ordering::SeqCst)
+        self.0.now()
     }
     pub fn set(&self, at: i64) {
-        assert!(at >= self.now(), "the simulated clock never steps back");
-        self.0.store(at, Ordering::SeqCst);
+        self.0.set(at);
+    }
+    pub fn sim(&self) -> &Arc<SimClock> {
+        &self.0
     }
 }
 
@@ -88,11 +91,11 @@ pub fn rfc3339(seconds: i64, nanos: u32) -> String {
     )
 }
 
-/// The calling thread's I/O accounting (`/proc/thread-self/io`). Every store
-/// call of a run happens on the test thread (a current-thread runtime, no
-/// writer thread), so the delta across a call is exactly that call's reads
-/// and writes: `syscr` counts SQLite's page reads, `syscw` any write at all.
-/// Deterministic for a given database file, unlike wall time on a CI runner.
+/// The calling thread's I/O accounting (`/proc/thread-self/io`): `syscr`
+/// counts SQLite's page reads, `syscw` any write at all. Deterministic for a
+/// given database file, unlike wall time on a CI runner. Core's store writes
+/// on its writer thread (read there with a store call), everything else of a
+/// run (the executor's receipt store, the harness) on the test thread.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Io {
     pub rchar: u64,

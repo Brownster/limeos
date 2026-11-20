@@ -9,7 +9,7 @@
 //! (`Bell::wait(retention::INTERVAL)`) waits a real minute, and the interval
 //! is a constant. Proving it without a sleep needs an injectable retention
 //! interval (or clock) for the writer thread, a seam for a later round.
-use crate::{
+use super::{
     fixtures::{SESSION, add_events, core_store, value},
     sim::{rule_limits, soak_dir},
     support::START,

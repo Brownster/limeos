@@ -1319,6 +1319,8 @@ mod compose_tests;
 #[cfg(test)]
 mod operation_tests;
 #[cfg(test)]
+mod soak;
+#[cfg(test)]
 mod stack_operation_tests;
 #[cfg(test)]
 mod storage_tests;

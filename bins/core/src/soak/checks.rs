@@ -3,12 +3,13 @@
 //! fails on any check that failed, unless it is listed in
 //! [`EXPECTED_FAILURES`] with its explanation (and fails if a listed one
 //! passes, so a fixed defect cannot stay marked).
-use crate::{
+use super::{
     sim::Sim,
     startup::{COPY, pages},
-    support::{DAY, Io, MINUTE, START, mib, slope},
+    support::{DAY, MINUTE, START, mib, slope},
     workload::{Profile, tick},
 };
+use limeos_executor_container::limits;
 use rusqlite::{Connection, OpenFlags};
 use std::{collections::BTreeMap, path::Path};
 
@@ -31,6 +32,8 @@ pub const ACCOUNTING: &str = "audit counter and retained rows match what retenti
 pub const EXPLAINED: &str = "core startup reads nothing its checks do not explain";
 pub const MOUNT_PROOF: &str = "the storage-mount proof check reads little without storage mounts";
 pub const STARTUP_PER_JOB: &str = "core startup work grows only with the per-job tables";
+pub const CLOSURES: &str = "recovery closes every absent action it asks about";
+pub const LOST_ANSWERS: &str = "a lost executor answer reads as unavailable";
 
 /// A check known to fail, the defect that makes it fail, and what is known
 /// about that defect: each pin names a measure the run records (`measures`)
@@ -81,6 +84,19 @@ pub const EXPECTED_FAILURES: &[Known] = &[
               Needs the subquery to search `events_job` (or the operation filtered first)",
         pins: &[(PROOF_BY_KIND, 1.0, 1.0), (PROOF_FILES, 0.0, 15.0)],
     },
+    Known {
+        check: LOST_ANSWERS,
+        why: "`limeos_contracts::read_frame` maps every failure to read the answer, the end of \
+              the stream included, to `InvalidInput`: when the executor closes the connection \
+              unanswered (it died, or the answer was lost), core's dispatcher, recovery and \
+              resolution paths see the caller's own bad input instead of `Unavailable`. Core \
+              still holds the job for reconciliation (any failure after the connection exists \
+              counts as sent), but the code it logs and returns is wrong, and an HTTP caller \
+              would be told a retryable failure is a client error (`retry: false`). Found by \
+              driving core's real `exchange` over the socket. Needs a read that ends early to be \
+              `Unavailable`",
+        pins: &[(LOST_RATIO, 0.01, 1.0)],
+    },
 ];
 
 /// Measures the pins read, recorded by the trend checks.
@@ -91,14 +107,16 @@ pub const STARTUP_DAY: &str = "core startup page reads (but the proof check) add
 pub const STARTUP_YEARS: &str = "years until a core open reaches its bound at that rate";
 pub const PROOF_BY_KIND: &str = "the proof check looks events up by kind (1 = on every copy)";
 pub const PROOF_FILES: &str = "the proof check's largest read, in files' worth of pages";
+pub const LOST_RATIO: &str =
+    "core failures logged as InvalidInput per connection the executor closed unanswered";
 
 /// Core's file and WAL: the events table at its 131,072-row budget is about
 /// 40 MiB of rows and indexes; the audit cap (twice that) is the hard stop.
 pub const CORE_FILE_BOUND: u64 = 80 << 20;
 pub const CORE_WAL_BOUND: u64 = 8 << 20;
-/// Half the receipt store's own cap (`max_page_count` 4096 and the 16 MiB
-/// file check in `ReceiptStore::open_at`): at the cap every execute fails.
-pub const RECEIPT_FILE_BOUND: u64 = 8 << 20;
+/// Half the receipt store's own page cap (`limits::MAX_PAGES`, below its
+/// `MAX_FILE_BYTES` file check): at the cap every execute fails.
+pub const RECEIPT_FILE_BOUND: u64 = limits::MAX_PAGES as u64 * PAGE / 2;
 pub const RECEIPT_WAL_BOUND: u64 = 2 << 20;
 /// Debug builds on a shared CI runner; a Pi in release is far faster.
 pub const CORE_OPEN_BOUND_MS: u128 = 5_000;
@@ -151,7 +169,7 @@ fn core_budget(table: &str) -> Option<Budget> {
     Some(match table {
         // The retention budget, plus one batch of arrivals past it.
         "events" => {
-            let (budget, batch) = crate::sim::rule_limits("events");
+            let (budget, batch) = super::sim::rule_limits("events");
             Rows(budget + batch)
         }
         // 16 per user (`create_session` evicts the oldest), two users.
@@ -191,15 +209,31 @@ fn core_budget(table: &str) -> Option<Budget> {
     })
 }
 
-/// Every receipt-store table.
+/// Every receipt-store table, from the store's own limits.
 fn receipt_budget(table: &str) -> Option<Budget> {
     use Budget::*;
+    let (actions, stacks, batch) = (
+        i64::from(limits::RETAINED_ACTIONS),
+        i64::from(limits::RETAINED_STACKS),
+        i64::from(limits::PRUNE_BATCH),
+    );
+    // The most members one stack here has (the media stack).
+    let members = super::engine::STACKS
+        .iter()
+        .map(|s| {
+            super::engine::HOST
+                .iter()
+                .filter(|(_, p)| *p == Some(*s))
+                .count()
+        })
+        .max()
+        .unwrap_or(0) as i64;
     Some(match table {
-        // 1,024 standalone receipts kept, each of 256 stacks keeps up to 16
-        // member rows (4 stacks here: at most 6 members), plus one prune
-        // batch and the rows still holding locks.
-        "actions" => Rows(1024 + 256 * 6 + 64 + 32),
-        "stack_actions" => Rows(256 + 64 + 8),
+        // The standalone receipts kept, each kept stack's member rows, plus
+        // one prune batch and the rows still holding locks (one per
+        // container, one per stack).
+        "actions" => Rows(actions + stacks * members + batch + super::engine::HOST.len() as i64),
+        "stack_actions" => Rows(stacks + batch + super::engine::STACKS.len() as i64),
         "retention" => Rows(1),
         "pruned_legacy" => Rows(0),
         _ => return None,
@@ -269,33 +303,6 @@ fn stat(path: &Path) -> StoreStat {
         file: len(path),
         wal: len(Path::new(&wal)),
     }
-}
-
-/// Page reads of the startup checks' biggest steps, each on a fresh
-/// connection to a copy of the store (see `startup`): to explain an open.
-pub fn probe_open(path: &Path, scratch: &Path) -> String {
-    let copy = scratch.join("probe.sqlite");
-    crate::startup::copy(path, &copy);
-    let steps = [
-        ("quick_check", "PRAGMA quick_check"),
-        (
-            "foreign_key_check",
-            "SELECT count(*) FROM pragma_foreign_key_check",
-        ),
-        ("count(events)", "SELECT count(*) FROM events"),
-    ];
-    let line = steps
-        .iter()
-        .map(|(name, sql)| {
-            let conn = reader(&copy).expect("side connection");
-            let before = Io::now();
-            let _: rusqlite::types::Value = conn.query_row(sql, [], |r| r.get(0)).unwrap();
-            format!("{name} {} pages", Io::now().since(before).syscr)
-        })
-        .collect::<Vec<_>>()
-        .join(", ");
-    std::fs::remove_file(&copy).unwrap();
-    line
 }
 
 fn receipts_path(sim: &Sim) -> std::path::PathBuf {
@@ -383,19 +390,21 @@ pub fn checkpoint(sim: &mut Sim) {
         sim.violation(check, problem);
     }
     sim.samples.push(sample);
+    let authority = authority_events(&reader(&sim.core_path).unwrap());
+    if authority < sim.authority_seen {
+        sim.violation(
+            AUTHORITY,
+            format!(
+                "{authority} authority events, {} at the last checkpoint",
+                sim.authority_seen
+            ),
+        );
+    }
+    sim.authority_seen = sim.authority_seen.max(authority);
     invariants(sim, "daily checkpoint");
     core_accounting(sim, "daily checkpoint");
     receipt_accounting(sim, "daily checkpoint");
 }
-
-/// Receipts kept per standalone action and per stack, and the most one
-/// insert prunes: `RETAINED_ACTIONS`, `RETAINED_STACKS` and `PRUNE_BATCH` in
-/// `crates/executor-container/src/retention.rs`. They are `pub(crate)`
-/// there, so these are copies; widening that crate's API is out of this
-/// round's scope.
-pub const RETAINED_ACTIONS: i64 = 1024;
-pub const RETAINED_STACKS: i64 = 256;
-pub const RECEIPT_PRUNE_BATCH: i64 = 64;
 
 /// The core store's audit accounting, read on a side connection: before
 /// every restart (where `Store::open` would recompute the counter and hide
@@ -422,7 +431,7 @@ pub fn core_accounting(sim: &mut Sim, when: &str) {
         ));
     }
     let removed = |rule: &str| sim.stats.retention_removed.get(rule).copied().unwrap_or(0);
-    let (budget, _) = crate::sim::rule_limits("events");
+    let (budget, _) = super::sim::rule_limits("events");
     let written = rows + removed("events") + removed("authority events");
     let floor = budget.min(written) - removed("authority events");
     if rows < floor {
@@ -459,10 +468,15 @@ pub fn receipt_accounting(sim: &mut Sim, when: &str) {
         (
             "standalone receipts",
             standalone,
-            RETAINED_ACTIONS,
+            i64::from(limits::RETAINED_ACTIONS),
             &mut reached.0,
         ),
-        ("stack receipts", stacks, RETAINED_STACKS, &mut reached.1),
+        (
+            "stack receipts",
+            stacks,
+            i64::from(limits::RETAINED_STACKS),
+            &mut reached.1,
+        ),
     ] {
         *seen |= rows >= kept;
         if *seen && rows < kept {
@@ -491,6 +505,16 @@ pub fn receipt_accounting(sim: &mut Sim, when: &str) {
     for problem in problems {
         sim.violation(ACCOUNTING, problem);
     }
+}
+
+/// Authority events in core's store, read on a side connection.
+fn authority_events(core: &Connection) -> i64 {
+    core.query_row(
+        "SELECT count(*) FROM events WHERE json_extract(kind,'$.kind') IN ('bootstrap_issued','administrator_enrolled','legacy_identity_imported','grants_revised','job_resolution_requested','job_resolution_withdrawn','job_resolution_superseded')",
+        [],
+        |r| r.get(0),
+    )
+    .unwrap()
 }
 
 /// After every restart: the stores opened (else the run has already
@@ -593,15 +617,41 @@ pub fn settled(sim: &Sim) -> bool {
     open == 0
 }
 
+/// Every file of both stores that a write changes (database and WAL), with
+/// its size and modification time: any write to it moves the latter.
+fn store_files(sim: &Sim) -> Vec<(String, Option<(u64, std::time::SystemTime)>)> {
+    let receipts = receipts_path(sim);
+    [sim.core_path.clone(), receipts]
+        .into_iter()
+        .flat_map(|path| {
+            let mut wal = path.as_os_str().to_owned();
+            wal.push("-wal");
+            [path, std::path::PathBuf::from(wal)]
+        })
+        .map(|path| {
+            let stamp = std::fs::metadata(&path)
+                .ok()
+                .and_then(|m| Some((m.len(), m.modified().ok()?)));
+            (
+                path.file_name().unwrap().to_string_lossy().into_owned(),
+                stamp,
+            )
+        })
+        .collect()
+}
+
 /// An hour of the night with nothing to do: once retention has nothing
 /// left to remove, dispatcher passes (recovery polls of any held job
-/// included) and retention passes must not write a byte to either store.
+/// included) and the writer thread's own retention passes must not write a
+/// byte to either store: no file of either store (database or WAL) may
+/// change. (Thread write counters are no measure here: core's writer thread
+/// wakes the test thread's runtime with an eventfd write for every answer,
+/// and recovery polls write to the executor's socket.)
 pub async fn idle_window(sim: &mut Sim) {
     sim.idle_scheduled += 1;
     let started = sim.now();
     for _ in 0..240 {
-        sim.clock.set(sim.now() + MINUTE);
-        let removed = sim.retention_pass();
+        let removed = sim.advance(sim.now() + MINUTE);
         tick(sim).await;
         if removed == 0 {
             break;
@@ -609,13 +659,12 @@ pub async fn idle_window(sim: &mut Sim) {
     }
     let restarts: u64 = sim.stats.restarts.values().sum();
     let start = sim.now();
-    let before = Io::now();
+    let before = store_files(sim);
     for _ in 0..60 {
-        sim.clock.set(sim.now() + MINUTE);
-        sim.retention_pass();
+        sim.advance(sim.now() + MINUTE);
         tick(sim).await;
     }
-    let io = Io::now().since(before);
+    let after = store_files(sim);
     if sim.stats.restarts.values().sum::<u64>() != restarts || sim.executor_back_at.is_some() {
         // A fault armed on a held job fired: not an idle hour. Recorded,
         // so a run that skips too many fails instead of passing unmeasured.
@@ -625,16 +674,19 @@ pub async fn idle_window(sim: &mut Sim) {
         ));
         return;
     }
-    sim.idle.push((start, io));
-    if io.syscw != 0 || io.wchar != 0 {
+    let changed: Vec<String> = before
+        .iter()
+        .zip(&after)
+        .filter(|(b, a)| b.1 != a.1)
+        .map(|(b, _)| b.0.clone())
+        .collect();
+    if !changed.is_empty() {
         sim.violation(
             IDLE,
-            format!(
-                "{} write calls, {} bytes written in an idle hour",
-                io.syscw, io.wchar
-            ),
+            format!("an idle hour wrote to {}", changed.join(", ")),
         );
     }
+    sim.idle.push((start, changed));
 }
 
 /// Idle hours: every scheduled one measured or skipped for a recorded
@@ -674,6 +726,11 @@ pub fn finish(sim: &mut Sim, profile: &Profile) {
 
 fn final_state(sim: &mut Sim) {
     idle_coverage(sim);
+    let dropped = sim.exec.faults().dropped;
+    sim.measures.insert(
+        LOST_RATIO,
+        sim.stats.lost_as_invalid as f64 / dropped.max(1) as f64,
+    );
     let core = reader(&sim.core_path).expect("core side connection");
     let states: BTreeMap<String, String> = core
         .prepare("SELECT id,state FROM jobs")
@@ -693,9 +750,12 @@ fn final_state(sim: &mut Sim) {
     if open > 0 {
         problems.push((SETTLED, format!("{open} resolution requests still open")));
     }
+    let effects = sim.exec.faults().effects.clone();
+    let unclosed = sim.exec.faults().unclosed.clone();
+    problems.extend(unclosed.into_iter().map(|line| (CLOSURES, line)));
     for (id, record) in &sim.ledger {
         let state = states.get(id).map(String::as_str).unwrap_or("missing");
-        let effects = sim.exec.effects.get(id).copied().unwrap_or(0) as usize;
+        let effects = effects.get(id).copied().unwrap_or(0) as usize;
         if !matches!(
             state,
             "succeeded" | "failed" | "canceled" | "precondition_changed" | "resolved"
@@ -732,28 +792,23 @@ fn final_state(sim: &mut Sim) {
             ));
         }
     }
-    // Authority events: far below their budget (4,096), so every one the
-    // run caused must still be there.
-    let authority: i64 = core
-        .query_row(
-            "SELECT count(*) FROM events WHERE json_extract(kind,'$.kind') IN ('bootstrap_issued','administrator_enrolled','legacy_identity_imported','grants_revised','job_resolution_requested','job_resolution_withdrawn','job_resolution_superseded')",
-            [],
-            |r| r.get(0),
-        )
-        .unwrap();
-    let expected: u64 = [
-        "authority: expected",
-        "resolution requested",
-        "authority: withdrawn",
-        "authority: superseded",
-    ]
-    .iter()
-    .map(|op| sim.stats.ops.get(op).copied().unwrap_or(0))
-    .sum();
-    if authority != expected as i64 {
+    // Authority events: far below their budget (4,096), so retention must
+    // never have removed one (it is the only thing that deletes events), and
+    // their count never went down between checkpoints.
+    let pruned = sim
+        .stats
+        .retention_removed
+        .get("authority events")
+        .copied()
+        .unwrap_or(0);
+    let authority = authority_events(&core);
+    if pruned != 0 || authority < sim.authority_seen {
         problems.push((
             AUTHORITY,
-            format!("{authority} authority events kept, {expected} written"),
+            format!(
+                "{authority} authority events kept ({} at the last checkpoint); retention removed {pruned}",
+                sim.authority_seen
+            ),
         ));
     }
     // The workload provokes these on purpose; each must have been seen, so
@@ -764,7 +819,11 @@ fn final_state(sim: &mut Sim) {
         ("approve plan", "Expired"),
         ("provoked: session used after it expired", "Unauthenticated"),
     ] {
-        if !sim.stats.refused.contains_key(&(op, code.to_owned())) {
+        if !sim
+            .stats
+            .refused
+            .contains_key(&(op.to_owned(), code.to_owned()))
+        {
             problems.push((PROVOKED, format!("{op}: never refused with {code}")));
         }
     }
@@ -867,11 +926,11 @@ fn trends(sim: &mut Sim) {
         .core_starts
         .iter()
         .filter_map(|c| {
-            let probe = c.probe?;
+            let trace = c.trace.as_ref()?;
             let sample = samples.iter().find(|s| s.at == c.at)?;
             Some((
                 (c.at - START) as f64 / DAY as f64,
-                (probe.known - probe.proof) as f64,
+                trace.cold_but_defect() as f64,
                 per_job_bytes(sample) / PAGE as f64,
             ))
         })
@@ -908,7 +967,12 @@ fn trends(sim: &mut Sim) {
             ));
         }
     }
-    // The receipt store's opens: its file is flat, so its reads must be.
+    // The receipt store's opens. Every one of its tables is bounded by a row
+    // budget (asserted at every checkpoint), so its reads can grow only
+    // while its rows approach those budgets: the stack receipts kept turn
+    // over at two stack actions a day, slower than the run, and their member
+    // rows follow the mix of stacks acted on. Growth is projected to the
+    // bound, but no further than the reads of a store whose tables are full.
     let receipts: Vec<(f64, f64)> = sim
         .executor_starts
         .iter()
@@ -919,13 +983,28 @@ fn trends(sim: &mut Sim) {
     let per_day = half_slope(tail);
     let cap = startup_page_bound("receipts", RECEIPT_FILE_BOUND + RECEIPT_WAL_BOUND) as f64;
     let now = tail.last().map_or(0.0, |p| p.1);
-    let years = years_until(cap - now, per_day);
+    let full = samples.last().map_or(f64::MAX, |last| {
+        let (mut rows, mut budget) = (0, 0);
+        for (table, (count, _)) in &last.receipts.tables {
+            if let Some(Budget::Rows(limit)) = receipt_budget(table) {
+                rows += count;
+                budget += limit;
+            }
+        }
+        now * budget as f64 / rows.max(1) as f64
+    });
+    let years = if full < cap {
+        99.0
+    } else {
+        years_until(cap - now, per_day)
+    };
+    sim.measures.insert(RECEIPTS_FULL, full);
     sim.startup_projection.push(("receipts", per_day, years));
     if years < 5.0 {
         problems.push((
             STARTUP_TREND_RECEIPTS,
             format!(
-                "receipt-store opens read {per_day:.1} more pages each night over the last third ({now:.0} now): {cap:.0}, the bound at the file bound, in {years:.1} years"
+                "receipt-store opens read {per_day:.1} more pages each night over the last third ({now:.0} now, about {full:.0} with every table full): {cap:.0}, the bound at the file bound, in {years:.1} years"
             ),
         ));
     }
@@ -977,13 +1056,17 @@ fn half_slope(points: &[(f64, f64)]) -> f64 {
 /// component, more is growth from something else.
 pub const STARTUP_PER_JOB_MAX: f64 = 10.0;
 pub const STARTUP_RATIO: &str = "core startup page reads per per-job page gained";
+pub const RECEIPTS_FULL: &str = "receipt-store open page reads with every table at its budget";
 
-/// Every measured open within bounds. On each copy: the open reads no more
-/// than its known statements read cold (`EXPLAINED`), nor, beyond the proof
-/// check, more than a bounded number of pages per page of file (`STARTUP`);
-/// the proof check itself is judged on its own (`MOUNT_PROOF`). The wall
-/// time of every open, real or on a copy, is machine-dependent and guards
-/// against the catastrophic only.
+/// Every measured open within bounds. On each copy of core's store, from the
+/// open's own statement trace: every page read is inside one of the
+/// statements startup executes, but a few (`EXPLAINED`), no statement scans
+/// the events table itself (`EXPLAINED`), the open reads no more than its
+/// statements read cold, and those statements, but the pinned proof check,
+/// read a bounded number of pages per page of file (`STARTUP`); the proof
+/// check itself is judged on its own (`MOUNT_PROOF`). The wall time of every
+/// open, real or on a copy, is machine-dependent and guards against the
+/// catastrophic only.
 fn startup_bounds(sim: &mut Sim) {
     let mut problems = Vec::new();
     for (store, starts, bound) in [
@@ -1006,11 +1089,11 @@ fn startup_bounds(sim: &mut Sim) {
             if s.reason != COPY {
                 continue;
             }
-            // Core: its known statements but the proof check, cold; the
-            // receipt store: the open.
-            let (work, what) = match s.probe {
-                Some(probe) => (
-                    probe.known - probe.proof,
+            // Core: its statements but the proof check, cold; the receipt
+            // store: the open.
+            let (work, what) = match &s.trace {
+                Some(trace) => (
+                    trace.cold_but_defect(),
                     "its startup statements but the proof check read",
                 ),
                 None => (pages(s), "the open read"),
@@ -1024,44 +1107,74 @@ fn startup_bounds(sim: &mut Sim) {
                     ),
                 ));
             }
-            let Some(probe) = s.probe else { continue };
-            let allowed =
-                probe.known + (probe.known - probe.proof) * EXPLAIN_PERCENT / 100 + EXPLAIN_SLACK;
+            let Some(trace) = &s.trace else { continue };
+            if trace.outside > EXPLAIN_SLACK {
+                problems.push((
+                    EXPLAINED,
+                    format!(
+                        "core open on a copy at day {day:.2}: {} page reads outside every statement it executed",
+                        trace.outside
+                    ),
+                ));
+            }
+            for statement in trace.statements.iter().filter(|s| s.scans_events()) {
+                problems.push((
+                    EXPLAINED,
+                    format!(
+                        "core open on a copy at day {day:.2}: a startup statement scans the events table itself ({} page reads in the open, plan {:?}): {}",
+                        statement.reads,
+                        statement.plan,
+                        statement.short()
+                    ),
+                ));
+            }
+            let cold = trace.cold();
+            let allowed = cold + trace.cold_but_defect() * EXPLAIN_PERCENT / 100 + EXPLAIN_SLACK;
             if pages(s) > allowed {
                 problems.push((
                     EXPLAINED,
                     format!(
-                        "core open on a copy at day {day:.2}: {} page reads, {} more than its known startup statements read cold ({}): startup scans something they do not",
+                        "core open on a copy at day {day:.2}: {} page reads, {} more than its statements read cold ({cold})",
                         pages(s),
-                        pages(s) - probe.known,
-                        probe.known
+                        pages(s) - cold
                     ),
                 ));
             }
-            if probe.proof_by_kind || probe.proof > file_pages / 8 + 64 {
-                problems.push((
-                    MOUNT_PROOF,
-                    format!(
-                        "day {day:.2}: the storage-mount proof check reads {} pages ({:.2} files' worth){}",
-                        probe.proof,
-                        probe.proof as f64 / file_pages.max(1) as f64,
-                        if probe.proof_by_kind { ", looking events up by kind" } else { "" }
-                    ),
-                ));
+            for proof in trace.statements.iter().filter(|s| s.proof()) {
+                let reads = proof.cold.unwrap_or(proof.reads);
+                if proof.events_by_kind() || reads > file_pages / 8 + 64 {
+                    problems.push((
+                        MOUNT_PROOF,
+                        format!(
+                            "day {day:.2}: the storage-mount proof check reads {reads} pages cold ({:.2} files' worth){}",
+                            reads as f64 / file_pages.max(1) as f64,
+                            if proof.events_by_kind() {
+                                ", looking events up by kind"
+                            } else {
+                                ""
+                            }
+                        ),
+                    ));
+                }
             }
         }
     }
-    let probes: Vec<(crate::startup::Probe, u64)> = sim
+    // The pins: the proof check, found in the open by its own text, looks
+    // events up by kind on every copy, and its largest cold read.
+    let copies: Vec<(&super::startup::Trace, u64)> = sim
         .core_starts
         .iter()
-        .filter_map(|s| Some((s.probe?, (s.file + s.wal) / PAGE)))
+        .filter_map(|s| Some((s.trace.as_ref()?, (s.file + s.wal) / PAGE)))
         .filter(|(_, file)| *file > 256)
         .collect();
-    if !probes.is_empty() {
-        let by_kind = probes.iter().all(|(p, _)| p.proof_by_kind);
-        let worst = probes
+    if !copies.is_empty() {
+        let by_kind = copies.iter().all(|(t, _)| t.defect().is_some());
+        let worst = copies
             .iter()
-            .map(|(p, file)| p.proof as f64 / *file as f64)
+            .filter_map(|(t, file)| {
+                let proof = t.statements.iter().find(|s| s.proof())?;
+                Some(proof.cold.unwrap_or(proof.reads) as f64 / *file as f64)
+            })
             .fold(0.0, f64::max);
         sim.measures
             .insert(PROOF_BY_KIND, if by_kind { 1.0 } else { 0.0 });
@@ -1074,7 +1187,7 @@ fn startup_bounds(sim: &mut Sim) {
 
 /// Page reads per page of file and WAL over a run's opens on copies:
 /// minimum, median and maximum.
-fn page_ratios(starts: &[crate::sim::Startup]) -> String {
+fn page_ratios(starts: &[super::sim::Startup]) -> String {
     let mut ratios: Vec<f64> = starts
         .iter()
         .filter(|s| s.reason == COPY && s.file > 1 << 20)
@@ -1150,14 +1263,23 @@ fn report(sim: &Sim, profile: &Profile) {
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
             .unwrap();
-        let executed = sim.exec.effects.len();
+        let executed = sim.exec.faults().effects.len();
         let _ = writeln!(
             p,
             "receipt store: {actions} action rows and {stacks} stack rows kept of {executed} executes; prune watermark at day {:.2}",
             (watermark - START) as f64 / DAY as f64
         );
     }
-    let _ = writeln!(p, "faults: {:?}", sim.stats.faults);
+    let _ = writeln!(p, "faults: {:?}", sim.faults());
+    {
+        let faults = sim.exec.faults();
+        let _ = writeln!(
+            p,
+            "executor requests: {:?}; recovery lookups answered with a closure: {}",
+            faults.requests, faults.closures
+        );
+    }
+    let _ = writeln!(p, "core's warnings without a code: {:?}", sim.logged);
     let _ = writeln!(p, "restarts: {:?}", sim.stats.restarts);
     let _ = writeln!(
         p,
@@ -1191,11 +1313,11 @@ fn report(sim: &Sim, profile: &Profile) {
         p,
         "day | core open on a copy: page reads, MiB of file, ms, MiB read | receipts: page reads, KiB of file, ms"
     );
-    let copies = |starts: &[crate::sim::Startup]| -> Vec<crate::sim::Startup> {
+    let copies = |starts: &[super::sim::Startup]| -> Vec<super::sim::Startup> {
         starts
             .iter()
             .filter(|s| s.reason == COPY)
-            .copied()
+            .cloned()
             .collect()
     };
     let (core, receipts) = (copies(&sim.core_starts), copies(&sim.executor_starts));
@@ -1225,12 +1347,33 @@ fn report(sim: &Sim, profile: &Profile) {
         page_ratios(&sim.core_starts),
         page_ratios(&sim.executor_starts)
     );
-    let _ = writeln!(
-        p,
-        "core startup page reads by step, on the final store: {}",
-        probe_open(&sim.core_path, sim._dir.path())
-    );
-    let worst = |starts: &[crate::sim::Startup]| {
+    if let Some(trace) = sim.core_starts.iter().rev().find_map(|s| s.trace.as_ref()) {
+        let mut statements: Vec<&super::startup::Statement> = trace.statements.iter().collect();
+        statements.sort_by_key(|s| std::cmp::Reverse(s.cold.unwrap_or(0).max(s.reads)));
+        let _ = writeln!(
+            p,
+            "core startup on the last copy: {} statements, {} page reads in the open ({} outside every statement), {} cold; the largest:",
+            trace.statements.len(),
+            trace.reads(),
+            trace.outside,
+            trace.cold()
+        );
+        for s in statements.iter().take(10) {
+            let _ = writeln!(
+                p,
+                "  {:>6} in the open, {:>6} cold, {:>9} VM steps, {} runs: {}",
+                s.reads,
+                s.cold.map_or("-".into(), |c| c.to_string()),
+                s.vm_steps,
+                s.runs,
+                s.short()
+            );
+        }
+        if let Some(defect) = trace.defect() {
+            let _ = writeln!(p, "  the pinned proof check's plan: {:?}", defect.plan);
+        }
+    }
+    let worst = |starts: &[super::sim::Startup]| {
         starts
             .iter()
             .map(|s| s.opened.elapsed.as_millis())
@@ -1245,10 +1388,13 @@ fn report(sim: &Sim, profile: &Profile) {
     );
     let _ = writeln!(
         p,
-        "idle hours: {} scheduled, {} measured (write calls in each: {:?}), skipped: {:?}",
+        "idle hours: {} scheduled, {} measured (files written in each: {:?}), skipped: {:?}",
         sim.idle_scheduled,
         sim.idle.len(),
-        sim.idle.iter().map(|(_, io)| io.syscw).collect::<Vec<_>>(),
+        sim.idle
+            .iter()
+            .map(|(_, files)| files.len())
+            .collect::<Vec<_>>(),
         sim.idle_skipped
     );
     if let Some(last) = sim.samples.last() {
@@ -1268,21 +1414,28 @@ fn report(sim: &Sim, profile: &Profile) {
             "{store} startup page reads over the last third: {per_day:+.0}/day; the bound in {years:.0} years at that rate"
         );
     }
-    let unexplained: Vec<i64> = sim
+    let outside: Vec<u64> = sim
         .core_starts
         .iter()
-        .filter_map(|s| Some(pages(s) as i64 - s.probe?.known as i64))
+        .filter_map(|s| Some(s.trace.as_ref()?.outside))
+        .collect();
+    let beyond: Vec<i64> = sim
+        .core_starts
+        .iter()
+        .filter_map(|s| Some(pages(s) as i64 - s.trace.as_ref()?.cold() as i64))
         .collect();
     let proofs: Vec<u64> = sim
         .core_starts
         .iter()
-        .filter_map(|s| Some(s.probe?.proof))
+        .filter_map(|s| s.trace.as_ref()?.defect()?.cold)
         .collect();
     let _ = writeln!(
         p,
-        "core opens on copies, page reads beyond their known statements cold: {:?} .. {:?}; the proof check's reads: {:?} .. {:?}",
-        unexplained.iter().min(),
-        unexplained.iter().max(),
+        "core opens on copies: page reads outside every statement {:?} .. {:?}; in the open beyond the statements cold {:?} .. {:?}; the proof check cold {:?} .. {:?}",
+        outside.iter().min(),
+        outside.iter().max(),
+        beyond.iter().min(),
+        beyond.iter().max(),
         proofs.iter().min(),
         proofs.iter().max()
     );
@@ -1318,6 +1471,8 @@ fn verdict(sim: &Sim, profile: &Profile) {
         PROVOKED,
         BATCHES,
         ACCOUNTING,
+        CLOSURES,
+        LOST_ANSWERS,
     ];
     if profile.trends {
         checks.extend([

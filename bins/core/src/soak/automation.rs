@@ -14,7 +14,7 @@
 //! simulated days, a reservation refused with `StateNotDurable` at the
 //! audit cap (262,143 events, 65,535 results, core.sqlite at 202.6 MiB).
 //! It takes about 14 minutes in a debug build and up to 210 MiB of disk.
-use crate::{
+use super::{
     sim::soak_dir,
     support::{DAY, START},
 };
@@ -44,7 +44,7 @@ fn automation_limit_at_minimum_interval() {
     store
         .enroll("bootstrap", "marc", "$argon2id$soak", START)
         .unwrap();
-    let schedule = crate::occurrences::observe_health_schedule(&mut store);
+    let schedule = super::occurrences::observe_health_schedule(&mut store);
     let batch = HealthObservation {
         signals: vec![ScopedHealthSignal {
             resource: "host:system".into(),
@@ -116,7 +116,7 @@ fn automation_limit_at_minimum_interval() {
         now += 30;
     }
     drop(store);
-    let conn = crate::checks::reader(&path).unwrap();
+    let conn = super::checks::reader(&path).unwrap();
     let count = |table: &str| -> i64 {
         conn.query_row(&format!("SELECT count(*) FROM {table}"), [], |r| r.get(0))
             .unwrap()
@@ -130,7 +130,7 @@ fn automation_limit_at_minimum_interval() {
     let file = std::fs::metadata(&path).unwrap().len();
     eprintln!(
         "automation limit: {observed} observations; events {events}, results {results}, jobs {jobs}, occurrences {occurrences}, file {:.1} MiB; {:.1} s",
-        crate::support::mib(file),
+        super::support::mib(file),
         started.elapsed().as_secs_f64()
     );
     let Some((at, op, Error(code))) = refused else {
@@ -145,7 +145,7 @@ fn automation_limit_at_minimum_interval() {
     // observation jobs, with the results one short of their own cap and the
     // occurrences held at their budget by the pruner.
     let per_event = test_support::EVENT_BYTES;
-    let (budget, batch) = crate::sim::rule_limits("automation_occurrences");
+    let (budget, batch) = super::sim::rule_limits("automation_occurrences");
     let results_cap = AuditUsage::LIMIT / (4 * per_event);
     let expected = [
         (
