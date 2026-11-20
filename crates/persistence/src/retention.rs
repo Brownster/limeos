@@ -583,6 +583,7 @@ pub mod test_support {
         path: &std::path::Path,
         clock: &std::sync::Arc<SimClock>,
     ) -> crate::Result<crate::Database> {
+        crate::assert_test_support_allowed("the simulated writer clock");
         crate::Database::open_with(path, crate::writer_clock::Clock::Simulated(clock.clone()))
     }
     /// Bytes `meta.audit_bytes` counts per row of `events`.
@@ -613,6 +614,7 @@ pub mod test_support {
     /// the soak installs a statement trace there, so it measures what the
     /// open itself executes.
     pub fn on_open(hook: Option<fn(&rusqlite::Connection)>) {
+        crate::assert_test_support_allowed("the open hook");
         OPEN_HOOK.with(|h| h.set(hook));
     }
     pub(crate) fn opened(conn: &rusqlite::Connection) {

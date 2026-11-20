@@ -53,11 +53,14 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked --features deferred -- -D warnings
       - name: Tests with deferred code
         run: cargo test --workspace --locked --features deferred
+      # Neither deferred code nor the soak's seams (persistence's
+      # test-support, rusqlite's statement trace) in a shipped binary's
+      # dependency graph; the release build below checks its own features.
       - name: Shipped binaries exclude deferred code
         run: |
           set -Eeuo pipefail
-          enabled=$(cargo tree --locked -e normal,build --prefix none -f '{p}|{f}' -p limeos-core -p limeos-executor -p limeosctl | awk -F'|' '$2 ~ /(^|,)deferred(,|$)/' | sort -u)
-          if [[ -n "$enabled" ]]; then printf 'Deferred feature enabled in a shipped binary:\n%s\n' "$enabled" >&2; exit 1; fi
+          enabled=$(cargo tree --locked -e normal,build --prefix none -f '{p}|{f}' -p limeos-core -p limeos-executor -p limeosctl | awk -F'|' '$2 ~ /(^|,)(deferred|test-support|trace)(,|$)/' | sort -u)
+          if [[ -n "$enabled" ]]; then printf 'Deferred or test-only feature enabled in a shipped binary:\n%s\n' "$enabled" >&2; exit 1; fi
       - run: cargo deny check
       - run: cargo audit
       - run: shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh tests/fixtures/backup-archives/generate.sh
@@ -90,7 +93,26 @@ jobs:
           set -Eeuo pipefail
           docker build -t limeos-builder -f packaging/Containerfile .
           build_image_id=$(docker image inspect limeos-builder --format '{{.Id}}')
-          docker run --rm -v "$PWD:/build" "$build_image_id" cargo build --locked --release -p limeos-core -p limeos-executor -p limeosctl
+          mkdir -p dist
+          docker run --rm -v "$PWD:/build" "$build_image_id" cargo build --locked --release -p limeos-core -p limeos-executor -p limeosctl --message-format=json-render-diagnostics > dist/shipped-build.jsonl
+          # The features this very build resolved: the soak's seams
+          # (persistence's test-support, rusqlite's trace) are not among them.
+          python3 - dist/shipped-build.jsonl <<'CHECK'
+          import json, sys
+          forbidden = {"limeos_persistence": "test-support", "rusqlite": "trace"}
+          seen = set()
+          for line in open(sys.argv[1]):
+              message = json.loads(line)
+              if message.get("reason") != "compiler-artifact":
+                  continue
+              name = message["target"]["name"]
+              if name in forbidden:
+                  seen.add(name)
+                  if forbidden[name] in message["features"]:
+                      sys.exit(f"{name} built with {forbidden[name]} for a shipped binary: {message['features']}")
+          if seen != set(forbidden):
+              sys.exit(f"the shipped build did not report {sorted(set(forbidden) - seen)}")
+          CHECK
           arch=$(dpkg --print-architecture)
           # Both revision labels use this source; they are not historical builds.
           for package_version in 0.4.4 0.4.4+ci.1; do

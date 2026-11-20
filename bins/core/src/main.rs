@@ -1220,6 +1220,8 @@ impl Core {
 }
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
+    // A shipped process never runs on the soak's simulated clock or hook.
+    limeos_persistence::refuse_test_support();
     tracing_subscriber::fmt().json().with_target(false).init();
     if let Err(error) = run().await {
         tracing::error!(code=?error.0,message=error.message(),"core stopped");

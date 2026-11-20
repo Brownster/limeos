@@ -1002,6 +1002,32 @@ pub use identity_store::Revocation;
 pub use job_resolutions::{PendingResolution, ResolutionSubject};
 #[cfg(feature = "test-support")]
 pub use retention::test_support;
+
+/// Set by every shipped binary's `main` before anything else
+/// ([`refuse_test_support`]).
+static TEST_SUPPORT_REFUSED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+/// Called first thing by the `main` of every binary that links this crate
+/// (core, limeosctl): from then on, the soak's seams (`test_support::open`'s
+/// simulated writer clock and `test_support::on_open`'s connection hook)
+/// cannot be selected in this process, even in a build where feature
+/// unification compiled them in (`cargo build --workspace --all-targets`
+/// enables the `test-support` feature that limeos-core's dev-dependencies
+/// ask for). A unit test's process never runs a binary's `main` (the test
+/// harness brings its own), so the soak can still select them there. Without
+/// the feature it only sets the flag.
+pub fn refuse_test_support() {
+    TEST_SUPPORT_REFUSED.store(true, Ordering::SeqCst);
+}
+/// Panics if this process's `main` refused the test seams: reached only by
+/// selecting one, which no shipped code does.
+#[cfg(feature = "test-support")]
+pub(crate) fn assert_test_support_allowed(seam: &str) {
+    assert!(
+        !TEST_SUPPORT_REFUSED.load(Ordering::SeqCst),
+        "{seam} selected in a process whose main refused the test seams: test-support is for unit tests only"
+    );
+}
 pub use retention::{AuditLevel, AuditUsage, RetentionFailure};
 pub use storage::storage_scope;
 

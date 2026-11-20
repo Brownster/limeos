@@ -347,6 +347,49 @@ mod simulated {
 #[cfg(all(test, feature = "test-support"))]
 mod tests {
     use super::*;
+    const REFUSED_CHILD: &str = "LIMEOS_TEST_SUPPORT_REFUSED_CHILD";
+    /// A process whose `main` refused the test seams (`refuse_test_support`)
+    /// cannot select the simulated writer clock or the open hook: run in a
+    /// child process, since the refusal is for the whole process.
+    #[test]
+    fn a_process_that_refused_the_test_seams_cannot_select_them() {
+        for seam in ["clock", "hook"] {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "writer_clock::tests::refused_child",
+                    "--exact",
+                    "--ignored",
+                    "--nocapture",
+                ])
+                .env(REFUSED_CHILD, seam)
+                .output()
+                .unwrap();
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(
+                !output.status.success(),
+                "{seam}: selected after the refusal"
+            );
+            assert!(
+                stderr.contains("refused the test seams"),
+                "{seam}: {stderr}"
+            );
+        }
+    }
+    /// The child half: refuses, then selects one seam.
+    #[test]
+    #[ignore = "the child half of a_process_that_refused_the_test_seams_cannot_select_them"]
+    fn refused_child() {
+        let Ok(seam) = std::env::var(REFUSED_CHILD) else {
+            return;
+        };
+        crate::refuse_test_support();
+        if seam == "clock" {
+            let dir = tempfile::tempdir().unwrap();
+            let _ = crate::test_support::open(&dir.path().join("core.sqlite"), &SimClock::new(0));
+        } else {
+            crate::test_support::on_open(None);
+        }
+    }
     /// A writer that never goes idle fails `settle` within its bound, and the
     /// failure says what that writer was doing.
     #[test]
