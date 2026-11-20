@@ -17,6 +17,7 @@ fn core(db: Database) -> Core {
         storage_target_socket: Arc::new("/unused".into()),
         storage_mount_socket: Arc::new("/unused".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
     }
 }

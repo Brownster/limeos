@@ -63,6 +63,7 @@ async fn observations_and_history_use_current_resource_grants_and_reject_revocat
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
         compose_catalog: None,
         password_workers: Arc::new(PasswordWorkers::new(2)),
@@ -107,6 +108,7 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
         compose_catalog: None,
     };
@@ -182,6 +184,7 @@ async fn batch_imported_legacy_users_log_in_and_rerun_changes_nothing() {
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
         compose_catalog: None,
     };
@@ -290,6 +293,7 @@ async fn legacy_import_request_is_refused_for_a_non_root_peer_and_writes_nothing
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
         compose_catalog: None,
     };

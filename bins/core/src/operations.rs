@@ -89,7 +89,69 @@ pub(super) struct Failure {
     pub(super) sent: bool,
 }
 
+/// Whether an error from an authorization read is a definite refusal of the
+/// principal's authority: only then is a queued job rejected. Anything else,
+/// above all a store that gave no answer (`Unavailable`: not run,
+/// `StateNotDurable`: in doubt, `Overloaded`), leaves the job queued for the
+/// next tick.
+pub(super) fn refused(error: Error) -> bool {
+    matches!(
+        error.0,
+        ErrorCode::Forbidden
+            | ErrorCode::Expired
+            | ErrorCode::NotFound
+            | ErrorCode::Unauthenticated
+    )
+}
+
 impl Core {
+    /// Runs claim `f` for job `id`. A claim whose outcome is unknown (the
+    /// call was in doubt, or the store could not say its commit is durable)
+    /// is noted in `claims_in_doubt`; no execute is sent for it now, and the
+    /// job's next sighting decides (`claim_in_doubt`). Any other failure
+    /// leaves the job as it was.
+    pub(super) async fn claim<T: Send + 'static>(
+        &self,
+        id: &str,
+        f: impl FnOnce(&mut limeos_persistence::Store) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
+        let outcome = self.db.try_call(f).await;
+        if matches!(
+            outcome,
+            Err(limeos_persistence::Unanswered::InDoubt)
+                | Ok(Err(Error(ErrorCode::StateNotDurable)))
+        ) {
+            tracing::warn!(
+                "a job claim did not answer in time and may still commit; no execute was sent, and the next dispatcher pass sends it if the claim committed"
+            );
+            self.in_doubt().insert(id.to_owned());
+        }
+        outcome?
+    }
+    fn in_doubt(&self) -> std::sync::MutexGuard<'_, std::collections::HashSet<String>> {
+        self.claims_in_doubt
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+    /// Whether job `id`, now in `state`, holds a claim this process gave up
+    /// on that committed after all: it is `running` and no execute was sent
+    /// for it, so the dispatcher sends it now (`claim_resumed` first). The
+    /// writer runs calls in order, so the listing that showed this state was
+    /// answered after the claim had finished. A job still `queued` never got
+    /// the claim; its note goes.
+    pub(super) fn claim_in_doubt(&self, id: &str, state: JobState) -> bool {
+        let mut noted = self.in_doubt();
+        if state == JobState::Running {
+            return noted.contains(id);
+        }
+        noted.remove(id);
+        false
+    }
+    /// The execute for a claim found committed is about to be sent: forget
+    /// the note first, so it is sent once whatever happens next.
+    pub(super) fn claim_resumed(&self, id: &str) {
+        self.in_doubt().remove(id);
+    }
     pub(super) async fn executor(&self, request: Request, deadline: Duration) -> Result<Receipt> {
         self.exchange(request, deadline).await.map_err(|f| f.error)
     }
@@ -453,32 +515,51 @@ impl Core {
         let digest = limeos_identity::digest(
             &serde_json::to_string(&job.plan).map_err(|_| Error(ErrorCode::InvalidInput))?,
         );
-        let recovering = job.state != JobState::Queued;
+        // A claim that committed after this process gave up on it: no
+        // execute was sent, so it is sent now rather than looked up.
+        let resumed = self.claim_in_doubt(&job.id, job.state);
+        let recovering = job.state != JobState::Queued && !resumed;
         let (mut absence, mut closed) = (None, false);
-        let receipt = if job.state == JobState::Queued {
-            // Revocation and expiration are checked immediately before durable
-            // dispatch intent. A resource lock conflict leaves this job queued.
-            if self
-                .authorize_resource(principal.clone(), job.plan.expected.resource.clone())
-                .await
-                .is_err()
-                || job.plan.grant_revision != principal.grant_revision
-                || job.plan.validate(now()).is_err()
-            {
-                return self.mark(&job, JobState::PreconditionChanged).await;
-            }
-            let current = self.inspect(&job.plan.expected.resource).await?;
-            if job.plan.check_current(&current, now()).is_err() {
-                return self.mark(&job, JobState::PreconditionChanged).await;
-            }
-            // The store epoch this job is dispatched under, recorded by the
-            // claim before it takes the job (`claim_container`).
-            let epoch = self.receipt_epoch().await?;
-            let (p, id, under) = (principal, job.id.clone(), epoch.clone());
-            job = self
-                .db
-                .call(move |s| s.claim_container(&p, &id, &current, &under, now()))
-                .await?;
+        let receipt = if !recovering {
+            let epoch = if resumed {
+                // The store epoch as it is now; an epoch changed since the
+                // claim marks the job (`observe_executor_epoch`).
+                let epoch = self.receipt_epoch().await?;
+                self.claim_resumed(&job.id);
+                epoch
+            } else {
+                // Revocation and expiration are checked immediately before
+                // durable dispatch intent. A resource lock conflict, or a store
+                // that gives no answer, leaves this job queued.
+                let authorized = match self
+                    .authorize_resource(principal.clone(), job.plan.expected.resource.clone())
+                    .await
+                {
+                    Ok(()) => true,
+                    Err(error) if refused(error) => false,
+                    Err(error) => return Err(error),
+                };
+                if !authorized
+                    || job.plan.grant_revision != principal.grant_revision
+                    || job.plan.validate(now()).is_err()
+                {
+                    return self.mark(&job, JobState::PreconditionChanged).await;
+                }
+                let current = self.inspect(&job.plan.expected.resource).await?;
+                if job.plan.check_current(&current, now()).is_err() {
+                    return self.mark(&job, JobState::PreconditionChanged).await;
+                }
+                // The store epoch this job is dispatched under, recorded by the
+                // claim before it takes the job (`claim_container`).
+                let epoch = self.receipt_epoch().await?;
+                let (p, id, under) = (principal, job.id.clone(), epoch.clone());
+                job = self
+                    .claim(&job.id, move |s| {
+                        s.claim_container(&p, &id, &current, &under, now())
+                    })
+                    .await?;
+                epoch
+            };
             // Core death from here onward requires receipt reconciliation; it
             // cannot put the job back into the dispatch queue.
             match self

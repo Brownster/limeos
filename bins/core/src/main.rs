@@ -72,6 +72,11 @@ struct Core {
     storage_target_socket: Arc<PathBuf>,
     storage_mount_socket: Arc<PathBuf>,
     storage_readers: Arc<Semaphore>,
+    /// Jobs whose claim this process gave up on with its outcome unknown
+    /// (the store call was in doubt), so no execute request was sent for
+    /// them. The dispatcher's next sighting decides: still queued, the claim
+    /// never committed; running, it did, and the execute is sent then.
+    claims_in_doubt: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
     stacks: limeos_observations::stacks::Cache,
 }
 impl Core {
@@ -1192,6 +1197,7 @@ async fn run() -> Result<()> {
         storage_target_socket: Arc::new(config.storage_target_socket.into()),
         storage_mount_socket: Arc::new(config.storage_mount_socket.into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         compose_catalog: config::read_compose_catalog(
             &config_path.with_file_name("compose-catalog.json"),
         )?

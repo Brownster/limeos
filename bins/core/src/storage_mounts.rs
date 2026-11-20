@@ -252,39 +252,54 @@ impl Core {
         principal: Principal,
         mut job: StorageMountJob,
     ) -> Result<()> {
-        let receipt = if job.state == JobState::Queued {
-            let checked = principal.clone();
-            if self
-                .db
-                .call(move |store| store.authorize_storage(&checked))
-                .await
-                .is_err()
-                || job.plan.grant_revision != principal.grant_revision
-                || job.plan.validate(now()).is_err()
-            {
-                return self.mark_mount(&job, JobState::PreconditionChanged).await;
+        // A claim that committed after this process gave up on it: no
+        // execute was sent, so it is sent now rather than looked up.
+        let resumed = self.claim_in_doubt(&job.id, job.state);
+        let receipt = if job.state == JobState::Queued || resumed {
+            if resumed {
+                self.claim_resumed(&job.id);
+            } else {
+                // Only a definite refusal rejects the job. A store that gives
+                // no answer leaves it queued for the next tick.
+                let checked = principal.clone();
+                let authorized = match self
+                    .db
+                    .call(move |store| store.authorize_storage(&checked))
+                    .await
+                {
+                    Ok(()) => true,
+                    Err(error) if super::operations::refused(error) => false,
+                    Err(error) => return Err(error),
+                };
+                if !authorized
+                    || job.plan.grant_revision != principal.grant_revision
+                    || job.plan.validate(now()).is_err()
+                {
+                    return self.mark_mount(&job, JobState::PreconditionChanged).await;
+                }
+                let id = job.id.clone();
+                if !self
+                    .db
+                    .call(move |store| store.storage_mount_resources_available(&id))
+                    .await?
+                {
+                    return Ok(());
+                }
+                let current = self
+                    .inspect_mount(StorageMountSelection {
+                        target_id: job.plan.effect.device.id.clone(),
+                    })
+                    .await?;
+                if job.plan.effect.check_current(&current, now()).is_err() {
+                    return self.mark_mount(&job, JobState::PreconditionChanged).await;
+                }
+                let id = job.id.clone();
+                job = self
+                    .claim(&job.id, move |store| {
+                        store.claim_storage_mount(&principal, &id, &current, now())
+                    })
+                    .await?;
             }
-            let id = job.id.clone();
-            if !self
-                .db
-                .call(move |store| store.storage_mount_resources_available(&id))
-                .await?
-            {
-                return Ok(());
-            }
-            let current = self
-                .inspect_mount(StorageMountSelection {
-                    target_id: job.plan.effect.device.id.clone(),
-                })
-                .await?;
-            if job.plan.effect.check_current(&current, now()).is_err() {
-                return self.mark_mount(&job, JobState::PreconditionChanged).await;
-            }
-            let id = job.id.clone();
-            job = self
-                .db
-                .call(move |store| store.claim_storage_mount(&principal, &id, &current, now()))
-                .await?;
             // Durable Running and the complete claim set precede any effect RPC.
             match self
                 .mount_executor(
@@ -374,7 +389,7 @@ impl Core {
         let saved = job.clone();
         let result = self
             .db
-            .call(move |store| {
+            .try_call(move |store| {
                 store.record_storage_mount_result(
                     &saved,
                     &receipt,
@@ -384,11 +399,18 @@ impl Core {
                 )
             })
             .await;
-        if let Err(error) = result {
-            self.mark_mount(&job, JobState::NeedsIntervention).await?;
-            return Err(error);
+        match result {
+            Ok(Ok(_)) => Ok(()),
+            // The store refused the result: held for an operator.
+            Ok(Err(error)) => {
+                self.mark_mount(&job, JobState::NeedsIntervention).await?;
+                Err(error)
+            }
+            // No answer, so the result may or may not be recorded: the job
+            // keeps its state and the next recovery pass reads the receipt
+            // again and records what it shows.
+            Err(unanswered) => Err(unanswered.into()),
         }
-        Ok(())
     }
 }
 

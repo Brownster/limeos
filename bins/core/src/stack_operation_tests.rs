@@ -545,6 +545,7 @@ async fn fixture(role: limeos_domain::Role, grants: Option<Vec<Scope>>) -> Fixtu
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
         compose_catalog: None,
     };
@@ -2150,5 +2151,49 @@ async fn a_stack_refused_beyond_receipt_history_is_settled_as_refused() {
         assert!(engine.closed.is_none());
     }
     assert!(member_claimable(&f, "after").await);
+    f.task.abort();
+}
+
+/// A stack claim that commits after core gave up on it holds the stack
+/// `running` with every lock and no execute sent. The next pass sends that
+/// execute, once, and the job settles and frees its locks.
+#[tokio::test]
+async fn a_stack_claim_that_commits_after_core_gave_up_is_executed_once_on_the_next_pass() {
+    use super::operation_tests::{SHORT_CALL, locks, with_claim_in_doubt};
+    let mut f = admin().await;
+    let path = f._dir.path().join("core.sqlite");
+    let job = f.queued(ContainerAction::Restart, "in-doubt").await;
+    let principal = f.principal().await;
+    let epoch = f.engine.lock().unwrap().epoch.clone().unwrap();
+    f.core
+        .db
+        .call(move |s| s.observe_executor_epoch(&epoch, now()))
+        .await
+        .unwrap();
+    f.core.db = f.core.db.clone().with_call_deadline(SHORT_CALL);
+    let (pass, p, queued) = (f.core.clone(), principal.clone(), job.clone());
+    let result = with_claim_in_doubt(&path, &f.core.db, async move {
+        pass.dispatch_stack(p, queued).await
+    })
+    .await;
+    assert_eq!(result.unwrap_err().0, ErrorCode::StateNotDurable);
+    assert_eq!(f.state(&job).await, JobState::Running);
+    assert!(locks(&path, &job.id) > 0);
+    assert_eq!(f.engine.lock().unwrap().executes, 0);
+    let (p, running) = f
+        .core
+        .db
+        .call(|s| s.stack_candidates_after(""))
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|(_, candidate)| candidate.id == job.id)
+        .unwrap();
+    f.core.dispatch_stack(p, running).await.unwrap();
+    assert_eq!(f.state(&job).await, JobState::Succeeded);
+    assert_eq!(locks(&path, &job.id), 0);
+    let engine = f.engine.lock().unwrap();
+    assert_eq!((engine.executes, engine.receipts), (1, 0));
+    drop(engine);
     f.task.abort();
 }

@@ -63,6 +63,7 @@ async fn fixture(
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
         password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: "unused".into(),

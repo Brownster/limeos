@@ -130,6 +130,7 @@ fn core(db: Database, socket: PathBuf) -> Core {
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
         compose_catalog: None,
     }
