@@ -1068,15 +1068,17 @@ async fn collect(
             )?;
         }
         // The Engine-wide set is unchanged, but for containers removed since:
-        // those leave the listing, and nothing else may move.
+        // those leave the listing, and nothing else may move. The whole listed
+        // set is compared, not the kept selection: a removed kept container lets
+        // a truncated one move up, which changes nothing that was read (it was
+        // never inspected and stays counted as truncated, its labels hidden).
         let mut comparison = admission.map(Admission::scope);
         let second = listing.ids(comparison.as_mut()).await?;
         let gone = |id: &String| vanished.contains(&id);
-        if second.truncated != selected.truncated
-            || second
-                .ids
-                .iter()
-                .ne(selected.ids.iter().filter(|id| !gone(id)))
+        if second
+            .all()
+            .iter()
+            .ne(selected.all().iter().filter(|id| !gone(id)))
             || second
                 .compose
                 .iter()
@@ -1225,6 +1227,7 @@ impl Listing<'_> {
             .await?;
         let ids = super::storage::parse_storage_container_ids_with_admission(&list, scope)?;
         Ok(super::storage::Selected {
+            listed: Vec::new(),
             ids,
             truncated: 0,
             compose: Vec::new(),

@@ -1010,3 +1010,36 @@ async fn a_path_segment_the_stack_model_refuses_degrades_one_container_not_the_i
         }
     }
 }
+#[tokio::test]
+async fn a_kept_container_removed_over_the_bound_is_changing_and_the_read_still_returns() {
+    // 65 containers; a kept one is removed before its second inspection, so the
+    // closing listing has 64 and the stopped 65th would now be kept.
+    let mut config = crowded(vec![
+        (0, stack_labels("media", "app")),
+        (1, stack_labels("media", "db")),
+        (64, stack_labels("tools", "app")),
+    ]);
+    config.vanishing = Some((5, 2));
+    let engine = fixture(config).await;
+    let owner = inspect(&engine).await.unwrap();
+    let snapshot = owner.snapshot();
+    assert_eq!(snapshot.containers.len(), 63);
+    assert_eq!(
+        snapshot
+            .omitted
+            .iter()
+            .map(|o| (o.resource.clone(), o.reason))
+            .collect::<Vec<_>>(),
+        [(format!("container:{:064x}", 5), OmissionReason::Changing)]
+    );
+    // The 65th was never inspected: still truncated, its project still hidden.
+    assert_eq!(snapshot.truncated, 1);
+    assert_eq!(snapshot.hidden_projects.len(), 1);
+    let view = stacks(&owner, &["media", "tools"]).await;
+    assert!(issues_of(&view, "media").is_empty());
+    assert_eq!(issues_of(&view, "tools"), [StackIssue::OmittedMembers]);
+    // Any other change to the listed set still refuses the read.
+    let mut config = crowded(Vec::new());
+    config.changed = Some(Change::Membership);
+    assert!(inspect(&fixture(config).await).await.is_err());
+}

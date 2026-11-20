@@ -370,8 +370,21 @@ pub(super) struct Selected {
     pub(super) ids: Vec<String>,
     /// Listed containers left out.
     pub(super) truncated: usize,
+    /// Every listed container ID, kept or not, in ID order; empty where
+    /// nothing is truncated (`ids` is then the whole listing).
+    pub(super) listed: Vec<String>,
     /// Every listed row whose labels name Compose, kept or not, by ID.
     pub(super) compose: Vec<(String, ListedCompose)>,
+}
+impl Selected {
+    /// Every listed container ID, in ID order.
+    pub(super) fn all(&self) -> &[String] {
+        if self.listed.is_empty() {
+            &self.ids
+        } else {
+            &self.listed
+        }
+    }
 }
 /// Keep `keep` listed containers, running first, then by name and ID, and
 /// return their IDs in ID order with the number left out. A malformed or
@@ -406,6 +419,12 @@ pub(super) fn select_listed(
         scope.charge(48)?;
         result.push(scope.string(id)?);
     }
+    let mut listed = Vec::new();
+    scope.reserve(&mut listed, seen.len())?;
+    for id in &seen {
+        scope.charge(48)?;
+        listed.push(scope.string(id)?);
+    }
     let mut compose = Vec::new();
     for row in &rows {
         let value = match &row.compose {
@@ -431,6 +450,7 @@ pub(super) fn select_listed(
     Ok(Selected {
         ids: result,
         truncated,
+        listed,
         compose,
     })
 }
