@@ -7,6 +7,7 @@
 //!
 //! Inspection is read-only. [`staging`] reuses this exact streaming path for
 //! tentative private files, returning a catalog only after verified replay.
+#![cfg(feature = "deferred")]
 
 use flate2::bufread::MultiGzDecoder;
 use limeos_domain::backups::{
