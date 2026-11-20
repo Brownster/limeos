@@ -63,6 +63,13 @@ if [[ -f "${state}/fail" ]]; then
         if [[ "${line}" == "${call}" ]]; then printf 'stub: injected failure: %s\n' "${call}" >&2; exit 1; fi
     done <"${state}/fail"
 fi
+# Calls in fail-after take effect, then report failure (a stop job that
+# errors although the unit did stop).
+late=0
+if [[ -f "${state}/fail-after" ]]; then
+    while IFS= read -r line; do [[ "${line}" != "${call}" ]] || late=1; done <"${state}/fail-after"
+fi
+trap '(( late == 0 )) || { printf "stub: late failure: %s\n" "${call}" >&2; exit 1; }' EXIT
 get() { local value; if [[ -f "${state}/units/${1}.${2}" ]]; then read -r value <"${state}/units/${1}.${2}" || true; printf '%s\n' "${value:-}"; else printf '%s\n' "${3}"; fi; }
 put() { printf '%s\n' "${3}" >"${state}/units/${1}.${2}"; }
 verb="${1}"; shift
@@ -116,7 +123,13 @@ esac
 TOOL_STUB = r"""#!/bin/bash
 set -u
 tool="${0##*/}"
-printf '%s %s\n' "${tool}" "$*" >>"${STUB_STATE}/calls.log"
+call="${tool} $*"
+printf '%s\n' "${call}" >>"${STUB_STATE}/calls.log"
+if [[ -f "${STUB_STATE}/fail" ]]; then
+    while IFS= read -r line; do
+        [[ "${line}" != "${call}" ]] || { printf 'stub: injected failure: %s\n' "${call}" >&2; exit 1; }
+    done <"${STUB_STATE}/fail"
+fi
 case "${tool}" in
     getent)
         if [[ "${1}" == passwd ]]; then printf '%s:x:150:150::/nonexistent:/usr/sbin/nologin\n' "${2}"; else printf '%s:x:150:\n' "${2}"; fi ;;
@@ -216,6 +229,7 @@ class Sandbox:
 
     def heal(self):
         (self.state / "fail").unlink(missing_ok=True)
+        (self.state / "fail-after").unlink(missing_ok=True)
 
     def calls(self):
         return (self.state / "calls.log").read_text().splitlines()
@@ -228,15 +242,26 @@ class Sandbox:
     def clear(self):
         (self.state / "calls.log").write_text("")
 
-    def write_record(self, *units, mode=0o600):
+    def write_record(self, *units, header="upgrade 1.0", mode=0o600):
+        """UNIT (recorded enabled) or a full "UNIT STATE" line."""
         directory = self.root / RECORD_DIR
         directory.mkdir(mode=0o700, exist_ok=True)
-        (directory / "units").write_text("".join(f"{u}\n" for u in units))
+        lines = [] if header is None else [header]
+        lines += [u if " " in u else f"{u} enabled" for u in units]
+        (directory / "units").write_text("".join(f"{line}\n" for line in lines))
         (directory / "units").chmod(mode)
 
-    def record(self):
+    def record_lines(self):
         path = self.root / RECORD
         return path.read_text().splitlines() if path.exists() else None
+
+    def record(self):
+        """The recorded units, without the header and states."""
+        lines = self.record_lines()
+        return None if lines is None else [line.split()[0] for line in lines[1:]]
+
+    def fail_after(self, *calls):
+        (self.state / "fail-after").write_text("".join(f"{call}\n" for call in calls))
 
     def record_exists(self):
         return (self.root / RECORD_DIR).exists() or (self.root / RECORD_DIR).is_symlink()
@@ -312,6 +337,11 @@ class PrermTests(SandboxTest):
                 self.assertStates(box, [])
                 # Effect units are stopped but never recorded for a restart.
                 self.assertEqual(box.record(), [CORE, *EXECUTORS, READER])
+                header = {"remove": "remove", "deconfigure": "deconfigure", "upgrade": "upgrade 0.9.0",
+                          "failed-upgrade": "upgrade 0.9.0"}[args[0]]
+                self.assertEqual(box.record_lines()[0], header)
+                self.assertEqual(box.record_lines()[1:], [f"{u} enabled" for u in [CORE, *EXECUTORS]]
+                                 + [f"{READER} enabled"])
                 self.assertEqual((box.root / RECORD_DIR).stat().st_mode & 0o777, 0o700)
                 self.assertEqual((box.root / RECORD).stat().st_mode & 0o777, 0o600)
                 self.assertTrue(box.data_intact())
@@ -338,10 +368,29 @@ class PrermTests(SandboxTest):
     def test_failed_upgrade_extends_the_record_of_the_failed_upgrade(self):
         box = self.sandbox()
         box.installed(running=[EXECUTORS[1], READER])
-        box.write_record(CORE, EXECUTORS[0], EXECUTORS[1], TARGETS, "sshd.service")
+        box.write_record(CORE, f"{EXECUTORS[0]} disabled", EXECUTORS[1], TARGETS, "sshd.service",
+                         f"{CORE} bogus", header="upgrade 1.0.0")
         self.assertOk(box.run("prerm", "failed-upgrade", "0.9.0", "1.0.0"))
-        # Entries the package never restarts are dropped.
-        self.assertEqual(box.record(), [CORE, *EXECUTORS, READER])
+        # Entries the package never restarts, or with an unknown state, are dropped.
+        self.assertEqual(box.record_lines(), ["upgrade 1.0.0", f"{CORE} enabled", f"{EXECUTORS[0]} disabled",
+                                              f"{EXECUTORS[1]} enabled", f"{READER} enabled"])
+
+    def test_failed_upgrade_replaces_a_record_this_upgrade_did_not_write(self):
+        for header in ("remove", "deconfigure", "upgrade 9.9", None, f"{CORE} enabled"):
+            with self.subTest(header=header):
+                box = self.sandbox()
+                box.installed(running=[READER])
+                box.write_record(CORE, EXECUTORS[0], header=header)
+                self.assertOk(box.run("prerm", "failed-upgrade", "0.9.0", "1.0.0"))
+                self.assertEqual(box.record_lines(), ["upgrade 1.0.0", f"{READER} enabled"])
+
+    def test_enablement_is_recorded_with_each_unit(self):
+        box = self.sandbox()
+        box.installed(running=[*ENABLED, READER])
+        box.set(CORE, unitfile="disabled")
+        self.assertOk(box.run("prerm", "remove"))
+        self.assertEqual(box.record_lines(), ["remove", f"{CORE} disabled", f"{EXECUTORS[0]} enabled",
+                                              f"{EXECUTORS[1]} enabled", f"{READER} enabled"])
 
     def test_already_removed_units_are_tolerated(self):
         box = self.sandbox()
@@ -385,6 +434,66 @@ class PrermTests(SandboxTest):
         box.unit(READER, load="masked")
         (box.root / f"sys/fs/cgroup/system.slice/{READER}").mkdir(parents=True)
         self.assertFailed(box.run("prerm", "remove"))
+
+    def test_masked_dormant_optional_unit_with_an_empty_retained_cgroup_is_skipped(self):
+        for control_group in ("", f"/system.slice/{READER}"):
+            with self.subTest(control_group=control_group):
+                box = self.sandbox()
+                box.installed()
+                box.unit(READER, load="masked")
+                box.set(READER, cgroup=control_group)
+                directory = box.root / f"sys/fs/cgroup/system.slice/{READER}"
+                directory.mkdir(parents=True)
+                (directory / "cgroup.events").write_text("populated 0\nfrozen 0\n")
+                self.assertOk(box.run("prerm", "remove"))
+                self.assertNotIn(f"stop {READER}", box.calls())
+                (directory / "cgroup.events").write_text("populated 1\nfrozen 0\n")
+                self.assertFailed(box.run("prerm", "remove"))
+                (directory / "cgroup.events").unlink()
+                self.assertFailed(box.run("prerm", "remove"))
+
+    def test_without_the_unified_hierarchy_a_missing_cgroup_is_uncertain(self):
+        box = self.sandbox()
+        box.installed(running=ENABLED)
+        box.surviving(CORE)
+        shutil.rmtree(box.root / f"sys/fs/cgroup/system.slice/{CORE}")
+        (box.root / "sys/fs/cgroup/cgroup.controllers").unlink()
+        result = box.run("prerm", "remove")
+        self.assertFailed(result)
+        self.assertIn(f"Cannot tell whether {CORE} stopped", result.stderr)
+        # A masked unit's retained cgroup cannot be judged either.
+        box = self.sandbox()
+        box.installed()
+        box.unit(READER, load="masked")
+        box.set(READER, cgroup=f"/system.slice/{READER}")
+        (box.root / "sys/fs/cgroup/cgroup.controllers").unlink()
+        self.assertFailed(box.run("prerm", "remove"))
+
+    def test_a_stop_error_after_the_unit_did_stop_continues_with_a_warning(self):
+        box = self.sandbox()
+        box.installed(running=[*ENABLED, READER])
+        box.fail_after(f"stop {CORE}", f"stop {READER}")
+        result = box.run("prerm", "upgrade", "1.0")
+        self.assertOk(result)
+        self.assertIn(f"systemctl stop {CORE} failed, but the unit has stopped", result.stderr)
+        self.assertIn(f"systemctl stop {READER} failed", result.stderr)
+        self.assertStates(box, [])
+
+    def test_a_stop_error_with_work_left_or_no_answer_fails(self):
+        box = self.sandbox()
+        box.installed(running=ENABLED)
+        box.surviving(CORE)
+        box.fail_after(f"stop {CORE}")
+        result = box.run("prerm", "upgrade", "1.0")
+        self.assertFailed(result)
+        self.assertIn(f"Processes of {CORE} survived", result.stderr)
+        box = self.sandbox()
+        box.installed(running=ENABLED)
+        box.fail_after(f"stop {CORE}")
+        box.fail(f"show {CORE} -p ControlGroup --value")
+        result = box.run("prerm", "upgrade", "1.0")
+        self.assertFailed(result)
+        self.assertIn("Cannot tell", result.stderr)
 
     def test_processes_surviving_a_completed_stop_abort_and_are_named(self):
         for name in [CORE, EXECUTORS[0], READER, READY]:
@@ -725,12 +834,27 @@ class PostinstTests(SandboxTest):
     def test_only_allowlisted_units_are_started_from_the_record(self):
         box = self.sandbox()
         box.installed()
-        box.write_record("sshd.service", "../x.service", TARGETS, MOUNTS, READY, READER)
+        box.write_record("sshd.service", "../x.service", TARGETS, MOUNTS, READY, f"{CORE} sideways",
+                         f"{CORE} enabled extra", READER)
         result = box.run("postinst", "abort-upgrade", "1.0")
         self.assertOk(result)
         self.assertEqual(box.manager(), ["daemon-reload", f"start {READER}"])
         for name in ("sshd.service", TARGETS, MOUNTS, READY):
-            self.assertIn(f"unexpected restart record entry: {name}", result.stderr)
+            self.assertIn(f"unexpected restart record entry: {name} enabled", result.stderr)
+        self.assertIn(f"unexpected restart record entry: {CORE} sideways", result.stderr)
+        self.assertIn(f"unexpected restart record entry: {CORE} enabled extra", result.stderr)
+
+    def test_a_record_without_a_valid_first_line_is_ignored(self):
+        for header in (None, "install", "upgrade", "upgrade 1.0 x", "upgrade 1.0;x"):
+            with self.subTest(header=header):
+                box = self.sandbox()
+                box.installed()
+                box.write_record(READER, header=header)
+                result = box.run("postinst", "abort-upgrade", "1.0")
+                self.assertOk(result)
+                self.assertIn("without a valid first line", result.stderr)
+                self.assertNotIn(f"start {READER}", box.calls())
+                self.assertFalse(box.record_exists())
         script = (DEBIAN / "postinst").read_text()
         allowed = re.search(r"^RESTARTED_UNITS=\(([^)]*)\)$", script, re.M)[1].split()
         self.assertEqual(allowed, [*ENABLED, READER])
@@ -765,6 +889,28 @@ class PostinstTests(SandboxTest):
         self.assertOk(result)
         self.assertIn(f"not starting {CORE}", result.stderr)
         self.assertStates(box, EXECUTORS)
+
+    def test_abort_restarts_a_unit_that_was_disabled_but_running(self):
+        box = self.sandbox()
+        box.installed(running=ENABLED)
+        box.set(CORE, unitfile="disabled")
+        self.assertOk(box.run("prerm", "remove"))
+        result = box.run("postinst", "abort-remove")
+        self.assertOk(result)
+        self.assertNotIn("not starting", result.stderr)
+        self.assertStates(box, ENABLED)
+
+    def test_configure_consumes_the_record_before_anything_can_fail(self):
+        for failing in (f"limeosctl check-config {{root}}/etc/limeos/core.json",
+                        f"restart {EXECUTORS[1]} {EXECUTORS[0]} {CORE}"):
+            with self.subTest(failing=failing):
+                box = self.sandbox()
+                box.installed(running=[*ENABLED, READER])
+                self.assertOk(box.run("prerm", "upgrade", "1.0"))
+                box.fail(failing.format(root=box.root))
+                self.assertFailed(box.run("postinst", "configure"))
+                self.assertFalse(box.record_exists())
+                self.assertNotIn(f"start {READER}", box.calls())
 
     def test_abort_without_a_running_manager_calls_nothing_and_ends_the_transaction(self):
         box = self.sandbox(systemd=False)

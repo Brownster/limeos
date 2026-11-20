@@ -33,11 +33,14 @@ fct_reader_access() {
     chown root:"${group}" "${file}"
     chmod 0640 "${file}"
 }
-# The units prerm recorded as running when it stopped them, in stop order.
-# Only these may be started from the record; effect units never are.
+# The units prerm recorded as running when it stopped them, in stop order:
+# a first line naming the action (remove, deconfigure or "upgrade VERSION"),
+# then "UNIT STATE" lines, STATE being enabled or disabled as the unit was
+# then. Only these units may be started from the record; effect units never are.
 RESTARTED_UNITS=(limeos-core.service limeos-containerd.service limeos-storaged.service limeos-storage-reader.service)
 RESTART_DIRECTORY=/run/limeos-package
 RECORDED=()
+RECORDED_STATES=()
 fct_systemd_running() { [[ -d "${DPKG_ROOT:-}/run/systemd/system" ]]; }
 # Owned by the user running this script (root under dpkg), no symlink, and
 # writable by no one else.
@@ -52,8 +55,9 @@ fct_safe_path() {
 # transaction prerm began, whether or not anything is then started. An
 # unsafe record is ignored; a directory that is not ours is left alone.
 fct_take_record() {
-    local directory="${DPKG_ROOT:-}${RESTART_DIRECTORY}" line allowed known
+    local directory="${DPKG_ROOT:-}${RESTART_DIRECTORY}" line header allowed known unit enablement extra
     RECORDED=()
+    RECORDED_STATES=()
     [[ -e "${directory}" || -L "${directory}" ]] || return 0
     if ! fct_safe_path "${directory}" directory; then
         printf 'Warning: ignoring unsafe restart record directory %s\n' "${directory}" >&2
@@ -61,29 +65,38 @@ fct_take_record() {
     fi
     if [[ -e "${directory}/units" || -L "${directory}/units" ]]; then
         if fct_safe_path "${directory}/units" 'regular file' || fct_safe_path "${directory}/units" 'regular empty file'; then
-            while IFS= read -r line || [[ -n "${line}" ]]; do
-                [[ -n "${line}" ]] || continue
-                known=0
-                for allowed in "${RESTARTED_UNITS[@]}"; do [[ "${allowed}" != "${line}" ]] || known=1; done
-                if (( known )); then
-                    RECORDED+=("${line}")
+            {
+                IFS= read -r header || true
+                if [[ ! "${header}" =~ ^(remove|deconfigure|upgrade\ [A-Za-z0-9.+~:-]+)$ ]]; then
+                    printf 'Warning: ignoring restart record without a valid first line: %s\n' "${directory}/units" >&2
                 else
-                    printf 'Warning: ignoring unexpected restart record entry: %s\n' "${line}" >&2
+                    while IFS= read -r line || [[ -n "${line}" ]]; do
+                        [[ -n "${line}" ]] || continue
+                        read -r unit enablement extra <<<"${line}" || true
+                        known=0
+                        for allowed in "${RESTARTED_UNITS[@]}"; do [[ "${allowed}" != "${unit:-}" ]] || known=1; done
+                        if (( known )) && [[ "${enablement:-}" == enabled || "${enablement:-}" == disabled ]] && [[ -z "${extra:-}" ]]; then
+                            RECORDED+=("${unit}")
+                            RECORDED_STATES+=("${enablement}")
+                        else
+                            printf 'Warning: ignoring unexpected restart record entry: %s\n' "${line}" >&2
+                        fi
+                    done
                 fi
-            done <"${directory}/units"
+            } <"${directory}/units"
         else
             printf 'Warning: ignoring unsafe restart record %s\n' "${directory}/units" >&2
         fi
     fi
     rm -rf -- "${directory}"
 }
-# Start the recorded units in reverse stop order, skipping the named units
-# (configure restarts the core units itself). A unit the administrator has
-# since masked or disabled is skipped with a warning. A unit that does not
-# start is named and the others still start.
+# Start the units fct_take_record read, in reverse stop order, skipping the
+# named units (configure restarts the core units itself). A unit masked
+# since, or disabled since it was recorded enabled, is skipped with a
+# warning; one that was already disabled but running is started again. A
+# unit that does not start is named and the others still start.
 fct_restore_units() {
     local unit skipped index failed=0 load_state file_state
-    fct_take_record
     for (( index=${#RECORDED[@]}-1; index>=0; index-- )); do
         unit="${RECORDED[index]}"
         for skipped in "$@"; do [[ "${skipped}" != "${unit}" ]] || continue 2; done
@@ -96,7 +109,7 @@ fct_restore_units() {
             printf 'Warning: not starting %s: it was masked after it was stopped.\n' "${unit}" >&2
             continue
         fi
-        if [[ "${file_state}" == disabled ]]; then
+        if [[ "${file_state}" == disabled && "${RECORDED_STATES[index]}" == enabled ]]; then
             printf 'Warning: not starting %s: it was disabled after it was stopped.\n' "${unit}" >&2
             continue
         fi
@@ -108,6 +121,9 @@ fct_restore_units() {
     (( failed == 0 ))
 }
 fct_execute_this() {
+    # This configure ends the package change: the record is read and deleted
+    # before anything here can fail, so a failed configure leaves none behind.
+    fct_take_record
     /usr/lib/limeos/limeosctl check-config /etc/limeos/core.json
     local account group core_uid
     for account in limeos-core limeos-containerd limeos-storaged limeos-assistant; do fct_account "${account}"; done
@@ -167,12 +183,11 @@ fct_execute_this() {
         printf '%s\n' 'LimeOS did not become ready within 15 seconds; inspect journalctl -u limeos-core.' >&2
         return 1
     fi
-    # Without a manager nothing is restarted, but the transaction still ends.
-    fct_take_record
 }
 # prerm stopped the services and nothing was replaced: start what it stopped.
 fct_abort() {
-    if ! fct_systemd_running; then fct_take_record; return 0; fi
+    fct_take_record
+    fct_systemd_running || return 0
     systemctl daemon-reload
     fct_restore_units
 }

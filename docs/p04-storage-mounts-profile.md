@@ -132,7 +132,9 @@ The optional-service LoadState query is checked normally. Error, unknown or
 failed-manager states abort replacement. A missing or masked unit may be
 skipped only when it is not-found or masked, inactive, has no manager cgroup
 and has no remaining standard unit cgroup in the supported unified hierarchy;
-a masked unit with work aborts replacement. An absent
+a masked unit may also keep its own cgroup when it reports `populated 0`. A
+masked unit with work, or without the unified hierarchy to judge it, aborts
+replacement. An absent
 mount or empty cgroup never supplies a recorded helper cleanup fact.
 
 The root mount journal remains in `/var/lib/limeos/executors/storage/mounts.sqlite`
