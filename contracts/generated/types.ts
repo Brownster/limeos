@@ -456,6 +456,11 @@ allow_stack: boolean, managed_containers: Array<string>,
  * Compose project names.
  */
 managed_stacks: Array<string>, };
+export type StrandedReads = { count: number,
+/**
+ * When the oldest of them was abandoned (Unix seconds).
+ */
+since: number, };
 export type Receipt = { container_health?: ContainerHealthCohort | null, stack_cohort?: DiscoveryCohort | null, storage_mount_catalog?: StorageMountCatalog | null, storage_mount_inspection?: StorageMountInspection | null, storage_mount?: StorageMountReceipt | null, mounted_storage?: StorageMountedSnapshot | null, version: number, ready: boolean, observations?: ObservationBatch | null, inspection?: ContainerSnapshot | null, restart?: ContainerReceipt | null, stack?: StackReceipt | null, stack_members?: StackSnapshot | null, resolution?: ResolveReceipt | null,
 /**
  * Set by a receipt lookup or `ResolveAction` that has no receipt to act
