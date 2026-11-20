@@ -54,8 +54,10 @@ impl Database {
 }
 
 pub struct Store {
+    // Declared before `_lock`: fields drop in order, so the connection is closed
+    // (and its WAL checkpointed) before the lock is released for another core.
     conn: Connection,
-    _lock: File,
+    _lock: core_lock::CoreLock,
     directory: PathBuf,
     pub generation: i64,
     observation_leases: std::collections::HashMap<String, automation::ActiveObservation>,
@@ -117,6 +119,7 @@ impl Store {
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
         lock.try_lock_exclusive()
             .map_err(|_| Error(ErrorCode::Conflict))?;
+        let lock = core_lock::CoreLock(lock);
         let mut conn = Connection::open(path).map_err(durable)?;
         std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
@@ -285,6 +288,7 @@ pub use automation::{
 mod backup_preparation;
 mod budgets;
 mod compose;
+mod core_lock;
 mod identity_enablement;
 mod identity_store;
 mod job_resolutions;

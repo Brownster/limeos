@@ -570,3 +570,45 @@ fn symlinked_receipt_lock_is_refused_on_every_architecture() {
     assert!(ReceiptStore::open(directory.path()).is_err());
     assert!(!elsewhere.exists());
 }
+#[test]
+fn receipt_lock_hold_helper() {
+    if std::env::var_os("LIMEOS_RECEIPT_LOCK_HOLD").is_none() {
+        return;
+    }
+    // Stand-in for a child that still shares the store's lock description.
+    std::thread::sleep(std::time::Duration::from_secs(60));
+}
+#[test]
+fn a_child_sharing_the_receipt_lock_description_does_not_block_a_reopen_after_drop() {
+    use std::os::unix::fs::MetadataExt;
+    struct ChildGuard(std::process::Child);
+    impl Drop for ChildGuard {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    let identity = |path: &Path| {
+        let metadata = std::fs::metadata(path).unwrap();
+        (metadata.dev(), metadata.ino())
+    };
+    let dir = private_dir();
+    let lock = dir.path().join("receipts.lock");
+    let store = ReceiptStore::open(dir.path()).unwrap();
+    // The child keeps the shared description as stdin for its whole life, like a
+    // child that has not exec'd yet, so no timing is involved.
+    let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+    command
+        .args(["--exact", "tests::receipt_lock_hold_helper"])
+        .env("LIMEOS_RECEIPT_LOCK_HOLD", "1")
+        .stdin(store._lock.0.try_clone().unwrap())
+        .stdout(std::process::Stdio::null());
+    let child = ChildGuard(command.spawn().unwrap());
+    // Close the parent's duplicate: the store's descriptor is the parent's only one.
+    drop(command);
+    drop(store);
+    let stdin = PathBuf::from(format!("/proc/{}/fd/0", child.0.id()));
+    assert_eq!(identity(&stdin), identity(&lock));
+    assert!(ReceiptStore::open(dir.path()).is_ok());
+    assert_eq!(identity(&stdin), identity(&lock));
+}

@@ -118,9 +118,25 @@ pub trait Engine {
 }
 
 pub struct ReceiptStore {
+    // Declared before `_lock`: fields drop in order, so the connection is closed
+    // before the lock is released for another executor.
     conn: Connection,
-    _lock: File,
+    _lock: ReceiptLock,
     directory: PathBuf,
+}
+/// Owns the locked `receipts.lock` descriptor; on drop the lock is released, then
+/// the descriptor is closed.
+struct ReceiptLock(File);
+impl Drop for ReceiptLock {
+    fn drop(&mut self) {
+        // An flock belongs to the open file description, which a child made by
+        // fork/posix_spawn shares until it execs. Closing only our descriptor would
+        // leave such a child holding the lock, and a reopen in this process would be
+        // refused with Conflict. LOCK_UN releases it for the whole description now.
+        // If it fails, the close that follows still releases it once the last
+        // descriptor is gone; never panic here (release builds abort).
+        let _ = FileExt::unlock(&self.0);
+    }
 }
 fn durable(_: rusqlite::Error) -> Error {
     Error(ErrorCode::StateNotDurable)
@@ -156,6 +172,7 @@ impl ReceiptStore {
         }
         lock.try_lock_exclusive()
             .map_err(|_| Error(ErrorCode::Conflict))?;
+        let lock = ReceiptLock(lock);
         let path = directory.join("receipts.sqlite");
         if std::fs::symlink_metadata(&path).is_ok_and(|m| {
             !m.is_file() || m.uid() != uid || m.mode() & 0o077 != 0 || m.len() > 16 * 1024 * 1024
