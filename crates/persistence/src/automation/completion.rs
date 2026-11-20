@@ -4,6 +4,21 @@ use sha2::{Digest, Sha256};
 use std::time::{Duration, Instant};
 
 mod check;
+/// The per-row startup queries on `events` of this module's checks.
+#[cfg(test)]
+pub(super) fn startup_event_queries() -> Vec<&'static str> {
+    vec![
+        check::JOB_PROOF,
+        check::JOBLESS_PROOF,
+        check::NOTIFICATION_PROOF,
+        check::CREATED_PROOFS,
+        check::DELIVERY_TIMES,
+        check::QUEUED_PROOF,
+        check::SETTLEMENT_COUNT,
+        check::NOTIFICATION_COUNT,
+        polling::POLL_PROOFS,
+    ]
+}
 mod container_read;
 mod in_app;
 mod polling;
@@ -18,6 +33,9 @@ const ROW_BYTES: usize = 4096;
 const RESOURCE_BYTES: usize = 512;
 const BATCH_BYTES: usize = 1024 * 1024;
 const LEASE_SECONDS: u64 = 10;
+/// Results are never deleted. Known limit, to solve before a producer is
+/// enabled: at this many results their pinned events alone fill the audit
+/// cap (see the retention module's "Known limit").
 const MAX_RESULTS: i64 = AUDIT_LIMIT / (4 * 256);
 
 pub(crate) struct ActiveObservation {

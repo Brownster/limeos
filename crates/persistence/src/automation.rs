@@ -9,6 +9,12 @@ const DEFINITION_BYTES: usize = 4096;
 const PAGE_BYTES: usize = 64 * 1024;
 const MAX_OCCURRENCES: i64 = 4096;
 const JOB_SECONDS: i64 = 60;
+// Per-job startup proofs on `events`, each through the index it names.
+pub(crate) const QUEUED_EVENTS: &str = "SELECT count(*),coalesce(min(created),-1),coalesce(sum(principal IS NOT ?),0) FROM events INDEXED BY events_job WHERE job=? AND kind=?";
+pub(crate) const QUEUED_CURSOR: &str =
+    "SELECT cursor FROM events INDEXED BY events_job WHERE job=? AND kind=?";
+pub(crate) const CANCELED_EVENTS: &str = "SELECT count(*),coalesce(min(created),-1) FROM events INDEXED BY events_job WHERE job=? AND principal=? AND kind=?";
+pub(crate) const REVIEWED: &str = "SELECT EXISTS(SELECT 1 FROM events INDEXED BY events_kind WHERE json_extract(kind,'$.kind')='automation_schedule_changed' AND principal=? AND job IS NULL AND created=? AND json_extract(kind,'$.schedule')=? AND json_extract(kind,'$.revision')>? AND json_extract(kind,'$.revision')<=?)";
 
 struct Stored {
     owner: String,
@@ -767,7 +773,7 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         let deadline: i64 = row.get(8).map_err(durable)?;
         let queued: (i64, i64, i64) = conn
             .query_row(
-                "SELECT count(*),coalesce(min(created),-1),coalesce(sum(principal IS NOT ?),0) FROM events WHERE job=? AND kind=?",
+                QUEUED_EVENTS,
                 params![owner, id, json(&EventKind::JobQueued)?],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
@@ -790,7 +796,7 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         if joined.is_some() {
             let queued_cursor: i64 = conn
                 .query_row(
-                    "SELECT cursor FROM events WHERE job=? AND kind=?",
+                    QUEUED_CURSOR,
                     params![id, json(&EventKind::JobQueued)?],
                     |r| r.get(0),
                 )
@@ -819,15 +825,32 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         if state == "canceled" {
             // Pause/review is the sole cancellation path in this foundation.
             // It atomically cancels the old job and advances schedule revision.
-            let canceled: (i64,i64) = conn.query_row(
-                "SELECT count(*),coalesce(min(created),-1) FROM events WHERE principal=? AND job=? AND kind=?",
-                params![owner,id,json(&EventKind::JobTransition { state:JobState::Canceled })?],
-                |r|Ok((r.get(0)?,r.get(1)?)),
-            ).map_err(durable)?;
-            let reviewed:bool=conn.query_row(
-                "SELECT EXISTS(SELECT 1 FROM events WHERE principal=? AND job IS NULL AND created=? AND json_extract(kind,'$.kind')='automation_schedule_changed' AND json_extract(kind,'$.schedule')=? AND json_extract(kind,'$.revision')>? AND json_extract(kind,'$.revision')<=?)",
-                params![owner,canceled.1,key.schedule,key.revision,schedule.schedule.revision],|r|r.get(0),
-            ).map_err(durable)?;
+            let canceled: (i64, i64) = conn
+                .query_row(
+                    CANCELED_EVENTS,
+                    params![
+                        id,
+                        owner,
+                        json(&EventKind::JobTransition {
+                            state: JobState::Canceled
+                        })?
+                    ],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .map_err(durable)?;
+            let reviewed: bool = conn
+                .query_row(
+                    REVIEWED,
+                    params![
+                        owner,
+                        canceled.1,
+                        key.schedule,
+                        key.revision,
+                        schedule.schedule.revision
+                    ],
+                    |r| r.get(0),
+                )
+                .map_err(durable)?;
             if key.revision >= schedule.schedule.revision
                 || canceled.0 != 1
                 || !(0..=MAX_TIME).contains(&canceled.1)
@@ -856,6 +879,20 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
 mod completion;
 mod management;
 mod policy;
+/// Every startup query on `events` that runs once per job, notification or
+/// policy revision, for the test that checks each plan uses an index.
+#[cfg(test)]
+pub(crate) fn startup_event_queries() -> Vec<&'static str> {
+    let mut queries = vec![QUEUED_EVENTS, QUEUED_CURSOR, CANCELED_EVENTS, REVIEWED];
+    queries.extend(completion::startup_event_queries());
+    queries.extend([
+        policy::REVISION_BEFORE,
+        policy::POLICY_PROOF,
+        policy::POLICY_CURSOR,
+        policy::POLICY_CHECKED,
+    ]);
+    queries
+}
 pub(super) use completion::{ActiveObservation, PollWatermark};
 pub use completion::{
     ContainerReadAdmission, ContainerReadOutcome, ContainerReadPermit, HealthObservation,

@@ -39,8 +39,15 @@ pub(super) fn current(conn: &Connection, owner: &str) -> Result<HealthPolicyView
         .map_err(durable)?;
     at(conn, owner, revision)
 }
+// Per-row lookups of policy proofs, each through `events_kind` (the policy
+// revision before a cursor is a range on its second column).
+pub(crate) const REVISION_BEFORE: &str = "SELECT coalesce(max(json_extract(kind,'$.revision')),0) FROM events INDEXED BY events_kind WHERE json_extract(kind,'$.kind')='automation_health_policy_changed' AND principal=? AND job IS NULL AND cursor<?";
+pub(crate) const POLICY_PROOF: &str = "SELECT count(*) FROM events INDEXED BY events_kind WHERE json_extract(kind,'$.kind')='automation_health_policy_changed' AND principal=? AND job IS NULL AND created=? AND kind=?";
+pub(crate) const POLICY_CURSOR: &str = "SELECT cursor FROM events INDEXED BY events_kind WHERE json_extract(kind,'$.kind')='automation_health_policy_changed' AND principal=? AND job IS NULL AND kind=?";
+pub(crate) const POLICY_CHECKED: &str = "SELECT count(*),coalesce(sum(principal IS ? AND job IS NULL AND created=? AND cursor<? AND json_extract(kind,'$.revision')=?),0) FROM events INDEXED BY events_notification WHERE json_extract(kind,'$.kind')='automation_notification_policy_checked' AND json_extract(kind,'$.notification')=?";
 pub(super) fn revision_before(conn: &Connection, owner: &str, cursor: i64) -> Result<i64> {
-    conn.query_row("SELECT coalesce(max(json_extract(kind,'$.revision')),0) FROM events WHERE principal=? AND job IS NULL AND cursor<? AND json_extract(kind,'$.kind')='automation_health_policy_changed'",params![owner,cursor],|r|r.get(0)).map_err(durable)
+    conn.query_row(REVISION_BEFORE, params![owner, cursor], |r| r.get(0))
+        .map_err(durable)
 }
 impl Store {
     pub fn observe_health_policy(
@@ -159,19 +166,15 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         let updated: i64 = row.get(3).map_err(durable)?;
         principal(conn, &owner)?;
         at(conn, &owner, revision)?;
-        let own:i64=conn.query_row("SELECT count(*) FROM events WHERE principal=? AND job IS NULL AND created=? AND kind=?",params![owner,updated,json(&EventKind::AutomationHealthPolicyChanged { revision,digest:digest.clone() })?],|r|r.get(0)).map_err(durable)?;
+        let encoded = json(&EventKind::AutomationHealthPolicyChanged { revision, digest })?;
+        let own: i64 = conn
+            .query_row(POLICY_PROOF, params![owner, updated, encoded], |r| r.get(0))
+            .map_err(durable)?;
         if own != 1 {
             return Err(Error(ErrorCode::StateNotDurable));
         }
         let event_cursor: i64 = conn
-            .query_row(
-                "SELECT cursor FROM events WHERE principal=? AND job IS NULL AND kind=?",
-                params![
-                    owner,
-                    json(&EventKind::AutomationHealthPolicyChanged { revision, digest })?
-                ],
-                |r| r.get(0),
-            )
+            .query_row(POLICY_CURSOR, params![owner, encoded], |r| r.get(0))
             .map_err(durable)?;
         if revision_before(conn, &owner, event_cursor)? != revision - 1 {
             return Err(Error(ErrorCode::StateNotDurable));
@@ -190,12 +193,24 @@ fn check_publications(conn: &Connection) -> Result<()> {
             return Err(Error(ErrorCode::StateNotDurable));
         };
         let revision = revision_before(conn, &owner, cursor)?;
-        let (count,valid):(i64,i64)=conn.query_row("SELECT count(*),coalesce(sum(principal IS ? AND job IS NULL AND created=? AND cursor<? AND json_extract(kind,'$.revision')=?),0) FROM events WHERE json_extract(kind,'$.kind')='automation_notification_policy_checked' AND json_extract(kind,'$.notification')=?",params![owner,row.get::<_,i64>(3).map_err(durable)?,cursor,revision,notification],|r|Ok((r.get(0)?,r.get(1)?))).map_err(durable)?;
+        let (count, valid): (i64, i64) = conn
+            .query_row(
+                POLICY_CHECKED,
+                params![
+                    owner,
+                    row.get::<_, i64>(3).map_err(durable)?,
+                    cursor,
+                    revision,
+                    notification
+                ],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .map_err(durable)?;
         if (count, valid) != if revision == 0 { (0, 0) } else { (1, 1) } {
             return Err(Error(ErrorCode::StateNotDurable));
         }
     }
-    let orphan:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM events e WHERE json_extract(e.kind,'$.kind')='automation_notification_policy_checked' AND NOT EXISTS(SELECT 1 FROM events p WHERE p.principal=e.principal AND p.job IS NULL AND p.created=e.created AND p.cursor>e.cursor AND json_extract(p.kind,'$.kind')='automation_notification_published' AND json_extract(p.kind,'$.notification')=json_extract(e.kind,'$.notification')))",[],|r|r.get(0)).map_err(durable)?;
+    let orphan:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM events e WHERE json_extract(e.kind,'$.kind')='automation_notification_policy_checked' AND NOT EXISTS(SELECT 1 FROM events p INDEXED BY events_notification WHERE json_extract(p.kind,'$.notification')=json_extract(e.kind,'$.notification') AND p.principal=e.principal AND p.job IS NULL AND p.created=e.created AND p.cursor>e.cursor AND json_extract(p.kind,'$.kind')='automation_notification_published' AND json_extract(p.kind,'$.notification')=json_extract(e.kind,'$.notification')))",[],|r|r.get(0)).map_err(durable)?;
     if orphan {
         return Err(Error(ErrorCode::StateNotDurable));
     }

@@ -456,9 +456,13 @@ impl Core {
         let mut mount_recovery = std::collections::HashMap::<String, Instant>::new();
         let mut stack_recovery = std::collections::HashMap::<String, Instant>::new();
         let mut resolution_retry = std::collections::HashMap::<String, Instant>::new();
+        let mut audit = limeos_persistence::AuditLevel::Normal;
+        let mut retention_failures = 0;
         loop {
             // The first tick is immediate, which completes startup leftovers.
             tick.tick().await;
+            audit = report_audit(audit, self.db.audit_usage());
+            retention_failures = report_retention(retention_failures, self.db.retention_failure());
             self.complete_pending_resolutions(&mut resolution_retry, 5)
                 .await;
             self.dispatch_stack_candidates(&mut stack_recovery).await;
@@ -517,4 +521,47 @@ impl Core {
             }
         }
     }
+}
+
+/// Logs each new failed retention batch (the latest, with the running
+/// count). A failed batch is retried on the next pass, once a minute.
+fn report_retention(seen: u64, failure: Option<limeos_persistence::RetentionFailure>) -> u64 {
+    match failure {
+        Some(failure) if failure.count > seen => {
+            tracing::error!(
+                rule = failure.rule,
+                code = ?failure.code,
+                failures = failure.count,
+                "audit retention batch failed; it is retried on the next pass"
+            );
+            failure.count
+        }
+        _ => seen,
+    }
+}
+
+/// Logs when the audit table crosses the warning (75% of the cap) or the cap
+/// itself, and when it recovers. Retention keeps settled history at half the
+/// cap, so a warning means pinned history is large or writes outpace pruning.
+fn report_audit(
+    previous: limeos_persistence::AuditLevel,
+    usage: limeos_persistence::AuditUsage,
+) -> limeos_persistence::AuditLevel {
+    use limeos_persistence::AuditLevel;
+    let level = usage.level();
+    if level != previous {
+        let (bytes, limit) = (usage.bytes, limeos_persistence::AuditUsage::LIMIT);
+        match level {
+            AuditLevel::Normal => tracing::info!(bytes, limit, "audit history back within budget"),
+            AuditLevel::Warning => {
+                tracing::warn!(bytes, limit, "audit history above 75% of its cap")
+            }
+            AuditLevel::Full => tracing::error!(
+                bytes,
+                limit,
+                "audit history at its cap; writes other than revocation are refused"
+            ),
+        }
+    }
+    level
 }

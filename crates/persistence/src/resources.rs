@@ -23,7 +23,8 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             include_str!("migration-v13.sql"),
             include_str!("migration-v14.sql"),
             include_str!("migration-v15.sql"),
-            include_str!("migration-v16.sql")
+            include_str!("migration-v16.sql"),
+            include_str!("migration-v17.sql")
         ))
         .map_err(durable)?;
     let mut stmt = reference
@@ -74,6 +75,27 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         let actual: Option<String> = conn
             .query_row(
                 "SELECT sql FROM sqlite_schema WHERE type='table' AND name=?",
+                [name],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(durable)?;
+        if actual.as_ref() != Some(&expected) {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
+    }
+    // Startup and retention cost depend on these indexes, not only correctness.
+    for name in ["events_job", "events_kind", "events_notification"] {
+        let expected: String = reference
+            .query_row(
+                "SELECT sql FROM sqlite_schema WHERE type='index' AND name=?",
+                [name],
+                |r| r.get(0),
+            )
+            .map_err(durable)?;
+        let actual: Option<String> = conn
+            .query_row(
+                "SELECT sql FROM sqlite_schema WHERE type='index' AND name=?",
                 [name],
                 |r| r.get(0),
             )

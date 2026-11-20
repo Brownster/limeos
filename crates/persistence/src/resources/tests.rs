@@ -595,3 +595,269 @@ fn real_process_kill_preserves_every_committed_claim() {
     assert_eq!(locks(&s, &id).len(), 4);
     check(&s.conn).unwrap();
 }
+
+#[test]
+fn v16_upgrade_adds_the_event_indexes_and_keeps_every_row() {
+    let (dir, mut s, p) = setup();
+    let path = dir.path().join("core.sqlite");
+    let job = queue(&mut s, &p, "upgraded", "a");
+    s.claim_container(&p, &job.id, &snapshot("a"), 203).unwrap();
+    let rows = |conn: &Connection| -> (i64, i64, i64, i64) {
+        conn.query_row("SELECT (SELECT count(*) FROM events),(SELECT count(*) FROM jobs),(SELECT count(*) FROM resource_locks),(SELECT audit_bytes FROM meta)",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).unwrap()
+    };
+    let before = rows(&s.conn);
+    crate::remove_v17_schema(&s.conn);
+    s.conn.execute_batch("PRAGMA user_version=16").unwrap();
+    // The reference check compares the index as it does triggers.
+    assert!(check(&s.conn).is_err());
+    drop(s);
+    let s = Store::open(&path).unwrap();
+    let version: u32 = s
+        .conn
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .unwrap();
+    assert_eq!(version, SCHEMA_VERSION);
+    check(&s.conn).unwrap();
+    // Startup recovered the claimed job: one more event, nothing lost.
+    let after = rows(&s.conn);
+    assert_eq!(after, (before.0 + 1, before.1, before.2, before.3 + 256));
+    assert_eq!(s.job_state(&job.id).unwrap(), "needs_intervention");
+    drop(s);
+    Store::open(&path).unwrap();
+}
+
+/// On a nearly full disk the v17 upgrade is refused before it builds its
+/// indexes: nothing is written, the store stays at version 16, and
+/// `upgrade_space` says how much space the upgrade needs.
+#[test]
+fn v16_upgrade_on_a_nearly_full_disk_refuses_before_building_indexes() {
+    let (dir, mut s, p) = setup();
+    let path = dir.path().join("core.sqlite");
+    crate::scale::fill(&mut s, &p.id, 100_000, 300);
+    crate::remove_v17_schema(&s.conn);
+    s.conn.execute_batch("PRAGMA user_version=16").unwrap();
+    drop(s);
+    crate::OPEN_FREE_BYTES.set(Some(0));
+    let needed = crate::upgrade_space(&path).unwrap().needed;
+    crate::OPEN_FREE_BYTES.set(Some(needed - 1));
+    let space = crate::upgrade_space(&path).unwrap();
+    assert_eq!(space.from, 16);
+    assert_eq!(space.available, needed - 1);
+    assert_eq!(space.needed, needed);
+    assert_eq!(
+        Store::open(&path).err().unwrap().0,
+        ErrorCode::StateNotDurable
+    );
+    let conn = Connection::open(&path).unwrap();
+    let (version, indexes): (u32, i64) = conn
+        .query_row(
+            "SELECT (SELECT user_version FROM pragma_user_version),(SELECT count(*) FROM sqlite_schema WHERE type='index' AND name IN ('events_job','events_kind','events_notification'))",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((version, indexes), (16, 0));
+    drop(conn);
+    // With the space it asked for, the upgrade goes through.
+    crate::OPEN_FREE_BYTES.set(Some(space.needed));
+    assert_eq!(crate::upgrade_space(&path), None);
+    Store::open(&path).unwrap();
+    assert_eq!(crate::upgrade_space(&path), None);
+}
+
+/// A version-16 store as an older build left it, with `rows` events added:
+/// of a settled job (64-character id) when `long`, else job-less. No event
+/// indexes, and no free pages for the upgrade to reuse.
+fn v16_store(long: bool, rows: i64) -> (tempfile::TempDir, std::path::PathBuf) {
+    let (dir, mut s, p) = setup();
+    let path = dir.path().join("core.sqlite");
+    let job = queue(&mut s, &p, "settled", "a");
+    s.cancel_container_job(&p, &job.id, 203).unwrap();
+    assert_eq!(job.id.len(), 64);
+    let (owner, kind) = if long {
+        (
+            Some(job.id),
+            json(&EventKind::JobTransition {
+                state: JobState::Canceled,
+            })
+            .unwrap(),
+        )
+    } else {
+        (None, json(&EventKind::SessionCreated).unwrap())
+    };
+    s.write(|tx| {
+        let added = tx.execute("WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<?) INSERT INTO events(principal,job,kind,created) SELECT ?,?,?,300 FROM c", params![rows, p.id, owner, kind]).map_err(durable)?;
+        crate::retention::account(tx, added as i64)
+    })
+    .unwrap();
+    crate::remove_v17_schema(&s.conn);
+    s.conn
+        .execute_batch("PRAGMA user_version=16; VACUUM;")
+        .unwrap();
+    drop(s);
+    (dir, path)
+}
+/// Bytes of the database and its WAL.
+fn on_disk(path: &std::path::Path) -> u64 {
+    [path.to_path_buf(), path.with_extension("sqlite-wal")]
+        .iter()
+        .map(|file| std::fs::metadata(file).map_or(0, |m| m.len()))
+        .sum()
+}
+
+/// The upgrade's estimate follows the data: admitted with exactly the space
+/// it asks for, the index build (new database pages, and the same pages in
+/// the WAL) leaves the 8 MiB write reserve free, with long job ids and with
+/// job-less rows; and it asks for no more than three times what it uses.
+#[test]
+fn v16_upgrade_space_estimate_covers_the_index_build_and_the_reserve() {
+    for long in [true, false] {
+        let (_dir, path) = v16_store(long, 65_536);
+        crate::OPEN_FREE_BYTES.set(Some(0));
+        let needed = crate::upgrade_space(&path).unwrap().needed;
+        crate::OPEN_FREE_BYTES.set(Some(needed));
+        assert_eq!(crate::upgrade_space(&path), None);
+        let before = on_disk(&path);
+        let s = Store::open(&path).unwrap();
+        // The commit's checkpoint has copied the WAL into the database, and
+        // the WAL keeps its size until the next write: the peak.
+        let used = on_disk(&path) - before;
+        drop(s);
+        crate::OPEN_FREE_BYTES.set(None);
+        assert!(
+            used + MIN_FREE_BYTES <= needed,
+            "long ids {long}: used {used}, allowed {}",
+            needed - MIN_FREE_BYTES
+        );
+        assert!(
+            needed - MIN_FREE_BYTES <= 3 * used,
+            "long ids {long}: used {used}, allowed {}",
+            needed - MIN_FREE_BYTES
+        );
+    }
+}
+
+/// The index build runs out of space although the check passed (here a page
+/// limit stands in for a full disk): the upgrade rolls back, and
+/// `upgrade_space` still reports a shortfall, so core logs the same
+/// actionable message instead of a bare refusal.
+#[test]
+fn v16_upgrade_that_runs_out_of_space_still_says_how_much_it_needs() {
+    let (_dir, path) = v16_store(true, 65_536);
+    let pages: i64 = Connection::open(&path)
+        .unwrap()
+        .query_row("PRAGMA page_count", [], |r| r.get(0))
+        .unwrap();
+    crate::UPGRADE_MAX_PAGES.set(Some(pages + 8));
+    assert_eq!(
+        Store::open(&path).err().unwrap().0,
+        ErrorCode::StateNotDurable
+    );
+    crate::UPGRADE_MAX_PAGES.set(None);
+    let conn = Connection::open(&path).unwrap();
+    let (version, indexes): (u32, i64) = conn
+        .query_row(
+            "SELECT (SELECT user_version FROM pragma_user_version),(SELECT count(*) FROM sqlite_schema WHERE type='index' AND name IN ('events_job','events_kind','events_notification'))",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((version, indexes), (16, 0));
+    drop(conn);
+    let space = crate::upgrade_space(&path).unwrap();
+    assert_eq!(space.from, 16);
+    assert!(space.needed > space.available);
+    // Reported once; the next start measures afresh and goes through.
+    assert_eq!(crate::upgrade_space(&path), None);
+    Store::open(&path).unwrap();
+}
+
+#[test]
+fn missing_or_changed_event_indexes_refuse_startup() {
+    for tamper in [
+        "DROP INDEX events_job",
+        "DROP INDEX events_job; CREATE INDEX events_job ON events(job)",
+        "DROP INDEX events_kind",
+        "DROP INDEX events_notification",
+        "DROP INDEX events_notification; CREATE INDEX events_notification ON events(json_extract(kind,'$.notification'))",
+    ] {
+        let (dir, s, _) = setup();
+        s.conn.execute_batch(tamper).unwrap();
+        drop(s);
+        assert_eq!(
+            Store::open(&dir.path().join("core.sqlite"))
+                .err()
+                .unwrap()
+                .0,
+            ErrorCode::StateNotDurable
+        );
+    }
+}
+
+#[test]
+fn event_reads_by_job_and_kind_use_the_indexes() {
+    let (_dir, s, _) = setup();
+    for (query, index) in [
+        (
+            "SELECT cursor,kind,created FROM events WHERE job=? AND principal=? AND cursor>? ORDER BY cursor LIMIT 128",
+            "events_job",
+        ),
+        (
+            "SELECT count(*),coalesce(min(created),-1),coalesce(sum(principal IS NOT ?),0) FROM events WHERE job=? AND kind=?",
+            "events_job",
+        ),
+        ("SELECT min(created) FROM events WHERE job=?", "events_job"),
+        (
+            "SELECT coalesce(max(json_extract(kind,'$.revision')),0) FROM events WHERE principal=? AND job IS NULL AND cursor<? AND json_extract(kind,'$.kind')='automation_health_policy_changed'",
+            "events_kind",
+        ),
+        (
+            "SELECT EXISTS(SELECT 1 FROM events WHERE json_extract(kind,'$.kind')='automation_notification_created' GROUP BY json_extract(kind,'$.notification') HAVING count(*)<>1)",
+            "events_kind",
+        ),
+    ] {
+        let plan: Vec<String> = s
+            .conn
+            .prepare(&format!("EXPLAIN QUERY PLAN {query}"))
+            .unwrap()
+            .query_map(
+                rusqlite::params_from_iter(std::iter::repeat_n("x", query.matches('?').count())),
+                |r| r.get(3),
+            )
+            .unwrap()
+            .collect::<std::result::Result<_, _>>()
+            .unwrap();
+        assert!(
+            plan.iter()
+                .any(|step| step.contains(&format!("INDEX {index} "))),
+            "{query}: {plan:?}"
+        );
+    }
+}
+
+/// The index sort stays in memory for a table at the audit cap and its
+/// reserve even when every event has a job (the largest keys), and only a
+/// table far past it spills to temporary files, which the estimate counts.
+#[test]
+fn the_v17_index_sort_stays_in_memory_up_to_the_audit_cap() {
+    let at_cap = ((crate::AUDIT_LIMIT + crate::retention::AUDIT_RESERVE) / 256) as u64;
+    let build = |rows: u64| crate::IndexBuild::of([(rows, rows * 64), (rows, rows * 30), (0, 0)]);
+    let full = build(at_cap);
+    assert!(full.in_memory(), "{full:?}");
+    assert!(full.sort <= 32 * 1024 * 1024);
+    let past = build(2 * at_cap);
+    assert!(!past.in_memory());
+    assert_eq!(
+        past.needed(),
+        MIN_FREE_BYTES + crate::UPGRADE_FIXED_BYTES + past.entries * 4 / 3 * 2 + past.sort * 2
+    );
+}
+
+/// Even a store with no events writes the new indexes' root pages and their
+/// WAL frames, so the estimate asks for more than the bare write reserve.
+#[test]
+fn the_v17_estimate_for_an_empty_store_exceeds_the_write_reserve() {
+    let empty = crate::IndexBuild::of([(0, 0), (0, 0), (0, 0)]);
+    assert!(empty.in_memory());
+    assert_eq!(empty.needed(), MIN_FREE_BYTES + crate::UPGRADE_FIXED_BYTES);
+}

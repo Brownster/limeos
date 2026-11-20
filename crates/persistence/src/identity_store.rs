@@ -49,7 +49,48 @@ pub(super) fn authenticate(
     })
 }
 
+/// Authority removal that no full queue, full disk or full audit table may
+/// refuse; see `Database::revoke`. Only removal: a grant revision can widen
+/// access, so it takes the ordinary write gates (`Store::revise_grants`).
+pub enum Revocation {
+    /// Logout: the session digest and its CSRF digest, checked together.
+    Session { digest: String, csrf: String },
+    /// A task token, which no production path issues yet: assistant tasks
+    /// (RW-050) are to revoke theirs when the task ends or its integration is
+    /// disconnected.
+    Task { digest: String },
+}
+
+impl Revocation {
+    /// Whether there is authority left to remove, read without the writer: a
+    /// session must authenticate with its CSRF digest (errors as
+    /// `authenticate`), and a token must exist and not be revoked yet.
+    pub(super) fn admit(&self, conn: &Connection, now: i64) -> Result<bool> {
+        match self {
+            Revocation::Session { digest, csrf } => {
+                authenticate(conn, digest, Some(csrf), now).map(|_| true)
+            }
+            Revocation::Task { digest } => conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM task_tokens WHERE digest=? AND revoked=0)",
+                    [digest],
+                    |r| r.get(0),
+                )
+                .map_err(durable),
+        }
+    }
+}
+
 impl Store {
+    pub(super) fn apply_revocation(&mut self, revocation: Revocation, now: i64) -> Result<()> {
+        match revocation {
+            Revocation::Session { digest, csrf } => {
+                authenticate(&self.conn, &digest, Some(&csrf), now)?;
+                self.revoke_session(&digest, now)
+            }
+            Revocation::Task { digest } => self.revoke_task(&digest, now),
+        }
+    }
     pub fn issue_bootstrap(&mut self, digest: &str, now: i64) -> Result<i64> {
         let expires = now.checked_add(900).ok_or(Error(ErrorCode::InvalidInput))?;
         self.write(|tx| {
@@ -240,10 +281,16 @@ impl Store {
             .map_err(durable)?
             .ok_or(Error(ErrorCode::Unauthenticated))
     }
+    /// Removing a session that is already gone records nothing. Past the
+    /// audit reserve the session is still removed, without its event.
     pub fn revoke_session(&mut self, digest: &str, now: i64) -> Result<()> {
-        self.write(|tx| {
-            tx.execute("DELETE FROM sessions WHERE digest=?", [digest])
+        self.revocation_write(|tx, recordable| {
+            let removed = tx
+                .execute("DELETE FROM sessions WHERE digest=?", [digest])
                 .map_err(durable)?;
+            if removed == 0 || !recordable {
+                return Ok(());
+            }
             event(tx, None, None, EventKind::SessionRevoked, now)
         })
     }
@@ -260,6 +307,9 @@ impl Store {
         if scopes.len() > 32 {
             return Err(Error(ErrorCode::InvalidInput));
         }
+        // A revision can promote a role or add scopes, so it takes every gate
+        // of an ordinary write: refused below the free-space reserve and at
+        // the audit cap, never drawing on the revocation reserve.
         self.write(|tx| {
             if tx
                 .execute(
@@ -356,10 +406,18 @@ impl Store {
         limeos_policy::authorize(&principal, &self.grants(&principal)?, scope)?;
         Ok(principal)
     }
+    /// Revoking an unknown or already revoked token records nothing.
     pub fn revoke_task(&mut self, digest: &str, now: i64) -> Result<()> {
-        self.write(|tx| {
-            tx.execute("UPDATE task_tokens SET revoked=1 WHERE digest=?", [digest])
+        self.revocation_write(|tx, recordable| {
+            let revoked = tx
+                .execute(
+                    "UPDATE task_tokens SET revoked=1 WHERE digest=? AND revoked=0",
+                    [digest],
+                )
                 .map_err(durable)?;
+            if revoked == 0 || !recordable {
+                return Ok(());
+            }
             event(tx, None, None, EventKind::TaskRevoked, now)
         })
     }

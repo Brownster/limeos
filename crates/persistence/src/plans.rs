@@ -423,7 +423,12 @@ impl Store {
         if after < 0 {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        let mut stmt = self.conn.prepare("SELECT cursor,kind,created FROM events WHERE job=? AND principal=? AND cursor>? ORDER BY cursor LIMIT 128").map_err(durable)?;
+        // A job whose history retention has begun to remove reads as having
+        // none, never as a partial history.
+        let mut stmt = self
+            .conn
+            .prepare(&format!("SELECT cursor,kind,created FROM events WHERE job=? AND principal=? AND cursor>? AND {} ORDER BY cursor LIMIT 128", super::retention::RETAINED_HISTORY))
+            .map_err(durable)?;
         let rows = stmt
             .query_map(params![id, principal.id, after], |r| {
                 Ok((

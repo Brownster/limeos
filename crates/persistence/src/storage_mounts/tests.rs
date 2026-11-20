@@ -395,13 +395,26 @@ fn queued_cancel_and_revoked_principal_cannot_dispatch_or_list_private_paths() {
 
 #[test]
 fn schema9_upgrade_is_atomic_with_startup_audit_and_preserves_users() {
-    let (dir, store, principal, _) = setup();
+    let (dir, mut store, principal, _) = setup();
+    // Startup refuses when an interrupted job's recovery event cannot be
+    // recorded even in the reserve past the audit cap.
+    let job = store
+        .queue_job(
+            &principal,
+            "interrupted",
+            &Intent::HealthProbe {
+                resource: "system".into(),
+            },
+            400,
+            200,
+        )
+        .unwrap();
+    store
+        .transition(&job, JobState::Queued, JobState::Running, 201)
+        .unwrap();
+    store.conn.execute("WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<?) INSERT INTO events(principal,job,kind,created) SELECT ?,NULL,'{\"kind\":\"automation_schedule_changed\",\"schedule\":\"s\",\"revision\":2}',300 FROM c",params![(AUDIT_LIMIT + crate::retention::AUDIT_RESERVE) / 256, principal.id]).unwrap();
     super::super::remove_v10_schema(&store.conn);
     store.conn.pragma_update(None, "user_version", 9).unwrap();
-    store
-        .conn
-        .execute("UPDATE meta SET audit_bytes=?", [AUDIT_LIMIT])
-        .unwrap();
     drop(store);
     assert!(matches!(
         Store::open(&dir.path().join("core.sqlite")),
@@ -422,13 +435,15 @@ fn schema9_upgrade_is_atomic_with_startup_audit_and_preserves_users() {
         .unwrap(),
         0
     );
-    conn.execute("UPDATE meta SET audit_bytes=0", []).unwrap();
+    conn.execute("DELETE FROM events WHERE created=300 AND job IS NULL", [])
+        .unwrap();
     drop(conn);
     let store = Store::open(&dir.path().join("core.sqlite")).unwrap();
     assert_eq!(
         store.login_record("alice").unwrap().unwrap().principal,
         principal
     );
+    assert_eq!(store.job_state(&job).unwrap(), "needs_intervention");
     assert_eq!(
         store
             .conn
@@ -662,4 +677,42 @@ fn never_dispatched_precondition_change_needs_no_effect_receipt() {
         store.storage_mount_job(&principal, &job.id).unwrap().state,
         JobState::PreconditionChanged
     );
+}
+
+/// A settled mount job keeps every event through retention: its startup
+/// check reads the `running` transition to decide whether a result must
+/// exist.
+#[test]
+fn retention_keeps_every_event_of_a_storage_mount_job() {
+    let (dir, mut store, principal, current) = setup();
+    let (_, _, job) = queued(&mut store, &principal, &current);
+    let running = store
+        .claim_storage_mount(&principal, &job.id, &current, 203)
+        .unwrap();
+    let (receipt, after) = verified(&running);
+    assert_eq!(
+        store
+            .record_storage_mount_result(&running, &receipt, Some(&after), None, 205)
+            .unwrap(),
+        JobState::Succeeded
+    );
+    let history = |store: &Store| -> Vec<(i64, String)> {
+        store
+            .conn
+            .prepare("SELECT cursor,kind FROM events WHERE job=? ORDER BY cursor")
+            .unwrap()
+            .query_map([&job.id], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<std::result::Result<_, _>>()
+            .unwrap()
+    };
+    let kept = history(&store);
+    assert!(kept.iter().any(|(_, kind)| kind.contains("\"running\"")));
+    // Bulk history behind it, twice the budget.
+    crate::scale::fill(&mut store, &principal.id, 2 * 128 * 1024, 206);
+    while !store.prune().unwrap().is_empty() {}
+    assert!(crate::scale::events(&store) <= 128 * 1024);
+    assert_eq!(history(&store), kept);
+    drop(store);
+    Store::open(&dir.path().join("core.sqlite")).unwrap();
 }
