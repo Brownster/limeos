@@ -7,6 +7,11 @@
 //! refused write. It asserts that the limit is still there and prints when
 //! it is reached; once result and job retention land, it fails, and the
 //! schedule belongs in the main soak instead.
+//!
+//! Measured (20 November 2026): the first refusal comes after 22.76
+//! simulated days, a reservation refused with `StateNotDurable` at the
+//! audit cap (262,143 events, 65,535 results, core.sqlite at 202.6 MiB).
+//! It takes about 14 minutes in a debug build and up to 210 MiB of disk.
 use crate::{
     sim::soak_dir,
     support::{DAY, START},
