@@ -48,6 +48,8 @@ pub struct EngineComposeSnapshot {
     pub engine_id: String,
     pub containers_observed_at: i64,
     pub containers: Vec<ComposeContainerMembership>,
+    /// Engine containers beyond the bound, running ones kept first; not inspected.
+    pub truncated: u16,
 }
 /// Fixed-endpoint opaque owner. JSON cannot restore its socket, ledger or lifetime.
 /// ```compile_fail

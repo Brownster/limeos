@@ -316,7 +316,13 @@ digest: string, evidence_digest: string, declared: DeclaredOutcome,
  * The resolving administrator's principal ID, recorded in the row.
  */
 resolved_by: string, };
-export type StackInventory = { version: number, generated_at: number, catalog: StackSourceStatus, engine: StackSourceStatus, engine_matches_catalog: boolean | null, stacks: Array<StackView>, other_projects: Array<StackOtherProjectView>, standalone_containers: number | null, };
+export type StackInventory = { version: number, generated_at: number, catalog: StackSourceStatus, engine: StackSourceStatus, engine_matches_catalog: boolean | null, stacks: Array<StackView>, other_projects: Array<StackOtherProjectView>, standalone_containers: number | null,
+/**
+ * Engine containers left out because the Engine holds more than
+ * `MAX_ENGINE_CONTAINERS`; running ones are kept first. Counts above are
+ * of the containers shown. `None` while the Engine source is not fresh.
+ */
+truncated_containers: number | null, };
 export type StackSourceStatus = { state: StackSourceState, sampled_at: number | null, max_age_seconds: number,
 /**
  * Remaining display lifetime, shortened by every cache/transport layer.
@@ -335,7 +341,11 @@ export type StackProjectIdentity = { name: string, working_directory: string, co
 export type StackFileStatus = { "state": "not_inspected" } | { "state": "conflict", candidates: Array<ComposeFileName>, } | { "state": "unsupported", reason: StackUnsupportedSource, } | { "state": "unavailable" };
 export type StackUnsupportedSource = "yaml" | "environment" | "include" | "interpolation" | "other";
 export type CatalogFacts = { engine_id: string, sampled_at: number, stacks: Array<StackDeclaration>, };
-export type EngineFacts = { engine_id: string, sampled_at: number, members: Array<StackMembership>, };
+export type EngineFacts = { engine_id: string, sampled_at: number, members: Array<StackMembership>,
+/**
+ * Engine containers beyond `MAX_ENGINE_CONTAINERS`, not in `members`.
+ */
+truncated: number, };
 export type StackDeclaration = { stack: string, project: string, working_directory: string, config_files: Array<string>, services: Array<string>, files: StackFileStatus, };
 export type StackMembership = { "kind": "standalone", container: ContainerSnapshot, } | { "kind": "compose", container: ContainerSnapshot, project: StackProjectIdentity, service: string, one_off: boolean, };
 export type DiscoveryCohort = { version: number, catalog: CatalogFacts | null, engine: EngineFacts | null, catalog_current: boolean, engine_current: boolean, catalog_valid_for_millis: number, engine_valid_for_millis: number, };

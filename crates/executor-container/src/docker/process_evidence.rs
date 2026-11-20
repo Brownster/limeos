@@ -485,6 +485,40 @@ impl AuthenticatedEngine {
     }
 }
 
+impl AuthenticatedEngine {
+    /// The Engine-wide listing for a display projection: every row decoded for
+    /// its identity, state and name only, so more containers than the profile
+    /// admits can be ordered and truncated rather than refused.
+    async fn listing(
+        &self,
+        path: String,
+        budget: &ResponseBudget,
+        lifetime: &EvidenceLifetime,
+        admission: &Admission,
+    ) -> Result<Vec<super::storage::Listed>> {
+        lifetime.check()?;
+        admission.ensure_body()?;
+        let limits = admission.limits();
+        // Body Vec growth overlap plus the selected rows, and HTTP scratch.
+        let mut scope = admission.scope();
+        scope.charge(4 * limits.listing + 64 * 1024)?;
+        let rows = tokio::time::timeout(Duration::from_secs(REQUEST_SECONDS), async {
+            let (status, bytes) = self
+                .docker
+                .request_inner("GET", path, limits.listing, Some((self, budget)))
+                .await?;
+            if status != StatusCode::OK {
+                return Err(unavailable());
+            }
+            super::storage::parse_listing(&bytes, limits.listed)
+        })
+        .await
+        .map_err(|_| unavailable())??;
+        lifetime.check()?;
+        Ok(rows)
+    }
+}
+
 pub(super) struct ResponseBudget(AtomicUsize, Option<Admission>);
 impl ResponseBudget {
     fn new() -> Self {
@@ -608,10 +642,15 @@ async fn collect(
         let engine_identity = engine_id_with_scope(&info, scope.as_mut())?;
         drop(info);
         let list_path = format!("/{version}/containers/json?all=1");
-        let list = get(list_path.clone(), 512 * 1024).await?;
-        let ids =
-            super::storage::parse_storage_container_ids_with_admission(&list, scope.as_mut())?;
-        drop(list);
+        let listing = Listing {
+            authenticated,
+            budget: &budget,
+            lifetime,
+            admission,
+            projection,
+            path: &list_path,
+        };
+        let (ids, truncated) = listing.ids(scope.as_mut()).await?;
         let mut containers = Vec::new();
         let mut pids = Vec::new();
         let mut members = Vec::new();
@@ -727,15 +766,11 @@ async fn collect(
             }
         }
         let mut comparison = admission.map(Admission::scope);
-        let list_json = get(list_path, 512 * 1024).await?;
-        if super::storage::parse_storage_container_ids_with_admission(
-            &list_json,
-            comparison.as_mut(),
-        )? != ids
-        {
+        if listing.ids(comparison.as_mut()).await? != (ids.clone(), truncated) {
             return Err(conflict());
         }
-        drop(list_json);
+        drop(comparison);
+        let mut comparison = admission.map(Admission::scope);
         let info_json = get(format!("/{version}/info"), 128 * 1024).await?;
         if engine_id_with_scope(&info_json, comparison.as_mut())? != declarations.engine_id {
             return Err(conflict());
@@ -772,6 +807,7 @@ async fn collect(
                     .string(&declarations.engine_id)?,
                 containers_observed_at: lifetime.observed_at,
                 containers: members,
+                truncated: u16::try_from(truncated).map_err(|_| unavailable())?,
             })
         } else {
             None
@@ -806,6 +842,47 @@ async fn collect(
             unavailable()
         }
     })?
+}
+/// The Engine-wide container IDs of one collection pass.
+struct Listing<'a> {
+    authenticated: &'a AuthenticatedEngine,
+    budget: &'a ResponseBudget,
+    lifetime: &'a EvidenceLifetime,
+    admission: Option<&'a Admission>,
+    projection: Projection,
+    path: &'a str,
+}
+impl Listing<'_> {
+    /// Storage evidence refuses an Engine over its bound. The Compose display
+    /// projection keeps the first containers, running ones first, and counts
+    /// the rest.
+    async fn ids(&self, scope: Option<&mut Scope>) -> Result<(Vec<String>, usize)> {
+        if self.projection == Projection::Compose {
+            let admission = self.admission.ok_or_else(unavailable)?;
+            let rows = self
+                .authenticated
+                .listing(self.path.into(), self.budget, self.lifetime, admission)
+                .await?;
+            return super::storage::select_listed(
+                rows,
+                admission.limits().consumers,
+                scope.ok_or_else(unavailable)?,
+            );
+        }
+        let list = self
+            .authenticated
+            .json(
+                self.path.into(),
+                512 * 1024,
+                self.budget,
+                self.lifetime,
+                self.admission,
+                self.projection != Projection::Storage,
+            )
+            .await?;
+        let ids = super::storage::parse_storage_container_ids_with_admission(&list, scope)?;
+        Ok((ids, 0))
+    }
 }
 fn engine_id(value: &Value) -> Result<String> {
     Ok(value["ID"].as_str().ok_or_else(unavailable)?.into())

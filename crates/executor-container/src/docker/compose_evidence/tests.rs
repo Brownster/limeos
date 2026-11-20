@@ -172,6 +172,7 @@ fn full_container_identity_is_preserved_and_unknown_labels_environment_are_not_r
 fn capture() -> Capture {
     Capture::new(EngineComposeSnapshot {
         version: 1,
+        truncated: 0,
         engine_id: "synthetic-engine".into(),
         containers_observed_at: 100,
         containers: vec![],

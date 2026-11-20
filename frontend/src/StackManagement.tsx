@@ -51,6 +51,7 @@ export function StackManagement({ value, loading = false, stale = false, error =
           <Services value={row.services} stale={stale} />
         </details>)}</>}
       <p>{stale || value.standalone_containers === null ? "Current standalone-container count is unavailable." : `${value.standalone_containers} standalone containers observed outside Compose projects.`}</p>
+      {!stale && value.truncated_containers ? <p className="notice">{value.truncated_containers} more Engine containers are not shown: the inventory keeps the first 64, running ones first, and counts only those.</p> : null}
     </>}
     {operations && <StackJobs csrf={operations.csrf} revision={operations.revision} expired={operations.expired} admin={operations.admin} changed={operations.changed} />}
   </section>;

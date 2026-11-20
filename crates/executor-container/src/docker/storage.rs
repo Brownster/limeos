@@ -111,6 +111,82 @@ pub(super) fn parse_storage_container_ids_with_admission(
     Ok(result)
 }
 
+/// One row of the selective Engine listing: only what orders truncation.
+#[derive(Debug, serde::Deserialize)]
+pub(super) struct Listed {
+    #[serde(rename = "Id")]
+    id: String,
+    #[serde(rename = "State", default)]
+    state: String,
+    #[serde(rename = "Names", default)]
+    names: Vec<String>,
+}
+/// Decode at most `rows` list rows, skipping every other field unallocated.
+pub(super) fn parse_listing(bytes: &[u8], rows: usize) -> Result<Vec<Listed>> {
+    struct Rows(usize);
+    impl<'de> serde::de::Visitor<'de> for Rows {
+        type Value = Vec<Listed>;
+        fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "at most {} listed containers", self.0)
+        }
+        fn visit_seq<A: serde::de::SeqAccess<'de>>(
+            self,
+            mut seq: A,
+        ) -> std::result::Result<Self::Value, A::Error> {
+            let mut out: Vec<Listed> = Vec::new();
+            while let Some(row) = seq.next_element::<Listed>()? {
+                if out.len() >= self.0 {
+                    return Err(serde::de::Error::custom("listing bound"));
+                }
+                out.try_reserve(1)
+                    .map_err(|_| serde::de::Error::custom("listing allocation"))?;
+                out.push(row);
+            }
+            Ok(out)
+        }
+    }
+    let mut decoder = serde_json::Deserializer::from_slice(bytes);
+    let rows = serde::Deserializer::deserialize_seq(&mut decoder, Rows(rows))
+        .map_err(|_| unavailable())?;
+    decoder.end().map_err(|_| unavailable())?;
+    Ok(rows)
+}
+/// Keep `keep` listed containers, running first, then by name and ID, and
+/// return their IDs in ID order with the number left out. A malformed or
+/// repeated ID is an Engine fault and refuses the listing.
+pub(super) fn select_listed(
+    rows: Vec<Listed>,
+    keep: usize,
+    scope: &mut super::read_admission::Scope,
+) -> Result<(Vec<String>, usize)> {
+    let mut seen = BTreeSet::new();
+    for row in &rows {
+        if !opaque_id(&row.id) || !seen.insert(row.id.as_str()) {
+            return Err(unavailable());
+        }
+    }
+    let mut order: Vec<&Listed> = rows.iter().collect();
+    order.sort_by(|a, b| {
+        (a.state != "running")
+            .cmp(&(b.state != "running"))
+            .then_with(|| a.names.first().cmp(&b.names.first()))
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    let truncated = order.len().saturating_sub(keep);
+    let kept: BTreeSet<&str> = order
+        .into_iter()
+        .take(keep)
+        .map(|r| r.id.as_str())
+        .collect();
+    let mut result = Vec::new();
+    scope.reserve(&mut result, kept.len())?;
+    for id in kept {
+        scope.charge(48)?;
+        result.push(scope.string(id)?);
+    }
+    Ok((result, truncated))
+}
+
 pub(super) fn parse_storage_container(value: &Value, id: &str) -> Result<ContainerStorageConsumer> {
     parse_storage_container_with_admission(value, id, usize::MAX, None)
 }

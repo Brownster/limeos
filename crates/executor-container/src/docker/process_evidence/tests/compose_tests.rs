@@ -96,6 +96,83 @@ async fn complete_replica_oneoff_stopped_mountless_and_non_compose_membership_is
     assert!(fixture.requests().iter().all(|r| r.starts_with("GET ")));
 }
 #[tokio::test]
+async fn an_engine_over_the_bound_keeps_running_containers_first_and_counts_the_rest() {
+    for (count, every) in [(65, 5), (200, 3)] {
+        let mut members = vec![Value::Null; count];
+        for slot in &mut members[60..65] {
+            *slot = labels("media");
+        }
+        let fixture = fixture(Config {
+            count,
+            running_every: Some(every),
+            compose_labels: Some(members),
+            ..config()
+        })
+        .await;
+        let owner = inspect(&fixture).await.unwrap();
+        let snapshot = owner.snapshot();
+        assert_eq!(snapshot.containers.len(), 64, "{count}");
+        assert_eq!(usize::from(snapshot.truncated), count - 64);
+        let running = (0..count).filter(|i| i % every == 0).count();
+        assert_eq!(
+            snapshot
+                .containers
+                .iter()
+                .filter(|c| c.container.running)
+                .count(),
+            running.min(64)
+        );
+        // Stopped containers fill the rest by name: c001, c002, ...
+        let mut expected: Vec<_> = (0..count)
+            .filter(|i| i % every == 0)
+            .chain((0..count).filter(|i| i % every != 0))
+            .take(64)
+            .map(|i| format!("container:{i:064x}"))
+            .collect();
+        expected.sort();
+        let shown: Vec<_> = snapshot
+            .containers
+            .iter()
+            .map(|c| c.container.resource.clone())
+            .collect();
+        assert_eq!(shown, expected);
+        owner.revalidate().await.unwrap();
+        let facts = crate::deployment::discovery::cohort(None, Some(&owner), &|| false)
+            .await
+            .unwrap();
+        assert_eq!(
+            facts.engine().unwrap().truncated,
+            u16::try_from(count - 64).unwrap()
+        );
+        let view = facts.project(snapshot.containers_observed_at).unwrap();
+        assert_eq!(
+            view.truncated_containers,
+            Some(u16::try_from(count - 64).unwrap())
+        );
+        assert_eq!(
+            view.engine.state,
+            limeos_domain::deployment::discovery::SourceState::Fresh
+        );
+    }
+}
+#[tokio::test]
+async fn storage_evidence_over_the_bound_still_refuses_whole() {
+    let fixture = fixture(Config {
+        count: 65,
+        running_every: Some(5),
+        ..Config::default()
+    })
+    .await;
+    assert!(
+        fixture
+            .docker
+            .inspect_storage_processes_with_profile(fixture.policy, EngineReadProfile::EngineWideV1)
+            .await
+            .is_err()
+    );
+    assert!(fixture.inspect_combined().await.is_err());
+}
+#[tokio::test]
 async fn public_nonroot_refusal_precedes_canonical_endpoint_access() {
     assert!(!rustix::process::geteuid().is_root());
     assert!(matches!(
@@ -402,23 +479,24 @@ async fn engine_wide_profile_admits_exactly_sixty_four_containers_of_any_state()
     assert_eq!(owner.snapshot().containers.len(), 64);
     assert_eq!(owner.storage().running().len(), 40);
     owner.revalidate().await.unwrap();
-    for config in [
-        Config {
-            count: 65,
-            ..config()
-        },
-        Config {
-            count: 64,
-            mounts: 5,
-            ..config()
-        },
-    ] {
-        let fixture = super::fixture(config).await;
-        assert!(matches!(
-            inspect(&fixture).await,
-            Err(Error(ErrorCode::Unavailable))
-        ));
-    }
+    assert_eq!(owner.snapshot().truncated, 0);
+    // One more is truncated, not refused; the mount ceiling still refuses.
+    let over = super::fixture(Config {
+        count: 65,
+        ..config()
+    })
+    .await;
+    assert_eq!(inspect(&over).await.unwrap().snapshot().truncated, 1);
+    let fixture = super::fixture(Config {
+        count: 64,
+        mounts: 5,
+        ..config()
+    })
+    .await;
+    assert!(matches!(
+        inspect(&fixture).await,
+        Err(Error(ErrorCode::Unavailable))
+    ));
     // The storage-dependency profile keeps its own, smaller ceilings.
     let narrow = super::fixture(Config {
         count: 17,

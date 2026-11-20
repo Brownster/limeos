@@ -31,9 +31,10 @@ The Compose projection used by stack inventory reads with `EngineReadProfile::En
 | EngineWideV1 bound | Value | Reason |
 |---|---|---|
 | Consumers / running | 64 / 64 | `MAX_ENGINE_CONTAINERS`, equal to the storage consumer bound; no process scan in this projection |
+| Truncation listing (PR-15) | 512 KiB, 1,024 rows | Each row decoded for `Id`, `State` and `Names` only; the first 64 are kept, running ones first, then by name and ID, and the rest is counted as `truncated_containers`. Charged 4x its cap (2 MiB) while held. Storage evidence keeps the whole refusal over 64 |
 | Selected mounts | 256 total, 64 each | `CONTAINER_STORAGE_MAX_TOTAL_MOUNTS` / `_MAX_MOUNTS` |
 | List response | 256 KiB (inspect, version, info stay 64 KiB) | 64 rows of a few KiB; 7x scratch charge 1.8 MiB |
-| Body / live ledger | 4 MiB / 4 MiB | 128 inspect bodies at 32 KiB average; one list scratch plus retained facts |
+| Body / live ledger | 8 MiB / 4 MiB | Bytes read, not held: two listings and 128 inspect bodies, again for revalidation; one list scratch plus retained facts |
 | Nodes / decoded string bytes | 8,192 / 256 KiB per response | list of 64 rows |
 | Retained report (streamed count) | 256 KiB (CombinedV1: 48 KiB) | storage plus Compose snapshot of 64 containers |
 

@@ -11928,6 +11928,16 @@
                         "null"
                       ]
                     },
+                    "truncated_containers": {
+                      "description": "Engine containers left out because the Engine holds more than\n`MAX_ENGINE_CONTAINERS`; running ones are kept first. Counts above are\nof the containers shown. `None` while the Engine source is not fresh.",
+                      "format": "uint16",
+                      "maximum": 65535,
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
                     "version": {
                       "format": "uint16",
                       "maximum": 65535,

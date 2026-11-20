@@ -39,6 +39,7 @@ fn cohort() -> DiscoveryCohort {
                 service: "web".into(),
                 one_off: false,
             }],
+            truncated: 0,
         }),
     )
     .unwrap()

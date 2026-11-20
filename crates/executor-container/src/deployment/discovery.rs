@@ -159,6 +159,7 @@ fn engine_facts(engine: &EngineComposeSnapshot) -> Result<EngineFacts> {
         engine_id: engine.engine_id.clone(),
         sampled_at: engine.containers_observed_at,
         members,
+        truncated: engine.truncated,
     })
 }
 
@@ -195,6 +196,7 @@ mod tests {
     fn projects_registered_empty_stacks_without_claiming_file_inspection() {
         let engine = EngineComposeSnapshot {
             version: 1,
+            truncated: 0,
             engine_id: "engine-a".into(),
             containers_observed_at: 100,
             containers: vec![],
@@ -223,6 +225,7 @@ mod tests {
     fn mismatched_engine_and_unsupported_versions_never_produce_empty_success() {
         let mut engine = EngineComposeSnapshot {
             version: 1,
+            truncated: 0,
             engine_id: "other".into(),
             containers_observed_at: 100,
             containers: vec![],
@@ -238,6 +241,7 @@ mod tests {
         use crate::docker::compose_evidence::{ComposeContainerMembership, ComposeProjectIdentity};
         EngineComposeSnapshot {
             version: 1,
+            truncated: 0,
             engine_id: "engine-a".into(),
             containers_observed_at: 100,
             containers: (0..count)

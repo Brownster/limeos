@@ -8,7 +8,7 @@ fn fixture() -> Value {
     }]},"engine":{"engine_id":"engine","sampled_at":99,"members":[{
         "kind":"compose","container":{"resource":format!("container:{:064x}",1),"image":format!("sha256:{}","a".repeat(64)),"started_at":"2026-10-20T00:00:00Z","running":true},
         "project":{"name":"media","working_directory":"/opt/stacks/Media","config_files":["/opt/stacks/Media/compose.yaml"]},"service":"web","one_off":false
-    }]}})
+    }],"truncated":0}})
 }
 fn decode(value: Value) -> Result<DiscoveryCohort> {
     DiscoveryCohort::decode(&serde_json::to_vec(&value).unwrap())
@@ -21,6 +21,22 @@ fn round_trip_preserves_source_clocks_and_failed_source_withholds_counts() {
     assert_eq!(serde_json::from_slice::<Value>(&bytes).unwrap(), fixture());
     let fresh = cohort.project(101).unwrap();
     assert_eq!(fresh.stacks[0].runtime, RuntimeStatus::Running);
+    assert_eq!(fresh.truncated_containers, Some(0));
+    // A report from before the truncation count decodes as complete; a
+    // truncated one carries its count to the fresh view only.
+    let mut older = fixture();
+    older["engine"].as_object_mut().unwrap().remove("truncated");
+    assert_eq!(decode(older).unwrap().engine().unwrap().truncated, 0);
+    let mut over = fixture();
+    over["engine"]["truncated"] = json!(3);
+    let over = decode(over).unwrap();
+    assert_eq!(over.project(101).unwrap().truncated_containers, Some(3));
+    assert_eq!(
+        over.project_sources(101, true, false)
+            .unwrap()
+            .truncated_containers,
+        None
+    );
     for (catalog, engine) in [(false, true), (true, false), (false, false)] {
         let view = cohort.project_sources(101, catalog, engine).unwrap();
         assert_eq!(view.catalog.sampled_at, Some(100));

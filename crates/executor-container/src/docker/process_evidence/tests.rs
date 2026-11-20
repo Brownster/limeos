@@ -24,6 +24,8 @@ struct Config {
     first_running: bool,
     all_running: bool,
     running_count: Option<usize>,
+    /// Every n-th container runs instead, scattering running among stopped.
+    running_every: Option<usize>,
     duplicate_pids: bool,
     pid: Option<Value>,
     changed: Option<Change>,
@@ -49,6 +51,7 @@ impl Default for Config {
             first_running: true,
             all_running: false,
             running_count: None,
+            running_every: None,
             duplicate_pids: false,
             pid: Some(json!(1000)),
             changed: None,
@@ -105,6 +108,15 @@ impl Fixture {
             .inspect_storage_processes_with_profile(self.policy, EngineReadProfile::CombinedV1)
             .await
     }
+}
+fn is_running(config: &Config, index: usize) -> bool {
+    if let Some(every) = config.running_every {
+        return index.is_multiple_of(every);
+    }
+    config.running_count.map_or(
+        config.all_running || (index == 0 && config.first_running),
+        |count| index < count,
+    )
 }
 async fn fixture(config: Config) -> Fixture {
     let directory = tempfile::tempdir().unwrap();
@@ -184,7 +196,9 @@ async fn fixture(config: Config) -> Fixture {
                 };
                 json!(
                     (0..count)
-                        .map(|i| json!({"Id": format!("{i:064x}")}))
+                        .map(|i| json!({"Id": format!("{i:064x}"),
+                            "State": if is_running(&config, i) { "running" } else { "exited" },
+                            "Names": [format!("/c{i:03}")]}))
                         .collect::<Vec<_>>()
                 )
             } else {
@@ -196,10 +210,7 @@ async fn fixture(config: Config) -> Fixture {
                     .next()
                     .unwrap();
                 let index = usize::from_str_radix(id, 16).unwrap();
-                let running = config.running_count.map_or(
-                    config.all_running || (index == 0 && config.first_running),
-                    |count| index < count,
-                );
+                let running = is_running(&config, index);
                 let source = if matches!(config.changed, Some(Change::Mount)) && nth > 1 {
                     "/mnt/replaced".into()
                 } else {

@@ -127,12 +127,20 @@
         "sampled_at": {
           "type": "integer",
           "format": "int64"
+        },
+        "truncated": {
+          "description": "Engine containers beyond `MAX_ENGINE_CONTAINERS`, not in `members`.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
         }
       },
       "required": [
         "engine_id",
         "sampled_at",
-        "members"
+        "members",
+        "truncated"
       ]
     },
     "StackDeclaration": {

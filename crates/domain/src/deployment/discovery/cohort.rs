@@ -16,6 +16,8 @@ pub struct EngineFacts {
     #[ts(type = "number")]
     pub sampled_at: i64,
     pub members: Vec<Membership>,
+    /// Engine containers beyond `MAX_ENGINE_CONTAINERS`, not in `members`.
+    pub truncated: u16,
 }
 
 /// Selected past facts, never file/Engine ownership or execution permission.
@@ -57,6 +59,7 @@ impl<'de> Deserialize<'de> for DiscoveryCohort {
                 engine_id: e.engine_id.0,
                 sampled_at: e.sampled_at,
                 members: e.members.into_iter().map(Into::into).collect(),
+                truncated: e.truncated,
             }),
             wire.catalog_current,
             wire.engine_current,
@@ -160,6 +163,9 @@ impl DiscoveryCohort {
             .engine
             .valid_for_millis
             .min(self.engine_valid_for_millis);
+        if let (Some(count), Some(engine)) = (view.truncated_containers.as_mut(), &self.engine) {
+            *count = engine.truncated;
+        }
         Ok(view)
     }
     pub fn project(&self, now: i64) -> Result<StackInventory> {
@@ -284,6 +290,8 @@ struct EngineWire {
     sampled_at: i64,
     #[serde(deserialize_with = "bounded::<_, MembershipWire, MAX_ENGINE_CONTAINERS>")]
     members: Vec<MembershipWire>,
+    #[serde(default)]
+    truncated: u16,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

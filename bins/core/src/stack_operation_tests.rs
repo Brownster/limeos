@@ -45,6 +45,19 @@ fn ordinary() -> Vec<ContainerSnapshot> {
 fn cohort(members: &[ContainerSnapshot], declared: &[&str]) -> DiscoveryCohort {
     crowded_cohort(members, declared, 0)
 }
+/// The same Engine, but read over the bound: `truncated` more containers exist.
+fn truncated_cohort(members: &[ContainerSnapshot], truncated: u16) -> DiscoveryCohort {
+    let base = cohort(members, &["web", "db"]);
+    let engine = base.engine().unwrap();
+    DiscoveryCohort::new(
+        base.catalog().cloned(),
+        Some(EngineFacts {
+            truncated,
+            ..engine.clone()
+        }),
+    )
+    .unwrap()
+}
 /// The registered project's members plus `unrelated` other containers spread over
 /// two other projects and standalone containers, all in the same Engine.
 fn crowded_cohort(
@@ -118,6 +131,7 @@ fn crowded_cohort(
             engine_id: "engine".into(),
             sampled_at: now(),
             members: engine,
+            truncated: 0,
         }),
     )
     .unwrap()
@@ -1145,6 +1159,36 @@ async fn a_stack_among_forty_unrelated_containers_plans_approves_queues_and_runs
         .unwrap();
     assert_eq!(progress.job.state, JobState::Succeeded);
     assert_eq!(f.engine.lock().unwrap().executes, 1);
+    f.task.abort();
+}
+
+#[tokio::test]
+async fn a_truncated_inventory_plans_a_complete_stack_but_never_one_missing_a_member() {
+    // Every member is shown and other containers were left out: plannable,
+    // because the fresh per-project listing agrees with the plan.
+    let mut f = admin().await;
+    f.core.stacks = Default::default();
+    f.core
+        .stacks
+        .update(&truncated_cohort(&ordinary(), 5))
+        .unwrap();
+    let view = f.core.stacks.cohort().unwrap().project(now()).unwrap();
+    assert_eq!(view.truncated_containers, Some(5));
+    let planned = f.plan(ContainerAction::Restart).await.unwrap();
+    assert_eq!(planned.plan.expected.members, ordinary());
+    f.task.abort();
+    // The stopped member was truncated out of the inventory: the fresh
+    // per-project listing still names it, so the incomplete plan is refused.
+    let mut f = admin().await;
+    f.core.stacks = Default::default();
+    let shown: Vec<_> = ordinary().into_iter().filter(|m| m.running).collect();
+    f.core.stacks.update(&truncated_cohort(&shown, 1)).unwrap();
+    assert_eq!(
+        f.plan(ContainerAction::Restart).await.unwrap_err().0,
+        ErrorCode::Conflict
+    );
+    assert!(f.engine.lock().unwrap().inspects > 0);
+    assert_eq!(f.engine.lock().unwrap().executes, 0);
     f.task.abort();
 }
 

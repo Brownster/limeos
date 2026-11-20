@@ -213,6 +213,10 @@ pub struct StackInventory {
     pub stacks: Vec<StackView>,
     pub other_projects: Vec<OtherProjectView>,
     pub standalone_containers: Option<u16>,
+    /// Engine containers left out because the Engine holds more than
+    /// `MAX_ENGINE_CONTAINERS`; running ones are kept first. Counts above are
+    /// of the containers shown. `None` while the Engine source is not fresh.
+    pub truncated_containers: Option<u16>,
 }
 
 fn invalid() -> Error {
@@ -611,6 +615,7 @@ fn discover_current(
                 .filter(|m| matches!(m, Membership::Standalone { .. }))
                 .count() as u16
         }),
+        truncated_containers: engine_fresh.then_some(0),
     };
     report.check_size()?;
     Ok(report)

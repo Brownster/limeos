@@ -40,7 +40,7 @@ export function decodeStackInventory(value: unknown): StackInventory {
   const r = record(value); if (r.version !== 1) invalid(); integer(r.generated_at);
   source(r.catalog); source(r.engine);
   if (r.engine_matches_catalog !== null) bool(r.engine_matches_catalog);
-  nullableInteger(r.standalone_containers, 16);
+  nullableInteger(r.standalone_containers, 64); nullableInteger(r.truncated_containers, 65535);
   let members = 0; const ids = new Set<string>();
   const services = (value: unknown, max: number) => {
     const names = new Set<string>();

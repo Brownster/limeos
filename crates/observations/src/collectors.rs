@@ -56,8 +56,7 @@ pub fn start_docker(socket: PathBuf) -> Cache {
         loop {
             let result = async {
                 let version = adapter.version().await?;
-                let mut resources = adapter.inventory(&version).await?;
-                let mut warnings = Vec::new();
+                let (mut resources, mut warnings) = adapter.inventory(&version).await?;
                 let mut current = HashMap::new();
                 if c.active() {
                     sample_metrics(
@@ -157,8 +156,9 @@ async fn consume(
                 }
             }
             Err(_) => {
-                if warnings.is_empty() {
-                    warnings.push("Some container metrics are unavailable".into());
+                const UNAVAILABLE: &str = "Some container metrics are unavailable";
+                if !warnings.iter().any(|w| w == UNAVAILABLE) {
+                    warnings.push(UNAVAILABLE.into());
                 }
             }
         }
