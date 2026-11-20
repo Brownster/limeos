@@ -69,8 +69,8 @@ rusqlite's `trace`. Three things keep them out of shipped binaries:
 | Test | What | Run time (debug, x86-64) |
 |---|---|---|
 | `soak_smoke` | Three simulated days of the household, both receipt-store replacements and two crash images included; every `cargo test` | 9 s |
-| `soak_ninety_days` | The acceptance run: 90 days; core restarts (nightly and at awkward moments) only in the first 30, then 60 days on one open store, so `Store::open` never recomputes a drifting counter; startup measured nightly on copies and every fifth day on crash images | 448 s |
-| `soak_ninety_days_restarts` | Alongside it, the recovery coverage: the same household with another seed, both daemons restarting every night and at every awkward moment for all 90 days | 444 s |
+| `soak_ninety_days` | The acceptance run: 90 days; core restarts (nightly and at awkward moments) only in the first 30, then 60 days on one open store, so `Store::open` never recomputes a drifting counter; startup measured nightly on copies and every fifth day on crash images | 297 s alone, 448 s beside the others |
+| `soak_ninety_days_restarts` | Alongside it, the recovery coverage: the same household with another seed, both daemons restarting every night and at every awkward moment for all 90 days | 288 s alone, 444 s beside the others |
 | `soak_core_store_at_its_audit_cap` | The core store at, half-way into and at the end of the reserve past its 64 MiB audit cap, with and without prunable history, with and without a running job needing a recovery event (12 cases) | 15 s |
 | `soak_core_retention_works_off_a_backlog` | Retention suspended during a burst of real logins, then resumed: twelve batches of backlog; every `cargo test` | 1 s |
 | `soak_receipt_store_at_its_caps` | The receipt store at its row cap and its page cap (`limits`), with prunable and unprunable rows, and past its file check; executes sent by core's own `exchange`; every `cargo test` | 1 s |
@@ -78,14 +78,17 @@ rusqlite's `trace`. Three things keep them out of shipped binaries:
 | `soak_metrics_store_ninety_days` | `metrics.sqlite` at the collector's cadence for 90 days | 25 s |
 | `writer_thread_runs_retention_unprompted` | The writer thread's startup pass, before its first call; every `cargo test` | <1 s |
 | `writer_thread_works_off_a_backlog_on_its_own` | The writer thread's periodic passes on simulated time, with nothing but the clock moving; every `cargo test` | <1 s |
+| `walks_are_read_from_bytecode_under_any_alias` | The bytecode reader the startup checks rely on: a walk under an alias and `NOT INDEXED`, an index walk told from a table walk, no walk in a seek, an error (not "no walks") for an unreadable program; every `cargo test` | <1 s |
 | `automation_limit_at_minimum_interval` | The known automation limit, measured; not a gate (about 14 minutes) | — |
 
 The ordinary `cargo test` runs the smoke, the backlog, receipt-cap and writer
-tests and the generator's own tests: 11 to 14 s together (the smoke about 9 s
+tests, the bytecode reader's and the generator's own tests: 11 to 14 s together (the smoke about 9 s
 of it). Every other `soak_*` test is ignored there and run by CI's own `soak`
 job, on both native architectures, under a 25-minute limit: 6 min 41 s for all
 of them on this machine (8 cores, tmpfs) with the test binary built, the two
-90-day runs taking 390 to 450 s each (13 minutes with four of them at once).
+90-day runs taking 390 to 450 s each (13 minutes with four of them at once);
+one at a time (`--test-threads=1`) they take 11 min 16 s, the 90-day runs
+about 290 s each.
 The job builds the test binary itself (the workflow keeps no build cache to
 share). The packages and the probe are published (uploaded under their final
 names, which the VM job downloads) only by the `publish` job, which needs both
@@ -218,6 +221,21 @@ walks `events` whatever its plan calls it, and an indexed search elsewhere in
 the statement does not hide it. The counters are deterministic for a given
 file, unlike page reads, which depend on what the cache holds.
 
+A program that cannot be read fails the check rather than counting as one
+that walks nothing. One statement runs inside another: the lock and
+resource invariants read `pragma_foreign_key_check`, which prepares and
+runs `PRAGMA foreign_key_check` as a statement of its own. SQLite reports a
+nested statement's expanded text commented out line by line (`-- PRAGMA
+foreign_key_check`), so its program is read from its own text; it is not
+run cold, because its reads are already inside the invariants statement's
+cold run. Until this round the reader explained that comment, found no
+walks and said nothing: the foreign-key check walks every table with a
+foreign key, the events table itself included, on every open. It now has
+an allowance (`SCAN_ALLOWANCES`) like `quick_check`'s. A store holding a
+table walked one step a row (64 rows or more) whose open counted no VM step
+or no full-scan step at all fails as unmeasured: that is how a key clash
+once read every full-scan count as 0.
+
 A crash image is measured the same way, in a child process: the database and
 its WAL copied as they are (no wal-index), opened and traced, with each
 statement run cold on a consistent backup taken at the same moment. The WAL
@@ -230,7 +248,8 @@ jobs as the live store (a digest of their ids) and at least its events.
 On the last night of the main run the open executed 50 statements: 82,213
 page reads, 16 of them outside every statement (the same 16 on every copy of
 every run: the schema's pages). The largest are the storage-mount proof
-check (57,135), `quick_check` (13,703), the foreign-key check (4,938) and the
+check (57,135), `quick_check` (13,703), the foreign-key check (4,938, with
+871,762 VM steps, the second most after `quick_check`'s 1.5 million) and the
 audit reconciliation's indexed count (988). Their VM steps came to 2,565,818
 but the proof check's, 18.2 per retained row (141,339 rows).
 
@@ -294,10 +313,12 @@ whole jobs table, which is now larger than SQLite's 2 MiB page cache, so the
 startup statements read 5.1 to 5.4 pages more for every page the per-job
 tables gain (57 to 64 a night), reaching the startup bound of a store at its
 file bound in 2.1 to 2.3 years. The bytecode shows the walks: `quick_check`
-walks every table, and seven statements walk `jobs` (and two of them
+walks every table, the foreign-key check every table with a foreign key
+(the events table and the seven per-job tables among them; neither makes
+full-scan steps), and seven statements walk `jobs` (and two of them
 `job_resources` or `job_resolutions`) with one full-scan step per row, 2,046
-to 6,085 steps each on the last night. No refusal follows (no cap counts these rows), but neither
-size nor startup is bounded.
+to 6,085 steps each on the last night. No refusal follows (no cap counts
+these rows), but neither size nor startup is bounded.
 
 ### Defect: the storage-mount proof check reads the events table once per job
 
@@ -365,7 +386,7 @@ CI (not re-measured this round).
 | sizes and bounded tables flat across the last third | the bounded tables' bytes and rows, and the file size beyond what per-job tables added, over days 60 to 90 |
 | slow growth leaves at least five years | the per-job tables' growth, projected to the core file bound (expected failure, pinned) |
 | startup under its bounds | every open's wall time (5 s core, 2 s receipts: the catastrophic only); on every copy and crash image, the cold page reads of core's startup statements but the proof check at most 3.2 per page of file and WAL, the receipt store's open at most 2.0; every crash image opens and keeps every committed job and event |
-| core startup reads nothing its checks do not explain | on every copy and crash image, from every statement's bytecode and counters: no statement walks the events table itself (only `quick_check` may); only the statements in `SCAN_ALLOWANCES` walk a table growing with history (`events` or a per-job table, or an index of one), each only its listed tables, with a reason; each statement's full-scan steps at most its listed tables' rows times its steps per row (0 or 1), plus its walks of bounded tables (their rows, once per run), plus 16; the open's VM steps but the proof check's at most 64 per retained row plus 200,000; at most 32 page reads outside every statement (measured 16) plus 2 per WAL frame replayed; the open reads at most what its statements read cold, plus 3%, 256 pages and 2 per WAL frame replayed |
+| core startup reads nothing its checks do not explain | on every copy and crash image, from every statement's bytecode and counters: every statement's program read, nested ones included; no statement walks the events table itself (only `quick_check` and the foreign-key check may); only the statements in `SCAN_ALLOWANCES` walk a table growing with history (`events` or a per-job table, or an index of one), each only its listed tables, with a reason; each statement's full-scan steps at most its listed tables' rows times its steps per row (0 or 1), plus its walks of bounded tables (their rows, once per run), plus 16; the counters measured (some VM and full-scan steps once a table walked one step a row holds 64 rows); the open's VM steps but the proof check's at most 64 per retained row plus 200,000; at most 32 page reads outside every statement (measured 16) plus 2 per WAL frame replayed; the open reads at most what its statements read cold, plus 3%, 256 pages and 2 per WAL frame replayed |
 | the storage-mount proof check reads little without storage mounts | the statement that reads `storage_mount_results`: its plan does not look events up by kind, and it reads at most an eighth of the file cold (expected failure, pinned) |
 | core startup work grows only with the per-job tables | over the last third, the statements' cold reads (but the proof check's) grow by at most 10 per page the per-job tables gain |
 | core / receipt-store startup work leaves at least five years | the nightly page reads, projected to the bound of a store at its file bound (core: expected failure, pinned); the receipt store's no further than the reads of a store with every table at its budget |
@@ -395,6 +416,13 @@ growing 75 pages a night.
 | core startup work leaves at least five years | the startup statements but the proof check grow 50 to 72 page reads a night; 1.9 to 2.45 years to the bound | 57.7, 57.5, 57.3; 63.5, 64.5, 63.6 a night (range 7.2); 2.24, 2.25, 2.26; 2.14, 2.10, 2.14 years (before: 32 to 128, 1 to 4.5) |
 | the storage-mount proof check reads little without storage mounts | the statement reading `storage_mount_results` looks events up by kind on every copy; its largest cold read 4.5 to 8 files' worth | by kind on every copy; 6.49, 6.51, 6.51; 5.82, 5.75, 5.83 files' worth (before: 0 to 15) |
 
+After the merge of the security batch (PR-32 to PR-35) and the bytecode
+reader's fixes, one more run of each scenario, one at a time, ran the same
+jobs (2,058 and 1,697) and measured 46.2 / 49.2 KiB a day, 4.50 / 4.79 KiB
+a job, 2.77 / 2.74 years; 59.0 / 65.1 page reads a night, 2.19 / 2.09
+years; 6.49 / 5.81 files' worth: all inside their pins, every other check
+passing.
+
 The proof check's pin is the measured range widened by itself (5.0 to 7.3)
 and up to 8: its read jumps once retention has replaced the burst's session
 events with job history, here on day 57 in one scenario and day 89 in the
@@ -411,7 +439,12 @@ runs, reintroduced in the production source (never committed; restored after
 each run, `git status` clean), and the check that fails. This round re-ran
 the first scan row (now an aliased `NOT INDEXED` walk) and ran the last two
 rows; the others are last round's, against checks this round only made
-stricter:
+stricter. After the merge of the security batch the scan row and the epoch
+row were run again against `soak_smoke` and failed with the same checks
+and messages (the scan row: "Rewind on events; 1285 full-scan steps", "85
+full-scan steps, more than the 16 allowed it"; the epoch row: 3 jobs
+released on a closure from the new store); the retention row was not run
+again:
 
 | Defect or regression | Mutation | Failing test and check |
 |---|---|---|
@@ -473,6 +506,9 @@ cargo test -p limeos-core --bin limeos-core soak::
 # Everything CI's soak job runs
 cargo test -p limeos-core --bin limeos-core -- --ignored soak_ --nocapture
 
+# The same, one test at a time (a machine short of memory; about 11 minutes)
+cargo test -p limeos-core --bin limeos-core -- --ignored soak_ --nocapture --test-threads=1
+
 # One scenario
 cargo test -p limeos-core --bin limeos-core -- --ignored --exact soak::soak_ninety_days --nocapture
 
@@ -523,8 +559,10 @@ container requests, is exercised as it is.
   permits, and its role's own reads (observations, logs, storage
   inventories); the soak serves the same request handling from its own
   accept loop.
-- Core's HTTP layer (`limeos_api`: routing, request framing, deadlines,
-  limits): the soak calls core's handlers directly.
+- Core's HTTP layer (`limeos_api`: the route table and its gate, the
+  reader-side session check `signed_in`, request framing, deadlines,
+  limits): the soak calls core's handlers directly, each of which
+  authenticates its session itself.
 - The password workers: the password check behind logins and failed logins.
 - The storage reader's inventory proxy (`start_proxy`, its RPC and its
   cohort's transport): the soak hands core's cache the cohort it would
