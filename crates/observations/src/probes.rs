@@ -189,10 +189,6 @@ fn visit(
     if matches!(kind.as_str(), "loop" | "rom") {
         return;
     }
-    if depth > MAX_DEPTH || found.len() >= MAX_DEVICES {
-        *omitted = true;
-        return;
-    }
     let name = text(&dev["name"], 64);
     let uuid = text(&dev["uuid"], 128);
     let serial = text(&dev["serial"], 128);
@@ -204,6 +200,22 @@ fn visit(
     } else {
         format!("device:{path}")
     };
+    // lsblk lists an md or dm device (RAID, LVM) under each of its members,
+    // with the same subtree each time. The same kernel name, path, type and
+    // identity is that one device again: it keeps the first parent, and its
+    // repeated subtree is not walked twice.
+    if !name.is_empty()
+        && !path.is_empty()
+        && found
+            .iter()
+            .any(|f| f.name == name && f.path == path && f.kind == kind && f.identity == identity)
+    {
+        return;
+    }
+    if depth > MAX_DEPTH || found.len() >= MAX_DEVICES {
+        *omitted = true;
+        return;
+    }
     let filesystem = Some(text(&dev["fstype"], 64)).filter(|s| !s.is_empty());
     let mut mounts: Vec<String> = dev["mountpoints"]
         .as_array()
@@ -297,11 +309,12 @@ pub(crate) fn disks(value: &Value) -> Result<(Vec<Resource>, Vec<String>)> {
         .collect();
     let mut several = Vec::new();
     let mut seen = std::collections::HashSet::new();
+    let mut repeated = false;
     let mut result = Vec::new();
     for (f, id) in found.iter().zip(&ids) {
         // Malformed input naming one path twice: keep the first only.
         if !seen.insert(id.as_str()) {
-            omitted = true;
+            repeated = true;
             continue;
         }
         let ambiguous = id.starts_with("ambiguous:");
@@ -346,6 +359,11 @@ pub(crate) fn disks(value: &Value) -> Result<(Vec<Resource>, Vec<String>)> {
         warnings.push(format!(
             "Storage inventory exceeds {MAX_DEVICES} devices or nesting depth {MAX_DEPTH}; some devices are omitted"
         ));
+    }
+    if repeated {
+        warnings.push(
+            "The device listing names one device path twice for different devices; only the first is shown".into(),
+        );
     }
     Ok((result, warnings))
 }
@@ -505,6 +523,75 @@ mod tests {
         );
         assert_eq!(swap.filesystem.as_deref(), Some("swap"));
         assert_eq!(swap.id, "uuid:swap-1");
+    }
+    #[test]
+    fn a_raid_or_lvm_volume_listed_under_each_member_is_one_device() {
+        let disk = |name: &str, children: Vec<Value>| serde_json::json!({"name":name,"path":format!("/dev/{name}"),"type":"disk","serial":format!("s-{name}"),"children":children});
+        let member = |name: &str, uuid: &str, children: Vec<Value>| serde_json::json!({"name":name,"path":format!("/dev/{name}"),"type":"part","uuid":uuid,"fstype":"linux_raid_member","children":children});
+        let volume = |name: &str, path: &str, kind: &str, uuid: &str, mount: &str| serde_json::json!({"name":name,"path":path,"type":kind,"uuid":uuid,"fstype":"ext4","mountpoints":[mount]});
+        let md0 = volume("md0", "/dev/md0", "raid1", "raid-fs", "/srv/raid");
+        let lv = volume("vg-data", "/dev/mapper/vg-data", "lvm", "lv-fs", "/srv/lvm");
+        let pv = |name: &str, children: Vec<Value>| serde_json::json!({"name":name,"path":format!("/dev/{name}"),"type":"part","uuid":format!("pv-{name}"),"fstype":"LVM2_member","children":children});
+        for (fixture, volume_name, volume_id, parent, total) in [
+            // mdraid over two disks: md0 under sda1 and sdb1.
+            (
+                vec![
+                    disk("sda", vec![member("sda1", "raid-a", vec![md0.clone()])]),
+                    disk("sdb", vec![member("sdb1", "raid-b", vec![md0.clone()])]),
+                ],
+                "md0",
+                "uuid:raid-fs",
+                "uuid:raid-a",
+                5,
+            ),
+            // LVM over one physical volume.
+            (
+                vec![disk("sdc", vec![pv("sdc1", vec![lv.clone()])])],
+                "vg-data",
+                "uuid:lv-fs",
+                "uuid:pv-sdc1",
+                3,
+            ),
+            // LVM over two physical volumes: the logical volume under each.
+            (
+                vec![
+                    disk("sdc", vec![pv("sdc1", vec![lv.clone()])]),
+                    disk("sdd", vec![pv("sdd1", vec![lv.clone()])]),
+                ],
+                "vg-data",
+                "uuid:lv-fs",
+                "uuid:pv-sdc1",
+                5,
+            ),
+        ] {
+            let (r, warnings) = disks(&serde_json::json!({ "blockdevices": fixture })).unwrap();
+            assert!(warnings.is_empty(), "{warnings:?}");
+            assert_eq!(r.len(), total, "{r:?}");
+            let volumes: Vec<_> = r.iter().filter(|d| d.name == volume_name).collect();
+            assert_eq!(volumes.len(), 1);
+            let volume = volumes[0];
+            assert_eq!(volume.id, volume_id);
+            assert_eq!(volume.identity.as_deref(), Some(volume_id));
+            assert_eq!(volume.status, "mounted");
+            // The type holds one parent: the first member, deterministically.
+            assert_eq!(volume.parent.as_deref(), Some(parent));
+            assert!(r.iter().all(|d| d.status != "ambiguous"));
+        }
+    }
+    #[test]
+    fn two_devices_named_by_one_path_keep_the_first_with_their_own_warning() {
+        let (r, warnings) = disks(&serde_json::json!({"blockdevices":[
+            part("sda1", "same", "ext4", serde_json::json!([])),
+            {"name":"sdz9","path":"/dev/sda1","type":"part","uuid":"same"},
+        ]}))
+        .unwrap();
+        assert_eq!(r.len(), 1);
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains("names one device path twice"))
+        );
+        assert!(!warnings.iter().any(|w| w.contains("exceeds")));
     }
     #[test]
     fn more_devices_than_the_bound_are_truncated_with_a_warning() {
