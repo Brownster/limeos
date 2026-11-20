@@ -555,6 +555,84 @@ async fn repeating_a_resolution_is_idempotent_and_a_different_one_is_refused() {
     assert_eq!(other_admin.unwrap_err().0, ErrorCode::Conflict);
 }
 
+/// Core crashed after the executor recorded `resolved` and before it completed
+/// its own side. Its retry gets the stored confirmation while the row is
+/// kept; once retention has pruned the row, `no_longer_held`, after which
+/// core follows its guarded fallback (plan expired, fresh evidence matches).
+#[tokio::test]
+async fn a_retried_resolution_gets_its_confirmation_until_pruning_then_no_longer_held() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let engine = RecordingEngine::new(true);
+    let first = single('d', 'a');
+    store
+        .execute(&engine, &ceiling(), 1001, &first, || 201)
+        .await
+        .unwrap();
+    let evidence = shown(&engine, &[snap('a', true)]).await;
+    let kind = ResolveKind::Container;
+    let declared = DeclaredOutcome::VerifiedDone;
+    let confirmed = resolve(
+        &mut store,
+        &engine,
+        kind,
+        &first.action,
+        &first.plan_digest,
+        &evidence,
+        declared,
+    )
+    .await
+    .unwrap();
+    // The retry while the row is kept: the stored confirmation.
+    assert_eq!(
+        resolve(
+            &mut store,
+            &engine,
+            kind,
+            &first.action,
+            &first.plan_digest,
+            &evidence,
+            declared,
+        )
+        .await
+        .unwrap(),
+        confirmed
+    );
+    // Newer settled history fills the budget and retention runs once the
+    // plan has been expired for the retention period.
+    for i in 0..crate::retention::RETAINED_ACTIONS {
+        store
+            .conn
+            .execute(
+                "INSERT INTO actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?,?,?,'verified','{}','restart',?)",
+                params![format!("f{i:063x}"), format!("df{i}"), format!("container:f{i}"), 100_000],
+            )
+            .unwrap();
+    }
+    let now = first.plan.expires_at + crate::retention::RETAIN_AFTER_EXPIRY;
+    let tx = store.conn.transaction().unwrap();
+    assert_eq!(crate::retention::prune(&tx, now).unwrap(), 1);
+    tx.commit().unwrap();
+    assert!(store.resolution(kind, &first.action).unwrap().is_none());
+    // The retry after pruning: nothing to free, and absence proves nothing.
+    let mutations = engine.mutations();
+    assert_eq!(
+        outcome(
+            &mut store,
+            &engine,
+            kind,
+            &first.action,
+            &first.plan_digest,
+            &evidence,
+            declared,
+        )
+        .await
+        .unwrap(),
+        ResolveOutcome::Absent(limeos_domain::ReceiptAbsence::NoLongerHeld)
+    );
+    assert_eq!(engine.mutations(), mutations);
+}
+
 /// A receipt the executor finished while core still holds the job.
 struct Terminal {
     _dir: tempfile::TempDir,

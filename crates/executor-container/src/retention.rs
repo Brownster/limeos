@@ -1,12 +1,20 @@
 //! Bounded retention of settled receipts.
 //!
 //! A receipt is terminal when no later transition can change it and it holds
-//! no resource lock: `verified` and `precondition_changed` for a container
-//! action, and also `partly_done` for a stack. `prepared`, `effect_accepted` and
-//! `outcome_unknown` hold the lock that crash recovery and verification rely on;
-//! `resolved` rows are the operator's recorded confirmation. Neither is ever
-//! removed here. A stack and its member rows go together, and only when every
-//! member is terminal too.
+//! no resource lock: `verified`, `precondition_changed` and `resolved` for a
+//! container action, and also `partly_done` for a stack. `prepared`,
+//! `effect_accepted` and `outcome_unknown` hold the lock that crash recovery
+//! and verification rely on and are never removed here. A stack and its member
+//! rows go together, and only when every member is terminal too.
+//!
+//! A `resolved` row is the operator's recorded confirmation, which core needs
+//! only until it has completed its own side. Kept forever, each resolution
+//! would turn prunable history into a permanent row until the last-resort caps
+//! stop all execution. A core that crashed before completing retries
+//! `ResolveAction`: while the row is kept it gets the stored confirmation;
+//! once it is pruned, `NoLongerHeld` (the watermark covers it), and core then
+//! completes only after the plan has expired and its own fresh measurement
+//! still matches the approved evidence.
 //!
 //! Replay. A receipt is kept until its plan has been expired for at least
 //! `RETAIN_AFTER_EXPIRY`. Every request carries its plan, and the executor
@@ -57,8 +65,8 @@ pub(crate) const PRUNE_BATCH: u32 = 64;
 const _: () = assert!((limeos_domain::MAX_STACK_MEMBERS as u32) < PRUNE_BATCH);
 /// A receipt outlives its plan's expiry by at least this many seconds.
 pub(crate) use limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY as RETAIN_AFTER_EXPIRY;
-const TERMINAL: &str = "('verified','precondition_changed')";
-const STACK_TERMINAL: &str = "('verified','precondition_changed','partly_done')";
+const TERMINAL: &str = "('verified','precondition_changed','resolved')";
+const STACK_TERMINAL: &str = "('verified','precondition_changed','partly_done','resolved')";
 // Retained totals stay well inside the last-resort row cap.
 const _: () = assert!(
     RETAINED_ACTIONS + RETAINED_STACKS * limeos_domain::MAX_STACK_MEMBERS as u32 + 2 * PRUNE_BATCH
@@ -190,7 +198,7 @@ pub(crate) fn prune(tx: &Transaction<'_>, now: i64) -> Result<u32> {
     if stacks > RETAINED_STACKS {
         let limit = (stacks - RETAINED_STACKS).min(PRUNE_BATCH);
         // Member rows share the stack's plan digest. A digest shared by two
-        // stack rows, or any member row still active or resolved, keeps the stack.
+        // stack rows, or any member row still holding a lock, keeps the stack.
         let candidates: Vec<(String, String, i64, bool)> = {
             let mut statement = tx
                 .prepare(&format!(

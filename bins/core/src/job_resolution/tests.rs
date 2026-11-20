@@ -647,6 +647,68 @@ async fn without_an_executor_receipt_a_resolution_completes_only_once_the_plan_h
     }
 }
 
+/// Core crashed after the executor recorded `resolved` and before completing
+/// the resolution. Its retry completes from the stored confirmation; once the
+/// executor has pruned the resolved row it answers `no_longer_held`, and core
+/// completes on the guarded fallback: plan expired, fresh evidence unchanged.
+#[tokio::test]
+async fn a_crash_after_the_executor_resolved_completes_on_retry_even_once_pruned() {
+    use limeos_domain::{PLAN_TTL_SECONDS, RECEIPT_RETAIN_AFTER_EXPIRY, ReceiptAbsence};
+    for (pruned, changed) in [(false, false), (true, false), (true, true)] {
+        let f = fixture_at(Some(
+            now() - PLAN_TTL_SECONDS - RECEIPT_RETAIN_AFTER_EXPIRY - 60,
+        ))
+        .await;
+        let view = f.view().await;
+        let evidence = limeos_domain::ResolutionEvidence {
+            targets: view.targets.iter().map(|t| t.measured.clone()).collect(),
+        };
+        let (p, id, digest) = (
+            f.session.view.principal.clone(),
+            f.job.clone(),
+            view.evidence_digest.unwrap(),
+        );
+        // Step 1 is durable; the executor then resolved its row (step 2) and
+        // core died before step 3.
+        f.core
+            .db
+            .call(move |s| {
+                s.request_resolution(
+                    &p,
+                    &id,
+                    DeclaredOutcome::NotDone,
+                    LONG,
+                    &evidence,
+                    &digest,
+                    now(),
+                )
+            })
+            .await
+            .unwrap();
+        if pruned {
+            f.set(Mode::Absent(ReceiptAbsence::NoLongerHeld));
+        } else {
+            f.exec.lock().unwrap().freed = true;
+        }
+        if changed {
+            f.exec.lock().unwrap().current = Some(engine_state(T1, true));
+        }
+        f.retry(&mut HashMap::new()).await;
+        let after = f.view().await;
+        if changed {
+            // The state moved since the decision: withdrawn, decide again.
+            assert_eq!(f.state().await, JobState::NeedsIntervention);
+            assert!(after.pending.is_none() && after.resolution.is_none());
+        } else {
+            assert_eq!(f.state().await, JobState::Resolved, "{pruned}");
+            let record = after.resolution.unwrap();
+            assert_eq!(record.declared, DeclaredOutcome::NotDone);
+            assert!(after.pending.is_none());
+        }
+        assert_eq!(f.counts().2, 0);
+    }
+}
+
 #[tokio::test]
 async fn the_password_check_is_reported_apart_from_what_follows_it() {
     use limeos_api::{Backend, PasswordCheck};

@@ -5,8 +5,9 @@
 //! if the result no longer hashes to the evidence the administrator saw, and
 //! moves the action row (and a stack's active member rows) to `resolved` in one
 //! transaction. `resolved` is outside both unique-index `WHERE` lists, so the
-//! resource frees. The stored receipt is kept as recorded. No Engine start,
-//! stop or restart is ever issued from this path.
+//! resource frees. The stored receipt is kept as recorded until retention
+//! prunes the settled row (`retention`). No Engine start, stop or restart is
+//! ever issued from this path.
 //!
 //! A terminal receipt (`verified`, `precondition_changed`, a stack's
 //! `partly_done`) holds no lock, but core may still hold the job: it crashed
@@ -27,7 +28,8 @@ const ACTIVE: &str = "('prepared','effect_accepted','outcome_unknown')";
 /// What `resolve_action` came to, short of an error.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ResolveOutcome {
-    /// The row is `resolved`; returned for the original call and every repeat.
+    /// The row is `resolved`; returned for the original call and every repeat
+    /// while retention keeps the row.
     Resolved(ResolveReceipt),
     /// The store holds no row for the action, so it has nothing to free; core
     /// decides what the absence means (`ReceiptAbsence`).

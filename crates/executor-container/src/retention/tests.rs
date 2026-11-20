@@ -330,9 +330,8 @@ fn pruning_removes_only_old_terminal_receipts_and_whole_settled_stacks() {
             old,
         );
     }
-    // Never pruned: lock holders, operator resolutions, and anything whose
-    // plan expired too recently.
-    for (i, state) in ["prepared", "effect_accepted", "outcome_unknown", "resolved"]
+    // Never pruned: lock holders, and anything whose plan expired too recently.
+    for (i, state) in ["prepared", "effect_accepted", "outcome_unknown"]
         .iter()
         .enumerate()
     {
@@ -357,8 +356,8 @@ fn pruning_removes_only_old_terminal_receipts_and_whole_settled_stacks() {
             now - RETAIN_AFTER_EXPIRY + 1,
         );
     }
-    // 300 settled stacks with two members each, one stack with an unknown
-    // member and one resolved stack.
+    // 300 settled stacks with two members each and one stack with an unknown
+    // member.
     for i in 0..300u32 {
         let digest = format!("ds{i}");
         insert(
@@ -407,34 +406,14 @@ fn pruning_removes_only_old_terminal_receipts_and_whole_settled_stacks() {
         "outcome_unknown",
         old,
     );
-    insert(
-        &store,
-        "stack_actions",
-        "sr",
-        "dsr",
-        "stack:sr",
-        "resolved",
-        old,
-    );
-    insert(
-        &store,
-        "actions",
-        "srm1",
-        "dsr",
-        "container:srm1",
-        "resolved",
-        old,
-    );
     let before = count(&store, "SELECT count(*) FROM actions");
     let removed = prune_all(&mut store, now);
     assert_eq!(
         before - count(&store, "SELECT count(*) FROM actions")
-            + count(&store, "SELECT 302 - count(*) FROM stack_actions"),
+            + count(&store, "SELECT 301 - count(*) FROM stack_actions"),
         removed
     );
-    for kept in [
-        "keep0", "keep1", "keep2", "keep3", "young0", "young9", "sum1", "srm1",
-    ] {
+    for kept in ["keep0", "keep1", "keep2", "young0", "young9", "sum1"] {
         assert_eq!(
             count(
                 &store,
@@ -447,9 +426,9 @@ fn pruning_removes_only_old_terminal_receipts_and_whole_settled_stacks() {
     assert_eq!(
         count(
             &store,
-            "SELECT count(*) FROM stack_actions WHERE action IN ('su','sr')"
+            "SELECT count(*) FROM stack_actions WHERE action='su'"
         ),
-        2
+        1
     );
     // Exactly the budget remains, and the oldest went first.
     assert_eq!(
@@ -483,7 +462,7 @@ fn pruning_removes_only_old_terminal_receipts_and_whole_settled_stacks() {
             &store,
             "SELECT count(*) FROM actions a WHERE a.action LIKE 's%m%'"
         ),
-        2 * (RETAINED_STACKS - 2) + 2
+        2 * (RETAINED_STACKS - 1) + 1
     );
     assert_eq!(
         count(
@@ -496,6 +475,139 @@ fn pruning_removes_only_old_terminal_receipts_and_whole_settled_stacks() {
     let changes = store.conn.total_changes();
     assert_eq!(prune_all(&mut store, now), 0);
     assert_eq!(store.conn.total_changes(), changes);
+}
+
+#[test]
+fn resolved_receipts_are_pruned_as_settled_history_and_lock_holders_never_are() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    // Standalone: five resolved receipts, oldest of the settled ones; three
+    // lock holders, older still; and settled history up to the budget.
+    for i in 0..5u32 {
+        insert(
+            &store,
+            "actions",
+            &id('a', i),
+            &format!("da{i}"),
+            &format!("container:a{i}"),
+            "resolved",
+            100 + i64::from(i),
+        );
+    }
+    for (i, state) in ["prepared", "effect_accepted", "outcome_unknown"]
+        .iter()
+        .enumerate()
+    {
+        insert(
+            &store,
+            "actions",
+            &id('b', i as u32),
+            &format!("db{i}"),
+            &format!("container:b{i}"),
+            state,
+            50,
+        );
+    }
+    for i in 0..RETAINED_ACTIONS {
+        insert(
+            &store,
+            "actions",
+            &id('c', i),
+            &format!("dc{i}"),
+            &format!("container:c{i}"),
+            "verified",
+            1_000 + i64::from(i),
+        );
+    }
+    // Stacks: a resolved stack whose members were resolved or already
+    // terminal, oldest first, then settled stacks up to the budget.
+    insert(
+        &store,
+        "stack_actions",
+        &id('5', 0),
+        "dr",
+        "stack:r",
+        "resolved",
+        90,
+    );
+    insert(
+        &store,
+        "actions",
+        &id('7', 0),
+        "dr",
+        "container:r0",
+        "resolved",
+        90,
+    );
+    insert(
+        &store,
+        "actions",
+        &id('7', 1),
+        "dr",
+        "container:r1",
+        "precondition_changed",
+        90,
+    );
+    for i in 1..=RETAINED_STACKS {
+        settled_stack(&store, i, 2_000 + i64::from(i));
+    }
+    let now = 100_000;
+    prune_all(&mut store, now);
+    // Every resolved row went, the resolved stack with both its members.
+    assert_eq!(
+        count(
+            &store,
+            "SELECT count(*) FROM actions WHERE state='resolved'"
+        ),
+        0
+    );
+    assert_eq!(
+        count(
+            &store,
+            "SELECT count(*) FROM stack_actions WHERE state='resolved'"
+        ),
+        0
+    );
+    assert_eq!(
+        count(&store, "SELECT count(*) FROM actions WHERE digest='dr'"),
+        0
+    );
+    // Lock holders stay, whatever their age.
+    assert_eq!(
+        count(
+            &store,
+            "SELECT count(*) FROM actions WHERE state IN ('prepared','effect_accepted','outcome_unknown')"
+        ),
+        3
+    );
+    assert_eq!(
+        count(&store, "SELECT count(*) FROM stack_actions"),
+        RETAINED_STACKS
+    );
+    // The watermark covers them: absence proves nothing about a resolved
+    // action whose receipt is gone.
+    for i in 0..5 {
+        assert_eq!(
+            absence(
+                &store,
+                ResolveKind::Container,
+                &id('a', i),
+                100 + i64::from(i)
+            ),
+            ReceiptAbsence::NoLongerHeld
+        );
+        assert!(
+            store
+                .resolution(ResolveKind::Container, &id('a', i))
+                .unwrap()
+                .is_none()
+        );
+    }
+    assert_eq!(
+        absence(&store, ResolveKind::Stack, &id('5', 0), 90),
+        ReceiptAbsence::NoLongerHeld
+    );
+    assert!(watermark_of(&store) >= 1_000);
 }
 
 fn watermark_of(store: &ReceiptStore) -> i64 {
