@@ -1368,3 +1368,123 @@ async fn a_session_is_checked_beside_a_stuck_writer_without_queueing() {
     release.send(()).unwrap();
     blocked.await.unwrap().unwrap();
 }
+
+/// The gate's confirmation before it releases an input or load refusal
+/// reads the query-only connection exactly as `authenticate` checks a
+/// session and its CSRF digest, beside a stuck writer and with its queue
+/// full, adding nothing to the queue; a reader held by another lookup is
+/// retried within the bound, and one held past it is "cannot confirm".
+#[tokio::test]
+async fn a_session_and_its_csrf_are_confirmed_on_the_reader_with_the_queue_full() {
+    let d = tempfile::tempdir().unwrap();
+    let db = Database::open(&d.path().join("core.sqlite")).unwrap();
+    let digest = limeos_identity::digest(&"a".repeat(64));
+    let csrf = limeos_identity::digest(&"c".repeat(64));
+    let (issued, bound_csrf) = (digest.clone(), csrf.clone());
+    db.call(move |s| {
+        s.issue_bootstrap("bootstrap", 100)?;
+        s.enroll("bootstrap", "admin", "$argon2id$fixture", 101)?;
+        let record = s.login_record("admin")?.unwrap();
+        s.create_session(&record, None, &issued, &bound_csrf, 102)
+    })
+    .await
+    .unwrap();
+    let (release, stuck) = std::sync::mpsc::channel::<()>();
+    let (entered, started) = std::sync::mpsc::channel::<()>();
+    let blocker = db.clone().with_call_deadline(Duration::from_secs(60));
+    let blocked = tokio::spawn(async move {
+        blocker
+            .call(move |_| {
+                entered.send(()).unwrap();
+                let _ = stuck.recv();
+                Ok(())
+            })
+            .await
+    });
+    tokio::task::spawn_blocking(move || started.recv().unwrap())
+        .await
+        .unwrap();
+    let waiting: Vec<_> = (0..QUEUE_CAPACITY)
+        .map(|_| {
+            let db = db.clone().with_call_deadline(Duration::from_secs(60));
+            tokio::spawn(async move { db.call(|_| Ok(())).await })
+        })
+        .collect();
+    while db.writer_activity().queued < QUEUE_CAPACITY {
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    assert_eq!(db.call(|_| Ok(())).await, Err(Error(ErrorCode::Overloaded)));
+    let bound = Duration::from_secs(2);
+    let asked = Instant::now();
+    let confirm = |digest: &str, csrf: Option<&str>| {
+        db.session_confirm(digest.into(), csrf.map(Into::into), 103, bound)
+    };
+    assert_eq!(confirm(&digest, None).await, Ok(()));
+    assert_eq!(confirm(&digest, Some(&csrf)).await, Ok(()));
+    let wrong = limeos_identity::digest(&"e".repeat(64));
+    assert_eq!(
+        confirm(&digest, Some(&wrong)).await,
+        Err(Error(ErrorCode::Forbidden))
+    );
+    let unknown = limeos_identity::digest(&"m".repeat(64));
+    assert_eq!(
+        confirm(&unknown, Some(&csrf)).await,
+        Err(Error(ErrorCode::Unauthenticated))
+    );
+    // Expired, as `authenticate` judges it.
+    assert_eq!(
+        db.session_confirm(digest.clone(), None, i64::MAX, bound)
+            .await,
+        Err(Error(ErrorCode::Unauthenticated))
+    );
+    assert!(
+        asked.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        asked.elapsed()
+    );
+    assert_eq!(db.writer_activity().queued, QUEUE_CAPACITY);
+    // Another reader holds the connection briefly: retried, then answered.
+    let held = db.reader.clone();
+    let (taken, locked) = std::sync::mpsc::channel::<()>();
+    let holder = std::thread::spawn(move || {
+        let _guard = held.lock().unwrap();
+        taken.send(()).unwrap();
+        std::thread::sleep(Duration::from_millis(50));
+    });
+    locked.recv().unwrap();
+    assert_eq!(confirm(&digest, Some(&csrf)).await, Ok(()));
+    holder.join().unwrap();
+    // Held past the bound: no answer, promptly, and still nothing queued.
+    let held = db.reader.clone();
+    let (taken, locked) = std::sync::mpsc::channel::<()>();
+    let (done, finished) = std::sync::mpsc::channel::<()>();
+    let holder = std::thread::spawn(move || {
+        let _guard = held.lock().unwrap();
+        taken.send(()).unwrap();
+        let _ = finished.recv();
+    });
+    locked.recv().unwrap();
+    let asked = Instant::now();
+    assert_eq!(
+        db.session_confirm(digest.clone(), None, 103, Duration::from_millis(100))
+            .await,
+        Err(Error(ErrorCode::Unavailable))
+    );
+    assert!(
+        asked.elapsed() < Duration::from_millis(600),
+        "{:?}",
+        asked.elapsed()
+    );
+    assert!(
+        !db.session_live(digest, 103, Duration::from_millis(100))
+            .await
+    );
+    done.send(()).unwrap();
+    holder.join().unwrap();
+    assert_eq!(db.writer_activity().queued, QUEUE_CAPACITY);
+    release.send(()).unwrap();
+    blocked.await.unwrap().unwrap();
+    for call in waiting {
+        call.await.unwrap().unwrap();
+    }
+}

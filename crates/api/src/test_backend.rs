@@ -4,8 +4,9 @@
 use super::*;
 
 /// A live session as core reports it, for fakes whose credentials are all
-/// valid: the gate asks for it only before releasing an input or load
-/// refusal (`gate::authenticated_refusal`), never for authority, which
+/// valid: the gate asks for it (through the default `signed_in`, as core
+/// answers from its query-only connection) only before releasing an input or
+/// load refusal (`gate::authenticated_refusal`), never for authority, which
 /// stays in the call that does the work.
 pub(crate) fn live_session() -> Result<SessionView> {
     Ok(SessionView {
@@ -373,8 +374,12 @@ pub(crate) trait TestBackend: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<SessionView>> + Send;
     fn logout(&self, token: String, csrf: String) -> impl Future<Output = Result<()>> + Send;
     fn health(&self) -> impl Future<Output = Result<Health>> + Send;
-    fn signed_in(&self, token: String) -> impl Future<Output = bool> + Send {
-        async move { self.session(token, None).await.is_ok() }
+    fn signed_in(
+        &self,
+        token: String,
+        csrf: Option<String>,
+    ) -> impl Future<Output = Result<()>> + Send {
+        async move { self.session(token, csrf).await.map(|_| ()) }
     }
     fn observations(
         &self,
@@ -864,8 +869,12 @@ impl<T: TestBackend> Backend for T {
     fn health(&self) -> impl Future<Output = Result<Health>> + Send {
         TestBackend::health(self)
     }
-    fn signed_in(&self, token: String) -> impl Future<Output = bool> + Send {
-        TestBackend::signed_in(self, token)
+    fn signed_in(
+        &self,
+        token: String,
+        csrf: Option<String>,
+    ) -> impl Future<Output = Result<()>> + Send {
+        TestBackend::signed_in(self, token, csrf)
     }
     fn observations(
         &self,

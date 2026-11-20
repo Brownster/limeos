@@ -27,6 +27,9 @@ pub const RECOVERY_BATCH: usize = 64;
 /// The revocation lane: small, and awaited rather than refused when full.
 const PRIORITY_CAPACITY: usize = 8;
 const PRIORITY_WAIT: Duration = Duration::from_secs(5);
+/// How long a session confirmation waits before trying the query-only
+/// connection again while another lookup holds it (each takes microseconds).
+const READER_RETRY: Duration = Duration::from_millis(2);
 /// Revocations the writer serves before one ordinary item when both lanes
 /// have work, so neither lane can starve the other.
 const PRIORITY_BURST: usize = 4;
@@ -340,21 +343,55 @@ impl Database {
             .map_err(|_| Error(ErrorCode::Unavailable))?
             .map_err(|_| Error(ErrorCode::Unavailable))?
     }
-    /// Whether `digest` names a live session, read on the query-only
-    /// connection, so it puts nothing on either lane: for health to decide
-    /// how much it shows while the writer may be stuck. Never waits for the
-    /// connection (in use, the answer is no) nor past `bound`; false when
-    /// unsure.
+    /// Whether `digest` names a live session, for health to decide how much
+    /// it shows while the writer may be stuck: [`Database::session_confirm`]
+    /// without a CSRF value; false when unsure.
     pub async fn session_live(&self, digest: String, now: i64, bound: Duration) -> bool {
-        let reader = self.reader.clone();
-        let lookup = tokio::task::spawn_blocking(move || {
-            let Ok(conn) = reader.try_lock() else {
-                return false;
-            };
-            conn.as_ref()
-                .is_some_and(|conn| identity_store::authenticate(conn, &digest, None, now).is_ok())
-        });
-        matches!(tokio::time::timeout(bound, lookup).await, Ok(Ok(true)))
+        self.session_confirm(digest, None, now, bound).await.is_ok()
+    }
+    /// Whether `digest` names a live session and, with `csrf`, whether that
+    /// is its CSRF digest: the checks `Store::authenticate` makes, with its
+    /// answers (`Unauthenticated` for no live session, `Forbidden` for a
+    /// mismatched CSRF digest), read on the query-only connection. It puts
+    /// nothing on either lane, so it answers with the writer stuck and its
+    /// queue full, and an anonymous caller's made-up cookie adds no store
+    /// work. It never waits on the connection's lock: while another lookup
+    /// holds it, it tries again every `READER_RETRY`, and gives up at
+    /// `bound` with `Unavailable` ("cannot confirm"), as it does when the
+    /// connection is gone or the blocking pool cannot run the lookup in
+    /// time. It checks; it renews and records nothing.
+    pub async fn session_confirm(
+        &self,
+        digest: String,
+        csrf: Option<String>,
+        now: i64,
+        bound: Duration,
+    ) -> Result<()> {
+        let deadline = tokio::time::Instant::now() + bound;
+        loop {
+            let (reader, digest, csrf) = (self.reader.clone(), digest.clone(), csrf.clone());
+            let lookup = tokio::task::spawn_blocking(move || match reader.try_lock() {
+                Ok(conn) => Some(
+                    conn.as_ref()
+                        .ok_or(Error(ErrorCode::Unavailable))
+                        .and_then(|conn| {
+                            identity_store::authenticate(conn, &digest, csrf.as_deref(), now)
+                        })
+                        .map(|_| ()),
+                ),
+                Err(std::sync::TryLockError::WouldBlock) => None,
+                Err(std::sync::TryLockError::Poisoned(_)) => {
+                    Some(Err(Error(ErrorCode::Unavailable)))
+                }
+            });
+            match tokio::time::timeout_at(deadline, lookup).await {
+                Ok(Ok(Some(answer))) => return answer,
+                Ok(Ok(None)) if tokio::time::Instant::now() + READER_RETRY < deadline => {
+                    tokio::time::sleep(READER_RETRY).await;
+                }
+                _ => return Err(Error(ErrorCode::Unavailable)),
+            }
+        }
     }
     /// Runs `f` on the writer thread, as [`Database::try_call`], reporting
     /// an unanswered call as an error: `Overloaded` (never queued),

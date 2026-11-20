@@ -549,10 +549,19 @@ impl Backend for Core {
     }
     /// On the store's query-only connection, never the writer's queue, so
     /// an anonymous caller with a made-up cookie adds no store work and a
-    /// stuck writer cannot hold the health check.
-    async fn signed_in(&self, token: String) -> bool {
+    /// stuck writer or a full queue cannot hold health or the gate. The same
+    /// checks as `session` (`authenticate` with the CSRF digest), without
+    /// the expiry read; `Unavailable` when the reader cannot answer within
+    /// `SIGNED_IN_BOUND`.
+    async fn signed_in(&self, token: String, csrf: Option<String>) -> Result<()> {
+        let csrf = csrf.map(|s| limeos_identity::digest(&s));
         self.db
-            .session_live(limeos_identity::digest(&token), now(), SIGNED_IN_BOUND)
+            .session_confirm(
+                limeos_identity::digest(&token),
+                csrf,
+                now(),
+                SIGNED_IN_BOUND,
+            )
             .await
     }
     async fn logout(&self, token: String, csrf: String) -> Result<()> {

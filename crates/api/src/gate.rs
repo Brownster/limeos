@@ -7,9 +7,11 @@
 //! itself, its CSRF binding and the principal's scope are checked by core in
 //! the same store call as the work, so every handler hands the backend the
 //! token (and CSRF value) and does not pre-check the session. The gate asks
-//! core about the session only before releasing an input or load refusal a
-//! handler made before calling core (see `authenticated_refusal`), so an
-//! unauthenticated caller always gets core's 401.
+//! the backend about the session only before releasing an input or load
+//! refusal a handler made before calling core, on core's query-only store
+//! connection (see `authenticated_refusal`), so an unauthenticated caller
+//! gets 401 and never a refusal that depends on its input or the server's
+//! state.
 //!
 //! Extractor rejections (path, query) use the API's error envelope through
 //! the `Path` and `Query` wrappers below, never axum's plain-text answer.
@@ -343,8 +345,22 @@ async fn mutate_gate<B: Backend>(
 /// and a few reads refuse for load before it, so their 400 or 429 could be
 /// answered to a caller core never authenticated, telling it something about
 /// its input or the server's state. Such an answer is released only after
-/// core confirms the session (and, for a mutation, its CSRF value);
-/// otherwise core's refusal is the answer. Nothing else runs before core
+/// the backend confirms the session (and, for a mutation, its CSRF value)
+/// with [`Backend::signed_in`]: in core, one lookup on the store's
+/// query-only connection, never the writer's queue, bounded here by
+/// `SIGNED_IN_BOUND`.
+///
+/// What is guaranteed: the 400 or 429 reaches only a caller whose cookie
+/// names a live session (and, for a mutation, whose CSRF value is that
+/// session's), as of that lookup. Everyone else gets 401, or 403 for a live
+/// session's mismatched CSRF value (what core answers such a mutation), and
+/// so does a caller the lookup cannot confirm in time (reader busy past the
+/// bound, store unavailable): "cannot confirm" is answered as "not signed
+/// in", so this answer never depends on the writer, its queue or the
+/// server's load, and the refusal adds no store work. What is not: a
+/// signed-in caller may then get 401 for a request that was only malformed
+/// while the reader stays busy past the bound, and the session may end
+/// between the lookup and the answer. Nothing else runs before core
 /// authenticates: the handlers do no store, executor or file work first.
 /// The happy path costs nothing: there core authenticates in the call.
 async fn authenticated_refusal<B: Backend>(
@@ -359,9 +375,10 @@ async fn authenticated_refusal<B: Backend>(
     ) {
         return response;
     }
-    match app.backend.session(token, csrf).await {
-        Ok(_) => response,
-        Err(error) => failure(error),
+    match tokio::time::timeout(SIGNED_IN_BOUND, app.backend.signed_in(token, csrf)).await {
+        Ok(Ok(())) => response,
+        Ok(Err(Error(ErrorCode::Forbidden))) => failure(Error(ErrorCode::Forbidden)),
+        _ => failure(Error(ErrorCode::Unauthenticated)),
     }
 }
 

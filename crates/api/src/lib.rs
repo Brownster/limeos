@@ -349,10 +349,19 @@ pub trait Backend: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<SessionView>> + Send;
     fn logout(&self, token: String, csrf: String) -> impl Future<Output = Result<()>> + Send;
     fn health(&self) -> impl Future<Output = Result<Health>> + Send;
-    /// Whether `token` names a live session, for how much health shows. It
+    /// Whether `token` names a live session and, with `csrf`, whether that is
+    /// its CSRF value: for how much health shows, and for the gate before it
+    /// releases an input or load refusal (`gate::authenticated_refusal`). It
     /// must answer promptly and add no work to the store's queue (core reads
-    /// its query-only connection); false when unsure.
-    fn signed_in(&self, token: String) -> impl Future<Output = bool> + Send;
+    /// its query-only connection). `Unauthenticated` for no live session,
+    /// `Forbidden` for a mismatched CSRF value, any other error when it
+    /// cannot tell. It confirms; it grants nothing: authority stays in the
+    /// call that does the work.
+    fn signed_in(
+        &self,
+        token: String,
+        csrf: Option<String>,
+    ) -> impl Future<Output = Result<()>> + Send;
     fn observations(
         &self,
         token: String,
@@ -752,7 +761,8 @@ async fn health<B: Backend>(State(app): State<App<B>>, headers: HeaderMap) -> Re
     }
     axum::Json(health).into_response()
 }
-/// How long health waits to learn whether its caller is signed in.
+/// How long health, and the gate before releasing a refusal, wait to learn
+/// whether the caller is signed in.
 const SIGNED_IN_BOUND: Duration = Duration::from_millis(500);
 /// Whether the request carries a live session. Bounded by
 /// `SIGNED_IN_BOUND`, so a slow store cannot hold the health check: it then
@@ -762,8 +772,8 @@ async fn signed_in<B: Backend>(app: &App<B>, headers: &HeaderMap) -> bool {
         return false;
     };
     matches!(
-        tokio::time::timeout(SIGNED_IN_BOUND, app.backend.signed_in(token)).await,
-        Ok(true)
+        tokio::time::timeout(SIGNED_IN_BOUND, app.backend.signed_in(token, None)).await,
+        Ok(Ok(()))
     )
 }
 async fn login<B: Backend>(State(app): State<App<B>>, request: Request) -> Response {
@@ -891,10 +901,10 @@ mod tests {
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Err(Error(ErrorCode::Unavailable))
         }
-        async fn signed_in(&self, _: String) -> bool {
+        async fn signed_in(&self, _: String, _: Option<String>) -> Result<()> {
             self.lookups
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            true
+            Ok(())
         }
         async fn logout(&self, _: String, _: String) -> Result<()> {
             panic!("unvalidated mutation")

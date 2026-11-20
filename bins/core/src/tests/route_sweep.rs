@@ -758,3 +758,95 @@ async fn no_route_answers_an_unauthenticated_request_from_its_input_or_server_st
         }
     }
 }
+
+/// The gate confirms a session before releasing an input refusal on the
+/// store's query-only connection: with the writer stalled and its queue
+/// full, an unauthenticated bad request still gets 401 promptly and adds
+/// nothing to the queue, and a signed-in one still gets its own answer.
+#[tokio::test]
+async fn a_refusal_is_confirmed_beside_a_stalled_writer_and_a_full_queue() {
+    let sweep = fixture(true).await;
+    let db = &sweep.core.db;
+    let release = crate::operation_tests::stall_writer(db).await;
+    let waiting: Vec<_> = (0..limeos_persistence::QUEUE_CAPACITY)
+        .map(|_| {
+            let db = db.clone().with_call_deadline(Duration::from_secs(60));
+            tokio::spawn(async move { db.call(|_| Ok(())).await })
+        })
+        .collect();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while db.writer_activity().queued < limeos_persistence::QUEUE_CAPACITY {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("the queue fills");
+    let route = |method: &'static str, path: &'static str| {
+        limeos_api::routes::<Core>()
+            .into_iter()
+            .find(|r| r.method == method && r.path == path)
+            .unwrap_or_else(|| panic!("{method} {path} is not mounted"))
+    };
+    let plan = route("POST", "/api/v1/compose/plans");
+    let history = route("GET", "/api/v1/system/history");
+    let admin = Ask::signed(&sweep.admin);
+    let unknown = Ask {
+        cookie: Some(UNKNOWN),
+        ..Ask::anonymous()
+    };
+    let wrong_csrf = Ask {
+        csrf: Some(WRONG_CSRF),
+        ..admin
+    };
+    let cases = [
+        (
+            &plan,
+            "/api/v1/compose/plans",
+            unknown,
+            401,
+            "unknown session",
+        ),
+        (
+            &plan,
+            "/api/v1/compose/plans",
+            wrong_csrf,
+            403,
+            "wrong CSRF",
+        ),
+        (&plan, "/api/v1/compose/plans", admin, 400, "signed in"),
+        (
+            &history,
+            "/api/v1/system/history?range=no",
+            unknown,
+            401,
+            "unknown session",
+        ),
+        (
+            &history,
+            "/api/v1/system/history?range=no",
+            admin,
+            400,
+            "signed in",
+        ),
+    ];
+    for (route, uri, ask, status, case) in cases {
+        let asked = std::time::Instant::now();
+        let body = (route.method == "POST").then_some("not json");
+        let answer = send(&sweep.core, route, uri, ask, body).await;
+        assert_eq!(answer.status, status, "{uri}: {case}: {answer:?}");
+        assert!(
+            asked.elapsed() < Duration::from_secs(1),
+            "{uri}: {case}: {:?}",
+            asked.elapsed()
+        );
+        assert_eq!(
+            db.writer_activity().queued,
+            limeos_persistence::QUEUE_CAPACITY,
+            "{uri}: {case}"
+        );
+    }
+    release.send(()).unwrap();
+    for call in waiting {
+        call.await.unwrap().unwrap();
+    }
+}
