@@ -66,12 +66,41 @@ async fn core_owned_container_sockets_cannot_forge_storage_declarations() {
             .await
             .is_err()
     );
+    // A background health read holding the gate briefly delays the request;
+    // it no longer refuses it with Overloaded (HTTP 429).
     let permit = core.storage_readers.clone().acquire_owned().await.unwrap();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        drop(permit);
+    });
     assert_eq!(
         core.fresh_container_storage().await.unwrap_err().0,
+        ErrorCode::Forbidden
+    );
+}
+#[tokio::test]
+async fn an_interactive_read_waits_a_bounded_time_and_the_background_read_yields_to_it() {
+    let gate = Arc::new(Semaphore::new(1));
+    let held = gate.clone().acquire_owned().await.unwrap();
+    let started = std::time::Instant::now();
+    assert_eq!(
+        storage::interactive_permit(&gate, std::time::Duration::from_millis(50))
+            .await
+            .unwrap_err()
+            .0,
         ErrorCode::Overloaded
     );
-    drop(permit);
+    assert!(started.elapsed() < std::time::Duration::from_secs(2));
+    // Once a request is queued, the released gate goes to it, not to the
+    // 1 Hz background read, which only takes a free gate.
+    let waiting = tokio::spawn({
+        let gate = gate.clone();
+        async move { storage::interactive_permit(&gate, std::time::Duration::from_secs(5)).await }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    drop(held);
+    assert!(gate.clone().try_acquire_owned().is_err());
+    assert!(waiting.await.unwrap().is_ok());
 }
 #[tokio::test]
 async fn storage_authority_is_checked_before_contacting_a_reader_and_tasks_cannot_approve() {

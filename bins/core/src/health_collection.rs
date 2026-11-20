@@ -128,6 +128,7 @@ impl HealthReader {
     pub async fn read(&self, outer_deadline: Instant) -> Result<FreshContainerHealth> {
         let deadline = outer_deadline.min(Instant::now() + WINDOW);
         live(deadline)?;
+        // Background: only a free gate. A request queued for it goes first.
         let _permit = self
             .gate
             .clone()

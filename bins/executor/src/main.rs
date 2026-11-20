@@ -279,28 +279,14 @@ async fn run() -> std::io::Result<()> {
         let selection = limeos_executor::read_launch::StackSelection::installed()
             .map_err(|_| std::io::Error::other("invalid stack configuration selection"))?;
         tokio::spawn(async move {
+            use limeos_executor::read_gate;
             loop {
-                let result = match gate.clone().try_lock_owned() {
-                    Ok(guard) => {
-                        let manager = manager.clone();
-                        let selection = selection.clone();
-                        tokio::task::spawn_blocking(move || {
-                            limeos_executor::stack_read::refresh(selection, &manager, guard)
-                        })
-                        .await
-                        .ok()
-                        .and_then(Result::ok)
-                    }
-                    Err(_) => None,
-                };
-                match result {
-                    Some(cohort) => {
-                        if writer.update(&cohort).is_err() {
-                            writer.failed();
-                        }
-                    }
-                    None => writer.failed(),
-                }
+                let manager = manager.clone();
+                let selection = selection.clone();
+                read_gate::refresh_stacks(&gate, read_gate::PERIODIC_WAIT, &writer, move |guard| {
+                    limeos_executor::stack_read::refresh(selection, &manager, guard)
+                })
+                .await;
                 tokio::time::sleep(std::time::Duration::from_secs(30)).await;
             }
         });
@@ -349,9 +335,12 @@ async fn run() -> std::io::Result<()> {
                 let mut receipt = ceiling.validate(peer.uid(), &request)?;
                 match request {
                     Request::ContainerHealth { nonce, .. } if storage_reader => {
-                        let guard = storage_permit.clone().try_lock_owned().map_err(|_| {
-                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
-                        })?;
+                        let guard = limeos_executor::read_gate::acquire(
+                            &storage_permit,
+                            limeos_executor::read_gate::INTERACTIVE_WAIT,
+                        )
+                        .await
+                        .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Overloaded))?;
                         let manager = read_supervisor.clone();
                         receipt.container_health = Some(
                             tokio::task::spawn_blocking(move || {
@@ -369,15 +358,21 @@ async fn run() -> std::io::Result<()> {
                     Request::ContainerStorageInventory { .. }
                         if source == limeos_contracts::Source::Docker =>
                     {
-                        let _single_flight = storage_permit.try_lock().map_err(|_| {
-                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
-                        })?;
+                        let _single_flight = limeos_executor::read_gate::acquire(
+                            &storage_permit,
+                            limeos_executor::read_gate::INTERACTIVE_WAIT,
+                        )
+                        .await
+                        .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Overloaded))?;
                         receipt.container_storage = Some(engine.storage_inventory().await?);
                     }
                     Request::StorageInventory { .. } if storage_reader => {
-                        let _single_flight = storage_permit.try_lock().map_err(|_| {
-                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
-                        })?;
+                        let _single_flight = limeos_executor::read_gate::acquire(
+                            &storage_permit,
+                            limeos_executor::read_gate::INTERACTIVE_WAIT,
+                        )
+                        .await
+                        .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Overloaded))?;
                         read_supervisor.ensure_not_poisoned().map_err(|_| {
                             limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
                         })?;

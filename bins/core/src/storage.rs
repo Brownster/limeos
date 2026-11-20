@@ -26,16 +26,33 @@ pub(super) fn container_storage_receipt(
     }
     Ok(inventory)
 }
+/// How long a request someone is waiting on queues for the storage read
+/// gate: past the longest background hold (the 4 s health read window is
+/// the bound; a pass is usually far shorter), and within the 10 s HTTP
+/// deadline together with the 5 s read that follows.
+const INTERACTIVE_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+/// The gate, queued with a deadline. The 1 Hz background health read only
+/// ever takes a free gate, so a waiting request is served next.
+pub(super) async fn interactive_permit(
+    gate: &Arc<Semaphore>,
+    wait: std::time::Duration,
+) -> Result<tokio::sync::OwnedSemaphorePermit> {
+    tokio::time::timeout(wait, gate.clone().acquire_owned())
+        .await
+        .map_err(|_| Error(ErrorCode::Overloaded))?
+        .map_err(|_| Error(ErrorCode::Unavailable))
+}
 impl Core {
+    pub(super) async fn interactive_storage_read(
+        &self,
+    ) -> Result<tokio::sync::OwnedSemaphorePermit> {
+        interactive_permit(&self.storage_readers, INTERACTIVE_WAIT).await
+    }
     pub(super) async fn fresh_container_storage(
         &self,
     ) -> Result<limeos_domain::ContainerStorageInventory> {
         use std::os::unix::fs::{FileTypeExt, MetadataExt};
-        let _permit = self
-            .storage_readers
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| Error(ErrorCode::Overloaded))?;
+        let _permit = self.interactive_storage_read().await?;
         let requested_at = now();
         tokio::time::timeout(limeos_contracts::RPC_DEADLINE, async {
             let owner = std::fs::symlink_metadata(self.container_socket.as_ref())
@@ -99,11 +116,7 @@ impl Core {
             .await
     }
     pub(super) async fn fresh_storage(&self) -> Result<StorageInventory> {
-        let _permit = self
-            .storage_readers
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| Error(ErrorCode::Overloaded))?;
+        let _permit = self.interactive_storage_read().await?;
         tokio::time::timeout(limeos_contracts::RPC_DEADLINE, async {
             let mut stream = UnixStream::connect(self.storage_socket.as_ref())
                 .await

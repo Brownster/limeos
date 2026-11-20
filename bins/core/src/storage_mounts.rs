@@ -100,11 +100,7 @@ impl Core {
         selection: StorageMountSelection,
     ) -> Result<StorageMountInspection> {
         selection.validate()?;
-        let _permit = self
-            .storage_readers
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| Error(ErrorCode::Overloaded))?;
+        let _permit = self.interactive_storage_read().await?;
         let expected = selection.target_id.clone();
         let value = self
             .mount_executor(
