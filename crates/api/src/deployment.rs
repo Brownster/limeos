@@ -197,6 +197,7 @@ mod tests {
             origin: "https://localhost".into(),
             limiter: Arc::new(Mutex::new(Limiter::default())),
             readers: Arc::new(Semaphore::new(2)),
+            streams: Default::default(),
         })
     }
     fn request(method: &str, cookie: bool) -> Request {

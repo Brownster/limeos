@@ -15,7 +15,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use tokio::{net::TcpListener, sync::Semaphore};
+use tokio::sync::Semaphore;
 // Proposed routes that no router mounts yet, hence unused outside their tests;
 // see docs/deferred-code.md.
 #[cfg(feature = "deferred")]
@@ -36,6 +36,10 @@ mod operations;
 #[cfg(test)]
 mod read_tests;
 mod reads;
+mod serve;
+pub use serve::{Limits, serve, serve_with};
+#[cfg(test)]
+mod serve_tests;
 #[cfg(test)]
 mod stack_operation_tests;
 mod stack_operations;
@@ -570,6 +574,8 @@ struct App<B> {
     origin: Arc<str>,
     limiter: Arc<Mutex<Limiter>>,
     readers: Arc<Semaphore>,
+    /// Open observation streams per session token, within `readers`.
+    streams: Arc<Mutex<HashMap<String, usize>>>,
 }
 /// Whose password is being tried. Every peer is the local proxy, so the
 /// address says nothing; forwarded headers are never trusted either.
@@ -909,6 +915,7 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
             origin: origin.into(),
             limiter: Arc::new(Mutex::new(Limiter::default())),
             readers: Arc::new(Semaphore::new(8)),
+            streams: Default::default(),
         })
 }
 fn failure(error: Error) -> Response {
@@ -1081,45 +1088,6 @@ async fn logout<B: Backend>(State(app): State<App<B>>, headers: HeaderMap) -> Re
         )
             .into_response(),
         Err(e) => failure(e),
-    }
-}
-
-/// All connections have bounded parsing, occupancy, and lifetime. Hyper's timer
-/// covers incomplete headers; the application deadline covers bodies and work.
-pub async fn serve(listener: TcpListener, router: Router) -> std::io::Result<()> {
-    let permits = Arc::new(Semaphore::new(64));
-    loop {
-        let stream = match listener.accept().await {
-            Ok((stream, _)) => stream,
-            // Descriptor exhaustion or an aborted peer: the listener still
-            // works, so pause and keep serving instead of ending core.
-            Err(error) if limeos_contracts::accept_retryable(&error) => {
-                tokio::time::sleep(limeos_contracts::ACCEPT_PAUSE).await;
-                continue;
-            }
-            Err(error) => return Err(error),
-        };
-        let Ok(permit) = permits.clone().try_acquire_owned() else {
-            continue;
-        };
-        let app = router.clone();
-        tokio::spawn(async move {
-            let _permit = permit;
-            let io = hyper_util::rt::TokioIo::new(stream);
-            let service = hyper_util::service::TowerToHyperService::new(app);
-            let mut builder = hyper::server::conn::http1::Builder::new();
-            builder
-                .timer(hyper_util::rt::TokioTimer::new())
-                .header_read_timeout(Duration::from_secs(5))
-                .max_headers(32)
-                .max_buf_size(16 * 1024)
-                .keep_alive(true);
-            let _ = tokio::time::timeout(
-                Duration::from_secs(30),
-                builder.serve_connection(io, service),
-            )
-            .await;
-        });
     }
 }
 
@@ -1399,6 +1367,7 @@ mod tests {
             origin: "https://localhost".into(),
             limiter: Arc::new(Mutex::new(Limiter::default())),
             readers: Arc::new(Semaphore::new(8)),
+            streams: Default::default(),
         }
     }
     fn live(app: &App<Accepting>) -> usize {

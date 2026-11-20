@@ -5,7 +5,7 @@ use limeos_contracts::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tower::ServiceExt;
 #[derive(Clone)]
-struct ReadBackend {
+pub(crate) struct ReadBackend {
     authorized: Arc<AtomicBool>,
     changes: tokio::sync::watch::Sender<u64>,
     size: usize,
@@ -72,7 +72,7 @@ impl Backend for ReadBackend {
         self.changes.subscribe()
     }
 }
-fn backend(size: usize) -> ReadBackend {
+pub(crate) fn backend(size: usize) -> ReadBackend {
     ReadBackend {
         authorized: Arc::new(AtomicBool::new(true)),
         changes: tokio::sync::watch::channel(7).0,
@@ -208,13 +208,15 @@ async fn sse_reconnect_always_sends_snapshot_revocation_ends_stream_and_drop_rel
     assert!(body.frame().await.is_none());
     drop(body);
     b.authorized.store(true, Ordering::Relaxed);
+    // Eight sessions fill the global cap; one session alone could not.
     let mut responses = Vec::new();
-    for _ in 0..8 {
-        let r = app
-            .clone()
-            .oneshot(request("/api/v1/observations/stream"))
-            .await
-            .unwrap();
+    for session in 0..8 {
+        let mut stream = request("/api/v1/observations/stream");
+        stream.headers_mut().insert(
+            "cookie",
+            HeaderValue::from_str(&format!("__Host-limeos={:064x}", session + 1)).unwrap(),
+        );
+        let r = app.clone().oneshot(stream).await.unwrap();
         assert_eq!(r.status(), StatusCode::OK);
         responses.push(r);
     }
