@@ -5,11 +5,11 @@
 //! writes nothing. A table over budget gets one batch of oldest-first deletions
 //! in its own short IMMEDIATE transaction; a batch that finds nothing eligible
 //! rolls back, so an idle or unchanged store is never written by retention.
-//! Startup also runs the events rule, inside its own transaction and before
-//! the writer thread exists, when the recovery events for interrupted jobs
-//! would not fit in the reserve ([`make_room`]); it refuses, rolling back the
-//! whole startup (any schema upgrade too), only when nothing more is
-//! prunable.
+//! Startup also runs the rules for audited rows (bulk events, then authority
+//! events), inside its own transaction and before the writer thread exists,
+//! when the recovery events for interrupted jobs would not fit in the reserve
+//! ([`make_room`]); it refuses, rolling back the whole startup (any schema
+//! upgrade too), only when neither rule can free anything more.
 //!
 //! # What is never pruned
 //!
@@ -171,6 +171,9 @@ struct Rule {
     batch: i64,
     rows: fn(&Connection) -> Result<i64>,
     prune: fn(&Transaction<'_>, i64) -> Result<i64>,
+    /// Whether the rows it removes count against the audit cap, so startup
+    /// may run it to make room for recovery ([`make_room`]).
+    audited: bool,
 }
 const RULES: [Rule; 3] = [
     Rule {
@@ -179,6 +182,7 @@ const RULES: [Rule; 3] = [
         batch: EVENT_BATCH,
         rows: audited_events,
         prune: prune_events,
+        audited: true,
     },
     Rule {
         table: "authority events",
@@ -186,6 +190,7 @@ const RULES: [Rule; 3] = [
         batch: AUTHORITY_BATCH,
         rows: authority_events,
         prune: prune_authority,
+        audited: true,
     },
     Rule {
         table: "automation_occurrences",
@@ -193,6 +198,7 @@ const RULES: [Rule; 3] = [
         batch: OCCURRENCE_BATCH,
         rows: occurrences,
         prune: prune_occurrences,
+        audited: false,
     },
 ];
 
@@ -236,26 +242,30 @@ pub(super) fn recovery_fits(interrupted: i64, audit_bytes: i64) -> bool {
         || interrupted.saturating_mul(EVENT_BYTES) <= AUDIT_LIMIT + AUDIT_RESERVE - audit_bytes
 }
 
-/// Startup, when recovery does not fit: the events rule's batches, inside
-/// the startup transaction so a refusal leaves nothing changed (a schema
-/// upgrade stays atomic with startup). It needs room for one event per
-/// interrupted job, so it removes about that many rows, rounded up to a
-/// batch. Refused when a batch finds nothing more to prune (pinned history).
+/// Startup, when recovery does not fit: the batches of every audited rule
+/// in [`RULES`] order (bulk events first, then authority events down to their
+/// own budget), inside the startup transaction so a refusal leaves nothing
+/// changed (a schema upgrade stays atomic with startup). It needs room for
+/// one event per interrupted job, so it removes about that many rows, rounded
+/// up to a batch, and moves to the next rule when one has nothing more to
+/// give. Refused only when no rule can free enough (pinned history).
 pub(super) fn make_room(tx: &Transaction<'_>, interrupted: i64) -> Result<()> {
-    let rule = &RULES[0];
-    loop {
-        let rows = (rule.rows)(tx)?;
-        let bytes = rows
-            .checked_mul(EVENT_BYTES)
-            .ok_or(Error(ErrorCode::StateNotDurable))?;
-        if recovery_fits(interrupted, bytes) {
-            return Ok(());
-        }
-        let excess = rows.saturating_sub(rule.budget);
-        if excess <= 0 || (rule.prune)(tx, excess.min(rule.batch))? == 0 {
-            return Err(Error(ErrorCode::StateNotDurable));
+    for rule in RULES.iter().filter(|rule| rule.audited) {
+        loop {
+            let rows = audited_events(tx)?;
+            let bytes = rows
+                .checked_mul(EVENT_BYTES)
+                .ok_or(Error(ErrorCode::StateNotDurable))?;
+            if recovery_fits(interrupted, bytes) {
+                return Ok(());
+            }
+            let excess = (rule.rows)(tx)?.saturating_sub(rule.budget);
+            if excess <= 0 || (rule.prune)(tx, excess.min(rule.batch))? == 0 {
+                break;
+            }
         }
     }
+    Err(Error(ErrorCode::StateNotDurable))
 }
 
 /// One batch of `rule` if its table is over budget, in its own transaction.

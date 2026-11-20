@@ -363,6 +363,132 @@ fn startup_prunes_history_to_record_recovery_when_the_reserve_is_full() {
     assert!(usage >= AUDIT_LIMIT + retention::AUDIT_RESERVE - 1024 * 256);
 }
 
+/// `rows` job-less events of `kind`, inserted raw (startup reconciles the
+/// counter).
+fn raw_events(s: &Store, p: &Principal, kind: &str, rows: i64) {
+    s.conn.execute("WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<?) INSERT INTO events(principal,job,kind,created) SELECT ?,NULL,?,300 FROM c",params![rows,p.id,kind]).unwrap();
+}
+/// `jobs` health probes left running, through the ordinary write paths
+/// (two events each).
+fn running_jobs(s: &mut Store, p: &Principal, jobs: usize) -> Vec<String> {
+    s.conn.execute_batch("PRAGMA synchronous=OFF").unwrap();
+    let ids = (0..jobs)
+        .map(|i| running(s, p, &format!("interrupted-{i}")))
+        .collect();
+    s.conn.execute_batch("PRAGMA synchronous=FULL").unwrap();
+    ids
+}
+fn authority_rows(conn: &Connection) -> Vec<i64> {
+    conn.prepare(&format!(
+        "SELECT cursor FROM events WHERE json_extract(kind,'$.kind') IN ({}) ORDER BY cursor",
+        retention::AUTHORITY_KINDS
+            .map(|kind| format!("'{kind}'"))
+            .join(",")
+    ))
+    .unwrap()
+    .query_map([], |r| r.get(0))
+    .unwrap()
+    .collect::<std::result::Result<_, _>>()
+    .unwrap()
+}
+
+/// The reviewer's store: the cap filled by 5,000 running jobs (10,000 pinned
+/// events) and grant revisions, which the bulk rule never removes. Recovery
+/// needs 904 rows beyond the reserve, which only the authority rule can free:
+/// startup prunes the oldest revisions, down to what recovery needs and never
+/// below the authority budget, and records every recovery event.
+#[test]
+fn startup_prunes_authority_events_when_bulk_history_cannot_make_room() {
+    let (d, mut s, p) = setup();
+    let path = d.path().join("core.sqlite");
+    let jobs = running_jobs(&mut s, &p, 5_000);
+    let total = AUDIT_LIMIT / 256;
+    raw_events(
+        &s,
+        &p,
+        &json(&EventKind::GrantsRevised).unwrap(),
+        total - events(&s),
+    );
+    assert_eq!(events(&s), 262_144);
+    let revisions = authority_rows(&s.conn);
+    let generation = s.generation;
+    drop(s);
+    let s = Store::open(&path).unwrap();
+    assert_eq!(s.generation, generation + 1);
+    for job in &jobs {
+        assert_eq!(s.job_state(job).unwrap(), "needs_intervention");
+    }
+    let (held, recovered): (i64, i64) = s
+        .conn
+        .query_row(
+            "SELECT count(*),count(*) FILTER (WHERE kind=?) FROM events WHERE job IS NOT NULL",
+            [json(&EventKind::JobRecoveryRequired).unwrap()],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((held, recovered), (15_000, 5_000));
+    let usage = s.audit_usage().unwrap().bytes;
+    assert_eq!(usage, events(&s) * 256);
+    assert!(usage <= AUDIT_LIMIT + retention::AUDIT_RESERVE);
+    // Only the oldest revisions went, in batches, no more than needed.
+    let kept = authority_rows(&s.conn);
+    let removed = revisions.len() - kept.len();
+    assert!((904..904 + 256).contains(&removed), "{removed}");
+    assert_eq!(kept, revisions[removed..]);
+}
+
+/// Both rules together may free what neither frees alone; when even both
+/// cannot, startup refuses and the batches it ran are rolled back with the
+/// rest of the startup transaction.
+#[test]
+fn startup_runs_every_events_rule_and_refuses_only_when_none_can_free_enough() {
+    let total = (AUDIT_LIMIT + retention::AUDIT_RESERVE) / 256;
+    for (bulk, revisions, opens) in [(500, 500, true), (250, 250, false)] {
+        let (d, mut s, p) = setup();
+        let path = d.path().join("core.sqlite");
+        let job = running(&mut s, &p, "interrupted");
+        // Startup needs 601 rows: 600 past the full reserve, then recovery.
+        raw_events(&s, &p, &json(&EventKind::SessionCreated).unwrap(), bulk);
+        raw_events(
+            &s,
+            &p,
+            &json(&EventKind::GrantsRevised).unwrap(),
+            4096 + revisions,
+        );
+        let pinned = total + 600 - events(&s);
+        raw_events(
+            &s,
+            &p,
+            r#"{"kind":"automation_schedule_changed","schedule":"s","revision":2}"#,
+            pinned,
+        );
+        let (rows, generation) = (events(&s), s.generation);
+        drop(s);
+        match Store::open(&path) {
+            Ok(s) => {
+                assert!(opens);
+                assert_eq!(s.job_state(&job).unwrap(), "needs_intervention");
+                assert!(s.audit_usage().unwrap().bytes <= AUDIT_LIMIT + retention::AUDIT_RESERVE);
+                // Not below the authority budget.
+                assert!(authority_rows(&s.conn).len() >= 4096);
+            }
+            Err(error) => {
+                assert!(!opens);
+                assert_eq!(error.0, ErrorCode::StateNotDurable);
+                let conn = Connection::open(&path).unwrap();
+                let (after, generation_after): (i64, i64) = conn
+                    .query_row(
+                        "SELECT (SELECT count(*) FROM events),generation FROM meta WHERE id=1",
+                        [],
+                        |r| Ok((r.get(0)?, r.get(1)?)),
+                    )
+                    .unwrap();
+                assert_eq!((after, generation_after), (rows, generation));
+            }
+        }
+    }
+}
+
 /// Below the free-space reserve, startup gives back a WAL a crash left behind
 /// before it refuses; it never writes or bumps the generation.
 #[test]
