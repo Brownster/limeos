@@ -370,7 +370,8 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
         )
         .await;
     assert_eq!(wrong.unwrap_err().0, ErrorCode::Conflict);
-    // An action the store never recorded has nothing to free.
+    // An action the store never recorded has nothing to free (and nothing
+    // was sent for it, so only "not done" or divergence can be declared).
     assert_eq!(
         outcome(
             &mut store,
@@ -379,7 +380,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
             &"1".repeat(64),
             &first.plan_digest,
             &evidence,
-            DeclaredOutcome::VerifiedDone
+            DeclaredOutcome::NotDone
         )
         .await
         .unwrap(),

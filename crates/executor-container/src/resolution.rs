@@ -34,11 +34,33 @@ pub enum ResolveOutcome {
     /// The store held no receipt of an execute for the action, so it has
     /// nothing to free. It has closed the action (`closure`): no execute for it
     /// can run any more. Core decides what the absence means
-    /// (`ReceiptAbsence`).
+    /// (`ReceiptAbsence`). A `never_recorded` closure is answered so only for
+    /// a declaration a `precondition_changed` receipt allows
+    /// (`closed_outcome`); otherwise it is `Refused`.
     Absent(ReceiptAbsence),
     /// The receipt is terminal and its recorded outcome contradicts the
     /// declaration. Nothing changed.
     Refused(ResolveRefusal),
+}
+
+/// What a closure (found or just written) answers a resolution. A
+/// `never_recorded` closure proves nothing was ever sent, as a refusal an
+/// execute wrote does, so it allows exactly what a `precondition_changed`
+/// receipt allows (`declarations_for_recorded`), and any other declaration is
+/// `Refused`. A `no_longer_held` closure claims nothing about what ran: every
+/// declaration is left to the operator and core's fresh measurement.
+pub(crate) fn closed_outcome(absence: ReceiptAbsence, declared: DeclaredOutcome) -> ResolveOutcome {
+    let recorded = ExecutionState::PreconditionChanged;
+    match (absence, declarations_for_recorded(recorded)) {
+        (ReceiptAbsence::NeverRecorded, Some(allowed)) if !allowed.contains(&declared) => {
+            ResolveOutcome::Refused(ResolveRefusal {
+                recorded,
+                declared,
+                allowed: allowed.to_vec(),
+            })
+        }
+        _ => ResolveOutcome::Absent(absence),
+    }
 }
 
 impl ReceiptStore {
@@ -80,7 +102,9 @@ impl ReceiptStore {
     /// is `InvalidInput`. A missing row is closed (`closure`; `now` is the
     /// executor clock, for retention only) and answered `Absent`, judged
     /// against the prune watermark with that plan's own `expires_at`; a closure
-    /// row already there is answered the same way. A terminal row whose recorded
+    /// row already there is answered the same way, and either is `Refused` for
+    /// a declaration a never-recorded closure contradicts (`closed_outcome`).
+    /// A terminal row whose recorded
     /// outcome contradicts the declaration is `Refused`. A changed target
     /// (digest mismatch) or a declaration the evidence does not support is
     /// `Conflict`. Only read-only inspections reach the Engine.
@@ -113,17 +137,17 @@ impl ReceiptStore {
             declared,
             resolved_by: resolved_by.into(),
         };
-        // A closure row records an absence, not an outcome to declare against.
+        // A closure row records an absence, answered by `closed_outcome`.
         let closed = |store: &Self| store.closure(kind, action);
         // Authorize from the pure lookup, as for every other action.
         let (operation, recorded, before) = match (kind, plan) {
             (ResolveKind::Container, ActionPlan::Container(plan)) => {
                 let Some(receipt) = self.receipt(action, digest)? else {
                     let (absence, _) = self.close_container(action, digest, plan, now)?;
-                    return Ok(ResolveOutcome::Absent(absence));
+                    return Ok(closed_outcome(absence, declared));
                 };
                 if let Some(absence) = closed(self)? {
-                    return Ok(ResolveOutcome::Absent(absence));
+                    return Ok(closed_outcome(absence, declared));
                 }
                 ceiling.authorize(peer_uid, &receipt.before.resource, receipt.operation)?;
                 (receipt.operation, receipt.state, vec![receipt.before])
@@ -132,10 +156,10 @@ impl ReceiptStore {
                 let Some(receipt): Option<StackReceipt> = self.stack_receipt(action, digest)?
                 else {
                     let (absence, _) = self.close_stack(action, digest, plan, now)?;
-                    return Ok(ResolveOutcome::Absent(absence));
+                    return Ok(closed_outcome(absence, declared));
                 };
                 if let Some(absence) = closed(self)? {
-                    return Ok(ResolveOutcome::Absent(absence));
+                    return Ok(closed_outcome(absence, declared));
                 }
                 ceiling.authorize_stack(peer_uid, &receipt.before, receipt.operation)?;
                 let targets = receipt

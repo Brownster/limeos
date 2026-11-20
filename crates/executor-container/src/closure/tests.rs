@@ -442,6 +442,144 @@ async fn resolving_an_absent_action_closes_it_and_a_closure_row_is_answered_as_a
     assert!(engine.calls().is_empty());
 }
 
+#[allow(clippy::too_many_arguments)]
+async fn resolve_declaring(
+    store: &mut ReceiptStore,
+    engine: &Recorder,
+    kind: ResolveKind,
+    action: &str,
+    digest: &str,
+    plan: ActionPlan,
+    declared: DeclaredOutcome,
+) -> ResolveOutcome {
+    store
+        .resolve_action(
+            engine,
+            &ceiling(),
+            1001,
+            kind,
+            action,
+            digest,
+            &"e".repeat(64),
+            declared,
+            &"a".repeat(64),
+            &plan,
+            ASKED,
+        )
+        .await
+        .unwrap()
+}
+
+/// A never-recorded closure proves nothing was ever sent, as a refusal an
+/// execute wrote does: it allows only the declarations a
+/// `precondition_changed` receipt allows, whether the resolution finds the
+/// closure or writes it.
+#[tokio::test]
+async fn a_never_recorded_closure_refuses_a_verified_done_declaration() {
+    use limeos_domain::ResolveRefusal;
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let engine = Recorder::default();
+    let stack = stack_request(&"d".repeat(64));
+    let single = container_request(&"e".repeat(64), EXPIRES);
+    let cases = [
+        (
+            ResolveKind::Stack,
+            stack.action.clone(),
+            stack.plan_digest.clone(),
+            ActionPlan::Stack(stack.plan.clone()),
+        ),
+        (
+            ResolveKind::Container,
+            single.action.clone(),
+            single.plan_digest.clone(),
+            ActionPlan::Container(single.plan.clone()),
+        ),
+    ];
+    let refusal = ResolveOutcome::Refused(ResolveRefusal {
+        recorded: ExecutionState::PreconditionChanged,
+        declared: DeclaredOutcome::VerifiedDone,
+        allowed: vec![
+            DeclaredOutcome::NotDone,
+            DeclaredOutcome::AcceptedDivergence,
+        ],
+    });
+    for (kind, action, digest, plan) in &cases {
+        // The first ask closes the action; the closure refuses every repeat.
+        for _ in 0..2 {
+            assert_eq!(
+                resolve_declaring(
+                    &mut store,
+                    &engine,
+                    *kind,
+                    action,
+                    digest,
+                    plan.clone(),
+                    DeclaredOutcome::VerifiedDone
+                )
+                .await,
+                refusal,
+                "{kind:?}"
+            );
+        }
+        assert_eq!(
+            store.closure(*kind, action).unwrap(),
+            Some(ReceiptAbsence::NeverRecorded)
+        );
+        for declared in [
+            DeclaredOutcome::NotDone,
+            DeclaredOutcome::AcceptedDivergence,
+        ] {
+            assert_eq!(
+                resolve_declaring(
+                    &mut store,
+                    &engine,
+                    *kind,
+                    action,
+                    digest,
+                    plan.clone(),
+                    declared
+                )
+                .await,
+                ResolveOutcome::Absent(ReceiptAbsence::NeverRecorded),
+                "{kind:?} {declared:?}"
+            );
+        }
+    }
+    assert!(engine.calls().is_empty());
+}
+
+/// A no_longer_held closure claims nothing about what ran: every
+/// declaration stays the operator's judgement.
+#[tokio::test]
+async fn a_no_longer_held_closure_leaves_every_declaration_to_the_operator() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    raise_watermark(&store, EXPIRES);
+    let engine = Recorder::default();
+    let stack = stack_request(&"d".repeat(64));
+    for declared in [
+        DeclaredOutcome::VerifiedDone,
+        DeclaredOutcome::NotDone,
+        DeclaredOutcome::AcceptedDivergence,
+    ] {
+        assert_eq!(
+            resolve_declaring(
+                &mut store,
+                &engine,
+                ResolveKind::Stack,
+                &stack.action,
+                &stack.plan_digest,
+                ActionPlan::Stack(stack.plan.clone()),
+                declared
+            )
+            .await,
+            ResolveOutcome::Absent(ReceiptAbsence::NoLongerHeld),
+            "{declared:?}"
+        );
+    }
+}
+
 #[test]
 fn closure_rows_are_pruned_like_settled_history_and_never_while_the_plan_is_valid() {
     let dir = private_dir();

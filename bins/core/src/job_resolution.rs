@@ -298,14 +298,35 @@ impl Core {
                     };
                 }
                 match receipt.absence {
+                    // A never-recorded closure proves nothing was ever sent,
+                    // so it contradicts what a precondition_changed receipt
+                    // contradicts ("verified done"), as the executor itself
+                    // refuses it; checked here too, whatever it answered.
+                    Some(ReceiptAbsence::NeverRecorded) if receipt.closed => {
+                        let recorded = limeos_domain::ExecutionState::PreconditionChanged;
+                        if let Some(allowed) = limeos_domain::declarations_for_recorded(recorded)
+                            && !allowed.contains(&request.declared)
+                        {
+                            let refusal = limeos_domain::ResolveRefusal {
+                                recorded,
+                                declared: request.declared,
+                                allowed: allowed.to_vec(),
+                            };
+                            return match withdraw().await {
+                                Ok(()) | Err(Error(ErrorCode::NotFound)) => {
+                                    Finish::Disagrees(refusal)
+                                }
+                                Err(e) => Finish::Pending(e.0),
+                            };
+                        }
+                    }
                     // The executor held no receipt of an execute, so it holds
                     // no lock to free, and it has closed the action: no
                     // execute request for it, however delayed, can run after
                     // core releases its locks, whatever either clock says.
-                    // Either kind of absence then rests on the operator's
+                    // A no_longer_held closure then rests on the operator's
                     // decision and core's fresh measurement below.
-                    Some(ReceiptAbsence::NeverRecorded | ReceiptAbsence::NoLongerHeld)
-                        if receipt.closed => {}
+                    Some(ReceiptAbsence::NoLongerHeld) if receipt.closed => {}
                     // An absence that is not closed proves nothing about an
                     // execute still on its way, and an answer without a
                     // confirmation settles nothing.

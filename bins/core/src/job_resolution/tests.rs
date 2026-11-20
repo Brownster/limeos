@@ -645,6 +645,30 @@ async fn without_an_executor_receipt_a_resolution_completes_once_the_action_is_c
     }
 }
 
+/// A never-recorded closure proves nothing was ever sent, so "verified done"
+/// contradicts it as it contradicts a precondition_changed receipt: core
+/// withdraws the request even from an executor that answered the absence,
+/// and the job stays held. A no_longer_held closure leaves the declaration
+/// to the operator.
+#[tokio::test]
+async fn a_never_recorded_closure_is_not_resolved_as_verified_done() {
+    use limeos_domain::ReceiptAbsence;
+    let f = fixture().await;
+    f.exec.lock().unwrap().current = Some(engine_state(T1, true));
+    f.set(Mode::Absent(ReceiptAbsence::NeverRecorded));
+    let refused = f.resolve(DeclaredOutcome::VerifiedDone).await.unwrap();
+    assert_eq!(refused.status, ResolveStatus::UnsupportedDeclaration);
+    assert!(refused.message.contains("precondition_changed"));
+    assert_eq!(f.state().await, JobState::NeedsIntervention);
+    let view = f.view().await;
+    assert!(view.pending.is_none() && view.resolution.is_none());
+    f.set(Mode::Absent(ReceiptAbsence::NoLongerHeld));
+    let done = f.resolve(DeclaredOutcome::VerifiedDone).await.unwrap();
+    assert_eq!(done.status, ResolveStatus::Resolved);
+    assert_eq!(f.state().await, JobState::Resolved);
+    assert_eq!(f.counts().2, 0);
+}
+
 #[tokio::test]
 async fn a_closed_absence_withdraws_the_request_when_the_evidence_has_changed() {
     use limeos_domain::ReceiptAbsence;
