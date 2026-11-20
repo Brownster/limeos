@@ -433,3 +433,136 @@ fn a_kill_mid_batch_leaves_a_store_that_passes_the_startup_check() {
     drop(store);
     Store::open(&path).unwrap();
 }
+
+#[test]
+fn occurrence_pruning_keeps_queued_work_the_watermark_and_each_newest() {
+    let (dir, mut store, actor) = setup();
+    let base = 1_000_020;
+    let observed = scale::schedule(
+        &mut store,
+        &actor,
+        ScheduledOperation::ObserveHealth,
+        30,
+        base,
+    );
+    let queued = scale::reserve(&mut store, &observed.id, base);
+    let backup = scale::schedule(&mut store, &actor, ScheduledOperation::Backup, 30, base);
+    let ticks = OCCURRENCE_BUDGET + OCCURRENCE_BATCH;
+    let mut row = backup.clone();
+    for i in 0..ticks {
+        let now = base + 30 * i;
+        let DueDecision::Ready(key) = row.due(now).unwrap() else {
+            panic!("backup due")
+        };
+        assert_eq!(
+            store
+                .automation_reserve(&backup, &Settlement::AdapterUnavailable(key), now)
+                .unwrap(),
+            Reservation::Blocked
+        );
+        row.settled_through = Some(now);
+    }
+    let count = |store: &Store| -> i64 {
+        store
+            .conn
+            .query_row("SELECT count(*) FROM automation_occurrences", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+    };
+    assert_eq!(count(&store), ticks + 1);
+    drain(&mut store);
+    assert_eq!(count(&store), OCCURRENCE_BUDGET);
+    let survives = |store: &Store, schedule: &str, due: i64| -> bool {
+        store
+            .conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM automation_occurrences WHERE schedule=? AND due=?)",
+                params![schedule, due],
+                |r| r.get(0),
+            )
+            .unwrap()
+    };
+    assert!(survives(&store, &observed.id, queued.occurrence.due));
+    assert!(survives(&store, &backup.id, base + 30 * (ticks - 1)));
+    assert!(!survives(&store, &backup.id, base));
+    // A pruned key still reads as already settled.
+    let DueDecision::Ready(first) = backup.due(base).unwrap() else {
+        panic!("first due")
+    };
+    assert_eq!(
+        store
+            .automation_reserve(
+                &backup,
+                &Settlement::AdapterUnavailable(first),
+                base + 30 * ticks
+            )
+            .unwrap(),
+        Reservation::Existing
+    );
+    drop(store);
+    Store::open(&dir.path().join("core.sqlite")).unwrap();
+}
+
+/// The minimum interval for 30 simulated days: a job-less schedule settles
+/// every 30 s and an observation schedule runs hourly, with the pass every
+/// simulated minute. Without pruning the 4097th occurrence (day 1.4) would be
+/// refused as overloaded.
+#[test]
+fn thirty_days_at_the_minimum_interval() {
+    let (dir, mut store, actor) = setup();
+    let base = 1_000_020;
+    let backup = scale::schedule(&mut store, &actor, ScheduledOperation::Backup, 30, base);
+    let observed = scale::schedule(
+        &mut store,
+        &actor,
+        ScheduledOperation::ObserveHealth,
+        3600,
+        base,
+    );
+    let mut row = backup.clone();
+    let days = 30;
+    let ticks = days * 86400 / 30;
+    let mut peak = 0;
+    for i in 0..ticks {
+        let now = base + 30 * i;
+        let DueDecision::Ready(key) = row.due(now).unwrap() else {
+            panic!("backup due")
+        };
+        assert_eq!(
+            store
+                .automation_reserve(&backup, &Settlement::AdapterUnavailable(key), now)
+                .unwrap(),
+            Reservation::Blocked
+        );
+        row.settled_through = Some(now);
+        if (now - base) % 3600 == 0 {
+            scale::observe(&mut store, &observed.id, now);
+        }
+        if i % 2 == 1 {
+            store.prune().unwrap();
+            let count: i64 = store
+                .conn
+                .query_row("SELECT count(*) FROM automation_occurrences", [], |r| {
+                    r.get(0)
+                })
+                .unwrap();
+            peak = peak.max(count);
+        }
+    }
+    assert!(peak <= OCCURRENCE_BUDGET, "peak {peak}");
+    let views = store.automation_schedules(&actor, None).unwrap().items;
+    for view in views {
+        let last = view.last_occurrence.unwrap();
+        let expected = if view.schedule.id == backup.id {
+            base + 30 * (ticks - 1)
+        } else {
+            base + 3600 * (days * 24 - 1)
+        };
+        assert_eq!(last.key.due, expected);
+        assert_eq!(view.schedule.settled_through, Some(expected));
+    }
+    drop(store);
+    let store = Store::open(&dir.path().join("core.sqlite")).unwrap();
+    assert_eq!(audit(&store), events(&store) * EVENT_BYTES);
+}

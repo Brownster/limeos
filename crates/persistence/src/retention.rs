@@ -37,6 +37,14 @@
 //! (`container_events`, `stack_events`) sees either a job's whole history or
 //! none of it, never a gap. The job row itself, with its final state, is never
 //! removed, and serves as the snapshot when its history is gone.
+//!
+//! Occurrences (mirroring the `automation_occurrence_delete` trigger):
+//! - An occurrence whose job is not `succeeded`, `failed`, `canceled` or
+//!   `precondition_changed` (queued observation work).
+//! - The occurrence at its schedule's current watermark (current revision and
+//!   `due` not before `settled_through`).
+//! - Each schedule's newest occurrence of any revision, which the schedule view
+//!   reports as its last occurrence.
 use super::*;
 use std::time::{Duration, Instant};
 
@@ -52,6 +60,10 @@ pub(super) const AUDIT_WARNING: i64 = AUDIT_LIMIT / 4 * 3;
 /// every other write.
 pub(super) const AUDIT_RESERVE: i64 = 1024 * 1024;
 const EVENT_BATCH: i64 = 1024;
+/// A quarter of `MAX_OCCURRENCES`; 128 schedules at the 30 s minimum add 256
+/// rows a minute, which one batch removes.
+const OCCURRENCE_BUDGET: i64 = 1024;
+const OCCURRENCE_BATCH: i64 = 512;
 pub(super) const INTERVAL: Duration = Duration::from_secs(60);
 
 /// Job-less automation kinds that a startup check or live read depends on.
@@ -94,13 +106,22 @@ struct Rule {
     rows: fn(&Connection) -> Result<i64>,
     prune: fn(&Transaction<'_>, i64) -> Result<i64>,
 }
-const RULES: [Rule; 1] = [Rule {
-    table: "events",
-    budget: EVENT_BUDGET / EVENT_BYTES,
-    batch: EVENT_BATCH,
-    rows: audited_events,
-    prune: prune_events,
-}];
+const RULES: [Rule; 2] = [
+    Rule {
+        table: "events",
+        budget: EVENT_BUDGET / EVENT_BYTES,
+        batch: EVENT_BATCH,
+        rows: audited_events,
+        prune: prune_events,
+    },
+    Rule {
+        table: "automation_occurrences",
+        budget: OCCURRENCE_BUDGET,
+        batch: OCCURRENCE_BATCH,
+        rows: occurrences,
+        prune: prune_occurrences,
+    },
+];
 
 /// Adds `events` (negative when pruning) to the audit counter.
 pub(super) fn account(tx: &Transaction<'_>, events: i64) -> Result<()> {
@@ -142,6 +163,13 @@ fn audited_events(conn: &Connection) -> Result<i64> {
     Ok(bytes / EVENT_BYTES)
 }
 
+fn occurrences(conn: &Connection) -> Result<i64> {
+    conn.query_row("SELECT count(*) FROM automation_occurrences", [], |r| {
+        r.get(0)
+    })
+    .map_err(durable)
+}
+
 /// Removes the oldest `limit` eligible events, completing any job they touch.
 fn prune_events(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
     let loose = loose();
@@ -172,6 +200,35 @@ fn prune_events(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
     let removed = i64::try_from(removed).map_err(|_| Error(ErrorCode::StateNotDurable))?;
     account(tx, -removed)?;
     Ok(removed)
+}
+
+/// Removes the oldest `limit` occurrences the delete trigger permits, keeping
+/// each schedule's newest one.
+fn prune_occurrences(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
+    let mut stmt = tx
+        .prepare("SELECT o.schedule,o.revision,o.due FROM automation_occurrences o JOIN automation_schedules s ON s.id=o.schedule LEFT JOIN jobs j ON j.id=o.job WHERE (o.job IS NULL OR j.state IN ('succeeded','failed','canceled','precondition_changed')) AND (o.revision<s.revision OR (o.revision=s.revision AND o.due<s.settled_through)) AND EXISTS(SELECT 1 FROM automation_occurrences n WHERE n.schedule=o.schedule AND (n.revision,n.due)>(o.revision,o.due)) ORDER BY o.created,o.schedule,o.revision,o.due LIMIT ?")
+        .map_err(durable)?;
+    let keys = stmt
+        .query_map([limit], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, i64>(1)?,
+                r.get::<_, i64>(2)?,
+            ))
+        })
+        .map_err(durable)?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(durable)?;
+    let mut removed = 0;
+    for (schedule, revision, due) in keys {
+        removed += tx
+            .execute(
+                "DELETE FROM automation_occurrences WHERE schedule=? AND revision=? AND due=?",
+                params![schedule, revision, due],
+            )
+            .map_err(durable)?;
+    }
+    i64::try_from(removed).map_err(|_| Error(ErrorCode::StateNotDurable))
 }
 
 /// How full the audit table is, against the hard cap.
