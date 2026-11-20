@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # One stub for systemctl, systemd-run, docker, ss, free, curl, dpkg, dpkg-deb, dpkg-query, caddy, sleep and
 # limeosctl. sleep runs $STUB_DIR/hook-sleep when present (measure.sh's idle window). Copied under each tool's name into a PATH directory by the tests.
-# State lives in $STUB_DIR; every call is appended to $STUB_DIR/calls.log.
+# State lives in $STUB_DIR; every call is appended to $STUB_DIR/calls.log. systemd-run --scope --unit and
+# systemctl is-active/show/kill on a *.scope model a transient scope (see scope_members).
 set -Eeuo pipefail
 tool="$(basename -- "$0")"
 call="${tool} $*"
 printf '%s\n' "${call}" >>"${STUB_DIR}/calls.log"
+# The same, prefixed with the transient scope the caller runs in ("-" for none).
+printf '%s %s\n' "${STUB_SCOPE:--}" "${call}" >>"${STUB_DIR}/scoped-calls.log"
 if [[ -f "${STUB_DIR}/fail.txt" ]] && grep -qxF -- "${call}" "${STUB_DIR}/fail.txt"; then
     printf 'stub: injected failure for: %s\n' "${call}" >&2
     exit 1
@@ -28,17 +31,100 @@ unit_dir="${STUB_DIR}/units"
 set_unit() { printf '%s\n' "${3}" >"${unit_dir}/${1}.${2}"; }
 get_unit() { if [[ -f "${unit_dir}/${1}.${2}" ]]; then cat "${unit_dir}/${1}.${2}"; else printf '%s\n' "${3}"; fi; }
 
+# Transient scopes. A process belongs to scope U when its environment carries STUB_SCOPE=U: the
+# stub systemd-run sets it before it execs the command, and it is inherited the way cgroup
+# membership is (through fork, exec and setsid alike; a parent's death does not lose it). A
+# member whose environment also carries STUB_UNKILLABLE=1 survives the stub's systemctl kill,
+# standing in for a process in uninterruptible I/O. "killable" lists only the others.
+scope_members() { # unit [killable]
+    python3 -I - "${STUB_DIR}" "${1}" "${2:-}" <<'PY'
+import os, sys
+stub, unit, killable = sys.argv[1:4]
+mine, want = b"STUB_DIR=" + os.fsencode(stub), b"STUB_SCOPE=" + os.fsencode(unit)
+for entry in os.listdir("/proc"):
+    if not entry.isdigit() or int(entry) in (os.getpid(), os.getppid()):
+        continue
+    try:
+        with open(f"/proc/{entry}/environ", "rb") as handle:
+            env = handle.read().split(b"\0")
+        with open(f"/proc/{entry}/stat") as handle:
+            state = handle.read().rsplit(") ", 1)[1].split()[0]
+    except (OSError, IndexError):
+        continue
+    if state == "Z" or mine not in env or want not in env:
+        continue
+    if killable and b"STUB_UNKILLABLE=1" in env:
+        continue
+    print(entry)
+PY
+}
+# The scope's cgroup under the fake root, as systemd keeps it: cgroup.procs and cgroup.events
+# while it has members (plus any pids in $STUB_DIR/cgroup-extra, which stand for members that
+# exit while a caller reads the list), and no directory once it is empty.
+scope_refresh() { # unit -> members on stdout
+    local members dir="${LIMEOS_CUTOVER_ROOT}/sys/fs/cgroup/system.slice/${1}"
+    members="$(scope_members "${1}")"
+    if [[ -n "${members}" ]]; then
+        mkdir -p "${dir}"
+        { printf '%s\n' "${members}"; if [[ -f "${STUB_DIR}/cgroup-extra" ]]; then cat "${STUB_DIR}/cgroup-extra"; fi; } >"${dir}/cgroup.procs"
+        printf 'populated 1\nfrozen 0\n' >"${dir}/cgroup.events"
+        printf '%s\n' "${members}"
+    else
+        rm -rf "${dir}"
+    fi
+}
+
 case "${tool}" in
     systemd-run)
-        # Run the command in place, as the real --scope does, minus the transient unit.
-        while (( $# )) && [[ "${1}" != -- ]]; do shift; done
+        # --scope --unit=U: the command runs in place, as the real --scope does, and it and
+        # everything it starts become members of U. A unit that still has members is refused.
+        unit=''
+        while (( $# )) && [[ "${1}" != -- ]]; do
+            case "${1}" in --unit=*) unit="${1#--unit=}" ;; --unit) unit="${2}"; shift ;; esac
+            shift
+        done
         shift
+        if [[ -n "${unit}" ]]; then
+            if [[ -n "$(scope_members "${unit}")" ]]; then
+                printf 'Failed to start transient scope unit: Unit %s already exists.\n' "${unit}" >&2
+                exit 1
+            fi
+            printf '%s\n' "${unit}" >>"${STUB_DIR}/scopes.log"
+            export STUB_SCOPE="${unit}"
+        fi
         exec "$@" ;;
     sleep) if [[ -x "${STUB_DIR}/hook-sleep" ]]; then "${STUB_DIR}/hook-sleep"; fi; exit 0 ;;
     systemctl)
         verb="${1:-}"; shift || true
         quiet=0; args=()
         for a in "$@"; do if [[ "${a}" == --quiet ]]; then quiet=1; else args+=("${a}"); fi; done
+        if (( ${#args[@]} )) && [[ "${args[-1]}" == *.scope ]]; then
+            scope="${args[-1]}"
+            case "${verb}" in
+                is-active)
+                    if [[ -n "$(scope_refresh "${scope}")" ]]; then state=active; else state=inactive; fi
+                    (( quiet )) || printf '%s\n' "${state}"
+                    [[ "${state}" == active ]] ;;
+                show)
+                    if [[ -n "$(scope_refresh "${scope}")" ]]; then printf '/system.slice/%s\n' "${scope}"; else printf '\n'; fi ;;
+                kill)
+                    # --kill-whom=all --signal=SIG: every member, again until none that can die is left.
+                    sig=TERM
+                    for a in "${args[@]}"; do if [[ "${a}" == --signal=* ]]; then sig="${a#--signal=}"; fi; done
+                    if [[ -z "$(scope_members "${scope}")" ]]; then
+                        printf 'Failed to kill unit %s: Unit %s not loaded.\n' "${scope}" "${scope}" >&2
+                        exit 1
+                    fi
+                    for (( round=0; round<50; round++ )); do
+                        mapfile -t pids < <(scope_members "${scope}" killable)
+                        (( ${#pids[@]} )) || break
+                        kill -s "${sig}" "${pids[@]}" 2>/dev/null || true
+                    done
+                    scope_refresh "${scope}" >/dev/null ;;
+                *) printf 'stub systemctl: unsupported %s for a scope\n' "${verb}" >&2; exit 99 ;;
+            esac
+            exit
+        fi
         case "${verb}" in
             is-active)
                 state="$(get_unit "${args[0]}" active inactive)"

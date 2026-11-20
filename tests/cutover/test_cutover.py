@@ -44,7 +44,7 @@ RUST = ["limeos-storaged.service", "limeos-containerd.service", "limeos-core.ser
 READER = "limeos-storage-reader.service"
 READER_SOCKET = "run/limeos-storage-reader/executor.sock"
 CATALOG = "etc/limeos/management-catalog.json"
-MUTATING_VERBS = {"stop", "start", "restart", "enable", "disable", "reload", "daemon-reload"}
+MUTATING_VERBS = {"stop", "start", "restart", "enable", "disable", "reload", "daemon-reload", "kill"}
 # Every mutating call of a successful activation, in order.
 ACTIVATE_STEPS = [
     "systemctl stop limeos-metrics-collector.timer limeos-package-reconcile.timer",
@@ -74,7 +74,7 @@ FREE_OK = (
 )
 
 
-def tree_digest(*roots, skip=("calls.log",)):
+def tree_digest(*roots, skip=("calls.log", "scoped-calls.log")):
     digest = hashlib.sha256()
     for root in roots:
         for path in sorted(Path(root).rglob("*")):
@@ -300,6 +300,49 @@ class Harness(unittest.TestCase):
         result = self.preflight()
         self.assertEqual(result.returncode, 0, result.stderr)
         (self.stub / "calls.log").write_text("")
+
+    def scope_unit(self):
+        """The transient scope the scripts name for this snapshot."""
+        unit = subprocess.run(
+            ["bash", "-c", f'source "{SCRIPTS}/lib.sh"; fct_scope_unit "$1"', "_", str(self.snap)],
+            capture_output=True, text=True, check=True).stdout.strip()
+        self.assertRegex(unit, r"^limeos-cutover-activate-snap-\d+\.scope$")
+        return unit
+
+    def scoped_calls(self):
+        """(scope, call) for every stub call; scope is "-" outside any transient scope."""
+        path = self.stub / "scoped-calls.log"
+        lines = path.read_text().splitlines() if path.exists() else []
+        return [tuple(line.split(" ", 1)) for line in lines]
+
+    def pids_with(self, marker):
+        """Live harness processes whose environment carries MARKER (bytes, e.g. b"STUB_UNKILLABLE=1")."""
+        found = []
+        for pid in self.marked_pids(self.stub):
+            try:
+                with open(f"/proc/{pid}/environ", "rb") as handle:
+                    if marker in handle.read().split(b"\0"):
+                        found.append(pid)
+            except OSError:
+                pass
+        return found
+
+    def lock_free(self, name):
+        with open(self.snap / name, "a") as handle:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return False
+            fcntl.flock(handle, fcntl.LOCK_UN)
+            return True
+
+    @staticmethod
+    def alive(pid):
+        try:
+            with open(f"/proc/{pid}/stat") as handle:
+                return handle.read().rsplit(") ", 1)[1].split()[0] != "Z"
+        except OSError:
+            return False
 
 
 class HarnessTests(Harness):
@@ -807,10 +850,11 @@ class ActivateTests(Harness):
         self.assertIn("still running after 2s: systemctl start limeos-core.service", result.stderr)
         self.assertIn("interrupted by SIGTERM", result.stderr)
 
+    @unittest.skipIf(os.geteuid() == 0, "CUTOVER_KILL_SIGNAL is ignored when run as root")
     def test_a_step_that_outlives_its_kill_does_not_hold_the_rollback(self):
         # A dpkg that ignores TERM and, here, the last-resort signal too. The kernel always
-        # honours SIGKILL, so the test swaps in SIGUSR2 (CUTOVER_KILL_SIGNAL) to stand for a
-        # process stuck in uninterruptible I/O that KILL cannot end in time.
+        # honours SIGKILL, so the test swaps in SIGUSR2 (CUTOVER_KILL_SIGNAL, honoured only under this
+        # harness) to stand for a process stuck in uninterruptible I/O that KILL cannot end in time.
         self.passing_snapshot()
         # It lets go of the test's pipes, so the test can read the script's output while it lingers.
         self.fake_tool("dpkg", "trap '' TERM USR2\nexec </dev/null >/dev/null 2>&1\nkill -s TERM \"${PPID}\"\n"
@@ -828,6 +872,21 @@ class ActivateTests(Harness):
         self.assertIn("ROLLBACK INCOMPLETE", result.stderr)
         for name in FROZEN:
             self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
+
+    def test_an_inherited_kill_signal_cannot_change_a_real_run(self):
+        script = f'source "{SCRIPTS}/lib.sh"; printf "%s\\n" "${{KILL_SIGNAL}}"'
+        base = {k: v for k, v in os.environ.items()
+                if k not in ("LIMEOS_CUTOVER_ROOT", "CUTOVER_ALLOW_NONROOT", "CUTOVER_KILL_SIGNAL")}
+        harness = "USR2" if os.geteuid() != 0 else "KILL"
+        for extra, expected in (({}, "KILL"),
+                                ({"LIMEOS_CUTOVER_ROOT": "/"}, "KILL"),
+                                ({"CUTOVER_ALLOW_NONROOT": "1"}, "KILL"),
+                                ({"LIMEOS_CUTOVER_ROOT": str(self.root), "CUTOVER_ALLOW_NONROOT": "1"}, harness)):
+            with self.subTest(extra=extra):
+                env = {**base, **extra, "CUTOVER_KILL_SIGNAL": "STOP" if expected == "KILL" else "USR2"}
+                out = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True, check=True).stdout
+                self.assertEqual(out.strip(), expected)
+        self.assertNotIn("KILL_SIGNAL", (SCRIPTS / "return.sh").read_text())
 
     def test_signal_before_the_first_change_rolls_nothing_back(self):
         self.passing_snapshot()
@@ -888,7 +947,9 @@ class ActivateTests(Harness):
         self.assertIn("activate complete", result.stdout)  # followed from the log
         log = (self.snap / "activate.log").read_text()
         self.assertIn("activate complete", log)
-        self.assertTrue([l for l in self.calls() if l.startswith("systemd-run --scope ")], self.calls())
+        runs = [l for l in self.calls() if l.startswith("systemd-run ")]
+        self.assertEqual(len(runs), 1, runs)
+        self.assertTrue(runs[0].startswith(f"systemd-run --scope --unit={self.scope_unit()} --quiet --collect -- "), runs[0])
         # The run had its own session, so the terminal's hangup cannot reach it.
         self.assertNotEqual(int(reached.read_text()), os.getsid(0))
         for name in RUST:
@@ -959,16 +1020,16 @@ class ActivateTests(Harness):
                 self.assertIn(fragment, result.stdout + result.stderr)
                 self.assertEqual(self.mutating_calls(), [])
 
-    def test_detaching_fails_closed_without_or_with_a_failing_systemd_run(self):
-        for case in ("absent", "failing"):
-            with self.subTest(case=case):
+    def test_an_activation_fails_closed_without_a_scope_attached_or_detached(self):
+        for case, attached in (("absent", False), ("failing", False), ("absent", True), ("failing", True)):
+            with self.subTest(case=case, attached=attached):
                 self.setUp()
                 self.passing_snapshot()
                 if case == "absent":
                     self.env["PATH"] = self.path_without("systemd-run")
                 else:
                     self.fake_tool("systemd-run", "echo 'Failed to start transient scope unit: Access denied' >&2; exit 1")
-                result = self.approved(attached=False)
+                result = self.approved(attached=attached)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(self.mutating_calls(), [])
                 expected = "systemd-run is not installed" if case == "absent" else "Failed to start transient scope unit"
@@ -1053,43 +1114,47 @@ class ActivateTests(Harness):
         calls_before = len(self.mutating_calls())
         result = self.do_return()
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"activate.sh (pid {first.pid}) is running on this snapshot", result.stderr)
+        self.assertIn(f"activate.sh (pid {first.pid}) is running on this snapshot in scope {self.scope_unit()}", result.stderr)
         self.assertIn(f"kill -TERM {first.pid}", result.stderr)
         self.assertIn("return.sh --force", result.stderr)
         self.assertEqual(len(self.mutating_calls()), calls_before)
-        # (--force is covered by test_forced_return_ends_the_stalled_activation_first.)
+        # (--force is covered by test_forced_return_ends_the_activation_by_its_scope.)
         go.touch()
         out, err = first.communicate(timeout=60)
         self.assertEqual(first.returncode, 0, out + err)
 
-    def stalled_activation(self, hook_body=""):
-        """An attached activation stuck for good inside `systemctl start limeos-core.service`."""
+    def stalled_activation(self, hook="", unkillable=False, popen=None):
+        """An attached activation stuck for good inside `systemctl start limeos-core.service`.
+
+        HOOK runs first inside the stalled step. With UNKILLABLE the step's process cannot be ended
+        by the stub's systemctl kill (a process in uninterruptible I/O). POPEN replaces how the
+        activation is started (it gets the command and the environment)."""
         self.passing_snapshot()
         reached = self.stub / "reached"
-        hook = self.stub / "hook-start-limeos-core.service"
-        hook.write_text(f"#!/usr/bin/env bash\n{hook_body}\ntouch '{reached}'\n"
-                        "while :; do command -p sleep 0.05; done\n")
-        hook.chmod(0o755)
+        loop = f"touch '{reached}'; while :; do command -p sleep 0.05; done"
+        if unkillable:
+            loop = f'exec env STUB_UNKILLABLE=1 bash -c "{loop}"'
+        script = self.stub / "hook-start-limeos-core.service"
+        script.write_text(f"#!/usr/bin/env bash\n{hook}\n{loop}\n")
+        script.chmod(0o755)
         args = self.activate_args("--yes-i-have-operator-approval", "--attached")
         args[0] = str(self.snap)
-        first = subprocess.Popen(
-            ["bash", str(SCRIPTS / "activate.sh"), *args], env={**self.env, "CUTOVER_NOW": str(NOW + 60)},
-            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        command = ["bash", str(SCRIPTS / "activate.sh"), *args]
+        env = {**self.env, "CUTOVER_NOW": str(NOW + 60)}
+        if popen:
+            first = popen(command, env)
+        else:
+            first = subprocess.Popen(command, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                     text=True, start_new_session=True)
         self.wait_for(reached.exists)
         return first
 
-    def test_forced_return_ends_the_stalled_activation_first(self):
-        first = self.stalled_activation()
-        self.assertTrue(self.marked_pids(self.stub))
-        result = self.do_return("--force")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn(f"--force: ending activate.sh (pid {first.pid}) and its steps before returning", result.stderr)
-        # The activation and its stalled step are gone, and the activation never ran its own rollback.
-        self.assertEqual(self.marked_pids(self.stub), [])
-        _, err = first.communicate(timeout=10)
-        self.assertEqual(first.returncode, -signal.SIGKILL)
-        self.assertNotIn("ROLLBACK", err)
-        self.assertEqual((self.snap / "activate.lock").read_text().split()[0], "return")
+    def popen_return(self, *extra, env=None):
+        return subprocess.Popen(["bash", str(SCRIPTS / "return.sh"), str(self.snap), *extra],
+                                env={**self.env, **(env or {})}, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True)
+
+    def assert_returned(self):
         for name in FROZEN:
             self.assertEqual(self.unit_state(name), ("active", "enabled"), name)
         for name in RUST:
@@ -1097,20 +1162,207 @@ class ActivateTests(Harness):
         self.assertEqual(self.unit_state("caddy.service"), ("inactive", "disabled"))
         self.assertIn(":8002 ", (self.stub / "ss_out").read_text())
 
-    def test_forced_return_stops_when_part_of_the_activation_survives(self):
-        # The step's helper ignores TERM and the last-resort signal (SIGUSR2 standing in for a
-        # KILL that cannot take effect yet), so the forced return must not go ahead.
-        first = self.stalled_activation(hook_body="trap '' TERM USR2")
-        calls_before = len(self.mutating_calls())
-        self.env["CUTOVER_KILL_SIGNAL"] = "USR2"
+    def kill_line(self):
+        return f"systemctl kill --kill-whom=all --signal=KILL {self.scope_unit()}"
+
+    def test_an_attached_activation_runs_in_its_named_scope(self):
+        self.passing_snapshot()
+        unit = self.scope_unit()
+        result = self.approved()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        runs = [l for l in self.calls() if l.startswith("systemd-run ")]
+        self.assertEqual(len(runs), 1, runs)  # once: no step leaves the scope through a nested systemd-run
+        self.assertTrue(runs[0].startswith(f"systemd-run --scope --unit={unit} --quiet --collect -- bash "), runs[0])
+        self.assertTrue(runs[0].endswith(f" --scope-unit {unit}"), runs[0])
+        # Every change ran inside the scope, the steps in their own sessions included.
+        scoped = [(scope, call) for scope, call in self.scoped_calls()
+                  if call.split(" ")[0] in ("dpkg", "caddy", "install")
+                  or (call.startswith("systemctl ") and call.split(" ")[1] in MUTATING_VERBS)]
+        self.assertTrue(scoped)
+        self.assertEqual({scope for scope, _ in scoped}, {unit}, scoped)
+        role, pid, start, recorded = (self.snap / "activate.lock").read_text().split()
+        self.assertEqual((role, recorded), ("activate", unit))
+        self.assertTrue(pid.isdigit() and start.isdigit())
+
+    def test_a_rollback_runs_inside_the_activation_scope(self):
+        self.passing_snapshot()
+        self.inject("systemctl start limeos-core.service")
+        result = self.approved()
+        self.assert_rolled_back(result)
+        unit = self.scope_unit()
+        rollback = [(scope, call) for scope, call in self.scoped_calls() if call.startswith("systemctl stop limeos-core")]
+        self.assertEqual(rollback, [(unit, "systemctl stop limeos-core.service")])
+
+    def test_scope_unit_is_internal(self):
+        self.passing_snapshot()
+        for unit, fragment in (("bogus.scope", "--scope-unit is internal"),
+                               (self.scope_unit(), "not running inside its transient scope")):
+            with self.subTest(unit=unit):
+                result = self.approved("--scope-unit", unit)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(fragment, result.stderr)
+                self.assertEqual(self.mutating_calls(), [])
+
+    def test_forced_return_ends_the_activation_by_its_scope(self):
+        first = self.stalled_activation()
+        unit = self.scope_unit()
+        self.assertTrue(self.marked_pids(self.stub))
+        # An inherited test signal must not reach a forced return: it always sends a real KILL.
+        self.env["CUTOVER_KILL_SIGNAL"] = "STOP"
         result = self.do_return("--force")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertRegex(result.stderr, r"still alive after SIGUSR2: pid \d+ \(state \w+\)")
-        self.assertIn("nothing was changed", result.stderr)
-        self.assertEqual(len(self.mutating_calls()), calls_before)
-        self.assertTrue(self.marked_pids(self.stub))  # the survivor, left for the operator to see
-        # The activation itself was ended with SIGKILL, so it could not start its own rollback.
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f"--force: ending the activation, every process in scope {unit}", result.stderr)
+        self.assertIn(self.kill_line(), self.calls())
+        # The activation and its stalled step are gone, and the activation never ran its own rollback.
+        self.assertEqual(self.marked_pids(self.stub), [])
+        _, err = first.communicate(timeout=10)
+        self.assertEqual(first.returncode, -signal.SIGKILL)
+        self.assertNotIn("ROLLBACK", err)
+        self.assertEqual((self.snap / "activate.lock").read_text().split()[0], "return")
+        self.assertFalse((self.snap / "force-takeover").exists())
+        self.assert_returned()
+
+    def test_forced_return_ends_steps_started_after_it_began(self):
+        # The stalled step keeps starting processes, each in a new session of its own, so some are
+        # started after the forced return has begun. The scope holds them all.
+        spawner = (f"while :; do setsid bash -c 'while :; do command -p sleep 0.05; done' </dev/null >/dev/null 2>&1 & "
+                   "command -p sleep 0.02; done &")
+        self.stalled_activation(hook=spawner)
+        self.wait_for(lambda: len(self.marked_pids(self.stub)) > 8)
+        result = self.do_return("--force")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.marked_pids(self.stub), [])
+        self.assert_returned()
+
+    def test_forced_return_leaves_processes_outside_the_scope_alone(self):
+        # A session-leading shell starts a backup, then execs an attached activation: the backup
+        # shares the activation's session and process group but is not in its scope.
+        backup_pid = self.stub / "backup.pid"
+        backup = f"bash -c 'while :; do command -p sleep 0.05; done' & echo $! >'{backup_pid}'; "
+
+        def shell(command, env):
+            return subprocess.Popen(["bash", "-c", backup + 'exec "$@"', "_", *command], env=env,
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        first = self.stalled_activation(popen=shell)
+        pid = int(backup_pid.read_text())
+        self.assertEqual(os.getsid(pid), first.pid)
+        result = self.do_return("--force")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(first.wait(timeout=10), -signal.SIGKILL)
+        self.assertTrue(self.alive(pid), "the backup outside the scope was killed")
+        self.assertEqual(self.pids_with(b"STUB_SCOPE=" + self.scope_unit().encode()), [])
+        self.assert_returned()
+
+    def test_forced_return_stops_when_the_scope_does_not_empty(self):
+        first = self.stalled_activation(unkillable=True)
+        unit = self.scope_unit()
+        # The hook's shell (its sleep children come and go by themselves).
+        survivors = [pid for pid in self.pids_with(b"STUB_UNKILLABLE=1")
+                     if Path(f"/proc/{pid}/comm").read_text().strip() == "bash"]
+        self.assertEqual(len(survivors), 1, survivors)
+        # A member that exits while the list is being made: its pid is in cgroup.procs, its process gone.
+        gone = subprocess.Popen(["true"])
+        gone.wait()
+        (self.stub / "cgroup-extra").write_text(f"{gone.pid}\n")
+        calls_before = self.mutating_calls()
+        self.env["CUTOVER_FORCE_WAIT"] = "1"
+        result = self.do_return("--force")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        err = result.stderr
+        self.assertIn(f"--force: the activation's scope {unit} still has processes 1s after SIGKILL", err)
+        self.assertIn(f"  {gone.pid} (exited while this list was made)", err)
+        self.assertRegex(err, rf"\n +{survivors[0]} +\S+ +bash -c ")
+        self.assertIn("The activation's automatic rollback was ended with it, and the old service is still stopped", err)
+        self.assertIn(f"systemctl status {unit}", err)
+        self.assertIn(f"Next: wait until 'systemctl is-active {unit}' prints inactive, then run: "
+                      f"return.sh {self.snap} --force", err)
+        # The only change was the kill; the activation itself is gone and could not roll back.
+        self.assertEqual(self.mutating_calls(), calls_before + [self.kill_line()])
+        self.assertEqual(first.wait(timeout=10), -signal.SIGKILL)
+        self.assertTrue(all(self.alive(pid) for pid in survivors))
+        self.assertTrue((self.snap / "force-takeover").exists())
+        for name in FROZEN:
+            self.assertEqual(self.unit_state(name), ("inactive", "disabled"), name)
+
+        # After the refusal: a plain return explains instead of restoring beside the survivor, and
+        # a new activation of this snapshot is refused.
+        calls_before = self.mutating_calls()
+        plain = self.do_return()
+        self.assertEqual(plain.returncode, 1, plain.stdout + plain.stderr)
+        self.assertIn("a forced return (return.sh --force, pid", plain.stderr)
+        self.assertIn(f"did not finish: its scope {unit} still has processes", plain.stderr)
+        self.assertIn(f"Next: wait until 'systemctl is-active {unit}' prints inactive, then run: "
+                      f"return.sh {self.snap} --force", plain.stderr)
+        self.assertNotIn("stale", plain.stderr)
+        again = self.approved()
+        self.assertNotEqual(again.returncode, 0)
+        self.assertIn("force-takeover", again.stderr)
+        self.assertEqual(self.mutating_calls(), calls_before)
+
+        # Once the survivor has exited, a plain return finishes the job.
+        for pid in survivors:
+            os.kill(pid, signal.SIGKILL)
+        self.wait_for(lambda: not self.pids_with(b"STUB_UNKILLABLE=1"))
+        done = self.do_return()
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn(f"scope {unit} is now empty", done.stdout)
+        self.assertFalse((self.snap / "force-takeover").exists())
+        self.assert_returned()
+
+    def test_a_concurrent_return_is_refused_for_the_whole_takeover(self):
+        first = self.stalled_activation(unkillable=True)
+        forced = self.popen_return("--force", env={"CUTOVER_FORCE_WAIT": "60"})
+        self.wait_for(lambda: self.kill_line() in self.calls())
+        # activate.sh is dead and its lock free by now; return.lock still keeps everyone out.
+        self.assertEqual(first.wait(timeout=10), -signal.SIGKILL)
+        calls_before = self.mutating_calls()
+        for extra in ((), ("--force",)):
+            with self.subTest(extra=extra):
+                second = self.do_return(*extra)
+                self.assertEqual(second.returncode, 1, second.stdout + second.stderr)
+                self.assertIn(f"return.sh (pid {forced.pid}) is running on this snapshot", second.stderr)
+        self.assertEqual(self.mutating_calls(), calls_before)
+        for pid in self.pids_with(b"STUB_UNKILLABLE=1"):
+            os.kill(pid, signal.SIGKILL)
+        out, err = forced.communicate(timeout=60)
+        self.assertEqual(forced.returncode, 0, out + err)
+        self.assertFalse((self.snap / "force-takeover").exists())
+        self.assert_returned()
+
+    def test_a_plain_return_after_an_interrupted_forced_return_explains_it(self):
+        self.stalled_activation(unkillable=True)
+        unit = self.scope_unit()
+        forced = self.popen_return("--force", env={"CUTOVER_FORCE_WAIT": "60"})
+        self.wait_for(lambda: self.kill_line() in self.calls())
+        forced.kill()  # the operator's terminal went away mid-takeover
+        forced.communicate(timeout=10)
+        self.wait_for(lambda: self.lock_free("return.lock"))  # its short-lived children have gone too
+        calls_before = self.mutating_calls()
+        plain = self.do_return()
+        self.assertEqual(plain.returncode, 1, plain.stdout + plain.stderr)
+        self.assertIn(f"a forced return (return.sh --force, pid {forced.pid}", plain.stderr)
+        self.assertIn(f"its scope {unit} still has processes", plain.stderr)
+        self.assertIn("the old service is still stopped", plain.stderr)
+        self.assertIn(f"return.sh {self.snap} --force", plain.stderr)
+        self.assertEqual(self.mutating_calls(), calls_before)
+
+    def test_a_plain_return_refuses_while_the_scope_still_has_processes(self):
+        # activate.sh died (here: SIGKILL from outside) and released its lock, but its step lives on.
+        first = self.stalled_activation()
+        unit = self.scope_unit()
+        first.kill()
+        first.wait(timeout=10)  # (its step still holds the stderr pipe)
+        self.wait_for(lambda: self.lock_free("activate.lock"))
+        calls_before = self.mutating_calls()
+        plain = self.do_return()
+        self.assertEqual(plain.returncode, 1, plain.stdout + plain.stderr)
+        self.assertIn(f"activate.sh is no longer running, but its scope {unit} still has processes", plain.stderr)
+        self.assertIn(f"return.sh {self.snap} --force", plain.stderr)
+        self.assertEqual(self.mutating_calls(), calls_before)
+        forced = self.do_return("--force")
+        self.assertEqual(forced.returncode, 0, forced.stdout + forced.stderr)
+        self.assertEqual(self.marked_pids(self.stub), [])
+        self.assert_returned()
 
     def test_health_failures_roll_back(self):
         base = {
@@ -1372,7 +1624,7 @@ class ReturnTests(Harness):
     def test_idempotent(self):
         self.activated()
         self.assertEqual(self.do_return().returncode, 0)
-        skip = ("calls.log", "activate.lock")  # each return records itself as the lock holder
+        skip = ("calls.log", "scoped-calls.log", "activate.lock", "return.lock")  # each return records itself as holder
         digest = tree_digest(self.root, skip=skip), tree_digest(self.stub / "units")
         second = self.do_return()
         self.assertEqual(second.returncode, 0, second.stderr)
@@ -1469,8 +1721,8 @@ class ReturnTests(Harness):
 
     def test_activate_records_role_pid_and_start_time(self):
         self.activated()
-        role, pid, start = (self.snap / "activate.lock").read_text().split()
-        self.assertEqual(role, "activate")
+        role, pid, start, unit = (self.snap / "activate.lock").read_text().split()
+        self.assertEqual((role, unit), ("activate", self.scope_unit()))
         self.assertTrue(pid.isdigit() and start.isdigit())
 
     def test_return_without_prior_activate(self):

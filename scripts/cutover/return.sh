@@ -15,7 +15,12 @@ HASHES_CAPTURED=0
 WRITERS_RUNNING=0
 declare -A CURRENT_HASHES=()
 declare -A UNHASHABLE=()
-declare -A END_TREE=() END_SESSIONS=()
+# How long --force waits for the activation's scope to empty after SIGKILL. Only a process in
+# uninterruptible I/O outlives SIGKILL, and giving up early only stops this return.
+FORCE_WAIT="${CUTOVER_FORCE_WAIT:-15}"
+[[ "${FORCE_WAIT}" =~ ^[0-9]+$ ]] || FORCE_WAIT=15
+# Written by --force before it ends the activation, removed once the activation's scope is empty.
+TAKEOVER=force-takeover
 
 fct_usage() {
     cat <<'USAGE'
@@ -26,13 +31,23 @@ Exit 0 only when hashes, the managed containers' IDs and StartedAt (from the
 snapshot's managed.txt; other containers only warn) and the frozen port all
 verify. Rust units return to their snapshot state.
 
-It takes the snapshot's activate.lock without waiting (activate.sh's own rollback
-uses the lock it already holds). While an activation holds it, return.sh refuses
-and names that activation's pid: it rolls back by itself on failure, and
-kill -TERM <pid> makes it roll back now. --force is for a hung activation: it
-first ends that activate.sh and every step it started (SIGKILL to the script so
-its own rollback cannot start, then TERM and KILL to its steps), and goes on only
-when all of them are gone; if any survives, it stops with nothing changed.
+It first takes SNAPSHOT_DIR/return.lock, so only one return.sh runs per snapshot,
+and holds it to the end. Then it takes activate.lock without waiting (activate.sh's
+own rollback uses the lock it already holds). While an activation holds it,
+return.sh refuses and names that activation's pid: it rolls back by itself on
+failure, and kill -TERM <pid> makes it roll back now. It also refuses while the
+activation's transient scope (limeos-cutover-activate-*.scope) still has
+processes, such as a step that outlived activate.sh.
+
+--force is for a hung activation: it ends the activation by its scope, with
+systemctl kill --kill-whom=all --signal=KILL UNIT (activate.sh, its automatic
+rollback and every step, including any started meanwhile, and nothing outside
+the scope), waits up to 15 s for the scope to empty, and only then takes
+activate.lock and returns. If the scope does not empty (a process in
+uninterruptible I/O), it stops having changed nothing else, lists what is left
+and says what to run next; SNAPSHOT_DIR/force-takeover records the unfinished
+takeover so a later return.sh explains it. If the activation was inside dpkg,
+run dpkg --audit afterwards.
 USAGE
 }
 
@@ -89,25 +104,149 @@ fct_record_paths() { # file
     done <"${1}"
 }
 
-# The snapshot's activate.lock, without waiting. activate.sh's rollback runs this script with
-# the lock already held on fd 9 (the same open file, so the same lock).
+# The snapshot's locks, without waiting. return.lock (fd 8) admits one return.sh per snapshot
+# and is held for the whole run, a forced takeover included, so no other return can slip in
+# while an activation is being ended or after it refuses. activate.lock (fd 9) is the
+# activation's: activate.sh's rollback runs this script with it already held on fd 9 (the same
+# open file, so the same lock) and from inside the activation's scope.
 fct_lock_snapshot() { # snap
-    local lock="${1}/activate.lock"
-    if [[ /proc/self/fd/9 -ef "${lock}" ]] && flock -n 9; then return 0; fi
+    local snap="${1}" lock="${1}/activate.lock" rlock="${1}/return.lock" rollback=0
+    if [[ /proc/self/fd/9 -ef "${lock}" ]] && flock -n 9; then rollback=1; fi
+    exec 8>>"${rlock}" || fct_die "cannot open ${rlock}"
+    if (( rollback )); then
+        # A plain return.sh refused by the activation's lock holds return.lock for a moment only.
+        flock -w 60 8 || fct_die "$(fct_lock_holder_text "${rlock}")"
+    elif ! flock -n 8; then
+        fct_die "$(fct_lock_holder_text "${rlock}")"
+    fi
+    fct_record_holder "${rlock}" return
+    if (( ! rollback )); then fct_claim_activation "${snap}"; fi
+    fct_record_holder "${lock}" return
+}
+
+# activate.lock, and an activation scope with no process left in it: only then has the
+# activation ended, whoever still holds or has released its lock. Holding return.lock and
+# activate.lock, nothing can join the scope again (a new activation needs activate.lock).
+fct_claim_activation() { # snap
+    local snap="${1}" lock="${1}/activate.lock" unit cgroup held=0
+    unit="$(fct_scope_unit "${snap}")" || fct_die "cannot name the activation's transient scope for ${snap}"
     exec 9>>"${lock}" || fct_die "cannot open ${lock}"
-    if ! flock -n 9; then
-        # --force overrides only a current activate.sh record; never a stale one or another return.
-        if ! (( FORCE )) || ! fct_live_holder "${lock}" || [[ "${HOLDER_ROLE}" != activate ]]; then
-            fct_die "$(fct_lock_holder_text "${lock}")"
+    flock -n 9 || held=1
+    cgroup="$(fct_scope_cgroup "${unit}")"
+    if (( ! held )) && fct_scope_empty "${unit}" "${cgroup}"; then
+        fct_finish_takeover "${snap}" "${unit}"
+        return 0
+    fi
+    if (( ! FORCE )); then
+        if [[ -e "${snap}/${TAKEOVER}" ]] && ! fct_scope_empty "${unit}" "${cgroup}"; then
+            fct_refuse_scope "${snap}" "${unit}" "${cgroup}" "$(fct_takeover_text "${snap}") did not finish: its scope ${unit} still has processes:" \
+                "The activation's automatic rollback was ended, and the old service is still stopped; this return changed nothing."
         fi
-        fct_end_activation "${HOLDER_PID}" "${HOLDER_START}"
+        if (( held )); then fct_die "$(fct_lock_holder_text "${lock}")"; fi
+        fct_refuse_scope "${snap}" "${unit}" "${cgroup}" \
+            "activate.sh is no longer running, but its scope ${unit} still has processes (a step it left behind may still change packages or restart services):" \
+            "This return changed nothing. To end them now instead of waiting: return.sh ${snap} --force"
+    fi
+    fct_end_scope "${snap}" "${unit}" "${cgroup}"
+    if (( held )); then
         local deadline=$(( SECONDS + 5 ))
         until flock -n 9; do
-            (( SECONDS < deadline )) || fct_die "--force: activate.sh has ended, but ${lock} is still held (find the holder: fuser -v ${lock}); nothing was changed on the host by this return"
+            if (( SECONDS >= deadline )); then
+                fct_finish_takeover "${snap}" "${unit}"
+                fct_die "--force: the activation's scope ${unit} is empty, but ${lock} is still held by a process outside it (find it: fuser -v ${lock}); nothing was changed on the host by this return"
+            fi
             fct_pause
         done
     fi
-    fct_record_holder "${lock}" return
+    fct_finish_takeover "${snap}" "${unit}"
+}
+
+# The scope's control group path (/system.slice/UNIT), or nothing when systemd has no such unit.
+fct_scope_cgroup() { # unit
+    local cgroup
+    cgroup="$(systemctl show -p ControlGroup --value "${1}" 2>/dev/null || true)"
+    if [[ "${cgroup}" == /*"/${1}" && "${cgroup}" != *..* ]]; then printf '%s\n' "${cgroup}"; fi
+}
+
+# The scope has no process left: systemd reports it inactive (it goes inactive only once its
+# cgroup is empty, and systemctl kill never stops it early), and its cgroup, when known, is
+# gone or unpopulated.
+fct_scope_empty() { # unit [cgroup]
+    local state events=''
+    state="$(systemctl is-active "${1}" 2>/dev/null || true)"
+    [[ "${state}" == inactive || "${state}" == failed ]] || return 1
+    [[ -n "${2:-}" ]] || return 0
+    { events="$(<"${CUTOVER_ROOT}/sys/fs/cgroup${2}/cgroup.events")"; } 2>/dev/null || return 0
+    [[ "${events}" != *'populated 1'* ]]
+}
+
+# "  PID STAT ARGS" for each process still in the scope. Every read tolerates a process (or the
+# whole cgroup) vanishing meanwhile, so the list always completes.
+fct_scope_list() { # unit cgroup
+    local pid line listed=0
+    local -a pids=()
+    if [[ -n "${2}" ]]; then
+        { mapfile -t pids <"${CUTOVER_ROOT}/sys/fs/cgroup${2}/cgroup.procs"; } 2>/dev/null || pids=()
+    fi
+    for pid in "${pids[@]}"; do
+        [[ "${pid}" =~ ^[0-9]+$ ]] || continue
+        listed=1
+        line="$(ps -o pid=,stat=,args= -p "${pid}" 2>/dev/null || true)"
+        printf '  %s\n' "${line:-${pid} (exited while this list was made)}"
+    done
+    if (( ! listed )); then printf '  (no list available; see: systemd-cgls --unit %s)\n' "${1}"; fi
+    return 0
+}
+
+# Refuse with what is still in the scope and the exact next step; changes nothing.
+fct_refuse_scope() { # snap unit cgroup headline consequence
+    {
+        printf 'ERROR: %s\n' "${4}"
+        fct_scope_list "${2}" "${3}"
+        printf '%s\n' "${5}"
+        printf 'Inspect: systemctl status %s; systemd-cgls --unit %s\n' "${2}" "${2}"
+        printf "Next: wait until 'systemctl is-active %s' prints inactive, then run: return.sh %s --force\n" "${2}" "${1}"
+    } >&2 || true
+    exit 1
+}
+
+# "a forced return (return.sh --force, pid P, started T)" from the takeover marker.
+fct_takeover_text() { # snap
+    local pid started
+    pid="$(fct_meta_get "${1}/${TAKEOVER}" pid 2>/dev/null || true)"
+    started="$(fct_meta_get "${1}/${TAKEOVER}" started 2>/dev/null || true)"
+    printf 'a forced return (return.sh --force, pid %s, started %s) ended this snapshot'"'"'s activation but' "${pid:-?}" "${started:-?}"
+}
+
+# --force: end the activation by its scope, not by pid. systemd signals every process in the
+# scope's cgroup, including one started a moment ago, and nothing outside it; a pid cannot be
+# reused into the cgroup. Waits, bounded, for the scope to empty; if it does not, stops having
+# changed nothing else, holding no lock, and leaves the marker for the next return.sh.
+fct_end_scope() { # snap unit cgroup
+    local snap="${1}" unit="${2}" cgroup="${3}" deadline
+    printf 'unit=%s\npid=%s\nstarted=%s\n' "${unit}" "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"${snap}/${TAKEOVER}" \
+        || fct_warn "could not record the takeover in ${snap}/${TAKEOVER}"
+    fct_warn "--force: ending the activation, every process in scope ${unit} (activate.sh, its rollback and its steps): systemctl kill --kill-whom=all --signal=KILL ${unit}; if it was inside dpkg, run dpkg --audit after this return"
+    # Fails harmlessly when the unit no longer exists (the scope has emptied already). systemd
+    # rereads the cgroup until it finds no new process, and a process with SIGKILL pending
+    # cannot complete a fork, so one call reaches every process the scope will ever hold.
+    systemctl kill --kill-whom=all --signal=KILL "${unit}" >/dev/null 2>&1 || true
+    deadline=$(( SECONDS + FORCE_WAIT ))
+    until fct_scope_empty "${unit}" "${cgroup}"; do
+        if (( SECONDS >= deadline )); then
+            fct_refuse_scope "${snap}" "${unit}" "${cgroup}" \
+                "--force: the activation's scope ${unit} still has processes ${FORCE_WAIT}s after SIGKILL (a process in uninterruptible I/O, such as dpkg waiting on a disk, cannot exit until that I/O ends):" \
+                "The activation's automatic rollback was ended with it, and the old service is still stopped; this return changed nothing else."
+        fi
+        fct_pause
+    done
+}
+
+# The activation's scope is empty: a takeover recorded by an earlier --force is complete.
+fct_finish_takeover() { # snap unit
+    [[ -e "${1}/${TAKEOVER}" ]] || return 0
+    rm -f -- "${1}/${TAKEOVER}" || fct_die "cannot remove ${1}/${TAKEOVER}"
+    fct_log "return: the activation's scope ${2} is now empty; the forced takeover recorded in ${1}/${TAKEOVER} is complete"
 }
 
 # A step activate.sh could not end (SNAP/stuck-step: "PID START COMMAND") may still change
@@ -120,58 +259,6 @@ fct_check_stuck_step() { # snap
         fct_fail "the activation's step (pid ${pid}: ${command}) is still running and may still change packages or restart services. When it has exited (check: ps -o pid,stat,args -p ${pid}), run dpkg --audit, then dpkg --configure -a or dpkg --remove limeos as it reports, and run return.sh ${1} again"
     else
         fct_log "return: the activation's stuck step (pid ${pid:-?}: ${command:-?}) has exited since; run dpkg --audit to check the package state"
-    fi
-}
-
-# Live processes of the activation being ended: the holder and its descendants (pid and start
-# time as recorded), and anything in a session one of them leads (each step runs in its own,
-# and a step's children stay in it after their parent has gone).
-fct_end_targets() {
-    local pid ppid sid start state
-    while read -r pid ppid sid start state; do
-        [[ "${pid}" != "$$" && "${state}" != Z ]] || continue
-        if [[ "${END_TREE["${pid}"]:-}" == "${start}" || -n "${END_SESSIONS["${sid}"]:-}" ]]; then printf '%s\n' "${pid}"; fi
-    done < <(fct_proc_table)
-}
-
-# --force: end the activate.sh that holds the lock, and every step it started, before this
-# return changes anything, so a stalled step cannot resume behind it (restart the Rust
-# services, take port 8002 first). If any of it survives the last-resort signal, stop with
-# nothing changed: proceeding would race a process that may still install packages or start
-# services, and the operator who chose --force is there to wait for it and run again.
-fct_end_activation() { # holder_pid holder_start
-    local holder="${1}" table pid ppid sid start state grew=1 signal wait_s survivors
-    table="$(fct_proc_table)"
-    while read -r pid ppid sid start state; do
-        if [[ "${pid}" == "${holder}" ]]; then END_TREE["${pid}"]="${start}"; fi
-    done <<<"${table}"
-    [[ "${END_TREE["${holder}"]:-}" == "${2}" ]] || fct_die "--force: activate.sh (pid ${holder}) changed or exited while being checked; run return.sh again"
-    while (( grew )); do
-        grew=0
-        while read -r pid ppid sid start state; do
-            if [[ -n "${END_TREE["${ppid}"]:-}" && -z "${END_TREE["${pid}"]:-}" ]]; then END_TREE["${pid}"]="${start}"; grew=1; fi
-        done <<<"${table}"
-    done
-    while read -r pid ppid sid start state; do
-        if [[ -n "${END_TREE["${pid}"]:-}" && "${pid}" == "${sid}" ]]; then END_SESSIONS["${sid}"]=1; fi
-    done <<<"${table}"
-    fct_warn "--force: ending activate.sh (pid ${holder}) and its steps before returning"
-    # The holder at once with a real SIGKILL: TERM (or any signal bash can catch, since its EXIT
-    # trap makes bash catch them) would start its own rollback beside this one.
-    kill -s KILL "${holder}" 2>/dev/null || true
-    for signal in TERM "${KILL_SIGNAL}"; do
-        if [[ "${signal}" == TERM ]]; then wait_s=10; else wait_s=5; fi
-        while read -r pid; do kill -s "${signal}" "${pid}" 2>/dev/null || true; done < <(fct_end_targets)
-        local deadline=$(( SECONDS + wait_s ))
-        while [[ -n "$(fct_end_targets)" ]] && (( SECONDS < deadline )); do fct_pause; done
-    done
-    survivors=''
-    while read -r pid; do
-        read -r state < <(awk '{ sub(/^.*\) /, ""); print $1 }' "/proc/${pid}/stat" 2>/dev/null || echo '?')
-        survivors+="pid ${pid} (state ${state}) $(tr '\0' ' ' <"/proc/${pid}/cmdline" 2>/dev/null); "
-    done < <(fct_end_targets)
-    if [[ -n "${survivors}" ]]; then
-        fct_die "--force: still alive after SIG${KILL_SIGNAL}: ${survivors}nothing was changed on the host by this return (activate.sh itself was ended). Wait for these to exit (ps -o pid,stat,args -p PID), then run return.sh --force again"
     fi
 }
 

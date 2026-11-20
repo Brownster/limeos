@@ -11,12 +11,17 @@
 export LC_ALL=C
 
 # Test hooks: LIMEOS_CUTOVER_ROOT prefixes every host path; CUTOVER_NOW fixes the
-# clock; CUTOVER_ALLOW_NONROOT skips the root check (stub-driven tests only);
-# CUTOVER_KILL_SIGNAL replaces the last-resort KILL so a test can model a process KILL
-# cannot end in time (uninterruptible I/O), since the kernel always honours SIGKILL.
+# clock; CUTOVER_ALLOW_NONROOT skips the root check (stub-driven tests only).
 CUTOVER_ROOT="${LIMEOS_CUTOVER_ROOT:-}"
 DRY_RUN=0
-KILL_SIGNAL="${CUTOVER_KILL_SIGNAL:-KILL}"
+# The last-resort signal activate.sh sends a step that outlives TERM. Always KILL in a real run:
+# CUTOVER_KILL_SIGNAL is honoured only under the stub test harness (a fake root, the non-root
+# override, and not root), where it lets a test model a step that KILL cannot end in time
+# (uninterruptible I/O). An inherited CUTOVER_KILL_SIGNAL=STOP cannot suspend a real step.
+KILL_SIGNAL=KILL
+if [[ -n "${CUTOVER_ROOT}" && "${CUTOVER_ALLOW_NONROOT:-0}" == 1 && "${EUID}" -ne 0 ]]; then
+    KILL_SIGNAL="${CUTOVER_KILL_SIGNAL:-KILL}"
+fi
 
 # Frozen writers (stopped at cutover), in start order for the return path.
 FROZEN_UNITS=(pihealth-helper.service pi-health.service limeos-metrics-collector.timer limeos-package-reconcile.timer)
@@ -88,33 +93,47 @@ fct_proc_start() { # pid
     printf '%s\n' "${fields[19]:-}"
 }
 
-# "PID PPID SID START STATE" for every process (from /proc/PID/stat; START as fct_proc_start).
-fct_proc_table() {
-    local stat_file stat pid
+# Succeeds while PID is the process that started at START (as fct_proc_start) and has not
+# exited (a zombie has). Read-only, so a reused pid can only make it answer no.
+fct_proc_running() { # pid start
+    local stat=''
     local -a fields=()
-    for stat_file in /proc/[0-9]*/stat; do
-        { IFS= read -r stat <"${stat_file}"; } 2>/dev/null || continue
-        pid="${stat_file#/proc/}"
-        pid="${pid%/stat}"
-        read -r -a fields <<<"${stat##*) }"
-        printf '%s %s %s %s %s\n' "${pid}" "${fields[1]}" "${fields[3]}" "${fields[19]}" "${fields[0]}"
-    done
+    { IFS= read -r stat <"/proc/${1}/stat"; } 2>/dev/null || return 1
+    read -r -a fields <<<"${stat##*) }"
+    [[ "${fields[0]:-}" != Z && "${fields[19]:-}" == "${2}" ]]
 }
 fct_pause() { read -r -t 0.2 <> <(:) || true; }
 
-# The snapshot lock (SNAP/activate.lock, held on fd 9) records its holder as one line,
-# "ROLE PID START", written by whichever script takes it.
-fct_record_holder() { # lock role
-    printf '%s %s %s\n' "${2}" "$$" "$(fct_proc_start "$$")" >"${1}"
+# Every activation of a snapshot runs inside this transient scope (systemd-run --scope
+# --unit), in attached mode too, so the kernel's cgroup, not a list of pids, says which
+# processes are the activation's; return.sh --force ends it by this unit. Derived from the
+# snapshot's real path, so activate.sh and return.sh name the same unit.
+fct_scope_unit() { # snapshot_dir
+    local real base crc _
+    real="$(cd -P -- "${1}" && pwd -P)" || return 1
+    base="${real##*/}"
+    base="${base//[^A-Za-z0-9_]/_}"
+    read -r crc _ < <(printf '%s' "${real}" | cksum)
+    [[ "${crc}" =~ ^[0-9]+$ ]] || return 1
+    printf 'limeos-cutover-activate-%s-%s.scope\n' "${base:0:48}" "${crc}"
 }
-# Sets HOLDER_ROLE and HOLDER_PID from the record; succeeds only when that pid still runs
-# with the recorded start time (otherwise the record is stale: exited, or the pid reused).
+
+# The snapshot's locks (SNAP/activate.lock on fd 9, SNAP/return.lock on fd 8) record their
+# holder as one line, "ROLE PID START [UNIT]", written by whichever script takes them; an
+# activation adds the transient scope it runs in.
+fct_record_holder() { # lock role [unit]
+    printf '%s %s %s%s\n' "${2}" "$$" "$(fct_proc_start "$$")" "${3:+ ${3}}" >"${1}"
+}
+# Sets HOLDER_ROLE, HOLDER_PID, HOLDER_START and HOLDER_UNIT from the record; succeeds only
+# when that pid still runs with the recorded start time (otherwise the record is stale:
+# exited, or the pid reused).
 fct_live_holder() { # lock
-    local role='' pid='' start=''
-    { read -r role pid start <"${1}"; } 2>/dev/null || true
+    local role='' pid='' start='' unit=''
+    { read -r role pid start unit <"${1}"; } 2>/dev/null || true
     HOLDER_ROLE="${role:-none}"
     HOLDER_PID="${pid:-?}"
     HOLDER_START="${start:-?}"
+    HOLDER_UNIT="${unit}"
     [[ "${pid}" =~ ^[0-9]+$ && "${start}" =~ ^[0-9]+$ ]] || return 1
     [[ "$(fct_proc_start "${pid}")" == "${start}" ]]
 }
@@ -124,8 +143,8 @@ fct_lock_holder_text() { # lock
         printf '%s is held, but its holder record (%s %s) is stale: that process has exited or its pid was reused, so do not signal it; find the real holder with: fuser -v %s' \
             "${1}" "${HOLDER_ROLE}" "${HOLDER_PID}" "${1}"
     elif [[ "${HOLDER_ROLE}" == activate ]]; then
-        printf 'activate.sh (pid %s) is running on this snapshot; it rolls back by itself if it fails. To abort it now: kill -TERM %s. Only if it is hung: return.sh --force' \
-            "${HOLDER_PID}" "${HOLDER_PID}"
+        printf 'activate.sh (pid %s) is running on this snapshot%s; it rolls back by itself if it fails. To abort it now: kill -TERM %s. Only if it is hung: return.sh --force' \
+            "${HOLDER_PID}" "${HOLDER_UNIT:+ in scope ${HOLDER_UNIT}}" "${HOLDER_PID}"
     else
         printf '%s.sh (pid %s) is running on this snapshot; wait for it to finish' "${HOLDER_ROLE}" "${HOLDER_PID}"
     fi
@@ -138,7 +157,7 @@ fct_missing_requirements() { # need_python need_systemd_run (0 or 1 each)
         command -v "${tool}" >/dev/null 2>&1 || printf '%s is not installed (util-linux; activate.sh needs it)\n' "${tool}"
     done
     if (( ${2} )) && ! command -v systemd-run >/dev/null 2>&1; then
-        printf 'systemd-run is not installed (needed to run activate.sh detached; or use --attached inside tmux or screen)\n'
+        printf 'systemd-run is not installed (activate.sh runs every activation, --attached too, in a transient systemd scope)\n'
     fi
     env --default-signal=INT true >/dev/null 2>&1 \
         || printf 'env does not support --default-signal (coreutils 8.31 or newer; activate.sh needs it to run detached)\n'

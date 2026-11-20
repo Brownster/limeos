@@ -17,7 +17,11 @@ DETACHED_PID=''
 TAIL_PID=''
 HEALTH_DETAIL=''
 STEP_PID=''
+STEP_START=''
+STEP_LOCK_FD=''
 PENDING_SIGNAL=''
+# The transient scope this run is inside (set by the internal --scope-unit once it is).
+SCOPE_UNIT=''
 # How long a signal waits for the running step before stopping it. The longest legitimate step
 # is dpkg -i: its postinst restarts three services, each allowed systemd's default 90 s start
 # timeout, so five minutes is generous.
@@ -46,20 +50,27 @@ killed mid-install) before the rollback starts; after 300 s it is stopped (TERM,
 then KILL) and the rollback goes ahead anyway. The rollback runs once and to the
 end: signals are ignored while it runs.
 
-Detached by default: after the snapshot check the script runs itself again in a
-new session (systemd-run --scope, then setsid; systemd-run is required, and if it
-fails nothing has changed), with output appended to SNAPSHOT_DIR/activate.log.
-This process only follows that log and exits with the run's status. A dropped SSH
-session therefore cannot stop the run mid-step; read the log afterwards.
-Signals: Ctrl-C (SIGINT) here is passed to the run as SIGTERM, which rolls back.
-SIGTERM or SIGHUP here only stops following; the run carries on. The run itself
-rolls back on SIGINT, SIGTERM or SIGHUP: with the terminal gone, use
-kill -TERM <pid printed at the start>. --attached runs in the foreground instead
-(tests, or an operator inside tmux/screen).
+Every run happens inside a transient systemd scope named for the snapshot,
+limeos-cutover-activate-<snapshot>-<checksum>.scope (systemd-run --scope --unit;
+systemd-run is required, and if it cannot create the scope nothing has changed).
+Everything the run starts stays in that scope, which is how return.sh --force
+ends exactly the activation and nothing else.
+
+Detached by default: after the snapshot check the script runs itself again in
+that scope and in a new session (setsid), with output appended to
+SNAPSHOT_DIR/activate.log. This process only follows that log and exits with the
+run's status. A dropped SSH session therefore cannot stop the run mid-step; read
+the log afterwards. Signals: Ctrl-C (SIGINT) here is passed to the run as
+SIGTERM, which rolls back. SIGTERM or SIGHUP here only stops following; the run
+carries on. The run itself rolls back on SIGINT, SIGTERM or SIGHUP: with the
+terminal gone, use kill -TERM <pid printed at the start>. --attached runs in the
+foreground instead (tests, or an operator inside tmux/screen): the same process
+enters the scope and keeps the terminal.
 
 One run per snapshot: the run holds SNAPSHOT_DIR/activate.lock, and a second
 activate.sh on that snapshot is refused while it does. A snapshot that has
-completed an activation (SNAPSHOT_DIR/activated), or an existing cutover Caddy
+completed an activation (SNAPSHOT_DIR/activated), one with an unfinished
+return.sh --force (SNAPSHOT_DIR/force-takeover), or an existing cutover Caddy
 site, is refused before any change.
 USAGE
 }
@@ -93,21 +104,36 @@ fct_stop_following() { # exit status
     exit "${1}"
 }
 
-fct_detach() { # original arguments
-    local log="${SNAP}/activate.log" offset rc
+# Attached: this same process enters the scope. systemd-run --scope moves itself into the new
+# scope and execs the command in place, so the pid, the terminal, the foreground process group
+# and the lock on fd 9 all stay as they are. If systemd-run cannot create the scope it exits
+# with its own error before anything has changed.
+fct_enter_scope() { # unit, original arguments
+    local unit="${1}"
+    shift
+    fct_log "activate: entering transient scope ${unit} (if systemd-run reports an error, nothing was changed)"
+    exec systemd-run --scope --unit="${unit}" --quiet --collect -- bash "${SCRIPT_DIR}/activate.sh" "$@" --scope-unit "${unit}"
+}
+
+fct_detach() { # unit, original arguments
+    local unit="${1}" log="${SNAP}/activate.log" offset rc
+    shift
     command -v systemd-run >/dev/null 2>&1 \
-        || fct_die 'systemd-run is required to run detached; nothing was changed (or run --attached inside tmux or screen)'
+        || fct_die 'systemd-run is required (every activation runs in a transient scope); nothing was changed'
     # A background job of a script starts with SIGINT ignored, and bash cannot trap a signal
     # ignored at entry: env --default-signal=INT gives the run a SIGINT it can trap.
-    local -a runner=(systemd-run --scope --quiet --collect -- env --default-signal=INT setsid --wait)
+    local -a runner=(systemd-run --scope --unit="${unit}" --quiet --collect -- env --default-signal=INT setsid --wait)
     printf '=== activate.sh started %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"${log}"
     offset="$(stat -c %s -- "${log}")"
     trap fct_forward INT
     trap 'fct_stop_following 143' TERM
     trap 'fct_stop_following 129' HUP
-    "${runner[@]}" bash "${SCRIPT_DIR}/activate.sh" "$@" --attached </dev/null >>"${log}" 2>&1 &
+    "${runner[@]}" bash "${SCRIPT_DIR}/activate.sh" "$@" --scope-unit "${unit}" </dev/null >>"${log}" 2>&1 &
     DETACHED_PID=$!
-    fct_log "activate: running detached (pid ${DETACHED_PID}); a dropped SSH session does not stop it"
+    # The run has its own copy of fd 9; only the scope holds the lock from here on, so ending
+    # the scope frees it.
+    exec 9>&-
+    fct_log "activate: running detached in scope ${unit} (pid ${DETACHED_PID}); a dropped SSH session does not stop it"
     fct_log "activate: log ${log}; Ctrl-C here rolls back"
     tail -c "+$(( offset + 1 ))" -s 0.2 -f --pid="${DETACHED_PID}" -- "${log}" &
     TAIL_PID=$!
@@ -119,16 +145,17 @@ fct_detach() { # original arguments
 }
 
 # One activation per snapshot at a time: an exclusive lock on SNAPSHOT/activate.lock held
-# on fd 9. The detached run inherits the follower's fd 9 (the same open file, so the same
-# lock) and keeps the lock after the follower has gone.
-fct_lock() {
+# on fd 9. The run in the scope inherits fd 9 (the same open file, so the same lock) and
+# keeps the lock after the follower has gone.
+fct_lock() { # unit
     local lock="${SNAP}/activate.lock"
     if [[ ! /proc/self/fd/9 -ef "${lock}" ]]; then
         exec 9>>"${lock}" || fct_die "cannot open ${lock}"
     fi
     flock -n 9 || fct_die "$(fct_lock_holder_text "${lock}"); nothing was changed"
-    # Who holds it, for refusals and return.sh --force (the detached run re-records itself).
-    fct_record_holder "${lock}" activate
+    # Who holds it and in which scope, for refusals and return.sh (the run in the scope
+    # re-records itself).
+    fct_record_holder "${lock}" activate "${1}"
 }
 
 # Refuse before arming when the cutover is already in place: a rerun would stop nothing
@@ -138,25 +165,45 @@ fct_refuse_if_active() {
     if [[ -e "${SNAP}/activated" ]]; then
         fct_need "this snapshot was already activated ($(head -n1 -- "${SNAP}/activated")); nothing was changed (return.sh goes back; a new activation needs a new preflight)" false
     fi
+    if [[ -e "${SNAP}/force-takeover" ]]; then
+        fct_need "a forced return.sh on this snapshot has not finished (${SNAP}/force-takeover); nothing was changed (run return.sh ${SNAP} first; a new activation needs a new preflight)" false
+    fi
     fct_need "the cutover is already active (${SITE_DIR}/${SITE_NAME} exists); nothing was changed" test ! -e "${site_file}"
 }
+
+# The running step is still the process started at STEP_START (read-only, so reuse-safe).
+fct_step_running() { [[ -n "${STEP_START}" ]] && fct_proc_running "${STEP_PID}" "${STEP_START}"; }
 
 # Mutating step: from the first one on, any failure rolls back (never under --dry-run).
 # Each step runs in its own session, so a terminal Ctrl-C (sent to the whole foreground
 # process group) reaches only this script: the step (dpkg mid-install, say) finishes and
-# the trap rolls back after it returns.
+# the trap rolls back after it returns. setsid changes the session, never the cgroup, so the
+# step and everything it starts stay in the activation's scope (nothing here runs a nested
+# systemd-run, which would move them out).
+#
+# fct_finish_step may have to signal the step's process group by number. Bash reaps its
+# children by itself, so it cannot hold the step unreaped to keep that number from being
+# reused; instead the step's first act (before it execs the command) is to fork a pin: a
+# process in the step's session and process group that ignores TERM, INT and HUP and exits
+# only once this script unlocks STEP_LOCK (or exits). The kernel never hands out a pid while
+# a process group of that number exists, so while the pin lives, -STEP_PID names this step's
+# group and nothing else. The lock is held for the whole step and released below.
 fct_do() {
     if (( DRY_RUN )); then fct_run "$@"; return 0; fi
     ARMED=1
     printf '+ %s\n' "$*"
     local rc=0
+    flock -x "${STEP_LOCK_FD}"
     # In the background so a signal interrupts wait at once (see fct_on_signal).
-    setsid --wait "$@" 9>&- &
+    # shellcheck disable=SC2016  # expanded by the step's own bash
+    setsid --wait bash -c '(trap "" INT TERM HUP; exec flock -s "$0" true) </dev/null >/dev/null 2>&1 & exec "$@"' \
+        "${SNAP}/step.lock" "$@" 9>&- {STEP_LOCK_FD}>&- &
     STEP_PID=$!
+    STEP_START="$(fct_proc_start "${STEP_PID}")"
     while :; do
         rc=0
         wait "${STEP_PID}" || rc=$?
-        if ! kill -0 "${STEP_PID}" 2>/dev/null; then break; fi
+        if ! fct_step_running; then break; fi
         # A signal interrupted wait while the step still runs: give it the grace period.
         if [[ -n "${PENDING_SIGNAL}" ]]; then
             # Reap the step only once it has gone; one stuck in uninterruptible I/O must not hold
@@ -165,7 +212,9 @@ fct_do() {
             break
         fi
     done
+    flock -u "${STEP_LOCK_FD}"
     STEP_PID=''
+    STEP_START=''
     if [[ -n "${PENDING_SIGNAL}" ]]; then fct_abort "interrupted by SIG${PENDING_SIGNAL}"; fi
     (( rc == 0 )) || fct_abort "command failed: $*"
 }
@@ -176,21 +225,25 @@ fct_do() {
 # dpkg --audit after the rollback and finish or remove the package by hand.
 fct_finish_step() { # command text
     local deadline=$(( SECONDS + STEP_GRACE ))
-    while kill -0 "${STEP_PID}" 2>/dev/null && (( SECONDS < deadline )); do fct_pause; done
-    kill -0 "${STEP_PID}" 2>/dev/null || return 0
+    while fct_step_running && (( SECONDS < deadline )); do fct_pause; done
+    fct_step_running || return 0
     printf 'TIMEOUT: step still running after %ss: %s; stopping it and rolling back anyway (if it was dpkg, run dpkg --audit afterwards)\n' "${STEP_GRACE}" "${1}" >&2
+    # The step's pin is alive (this script still holds STEP_LOCK and the pin ignores TERM), so
+    # -STEP_PID is still this step's process group: see fct_do.
     kill -s TERM -- "-${STEP_PID}" 2>/dev/null || true
     deadline=$(( SECONDS + 10 ))
-    while kill -0 "${STEP_PID}" 2>/dev/null && (( SECONDS < deadline )); do fct_pause; done
-    kill -0 "${STEP_PID}" 2>/dev/null || return 0
+    while fct_step_running && (( SECONDS < deadline )); do fct_pause; done
+    fct_step_running || return 0
+    # Still pinned: TERM cannot end the pin. This signal ends it along with the step, so from
+    # here on the step is only watched (by pid and start time), never signalled again.
     kill -s "${KILL_SIGNAL}" -- "-${STEP_PID}" 2>/dev/null || true
     deadline=$(( SECONDS + 5 ))
-    while kill -0 "${STEP_PID}" 2>/dev/null && (( SECONDS < deadline )); do fct_pause; done
-    kill -0 "${STEP_PID}" 2>/dev/null || return 0
+    while fct_step_running && (( SECONDS < deadline )); do fct_pause; done
+    fct_step_running || return 0
     # Still there (a dpkg in uninterruptible I/O): roll back regardless, and leave a record so
     # return.sh can tell whether it is still alive and say what to do.
     printf 'TIMEOUT: step (pid %s) has not exited after SIG%s: %s; rolling back regardless\n' "${STEP_PID}" "${KILL_SIGNAL}" "${1}" >&2
-    printf '%s %s %s\n' "${STEP_PID}" "$(fct_proc_start "${STEP_PID}")" "${1}" >"${SNAP}/stuck-step" \
+    printf '%s %s %s\n' "${STEP_PID}" "${STEP_START}" "${1}" >"${SNAP}/stuck-step" \
         || fct_warn "could not record the stuck step in ${SNAP}/stuck-step"
     return 1
 }
@@ -263,6 +316,7 @@ fct_main() {
             --yes-i-have-operator-approval) approved=1; shift ;;
             --dry-run) DRY_RUN=1; shift ;;
             --attached) ATTACHED=1; shift ;;
+            --scope-unit) SCOPE_UNIT="${2:?--scope-unit needs a unit}"; shift 2 ;;
             --package) package="${2:?--package needs a path}"; shift 2 ;;
             --expected-version) version="${2:?--expected-version needs a value}"; shift 2 ;;
             --host) host="${2:?--host needs a value}"; shift 2 ;;
@@ -306,13 +360,24 @@ fct_main() {
     local requirement
     while IFS= read -r requirement; do
         fct_need "requirement: ${requirement}; nothing was changed" false
-    done < <(fct_missing_requirements 0 "$(( ! ATTACHED && ! DRY_RUN ))")
-    if (( ! DRY_RUN )); then fct_lock; fi
-    fct_refuse_if_active
-    if (( ! DRY_RUN && ! ATTACHED )); then
-        local rc=0
-        fct_detach "${original_args[@]}" || rc=$?
-        return "${rc}"
+    done < <(fct_missing_requirements 0 "$(( ! DRY_RUN ))")
+    if (( ! DRY_RUN )); then
+        local unit
+        unit="$(fct_scope_unit "${SNAP}")" || fct_die "cannot name the transient scope for ${SNAP}; nothing was changed"
+        if [[ -n "${SCOPE_UNIT}" ]]; then
+            [[ "${SCOPE_UNIT}" == "${unit}" ]] || fct_die "--scope-unit is internal (activate.sh passes it to itself, here ${unit}); nothing was changed"
+            [[ "$(fct_unit_active "${unit}")" == active ]] || fct_die "not running inside its transient scope ${unit}; nothing was changed"
+        fi
+        fct_lock "${unit}"
+        fct_refuse_if_active
+        if [[ -z "${SCOPE_UNIT}" ]]; then
+            if (( ATTACHED )); then fct_enter_scope "${unit}" "${original_args[@]}"; fi
+            local rc=0
+            fct_detach "${unit}" "${original_args[@]}" || rc=$?
+            return "${rc}"
+        fi
+    else
+        fct_refuse_if_active
     fi
     # Only the named file is installed, and only when it is the pinned limeos version.
     [[ "${package}" == *.deb ]] || fct_die "--package must name one limeos .deb file: ${package}"
@@ -331,6 +396,7 @@ fct_main() {
     catalog_problem="$(fct_catalog_problem)"
     [[ -z "${catalog_problem}" ]] || fct_need "${catalog_problem}" false
     [[ -r "${template}" ]] || fct_die "site template not readable: ${template}"
+    if (( ! DRY_RUN )); then exec {STEP_LOCK_FD}>>"${SNAP}/step.lock" || fct_die "cannot open ${SNAP}/step.lock"; fi
 
     local rendered=''
     if (( DRY_RUN )); then
