@@ -1475,6 +1475,79 @@ class ActivateTests(Harness):
                 self.assertTrue(self.alive(member.pid))
                 self.assertFalse((self.snap / "force-takeover").exists())
 
+    def hang(self, *patterns):
+        """Stub calls matching any glob PATTERN hang for 90 s (a stuck systemd query)."""
+        with open(self.stub / "hang.txt", "a") as handle:
+            handle.write("".join(p + "\n" for p in patterns))
+
+    def test_a_slow_plain_return_cannot_strand_the_rollback(self):
+        # After the frozen app has stopped, an operator's plain return.sh starts while the
+        # activation is mid-step, and every systemd query it could make hangs past the old 60 s
+        # limit. It must refuse at once (an activation holds the lock) without holding return.lock
+        # across a query, so the activation's rollback, when its step then fails, still runs.
+        self.passing_snapshot()
+        reached, go = self.stub / "reached", self.stub / "go"
+        hook = self.stub / "hook-start-limeos-core.service"
+        hook.write_text(f"#!/usr/bin/env bash\ntouch '{reached}'\n"
+                        f"while [[ ! -e '{go}' ]]; do command -p sleep 0.05; done\nexit 1\n")
+        hook.chmod(0o755)
+        self.addCleanup(go.touch)
+        args = self.activate_args("--yes-i-have-operator-approval", "--attached")
+        args[0] = str(self.snap)
+        first = subprocess.Popen(["bash", str(SCRIPTS / "activate.sh"), *args], env={**self.env, "CUTOVER_NOW": str(NOW + 60)},
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        self.wait_for(reached.exists)
+        self.hang("systemctl show *", "systemctl is-active *", "systemctl is-enabled *", "systemctl list-unit-files *")
+        seen = len(self.calls())
+        started = time.monotonic()
+        plain = self.do_return()
+        self.assertLess(time.monotonic() - started, 10)
+        self.assertEqual(plain.returncode, 1, plain.stdout + plain.stderr)
+        self.assertIn(f"activate.sh (pid {first.pid}) is running on this snapshot", plain.stderr)
+        self.assertFalse([l for l in self.calls()[seen:] if l.startswith("systemctl ")], "the refusal made a systemd query")
+        (self.stub / "hang.txt").unlink()
+        go.touch()
+        out, err = first.communicate(timeout=120)
+        self.assert_rolled_back(types.SimpleNamespace(returncode=first.returncode, stdout=out, stderr=err))
+        self.assertIn("return verified", err)
+
+    def test_the_rollback_waits_for_a_return_holding_return_lock_and_says_who(self):
+        self.passing_snapshot()
+        self.inject("systemctl start limeos-core.service")
+        handle = self.hold_lock_with_record(self.own_record("return"), name="return.lock")
+        log = Path(self._tmp.name) / "activate.err"
+        args = self.activate_args("--yes-i-have-operator-approval", "--attached")
+        args[0] = str(self.snap)
+        with open(log, "w") as err:
+            first = subprocess.Popen(["bash", str(SCRIPTS / "activate.sh"), *args],
+                                     env={**self.env, "CUTOVER_NOW": str(NOW + 60), "CUTOVER_LOCK_REPORT_INTERVAL": "1"},
+                                     stdout=subprocess.DEVNULL, stderr=err, start_new_session=True)
+        waiting = f"ROLLBACK: waiting for {self.snap}/return.lock, held by return.sh (pid {os.getpid()}, state "
+        self.wait_for(lambda: log.read_text().count(waiting) >= 3)
+        self.assertIsNone(first.poll())  # still waiting, not given up
+        handle.close()
+        self.assertEqual(first.wait(timeout=120), 1)
+        text = log.read_text()
+        self.assertIn(" since ", text)
+        self.assertIn("return verified", text)
+        self.assertNotIn("ROLLBACK INCOMPLETE", text)
+        self.assert_returned()
+
+    def test_a_hung_systemd_query_is_a_named_failure(self):
+        self.passing_snapshot()
+        self.assertEqual(self.approved().returncode, 0)
+        unit = self.scope_unit()
+        self.hang(f"systemctl is-active {unit}")
+        self.env["CUTOVER_QUERY_TIMEOUT"] = "1"
+        calls_before = self.mutating_calls()
+        started = time.monotonic()
+        result = self.do_return()
+        self.assertLess(time.monotonic() - started, 30)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(f"timed out after 1s: systemctl is-active {unit}", result.stderr)
+        self.assertIn(f"cannot tell whether the activation's scope {unit} is empty", result.stderr)
+        self.assertEqual(self.mutating_calls(), calls_before)
+
     def test_health_failures_roll_back(self):
         base = {
             "http://127.0.0.1:8096/Sessions": "401",

@@ -13,6 +13,13 @@ if [[ -f "${STUB_DIR}/fail.txt" ]] && grep -qxF -- "${call}" "${STUB_DIR}/fail.t
     printf 'stub: injected failure for: %s\n' "${call}" >&2
     exit 1
 fi
+# Glob patterns in hang.txt: a matching call hangs for 90 s first (a stuck systemd query).
+if [[ -f "${STUB_DIR}/hang.txt" ]]; then
+    while IFS= read -r pattern; do
+        # shellcheck disable=SC2053
+        if [[ -n "${pattern}" && "${call}" == ${pattern} ]]; then command -p sleep 90; break; fi
+    done <"${STUB_DIR}/hang.txt"
+fi
 # "SIGNAL pattern" lines in signal.txt: send SIGNAL to the calling script when the call matches
 # the glob pattern, then carry on with the call. "group:SIGNAL" sends it to the caller's whole
 # process group instead, as a terminal's Ctrl-C does; a stub in that group dies of it.

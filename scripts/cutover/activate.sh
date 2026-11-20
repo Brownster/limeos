@@ -291,11 +291,11 @@ fct_core_origin_ok() { tr -d ' \n' <"${CUTOVER_ROOT}/etc/limeos/core.json" | gre
 fct_installed_version_ok() { [[ "$(dpkg-query -W -f='${Version}' limeos 2>/dev/null || true)" == "${1}" ]]; }
 # The stack reader (started, never enabled) is up, listening, and not crash-looping.
 fct_reader_ready() {
-    systemctl is-active --quiet "${STACK_READER}" || return 1
+    fct_query systemctl is-active --quiet "${STACK_READER}" || return 1
     [[ -S "${CUTOVER_ROOT}${STACK_READER_SOCKET}" ]] || return 1
-    [[ "$(systemctl show -p NRestarts --value "${STACK_READER}" 2>/dev/null || echo 0)" == 0 ]]
+    [[ "$(fct_query systemctl show -p NRestarts --value "${STACK_READER}" || echo 0)" == 0 ]]
 }
-fct_units_active() { local unit; for unit in "$@"; do systemctl is-active --quiet "${unit}" || return 1; done; }
+fct_units_active() { local unit; for unit in "$@"; do fct_query systemctl is-active --quiet "${unit}" || return 1; done; }
 # Managed containers have the snapshot's IDs and StartedAt; HEALTH_DETAIL names any that do not.
 fct_docker_matches() {
     local changed

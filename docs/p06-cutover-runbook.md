@@ -100,6 +100,14 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    while it is (see step 7). Wait for it to exit
    (`ps -o pid,stat,args -p PID`), run `dpkg --audit`, then `dpkg --configure -a`
    or `dpkg --remove limeos` as it reports, and run `return.sh SNAP` again. The rollback runs once and ignores further signals until it ends.
+   With the old service down, the rollback never gives up on `SNAP/return.lock`:
+   if another `return.sh` holds it, the rollback waits until it is released and
+   prints every 30 s `ROLLBACK: waiting for SNAP/return.lock, held by return.sh
+   (pid P, state S) since T`. That holder either finishes the return or refuses
+   (seeing the activation's lock) and releases it, and the kernel releases it if
+   the holder dies. If the state is `T` (a `return.sh` suspended with Ctrl-Z),
+   resume it with `kill -CONT P`. Every `systemctl` query the scripts make gives
+   up after 30 s with a `timed out after 30s: ...` warning naming it.
    The step is signalled by its process group, which a helper process in that
    group keeps from being reused until the script has finished with the step.
    Every activation runs inside a transient systemd scope named for the
@@ -164,7 +172,8 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    while an activation on that snapshot is still running. Only one `return.sh`
    runs per snapshot: each takes `SNAP/return.lock` first and holds it to the end,
    so a second one is refused and names the first. Then it takes
-   `SNAP/activate.lock`; while an activation holds that, it refuses and names the
+   `SNAP/activate.lock`; while an activation holds that, it refuses at once,
+   before any systemd query, and names the
    activation's pid and scope (each script records its role, pid and start time
    in the locks; a record whose process has gone is reported as stale, never as a
    pid to signal). That run rolls back by itself if it fails; `kill -TERM PID`

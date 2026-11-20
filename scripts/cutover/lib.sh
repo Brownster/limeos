@@ -38,6 +38,11 @@ CATALOG_PATH=/etc/limeos/management-catalog.json
 LIMEOSCTL="${LIMEOSCTL:-/usr/lib/limeos/limeosctl}"
 CORE_SOCKET="${CORE_SOCKET:-/run/limeos-core/core.sock}"
 
+# Every systemctl query runs under this bound (seconds), so a hung systemd becomes a named
+# failure instead of an indefinite stall.
+QUERY_TIMEOUT="${CUTOVER_QUERY_TIMEOUT:-30}"
+[[ "${QUERY_TIMEOUT}" =~ ^[1-9][0-9]*$ ]] || QUERY_TIMEOUT=30
+
 fct_log() { printf '%s\n' "$*"; }
 fct_warn() { printf 'WARN: %s\n' "$*" >&2; }
 fct_die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -168,15 +173,24 @@ fct_missing_requirements() { # need_python need_systemd_run (0 or 1 each)
     return 0
 }
 
-fct_unit_active() { systemctl is-active "${1}" 2>/dev/null || true; }
-fct_unit_enabled() { systemctl is-enabled "${1}" 2>/dev/null || true; }
+# Run a read-only query (its stderr discarded) for at most QUERY_TIMEOUT seconds; a query that
+# times out is named in a warning and fails with 124.
+fct_query() { # command...
+    local rc=0
+    timeout --kill-after=5 "${QUERY_TIMEOUT}" "$@" 2>/dev/null || rc=$?
+    if (( rc == 124 || rc == 137 )); then fct_warn "timed out after ${QUERY_TIMEOUT}s: $*"; return 124; fi
+    return "${rc}"
+}
+
+fct_unit_active() { fct_query systemctl is-active "${1}" || true; }
+fct_unit_enabled() { fct_query systemctl is-enabled "${1}" || true; }
 
 # limeops-* units, discovered (names only).
 fct_limeops_units() {
     local name rest
     while read -r name rest || [[ -n "${name}" ]]; do
         [[ "${name}" == limeops-* ]] && printf '%s\n' "${name}"
-    done < <(systemctl list-unit-files 'limeops-*' --no-legend 2>/dev/null || true)
+    done < <(fct_query systemctl list-unit-files 'limeops-*' --no-legend || true)
     return 0
 }
 

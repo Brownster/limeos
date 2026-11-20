@@ -43,7 +43,7 @@ USAGE
 fct_unit_pids() {
     local unit="${1}" cg pid file
     local -a pids=()
-    cg="$(systemctl show -p ControlGroup --value "${unit}" 2>/dev/null || true)"
+    cg="$(fct_query systemctl show -p ControlGroup --value "${unit}" || true)"
     if [[ "${cg}" =~ ^/[A-Za-z0-9@._/-]+$ && "${cg}" != *..* ]]; then
         file="${CUTOVER_ROOT}/sys/fs/cgroup${cg}/cgroup.procs"
         if [[ -r "${file}" ]]; then
@@ -51,7 +51,7 @@ fct_unit_pids() {
         fi
     fi
     if (( ${#pids[@]} == 0 )); then
-        pid="$(systemctl show -p MainPID --value "${unit}" 2>/dev/null || true)"
+        pid="$(fct_query systemctl show -p MainPID --value "${unit}" || true)"
         [[ "${pid}" =~ ^[1-9][0-9]*$ && -d "${CUTOVER_ROOT}/proc/${pid}" ]] && pids+=("${pid}")
     fi
     if (( ${#pids[@]} )); then printf '%s\n' "${pids[@]}"; fi
