@@ -9,7 +9,7 @@
 //! mutation fails here until it has a body fixture.
 use crate::*;
 use limeos_api::{Access, Route};
-use limeos_domain::Role;
+use limeos_domain::{JobState, Role};
 use rusqlite::{Connection, OpenFlags};
 use std::path::Path;
 
@@ -45,6 +45,36 @@ struct Sweep {
     spare: Session,
     /// A signed-in viewer with no grant at all.
     viewer: Session,
+    /// The viewer's second session, spent on the logout case.
+    viewer_spare: Session,
+    /// The viewer's principal id.
+    viewer_id: String,
+    /// Another principal's plans, jobs and session.
+    other: Others,
+}
+/// What another principal (an operator) holds: a container plan and a
+/// container job left `needs_intervention`, a stack plan and its queued
+/// job, a compose plan and a session. No identifier of theirs, nor the
+/// administrator's principal id, may appear in any answer to the viewer.
+struct Others {
+    container_plan: String,
+    container_job: String,
+    stack_plan: String,
+    stack_job: String,
+    compose_plan: String,
+    /// Every identifier above, the operator's principal id, username,
+    /// session token and its digests, and the administrator's id.
+    identifiers: Vec<String>,
+}
+impl Others {
+    /// The other principal's identifiers that `body` contains.
+    fn leaked(&self, body: &str) -> Vec<String> {
+        self.identifiers
+            .iter()
+            .filter(|id| body.contains(id.as_str()))
+            .cloned()
+            .collect()
+    }
 }
 
 /// A core with a real store, an administrator, a viewer without scope, and
@@ -55,6 +85,7 @@ async fn fixture(catalog: bool) -> Sweep {
     let path = dir.path().join("core.sqlite");
     let db = Database::open(&path).unwrap();
     let (admin, spare, viewer) = (Session::new('a'), Session::new('f'), Session::new('b'));
+    let viewer_spare = Session::new('9');
     let fixtures: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../tests/fixtures/werkzeug-hashes.json"
     ))
@@ -63,34 +94,38 @@ async fn fixture(catalog: bool) -> Sweep {
     // their own decision for the administrator.
     let encoded = fixtures[0]["hash"].as_str().unwrap().to_owned();
     assert_eq!(fixtures[0]["password"], PASSWORD);
-    let sessions = [&admin, &spare, &viewer].map(|s| {
+    let sessions = [&admin, &spare, &viewer, &viewer_spare].map(|s| {
         (
             limeos_identity::digest(&s.token),
             limeos_identity::digest(&s.csrf),
         )
     });
-    db.call(move |s| {
-        let admin = s.import_legacy_user("admin", &encoded, now())?;
-        s.revise_grants(&admin.id, Role::Administrator, &every_grant(), now())?;
-        let record = s.login_record("admin")?.unwrap();
-        for (digest, csrf) in &sessions[..2] {
-            s.create_session(&record, None, digest, csrf, now())?;
-        }
-        let viewer = s.import_legacy_user("viewer", &encoded, now())?;
-        s.revise_grants(&viewer.id, Role::Viewer, &[], now())?;
-        let record = s.login_record("viewer")?.unwrap();
-        s.create_session(&record, None, &sessions[2].0, &sessions[2].1, now())
-    })
-    .await
-    .unwrap();
-    let compose_catalog = catalog.then(|| {
-        let mut catalog: limeos_domain::ComposeCatalog = serde_json::from_str(include_str!(
-            "../../../../tests/fixtures/compose-catalog.json"
-        ))
+    let other_encoded = encoded.clone();
+    let (admin_id, viewer_id) = db
+        .call(move |s| {
+            let admin = s.import_legacy_user("admin", &encoded, now())?;
+            s.revise_grants(&admin.id, Role::Administrator, &every_grant(), now())?;
+            let record = s.login_record("admin")?.unwrap();
+            for (digest, csrf) in &sessions[..2] {
+                s.create_session(&record, None, digest, csrf, now())?;
+            }
+            let viewer = s.import_legacy_user("viewer", &encoded, now())?;
+            s.revise_grants(&viewer.id, Role::Viewer, &[], now())?;
+            let record = s.login_record("viewer")?.unwrap();
+            for (digest, csrf) in &sessions[2..] {
+                s.create_session(&record, None, digest, csrf, now())?;
+            }
+            Ok((admin.id, viewer.id))
+        })
+        .await
         .unwrap();
-        catalog.normalize().unwrap();
-        Arc::new(catalog)
-    });
+    let mut parsed: limeos_domain::ComposeCatalog = serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/compose-catalog.json"
+    ))
+    .unwrap();
+    parsed.normalize().unwrap();
+    let other = others(&db, other_encoded, admin_id, parsed.clone()).await;
+    let compose_catalog = catalog.then(|| Arc::new(parsed));
     let core = Core {
         automation_status: Default::default(),
         reader_health: Default::default(),
@@ -121,6 +156,105 @@ async fn fixture(catalog: bool) -> Sweep {
         admin,
         spare,
         viewer,
+        viewer_spare,
+        viewer_id,
+        other,
+    }
+}
+
+/// Seeds another principal's objects (see `Others`).
+async fn others(
+    db: &Database,
+    encoded: String,
+    admin_id: String,
+    catalog: limeos_domain::ComposeCatalog,
+) -> Others {
+    use limeos_domain::{ContainerAction, ContainerSnapshot, StackSnapshot};
+    let session = Session::new('7');
+    let (digest, csrf) = (
+        limeos_identity::digest(&session.token),
+        limeos_identity::digest(&session.csrf),
+    );
+    let snapshot = |c: char| ContainerSnapshot {
+        resource: format!("container:{}", c.to_string().repeat(64)),
+        image: format!("sha256:{}", "b".repeat(64)),
+        started_at: "2026-10-05T07:00:00Z".into(),
+        running: true,
+    };
+    let (session_digest, session_csrf) = (digest.clone(), csrf.clone());
+    let seeded = db
+        .call(move |s| {
+            let other = s.import_legacy_user("otheroperator", &encoded, now())?;
+            s.revise_grants(&other.id, Role::Operator, &every_grant(), now())?;
+            let record = s.login_record("otheroperator")?.unwrap();
+            s.create_session(&record, None, &session_digest, &session_csrf, now())?;
+            let p = record.principal;
+            // A container job claimed and left needing an administrator.
+            let current = snapshot('1');
+            let plan = s.plan_container(&p, ContainerAction::Restart, &current, now())?;
+            let approved = s.approve_container(&p, &plan.plan.id, &plan.digest, now())?;
+            let job =
+                s.queue_container(&p, "other-job", &plan, &approved.token, &current, now())?;
+            s.claim_container(&p, &job.id, &current, &"1".repeat(64), now())?;
+            s.transition(
+                &job.id,
+                JobState::Running,
+                JobState::NeedsIntervention,
+                now(),
+            )?;
+            // An open container plan.
+            let open = s.plan_container(&p, ContainerAction::Restart, &snapshot('2'), now())?;
+            // A queued stack job, and an open stack plan.
+            let members = StackSnapshot::new("otherstack", vec![snapshot('3'), snapshot('4')])?;
+            let stack =
+                s.plan_stack(&p, ContainerAction::Restart, "otherstack", &members, now())?;
+            let approval = s.approve_stack(&p, &stack.plan.id, &stack.digest, now())?;
+            let stack_job =
+                s.queue_stack(&p, "other-stack", &stack, &approval.token, &members, now())?;
+            let members = StackSnapshot::new("otherstack", vec![snapshot('5'), snapshot('6')])?;
+            let open_stack =
+                s.plan_stack(&p, ContainerAction::Restart, "otherstack", &members, now())?;
+            let selection = limeos_domain::ComposeSelection {
+                stack: "media".into(),
+                template: "standard".into(),
+            };
+            let compose = s.plan_compose(&p, &catalog, &selection, now())?;
+            Ok((
+                p.id,
+                [plan.plan.id, plan.digest, approved.token, approval.token],
+                job.id,
+                open.plan.id,
+                stack_job.id,
+                open_stack.plan.id,
+                compose.plan.id,
+            ))
+        })
+        .await
+        .unwrap();
+    let (other_id, extra, container_job, container_plan, stack_job, stack_plan, compose_plan) =
+        seeded;
+    let mut identifiers = vec![
+        other_id,
+        "otheroperator".to_owned(),
+        admin_id,
+        session.token,
+        session.csrf,
+        digest,
+        csrf,
+        container_job.clone(),
+        container_plan.clone(),
+        stack_job.clone(),
+        stack_plan.clone(),
+        compose_plan.clone(),
+    ];
+    identifiers.extend(extra);
+    Others {
+        container_plan,
+        container_job,
+        stack_plan,
+        stack_job,
+        compose_plan,
+        identifiers,
     }
 }
 
@@ -417,6 +551,16 @@ struct Answer {
     envelope: Option<(String, String, bool)>,
 }
 async fn send(core: &Core, route: &Route, uri: &str, ask: Ask<'_>, body: Option<&str>) -> Answer {
+    send_text(core, route, uri, ask, body).await.0
+}
+/// As `send`, with the whole response body.
+async fn send_text(
+    core: &Core,
+    route: &Route,
+    uri: &str,
+    ask: Ask<'_>,
+    body: Option<&str>,
+) -> (Answer, String) {
     let cookie = ask.cookie.map(|t| format!("__Host-limeos={t}"));
     let mut headers = vec![];
     if let Some(cookie) = &cookie {
@@ -449,27 +593,30 @@ async fn send(core: &Core, route: &Route, uri: &str, ask: Ask<'_>, body: Option<
             value["retry"].as_bool().unwrap_or_default(),
         )
     });
-    Answer { status, envelope }
+    (Answer { status, envelope }, text)
 }
 
-/// Signed-in routes a principal may use without any grant: its own session,
-/// reads filtered to the principal's grants (none here), and lists of the
-/// principal's own jobs (none here).
-const NO_SCOPE_NEEDED: &[&str] = &[
-    "GET /api/v1/auth/session",
-    "POST /api/v1/auth/logout",
-    "GET /api/v1/overview",
-    "GET /api/v1/resources",
-    "GET /api/v1/observations/stream",
-    "GET /api/v1/jobs/needs-attention",
-    "GET /api/v1/container/jobs",
-    "GET /api/v1/container/restart/jobs",
-    "GET /api/v1/stack/jobs",
+/// Signed-in routes a principal may use without any grant, and what the
+/// viewer (no grant, no objects of its own) is answered: its own session,
+/// its own logout, and lists of its own jobs (none). Every answer to the
+/// viewer, here or not, is also checked for another principal's identifiers
+/// and for any `principal` but the viewer's. Not here, so 403: `GET
+/// /api/v1/jobs/needs-attention`, which lists every principal's stuck jobs
+/// and is administrator-only; and the observation reads (overview,
+/// resources, stream), filtered to the principal's health grants and
+/// refused when that leaves nothing.
+const NO_SCOPE_NEEDED: &[(&str, u16)] = &[
+    ("GET /api/v1/auth/session", 200),
+    ("POST /api/v1/auth/logout", 204),
+    ("GET /api/v1/container/jobs", 200),
+    ("GET /api/v1/container/restart/jobs", 200),
+    ("GET /api/v1/stack/jobs", 200),
 ];
 /// Routes on a plan or job by id that core looks up among the principal's
 /// own: another principal's, or a missing one, is "not found", so a
 /// principal without scope (who can create none) is refused with 404, and
-/// whether the id exists is not disclosed.
+/// whether the id exists is not disclosed. The viewer asks for another
+/// principal's real plan or job here (`viewer_request`).
 const OWN_OBJECTS_ONLY: &[&str] = &[
     "GET /api/v1/compose/plans/{id}",
     "POST /api/v1/compose/plans/{id}/approval",
@@ -490,6 +637,65 @@ const OWN_OBJECTS_ONLY: &[&str] = &[
     "GET /api/v1/stack/jobs/{id}",
     "POST /api/v1/stack/jobs/{id}/cancel",
 ];
+
+/// The URI and body the viewer sends: on a route by id, another principal's
+/// real plan or job of that kind; a queue request names another principal's
+/// plan. Elsewhere the sweep's own.
+fn viewer_request(other: &Others, path: &str, body: Option<&str>) -> (String, Option<String>) {
+    let id = if path.starts_with("/api/v1/compose/plans/") {
+        Some(&other.compose_plan)
+    } else if path.starts_with("/api/v1/container/plans/")
+        || path.starts_with("/api/v1/container/restart/plans/")
+    {
+        Some(&other.container_plan)
+    } else if path.starts_with("/api/v1/container/jobs/")
+        || path.starts_with("/api/v1/container/restart/jobs/")
+    {
+        Some(&other.container_job)
+    } else if path.starts_with("/api/v1/stack/plans/") {
+        Some(&other.stack_plan)
+    } else if path.starts_with("/api/v1/stack/jobs/") {
+        Some(&other.stack_job)
+    } else {
+        None
+    };
+    let uri = match id {
+        Some(id) => uri(path).replace(ID, id),
+        None => uri(path),
+    };
+    let body = body.map(|body| match path {
+        "/api/v1/container/jobs" | "/api/v1/container/restart/jobs" => {
+            body.replace(&"f".repeat(64), &other.container_plan)
+        }
+        "/api/v1/stack/jobs" => body.replace(&"c".repeat(64), &other.stack_plan),
+        _ => body.to_owned(),
+    });
+    (uri, body)
+}
+/// Every `principal` value in a JSON answer that is not `own`.
+fn foreign_principals(text: &str, own: &str) -> Vec<String> {
+    fn walk(value: &serde_json::Value, own: &str, found: &mut Vec<String>) {
+        match value {
+            serde_json::Value::Object(fields) => {
+                for (key, field) in fields {
+                    match field.as_str() {
+                        Some(principal) if key == "principal" && principal != own => {
+                            found.push(principal.to_owned())
+                        }
+                        _ => walk(field, own, found),
+                    }
+                }
+            }
+            serde_json::Value::Array(items) => items.iter().for_each(|i| walk(i, own, found)),
+            _ => {}
+        }
+    }
+    let mut found = vec![];
+    if let Ok(value) = serde_json::from_str(text) {
+        walk(&value, own, &mut found);
+    }
+    found
+}
 
 #[tokio::test]
 async fn every_route_is_authenticated_by_core_itself() {
@@ -585,11 +791,6 @@ async fn every_route_is_authenticated_by_core_itself() {
                 ),
             ]);
         }
-        if OWN_OBJECTS_ONLY.contains(&name.as_str()) {
-            cases.push((Ask::signed(&sweep.viewer), 404, "signed in without scope"));
-        } else if !NO_SCOPE_NEEDED.contains(&name.as_str()) {
-            cases.push((Ask::signed(&sweep.viewer), 403, "signed in without scope"));
-        }
         let mut cases: Vec<_> = cases.into_iter().map(|(a, s, c)| (a, s, c, body)).collect();
         if mutate && body.is_some() {
             // The CSRF value is verified before an input refusal is released,
@@ -615,6 +816,61 @@ async fn every_route_is_authenticated_by_core_itself() {
             let changed = changed(&before, &state(&sweep.db));
             assert!(changed.is_empty(), "{name}: {case} changed {changed:?}");
         }
+        // The viewer without scope: the expected answer, nothing of another
+        // principal's in it, and no store change but its own logout's.
+        let expected = NO_SCOPE_NEEDED
+            .iter()
+            .find(|(route, _)| *route == name)
+            .map(|(_, status)| *status)
+            .unwrap_or(if OWN_OBJECTS_ONLY.contains(&name.as_str()) {
+                404
+            } else {
+                403
+            });
+        let logout = name == "POST /api/v1/auth/logout";
+        let viewer = if logout {
+            &sweep.viewer_spare
+        } else {
+            &sweep.viewer
+        };
+        let (viewer_uri, viewer_body) = viewer_request(&sweep.other, route.path, body);
+        let before = state(&sweep.db);
+        let (answer, text) = send_text(
+            &sweep.core,
+            route,
+            &viewer_uri,
+            Ask::signed(viewer),
+            viewer_body.as_deref(),
+        )
+        .await;
+        if answer.status != expected {
+            misses.push(format!("{name}: signed in without scope: {answer:?}"));
+        }
+        let leaked = sweep.other.leaked(&text);
+        if !leaked.is_empty() {
+            misses.push(format!("{name}: the viewer was shown {leaked:?}: {text}"));
+        }
+        let foreign = foreign_principals(&text, &sweep.viewer_id);
+        if !foreign.is_empty() {
+            misses.push(format!(
+                "{name}: the viewer was shown principals {foreign:?}"
+            ));
+        }
+        if name == "GET /api/v1/auth/session" && !text.contains(&sweep.viewer_id) {
+            misses.push(format!("{name}: not the viewer's own session: {text}"));
+        }
+        let changed = changed(&before, &state(&sweep.db));
+        let allowed: &[&str] = if logout {
+            &["events", "meta", "sessions", "sqlite_sequence"]
+        } else {
+            &[]
+        };
+        assert!(
+            changed
+                .iter()
+                .all(|table| allowed.contains(&table.as_str())),
+            "{name}: the viewer changed {changed:?}"
+        );
         // Authenticated and scoped: whatever core then answers, it is neither
         // "who are you" nor the 403 the CSRF and Origin cases expect, so
         // those cases above are refusals and not core's own answer.
