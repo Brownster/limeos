@@ -710,7 +710,16 @@ async fn a_prepared_stack_left_by_a_crash_can_be_resolved_and_a_vanished_member_
         state: ExecutionState::Prepared,
         error: None,
     };
-    store.write_stack(&receipt, &[], true).unwrap();
+    store
+        .write_stack(
+            &receipt,
+            &[],
+            Some(crate::stack::Insert {
+                expires_at: request.plan.expires_at,
+                now: 201,
+            }),
+        )
+        .unwrap();
     engine.gone('b');
     let targets: Vec<_> = request.plan.targets().into_iter().cloned().collect();
     let evidence = shown(&engine, &targets).await;
@@ -805,7 +814,7 @@ fn schema_four_upgrade_keeps_rows_and_adds_the_resolved_state() {
         .conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 5);
+    assert_eq!(version, 6);
     assert_eq!(
         count(&store, "SELECT count(*) FROM actions WHERE action='a1'"),
         1

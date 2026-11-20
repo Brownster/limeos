@@ -14,6 +14,7 @@ pub mod deployment;
 pub mod docker;
 mod logs;
 mod resolution;
+mod retention;
 mod stack;
 pub use resolution::RESOLVED;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -198,7 +199,7 @@ impl ReceiptStore {
             0 => {
                 conn.execute_batch("BEGIN IMMEDIATE; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL); CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','outcome_unknown'); PRAGMA user_version=1; COMMIT;").map_err(durable)?;
             }
-            1..=5 => {}
+            1..=6 => {}
             _ => return Err(Error(ErrorCode::Conflict)),
         }
         if version < 2 {
@@ -216,6 +217,12 @@ impl ReceiptStore {
             // `resolution` holds the operator-resolution confirmation.
             conn.execute_batch("BEGIN IMMEDIATE; ALTER TABLE actions RENAME TO actions_v4; DROP INDEX actions_resource_lock; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','resolved')),receipt TEXT NOT NULL,operation TEXT NOT NULL DEFAULT 'restart' CHECK(operation IN ('restart','start','stop')),resolution TEXT); INSERT INTO actions(action,digest,resource,state,receipt,operation) SELECT action,digest,resource,state,receipt,operation FROM actions_v4; DROP TABLE actions_v4; CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); ALTER TABLE stack_actions RENAME TO stack_actions_v4; DROP INDEX stack_actions_lock; CREATE TABLE stack_actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','partly_done','resolved')),receipt TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop')),resolution TEXT); INSERT INTO stack_actions(action,digest,resource,state,receipt,operation) SELECT action,digest,resource,state,receipt,operation FROM stack_actions_v4; DROP TABLE stack_actions_v4; CREATE UNIQUE INDEX stack_actions_lock ON stack_actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); PRAGMA user_version=5; COMMIT;").map_err(durable)?;
         }
+        if version < 6 {
+            // Each receipt records its plan's expiry, so retention can keep it
+            // for as long as that plan could still present the action again.
+            let legacy = retention::legacy_expiry_sql();
+            conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0; ALTER TABLE stack_actions ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0; UPDATE actions SET expires_at={legacy}; UPDATE stack_actions SET expires_at={legacy}; CREATE INDEX actions_digest ON actions(digest); CREATE INDEX stack_actions_digest ON stack_actions(digest); PRAGMA user_version=6; COMMIT;")).map_err(durable)?;
+        }
         if conn
             .query_row("PRAGMA quick_check(1)", [], |r| r.get::<_, String>(0))
             .map_err(durable)?
@@ -225,11 +232,11 @@ impl ReceiptStore {
         }
         // Check the expected schema before any effect can be considered.
         let _ = conn
-            .prepare("SELECT action,digest,resource,state,receipt,operation,resolution FROM actions LIMIT 0")
+            .prepare("SELECT action,digest,resource,state,receipt,operation,resolution,expires_at FROM actions LIMIT 0")
             .map_err(durable)?;
         let _ = conn
             .prepare(
-                "SELECT action,digest,resource,state,receipt,operation,resolution FROM stack_actions LIMIT 0",
+                "SELECT action,digest,resource,state,receipt,operation,resolution,expires_at FROM stack_actions LIMIT 0",
             )
             .map_err(durable)?;
         File::open(directory)
@@ -274,13 +281,16 @@ impl ReceiptStore {
         Ok(Some(receipt))
     }
 
-    fn prepare(&mut self, receipt: &RestartReceipt) -> Result<()> {
+    /// `expires_at` is the plan's expiry; `now` is the clock that validated it.
+    fn prepare(&mut self, receipt: &RestartReceipt, expires_at: i64, now: i64) -> Result<()> {
         if fs2::available_space(&self.directory).map_err(|_| Error(ErrorCode::StateNotDurable))?
             < 8 * 1024 * 1024
         {
             return Err(Error(ErrorCode::StateNotDurable));
         }
         let tx = self.conn.transaction().map_err(durable)?;
+        retention::prune(&tx, now)?;
+        // Last resort only: retention keeps normal operation far below this.
         let count: u32 = tx
             .query_row("SELECT count(*) FROM actions", [], |r| r.get(0))
             .map_err(durable)?;
@@ -288,14 +298,15 @@ impl ReceiptStore {
             return Err(Error(ErrorCode::Overloaded));
         }
         tx.execute(
-            "INSERT INTO actions(action,digest,resource,state,receipt,operation) VALUES(?,?,?,?,?,?)",
+            "INSERT INTO actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?,?,?,?,?,?,?)",
             params![
                 receipt.action,
                 receipt.plan_digest,
                 receipt.before.resource,
                 receipt.state.as_str(),
                 encode(receipt)?,
-                receipt.operation.as_str()
+                receipt.operation.as_str(),
+                expires_at
             ],
         )
         .map_err(|e| match e {
@@ -375,7 +386,7 @@ impl ReceiptStore {
             state: ExecutionState::Prepared,
             error: None,
         };
-        self.prepare(&receipt)?;
+        self.prepare(&receipt, request.plan.expires_at, clock())?;
         // Sync may take time. Recheck expiry immediately before initiating IPC.
         if let Err(e) = request.plan.validate(clock()) {
             receipt.state = ExecutionState::PreconditionChanged;
