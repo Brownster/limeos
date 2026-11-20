@@ -877,3 +877,48 @@ async fn an_undecodable_listed_row_blocks_every_stack_but_the_read_still_returns
         }
     }
 }
+#[tokio::test]
+async fn a_container_removed_between_passes_is_changing_and_the_stacks_are_returned() {
+    let mut run = stack_labels("media", "app");
+    run["com.docker.compose.oneoff"] = json!("True");
+    // media: 0, 1; tools: 2, 3; 4 is a `--rm` container, standalone or a media
+    // one-off, removed before its second inspection or before its first.
+    for (labels, from, media) in [
+        (Value::Null, 2, Vec::new()),
+        (Value::Null, 1, Vec::new()),
+        (run.clone(), 2, vec![StackIssue::OmittedMembers]),
+        (run, 1, vec![StackIssue::OmittedMembers]),
+    ] {
+        let config = Config {
+            count: 5,
+            all_running: true,
+            mounts: 0,
+            vanishing: Some((4, from)),
+            compose_labels: Some(vec![
+                stack_labels("media", "app"),
+                stack_labels("media", "db"),
+                stack_labels("tools", "app"),
+                stack_labels("tools", "db"),
+                labels,
+            ]),
+            ..config()
+        };
+        let engine = fixture(config.clone()).await;
+        let owner = inspect(&engine).await.unwrap();
+        let snapshot = owner.snapshot();
+        assert_eq!(snapshot.containers.len(), 4, "{from}");
+        assert_eq!(snapshot.omitted.len(), 1);
+        assert_eq!(
+            snapshot.omitted[0].resource,
+            format!("container:{:064x}", 4)
+        );
+        assert_eq!(snapshot.omitted[0].reason, OmissionReason::Changing);
+        assert_eq!(snapshot.unattributed, 0);
+        let view = stacks(&owner, &["media", "tools"]).await;
+        assert_eq!(issues_of(&view, "media"), media, "{from}");
+        assert!(issues_of(&view, "tools").is_empty());
+        // Evidence for an effect still refuses a container that disappeared.
+        let strict = fixture(config).await;
+        assert!(strict.inspect().await.is_err());
+    }
+}

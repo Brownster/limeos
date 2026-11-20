@@ -51,6 +51,9 @@ struct Config {
     crash_looping: Option<usize>,
     /// This container's mounts have this type instead of `bind`.
     mount_type: Option<(usize, &'static str)>,
+    /// This container is removed (`--rm`) before its n-th inspection: that
+    /// inspection and later ones are 404, and later listings omit it.
+    vanishing: Option<(usize, usize)>,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -81,6 +84,7 @@ impl Default for Config {
             health_after_only: None,
             crash_looping: None,
             mount_type: None,
+            vanishing: None,
         }
     }
 }
@@ -211,6 +215,7 @@ async fn fixture(config: Config) -> Fixture {
                 let labels = config.compose_labels.as_ref();
                 json!(
                     (0..count)
+                        .filter(|i| nth == 1 || config.vanishing.is_none_or(|(at, _)| at != *i))
                         .map(|i| {
                             let listed = config
                                 .list_labels
@@ -237,6 +242,19 @@ async fn fixture(config: Config) -> Fixture {
                     .next()
                     .unwrap();
                 let index = usize::from_str_radix(id, 16).unwrap();
+                if config
+                    .vanishing
+                    .is_some_and(|(at, from)| at == index && nth >= from)
+                {
+                    let body = r#"{"message":"No such container"}"#;
+                    let response = format!(
+                        "HTTP/1.1 404 Not Found\r\nContent-Length: {}\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(response.as_bytes()).await;
+                    continue;
+                }
                 let running = is_running(&config, index);
                 let source = if matches!(config.changed, Some(Change::Mount)) && nth > 1 {
                     "/mnt/replaced".into()

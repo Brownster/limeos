@@ -553,6 +553,23 @@ impl AuthenticatedEngine {
         admission: Option<&Admission>,
         unique: bool,
     ) -> Result<Json> {
+        self.fetch(path, limit, budget, lifetime, admission, unique, false)
+            .await?
+            .ok_or_else(unavailable)
+    }
+    /// As `json`, but with `missing` an Engine answer of 404 (the container
+    /// was removed) is `None` rather than a refusal.
+    #[allow(clippy::too_many_arguments)]
+    async fn fetch(
+        &self,
+        path: String,
+        limit: usize,
+        budget: &ResponseBudget,
+        lifetime: &EvidenceLifetime,
+        admission: Option<&Admission>,
+        unique: bool,
+        missing: bool,
+    ) -> Result<Option<Json>> {
         lifetime.check()?;
         if let Some(admission) = admission {
             admission.ensure_body()?;
@@ -570,6 +587,9 @@ impl AuthenticatedEngine {
                 .docker
                 .request_inner("GET", path, limit, Some((self, budget)))
                 .await?;
+            if missing && status == StatusCode::NOT_FOUND {
+                return Ok(None);
+            }
             if status != StatusCode::OK {
                 return Err(unavailable());
             }
@@ -580,6 +600,7 @@ impl AuthenticatedEngine {
                     .map(Json::standard)
                     .map_err(|_| unavailable()),
             }
+            .map(Some)
         })
         .await
         .map_err(|_| unavailable())??;
@@ -758,6 +779,21 @@ async fn collect(
         // Storage evidence refuses on any odd or changing container. A display
         // projection leaves that one container out with a reason instead.
         let tolerant = projection != Projection::Storage;
+        // A display projection reads a container removed since it was listed as
+        // gone (`None`) and leaves it out as changing; evidence for an effect
+        // refuses it like any other change.
+        let inspect = |id: &str| {
+            authenticated.fetch(
+                format!("/{version}/containers/{id}/json"),
+                512 * 1024,
+                &budget,
+                lifetime,
+                admission,
+                projection != Projection::Storage,
+                tolerant,
+            )
+        };
+        let mut vanished: Vec<&String> = Vec::new();
         let mut kept: Vec<&String> = Vec::new();
         let mut containers = Vec::new();
         let mut pids = Vec::new();
@@ -781,8 +817,23 @@ async fn collect(
         let mut total_mounts = 0;
         let mut running_pids = BTreeSet::new();
         let mut running_count = 0;
+        if let Some(scope) = &mut scope {
+            scope.reserve(&mut vanished, ids.len())?;
+        }
         for id in ids {
-            let value = get(format!("/{version}/containers/{id}/json"), 512 * 1024).await?;
+            let Some(value) = inspect(id).await? else {
+                let scope = scope.as_mut().ok_or_else(unavailable)?;
+                vanished.push(id);
+                left_out.add(
+                    projection,
+                    &format!("container:{id}"),
+                    None,
+                    OmissionReason::Changing,
+                    None,
+                    scope,
+                )?;
+                continue;
+            };
             if admission.is_some() && value["State"]["Running"].as_bool() == Some(true) {
                 running_count += 1;
                 if running_count > admission.map_or(0, |a| a.limits().running) {
@@ -909,7 +960,11 @@ async fn collect(
             scope.reserve(&mut changing, kept.len())?;
         }
         for (index, id) in kept.iter().enumerate() {
-            let value = get(format!("/{version}/containers/{id}/json"), 512 * 1024).await?;
+            let Some(value) = inspect(id).await? else {
+                vanished.push(id);
+                changing.push(index);
+                continue;
+            };
             let mut comparison = admission.map(Admission::scope);
             let same = unchanged(
                 &value,
@@ -953,10 +1008,24 @@ async fn collect(
                 scope.as_mut().ok_or_else(unavailable)?,
             )?;
         }
+        // The Engine-wide set is unchanged, but for containers removed since:
+        // those leave the listing, and nothing else may move.
         let mut comparison = admission.map(Admission::scope);
-        if listing.ids(comparison.as_mut()).await? != selected {
+        let second = listing.ids(comparison.as_mut()).await?;
+        let gone = |id: &String| vanished.contains(&id);
+        if second.truncated != selected.truncated
+            || second
+                .ids
+                .iter()
+                .ne(selected.ids.iter().filter(|id| !gone(id)))
+            || second
+                .compose
+                .iter()
+                .ne(selected.compose.iter().filter(|(id, _)| !gone(id)))
+        {
             return Err(conflict());
         }
+        drop(second);
         drop(comparison);
         let (hidden_projects, unattributed) = if capture_compose {
             hidden(
