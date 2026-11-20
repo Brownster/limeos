@@ -208,11 +208,16 @@ async fn fixture() -> (
                         }
                         response.restart = state.receipt.clone();
                     }
-                    Request::RestartReceipt { expires_at, .. } => {
+                    Request::RestartReceipt { digest, plan, .. } => {
+                        // Core sends the stored plan with the digest it names.
+                        assert_eq!(
+                            limeos_identity::digest(&serde_json::to_string(&plan).unwrap()),
+                            digest
+                        );
                         response.restart = state.receipt.clone();
                         if response.restart.is_none() {
                             response.absence = Some(limeos_domain::ReceiptAbsence::judge(
-                                expires_at,
+                                plan.expires_at,
                                 state.watermark,
                             ));
                         }

@@ -285,7 +285,7 @@ impl Core {
                     evidence_digest: request.evidence_digest.clone(),
                     declared: request.declared,
                     resolved_by: request.resolved_by.clone(),
-                    expires_at: pending.expires_at,
+                    plan: pending.plan.clone(),
                 },
                 budget,
             )

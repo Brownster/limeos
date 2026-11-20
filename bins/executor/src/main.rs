@@ -438,9 +438,16 @@ async fn run() -> std::io::Result<()> {
                     Request::RestartReceipt {
                         action,
                         digest,
-                        expires_at,
+                        plan,
                         ..
                     } => {
+                        // The plan must be the one `digest` names, row or not.
+                        let plan = limeos_domain::ActionPlan::Container(plan);
+                        limeos_executor_container::verified_expiry(
+                            limeos_domain::ResolveKind::Container,
+                            &digest,
+                            &plan,
+                        )?;
                         let store = receipts
                             .as_ref()
                             .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
@@ -455,11 +462,7 @@ async fn run() -> std::io::Result<()> {
                                 value.operation,
                             )?;
                         } else {
-                            receipt.absence = Some(store.receipt_absence(
-                                limeos_domain::ResolveKind::Container,
-                                &action,
-                                expires_at,
-                            )?);
+                            receipt.absence = Some(store.receipt_absence(&action, &digest, &plan)?);
                         }
                     }
                     Request::VerifyRestart {
@@ -526,9 +529,16 @@ async fn run() -> std::io::Result<()> {
                     Request::StackReceipt {
                         action,
                         digest,
-                        expires_at,
+                        plan,
                         ..
                     } => {
+                        // The plan must be the one `digest` names, row or not.
+                        let plan = limeos_domain::ActionPlan::Stack(plan);
+                        limeos_executor_container::verified_expiry(
+                            limeos_domain::ResolveKind::Stack,
+                            &digest,
+                            &plan,
+                        )?;
                         let store = receipts
                             .as_ref()
                             .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
@@ -544,11 +554,7 @@ async fn run() -> std::io::Result<()> {
                             )?;
                             receipt.stack = store.reconcile_stack(&action, &digest)?;
                         } else {
-                            receipt.absence = Some(store.receipt_absence(
-                                limeos_domain::ResolveKind::Stack,
-                                &action,
-                                expires_at,
-                            )?);
+                            receipt.absence = Some(store.receipt_absence(&action, &digest, &plan)?);
                         }
                     }
                     Request::VerifyStack {
@@ -583,7 +589,7 @@ async fn run() -> std::io::Result<()> {
                         evidence_digest,
                         declared,
                         resolved_by,
-                        expires_at,
+                        plan,
                         ..
                     } if source == limeos_contracts::Source::Docker => {
                         let store = receipts
@@ -604,7 +610,7 @@ async fn run() -> std::io::Result<()> {
                                 &evidence_digest,
                                 declared,
                                 &resolved_by,
-                                expires_at,
+                                &plan,
                             )
                             .await?
                         {

@@ -1,5 +1,5 @@
 use super::*;
-use limeos_domain::{RestartPlan, StackPlan, StackSnapshot};
+use limeos_domain::{ActionPlan, RestartPlan, StackPlan, StackSnapshot};
 use std::sync::{
     Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -507,7 +507,7 @@ fn absence(
     action: &str,
     expires_at: i64,
 ) -> ReceiptAbsence {
-    store.receipt_absence(kind, action, expires_at).unwrap()
+    store.absence_at(kind, action, expires_at).unwrap()
 }
 fn id(tag: char, i: u32) -> String {
     format!("{tag}{i:063x}")
@@ -583,7 +583,7 @@ fn a_pruned_stack_is_no_longer_held_whatever_the_clock_does_and_a_new_plan_is_ne
     // A row that exists is looked up, not judged.
     assert_eq!(
         store
-            .receipt_absence(ResolveKind::Stack, &id('5', 1), expires)
+            .absence_at(ResolveKind::Stack, &id('5', 1), expires)
             .unwrap_err()
             .0,
         ErrorCode::Conflict
@@ -622,6 +622,85 @@ fn a_pruned_stack_is_no_longer_held_whatever_the_clock_does_and_a_new_plan_is_ne
     assert_eq!(
         absence(&store, ResolveKind::Stack, &id('5', 1), expires - 10_000),
         ReceiptAbsence::NoLongerHeld
+    );
+}
+
+#[test]
+fn a_missing_receipt_is_judged_by_the_carried_plan_and_a_forged_expiry_is_refused() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    // The action ran with a plan expiring at `w`, settled, and was pruned.
+    let ran = restart(0, snapshot('a', 0, true));
+    let w = ran.plan.expires_at;
+    insert(
+        &store,
+        "actions",
+        &ran.action,
+        &ran.plan_digest,
+        &ran.plan.expected.resource,
+        "verified",
+        w,
+    );
+    for i in 1..=RETAINED_ACTIONS {
+        insert(
+            &store,
+            "actions",
+            &id('b', i),
+            &format!("db{i}"),
+            &format!("container:b{i}"),
+            "verified",
+            w + 10 + i64::from(i),
+        );
+    }
+    assert_eq!(prune_all(&mut store, w + RETAIN_AFTER_EXPIRY), 1);
+    assert_eq!(watermark_of(&store), w);
+    let plan = ActionPlan::Container(ran.plan.clone());
+    assert_eq!(
+        store
+            .receipt_absence(&ran.action, &ran.plan_digest, &plan)
+            .unwrap(),
+        ReceiptAbsence::NoLongerHeld
+    );
+    // A bare expiry one second later would have been judged never recorded.
+    assert_eq!(
+        store
+            .absence_at(ResolveKind::Container, &ran.action, w + 1)
+            .unwrap(),
+        ReceiptAbsence::NeverRecorded
+    );
+    // A peer naming the same action and plan digest with a plan that expires
+    // one second later is refused: that plan does not hash to the digest.
+    let mut forged = ran.plan.clone();
+    forged.created_at += 1;
+    forged.expires_at += 1;
+    let forged = ActionPlan::Container(forged);
+    assert_eq!(
+        store
+            .receipt_absence(&ran.action, &ran.plan_digest, &forged)
+            .unwrap_err()
+            .0,
+        ErrorCode::InvalidInput
+    );
+    // So is a plan of the other kind, and a malformed plan hashed honestly.
+    assert_eq!(
+        verified_expiry(ResolveKind::Stack, &ran.plan_digest, &plan)
+            .unwrap_err()
+            .0,
+        ErrorCode::InvalidInput
+    );
+    let mut malformed = ran.plan.clone();
+    malformed.created_at = malformed.expires_at;
+    let digest = limeos_identity::digest(&encode(&malformed).unwrap());
+    assert_eq!(
+        store
+            .receipt_absence(&ran.action, &digest, &ActionPlan::Container(malformed))
+            .unwrap_err()
+            .0,
+        ErrorCode::InvalidInput
+    );
+    assert_eq!(
+        verified_expiry(ResolveKind::Container, &ran.plan_digest, &plan).unwrap(),
+        w
     );
 }
 

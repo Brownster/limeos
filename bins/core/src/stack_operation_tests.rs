@@ -292,8 +292,13 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
             }
             response.stack = Some(receipt);
         }
-        Request::StackReceipt { expires_at, .. } => {
+        Request::StackReceipt { digest, plan, .. } => {
             state.receipts += 1;
+            // Core sends the stored plan with the digest it names.
+            assert_eq!(
+                limeos_identity::digest(&serde_json::to_string(&plan).unwrap()),
+                digest
+            );
             if state.lookup_unavailable {
                 response.ready = false;
                 response.error = Some(ErrorCode::Unavailable);
@@ -312,7 +317,7 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
             response.stack = state.receipt.clone();
             if response.stack.is_none() {
                 response.absence = Some(limeos_domain::ReceiptAbsence::judge(
-                    expires_at,
+                    plan.expires_at,
                     state.watermark,
                 ));
             }
@@ -361,13 +366,13 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
             evidence_digest,
             declared,
             resolved_by,
-            expires_at,
+            plan,
             ..
         } => {
             state.resolves += 1;
             if state.resolve_missing {
                 response.absence = Some(limeos_domain::ReceiptAbsence::judge(
-                    expires_at,
+                    plan.expires_at(),
                     state.watermark,
                 ));
                 return Some(response);

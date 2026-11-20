@@ -462,7 +462,7 @@
       ]
     },
     {
-      "description": "Pure lookup. With no receipt, the answer's `absence` says whether one\ncan ever have been pruned for a plan expiring at `expires_at`.",
+      "description": "Pure lookup. With no receipt, the answer's `absence` says whether one\ncan ever have been pruned for `plan`. The executor recomputes the plan's\ndigest and refuses the request unless it equals `digest`, so the expiry\nit judges by is the approved plan's own.",
       "type": "object",
       "properties": {
         "action": {
@@ -471,14 +471,13 @@
         "digest": {
           "type": "string"
         },
-        "expires_at": {
-          "description": "The plan's expiry, as core stored it.",
-          "type": "integer",
-          "format": "int64"
-        },
         "operation": {
           "type": "string",
           "const": "restart_receipt"
+        },
+        "plan": {
+          "description": "The plan exactly as core stored it.",
+          "$ref": "#/$defs/ContainerPlan"
         },
         "version": {
           "type": "integer",
@@ -493,7 +492,7 @@
         "version",
         "action",
         "digest",
-        "expires_at"
+        "plan"
       ]
     },
     {
@@ -587,13 +586,12 @@
         "digest": {
           "type": "string"
         },
-        "expires_at": {
-          "type": "integer",
-          "format": "int64"
-        },
         "operation": {
           "type": "string",
           "const": "stack_receipt"
+        },
+        "plan": {
+          "$ref": "#/$defs/StackPlan"
         },
         "version": {
           "type": "integer",
@@ -608,7 +606,7 @@
         "version",
         "action",
         "digest",
-        "expires_at"
+        "plan"
       ]
     },
     {
@@ -664,17 +662,16 @@
         "evidence_digest": {
           "type": "string"
         },
-        "expires_at": {
-          "description": "The plan's expiry: with no row, decides the answer's `absence`.",
-          "type": "integer",
-          "format": "int64"
-        },
         "kind": {
           "$ref": "#/$defs/ResolveKind"
         },
         "operation": {
           "type": "string",
           "const": "resolve_action"
+        },
+        "plan": {
+          "description": "The plan exactly as core stored it: of `kind`, and hashing to\n`digest`, or the request is invalid. With no row, its own\n`expires_at` decides the answer's `absence`.",
+          "$ref": "#/$defs/ActionPlan"
         },
         "resolved_by": {
           "description": "The resolving administrator's principal ID, recorded in the row.",
@@ -697,11 +694,40 @@
         "evidence_digest",
         "declared",
         "resolved_by",
-        "expires_at"
+        "plan"
       ]
     }
   ],
   "$defs": {
+    "ActionPlan": {
+      "description": "The plan an action was approved with, exactly as core stored it. A receipt\nlookup or `ResolveAction` carries it so the executor can recompute its\ndigest, require it to equal the digest the request names, and judge a\nmissing receipt by the plan's own `expires_at`, never by a bare number.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "container": {
+              "$ref": "#/$defs/ContainerPlan"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "container"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "stack": {
+              "$ref": "#/$defs/StackPlan"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "stack"
+          ]
+        }
+      ]
+    },
     "ContainerAction": {
       "type": "string",
       "enum": [

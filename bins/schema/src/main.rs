@@ -392,6 +392,7 @@ fn main() {
     ts!(limeos_contracts::StackJobProgress);
     ts!(limeos_domain::DeclaredOutcome);
     ts!(limeos_domain::ResolveKind);
+    ts!(limeos_domain::ActionPlan);
     ts!(limeos_domain::ResolutionTarget);
     ts!(limeos_domain::ResolutionEvidence);
     ts!(limeos_domain::ResolutionMember);

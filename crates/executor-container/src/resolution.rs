@@ -17,7 +17,7 @@
 //! `ResolveRefusal` naming the outcome and what it allows.
 use super::*;
 use limeos_domain::{
-    DeclaredOutcome, ReceiptAbsence, ResolutionEvidence, ResolveKind, ResolveReceipt,
+    ActionPlan, DeclaredOutcome, ReceiptAbsence, ResolutionEvidence, ResolveKind, ResolveReceipt,
     ResolveRefusal, StackReceipt, declarations_for_recorded,
 };
 
@@ -72,8 +72,9 @@ impl ReceiptStore {
     /// Settle one action. Idempotent by `action`: a repeat with the same
     /// evidence, declaration and administrator returns the stored confirmation
     /// without touching the Engine; anything else on a resolved row is
-    /// `Conflict`. A missing row is `Absent`, judged against the prune
-    /// watermark with the plan's `expires_at`. A terminal row whose recorded
+    /// `Conflict`. `plan` must hash to `digest` and match `kind`, or the call
+    /// is `InvalidInput`. A missing row is `Absent`, judged against the prune
+    /// watermark with that plan's own `expires_at`. A terminal row whose recorded
     /// outcome contradicts the declaration is `Refused`. A changed target
     /// (digest mismatch) or a declaration the evidence does not support is
     /// `Conflict`. Only read-only inspections reach the Engine.
@@ -89,7 +90,7 @@ impl ReceiptStore {
         evidence_digest: &str,
         declared: DeclaredOutcome,
         resolved_by: &str,
-        expires_at: i64,
+        plan: &ActionPlan,
     ) -> Result<ResolveOutcome> {
         if ![action, digest, evidence_digest, resolved_by]
             .into_iter()
@@ -97,6 +98,7 @@ impl ReceiptStore {
         {
             return Err(Error(ErrorCode::InvalidInput));
         }
+        let expires_at = crate::retention::verified_expiry(kind, digest, plan)?;
         let confirmation = ResolveReceipt {
             kind,
             action: action.into(),
@@ -108,7 +110,7 @@ impl ReceiptStore {
         let (operation, recorded, before) = match kind {
             ResolveKind::Container => {
                 let Some(receipt) = self.receipt(action, digest)? else {
-                    let absence = self.receipt_absence(kind, action, expires_at)?;
+                    let absence = self.absence_at(kind, action, expires_at)?;
                     return Ok(ResolveOutcome::Absent(absence));
                 };
                 ceiling.authorize(peer_uid, &receipt.before.resource, receipt.operation)?;
@@ -117,7 +119,7 @@ impl ReceiptStore {
             ResolveKind::Stack => {
                 let Some(receipt): Option<StackReceipt> = self.stack_receipt(action, digest)?
                 else {
-                    let absence = self.receipt_absence(kind, action, expires_at)?;
+                    let absence = self.absence_at(kind, action, expires_at)?;
                     return Ok(ResolveOutcome::Absent(absence));
                 };
                 ceiling.authorize_stack(peer_uid, &receipt.before, receipt.operation)?;

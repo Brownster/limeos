@@ -370,14 +370,25 @@ async fn a_supported_declaration_runs_request_then_executor_then_completion() {
     let Some(Request::ResolveAction {
         kind,
         action,
+        digest,
         evidence_digest,
         declared,
         resolved_by,
+        plan,
         ..
     }) = f.exec.lock().unwrap().last.take()
     else {
         panic!("no resolve sent")
     };
+    // The stored plan travels with its digest, so the executor can check one
+    // against the other and judge any absence by the plan's own expiry.
+    let limeos_domain::ActionPlan::Container(plan) = plan else {
+        panic!("not a container plan")
+    };
+    assert_eq!(
+        limeos_identity::digest(&serde_json::to_string(&plan).unwrap()),
+        digest
+    );
     assert_eq!(
         (kind, action, declared, resolved_by),
         (

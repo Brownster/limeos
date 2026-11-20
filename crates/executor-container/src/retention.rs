@@ -26,7 +26,9 @@
 //! pruned receipt always has `expires_at <= watermark`. A lookup that finds no
 //! row for a plan expiring strictly after the watermark therefore proves that
 //! no receipt was ever written (`ReceiptAbsence::NeverRecorded`); at or below
-//! it a receipt may have been pruned (`NoLongerHeld`). This holds whatever the
+//! it a receipt may have been pruned (`NoLongerHeld`). The expiry comes from
+//! the plan itself, which the request carries and whose digest must equal the
+//! plan digest it names (`verified_expiry`), never from a bare number. This holds whatever the
 //! order of pruning and whatever the clock does; oldest-expiry-first only keeps
 //! the watermark low, at least an hour behind the clock that pruned, so a young
 //! plan is answered `NeverRecorded` at once.
@@ -40,7 +42,7 @@
 //! A store opened at schema 6 may already have pruned without a watermark;
 //! its watermark starts at the maximum, so it never claims `NeverRecorded`.
 use super::*;
-use limeos_domain::{PLAN_TTL_SECONDS, ReceiptAbsence, ResolveKind};
+use limeos_domain::{ActionPlan, PLAN_TTL_SECONDS, ReceiptAbsence, ResolveKind};
 use rusqlite::Transaction;
 
 /// Standalone container receipts kept. Stack member rows are counted with
@@ -103,10 +105,41 @@ fn retire(
     Ok(())
 }
 
+/// The expiry a missing receipt is judged by: that of `plan`, once its
+/// recomputed digest equals `digest`, the plan digest the request names, and
+/// its kind and structure agree. Anything else is `InvalidInput`, so a peer
+/// cannot ask about an action with an expiry its approved plan did not have.
+pub fn verified_expiry(kind: ResolveKind, digest: &str, plan: &ActionPlan) -> Result<i64> {
+    let body = match plan {
+        ActionPlan::Container(plan) => encode(plan)?,
+        ActionPlan::Stack(plan) => encode(plan)?,
+    };
+    if plan.kind() != kind
+        || !opaque_id(digest)
+        || limeos_identity::digest(&body) != digest
+        || plan.validate_shape().is_err()
+    {
+        return Err(Error(ErrorCode::InvalidInput));
+    }
+    Ok(plan.expires_at())
+}
+
 impl ReceiptStore {
     /// What the store can say about an action it holds no row for, asked with
-    /// the plan's `expires_at`. A row that exists is `Conflict`: look it up.
+    /// the plan whose digest is `digest` (`verified_expiry`). A row that
+    /// exists is `Conflict`: look it up.
     pub fn receipt_absence(
+        &self,
+        action: &str,
+        digest: &str,
+        plan: &ActionPlan,
+    ) -> Result<ReceiptAbsence> {
+        let expires_at = verified_expiry(plan.kind(), digest, plan)?;
+        self.absence_at(plan.kind(), action, expires_at)
+    }
+
+    /// As `receipt_absence`, with an expiry already verified against the plan.
+    pub(crate) fn absence_at(
         &self,
         kind: ResolveKind,
         action: &str,

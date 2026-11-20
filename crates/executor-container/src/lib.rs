@@ -17,6 +17,7 @@ mod resolution;
 mod retention;
 mod stack;
 pub use resolution::{RESOLVED, ResolveOutcome};
+pub use retention::verified_expiry;
 /// The receipt store's schema (`PRAGMA user_version`) after every migration.
 /// Opening a newer store refuses; tests and documentation name this constant.
 pub const RECEIPT_SCHEMA_VERSION: u32 = 7;

@@ -266,7 +266,7 @@ impl Core {
                     version: VERSION,
                     action: job.id.clone(),
                     digest: digest.to_owned(),
-                    expires_at: job.plan.expires_at,
+                    plan: job.plan.clone(),
                 },
                 limeos_contracts::RPC_DEADLINE,
             )
@@ -353,7 +353,7 @@ impl Core {
                         version: VERSION,
                         action: job.id.clone(),
                         digest: digest.clone(),
-                        expires_at: job.plan.expires_at,
+                        plan: job.plan.clone(),
                     },
                     limeos_contracts::RPC_DEADLINE,
                 )

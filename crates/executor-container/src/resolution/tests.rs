@@ -171,8 +171,27 @@ async fn shown(engine: &RecordingEngine, targets: &[ContainerSnapshot]) -> Resol
 fn count(store: &ReceiptStore, sql: &str) -> u32 {
     store.conn.query_row(sql, [], |r| r.get(0)).unwrap()
 }
-/// The plans above expire at 500.
-const EXPIRES: i64 = 500;
+/// The plan a request carries for `digest`: the fixture plan with that digest,
+/// or, for a digest no fixture plan has, one of `kind` that does not hash to
+/// it, which the executor refuses as `InvalidInput`.
+fn plan_for(kind: ResolveKind, digest: &str) -> ActionPlan {
+    let known = [
+        ActionPlan::Container(single('d', 'a').plan),
+        ActionPlan::Container(single('d', 'b').plan),
+        ActionPlan::Stack(stack_request().plan),
+    ];
+    let named = known.iter().find(|plan| {
+        let body = match plan {
+            ActionPlan::Container(plan) => encode(plan).unwrap(),
+            ActionPlan::Stack(plan) => encode(plan).unwrap(),
+        };
+        limeos_identity::digest(&body) == digest
+    });
+    named
+        .or_else(|| known.iter().find(|plan| plan.kind() == kind))
+        .unwrap()
+        .clone()
+}
 async fn outcome(
     store: &mut ReceiptStore,
     engine: &RecordingEngine,
@@ -193,7 +212,7 @@ async fn outcome(
             &evidence.digest().unwrap(),
             declared,
             &by(),
-            EXPIRES,
+            &plan_for(kind, digest),
         )
         .await
 }
@@ -345,7 +364,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
             &"0".repeat(64),
             DeclaredOutcome::AcceptedDivergence,
             &by(),
-            EXPIRES,
+            &plan_for(kind, &first.plan_digest),
         )
         .await;
     assert_eq!(wrong.unwrap_err().0, ErrorCode::Conflict);
@@ -364,6 +383,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
         .unwrap(),
         ResolveOutcome::Absent(limeos_domain::ReceiptAbsence::NeverRecorded)
     );
+    // A plan digest the carried plan does not hash to is an invalid request.
     assert_eq!(
         resolve(
             &mut store,
@@ -377,7 +397,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
         .await
         .unwrap_err()
         .0,
-        ErrorCode::Conflict
+        ErrorCode::InvalidInput
     );
     // The container changed after the administrator looked: stale evidence.
     engine.restarted('a');
@@ -430,7 +450,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
                 &evidence.digest().unwrap(),
                 DeclaredOutcome::VerifiedDone,
                 &by(),
-                EXPIRES,
+                &plan_for(kind, &first.plan_digest),
             )
             .await;
         assert_eq!(result.unwrap_err().0, ErrorCode::Forbidden);
@@ -446,7 +466,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
             &evidence.digest().unwrap(),
             DeclaredOutcome::VerifiedDone,
             &by(),
-            EXPIRES,
+            &plan_for(kind, &first.plan_digest),
         )
         .await;
     assert_eq!(bad.unwrap_err().0, ErrorCode::InvalidInput);
@@ -529,7 +549,7 @@ async fn repeating_a_resolution_is_idempotent_and_a_different_one_is_refused() {
             &evidence.digest().unwrap(),
             DeclaredOutcome::VerifiedDone,
             &"8".repeat(64),
-            EXPIRES,
+            &plan_for(kind, &first.plan_digest),
         )
         .await;
     assert_eq!(other_admin.unwrap_err().0, ErrorCode::Conflict);
@@ -835,7 +855,7 @@ async fn a_terminal_receipt_still_needs_fresh_matching_evidence_and_the_peer_cei
                 &evidence.digest().unwrap(),
                 DeclaredOutcome::VerifiedDone,
                 &by(),
-                EXPIRES,
+                &plan_for(t.kind, &t.digest),
             )
             .await;
         assert_eq!(result.unwrap_err().0, ErrorCode::Forbidden);
@@ -854,7 +874,7 @@ async fn kind_and_table_must_agree() {
         .await
         .unwrap();
     let evidence = shown(&engine, &[snap('a', true)]).await;
-    // A container action is not a stack action.
+    // A container plan cannot be resolved as a stack action.
     assert_eq!(
         outcome(
             &mut store,
@@ -862,6 +882,23 @@ async fn kind_and_table_must_agree() {
             ResolveKind::Stack,
             &first.action,
             &first.plan_digest,
+            &evidence,
+            DeclaredOutcome::AcceptedDivergence
+        )
+        .await
+        .unwrap_err()
+        .0,
+        ErrorCode::InvalidInput
+    );
+    // A stack plan names the stack table, which holds no row for this action.
+    let stack = stack_request();
+    assert_eq!(
+        outcome(
+            &mut store,
+            &engine,
+            ResolveKind::Stack,
+            &first.action,
+            &stack.plan_digest,
             &evidence,
             DeclaredOutcome::AcceptedDivergence
         )

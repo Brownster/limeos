@@ -173,6 +173,10 @@ impl StackPlan {
         }
         Ok(())
     }
+    /// `validate` without the clock: the plan is well formed, expired or not.
+    pub fn validate_shape(&self) -> Result<()> {
+        self.validate(self.created_at)
+    }
     /// Any difference in any member, including one the action would skip,
     /// refuses the plan: there is no partial guess about what changed.
     pub fn check_current(&self, actual: &StackSnapshot, now: i64) -> Result<()> {

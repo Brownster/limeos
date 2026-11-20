@@ -191,6 +191,10 @@ impl ContainerPlan {
         }
         Ok(())
     }
+    /// `validate` without the clock: the plan is well formed, expired or not.
+    pub fn validate_shape(&self) -> Result<()> {
+        self.validate(self.created_at)
+    }
     pub fn check_current(&self, actual: &ContainerSnapshot, now: i64) -> Result<()> {
         self.validate(now)?;
         actual.validate()?;
