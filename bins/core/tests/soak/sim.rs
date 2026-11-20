@@ -98,6 +98,13 @@ pub enum JobFault {
     LookupLost,
 }
 impl JobFault {
+    /// A simulated core restart.
+    pub fn restarts_core(self) -> bool {
+        matches!(
+            self,
+            Self::CoreCrashAfterClaim | Self::CoreCrashAfterExecute | Self::CoreCrashAfterVerify
+        )
+    }
     pub fn name(self) -> &'static str {
         match self {
             Self::AnswerLost => "execute answer lost",
@@ -194,6 +201,8 @@ pub struct Startup {
     pub file: u64,
     pub wal: u64,
     pub opened: Opened,
+    /// For an open on a copy of core's store: its startup statements cold.
+    pub probe: Option<crate::startup::Probe>,
 }
 
 /// Sizes of a database file and its WAL.
@@ -223,8 +232,6 @@ pub struct Stats {
     /// Wall time spent per part of the run (for the runtime budget only).
     pub timing: BTreeMap<&'static str, std::time::Duration>,
     pub retention_passes: u64,
-    /// What the first unusually expensive core opens spent their reads on.
-    pub probes: Vec<String>,
     pub reads: u64,
 }
 
@@ -274,11 +281,24 @@ pub struct Sim {
     /// Per store: startup reads added a day over the last third, and the
     /// years until an open reads its bound at that rate.
     pub startup_projection: Vec<(&'static str, f64, f64)>,
+    /// What the trend and startup checks measured, by name: what the pins of
+    /// `checks::EXPECTED_FAILURES` are compared with.
+    pub measures: BTreeMap<&'static str, f64>,
     /// Idle windows measured: (simulated start, thread I/O over the window).
     pub idle: Vec<(i64, Io)>,
+    /// Idle windows scheduled, and those skipped with the reason.
+    pub idle_scheduled: u64,
+    pub idle_skipped: Vec<(i64, String)>,
     pub started: Instant,
     /// The instant that stands for `START` (see `instant`).
     pub epoch: Instant,
+    /// Core's store restarts only before this (simulated) time; after it
+    /// the store stays open and startup is measured on copies.
+    pub core_restarts_until: i64,
+    /// Whether standalone and stack receipts have reached what retention
+    /// keeps, and the highest prune watermark seen.
+    pub receipts_reached: (bool, bool),
+    pub last_watermark: i64,
 }
 
 pub fn soak_dir() -> tempfile::TempDir {
@@ -293,7 +313,7 @@ pub fn soak_dir() -> tempfile::TempDir {
 }
 
 impl Sim {
-    pub fn new(name: &'static str, seed: u64) -> Self {
+    pub fn new(name: &'static str, seed: u64, core_restarts_until: Option<i64>) -> Self {
         let clock = Clock::new(START);
         let world = Arc::new(World::new(clock.clone()));
         let dir = soak_dir();
@@ -339,9 +359,15 @@ impl Sim {
             samples: Vec::new(),
             projection: None,
             startup_projection: Vec::new(),
+            measures: BTreeMap::new(),
             idle: Vec::new(),
+            idle_scheduled: 0,
+            idle_skipped: Vec::new(),
             started: Instant::now(),
             epoch: Instant::now(),
+            core_restarts_until: core_restarts_until.map_or(i64::MAX, |day| START + day * DAY),
+            receipts_reached: (false, false),
+            last_watermark: i64::MIN,
         }
     }
     pub fn now(&self) -> i64 {
@@ -428,18 +454,8 @@ impl Sim {
             file,
             wal,
             opened: opened_at,
+            probe: None,
         });
-        if file > 1 << 20 && opened_at.io.rchar > 3 * (file + wal) && self.stats.probes.len() < 4 {
-            let probe = crate::checks::probe_open(&self.core_path);
-            let line = format!(
-                "{} ({reason}): open read {:.1} MiB of a {:.1} MiB file + {:.1} MiB WAL; {probe}",
-                self.when(),
-                crate::support::mib(opened_at.io.rchar),
-                crate::support::mib(file),
-                crate::support::mib(wal)
-            );
-            self.stats.probes.push(line);
-        }
         self.rotation = Rotation::default();
         self.stack_rotation = Rotation::default();
         self.resolution_rotation = Rotation::default();
@@ -447,7 +463,19 @@ impl Sim {
         // The dispatcher's first tick is immediate: startup leftovers.
         self.next_pass = self.now();
     }
+    /// Whether core may restart now (the main run keeps its store open from
+    /// day 30, so a drifting counter is not recomputed away by `Store::open`).
+    pub fn core_restarts(&self) -> bool {
+        self.now() < self.core_restarts_until
+    }
     pub fn restart_core(&mut self, reason: &'static str) {
+        assert!(
+            self.core_restarts(),
+            "[{}] {}: core restarted ({reason}) after its restarts ended",
+            self.name,
+            self.when()
+        );
+        crate::checks::core_accounting(self, reason);
         self.store = None;
         self.start_core(reason);
         crate::checks::after_restart(self, reason);
@@ -462,6 +490,7 @@ impl Sim {
                 file,
                 wal,
                 opened,
+                probe: None,
             }),
             Err(Error(code)) => panic!(
                 "[{}] {}: receipt store refused to open ({reason}): {code:?}",
@@ -472,6 +501,7 @@ impl Sim {
         *self.stats.restarts.entry(reason).or_default() += 1;
     }
     pub fn restart_executor(&mut self, reason: &'static str) {
+        crate::checks::receipt_accounting(self, reason);
         self.exec.stop();
         self.start_executor(reason);
         crate::checks::after_restart(self, reason);
@@ -509,7 +539,9 @@ impl Sim {
             if rows > limit {
                 self.violation(
                     crate::checks::BATCHES,
-                    format!("the {rule} batch removed {rows} rows in one transaction (limit {limit})"),
+                    format!(
+                        "the {rule} batch removed {rows} rows in one transaction (limit {limit})"
+                    ),
                 );
             }
             if rows > 0 {
@@ -554,6 +586,7 @@ impl Sim {
             }
             Some(JobFault::ExecutorKilledInEngineCall) => {
                 self.count_fault(JobFault::ExecutorKilledInEngineCall);
+                crate::checks::receipt_accounting(self, "executor killed inside the Engine call");
                 let before = self.receipt_rows();
                 let parked = self.exec.kill_inside_engine_call(request, now).await;
                 if parked && self.receipt_rows() <= before {

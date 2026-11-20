@@ -9,7 +9,7 @@
 //! |---|---|---|
 //! | Successful logins | 8 a day (4 per administrator) | Sessions last 8 h (`create_session`); a phone and a laptop each, twice a day |
 //! | Explicit logouts | 40% of logins | The rest expire after 8 h |
-//! | Failed logins | 3 a day (typos) + 1 unknown name | No durable write: `login_record` is a read |
+//! | Failed logins | 3 a day (typos) + 1 unknown name | No durable write: `login_record` is a read; the password check that refuses them is core's and not driven |
 //! | Dashboard polls | every 30 s for 15 min after a login | `Dashboard.tsx` refreshes every 30 s |
 //! | Job progress polls | every 2 s for 30 s after queueing | `ContainerActions.tsx` / `StackActions.tsx` poll every 2 s |
 //! | Container proposals | 10 a day over 18 containers | Restart 85% / stop 15% of running ones; a stopped one is started next |
@@ -55,6 +55,10 @@ pub struct Profile {
     pub idle_every: i64,
     /// Trend checks need a steady last third.
     pub trends: bool,
+    /// The last day core's store restarts (nightly and at awkward moments)
+    /// begin; from then on it stays open, so nothing recomputes its counters,
+    /// and startup is measured on copies. `None`: restarts throughout.
+    pub core_restarts_until: Option<i64>,
 }
 
 /// What a flow does after its proposal.
@@ -166,7 +170,7 @@ fn day_at(day: i64, hour: i64, minute: i64) -> i64 {
 }
 
 pub async fn run(profile: Profile) -> Sim {
-    let mut sim = Sim::new(profile.name, profile.seed);
+    let mut sim = Sim::new(profile.name, profile.seed, profile.core_restarts_until);
     let mut agenda = Agenda::default();
     bootstrap(&mut sim);
     let end = START + profile.days * DAY;
@@ -271,7 +275,7 @@ pub async fn tick(sim: &mut Sim) {
     };
 }
 
-fn bootstrap(sim: &mut Sim) {
+pub fn bootstrap(sim: &mut Sim) {
     sim.start_executor("first start");
     sim.start_core("first start");
     let now = sim.now();
@@ -379,6 +383,9 @@ pub fn arm_fault(sim: &mut Sim, job: &str) -> Option<JobFault> {
     for (per_mille, fault) in table {
         edge += per_mille;
         if roll < edge {
+            if fault.restarts_core() && !sim.core_restarts() {
+                return None;
+            }
             sim.armed.insert(job.to_owned(), fault);
             return Some(fault);
         }
@@ -682,31 +689,19 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
             again(sim, agenda, 17 * HOUR / 4, Step::Login(user));
         }
         Step::FailedLogin => {
+            // `Core::login_checked` reads the account, then the password
+            // workers reject the password: the store sees only this read.
+            // The refusal itself is core's, not driven here.
             let user = sim.rng.below(sim.users.len() as u64) as usize;
             let name = sim.users[user].name;
             let record = sim.store.as_ref().unwrap().login_record(name);
-            if sim.judge("failed login: record", record, &[]).is_some() {
-                // The password worker rejects the password: nothing is written.
-                let refused: limeos_domain::Result<()> =
-                    Err(limeos_domain::Error(ErrorCode::Unauthenticated));
-                sim.judge(
-                    "login with a wrong password",
-                    refused,
-                    &[ErrorCode::Unauthenticated],
-                );
-            }
+            sim.judge("failed login: account read", record, &[]);
             again(sim, agenda, 17 * HOUR / 3, Step::FailedLogin);
         }
         Step::UnknownLogin => {
             let record = sim.store.as_ref().unwrap().login_record("nobody");
-            if let Some(None) = sim.judge("failed login: record", record, &[]) {
-                let refused: limeos_domain::Result<()> =
-                    Err(limeos_domain::Error(ErrorCode::Unauthenticated));
-                sim.judge(
-                    "login with an unknown name",
-                    refused,
-                    &[ErrorCode::Unauthenticated],
-                );
+            if let Some(Some(_)) = sim.judge("failed login: account read", record, &[]) {
+                sim.violation(checks::INVARIANTS, "an unknown name has an account".into());
             }
             again(sim, agenda, 17 * HOUR, Step::UnknownLogin);
         }
@@ -857,10 +852,16 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
         }
         Step::Checkpoint => {
             checks::checkpoint(sim);
-            // Both daemons restart every night: startup is measured as the
-            // tables fill, and every restart is followed by the checks.
+            // Startup, measured on copies of both stores every night: the
+            // deterministic series the startup checks judge.
+            crate::startup::core(sim);
+            crate::startup::receipts(sim);
+            // Both daemons restart every night (core only while its restarts
+            // last): every restart is followed by the checks.
             sim.restart_executor("daily restart");
-            sim.restart_core("daily restart");
+            if sim.core_restarts() {
+                sim.restart_core("daily restart");
+            }
         }
         Step::IdleWindow => checks::idle_window(sim).await,
         Step::RunawayLogins { until } => {

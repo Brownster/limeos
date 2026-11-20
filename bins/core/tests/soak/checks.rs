@@ -5,6 +5,7 @@
 //! passes, so a fixed defect cannot stay marked).
 use crate::{
     sim::Sim,
+    startup::{COPY, pages},
     support::{DAY, Io, MINUTE, START, mib, slope},
     workload::{Profile, tick},
 };
@@ -26,28 +27,70 @@ pub const AUTHORITY: &str = "authority events all kept";
 pub const PROVOKED: &str = "provoked refusals observed";
 pub const PROJECTION: &str = "slow growth leaves at least five years";
 pub const BATCHES: &str = "every retention batch within its rule's limit";
+pub const ACCOUNTING: &str = "audit counter and retained rows match what retention promises";
+pub const EXPLAINED: &str = "core startup reads nothing its checks do not explain";
+pub const MOUNT_PROOF: &str = "the storage-mount proof check reads little without storage mounts";
+pub const STARTUP_PER_JOB: &str = "core startup work grows only with the per-job tables";
 
-/// Checks known to fail, with the defect that makes them fail and its
-/// evidence. Both entries are one defect: the core store has no size bound.
-const EXPECTED_FAILURES: &[(&str, &str)] = &[
-    (
-        PROJECTION,
-        "core's per-job tables (jobs, job_resources, container_plans, container_results, \
-         stack_plans, stack_results, job_resolutions) are never pruned: about 5 KiB per job, \
-         about 50 KiB a day at the household rate over days 60 to 90, while events stay flat at \
-         their budget; core.sqlite grows from 31 MiB (day 27) to 35 MiB (day 89) and passes its \
-         80 MiB bound in about 2.5 years. Needs job-row retention (with their plans, results, \
-         resources and completed resolutions) before core.sqlite is bounded",
-    ),
-    (
-        STARTUP_TREND_CORE,
-        "the same per-job growth: `Store::open` reads about 2.5 times the file (on the final \
-         store quick_check reads 55 MiB, the foreign-key check 20 MiB and the audit count \
-         4 MiB of a 35 MiB file), and its reads grow faster than the file: 75 MiB on day 27 and \
-         93 MiB on day 89 while the file grew 4 MiB, about 0.3 MiB more each day; at that rate \
-         an open reaches the 352 MiB read bound of a store at its file bound in about 2.4 years",
-    ),
+/// A check known to fail, the defect that makes it fail, and what is known
+/// about that defect: each pin names a measure the run records (`measures`)
+/// and the range it must fall in. A failure outside a pin is a new failure;
+/// a listed check that passes fails the run too, so a fixed or changed
+/// defect cannot stay marked.
+pub struct Known {
+    pub check: &'static str,
+    pub why: &'static str,
+    pub pins: &'static [(&'static str, f64, f64)],
+}
+
+/// The defects the soak has found, pinned to their cause.
+pub const EXPECTED_FAILURES: &[Known] = &[
+    Known {
+        check: PROJECTION,
+        why: "core's per-job tables (jobs, job_resources, container_plans, container_results, \
+              stack_plans, stack_results, job_resolutions) are never pruned, while every other table \
+              is flat (asserted by the flatness check without exemption): about 5 KiB per job, \
+              50 KiB a day at the household rate; core.sqlite passes its 80 MiB bound in about \
+              2.5 years. Needs job-row retention (with their plans, results, resources and \
+              completed resolutions)",
+        pins: &[
+            (PER_JOB_DAY, 25.0, 100.0),
+            (PER_JOB_JOB, 2.5, 10.0),
+            (PER_JOB_YEARS, 1.25, 5.0),
+        ],
+    },
+    Known {
+        check: STARTUP_TREND_CORE,
+        why: "the same per-job growth, at startup: every per-job page is read by quick_check \
+              and the foreign-key check, and six startup statements scan the whole jobs table \
+              (now larger than SQLite's page cache), so `Store::open` reads several pages more \
+              for every page the per-job tables gain; the growth of everything else is asserted \
+              flat (`core startup work grows only with the per-job tables`)",
+        pins: &[(STARTUP_DAY, 32.0, 128.0), (STARTUP_YEARS, 1.0, 4.5)],
+    },
+    Known {
+        check: MOUNT_PROOF,
+        why: "`storage_mounts::check`'s proof query is planned with the job's events looked up \
+              by kind (`events_kind`) instead of by job (`events_job`), and evaluates that \
+              lookup for every `precondition_changed` job before its storage-mount filter: on a \
+              store with no storage mount at all it reads every `job_transition` event once per \
+              such job. While that index range fits in SQLite's 2 MiB page cache it costs \
+              little; once retention has replaced the bulk session events with job history it \
+              does not, and the open reads seven to nine times the file (from day 36 in one \
+              run, day 72 in another). \
+              Needs the subquery to search `events_job` (or the operation filtered first)",
+        pins: &[(PROOF_BY_KIND, 1.0, 1.0), (PROOF_FILES, 0.0, 15.0)],
+    },
 ];
+
+/// Measures the pins read, recorded by the trend checks.
+pub const PER_JOB_DAY: &str = "per-job tables' growth over the last third, KiB a day";
+pub const PER_JOB_JOB: &str = "per-job tables' bytes per job over the last third, KiB";
+pub const PER_JOB_YEARS: &str = "years until core.sqlite reaches its bound at that rate";
+pub const STARTUP_DAY: &str = "core startup page reads (but the proof check) added a night";
+pub const STARTUP_YEARS: &str = "years until a core open reaches its bound at that rate";
+pub const PROOF_BY_KIND: &str = "the proof check looks events up by kind (1 = on every copy)";
+pub const PROOF_FILES: &str = "the proof check's largest read, in files' worth of pages";
 
 /// Core's file and WAL: the events table at its 131,072-row budget is about
 /// 40 MiB of rows and indexes; the audit cap (twice that) is the hard stop.
@@ -59,14 +102,33 @@ pub const RECEIPT_FILE_BOUND: u64 = 8 << 20;
 pub const RECEIPT_WAL_BOUND: u64 = 2 << 20;
 /// Debug builds on a shared CI runner; a Pi in release is far faster.
 pub const CORE_OPEN_BOUND_MS: u128 = 5_000;
-/// Bytes an open may read per byte of database and WAL. `quick_check` reads
-/// every page once, the foreign-key check reads every child table (the
-/// events table, most of the file) again and the audit reconciliation
-/// counts the events through an index: about 2.6 times the file, measured.
-pub const STARTUP_READ_FACTOR: u64 = 4;
+/// SQLite's page size in both stores.
+pub const PAGE: u64 = 4096;
+/// Page reads an open on a copy may make, per page of database and WAL,
+/// in thousandths, and a fixed allowance: see `startup_page_bound`. Core
+/// measured about 2.4 (quick_check 1.55, the foreign-key check 0.55, six
+/// scans of the jobs table, the audit count) beyond its proof check, and up
+/// to 2.8 while that check evicts the cache; the receipt store about 1.0.
+pub const CORE_PAGE_FACTOR: u64 = 3200;
+pub const RECEIPT_PAGE_FACTOR: u64 = 2000;
+pub const PAGE_SLACK: u64 = 256;
+/// The page reads an open may make beyond what its known statements read
+/// cold (see `startup::KNOWN`): its own small statements, schema reads and
+/// writes, measured at 1.5% to 2.2% of the statements' work (but the proof
+/// check's), plus a fixed allowance. One more scan of the events table
+/// (about 7% of that work) does not fit.
+pub const EXPLAIN_PERCENT: u64 = 3;
+pub const EXPLAIN_SLACK: u64 = 256;
+/// The most page reads an open on a copy of `bytes` may make.
+pub fn startup_page_bound(store: &str, bytes: u64) -> u64 {
+    let factor = if store == "core" {
+        CORE_PAGE_FACTOR
+    } else {
+        RECEIPT_PAGE_FACTOR
+    };
+    bytes / PAGE * factor / 1000 + PAGE_SLACK
+}
 pub const RECEIPT_OPEN_BOUND_MS: u128 = 2_000;
-/// `retention::EVENT_BUDGET / EVENT_BYTES`.
-pub const EVENT_BUDGET: i64 = 131_072;
 
 /// A table's budget.
 #[derive(Clone, Copy)]
@@ -88,7 +150,10 @@ fn core_budget(table: &str) -> Option<Budget> {
     use Budget::*;
     Some(match table {
         // The retention budget, plus one batch of arrivals past it.
-        "events" => Rows(EVENT_BUDGET + 2048),
+        "events" => {
+            let (budget, batch) = crate::sim::rule_limits("events");
+            Rows(budget + batch)
+        }
         // 16 per user (`create_session` evicts the oldest), two users.
         "sessions" => Rows(32),
         "users" => Rows(2),
@@ -206,9 +271,11 @@ fn stat(path: &Path) -> StoreStat {
     }
 }
 
-/// Reads of the startup checks' biggest steps, each on a fresh read-only
-/// connection to the store as it is: to explain an expensive open.
-pub fn probe_open(path: &Path) -> String {
+/// Page reads of the startup checks' biggest steps, each on a fresh
+/// connection to a copy of the store (see `startup`): to explain an open.
+pub fn probe_open(path: &Path, scratch: &Path) -> String {
+    let copy = scratch.join("probe.sqlite");
+    crate::startup::copy(path, &copy);
     let steps = [
         ("quick_check", "PRAGMA quick_check"),
         (
@@ -217,16 +284,18 @@ pub fn probe_open(path: &Path) -> String {
         ),
         ("count(events)", "SELECT count(*) FROM events"),
     ];
-    steps
+    let line = steps
         .iter()
         .map(|(name, sql)| {
-            let conn = reader(path).expect("side connection");
+            let conn = reader(&copy).expect("side connection");
             let before = Io::now();
             let _: rusqlite::types::Value = conn.query_row(sql, [], |r| r.get(0)).unwrap();
-            format!("{name} {:.1} MiB", mib(Io::now().since(before).rchar))
+            format!("{name} {} pages", Io::now().since(before).syscr)
         })
         .collect::<Vec<_>>()
-        .join(", ")
+        .join(", ");
+    std::fs::remove_file(&copy).unwrap();
+    line
 }
 
 fn receipts_path(sim: &Sim) -> std::path::PathBuf {
@@ -315,6 +384,112 @@ pub fn checkpoint(sim: &mut Sim) {
     }
     sim.samples.push(sample);
     invariants(sim, "daily checkpoint");
+    core_accounting(sim, "daily checkpoint");
+    receipt_accounting(sim, "daily checkpoint");
+}
+
+/// Receipts kept per standalone action and per stack: `RETAINED_ACTIONS`
+/// and `RETAINED_STACKS` in
+/// `crates/executor-container/src/retention.rs`. They are `pub(crate)`
+/// there, so these are copies; widening that crate's API is out of this
+/// round's scope.
+pub const RETAINED_ACTIONS: i64 = 1024;
+pub const RETAINED_STACKS: i64 = 256;
+
+/// The core store's audit accounting, read on a side connection: before
+/// every restart (where `Store::open` would recompute the counter and hide
+/// a drift) and at every checkpoint. The counter is exactly `EVENT_BYTES`
+/// per event row, and retention never takes the table below what it keeps:
+/// once the run has written as many events as the events rule keeps, at
+/// least that many remain (less only what the authority rule removed).
+pub fn core_accounting(sim: &mut Sim, when: &str) {
+    let (bytes, rows): (i64, i64) = reader(&sim.core_path)
+        .unwrap()
+        .query_row(
+            "SELECT audit_bytes,(SELECT count(*) FROM events) FROM meta WHERE id=1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    let per_event = limeos_persistence::test_support::EVENT_BYTES;
+    let mut problems = Vec::new();
+    if bytes != rows * per_event {
+        problems.push(format!(
+            "{when}: meta.audit_bytes is {bytes}, but {rows} events take {} ({per_event} each): the audit counter drifted by {} events",
+            rows * per_event,
+            (bytes - rows * per_event) / per_event
+        ));
+    }
+    let removed = |rule: &str| sim.stats.retention_removed.get(rule).copied().unwrap_or(0);
+    let (budget, _) = crate::sim::rule_limits("events");
+    let written = rows + removed("events") + removed("authority events");
+    let floor = budget.min(written) - removed("authority events");
+    if rows < floor {
+        problems.push(format!(
+            "{when}: {rows} events kept of {written} written, below the {budget} the events rule keeps: retention over-pruned by {}",
+            floor - rows
+        ));
+    }
+    for problem in problems {
+        sim.violation(ACCOUNTING, problem);
+    }
+}
+
+/// The receipt store's retention, read on a side connection at every
+/// checkpoint and before every executor restart: standalone and stack
+/// receipts never fall below what retention keeps once reached; the prune
+/// watermark never decreases, and never passes the oldest expiry the rule
+/// may prune (`now - RECEIPT_RETAIN_AFTER_EXPIRY`) unless it is the store's
+/// creation floor.
+pub fn receipt_accounting(sim: &mut Sim, when: &str) {
+    let Ok(conn) = reader(&receipts_path(sim)) else {
+        return;
+    };
+    let Ok((standalone, stacks, watermark)) = conn.query_row(
+        "SELECT (SELECT count(*) FROM actions a WHERE NOT EXISTS(SELECT 1 FROM stack_actions s WHERE s.digest=a.digest)),(SELECT count(*) FROM stack_actions),(SELECT watermark FROM retention WHERE id=1)",
+        [],
+        |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?)),
+    ) else {
+        return;
+    };
+    let mut problems = Vec::new();
+    let reached = &mut sim.receipts_reached;
+    for (what, rows, kept, seen) in [
+        (
+            "standalone receipts",
+            standalone,
+            RETAINED_ACTIONS,
+            &mut reached.0,
+        ),
+        ("stack receipts", stacks, RETAINED_STACKS, &mut reached.1),
+    ] {
+        *seen |= rows >= kept;
+        if *seen && rows < kept {
+            problems.push(format!(
+                "{when}: {rows} {what} kept, below the {kept} retention keeps once reached: over-pruned"
+            ));
+        }
+    }
+    let creation = START + limeos_domain::PLAN_TTL_SECONDS;
+    let cutoff = sim.now() - limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY;
+    if watermark < sim.last_watermark {
+        problems.push(format!(
+            "{when}: the prune watermark went back from day {:.3} to day {:.3}",
+            (sim.last_watermark - START) as f64 / DAY as f64,
+            (watermark - START) as f64 / DAY as f64
+        ));
+    }
+    if watermark > cutoff && watermark != creation {
+        problems.push(format!(
+            "{when}: the prune watermark (day {:.3}) is past the youngest expiry retention may prune (day {:.3}): a receipt was pruned too early",
+            (watermark - START) as f64 / DAY as f64,
+            (cutoff - START) as f64 / DAY as f64
+        ));
+    }
+    sim.last_watermark = sim.last_watermark.max(watermark);
+    for problem in problems {
+        sim.violation(ACCOUNTING, problem);
+    }
 }
 
 /// After every restart: the stores opened (else the run has already
@@ -421,6 +596,8 @@ pub fn settled(sim: &Sim) -> bool {
 /// left to remove, dispatcher passes (recovery polls of any held job
 /// included) and retention passes must not write a byte to either store.
 pub async fn idle_window(sim: &mut Sim) {
+    sim.idle_scheduled += 1;
+    let started = sim.now();
     for _ in 0..240 {
         sim.clock.set(sim.now() + MINUTE);
         let removed = sim.retention_pass();
@@ -439,7 +616,12 @@ pub async fn idle_window(sim: &mut Sim) {
     }
     let io = Io::now().since(before);
     if sim.stats.restarts.values().sum::<u64>() != restarts || sim.executor_back_at.is_some() {
-        // A fault armed on a held job fired: not an idle hour.
+        // A fault armed on a held job fired: not an idle hour. Recorded,
+        // so a run that skips too many fails instead of passing unmeasured.
+        sim.idle_skipped.push((
+            started,
+            "a fault armed on a held job restarted a daemon".into(),
+        ));
         return;
     }
     sim.idle.push((start, io));
@@ -454,10 +636,26 @@ pub async fn idle_window(sim: &mut Sim) {
     }
 }
 
-fn third(samples: &[(f64, f64)], part: usize) -> &[(f64, f64)] {
-    let n = samples.len();
-    &samples[n * part / 3..n * (part + 1) / 3]
+/// Idle hours: every scheduled one measured or skipped for a recorded
+/// reason, and at least three in four measured.
+fn idle_coverage(sim: &mut Sim) {
+    let (scheduled, measured) = (sim.idle_scheduled as usize, sim.idle.len());
+    if measured + sim.idle_skipped.len() != scheduled
+        || measured * 4 < scheduled * 3
+        || measured == 0
+    {
+        let skipped: Vec<String> = sim
+            .idle_skipped
+            .iter()
+            .map(|(at, why)| format!("day {}: {why}", (at - START) / DAY))
+            .collect();
+        sim.violation(
+            IDLE,
+            format!("{measured} of {scheduled} idle hours measured (at least three in four needed); skipped: {skipped:?}"),
+        );
+    }
 }
+
 fn mean(points: &[(f64, f64)]) -> f64 {
     points.iter().map(|p| p.1).sum::<f64>() / points.len().max(1) as f64
 }
@@ -474,6 +672,7 @@ pub fn finish(sim: &mut Sim, profile: &Profile) {
 }
 
 fn final_state(sim: &mut Sim) {
+    idle_coverage(sim);
     let core = reader(&sim.core_path).expect("core side connection");
     let states: BTreeMap<String, String> = core
         .prepare("SELECT id,state FROM jobs")
@@ -558,9 +757,9 @@ fn final_state(sim: &mut Sim) {
     }
     // The workload provokes these on purpose; each must have been seen, so
     // the run proves legitimate refusals are told apart from lifetime ones.
+    // (Failed logins are not among them: their refusal is the password
+    // check's, in core, which the soak does not drive.)
     for (op, code) in [
-        ("login with a wrong password", "Unauthenticated"),
-        ("login with an unknown name", "Unauthenticated"),
         ("approve plan", "Expired"),
         ("provoked: session used after it expired", "Unauthenticated"),
     ] {
@@ -640,80 +839,150 @@ fn trends(sim: &mut Sim) {
             }
         }
     }
-    // Slow growth: years until the core file reaches its bound at the rate
-    // the per-job tables grew over the last third.
+    // Slow growth: the per-job tables over the last third, per day and per
+    // job, and the years until the core file reaches its bound at that rate.
     let last = &samples[samples.len() * 2 / 3..];
-    let span = day(last.last().unwrap()) - day(&last[0]);
-    let grown = |s: &Sample| -> f64 {
-        s.core
-            .tables
-            .iter()
-            .filter(|(t, _)| matches!(core_budget(t), Some(Budget::Grows(_))))
-            .map(|(_, (_, b))| *b as f64)
-            .sum()
-    };
-    let per_day = (grown(last.last().unwrap()) - grown(&last[0])) / span;
-    let room = CORE_FILE_BOUND as f64 - last.last().unwrap().core.file as f64;
-    let years = if per_day > 0.0 {
-        room / per_day / 365.0
-    } else {
-        f64::INFINITY
-    };
+    let (first, final_) = (&last[0], last.last().unwrap());
+    let span = day(final_) - day(first);
+    let per_day = (per_job_bytes(final_) - per_job_bytes(first)) / span;
+    let jobs = (final_.core.rows("jobs") - first.core.rows("jobs")) as f64;
+    let per_job = (per_job_bytes(final_) - per_job_bytes(first)) / jobs.max(1.0);
+    let room = CORE_FILE_BOUND as f64 - final_.core.file as f64;
+    let years = years_until(room, per_day);
     sim.projection = Some((per_day, years));
+    sim.measures.insert(PER_JOB_DAY, per_day / 1024.0);
+    sim.measures.insert(PER_JOB_JOB, per_job / 1024.0);
+    sim.measures.insert(PER_JOB_YEARS, years);
     if years < 5.0 {
-        problems.push((PROJECTION, format!("per-job tables grow {:.0} KiB a day: core.sqlite reaches {:.0} MiB in {years:.1} years", per_day / 1024.0, mib(CORE_FILE_BOUND))));
+        problems.push((PROJECTION, format!("per-job tables grow {:.0} KiB a day ({:.1} KiB a job): core.sqlite reaches {:.0} MiB in {years:.1} years", per_day / 1024.0, per_job / 1024.0, mib(CORE_FILE_BOUND))));
     }
-    // Startup work: the bytes the daily opens read, fitted over the last
-    // third and projected to the read bound of an open of a store at its
-    // file bound. Work counters are deterministic, unlike CI wall time.
-    for (store, starts, file_bound, check) in [
-        (
-            "core",
-            &sim.core_starts,
-            CORE_FILE_BOUND + CORE_WAL_BOUND,
+    // Core startup on the nightly copies: the cold page reads of its known
+    // statements but the proof check (a defect of its own, `MOUNT_PROOF`,
+    // whose cache eviction would otherwise blur this series; the open is
+    // tied to the sum by `EXPLAINED`), against the per-job tables' growth on
+    // the same nights, over the last third. Growth is taken between the
+    // medians of the two halves of the last third.
+    let nights: Vec<(f64, f64, f64)> = sim
+        .core_starts
+        .iter()
+        .filter_map(|c| {
+            let probe = c.probe?;
+            let sample = samples.iter().find(|s| s.at == c.at)?;
+            Some((
+                (c.at - START) as f64 / DAY as f64,
+                (probe.known - probe.proof) as f64,
+                per_job_bytes(sample) / PAGE as f64,
+            ))
+        })
+        .collect();
+    let tail = &nights[nights.len() * 2 / 3..];
+    let reads: Vec<(f64, f64)> = tail.iter().map(|n| (n.0, n.1)).collect();
+    let per_job_pages: Vec<(f64, f64)> = tail.iter().map(|n| (n.0, n.2)).collect();
+    let startup_per_day = half_slope(&reads);
+    let per_job_per_day = half_slope(&per_job_pages);
+    let cap = startup_page_bound("core", CORE_FILE_BOUND + CORE_WAL_BOUND) as f64;
+    let now = reads.last().map_or(0.0, |p| p.1);
+    let startup_years = years_until(cap - now, startup_per_day);
+    sim.startup_projection
+        .push(("core", startup_per_day, startup_years));
+    sim.measures.insert(STARTUP_DAY, startup_per_day);
+    sim.measures.insert(STARTUP_YEARS, startup_years);
+    if startup_years < 5.0 {
+        problems.push((
             STARTUP_TREND_CORE,
-        ),
-        (
-            "receipts",
-            &sim.executor_starts,
-            RECEIPT_FILE_BOUND + RECEIPT_WAL_BOUND,
-            STARTUP_TREND_RECEIPTS,
-        ),
-    ] {
-        let points: Vec<(f64, f64)> = starts
-            .iter()
-            .filter(|s| (s.at - START) % DAY == 4 * 3600)
-            .map(|s| ((s.at - START) as f64 / DAY as f64, s.opened.io.rchar as f64))
-            .collect();
-        let last = third(&points, 2);
-        let per_day = slope(last);
-        let now = last.last().map_or(0.0, |p| p.1);
-        let cap = (STARTUP_READ_FACTOR * file_bound) as f64;
-        let years = if per_day > 0.0 {
-            (cap - now) / per_day / 365.0
-        } else {
-            f64::INFINITY
-        };
-        sim.startup_projection.push((store, per_day, years));
-        if years < 5.0 {
+            format!(
+                "core opens read {startup_per_day:.0} more pages each night over the last third ({now:.0} now): {cap:.0}, the bound at the file bound, in {startup_years:.1} years"
+            ),
+        ));
+    }
+    if per_job_per_day > 0.0 {
+        let ratio = startup_per_day / per_job_per_day;
+        sim.measures.insert(STARTUP_RATIO, ratio);
+        if ratio > STARTUP_PER_JOB_MAX {
             problems.push((
-                check,
+                STARTUP_PER_JOB,
                 format!(
-                    "{store} opens read {:.2} MiB more each day over the last third ({:.1} MiB now): {:.0} MiB, the read bound at the file bound, in {years:.1} years",
-                    per_day / 1048576.0,
-                    mib(now as u64),
-                    mib(cap as u64)
+                    "core opens read {startup_per_day:.0} more pages a night while the per-job tables gain {per_job_per_day:.1}: {ratio:.1} reads per page, more than the {STARTUP_PER_JOB_MAX} the per-job component explains"
                 ),
             ));
         }
+    }
+    // The receipt store's opens: its file is flat, so its reads must be.
+    let receipts: Vec<(f64, f64)> = sim
+        .executor_starts
+        .iter()
+        .filter(|s| s.reason == COPY)
+        .map(|s| ((s.at - START) as f64 / DAY as f64, pages(s) as f64))
+        .collect();
+    let tail = &receipts[receipts.len() * 2 / 3..];
+    let per_day = half_slope(tail);
+    let cap = startup_page_bound("receipts", RECEIPT_FILE_BOUND + RECEIPT_WAL_BOUND) as f64;
+    let now = tail.last().map_or(0.0, |p| p.1);
+    let years = years_until(cap - now, per_day);
+    sim.startup_projection.push(("receipts", per_day, years));
+    if years < 5.0 {
+        problems.push((
+            STARTUP_TREND_RECEIPTS,
+            format!(
+                "receipt-store opens read {per_day:.1} more pages each night over the last third ({now:.0} now): {cap:.0}, the bound at the file bound, in {years:.1} years"
+            ),
+        ));
     }
     for (check, problem) in problems {
         sim.violation(check, problem);
     }
 }
 
-/// Every measured open within bounds: work linear in the file it opens
-/// (`quick_check` reads every page once), and wall time.
+/// Bytes of core's per-job tables in a sample.
+fn per_job_bytes(s: &Sample) -> f64 {
+    s.core
+        .tables
+        .iter()
+        .filter(|(t, _)| matches!(core_budget(t), Some(Budget::Grows(_))))
+        .map(|(_, (_, b))| *b as f64)
+        .sum()
+}
+
+fn years_until(room: f64, per_day: f64) -> f64 {
+    if per_day > 0.0 {
+        (room / per_day / 365.0).min(99.0)
+    } else {
+        99.0
+    }
+}
+
+/// Growth per day between the medians of the two halves of `points`.
+fn half_slope(points: &[(f64, f64)]) -> f64 {
+    let median = |part: &[(f64, f64)], pick: fn(&(f64, f64)) -> f64| -> f64 {
+        let mut values: Vec<f64> = part.iter().map(pick).collect();
+        values.sort_by(f64::total_cmp);
+        values.get(values.len() / 2).copied().unwrap_or(0.0)
+    };
+    if points.len() < 4 {
+        return 0.0;
+    }
+    let (a, b) = points.split_at(points.len() / 2);
+    let dx = median(b, |p| p.0) - median(a, |p| p.0);
+    if dx <= 0.0 {
+        0.0
+    } else {
+        (median(b, |p| p.1) - median(a, |p| p.1)) / dx
+    }
+}
+
+/// Startup page reads per page the per-job tables gain, at most: measured
+/// about 5 (quick_check and the foreign-key check read each new page, and
+/// six statements scan the jobs table); twice that is still the per-job
+/// component, more is growth from something else.
+pub const STARTUP_PER_JOB_MAX: f64 = 10.0;
+pub const STARTUP_RATIO: &str = "core startup page reads per per-job page gained";
+
+/// Every measured open within bounds. On each copy: the open reads no more
+/// than its known statements read cold (`EXPLAINED`), nor, beyond the proof
+/// check, more than a bounded number of pages per page of file (`STARTUP`);
+/// the proof check itself is judged on its own (`MOUNT_PROOF`). The wall
+/// time of every open, real or on a copy, is machine-dependent and guards
+/// against the catastrophic only.
 fn startup_bounds(sim: &mut Sim) {
     let mut problems = Vec::new();
     for (store, starts, bound) in [
@@ -722,44 +991,103 @@ fn startup_bounds(sim: &mut Sim) {
     ] {
         for s in starts {
             let ms = s.opened.elapsed.as_millis();
-            let reads = STARTUP_READ_FACTOR * (s.file + s.wal) + (1 << 20);
-            if ms > bound || s.opened.io.rchar > reads {
-                problems.push(format!(
-                    "{store} open at day {:.2} ({}): {ms} ms (bound {bound}), {:.1} MiB read for a {:.1} MiB file and {:.1} MiB WAL (bound {:.1} MiB)",
-                    (s.at - START) as f64 / DAY as f64,
-                    s.reason,
-                    mib(s.opened.io.rchar),
-                    mib(s.file),
-                    mib(s.wal),
-                    mib(reads)
+            let day = (s.at - START) as f64 / DAY as f64;
+            let file_pages = (s.file + s.wal) / PAGE;
+            if ms > bound {
+                problems.push((
+                    STARTUP,
+                    format!(
+                        "{store} open at day {day:.2} ({}): {ms} ms (bound {bound})",
+                        s.reason
+                    ),
+                ));
+            }
+            if s.reason != COPY {
+                continue;
+            }
+            // Core: its known statements but the proof check, cold; the
+            // receipt store: the open.
+            let (work, what) = match s.probe {
+                Some(probe) => (
+                    probe.known - probe.proof,
+                    "its startup statements but the proof check read",
+                ),
+                None => (pages(s), "the open read"),
+            };
+            let limit = startup_page_bound(store, s.file + s.wal);
+            if work > limit {
+                problems.push((
+                    STARTUP,
+                    format!(
+                        "{store} open on a copy at day {day:.2}: {what} {work} pages for {file_pages} pages of file (bound {limit})"
+                    ),
+                ));
+            }
+            let Some(probe) = s.probe else { continue };
+            let allowed =
+                probe.known + (probe.known - probe.proof) * EXPLAIN_PERCENT / 100 + EXPLAIN_SLACK;
+            if pages(s) > allowed {
+                problems.push((
+                    EXPLAINED,
+                    format!(
+                        "core open on a copy at day {day:.2}: {} page reads, {} more than its known startup statements read cold ({}): startup scans something they do not",
+                        pages(s),
+                        pages(s) - probe.known,
+                        probe.known
+                    ),
+                ));
+            }
+            if probe.proof_by_kind || probe.proof > file_pages / 8 + 64 {
+                problems.push((
+                    MOUNT_PROOF,
+                    format!(
+                        "day {day:.2}: the storage-mount proof check reads {} pages ({:.2} files' worth){}",
+                        probe.proof,
+                        probe.proof as f64 / file_pages.max(1) as f64,
+                        if probe.proof_by_kind { ", looking events up by kind" } else { "" }
+                    ),
                 ));
             }
         }
     }
-    for problem in problems {
-        sim.violation(STARTUP, problem);
+    let probes: Vec<(crate::startup::Probe, u64)> = sim
+        .core_starts
+        .iter()
+        .filter_map(|s| Some((s.probe?, (s.file + s.wal) / PAGE)))
+        .filter(|(_, file)| *file > 256)
+        .collect();
+    if !probes.is_empty() {
+        let by_kind = probes.iter().all(|(p, _)| p.proof_by_kind);
+        let worst = probes
+            .iter()
+            .map(|(p, file)| p.proof as f64 / *file as f64)
+            .fold(0.0, f64::max);
+        sim.measures
+            .insert(PROOF_BY_KIND, if by_kind { 1.0 } else { 0.0 });
+        sim.measures.insert(PROOF_FILES, worst);
+    }
+    for (check, problem) in problems {
+        sim.violation(check, problem);
     }
 }
 
-/// Bytes read per byte of file and WAL over a run's opens of one store:
-/// minimum, median and maximum, with the reason of the maximum.
-fn read_ratios(starts: &[crate::sim::Startup]) -> String {
-    let mut ratios: Vec<(f64, &str)> = starts
+/// Page reads per page of file and WAL over a run's opens on copies:
+/// minimum, median and maximum.
+fn page_ratios(starts: &[crate::sim::Startup]) -> String {
+    let mut ratios: Vec<f64> = starts
         .iter()
-        .filter(|s| s.file > 1 << 20)
-        .map(|s| (s.opened.io.rchar as f64 / (s.file + s.wal) as f64, s.reason))
+        .filter(|s| s.reason == COPY && s.file > 1 << 20)
+        .map(|s| pages(s) as f64 / ((s.file + s.wal) / PAGE) as f64)
         .collect();
     if ratios.is_empty() {
-        return "no open of a file over 1 MiB".into();
+        return "no copy over 1 MiB".into();
     }
-    ratios.sort_by(|a, b| a.0.total_cmp(&b.0));
-    let last = ratios[ratios.len() - 1];
+    ratios.sort_by(f64::total_cmp);
     format!(
-        "{:.2} / {:.2} / {:.2} (the largest: {})",
-        ratios[0].0,
-        ratios[ratios.len() / 2].0,
-        last.0,
-        last.1
+        "{:.3} / {:.3} / {:.3}",
+        ratios[0],
+        ratios[ratios.len() / 2],
+        ratios[ratios.len() - 1]
     )
 }
 
@@ -769,10 +1097,14 @@ fn report(sim: &Sim, profile: &Profile) {
     use std::fmt::Write;
     let _ = writeln!(
         p,
-        "\n=== soak {}: {} simulated days in {:.1} s ===",
+        "\n=== soak {}: {} simulated days in {:.1} s, stores in {} ===",
         profile.name,
         profile.days,
-        sim.started.elapsed().as_secs_f64()
+        sim.started.elapsed().as_secs_f64(),
+        sim._dir
+            .path()
+            .parent()
+            .map_or("?".into(), |p| p.display().to_string())
     );
     let total_ops: u64 = sim.stats.ops.values().sum();
     let _ = writeln!(
@@ -856,16 +1188,16 @@ fn report(sim: &Sim, profile: &Profile) {
     }
     let _ = writeln!(
         p,
-        "day | core open: ms, MiB read, read calls | receipts open: ms, KiB read, read calls"
+        "day | core open on a copy: page reads, MiB of file, ms, MiB read | receipts: page reads, KiB of file, ms"
     );
-    let daily = |starts: &[crate::sim::Startup]| -> Vec<crate::sim::Startup> {
+    let copies = |starts: &[crate::sim::Startup]| -> Vec<crate::sim::Startup> {
         starts
             .iter()
-            .filter(|s| (s.at - START) % DAY == 4 * 3600)
+            .filter(|s| s.reason == COPY)
             .copied()
             .collect()
     };
-    let (core, receipts) = (daily(&sim.core_starts), daily(&sim.executor_starts));
+    let (core, receipts) = (copies(&sim.core_starts), copies(&sim.executor_starts));
     let step = (core.len() / 10).max(1);
     for (c, r) in core
         .iter()
@@ -875,30 +1207,28 @@ fn report(sim: &Sim, profile: &Profile) {
     {
         let _ = writeln!(
             p,
-            "{:>3} | {:>4} ms {:>6.1} MiB {:>6} | {:>4} ms {:>6.0} KiB {:>5}",
+            "{:>3} | {:>6} {:>6.1} {:>5} ms {:>6.1} | {:>5} {:>6.0} {:>4} ms",
             (c.at - START) / DAY,
+            pages(c),
+            mib(c.file + c.wal),
             c.opened.elapsed.as_millis(),
             mib(c.opened.io.rchar),
-            c.opened.io.syscr,
+            pages(r),
+            (r.file + r.wal) as f64 / 1024.0,
             r.opened.elapsed.as_millis(),
-            r.opened.io.rchar as f64 / 1024.0,
-            r.opened.io.syscr,
         );
     }
     let _ = writeln!(
         p,
-        "bytes read per byte of file at open, min / median / max: core {}; receipts {}",
-        read_ratios(&sim.core_starts),
-        read_ratios(&sim.executor_starts)
+        "page reads per page of file at open on a copy, min / median / max: core {}; receipts {}",
+        page_ratios(&sim.core_starts),
+        page_ratios(&sim.executor_starts)
     );
     let _ = writeln!(
         p,
-        "core startup reads by step, on the final store: {}",
-        probe_open(&sim.core_path)
+        "core startup page reads by step, on the final store: {}",
+        probe_open(&sim.core_path, sim._dir.path())
     );
-    for line in &sim.stats.probes {
-        let _ = writeln!(p, "expensive open: {line}");
-    }
     let worst = |starts: &[crate::sim::Startup]| {
         starts
             .iter()
@@ -914,9 +1244,11 @@ fn report(sim: &Sim, profile: &Profile) {
     );
     let _ = writeln!(
         p,
-        "idle hours measured: {} (write calls in each: {:?})",
+        "idle hours: {} scheduled, {} measured (write calls in each: {:?}), skipped: {:?}",
+        sim.idle_scheduled,
         sim.idle.len(),
-        sim.idle.iter().map(|(_, io)| io.syscw).collect::<Vec<_>>()
+        sim.idle.iter().map(|(_, io)| io.syscw).collect::<Vec<_>>(),
+        sim.idle_skipped
     );
     if let Some(last) = sim.samples.last() {
         let _ = writeln!(p, "per-job tables at the end (rows, MiB):");
@@ -932,10 +1264,28 @@ fn report(sim: &Sim, profile: &Profile) {
     for (store, per_day, years) in &sim.startup_projection {
         let _ = writeln!(
             p,
-            "{store} startup reads over the last third: {:+.0} KiB/day; the read bound in {years:.0} years at that rate",
-            per_day / 1024.0
+            "{store} startup page reads over the last third: {per_day:+.0}/day; the bound in {years:.0} years at that rate"
         );
     }
+    let unexplained: Vec<i64> = sim
+        .core_starts
+        .iter()
+        .filter_map(|s| Some(pages(s) as i64 - s.probe?.known as i64))
+        .collect();
+    let proofs: Vec<u64> = sim
+        .core_starts
+        .iter()
+        .filter_map(|s| Some(s.probe?.proof))
+        .collect();
+    let _ = writeln!(
+        p,
+        "core opens on copies, page reads beyond their known statements cold: {:?} .. {:?}; the proof check's reads: {:?} .. {:?}",
+        unexplained.iter().min(),
+        unexplained.iter().max(),
+        proofs.iter().min(),
+        proofs.iter().max()
+    );
+    let _ = writeln!(p, "measures: {:#?}", sim.measures);
     if let Some((per_day, years)) = sim.projection {
         let _ = writeln!(
             p,
@@ -953,21 +1303,67 @@ fn verdict(sim: &Sim, profile: &Profile) {
         failed.entry(check).or_default().push(line);
     }
     let mut checks = vec![
-        REFUSALS, INVARIANTS, SIZE, BUDGETS, STARTUP, IDLE, SETTLED, EFFECTS, AUTHORITY, PROVOKED,
+        REFUSALS,
+        INVARIANTS,
+        SIZE,
+        BUDGETS,
+        STARTUP,
+        EXPLAINED,
+        MOUNT_PROOF,
+        IDLE,
+        SETTLED,
+        EFFECTS,
+        AUTHORITY,
+        PROVOKED,
         BATCHES,
+        ACCOUNTING,
     ];
     if profile.trends {
-        checks.extend([FLAT, STARTUP_TREND_CORE, STARTUP_TREND_RECEIPTS, PROJECTION]);
+        checks.extend([
+            FLAT,
+            STARTUP_PER_JOB,
+            STARTUP_TREND_CORE,
+            STARTUP_TREND_RECEIPTS,
+            PROJECTION,
+        ]);
     }
     let mut verdict = Vec::new();
     for check in checks {
-        let expected = EXPECTED_FAILURES.iter().find(|(c, _)| *c == check);
-        match (failed.get(check), expected) {
+        let known = EXPECTED_FAILURES.iter().find(|k| k.check == check);
+        match (failed.get(check), known) {
             (None, None) => eprintln!("PASS  {check}"),
-            (Some(lines), Some((_, why))) => {
-                eprintln!("XFAIL {check}: {why} ({} failures, first: {})", lines.len(), lines[0]);
+            (Some(lines), Some(known)) => {
+                // The failure must be the known defect: every pin in range.
+                let outside: Vec<String> = known
+                    .pins
+                    .iter()
+                    .filter_map(|(measure, low, high)| {
+                        let value = sim.measures.get(measure).copied();
+                        match value {
+                            Some(v) if (*low..=*high).contains(&v) => None,
+                            _ => Some(format!("{measure} = {value:?}, pinned to {low}..={high}")),
+                        }
+                    })
+                    .collect();
+                if outside.is_empty() {
+                    eprintln!(
+                        "XFAIL {check}: {} ({} failures, first: {})",
+                        known.why,
+                        lines.len(),
+                        lines[0]
+                    );
+                } else {
+                    eprintln!("FAIL  {check}: a known failure outside what is known: {outside:?}");
+                    verdict.push(format!(
+                        "{check}: failed, but not as its known defect: {}; first failure: {}",
+                        outside.join("; "),
+                        lines[0]
+                    ));
+                }
             }
-            (None, Some(_)) => verdict.push(format!("{check}: listed as an expected failure but passed; remove it from EXPECTED_FAILURES")),
+            (None, Some(_)) => verdict.push(format!(
+                "{check}: listed as an expected failure but passed; remove it from EXPECTED_FAILURES"
+            )),
             (Some(lines), None) => {
                 eprintln!("FAIL  {check} ({} failures)", lines.len());
                 for line in lines.iter().take(20) {

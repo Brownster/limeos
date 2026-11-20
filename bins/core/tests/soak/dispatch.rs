@@ -133,6 +133,10 @@ impl Sim {
     }
     fn crash_at(&mut self, job: &str, point: JobFault) -> Result<(), Halt> {
         if self.fault(job, |f| f == point).is_some() {
+            // Armed before core's restarts ended, due after: dropped.
+            if !self.core_restarts() {
+                return Ok(());
+            }
             self.count_fault(point);
             return Err(Halt::CoreCrash);
         }
@@ -144,13 +148,14 @@ impl Sim {
             .is_some()
         {
             self.count_fault(JobFault::ExecutorDownAfterEpoch);
+            crate::checks::receipt_accounting(self, "executor stopped between epoch and execute");
             self.exec.stop();
             self.executor_back_at = Some(self.now() + 20);
         }
     }
 
     /// Core's `receipt_epoch`.
-    async fn receipt_epoch(&mut self) -> Result<String, Error> {
+    pub async fn receipt_epoch(&mut self) -> Result<String, Error> {
         self.executor(Request::ReceiptEpoch { version: VERSION })
             .await?
             .epoch
@@ -653,7 +658,7 @@ impl Sim {
         *self.stats.ops.entry("resolution requested").or_default() += 1;
         // An operator decision interrupted by a core restart: the retry loop
         // completes it after startup.
-        if self.rng.per_mille(100) {
+        if self.core_restarts() && self.rng.per_mille(100) {
             *self
                 .stats
                 .faults
