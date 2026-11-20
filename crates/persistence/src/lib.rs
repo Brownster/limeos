@@ -135,6 +135,27 @@ pub struct LoginRecord {
     pub principal: Principal,
     pub password_hash: String,
 }
+/// Free space in the store's directory. Tests on this thread may pretend the
+/// disk is fuller.
+fn available_space(directory: &Path) -> Result<u64> {
+    #[cfg(test)]
+    if let Some(bytes) = OPEN_FREE_BYTES.get() {
+        return Ok(bytes);
+    }
+    fs2::available_space(directory).map_err(|_| Error(ErrorCode::StateNotDurable))
+}
+#[cfg(test)]
+thread_local! {
+    static OPEN_FREE_BYTES: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+}
+fn interrupted_jobs(conn: &Connection) -> Result<i64> {
+    conn.query_row(
+        "SELECT count(*) FROM jobs WHERE state IN ('running','verifying')",
+        [],
+        |r| r.get(0),
+    )
+    .map_err(durable)
+}
 fn durable(_: rusqlite::Error) -> Error {
     Error(ErrorCode::StateNotDurable)
 }
@@ -188,6 +209,14 @@ impl Store {
         conn.busy_timeout(Duration::from_millis(500))
             .map_err(durable)?;
         conn.execute_batch("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA wal_autocheckpoint=256; PRAGMA journal_size_limit=4194304; PRAGMA trusted_schema=OFF;").map_err(durable)?;
+        // Below the free-space reserve, the only space this store can give back
+        // without a VACUUM (which needs more free space, not less) is a WAL left
+        // by a crash: checkpoint and truncate it before the check decides.
+        // Pruning cannot help here: freed pages stay in the file's freelist.
+        if available_space(&directory)? < MIN_FREE_BYTES {
+            conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+                .map_err(durable)?;
+        }
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(durable)?;
@@ -273,27 +302,24 @@ impl Store {
             return Err(Error(ErrorCode::StateNotDurable));
         }
         resources::check(&tx)?;
-        if fs2::available_space(&directory).map_err(|_| Error(ErrorCode::StateNotDurable))?
-            < MIN_FREE_BYTES
-        {
+        if available_space(&directory)? < MIN_FREE_BYTES {
             return Err(Error(ErrorCode::StateNotDurable));
         }
         let audit_bytes = retention::reconcile(&tx)?;
-        let interrupted: i64 = tx
-            .query_row(
-                "SELECT count(*) FROM jobs WHERE state IN ('running','verifying')",
-                [],
-                |r| r.get(0),
-            )
-            .map_err(durable)?;
-        // Recovery records use the revocation reserve past the cap. Only when
-        // pinned history fills even that is startup refused.
-        if interrupted > 0
-            && interrupted.saturating_mul(retention::EVENT_BYTES)
-                > AUDIT_LIMIT + retention::AUDIT_RESERVE - audit_bytes
-        {
-            return Err(Error(ErrorCode::StateNotDurable));
-        }
+        let interrupted = interrupted_jobs(&tx)?;
+        // Recovery records use the revocation reserve past the cap. When even
+        // that is full, retention runs first, in its ordinary bounded batches
+        // (each its own transaction; the checks above have passed and the core
+        // lock keeps every other writer out), and startup is refused only when
+        // nothing more can be pruned.
+        let tx = if retention::recovery_fits(interrupted, audit_bytes) {
+            tx
+        } else {
+            tx.commit().map_err(durable)?;
+            retention::make_room(&mut conn, interrupted)?;
+            conn.transaction_with_behavior(TransactionBehavior::Immediate)
+                .map_err(durable)?
+        };
         tx.execute("UPDATE meta SET generation=generation+1 WHERE id=1", [])
             .map_err(durable)?;
         let generation = tx

@@ -333,6 +333,62 @@ fn startup_refuses_only_when_recovery_cannot_be_recorded_even_in_the_reserve() {
     s.revoke_session("missing", 400).unwrap();
 }
 
+/// The reserve is full, a job was running, and nearly all history is
+/// prunable: startup prunes in its ordinary batches until the recovery event
+/// fits, instead of refusing until someone edits the database.
+#[test]
+fn startup_prunes_history_to_record_recovery_when_the_reserve_is_full() {
+    let (d, mut s, p) = setup();
+    let job = running(&mut s, &p, "interrupted");
+    let rows = (AUDIT_LIMIT + retention::AUDIT_RESERVE) / 256;
+    s.conn.execute("WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<?) INSERT INTO events(principal,job,kind,created) SELECT ?,NULL,'{\"kind\":\"session_created\"}',300 FROM c",params![rows,p.id]).unwrap();
+    let generation = s.generation;
+    drop(s);
+    let s = Store::open(&d.path().join("core.sqlite")).unwrap();
+    assert_eq!(s.generation, generation + 1);
+    assert_eq!(s.job_state(&job).unwrap(), "needs_intervention");
+    let recovered: i64 = s
+        .conn
+        .query_row(
+            "SELECT count(*) FROM events WHERE job=? AND kind=?",
+            params![job, json(&EventKind::JobRecoveryRequired).unwrap()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(recovered, 1);
+    let usage = s.audit_usage().unwrap().bytes;
+    assert_eq!(usage, events(&s) * 256);
+    assert!(usage <= AUDIT_LIMIT + retention::AUDIT_RESERVE);
+    // Only as much as recovery needed: one batch.
+    assert!(usage >= AUDIT_LIMIT + retention::AUDIT_RESERVE - 1024 * 256);
+}
+
+/// Below the free-space reserve, startup gives back a WAL a crash left behind
+/// before it refuses; it never writes or bumps the generation.
+#[test]
+fn startup_below_the_free_space_reserve_truncates_a_crash_wal_and_refuses() {
+    let (d, s, _) = setup();
+    let path = d.path().join("core.sqlite");
+    let generation = s.generation;
+    drop(s);
+    // A connection that dies without its closing checkpoint leaves a WAL.
+    let conn = Connection::open(&path).unwrap();
+    conn.execute_batch("PRAGMA wal_autocheckpoint=0; CREATE TABLE crash_padding(x); INSERT INTO crash_padding SELECT zeroblob(65536) FROM (WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<16) SELECT x FROM c); DROP TABLE crash_padding;")
+        .unwrap();
+    std::mem::forget(conn);
+    let wal = || std::fs::metadata(path.with_extension("sqlite-wal")).map_or(0, |m| m.len());
+    assert!(wal() > 1024 * 1024);
+    OPEN_FREE_BYTES.set(Some(MIN_FREE_BYTES - 1));
+    assert_eq!(
+        Store::open(&path).err().unwrap().0,
+        ErrorCode::StateNotDurable
+    );
+    assert_eq!(wal(), 0);
+    OPEN_FREE_BYTES.set(None);
+    let s = Store::open(&path).unwrap();
+    assert_eq!(s.generation, generation + 1);
+}
+
 /// A live session and task token for `p`, for the revocation tests.
 fn revocable(s: &mut Store, p: &Principal, name: &str) {
     let record = s.login_record("alice").unwrap().unwrap();

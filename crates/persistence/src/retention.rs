@@ -5,6 +5,9 @@
 //! writes nothing. A table over budget gets one batch of oldest-first deletions
 //! in its own short IMMEDIATE transaction; a batch that finds nothing eligible
 //! rolls back, so an idle or unchanged store is never written by retention.
+//! Startup also runs the events rule, before the writer thread exists, when
+//! the recovery events for interrupted jobs would not fit in the reserve
+//! ([`make_room`]); it refuses only when nothing more is prunable.
 //!
 //! # What is never pruned
 //!
@@ -170,6 +173,47 @@ pub(super) fn reconcile(tx: &Transaction<'_>) -> Result<i64> {
     Ok(actual)
 }
 
+/// Whether startup recovery's one event per interrupted job fits within
+/// [`AUDIT_RESERVE`] past the cap.
+pub(super) fn recovery_fits(interrupted: i64, audit_bytes: i64) -> bool {
+    interrupted == 0
+        || interrupted.saturating_mul(EVENT_BYTES) <= AUDIT_LIMIT + AUDIT_RESERVE - audit_bytes
+}
+
+/// Startup, when recovery does not fit: the events rule's ordinary batches,
+/// each its own transaction, until it fits. Refused only when a batch finds
+/// nothing more to prune (the history is pinned).
+pub(super) fn make_room(conn: &mut Connection, interrupted: i64) -> Result<()> {
+    loop {
+        let bytes = audited_events(conn)?
+            .checked_mul(EVENT_BYTES)
+            .ok_or(Error(ErrorCode::StateNotDurable))?;
+        if recovery_fits(interrupted, bytes) {
+            return Ok(());
+        }
+        if run(conn, &RULES[0])? == 0 {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
+    }
+}
+
+/// One batch of `rule` if its table is over budget, in its own transaction.
+/// A batch that removes nothing rolls back.
+fn run(conn: &mut Connection, rule: &Rule) -> Result<i64> {
+    let excess = (rule.rows)(conn)?.saturating_sub(rule.budget);
+    if excess <= 0 {
+        return Ok(0);
+    }
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(durable)?;
+    let rows = (rule.prune)(&tx, excess.min(rule.batch))?;
+    if rows > 0 {
+        tx.commit().map_err(durable)?;
+    }
+    Ok(rows)
+}
+
 fn audited_events(conn: &Connection) -> Result<i64> {
     let bytes: i64 = conn
         .query_row("SELECT audit_bytes FROM meta WHERE id=1", [], |r| r.get(0))
@@ -333,17 +377,8 @@ impl Store {
     pub(super) fn prune(&mut self) -> Result<Vec<(&'static str, i64)>> {
         let mut removed = Vec::new();
         for rule in &RULES {
-            let excess = (rule.rows)(&self.conn)?.saturating_sub(rule.budget);
-            if excess <= 0 {
-                continue;
-            }
-            let tx = self
-                .conn
-                .transaction_with_behavior(TransactionBehavior::Immediate)
-                .map_err(durable)?;
-            let rows = (rule.prune)(&tx, excess.min(rule.batch))?;
+            let rows = run(&mut self.conn, rule)?;
             if rows > 0 {
-                tx.commit().map_err(durable)?;
                 removed.push((rule.table, rows));
             }
         }
