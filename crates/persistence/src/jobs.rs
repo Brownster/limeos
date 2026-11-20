@@ -203,15 +203,8 @@ impl Store {
     }
 
     /// The container executor's receipt-store epoch, from an answer core just
-    /// received. One that differs from the recorded epoch means the store
-    /// core talks to is not the one it dispatched its held jobs under: every
-    /// held container and stack job gets one `executor_store_changed` event
-    /// (so a `never_recorded` closure for it is refused,
-    /// `record_container_closure`), and the new epoch is recorded, in one
-    /// transaction. The first epoch ever recorded is a change like any other:
-    /// a job held then was dispatched under no known epoch (before an
-    /// upgrade, or before an answer that carried one), so nothing ties it to
-    /// this store. Returns the jobs marked. An unchanged epoch writes nothing.
+    /// received (`record_epoch`). Returns the jobs marked. An unchanged epoch
+    /// writes nothing.
     pub fn observe_executor_epoch(&mut self, epoch: &str, now: i64) -> Result<usize> {
         if !limeos_domain::opaque_id(epoch) {
             return Err(Error(ErrorCode::InvalidInput));
@@ -225,40 +218,56 @@ impl Store {
         if seen.as_deref() == Some(epoch) {
             return Ok(0);
         }
+        self.write(|tx| record_epoch(tx, epoch, now))
+    }
+
+    /// A claimed container or stack job whose execute request certainly never
+    /// ran: it never left core (the connection to the executor could not be
+    /// established, so no byte of it was written), or the executor refused it
+    /// before recording anything for the action. Core sends one execute per
+    /// job, so nothing for this action can run later: the job moves from
+    /// `running` to `precondition_changed` and releases its locks, as a
+    /// refusal does. Only a job still `running` (just claimed) qualifies; a
+    /// repeat is `Conflict`.
+    pub fn record_unsent_execute(&mut self, id: &str, now: i64) -> Result<()> {
         self.write(|tx| {
-            let seen: Option<String> = tx
-                .query_row("SELECT executor_epoch FROM meta WHERE id=1", [], |r| {
-                    r.get(0)
+            let (principal, intent): (String, String) = tx
+                .query_row("SELECT principal,intent FROM jobs WHERE id=?", [id], |r| {
+                    Ok((r.get(0)?, r.get(1)?))
                 })
-                .map_err(durable)?;
-            if seen.as_deref() == Some(epoch) {
-                return Ok(0);
+                .optional()
+                .map_err(durable)?
+                .ok_or(Error(ErrorCode::NotFound))?;
+            if !matches!(
+                parse::<Intent>(&intent)?,
+                Intent::ContainerRestart { .. }
+                    | Intent::ContainerStart { .. }
+                    | Intent::ContainerStop { .. }
+                    | Intent::StackRestart { .. }
+                    | Intent::StackStart { .. }
+                    | Intent::StackStop { .. }
+            ) {
+                return Err(Error(ErrorCode::Forbidden));
             }
-            // A change, or the first epoch ever recorded (`None`: a fresh
-            // install, where nothing is held, or the first answer after the
-            // upgrade that added the epoch, where every held job was
-            // dispatched under none): every held job is marked.
-            let kind = json(&EventKind::ExecutorStoreChanged)?;
-            let marked = tx
-                .execute(
-                    &format!(
-                        "INSERT INTO events(principal,job,kind,created) SELECT j.principal,j.id,?1,?2 FROM jobs j WHERE j.state IN ('running','verifying','outcome_unknown','needs_intervention') AND json_extract(j.intent,'$.operation') IN {EXECUTOR_OPERATIONS} AND NOT EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND e.kind=?1)"
-                    ),
-                    params![kind, now],
-                )
-                .map_err(durable)?;
-            retention::account(tx, marked as i64)?;
             if tx
                 .execute(
-                    "UPDATE meta SET executor_epoch=? WHERE id=1",
-                    [epoch],
+                    "UPDATE jobs SET state='precondition_changed' WHERE id=? AND state='running'",
+                    [id],
                 )
                 .map_err(durable)?
                 != 1
             {
-                return Err(Error(ErrorCode::StateNotDurable));
+                return Err(Error(ErrorCode::Conflict));
             }
-            Ok(marked)
+            event(
+                tx,
+                Some(&principal),
+                Some(id),
+                EventKind::JobTransition {
+                    state: JobState::PreconditionChanged,
+                },
+                now,
+            )
         })
     }
 
@@ -379,4 +388,56 @@ impl Store {
             .map_err(durable)?
             .ok_or(Error(ErrorCode::NotFound))
     }
+}
+
+/// Record `epoch`, the container executor's receipt-store epoch, in `tx`.
+/// One that differs from the recorded epoch means the store core talks to is
+/// not the one it dispatched its held jobs under: every held container and
+/// stack job gets one `executor_store_changed` event (so a `never_recorded`
+/// closure for it is refused, `record_container_closure`), and the new epoch
+/// is recorded, in the same transaction. The first epoch ever recorded is a
+/// change like any other: a job held then was dispatched under no known epoch
+/// (before the upgrade that added it), so nothing ties it to this store.
+///
+/// This is the one place the recorded epoch changes, and a claim records the
+/// epoch it dispatches under in its own transaction, before it takes the job
+/// (`claim_container`): a job held when an epoch is recorded is marked by it,
+/// and a job claimed after is dispatched under it and is not. So a job
+/// without the mark was dispatched under the epoch recorded now, and since
+/// core records the epoch of every answer before acting on it, a closure is
+/// accepted only when its answer's epoch is the one the job was sent under.
+/// Returns the jobs marked; an unchanged epoch writes nothing.
+pub(crate) fn record_epoch(tx: &Transaction<'_>, epoch: &str, now: i64) -> Result<usize> {
+    if !limeos_domain::opaque_id(epoch) {
+        return Err(Error(ErrorCode::InvalidInput));
+    }
+    let seen: Option<String> = tx
+        .query_row("SELECT executor_epoch FROM meta WHERE id=1", [], |r| {
+            r.get(0)
+        })
+        .map_err(durable)?;
+    if seen.as_deref() == Some(epoch) {
+        return Ok(0);
+    }
+    // A change, or the first epoch ever recorded (`None`: a fresh install,
+    // where nothing is held, or the first answer after the upgrade that added
+    // the epoch, where every held job was dispatched under none).
+    let kind = json(&EventKind::ExecutorStoreChanged)?;
+    let marked = tx
+        .execute(
+            &format!(
+                "INSERT INTO events(principal,job,kind,created) SELECT j.principal,j.id,?1,?2 FROM jobs j WHERE j.state IN ('running','verifying','outcome_unknown','needs_intervention') AND json_extract(j.intent,'$.operation') IN {EXECUTOR_OPERATIONS} AND NOT EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND e.kind=?1)"
+            ),
+            params![kind, now],
+        )
+        .map_err(durable)?;
+    retention::account(tx, marked as i64)?;
+    if tx
+        .execute("UPDATE meta SET executor_epoch=? WHERE id=1", [epoch])
+        .map_err(durable)?
+        != 1
+    {
+        return Err(Error(ErrorCode::StateNotDurable));
+    }
+    Ok(marked)
 }

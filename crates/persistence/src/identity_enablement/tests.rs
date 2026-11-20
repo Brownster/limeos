@@ -427,7 +427,7 @@ fn active_effect_claim_is_not_released_or_rewritten_by_self_enablement() {
         )
         .unwrap();
     let active = store
-        .claim_container(&record.principal, &job.id, &observed, 106)
+        .claim_container(&record.principal, &job.id, &observed, &"1".repeat(64), 106)
         .unwrap();
     let before = snapshot(&store);
     assert!(!before.locks.is_empty());

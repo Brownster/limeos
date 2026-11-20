@@ -334,6 +334,27 @@
       ]
     },
     {
+      "description": "The container executor's current receipt-store epoch (`Receipt::epoch`),\nanswered without reading or locking the store. Core asks for it\nimmediately before it claims a job for dispatch, and dispatches the\njob under it.",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "receipt_epoch"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "version"
+      ]
+    },
+    {
       "type": "object",
       "properties": {
         "active": {

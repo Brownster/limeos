@@ -20,6 +20,14 @@ struct EngineFixture {
     plain_reads: usize,
     /// The receipt store's epoch, sent with every receipt answer.
     epoch: Option<String>,
+    /// After answering `ReceiptEpoch`, stop listening: the next connection
+    /// is refused, so the execute request is never written.
+    vanish_after_epoch: bool,
+    /// Read an execute request, then drop the connection without answering
+    /// or recording anything: the request was written, its answer lost.
+    drop_execute: bool,
+    /// Execute requests read, answered or not.
+    executes: usize,
 }
 #[tokio::test]
 async fn logs_recheck_revocation_after_reading_and_viewer_scope_never_reaches_executor() {
@@ -171,6 +179,9 @@ async fn fixture() -> (
         closed: None,
         plain_reads: 0,
         epoch: Some("1".repeat(64)),
+        vanish_after_epoch: false,
+        drop_execute: false,
+        executes: 0,
     }));
     let entered = Arc::new(tokio::sync::Notify::new());
     let release = Arc::new(tokio::sync::Notify::new());
@@ -189,9 +200,19 @@ async fn fixture() -> (
                 observed.notify_one();
                 unblocked.notified().await;
             }
+            let mut vanish = false;
             let response = {
                 let mut state = fixture.lock().unwrap();
                 let mut response = Receipt::empty();
+                if matches!(
+                    request,
+                    Request::Restart { .. } | Request::ExecuteContainer { .. }
+                ) {
+                    state.executes += 1;
+                    if state.drop_execute {
+                        continue;
+                    }
+                }
                 if matches!(
                     request,
                     Request::Restart { .. }
@@ -202,6 +223,10 @@ async fn fixture() -> (
                     response.epoch = state.epoch.clone();
                 }
                 match request {
+                    Request::ReceiptEpoch { .. } => {
+                        response.epoch = state.epoch.clone();
+                        vanish = state.vanish_after_epoch;
+                    }
                     Request::Inspect { .. } => response.inspection = Some(state.current.clone()),
                     Request::ContainerLogs { .. } => {
                         state.reads += 1;
@@ -291,6 +316,10 @@ async fn fixture() -> (
                 response
             };
             let _ = limeos_contracts::write_frame(&mut stream, &response).await;
+            if vanish {
+                // The listener is dropped: later connections are refused.
+                break;
+            }
         }
     });
     let core = Core {
@@ -319,6 +348,18 @@ async fn queued(
     limeos_domain::RestartJob,
     limeos_contracts::QueueRestartInput,
 ) {
+    queued_as(core, token, csrf, resource, "fixture").await
+}
+async fn queued_as(
+    core: &Core,
+    token: &str,
+    csrf: &str,
+    resource: String,
+    key: &str,
+) -> (
+    limeos_domain::RestartJob,
+    limeos_contracts::QueueRestartInput,
+) {
     let proposal = core
         .plan_restart(
             token.into(),
@@ -339,7 +380,7 @@ async fn queued(
     let input = limeos_contracts::QueueRestartInput {
         proposal,
         approval: approval.token,
-        idempotency_key: "fixture".into(),
+        idempotency_key: key.into(),
     };
     (
         core.queue_container(token.into(), csrf.into(), input.clone())
@@ -413,10 +454,7 @@ async fn recovery_never_dispatches_again_and_closes_an_action_nothing_recorded()
         let id = job.id.clone();
         let mut running = core
             .db
-            .call(move |s| {
-                s.observe_executor_epoch(&"1".repeat(64), now())?;
-                s.claim_container(&p, &id, &snapshot, now())
-            })
+            .call(move |s| s.claim_container(&p, &id, &snapshot, &"1".repeat(64), now()))
             .await
             .unwrap();
         if prepared {
@@ -479,7 +517,7 @@ async fn a_pruned_container_receipt_keeps_the_job_held_with_the_reason_recorded_
                     s.plan_container(&p, limeos_domain::ContainerAction::Restart, &snapshot, t0)?;
                 let approval = s.approve_container(&p, &plan.plan.id, &plan.digest, t0)?;
                 let queued = s.queue_container(&p, "old", &plan, &approval.token, &snapshot, t0)?;
-                s.claim_container(&p, &queued.id, &snapshot, t0)
+                s.claim_container(&p, &queued.id, &snapshot, &"1".repeat(64), t0)
             })
             .await
             .unwrap();
@@ -525,14 +563,11 @@ async fn claimed_unsent(
     let (job, _) = queued(core, token, csrf, snapshot.resource.clone()).await;
     let principal = core.session(token.into(), None).await.unwrap().principal;
     let (p, id) = (principal.clone(), job.id.clone());
+    // Dispatched under the store's current epoch.
     let epoch = state.lock().unwrap().epoch.clone().unwrap();
     let running = core
         .db
-        .call(move |s| {
-            // Dispatched under the store's current epoch.
-            s.observe_executor_epoch(&epoch, now())?;
-            s.claim_container(&p, &id, &snapshot, now())
-        })
+        .call(move |s| s.claim_container(&p, &id, &snapshot, &epoch, now()))
         .await
         .unwrap();
     (principal, running)
@@ -580,7 +615,7 @@ async fn a_never_recorded_container_action_is_closed_and_released_at_once() {
             )?;
             let approval = s.approve_container(&p, &plan.plan.id, &plan.digest, now())?;
             let queued = s.queue_container(&p, "next", &plan, &approval.token, &snapshot, now())?;
-            s.claim_container(&p, &queued.id, &snapshot, now())
+            s.claim_container(&p, &queued.id, &snapshot, &"1".repeat(64), now())
         })
         .await
         .unwrap();
@@ -735,6 +770,191 @@ async fn a_container_job_dispatched_under_an_earlier_store_epoch_is_held_on_a_cl
     assert_eq!(
         record_events(&progress, &EventKind::ExecutorRecordDisagrees),
         1
+    );
+    assert_eq!(state.lock().unwrap().posts, 0);
+    task.abort();
+}
+
+/// The job's progress: its state and events.
+async fn settled(core: &Core, token: &str, job: &str) -> limeos_contracts::JobProgress {
+    core.restart_progress(token.into(), job.into(), 0)
+        .await
+        .unwrap()
+}
+
+/// The executor restarts (a new epoch) between two dispatches. The second
+/// job is claimed under the new epoch, which core asks for before the claim,
+/// so when its execute answer is lost the recovery lookup's closure, under
+/// that same epoch, releases it with no operator.
+#[tokio::test]
+async fn a_job_dispatched_after_an_executor_restart_is_settled_by_its_closure() {
+    use limeos_domain::EventKind;
+    let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
+    let resource = state.lock().unwrap().current.resource.clone();
+    let (first, _) = queued_as(&core, &token, &csrf, resource.clone(), "first").await;
+    let principal = principal_of(&core, &token).await;
+    core.dispatch_one(principal.clone(), first.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        settled(&core, &token, &first.id).await.job.state,
+        JobState::Succeeded
+    );
+    {
+        // A routine restart: same store, reopened.
+        let mut fixture = state.lock().unwrap();
+        fixture.epoch = Some("2".repeat(64));
+        fixture.receipt = None;
+        fixture.drop_execute = true;
+    }
+    let (second, _) = queued_as(&core, &token, &csrf, resource, "second").await;
+    core.dispatch_one(principal.clone(), second.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        settled(&core, &token, &second.id).await.job.state,
+        JobState::NeedsIntervention
+    );
+    let held = core
+        .db
+        .call(|s| s.container_candidates())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|(_, job)| job)
+        .find(|job| job.id == second.id)
+        .unwrap();
+    core.dispatch_one(principal, held).await.unwrap();
+    let progress = settled(&core, &token, &second.id).await;
+    assert_eq!(progress.job.state, JobState::PreconditionChanged);
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorStoreChanged),
+        0
+    );
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorRecordDisagrees),
+        0
+    );
+    let fixture = state.lock().unwrap();
+    assert_eq!((fixture.posts, fixture.executes), (1, 2));
+    drop(fixture);
+    task.abort();
+}
+
+/// The executor is down when the execute request is sent: the connection is
+/// refused, so not one byte of it was written. The job is released as a
+/// refusal at once, with no lookup, no closure and no operator.
+#[tokio::test]
+async fn a_refused_connection_releases_the_job_without_an_operator() {
+    use limeos_domain::EventKind;
+    let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
+    let snapshot = state.lock().unwrap().current.clone();
+    state.lock().unwrap().vanish_after_epoch = true;
+    let (job, _) = queued(&core, &token, &csrf, snapshot.resource.clone()).await;
+    let principal = principal_of(&core, &token).await;
+    core.dispatch_one(principal.clone(), job.clone())
+        .await
+        .unwrap();
+    let progress = settled(&core, &token, &job.id).await;
+    assert_eq!(progress.job.state, JobState::PreconditionChanged);
+    for kind in [
+        EventKind::ExecutorStoreChanged,
+        EventKind::ExecutorRecordDisagrees,
+        EventKind::ExecutorReceiptMissing,
+    ] {
+        assert_eq!(record_events(&progress, &kind), 0, "{kind:?}");
+    }
+    {
+        let fixture = state.lock().unwrap();
+        assert_eq!((fixture.posts, fixture.executes), (0, 0));
+        assert!(fixture.closed.is_none());
+    }
+    // The lock is free: the next job on the same container is claimable.
+    let next = core
+        .db
+        .call(move |s| {
+            let plan = s.plan_container(
+                &principal,
+                limeos_domain::ContainerAction::Restart,
+                &snapshot,
+                now(),
+            )?;
+            let approval = s.approve_container(&principal, &plan.plan.id, &plan.digest, now())?;
+            let queued =
+                s.queue_container(&principal, "next", &plan, &approval.token, &snapshot, now())?;
+            s.claim_container(&principal, &queued.id, &snapshot, &"1".repeat(64), now())
+        })
+        .await
+        .unwrap();
+    assert_eq!(next.state, JobState::Running);
+    task.abort();
+}
+
+/// The execute request was written and its answer lost: it may have reached
+/// the store, so the job is held, and only the recovery lookup's closure
+/// releases it.
+#[tokio::test]
+async fn a_written_execute_whose_answer_is_lost_is_held_until_recovery_closes_it() {
+    let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
+    let resource = state.lock().unwrap().current.resource.clone();
+    state.lock().unwrap().drop_execute = true;
+    let (job, _) = queued(&core, &token, &csrf, resource).await;
+    let principal = principal_of(&core, &token).await;
+    core.dispatch_one(principal.clone(), job.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        settled(&core, &token, &job.id).await.job.state,
+        JobState::NeedsIntervention
+    );
+    assert_eq!(state.lock().unwrap().executes, 1);
+    assert!(state.lock().unwrap().closed.is_none());
+    let mut held = job.clone();
+    held.state = JobState::NeedsIntervention;
+    core.dispatch_one(principal, held).await.unwrap();
+    assert_eq!(
+        settled(&core, &token, &job.id).await.job.state,
+        JobState::PreconditionChanged
+    );
+    assert_eq!(
+        state.lock().unwrap().closed,
+        Some(limeos_domain::ReceiptAbsence::NeverRecorded)
+    );
+    task.abort();
+}
+
+/// A job held across an executor restart whose execute did reach the store:
+/// the receipt is intact, and recovery reconciles from it automatically,
+/// whatever the epoch change marked.
+#[tokio::test]
+async fn a_job_held_across_a_store_epoch_change_reconciles_from_an_intact_receipt() {
+    use limeos_domain::EventKind;
+    let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
+    let (principal, running) = claimed_unsent(&core, &token, &csrf, &state).await;
+    {
+        // The restart ran and its receipt is in the store; the answer was lost.
+        let mut fixture = state.lock().unwrap();
+        fixture.receipt = Some(RestartReceipt {
+            operation: running.plan.operation,
+            action: running.id.clone(),
+            plan_digest: limeos_identity::digest(&serde_json::to_string(&running.plan).unwrap()),
+            before: running.plan.expected.clone(),
+            state: ExecutionState::EffectAccepted,
+            error: None,
+        });
+        fixture.current.started_at = "2026-10-05T07:01:00Z".into();
+        fixture.epoch = Some("2".repeat(64));
+    }
+    core.dispatch_one(principal, running.clone()).await.unwrap();
+    let progress = settled(&core, &token, &running.id).await;
+    assert_eq!(progress.job.state, JobState::Succeeded);
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorStoreChanged),
+        1
+    );
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorRecordDisagrees),
+        0
     );
     assert_eq!(state.lock().unwrap().posts, 0);
     task.abort();

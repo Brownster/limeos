@@ -98,6 +98,13 @@ pub enum Request {
     Health {
         version: u16,
     },
+    /// The container executor's current receipt-store epoch (`Receipt::epoch`),
+    /// answered without reading or locking the store. Core asks for it
+    /// immediately before it claims a job for dispatch, and dispatches the
+    /// job under it.
+    ReceiptEpoch {
+        version: u16,
+    },
     Observe {
         version: u16,
         source: limeos_contracts::Source,
@@ -238,7 +245,8 @@ pub struct Receipt {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolution_refusal: Option<limeos_domain::ResolveRefusal>,
     /// The container executor's receipt-store epoch, set on every answer that
-    /// read or wrote the receipt store (execute, lookup, verify, resolve). It
+    /// read or wrote the receipt store (execute, lookup, verify, resolve) and
+    /// on the answer to `ReceiptEpoch`. It
     /// changes whenever the store is reopened, so a store lost and recreated,
     /// or restored from an older copy, never answers under the epoch core
     /// dispatched under: core then holds every job it dispatched under the
@@ -457,6 +465,10 @@ impl Ceiling {
                 Ok(Receipt::empty())
             }
             Request::Health { version } if *version == VERSION && self.allow_health => {
+                Ok(Receipt::empty())
+            }
+            // Only an executor with effect authority keeps a receipt store.
+            Request::ReceiptEpoch { version } if *version == VERSION && self.can_write() => {
                 Ok(Receipt::empty())
             }
             Request::Observe {
@@ -1032,6 +1044,45 @@ mod tests {
             let raw = format!("{{\"operation\":\"health\",\"version\":1,\"{extra}\":\"attack\"}}");
             assert!(serde_json::from_str::<Request>(&raw).is_err());
         }
+    }
+    /// Only an executor with effect authority, which keeps the receipt
+    /// store, answers its epoch; health access alone does not reach it.
+    #[test]
+    fn the_receipt_epoch_is_answered_only_by_an_executor_with_a_receipt_store() {
+        let reader = Ceiling {
+            version: VERSION,
+            core_uid: 1001,
+            allow_health: true,
+            allow_host_read: false,
+            allow_storage_read: false,
+            allow_stack_read: false,
+            allow_container_health_read: false,
+            allow_container_read: true,
+            allow_restart: false,
+            allow_start: false,
+            allow_stop: false,
+            allow_container_logs: false,
+            allow_stack: false,
+            managed_containers: vec!["a".repeat(64)],
+            managed_stacks: Vec::new(),
+        };
+        let request = Request::ReceiptEpoch { version: VERSION };
+        assert!(reader.validate(1001, &request).is_err());
+        let writer = Ceiling {
+            allow_health: false,
+            allow_stop: true,
+            ..reader.clone()
+        };
+        assert!(writer.configuration_valid());
+        assert!(writer.validate(1001, &request).is_ok());
+        assert!(writer.validate(1002, &request).is_err());
+        assert!(
+            writer
+                .validate(1001, &Request::ReceiptEpoch { version: 99 })
+                .is_err()
+        );
+        let raw = r#"{"operation":"receipt_epoch","version":1,"action":"x"}"#;
+        assert!(serde_json::from_str::<Request>(raw).is_err());
     }
     fn stack_member(n: char, running: bool) -> limeos_domain::ContainerSnapshot {
         limeos_domain::ContainerSnapshot {

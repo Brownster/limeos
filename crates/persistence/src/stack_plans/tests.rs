@@ -95,7 +95,9 @@ fn approved_stack_job_locks_the_stack_and_every_member_then_verifies_each_target
     assert_eq!(store.stack_jobs(&p).unwrap().len(), 1);
     // The container job listing is unaffected by stack jobs.
     assert!(store.container_jobs(&p).unwrap().is_empty());
-    let running = store.claim_stack(&p, &job.id, &stack(), 205).unwrap();
+    let running = store
+        .claim_stack(&p, &job.id, &stack(), &"1".repeat(64), 205)
+        .unwrap();
     assert_eq!(running.state, JobState::Running);
     assert_eq!(locks(&store, &job.id).len(), 5);
     assert!(locks(&store, &job.id).contains(&"stack:media".to_string()));
@@ -140,7 +142,9 @@ fn approved_stack_job_locks_the_stack_and_every_member_then_verifies_each_target
 fn partial_failure_keeps_per_member_evidence_and_all_locks() {
     let (_dir, mut store, p) = setup();
     let job = queued(&mut store, &p, ContainerAction::Restart, "restart", 200);
-    store.claim_stack(&p, &job.id, &stack(), 205).unwrap();
+    store
+        .claim_stack(&p, &job.id, &stack(), &"1".repeat(64), 205)
+        .unwrap();
     let mut partial = receipt(
         &job,
         &[ExecutionState::Verified, ExecutionState::OutcomeUnknown],
@@ -172,7 +176,9 @@ fn partial_failure_keeps_per_member_evidence_and_all_locks() {
 fn receipts_for_another_plan_digest_or_job_are_refused() {
     let (_dir, mut store, p) = setup();
     let job = queued(&mut store, &p, ContainerAction::Restart, "restart", 200);
-    store.claim_stack(&p, &job.id, &stack(), 205).unwrap();
+    store
+        .claim_stack(&p, &job.id, &stack(), &"1".repeat(64), 205)
+        .unwrap();
     for mutate in [0, 1, 2, 3] {
         let mut r = receipt(&job, &[ExecutionState::Verified; 2]);
         match mutate {
@@ -240,7 +246,10 @@ fn drift_after_planning_is_refused_at_queue_and_claim_without_partial_guesses() 
     )
     .unwrap();
     assert_eq!(
-        store.claim_stack(&p, &job.id, &drifted, 205).unwrap_err().0,
+        store
+            .claim_stack(&p, &job.id, &drifted, &"1".repeat(64), 205)
+            .unwrap_err()
+            .0,
         ErrorCode::Conflict
     );
     assert_eq!(
@@ -250,7 +259,10 @@ fn drift_after_planning_is_refused_at_queue_and_claim_without_partial_guesses() 
     assert!(locks(&store, &job.id).is_empty());
     // Expiry also refuses the claim.
     assert_eq!(
-        store.claim_stack(&p, &job.id, &stack(), 600).unwrap_err().0,
+        store
+            .claim_stack(&p, &job.id, &stack(), &"1".repeat(64), 600)
+            .unwrap_err()
+            .0,
         ErrorCode::Expired
     );
 }
@@ -259,7 +271,9 @@ fn drift_after_planning_is_refused_at_queue_and_claim_without_partial_guesses() 
 fn stack_and_single_container_jobs_exclude_each_other_in_both_directions() {
     let (_dir, mut store, p) = setup();
     let first = queued(&mut store, &p, ContainerAction::Restart, "stack-one", 200);
-    store.claim_stack(&p, &first.id, &stack(), 205).unwrap();
+    store
+        .claim_stack(&p, &first.id, &stack(), &"1".repeat(64), 205)
+        .unwrap();
     // A single-container job on a member cannot start while the stack runs.
     let single = member('a', true);
     let plan = store
@@ -273,12 +287,16 @@ fn stack_and_single_container_jobs_exclude_each_other_in_both_directions() {
         .unwrap();
     assert!(
         store
-            .claim_container(&p, &container.id, &single, 209)
+            .claim_container(&p, &container.id, &single, &"1".repeat(64), 209)
             .is_err()
     );
     // A second stack job is excluded by the stack resource itself.
     let second = queued(&mut store, &p, ContainerAction::Stop, "stack-two", 210);
-    assert!(store.claim_stack(&p, &second.id, &stack(), 215).is_err());
+    assert!(
+        store
+            .claim_stack(&p, &second.id, &stack(), &"1".repeat(64), 215)
+            .is_err()
+    );
     assert_eq!(
         store.stack_job(&p, &second.id).unwrap().state,
         JobState::Queued
@@ -289,10 +307,14 @@ fn stack_and_single_container_jobs_exclude_each_other_in_both_directions() {
         .record_stack_result(&first, &done, Some(&restarted(&first)), 216)
         .unwrap();
     store
-        .claim_container(&p, &container.id, &single, 217)
+        .claim_container(&p, &container.id, &single, &"1".repeat(64), 217)
         .unwrap();
     // Reverse direction: the running container job blocks the stack.
-    assert!(store.claim_stack(&p, &second.id, &stack(), 218).is_err());
+    assert!(
+        store
+            .claim_stack(&p, &second.id, &stack(), &"1".repeat(64), 218)
+            .is_err()
+    );
     assert_eq!(
         store.stack_job(&p, &second.id).unwrap().state,
         JobState::Queued
@@ -448,7 +470,7 @@ fn authorization_requires_the_stack_and_every_member_and_is_rechecked() {
     assert!(store.stack_jobs(&revoked).unwrap().is_empty());
     assert_eq!(
         store
-            .claim_stack(&revoked, &job.id, &stack(), 205)
+            .claim_stack(&revoked, &job.id, &stack(), &"1".repeat(64), 205)
             .unwrap_err()
             .0,
         ErrorCode::Forbidden
@@ -516,7 +538,9 @@ fn approval_digest_cancel_and_in_flight_cancellation_follow_the_container_rules(
         JobState::Canceled
     );
     let running = queued(&mut store, &p, ContainerAction::Restart, "two", 220);
-    store.claim_stack(&p, &running.id, &stack(), 225).unwrap();
+    store
+        .claim_stack(&p, &running.id, &stack(), &"1".repeat(64), 225)
+        .unwrap();
     assert_eq!(
         store.cancel_stack_job(&p, &running.id, 226).unwrap_err().0,
         ErrorCode::Conflict
@@ -528,7 +552,9 @@ fn approval_digest_cancel_and_in_flight_cancellation_follow_the_container_rules(
 fn restart_recovery_makes_interrupted_stack_jobs_uncertain_and_never_queued() {
     let (dir, mut store, p) = setup();
     let job = queued(&mut store, &p, ContainerAction::Restart, "key", 200);
-    store.claim_stack(&p, &job.id, &stack(), 205).unwrap();
+    store
+        .claim_stack(&p, &job.id, &stack(), &"1".repeat(64), 205)
+        .unwrap();
     drop(store);
     let store = Store::open(&dir.path().join("core.sqlite")).unwrap();
     let candidates = store.stack_candidates().unwrap();
@@ -568,7 +594,9 @@ fn schema_fourteen_upgrade_adds_stack_tables_and_preserves_container_plans() {
 fn partly_done_releases_locks_as_failed_never_succeeded_and_needs_proof_of_sent_members() {
     let (_dir, mut store, p) = setup();
     let job = queued(&mut store, &p, ContainerAction::Restart, "partly", 200);
-    store.claim_stack(&p, &job.id, &stack(), 205).unwrap();
+    store
+        .claim_stack(&p, &job.id, &stack(), &"1".repeat(64), 205)
+        .unwrap();
     let partly = receipt(
         &job,
         &[
@@ -604,7 +632,9 @@ fn partly_done_releases_locks_as_failed_never_succeeded_and_needs_proof_of_sent_
     assert_eq!(stored.state, ExecutionState::PartlyDone);
     // An unknown sent member never reaches the terminal outcome.
     let other = queued(&mut store, &p, ContainerAction::Restart, "unknown", 210);
-    store.claim_stack(&p, &other.id, &stack(), 215).unwrap();
+    store
+        .claim_stack(&p, &other.id, &stack(), &"1".repeat(64), 215)
+        .unwrap();
     let unknown = receipt(
         &other,
         &[
@@ -684,7 +714,9 @@ fn every_held_stack_job_is_listed_however_many_older_ones_are_held() {
             )
             .unwrap();
         if claim {
-            store.claim_stack(&p, &job.id, &snapshot, at).unwrap();
+            store
+                .claim_stack(&p, &job.id, &snapshot, &"1".repeat(64), at)
+                .unwrap();
         }
         job.id
     };
@@ -749,7 +781,9 @@ fn disagreements(s: &Store, job: &str) -> i64 {
 fn a_stack_closure_never_overwrites_a_result_core_already_holds() {
     let (_dir, mut s, p) = setup();
     let job = queued(&mut s, &p, ContainerAction::Restart, "ran", 200);
-    let job = s.claim_stack(&p, &job.id, &stack(), 203).unwrap();
+    let job = s
+        .claim_stack(&p, &job.id, &stack(), &"1".repeat(64), 203)
+        .unwrap();
     let held = locks(&s, &job.id);
     let ran = receipt(
         &job,
@@ -779,7 +813,9 @@ fn a_stack_closure_after_a_store_epoch_change_is_refused() {
         let (_dir, mut s, p) = setup();
         s.observe_executor_epoch(&"1".repeat(64), 200).unwrap();
         let job = queued(&mut s, &p, ContainerAction::Restart, "lost", 200);
-        let job = s.claim_stack(&p, &job.id, &stack(), 203).unwrap();
+        let job = s
+            .claim_stack(&p, &job.id, &stack(), &"1".repeat(64), 203)
+            .unwrap();
         if changed {
             assert_eq!(s.observe_executor_epoch(&"2".repeat(64), 204).unwrap(), 1);
         }

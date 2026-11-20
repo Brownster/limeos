@@ -37,7 +37,9 @@ fn running(store: &mut Store, p: &Principal, key: &str, byte: &str) -> Container
     let job = store
         .queue_container(p, key, &plan, &approval.token, &before, 202)
         .unwrap();
-    store.claim_container(p, &job.id, &before, 203).unwrap()
+    store
+        .claim_container(p, &job.id, &before, &"1".repeat(64), 203)
+        .unwrap()
 }
 fn uncertain(store: &mut Store, job: &str) {
     store
@@ -543,7 +545,9 @@ fn stack_jobs_resolve_on_their_targets_and_free_every_member_lock() {
     let job: StackJob = s
         .queue_stack(&p, "restart", &proposal, &approval.token, &stack(), 202)
         .unwrap();
-    let job = s.claim_stack(&p, &job.id, &stack(), 203).unwrap();
+    let job = s
+        .claim_stack(&p, &job.id, &stack(), &"1".repeat(64), 203)
+        .unwrap();
     assert_eq!(locks(&s, &job.id), 5);
     uncertain(&mut s, &job.id);
     let subject = s.resolution_subject(&p, &job.id).unwrap();
@@ -896,7 +900,9 @@ fn the_listing_includes_jobs_left_running_by_an_earlier_generation_and_stack_job
     let job = s
         .queue_stack(&bob, "restart", &proposal, &approval.token, &stack(), 202)
         .unwrap();
-    let job = s.claim_stack(&bob, &job.id, &stack(), 203).unwrap();
+    let job = s
+        .claim_stack(&bob, &job.id, &stack(), &"1".repeat(64), 203)
+        .unwrap();
     uncertain(&mut s, &job.id);
     let seen = s.needs_attention_jobs(&alice).unwrap();
     let listed = seen.iter().find(|j| j.job == job.id).unwrap();
@@ -924,7 +930,9 @@ fn the_listing_is_bounded() {
         let job = s
             .queue_container(&bob, &format!("k{n}"), &plan, &approval.token, &before, 202)
             .unwrap();
-        let job = s.claim_container(&bob, &job.id, &before, 203).unwrap();
+        let job = s
+            .claim_container(&bob, &job.id, &before, &"1".repeat(64), 203)
+            .unwrap();
         uncertain(&mut s, &job.id);
         if n == 0 {
             first = job.id;

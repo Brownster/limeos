@@ -47,12 +47,35 @@ impl Rotation {
     }
 }
 
+/// A failed call to the container executor, and whether the request may
+/// have reached it.
+pub(super) struct Failure {
+    pub(super) error: Error,
+    /// False only when the connection could not be established at all, so
+    /// not one byte of the request was written: the executor cannot have
+    /// received it. Any failure after the connection exists (writing,
+    /// waiting, reading, a refusal, a deadline) leaves it true.
+    pub(super) sent: bool,
+}
+
 impl Core {
     pub(super) async fn executor(&self, request: Request, deadline: Duration) -> Result<Receipt> {
-        tokio::time::timeout(deadline, async {
+        self.exchange(request, deadline).await.map_err(|f| f.error)
+    }
+    /// As `executor`, telling a request that never left core apart from one
+    /// that may have (`Failure::sent`).
+    pub(super) async fn exchange(
+        &self,
+        request: Request,
+        deadline: Duration,
+    ) -> std::result::Result<Receipt, Failure> {
+        // Set once the connection exists, before the first byte is written.
+        let mut sent = false;
+        let outcome = tokio::time::timeout(deadline, async {
             let mut stream = UnixStream::connect(self.container_socket.as_ref())
                 .await
                 .map_err(|_| Error(ErrorCode::Unavailable))?;
+            sent = true;
             limeos_contracts::write_frame(&mut stream, &request).await?;
             let response: Receipt = limeos_contracts::read_frame(&mut stream).await?;
             if response.version != VERSION {
@@ -75,7 +98,20 @@ impl Core {
             Ok(response)
         })
         .await
-        .map_err(|_| Error(ErrorCode::Unavailable))?
+        .unwrap_or(Err(Error(ErrorCode::Unavailable)));
+        outcome.map_err(|error| Failure { error, sent })
+    }
+    /// The receipt store's current epoch, recorded (`observe_executor_epoch`)
+    /// before it is returned. Asked immediately before a claim, which
+    /// dispatches the job under it.
+    pub(super) async fn receipt_epoch(&self) -> Result<String> {
+        self.executor(
+            Request::ReceiptEpoch { version: VERSION },
+            limeos_contracts::RPC_DEADLINE,
+        )
+        .await?
+        .epoch
+        .ok_or(Error(ErrorCode::Unavailable))
     }
     pub(super) async fn inspect(&self, resource: &str) -> Result<ContainerSnapshot> {
         if !limeos_domain::opaque_id(resource.strip_prefix("container:").unwrap_or_default()) {
@@ -404,16 +440,18 @@ impl Core {
             if job.plan.check_current(&current, now()).is_err() {
                 return self.mark(&job, JobState::PreconditionChanged).await;
             }
-            let p = principal;
-            let id = job.id.clone();
+            // The store epoch this job is dispatched under, recorded by the
+            // claim before it takes the job (`claim_container`).
+            let epoch = self.receipt_epoch().await?;
+            let (p, id, under) = (principal, job.id.clone(), epoch.clone());
             job = self
                 .db
-                .call(move |s| s.claim_container(&p, &id, &current, now()))
+                .call(move |s| s.claim_container(&p, &id, &current, &under, now()))
                 .await?;
             // Core death from here onward requires receipt reconciliation; it
             // cannot put the job back into the dispatch queue.
             match self
-                .executor(
+                .exchange(
                     Request::ExecuteContainer {
                         version: VERSION,
                         request: RestartRequest {
@@ -426,9 +464,21 @@ impl Core {
                 )
                 .await
             {
-                Ok(value) => value.restart,
-                Err(e) => {
-                    note_execute_failure(e);
+                Ok(value) => {
+                    note_epoch(&epoch, value.epoch.as_deref());
+                    value.restart
+                }
+                Err(failure) if !failure.sent => {
+                    // Never sent: nothing can run for this job.
+                    note_unsent();
+                    let id = job.id.clone();
+                    return self
+                        .db
+                        .call(move |s| s.record_unsent_execute(&id, now()))
+                        .await;
+                }
+                Err(failure) => {
+                    note_execute_failure(failure.error);
                     self.mark(&job, JobState::NeedsIntervention).await?;
                     return Ok(());
                 }
@@ -609,6 +659,26 @@ impl Core {
                 }
             }
         }
+    }
+}
+
+/// The connection to the executor could not be established, so no byte of
+/// the execute request was written: the job is released, as a refusal.
+pub(super) fn note_unsent() {
+    tracing::warn!(
+        "the container executor could not be reached; the execute request was never sent, and the job is released without effect"
+    );
+}
+
+/// The execute answer came from a receipt store other than the one the job
+/// was dispatched under (the executor reopened its store in between). Its
+/// receipt still stands; recording the new epoch has marked the held job, so
+/// a later closure for it is not accepted.
+pub(super) fn note_epoch(dispatched: &str, answered: Option<&str>) {
+    if answered.is_some_and(|answered| answered != dispatched) {
+        tracing::warn!(
+            "the executor's receipt store changed between dispatch and the execute answer"
+        );
     }
 }
 

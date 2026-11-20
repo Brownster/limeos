@@ -448,11 +448,14 @@ impl Store {
     }
 
     /// Durable dispatch intent precedes IPC. The executor must list again.
+    /// As for `claim_container`, `epoch` is recorded in the claim's own
+    /// transaction, before the job is taken.
     pub fn claim_stack(
         &mut self,
         principal: &Principal,
         id: &str,
         current: &StackSnapshot,
+        epoch: &str,
         now: i64,
     ) -> Result<StackJob> {
         let mut job = self.stack_job(principal, id)?;
@@ -462,6 +465,7 @@ impl Store {
         job.plan.check_current(current, now)?;
         let generation = self.generation;
         self.write(|tx| {
+            super::jobs::record_epoch(tx, epoch, now)?;
             // Schema-7 triggers acquire the stack and every member atomically;
             // any held member aborts this update and the job stays queued.
             if tx.execute("UPDATE jobs SET state='running',generation=? WHERE id=? AND state='queued' AND deadline>? AND revision=(SELECT grant_revision FROM users WHERE id=jobs.principal)", params![generation, id, now]).map_err(|_| Error(ErrorCode::Conflict))? != 1 {

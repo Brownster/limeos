@@ -338,10 +338,13 @@ impl Core {
             if job.plan.check_current(&current, now()).is_err() {
                 return self.mark_stack(&job, JobState::PreconditionChanged).await;
             }
-            let (p, id) = (principal, job.id.clone());
+            // The store epoch this job is dispatched under, recorded by the
+            // claim before it takes the job (`claim_stack`).
+            let epoch = self.receipt_epoch().await?;
+            let (p, id, under) = (principal, job.id.clone(), epoch.clone());
             job = self
                 .db
-                .call(move |s| s.claim_stack(&p, &id, &current, now()))
+                .call(move |s| s.claim_stack(&p, &id, &current, &under, now()))
                 .await?;
             // Core death from here onward requires receipt reconciliation; it
             // cannot put the job back into the dispatch queue.
@@ -349,7 +352,7 @@ impl Core {
                 * job.plan.targets().len() as u64
                 + 8;
             match self
-                .executor(
+                .exchange(
                     Request::ExecuteStack {
                         version: VERSION,
                         request: limeos_domain::StackRequest {
@@ -362,9 +365,21 @@ impl Core {
                 )
                 .await
             {
-                Ok(value) => value.stack,
-                Err(e) => {
-                    super::operations::note_execute_failure(e);
+                Ok(value) => {
+                    super::operations::note_epoch(&epoch, value.epoch.as_deref());
+                    value.stack
+                }
+                Err(failure) if !failure.sent => {
+                    // Never sent: nothing can run for this job.
+                    super::operations::note_unsent();
+                    let id = job.id.clone();
+                    return self
+                        .db
+                        .call(move |s| s.record_unsent_execute(&id, now()))
+                        .await;
+                }
+                Err(failure) => {
+                    super::operations::note_execute_failure(failure.error);
                     // The executor may have failed before writing any row.
                     return self.release_if_unsent(&job, &digest).await;
                 }

@@ -45,6 +45,9 @@ struct Engine {
     plain_reads: usize,
     /// The receipt store's epoch, sent with every receipt answer once set.
     epoch: Option<String>,
+    /// After answering `ReceiptEpoch`, stop listening: the next connection
+    /// is refused, so the execute request is never written.
+    vanish_after_epoch: bool,
 }
 fn snap(c: char, running: bool) -> ContainerSnapshot {
     ContainerSnapshot {
@@ -280,6 +283,7 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
         response.epoch = state.epoch.clone();
     }
     match request {
+        Request::ReceiptEpoch { .. } => response.epoch = state.epoch.clone(),
         Request::InspectStack { .. } => {
             state.inspects += 1;
             let mut members = state.members.clone();
@@ -508,6 +512,7 @@ async fn fixture(role: limeos_domain::Role, grants: Option<Vec<Scope>>) -> Fixtu
     let listener = UnixListener::bind(&path).unwrap();
     let engine = Arc::new(Mutex::new(Engine {
         members: ordinary(),
+        epoch: Some("1".repeat(64)),
         ..Engine::default()
     }));
     let served = engine.clone();
@@ -515,9 +520,15 @@ async fn fixture(role: limeos_domain::Role, grants: Option<Vec<Scope>>) -> Fixtu
         loop {
             let (mut stream, _) = listener.accept().await.unwrap();
             let request: Request = limeos_contracts::read_frame(&mut stream).await.unwrap();
+            let vanish = matches!(request, Request::ReceiptEpoch { .. })
+                && served.lock().unwrap().vanish_after_epoch;
             let response = reply(&mut served.lock().unwrap(), request);
             if let Some(response) = response {
                 let _ = limeos_contracts::write_frame(&mut stream, &response).await;
+            }
+            if vanish {
+                // The listener is dropped: later connections are refused.
+                break;
             }
         }
     });
@@ -866,7 +877,7 @@ async fn an_active_container_job_on_a_member_holds_the_stack_job_in_the_queue() 
             let plan = s.plan_container(&p, ContainerAction::Restart, &m, now())?;
             let approval = s.approve_container(&p, &plan.plan.id, &plan.digest, now())?;
             let queued = s.queue_container(&p, "single", &plan, &approval.token, &m, now())?;
-            s.claim_container(&p, &queued.id, &m, now())
+            s.claim_container(&p, &queued.id, &m, &"1".repeat(64), now())
         })
         .await
         .unwrap();
@@ -1109,7 +1120,7 @@ async fn member_claimable(f: &Fixture, key: &str) -> bool {
             let approval = s.approve_container(&principal, &plan.plan.id, &plan.digest, now())?;
             let queued =
                 s.queue_container(&principal, &key, &plan, &approval.token, &member, now())?;
-            s.claim_container(&principal, &queued.id, &member, now())
+            s.claim_container(&principal, &queued.id, &member, &"1".repeat(64), now())
         })
         .await
         .is_ok()
@@ -1448,9 +1459,8 @@ async fn claimed_at(f: &Fixture, key: &str, t0: i64) -> StackJob {
             )?;
             let approval = s.approve_stack(&principal, &plan.plan.id, &plan.digest, t0)?;
             let queued = s.queue_stack(&principal, &key, &plan, &approval.token, &members, t0)?;
-            // Dispatched under the store's epoch (the fixture's, once set).
-            s.observe_executor_epoch(&"1".repeat(64), t0)?;
-            s.claim_stack(&principal, &queued.id, &members, t0)
+            // Dispatched under the store's epoch, the fixture's.
+            s.claim_stack(&principal, &queued.id, &members, &"1".repeat(64), t0)
         })
         .await
         .unwrap()
@@ -1519,7 +1529,7 @@ async fn a_pruned_receipt_of_an_executed_stack_never_releases_it_as_unsent() {
             let approval = s.approve_container(&principal, &plan.plan.id, &plan.digest, now())?;
             let queued =
                 s.queue_container(&principal, "after", &plan, &approval.token, &member, now())?;
-            s.claim_container(&principal, &queued.id, &member, now())
+            s.claim_container(&principal, &queued.id, &member, &"1".repeat(64), now())
         })
         .await;
     assert!(claimed.is_err());
@@ -2027,4 +2037,84 @@ async fn a_stack_dispatched_under_an_earlier_store_epoch_is_held_on_a_closure() 
     assert_eq!(next.state(&job).await, JobState::PreconditionChanged);
     f.task.abort();
     next.task.abort();
+}
+
+/// The executor restarts (a new epoch) between two stack dispatches. The
+/// second stack is claimed under the new epoch, asked for before the claim,
+/// so the closure that follows its failed execute, under the same epoch,
+/// releases it at once with no operator.
+#[tokio::test]
+async fn a_stack_dispatched_after_an_executor_restart_is_settled_by_its_closure() {
+    use limeos_domain::EventKind;
+    let mut f = admin().await;
+    let first = f.queued(ContainerAction::Restart, "first").await;
+    f.core
+        .dispatch_stack(f.principal().await, first.clone())
+        .await
+        .unwrap();
+    assert_eq!(f.state(&first).await, JobState::Succeeded);
+    {
+        // A routine restart: same store, reopened. The execute then fails
+        // before any row is written.
+        let mut engine = f.engine.lock().unwrap();
+        engine.epoch = Some("2".repeat(64));
+        engine.receipt = None;
+        engine.execute_error = Some(ErrorCode::Unavailable);
+    }
+    // The inventory has seen the restarted members.
+    let members = f.engine.lock().unwrap().members.clone();
+    f.core.stacks = Default::default();
+    f.core
+        .stacks
+        .update(&cohort(&members, &["web", "db"]))
+        .unwrap();
+    let second = f.queued(ContainerAction::Restart, "second").await;
+    f.core
+        .dispatch_stack(f.principal().await, second.clone())
+        .await
+        .unwrap();
+    let progress = f
+        .core
+        .stack_job_progress(f.token.clone(), second.id.clone(), 0)
+        .await
+        .unwrap();
+    assert_eq!(progress.job.state, JobState::PreconditionChanged);
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorStoreChanged),
+        0
+    );
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorRecordDisagrees),
+        0
+    );
+    assert!(member_claimable(&f, "after").await);
+    f.task.abort();
+}
+
+/// The executor is down when the stack's execute request is sent: the
+/// connection is refused, nothing was written, and the stack is released at
+/// once, with no lookup and no operator.
+#[tokio::test]
+async fn a_refused_connection_releases_the_stack_without_an_operator() {
+    let f = admin().await;
+    f.engine.lock().unwrap().vanish_after_epoch = true;
+    let job = f.queued(ContainerAction::Restart, "refused").await;
+    f.core
+        .dispatch_stack(f.principal().await, job.clone())
+        .await
+        .unwrap();
+    let progress = f
+        .core
+        .stack_job_progress(f.token.clone(), job.id.clone(), 0)
+        .await
+        .unwrap();
+    assert_eq!(progress.job.state, JobState::PreconditionChanged);
+    assert_eq!(missing_events(&progress), 0);
+    assert!(progress.receipt.is_none());
+    {
+        let engine = f.engine.lock().unwrap();
+        assert_eq!((engine.executes, engine.receipts), (0, 0));
+        assert!(engine.closed.is_none());
+    }
+    assert!(member_claimable(&f, "after").await);
 }

@@ -83,10 +83,11 @@ fn complete_resource_sets_are_atomic_and_unrelated_jobs_can_dispatch() {
         &["storage:uuid:disk", "storage:mount:/mnt/Other"],
     );
     dependencies(&mut s, &c.id, &["storage:uuid:another"]);
-    s.claim_container(&p, &a.id, &snapshot("a"), 203).unwrap();
+    s.claim_container(&p, &a.id, &snapshot("a"), &"1".repeat(64), 203)
+        .unwrap();
     let events = s.container_events(&p, &b.id, 0).unwrap();
     assert_eq!(
-        s.claim_container(&p, &b.id, &snapshot("b"), 204)
+        s.claim_container(&p, &b.id, &snapshot("b"), &"1".repeat(64), 204)
             .unwrap_err()
             .0,
         ErrorCode::Conflict
@@ -95,7 +96,8 @@ fn complete_resource_sets_are_atomic_and_unrelated_jobs_can_dispatch() {
     assert!(locks(&s, &b.id).is_empty());
     assert_eq!(s.container_events(&p, &b.id, 0).unwrap(), events);
     assert_eq!(locks(&s, &a.id).len(), 3);
-    s.claim_container(&p, &c.id, &snapshot("c"), 204).unwrap();
+    s.claim_container(&p, &c.id, &snapshot("c"), &"1".repeat(64), 204)
+        .unwrap();
     assert_eq!(locks(&s, &c.id).len(), 2);
     check(&s.conn).unwrap();
 }
@@ -110,11 +112,16 @@ fn audit_failure_rolls_back_all_acquisitions_and_all_releases() {
         &["storage:configuration", "storage:uuid:disk"],
     );
     s.conn.execute_batch("CREATE TRIGGER refuse_audit BEFORE INSERT ON events BEGIN SELECT RAISE(ABORT,'fixture'); END;").unwrap();
-    assert!(s.claim_container(&p, &job.id, &snapshot("a"), 203).is_err());
+    assert!(
+        s.claim_container(&p, &job.id, &snapshot("a"), &"1".repeat(64), 203)
+            .is_err()
+    );
     assert_eq!(s.job_state(&job.id).unwrap(), "queued");
     assert!(locks(&s, &job.id).is_empty());
     s.conn.execute_batch("DROP TRIGGER refuse_audit").unwrap();
-    let job = s.claim_container(&p, &job.id, &snapshot("a"), 204).unwrap();
+    let job = s
+        .claim_container(&p, &job.id, &snapshot("a"), &"1".repeat(64), 204)
+        .unwrap();
     let held = locks(&s, &job.id);
     s.conn.execute_batch("CREATE TRIGGER refuse_audit BEFORE INSERT ON events BEGIN SELECT RAISE(ABORT,'fixture'); END;").unwrap();
     let after = ContainerSnapshot {
@@ -157,7 +164,9 @@ fn only_bound_terminal_proof_releases_dependencies_and_retains_required_set() {
     let b = queue(&mut s, &p, "b", "b");
     dependencies(&mut s, &a.id, &["storage:configuration"]);
     dependencies(&mut s, &b.id, &["storage:configuration"]);
-    let a = s.claim_container(&p, &a.id, &snapshot("a"), 203).unwrap();
+    let a = s
+        .claim_container(&p, &a.id, &snapshot("a"), &"1".repeat(64), 203)
+        .unwrap();
     let held = locks(&s, &a.id);
     assert!(
         s.transition(&a.id, JobState::Running, JobState::Failed, 204)
@@ -181,7 +190,10 @@ fn only_bound_terminal_proof_releases_dependencies_and_retains_required_set() {
         JobState::NeedsIntervention
     );
     assert_eq!(locks(&s, &a.id), held);
-    assert!(s.claim_container(&p, &b.id, &snapshot("b"), 206).is_err());
+    assert!(
+        s.claim_container(&p, &b.id, &snapshot("b"), &"1".repeat(64), 206)
+            .is_err()
+    );
     s.record_container_result(
         &a,
         &receipt(&a, ExecutionState::Verified),
@@ -200,7 +212,8 @@ fn only_bound_terminal_proof_releases_dependencies_and_retains_required_set() {
             .unwrap(),
         2
     );
-    s.claim_container(&p, &b.id, &snapshot("b"), 208).unwrap();
+    s.claim_container(&p, &b.id, &snapshot("b"), &"1".repeat(64), 208)
+        .unwrap();
     assert_eq!(locks(&s, &b.id).len(), 2);
 }
 
@@ -213,7 +226,9 @@ fn uncertainty_expiry_revocation_and_restart_keep_the_entire_set() {
         &job.id,
         &["storage:configuration", "storage:mount:/mnt/TV"],
     );
-    let job = s.claim_container(&p, &job.id, &snapshot("a"), 203).unwrap();
+    let job = s
+        .claim_container(&p, &job.id, &snapshot("a"), &"1".repeat(64), 203)
+        .unwrap();
     let held = locks(&s, &job.id);
     s.transition(&job.id, JobState::Running, JobState::OutcomeUnknown, 204)
         .unwrap();
@@ -239,7 +254,8 @@ fn active_sets_and_job_identity_cannot_be_mutated_or_stolen() {
     let (_dir, mut s, p) = setup();
     let job = queue(&mut s, &p, "job", "a");
     dependencies(&mut s, &job.id, &["storage:configuration"]);
-    s.claim_container(&p, &job.id, &snapshot("a"), 203).unwrap();
+    s.claim_container(&p, &job.id, &snapshot("a"), &"1".repeat(64), 203)
+        .unwrap();
     let held = locks(&s, &job.id);
     for sql in [
         "INSERT INTO job_resources VALUES(?,'storage:uuid:new')",
@@ -326,7 +342,7 @@ fn v6_upgrade_preserves_approval_bytes_and_all_old_active_locks() {
         ("d", JobState::NeedsIntervention),
     ] {
         let job = queue(&mut s, &p, byte, byte);
-        s.claim_container(&p, &job.id, &snapshot(byte), 203)
+        s.claim_container(&p, &job.id, &snapshot(byte), &"1".repeat(64), 203)
             .unwrap();
         if state != JobState::Running {
             s.transition(&job.id, JobState::Running, state, 204)
@@ -356,7 +372,7 @@ fn v6_upgrade_preserves_approval_bytes_and_all_old_active_locks() {
         assert_eq!(locks(&s, &job.id), vec![job.plan.expected.resource.clone()]);
     }
     assert!(locks(&s, &queued.id).is_empty());
-    s.claim_container(&p, &queued.id, &snapshot("e"), 205)
+    s.claim_container(&p, &queued.id, &snapshot("e"), &"1".repeat(64), 205)
         .unwrap();
     assert_eq!(locks(&s, &queued.id).len(), 1);
     check(&s.conn).unwrap();
@@ -366,7 +382,8 @@ fn v6_upgrade_preserves_approval_bytes_and_all_old_active_locks() {
 fn failed_v7_migration_preserves_v6_jobs_authority_and_generation() {
     let (dir, mut s, p) = setup();
     let job = queue(&mut s, &p, "job", "a");
-    s.claim_container(&p, &job.id, &snapshot("a"), 203).unwrap();
+    s.claim_container(&p, &job.id, &snapshot("a"), &"1".repeat(64), 203)
+        .unwrap();
     remove_v7_schema(&s.conn);
     s.conn
         .execute_batch("PRAGMA user_version=6; CREATE INDEX resource_locks_job ON users(username);")
@@ -419,7 +436,7 @@ fn missing_or_extra_locks_refuse_startup_without_repair_or_recovery_events() {
         let (dir, mut s, p) = setup();
         let active = queue(&mut s, &p, "active", "a");
         let queued = queue(&mut s, &p, "queued", "b");
-        s.claim_container(&p, &active.id, &snapshot("a"), 203)
+        s.claim_container(&p, &active.id, &snapshot("a"), &"1".repeat(64), 203)
             .unwrap();
         let generation = s.generation;
         let events: i64 = s
@@ -552,7 +569,8 @@ fn kill_helper() {
             "storage:mount:/mnt/TV",
         ],
     );
-    s.claim_container(&p, &job.id, &snapshot("a"), 203).unwrap();
+    s.claim_container(&p, &job.id, &snapshot("a"), &"1".repeat(64), 203)
+        .unwrap();
     std::fs::write(Path::new(&path).with_extension("ready"), &job.id).unwrap();
     loop {
         std::thread::park();
@@ -601,7 +619,8 @@ fn v16_upgrade_adds_the_event_indexes_and_keeps_every_row() {
     let (dir, mut s, p) = setup();
     let path = dir.path().join("core.sqlite");
     let job = queue(&mut s, &p, "upgraded", "a");
-    s.claim_container(&p, &job.id, &snapshot("a"), 203).unwrap();
+    s.claim_container(&p, &job.id, &snapshot("a"), &"1".repeat(64), 203)
+        .unwrap();
     let rows = |conn: &Connection| -> (i64, i64, i64, i64) {
         conn.query_row("SELECT (SELECT count(*) FROM events),(SELECT count(*) FROM jobs),(SELECT count(*) FROM resource_locks),(SELECT audit_bytes FROM meta)",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).unwrap()
     };

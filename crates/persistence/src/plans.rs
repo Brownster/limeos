@@ -378,11 +378,16 @@ impl Store {
     }
 
     /// Durable dispatch intent precedes IPC. The executor must inspect again.
+    /// `epoch` is the receipt-store epoch the executor answered just before:
+    /// it is recorded (`jobs::record_epoch`, marking every job already held
+    /// if it is new) in the same transaction that takes the job, so the job
+    /// is dispatched under it and only a change after this claim marks it.
     pub fn claim_container(
         &mut self,
         principal: &Principal,
         id: &str,
         current: &ContainerSnapshot,
+        epoch: &str,
         now: i64,
     ) -> Result<RestartJob> {
         let mut job = self.container_job(principal, id)?;
@@ -392,6 +397,7 @@ impl Store {
         job.plan.check_current(current, now)?;
         let generation = self.generation;
         self.write(|tx| {
+            super::jobs::record_epoch(tx, epoch, now)?;
             // Schema-7 triggers acquire the complete operation-owned resource
             // set atomically; the original primary-resource index also remains.
             if tx.execute("UPDATE jobs SET state='running',generation=? WHERE id=? AND state='queued' AND deadline>? AND revision=(SELECT grant_revision FROM users WHERE id=jobs.principal)", params![generation, id, now]).map_err(|_| Error(ErrorCode::Conflict))? != 1 {

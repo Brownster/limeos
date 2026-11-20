@@ -233,17 +233,19 @@ async fn run() -> std::io::Result<()> {
         managed_containers: ceiling.managed_containers.clone(),
         managed_stacks: ceiling.managed_stacks.clone(),
     });
-    let receipts = if ceiling.can_write() {
+    let (receipts, epoch) = if ceiling.can_write() {
         let directory = args
             .get(4)
             .map(String::as_str)
             .unwrap_or("/var/lib/limeos/executors/container");
-        Some(Arc::new(Mutex::new(
-            ReceiptStore::open(Path::new(directory))
-                .map_err(|_| std::io::Error::other("unsafe or unavailable receipt store"))?,
-        )))
+        let store = ReceiptStore::open(Path::new(directory))
+            .map_err(|_| std::io::Error::other("unsafe or unavailable receipt store"))?;
+        // Fixed for this open, which lasts as long as the process: answered
+        // to `ReceiptEpoch` without taking the store's lock.
+        let epoch: Arc<str> = store.epoch().into();
+        (Some(Arc::new(Mutex::new(store))), Some(epoch))
     } else {
-        None
+        (None, None)
     };
     let engine = Docker::new("/var/run/docker.sock".into());
     // An independent ceiling can disable collection entirely.
@@ -311,6 +313,7 @@ async fn run() -> std::io::Result<()> {
         let ceiling = ceiling.clone();
         let observations = observations.clone();
         let receipts = receipts.clone();
+        let epoch = epoch.clone();
         let restart_ceiling = restart_ceiling.clone();
         let engine = engine.clone();
         let storage_permit = storage_permit.clone();
@@ -618,6 +621,14 @@ async fn run() -> std::io::Result<()> {
                         receipt.epoch = Some(store.epoch().to_owned());
                     }
                     Request::Health { .. } => {}
+                    Request::ReceiptEpoch { .. } => {
+                        receipt.epoch = Some(
+                            epoch
+                                .as_deref()
+                                .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?
+                                .to_owned(),
+                        );
+                    }
                     _ => return Err(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden)),
                 }
                 Ok::<_, limeos_domain::Error>(receipt)

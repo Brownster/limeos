@@ -312,8 +312,10 @@ impl ReceiptStore {
     /// epoch as needing an operator rather than accept a `never_recorded`
     /// closure for them. An epoch fixed at creation would not do, because a
     /// restored copy of the same store would carry it too. A restart of the
-    /// executor with the same store changes it as well, which costs only an
-    /// operator decision for a held job whose execute never reached the store.
+    /// executor with the same store changes it as well: core asks for the
+    /// epoch (`ReceiptEpoch`) before each dispatch, so that costs only an
+    /// operator decision for a job held across the restart whose execute
+    /// never reached the store.
     pub fn epoch(&self) -> &str {
         &self.epoch
     }

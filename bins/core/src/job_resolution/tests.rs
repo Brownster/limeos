@@ -228,7 +228,7 @@ async fn fixture_at(planned: Option<i64>) -> Fixture {
             let (p, id) = (session.view.principal.clone(), job.id.clone());
             core.db
                 .call(move |s| {
-                    s.claim_container(&p, &id, &engine_state(T0, true), now())?;
+                    s.claim_container(&p, &id, &engine_state(T0, true), &"1".repeat(64), now())?;
                     s.transition(&id, JobState::Running, JobState::NeedsIntervention, now())
                 })
                 .await
@@ -244,7 +244,7 @@ async fn fixture_at(planned: Option<i64>) -> Fixture {
                     let approval = s.approve_container(&p, &plan.plan.id, &plan.digest, t0)?;
                     let queued =
                         s.queue_container(&p, "stuck", &plan, &approval.token, &snapshot, t0)?;
-                    let job = s.claim_container(&p, &queued.id, &snapshot, t0)?;
+                    let job = s.claim_container(&p, &queued.id, &snapshot, &"1".repeat(64), t0)?;
                     s.transition(
                         &job.id,
                         JobState::Running,
@@ -1243,7 +1243,7 @@ async fn a_hundred_superseded_requests_do_not_starve_a_newer_one() {
                     &other,
                     now(),
                 )?;
-                let mut job = s.claim_container(&p, &queued.id, &other, now())?;
+                let mut job = s.claim_container(&p, &queued.id, &other, &"1".repeat(64), now())?;
                 s.transition(
                     &job.id,
                     JobState::Running,
