@@ -18,6 +18,9 @@ use tokio::sync::{mpsc, oneshot};
 
 pub const SCHEMA_VERSION: u32 = 17;
 pub const QUEUE_CAPACITY: usize = 64;
+/// The revocation lane: small, and awaited rather than refused when full.
+const PRIORITY_CAPACITY: usize = 8;
+const PRIORITY_WAIT: Duration = Duration::from_secs(5);
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
 type Work = Box<dyn FnOnce(&mut Store) + Send>;
@@ -25,6 +28,7 @@ type Work = Box<dyn FnOnce(&mut Store) + Send>;
 #[derive(Clone)]
 pub struct Database {
     sender: mpsc::Sender<Work>,
+    priority: mpsc::Sender<Work>,
     audit: Arc<AtomicI64>,
     pub generation: i64,
 }
@@ -34,6 +38,7 @@ impl Database {
         let generation = store.generation;
         let audit = Arc::new(AtomicI64::new(store.audit_usage()?.bytes));
         let (sender, mut receiver) = mpsc::channel::<Work>(QUEUE_CAPACITY);
+        let (priority, mut urgent) = mpsc::channel::<Work>(PRIORITY_CAPACITY);
         let observed = audit.clone();
         std::thread::Builder::new()
             .name("limeos-db".into())
@@ -44,7 +49,17 @@ impl Database {
                     }
                 };
                 maintain(&mut store);
-                while let Some(work) = receiver.blocking_recv() {
+                loop {
+                    // Revocations never wait behind ordinary work.
+                    while let Ok(work) = urgent.try_recv() {
+                        work(&mut store);
+                    }
+                    let Some(work) = receiver.blocking_recv() else {
+                        break;
+                    };
+                    while let Ok(work) = urgent.try_recv() {
+                        work(&mut store);
+                    }
                     work(&mut store);
                     maintain(&mut store);
                 }
@@ -53,6 +68,7 @@ impl Database {
             .map_err(|_| Error(ErrorCode::Unavailable))?;
         Ok(Self {
             sender,
+            priority,
             audit,
             generation,
         })
@@ -63,6 +79,23 @@ impl Database {
         AuditUsage {
             bytes: self.audit.load(Ordering::SeqCst),
         }
+    }
+    /// Session, task and grant revocation. These take a separate lane that the
+    /// writer drains before each ordinary item, and wait for space in it (up to
+    /// a deadline) instead of failing when the ordinary queue is full.
+    pub async fn revoke(&self, revocation: Revocation, now: i64) -> Result<()> {
+        let (sender, receiver) = oneshot::channel();
+        let work: Work = Box::new(move |s| {
+            let _ = sender.send(s.apply_revocation(revocation, now));
+        });
+        tokio::time::timeout(PRIORITY_WAIT, self.priority.send(work))
+            .await
+            .map_err(|_| Error(ErrorCode::Overloaded))?
+            .map_err(|_| Error(ErrorCode::Unavailable))?;
+        // Wake an idle writer. A full ordinary queue means it is busy and
+        // drains the lane before its next item, so a refused wake is harmless.
+        let _ = self.sender.try_send(Box::new(|_: &mut Store| {}));
+        receiver.await.map_err(|_| Error(ErrorCode::Unavailable))?
     }
     pub async fn call<T: Send + 'static>(
         &self,
@@ -88,6 +121,8 @@ pub struct Store {
     observation_leases: std::collections::HashMap<String, automation::ActiveObservation>,
     observation_watermarks: std::collections::HashMap<String, automation::PollWatermark>,
     retained_at: Option<Instant>,
+    #[cfg(test)]
+    free_bytes: Option<u64>,
 }
 pub struct TaskGrant<'a> {
     pub service_uid: u32,
@@ -251,7 +286,7 @@ impl Store {
                 |r| r.get(0),
             )
             .map_err(durable)?;
-        // Recovery records may use a reserve past the cap. Only when
+        // Recovery records use the revocation reserve past the cap. Only when
         // pinned history fills even that is startup refused.
         if interrupted > 0
             && interrupted.saturating_mul(retention::EVENT_BYTES)
@@ -290,12 +325,19 @@ impl Store {
             observation_leases: std::collections::HashMap::new(),
             observation_watermarks: std::collections::HashMap::new(),
             retained_at: None,
+            #[cfg(test)]
+            free_bytes: None,
         })
     }
+    fn free_bytes(&self) -> Result<u64> {
+        #[cfg(test)]
+        if let Some(bytes) = self.free_bytes {
+            return Ok(bytes);
+        }
+        fs2::available_space(&self.directory).map_err(|_| Error(ErrorCode::StateNotDurable))
+    }
     fn write<T>(&mut self, f: impl FnOnce(&Transaction<'_>) -> Result<T>) -> Result<T> {
-        if fs2::available_space(&self.directory).map_err(|_| Error(ErrorCode::StateNotDurable))?
-            < MIN_FREE_BYTES
-        {
+        if self.free_bytes()? < MIN_FREE_BYTES {
             return Err(Error(ErrorCode::StateNotDurable));
         }
         let tx = self
@@ -309,6 +351,26 @@ impl Store {
             return Err(Error(ErrorCode::StateNotDurable));
         }
         let value = f(&tx)?;
+        tx.commit().map_err(durable)?;
+        Ok(value)
+    }
+    /// Revocation removes or invalidates authority, so neither gate of `write`
+    /// may refuse it. It skips the free-space check (its few pages come out of
+    /// that 8 MiB reserve) and the audit cap. `f` learns whether its one event
+    /// still fits within `AUDIT_RESERVE` past the cap.
+    fn revocation_write<T>(
+        &mut self,
+        f: impl FnOnce(&Transaction<'_>, bool) -> Result<T>,
+    ) -> Result<T> {
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(durable)?;
+        let audit: i64 = tx
+            .query_row("SELECT audit_bytes FROM meta WHERE id=1", [], |r| r.get(0))
+            .map_err(durable)?;
+        let recordable = audit <= AUDIT_LIMIT + retention::AUDIT_RESERVE - retention::EVENT_BYTES;
+        let value = f(&tx, recordable)?;
         tx.commit().map_err(durable)?;
         Ok(value)
     }
@@ -339,6 +401,7 @@ mod storage_targets;
 pub use compose::{
     AuthenticatedComposePreview, ComposeAuthorityKind, ComposeAuthorityObservation, compose_scopes,
 };
+pub use identity_store::Revocation;
 pub use job_resolutions::{PendingResolution, ResolutionSubject};
 pub use retention::{AuditLevel, AuditUsage};
 pub use storage::storage_scope;

@@ -540,11 +540,13 @@ impl Backend for Core {
         })
     }
     async fn logout(&self, token: String, csrf: String) -> Result<()> {
-        self.session(token.clone(), Some(csrf)).await?;
-        let digest = limeos_identity::digest(&token);
-        self.db
-            .call(move |s| s.revoke_session(&digest, now()))
-            .await
+        // One call on the revocation lane checks the session and its CSRF and
+        // removes it, so logout works with the queue, disk or audit table full.
+        let revocation = limeos_persistence::Revocation::Session {
+            digest: limeos_identity::digest(&token),
+            csrf: limeos_identity::digest(&csrf),
+        };
+        self.db.revoke(revocation, now()).await
     }
     async fn health(&self) -> Result<Health> {
         self.db.call(|_| Ok(())).await?;

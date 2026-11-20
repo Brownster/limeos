@@ -49,7 +49,39 @@ pub(super) fn authenticate(
     })
 }
 
+/// Authority removal that no full queue, full disk or full audit table may
+/// refuse; see `Database::revoke`.
+pub enum Revocation {
+    /// Logout: the session digest and its CSRF digest, checked together.
+    Session {
+        digest: String,
+        csrf: String,
+    },
+    Task {
+        digest: String,
+    },
+    Grants {
+        principal: String,
+        role: Role,
+        scopes: Vec<Scope>,
+    },
+}
+
 impl Store {
+    pub(super) fn apply_revocation(&mut self, revocation: Revocation, now: i64) -> Result<()> {
+        match revocation {
+            Revocation::Session { digest, csrf } => {
+                authenticate(&self.conn, &digest, Some(&csrf), now)?;
+                self.revoke_session(&digest, now)
+            }
+            Revocation::Task { digest } => self.revoke_task(&digest, now),
+            Revocation::Grants {
+                principal,
+                role,
+                scopes,
+            } => self.revise_grants(&principal, role, &scopes, now),
+        }
+    }
     pub fn issue_bootstrap(&mut self, digest: &str, now: i64) -> Result<i64> {
         let expires = now.checked_add(900).ok_or(Error(ErrorCode::InvalidInput))?;
         self.write(|tx| {
@@ -240,13 +272,14 @@ impl Store {
             .map_err(durable)?
             .ok_or(Error(ErrorCode::Unauthenticated))
     }
-    /// Removing a session that is already gone records nothing.
+    /// Removing a session that is already gone records nothing. Past the
+    /// audit reserve the session is still removed, without its event.
     pub fn revoke_session(&mut self, digest: &str, now: i64) -> Result<()> {
-        self.write(|tx| {
+        self.revocation_write(|tx, recordable| {
             let removed = tx
                 .execute("DELETE FROM sessions WHERE digest=?", [digest])
                 .map_err(durable)?;
-            if removed == 0 {
+            if removed == 0 || !recordable {
                 return Ok(());
             }
             event(tx, None, None, EventKind::SessionRevoked, now)
@@ -265,7 +298,12 @@ impl Store {
         if scopes.len() > 32 {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        self.write(|tx| {
+        // A revision may also widen grants, so unlike session and task
+        // revocation it is refused rather than left unrecorded.
+        self.revocation_write(|tx, recordable| {
+            if !recordable {
+                return Err(Error(ErrorCode::StateNotDurable));
+            }
             if tx
                 .execute(
                     "UPDATE users SET role=?,grant_revision=grant_revision+1 WHERE id=?",
@@ -363,14 +401,14 @@ impl Store {
     }
     /// Revoking an unknown or already revoked token records nothing.
     pub fn revoke_task(&mut self, digest: &str, now: i64) -> Result<()> {
-        self.write(|tx| {
+        self.revocation_write(|tx, recordable| {
             let revoked = tx
                 .execute(
                     "UPDATE task_tokens SET revoked=1 WHERE digest=? AND revoked=0",
                     [digest],
                 )
                 .map_err(durable)?;
-            if revoked == 0 {
+            if revoked == 0 || !recordable {
                 return Ok(());
             }
             event(tx, None, None, EventKind::TaskRevoked, now)

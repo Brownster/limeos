@@ -320,8 +320,8 @@ fn startup_refuses_only_when_recovery_cannot_be_recorded_even_in_the_reserve() {
             .unwrap(),
         generation
     );
-    // With nothing to recover the same store opens, so reads keep working
-    // while ordinary writes stay refused at the cap.
+    // With nothing to recover the same store opens, so reads and revocation
+    // keep working while ordinary writes stay refused at the cap.
     conn.execute(
         "UPDATE jobs SET state='needs_intervention' WHERE state='running'",
         [],
@@ -330,8 +330,7 @@ fn startup_refuses_only_when_recovery_cannot_be_recorded_even_in_the_reserve() {
     drop(conn);
     let mut s = Store::open(&d.path().join("core.sqlite")).unwrap();
     assert_eq!(s.audit_usage().unwrap().level(), AuditLevel::Full);
-    assert!(s.login_record("alice").unwrap().is_some());
-    assert!(s.set_budget("period", 1).is_err());
+    s.revoke_session("missing", 400).unwrap();
 }
 
 /// A live session and task token for `p`, for the revocation tests.
@@ -381,6 +380,167 @@ fn revocations_that_match_nothing_record_nothing() {
     s.revoke_session("session", 212).unwrap();
     s.revoke_task("session-task", 212).unwrap();
     assert_eq!(events(&s), before + 2);
+}
+
+#[test]
+fn revocation_succeeds_with_the_audit_cap_hit() {
+    let (_d, mut s, p) = setup();
+    revocable(&mut s, &p, "session");
+    revocable(&mut s, &p, "late");
+    s.conn
+        .execute("UPDATE meta SET audit_bytes=?", [AUDIT_LIMIT])
+        .unwrap();
+    let intent = Intent::HealthProbe {
+        resource: "system".into(),
+    };
+    assert_eq!(
+        s.queue_job(&p, "refused", &intent, 400, 210).unwrap_err().0,
+        ErrorCode::StateNotDurable
+    );
+    let before = events(&s);
+    s.revoke_session("session", 211).unwrap();
+    s.revoke_task("session-task", 211).unwrap();
+    assert_eq!(live(&s, "session"), (false, false));
+    assert_eq!(events(&s), before + 2);
+    // Past the reserve too: authority is still removed, without its event,
+    // while a grant revision (which may widen access) is refused.
+    s.conn
+        .execute(
+            "UPDATE meta SET audit_bytes=?",
+            [AUDIT_LIMIT + retention::AUDIT_RESERVE],
+        )
+        .unwrap();
+    s.revoke_session("late", 212).unwrap();
+    s.revoke_task("late-task", 212).unwrap();
+    assert_eq!(live(&s, "late"), (false, false));
+    assert_eq!(events(&s), before + 2);
+    assert_eq!(
+        s.revise_grants(&p.id, Role::Viewer, &[], 213)
+            .unwrap_err()
+            .0,
+        ErrorCode::StateNotDurable
+    );
+    s.conn
+        .execute(
+            "UPDATE meta SET audit_bytes=?",
+            [AUDIT_LIMIT + retention::AUDIT_RESERVE - 256],
+        )
+        .unwrap();
+    s.revise_grants(&p.id, Role::Viewer, &[], 214).unwrap();
+    assert_eq!(events(&s), before + 3);
+}
+
+#[test]
+fn revocation_succeeds_below_the_free_space_reserve() {
+    let (_d, mut s, p) = setup();
+    revocable(&mut s, &p, "session");
+    s.free_bytes = Some(MIN_FREE_BYTES - 1);
+    let intent = Intent::HealthProbe {
+        resource: "system".into(),
+    };
+    assert_eq!(
+        s.queue_job(&p, "refused", &intent, 400, 210).unwrap_err().0,
+        ErrorCode::StateNotDurable
+    );
+    let before = events(&s);
+    s.revoke_session("session", 211).unwrap();
+    s.revoke_task("session-task", 211).unwrap();
+    s.revise_grants(&p.id, Role::Viewer, &[], 212).unwrap();
+    assert_eq!(live(&s, "session"), (false, false));
+    assert_eq!(events(&s), before + 3);
+}
+
+#[tokio::test]
+async fn revocation_succeeds_with_the_queue_full_and_overtakes_it() {
+    use std::sync::Mutex;
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("core.sqlite");
+    let principal = {
+        let mut s = Store::open(&path).unwrap();
+        s.issue_bootstrap("token", 100).unwrap();
+        s.enroll("token", "alice", "$argon2id$fixture", 101)
+            .unwrap();
+        let p = s.login_record("alice").unwrap().unwrap().principal;
+        revocable(&mut s, &p, "session");
+        p
+    };
+    let db = Database::open(&path).unwrap();
+    let (release, released) = std::sync::mpsc::channel::<()>();
+    let (busy, occupied) = oneshot::channel();
+    let blocker = tokio::spawn({
+        let db = db.clone();
+        async move {
+            db.call(move |_| {
+                let _ = busy.send(());
+                let _ = released.recv();
+                Ok(())
+            })
+            .await
+        }
+    });
+    occupied.await.unwrap();
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let mut ordinary = Vec::new();
+    for _ in 0..QUEUE_CAPACITY {
+        let (db, seen) = (db.clone(), seen.clone());
+        ordinary.push(tokio::spawn(async move {
+            db.call(move |s| {
+                let state = live(s, "session");
+                seen.lock().unwrap().push(state);
+                Ok(())
+            })
+            .await
+        }));
+    }
+    while db.sender.capacity() > 0 {
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(
+        db.call(|_| Ok(())).await.unwrap_err().0,
+        ErrorCode::Overloaded
+    );
+    let revocations = [
+        Revocation::Session {
+            digest: "session".into(),
+            csrf: "csrf".into(),
+        },
+        Revocation::Task {
+            digest: "session-task".into(),
+        },
+        Revocation::Grants {
+            principal: principal.id.clone(),
+            role: Role::Viewer,
+            scopes: vec![],
+        },
+    ]
+    .map(|revocation| {
+        let db = db.clone();
+        tokio::spawn(async move { db.revoke(revocation, 250).await })
+    });
+    while db.priority.capacity() > PRIORITY_CAPACITY - 3 {
+        tokio::task::yield_now().await;
+    }
+    release.send(()).unwrap();
+    for revocation in revocations {
+        revocation.await.unwrap().unwrap();
+    }
+    blocker.await.unwrap().unwrap();
+    for call in ordinary {
+        call.await.unwrap().unwrap();
+    }
+    // Every queued item ran after all three revocations.
+    let seen = std::mem::take(&mut *seen.lock().unwrap());
+    assert_eq!(seen.len(), QUEUE_CAPACITY);
+    assert!(seen.iter().all(|state| *state == (false, false)));
+    let events: i64 = db
+        .call(|s| {
+            s.conn
+                .query_row("SELECT count(*) FROM events WHERE json_extract(kind,'$.kind') IN ('session_revoked','task_revoked','grants_revised') AND created=250", [], |r| r.get(0))
+                .map_err(durable)
+        })
+        .await
+        .unwrap();
+    assert_eq!(events, 3);
 }
 
 #[test]

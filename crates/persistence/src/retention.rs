@@ -56,8 +56,8 @@ const EVENT_BUDGET: i64 = AUDIT_LIMIT / 2;
 /// Usage at or above this is reported as a warning: pruning cannot keep up, or
 /// pinned history (open work, automation proofs) has grown large.
 pub(super) const AUDIT_WARNING: i64 = AUDIT_LIMIT / 4 * 3;
-/// Startup recovery may record its events this far past the cap that stops
-/// every other write.
+/// Revocations and startup recovery may record their events this far past the
+/// cap that stops every other write.
 pub(super) const AUDIT_RESERVE: i64 = 1024 * 1024;
 const EVENT_BATCH: i64 = 1024;
 /// A quarter of `MAX_OCCURRENCES`; 128 schedules at the 30 s minimum add 256
