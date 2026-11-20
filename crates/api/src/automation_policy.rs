@@ -2,11 +2,11 @@
 use super::*;
 use limeos_domain::automation::{HealthPolicyView, MAX_HEALTH_POLICY_BYTES, ReplaceHealthPolicy};
 
-pub(super) fn routes<B: Backend>() -> Router<App<B>> {
-    Router::new().route(
-        "/api/v1/automation/health-policy",
-        get(read::<B>).post(replace::<B>),
-    )
+pub(super) fn routes<B: Backend>() -> Vec<gate::Entry<B>> {
+    vec![
+        gate::read("/api/v1/automation/health-policy", read::<B>),
+        gate::write("/api/v1/automation/health-policy", replace::<B>),
+    ]
 }
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]

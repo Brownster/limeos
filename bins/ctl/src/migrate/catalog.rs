@@ -385,20 +385,29 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
             install_it = true;
             continue;
         }
-        let value = it
-            .next()
-            .ok_or("missing value for a propose-catalog flag")?;
+        if !matches!(
+            flag.as_str(),
+            "--out" | "--stacks" | "--docker" | "--docker-inspect" | "--engine-id"
+        ) {
+            return Err(crate::args::Usage(
+                "unknown propose-catalog argument; run limeosctl --help".into(),
+            )
+            .into());
+        }
+        let value = crate::args::value(flag, it.next())?;
         match flag.as_str() {
             "--out" => out = Some(value.clone()),
             "--stacks" => root = value.clone(),
             "--docker" => dock = Some(PathBuf::from(value)),
             "--docker-inspect" => inspect = Some(value.clone()),
-            "--engine-id" => engine = Some(value.clone()),
-            _ => return Err("unknown propose-catalog argument; run limeosctl --help".into()),
+            _ => engine = Some(value.clone()),
         }
     }
     let Some(out) = out else {
-        return Err("usage: migrate propose-catalog --out FILE [--stacks DIR] [--install]".into());
+        return Err(crate::args::Usage(
+            "usage: migrate propose-catalog --out FILE [--stacks DIR] [--install]".into(),
+        )
+        .into());
     };
     if rustix::process::geteuid().as_raw() != 0 {
         return Err(

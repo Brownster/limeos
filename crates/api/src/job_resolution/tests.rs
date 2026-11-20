@@ -39,7 +39,7 @@ fn view() -> ResolutionView {
         resolution: None,
     }
 }
-impl Backend for Stub {
+impl TestBackend for Stub {
     async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
     }
@@ -209,31 +209,45 @@ async fn decisions_need_origin_csrf_json_and_a_closed_body_before_the_backend() 
 #[tokio::test]
 async fn only_the_session_cookie_is_a_credential() {
     let stub = Stub::new(Ok(ResolveStatus::Resolved));
-    for (name, value) in [
-        ("authorization", "Bearer tok"),
-        ("authorization", "Basic YTpi"),
-        ("x-api-key", "key"),
-    ] {
-        let mut get = request("GET", false).body(Body::empty()).unwrap();
-        get.headers_mut().insert(name, value.parse().unwrap());
-        assert_eq!(send(&stub, get).await.0, StatusCode::FORBIDDEN, "{name}");
-        let mut decide = post(true);
-        decide.headers_mut().insert(name, value.parse().unwrap());
-        assert_eq!(send(&stub, decide).await.0, StatusCode::FORBIDDEN, "{name}");
-    }
-    // Header credentials alone do not authenticate either.
-    let anonymous = Request::builder()
-        .uri(path())
-        .header("authorization", "Bearer tok")
-        .body(Body::empty())
-        .unwrap();
-    assert_eq!(send(&stub, anonymous).await.0, StatusCode::FORBIDDEN);
-    let none = Request::builder().uri(path()).body(Body::empty()).unwrap();
-    assert_eq!(send(&stub, none).await.0, StatusCode::UNAUTHORIZED);
+    // There are no API keys: a key header is refused before the backend.
+    let mut get = request("GET", false).body(Body::empty()).unwrap();
+    get.headers_mut()
+        .insert("x-api-key", "key".parse().unwrap());
+    assert_eq!(send(&stub, get).await.0, StatusCode::FORBIDDEN);
+    let mut decide = post(true);
+    decide
+        .headers_mut()
+        .insert("x-api-key", "key".parse().unwrap());
+    assert_eq!(send(&stub, decide).await.0, StatusCode::FORBIDDEN);
     assert_eq!(
         stub.reads.load(Ordering::SeqCst) + stub.decisions.load(Ordering::SeqCst),
         0
     );
+    // An Authorization header is never a credential: alone it authenticates
+    // nothing, and next to the cookie (a proxy's basic authentication adds
+    // one) it changes nothing.
+    for value in ["Bearer tok", "Basic YTpi"] {
+        let anonymous = Request::builder()
+            .uri(path())
+            .header("authorization", value)
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(send(&stub, anonymous).await.0, StatusCode::UNAUTHORIZED);
+        assert_eq!(stub.reads.load(Ordering::SeqCst), 0);
+    }
+    let mut get = request("GET", false).body(Body::empty()).unwrap();
+    get.headers_mut()
+        .insert("authorization", "Basic YTpi".parse().unwrap());
+    assert_eq!(send(&stub, get).await.0, StatusCode::OK);
+    let mut decide = post(true);
+    decide
+        .headers_mut()
+        .insert("authorization", "Basic YTpi".parse().unwrap());
+    assert_eq!(send(&stub, decide).await.0, StatusCode::OK);
+    assert_eq!(stub.reads.load(Ordering::SeqCst), 1);
+    assert_eq!(stub.decisions.load(Ordering::SeqCst), 1);
+    let none = Request::builder().uri(path()).body(Body::empty()).unwrap();
+    assert_eq!(send(&stub, none).await.0, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -465,18 +479,26 @@ async fn the_attention_listing_is_a_cookie_only_read_with_the_backends_verdict()
     // No session cookie: unauthenticated, and the backend is not asked.
     let none = attention(false).body(Body::empty()).unwrap();
     assert_eq!(send(&stub, none).await.0, StatusCode::UNAUTHORIZED);
-    // Tokens and keys are refused whether or not a cookie comes with them.
-    for (name, value) in [
-        ("authorization", "Bearer tok"),
-        ("authorization", "Basic YTpi"),
-        ("x-api-key", "key"),
-    ] {
-        for cookie in [true, false] {
-            let mut get = attention(cookie).body(Body::empty()).unwrap();
-            get.headers_mut().insert(name, value.parse().unwrap());
-            assert_eq!(send(&stub, get).await.0, StatusCode::FORBIDDEN, "{name}");
-        }
+    // Keys are refused whether or not a cookie comes with them; an
+    // Authorization header is ignored either way.
+    for cookie in [true, false] {
+        let mut get = attention(cookie).body(Body::empty()).unwrap();
+        get.headers_mut()
+            .insert("x-api-key", "key".parse().unwrap());
+        assert_eq!(send(&stub, get).await.0, StatusCode::FORBIDDEN);
     }
+    for value in ["Bearer tok", "Basic YTpi"] {
+        let mut get = attention(false).body(Body::empty()).unwrap();
+        get.headers_mut()
+            .insert("authorization", value.parse().unwrap());
+        assert_eq!(send(&stub, get).await.0, StatusCode::UNAUTHORIZED);
+    }
+    assert_eq!(stub.reads.load(Ordering::SeqCst), 1);
+    let mut get = attention(true).body(Body::empty()).unwrap();
+    get.headers_mut()
+        .insert("authorization", "Basic YTpi".parse().unwrap());
+    assert_eq!(send(&stub, get).await.0, StatusCode::OK);
+    assert_eq!(stub.reads.load(Ordering::SeqCst), 2);
     // Reads only.
     for method in ["POST", "PUT", "PATCH", "DELETE"] {
         let req = attention(true).method(method).body(Body::empty()).unwrap();
@@ -486,7 +508,7 @@ async fn the_attention_listing_is_a_cookie_only_read_with_the_backends_verdict()
             "{method}"
         );
     }
-    assert_eq!(stub.reads.load(Ordering::SeqCst), 1);
+    assert_eq!(stub.reads.load(Ordering::SeqCst), 2);
     // A non-administrator session is refused by the backend; so is no session.
     for (answer, expected) in [
         (Err(Error(ErrorCode::Forbidden)), StatusCode::FORBIDDEN),

@@ -7,7 +7,14 @@ After=local-fs.target
 # keep-alive (sent as soon as the accept loop runs) the role only reads a
 # policy of at most 64 KiB and binds its socket, well under a second.
 Type=exec
-User=root
+# Host observation needs no root and no capability: it reads world-readable
+# /proc and /sys files (stat, meminfo, loadavg, uptime, the thermal zone),
+# statvfs("/"), /proc/self/mountinfo, and runs lsblk, which reads sysfs and
+# the udev database (/run/udev/data, 0644). PrivateDevices hides every disk
+# node, so lsblk never opened a device here even as root. Core reaches this
+# socket through group access and needs no root peer; the role checks core's
+# UID itself.
+User=limeos-storaged
 Group=limeos-host-access
 
 ExecStart=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/host.json /run/limeos-storaged/executor.sock host
@@ -42,11 +49,25 @@ RestrictSUIDSGID=yes
 RestrictRealtime=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
+# PrivateDevices already closes the device policy, so ProtectClock's implied
+# rtc rule takes nothing away; the role never reads the hostname.
+ProtectClock=yes
+ProtectHostname=yes
+RemoveIPC=yes
+RestrictNamespaces=yes
+# The only socket is the filesystem one in RuntimeDirectory, which works
+# across network namespaces; the role reads no network state.
+PrivateNetwork=yes
+IPAddressDeny=any
 RestrictAddressFamilies=AF_UNIX
 CapabilityBoundingSet=
 AmbientCapabilities=
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+# Considered and off: PrivateUsers would map core's UID to the overflow UID
+# in SO_PEERCRED, so the role would refuse core; ProcSubset=pid would hide the
+# /proc/stat, meminfo, loadavg and uptime files the role reports.
 LimitNOFILE=128
 TasksMax=16
 MemoryMax=32M

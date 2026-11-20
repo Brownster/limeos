@@ -128,7 +128,7 @@ mod tests {
         expired: bool,
         oversize: bool,
     }
-    impl Backend for Stub {
+    impl TestBackend for Stub {
         async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
             PasswordChecked::rejected()
         }

@@ -1,20 +1,12 @@
 //! Operator resolution of stuck jobs. Interactive administrator sessions only:
 //! no bearer or key credential is ever read, and the decision needs the CSRF
 //! header, the Origin rule and the administrator's password like other
-//! irreversible actions. See `docs/p06-job-resolution.md`.
+//! irreversible actions. Header credentials are refused by the route gate.
+//! See `docs/p06-job-resolution.md`.
 use super::operations::{credentials, input};
 use super::*;
-use axum::extract::Path;
+use gate::Path;
 use limeos_contracts::{ResolveJobInput, ResolveStatus};
-
-/// Reject anything that tries to authenticate with a header credential. The
-/// only accepted credential is the session cookie.
-fn cookie_only(headers: &HeaderMap) -> Result<()> {
-    if headers.contains_key("authorization") || headers.contains_key("x-api-key") {
-        return Err(Error(ErrorCode::Forbidden));
-    }
-    Ok(())
-}
 
 pub(super) async fn read<B: Backend>(
     State(app): State<App<B>>,
@@ -22,12 +14,10 @@ pub(super) async fn read<B: Backend>(
     headers: HeaderMap,
 ) -> Response {
     let result = async {
-        cookie_only(&headers)?;
         if !limeos_domain::opaque_id(&id) {
             return Err(Error(ErrorCode::InvalidInput));
         }
         let token = cookie(&headers)?;
-        app.backend.session(token.clone(), None).await?;
         app.backend.job_resolution(token, id).await
     }
     .await;
@@ -44,9 +34,7 @@ pub(super) async fn needs_attention<B: Backend>(
     headers: HeaderMap,
 ) -> Response {
     let result = async {
-        cookie_only(&headers)?;
         let token = cookie(&headers)?;
-        app.backend.session(token.clone(), None).await?;
         app.backend.needs_attention_jobs(token).await
     }
     .await;
@@ -62,7 +50,6 @@ pub(super) async fn resolve<B: Backend>(
     request: Request,
 ) -> Response {
     let result = async {
-        cookie_only(request.headers())?;
         if !limeos_domain::opaque_id(&id) {
             return Err(Error(ErrorCode::InvalidInput));
         }

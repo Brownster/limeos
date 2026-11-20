@@ -17,6 +17,8 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+          # History for the exposure gate's base revision (merge base with main).
+          fetch-depth: 0
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
@@ -57,6 +59,20 @@ jobs:
           cargo build --locked -p limeos-core -p limeos-executor -p limeosctl
           sudo install -m 0755 target/debug/limeos-core target/debug/limeos-executor /usr/lib/limeos/
           systemd-analyze verify packaging/systemd/*.service
+      # Offline scoring needs systemd 250+ (24.04 ships 255). Each unit must
+      # score no worse than at the merge base, under this same systemd-analyze,
+      # and within its recorded ceiling plus a small margin.
+      # Base: the merge base with a pull request's target (GITHUB_BASE_REF)
+      # or, for a push, with the default branch. A push to the default branch
+      # has no merge base to compare with, so there the recorded ceilings
+      # alone apply; never a push's previous tip or HEAD^, which would make a
+      # worsening pushed once the next push's baseline. A unit deliberately
+      # looser than on the default branch has a commented allowance in the
+      # script instead.
+      - name: Unit exposure ceilings
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: python3 scripts/check_unit_exposure.py
       - run: python3 scripts/check_repository.py
       - name: Repository check unit tests
         run: python3 -m unittest discover -s tests/repository -p 'test_*.py'

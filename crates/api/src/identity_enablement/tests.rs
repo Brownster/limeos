@@ -8,7 +8,7 @@ const PATH: &str = "/api/v1/auth/capabilities/observe-health/enable";
 struct RouteStub {
     calls: Arc<AtomicUsize>,
 }
-impl Backend for RouteStub {
+impl TestBackend for RouteStub {
     async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
     }

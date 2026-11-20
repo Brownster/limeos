@@ -1293,8 +1293,11 @@ async fn health_checks_a_session_beside_a_stuck_writer_without_queueing() {
     let (_dir, core, token, _, _, _, _, task) = fixture().await;
     let release = stall_writer(&core.db).await;
     let asked = std::time::Instant::now();
-    assert!(Backend::signed_in(&core, token).await);
-    assert!(!Backend::signed_in(&core, "m".repeat(64)).await);
+    assert_eq!(Backend::signed_in(&core, token, None).await, Ok(()));
+    assert_eq!(
+        Backend::signed_in(&core, "m".repeat(64), None).await,
+        Err(Error(ErrorCode::Unauthenticated))
+    );
     assert!(
         asked.elapsed() < Duration::from_secs(1),
         "{:?}",

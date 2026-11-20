@@ -8,6 +8,10 @@ After=local-fs.target
 # policy of at most 64 KiB and the installed stack selection and binds its
 # socket, well under a second; device reads start later, off that thread.
 Type=exec
+# Root stays. Core accepts storage, stack and container-health answers only
+# from a UID 0 peer (kernel credentials are the provenance of disk evidence),
+# and the inventory, source, process and health readers refuse a non-root
+# euid. A dedicated user with CAP_DAC_READ_SEARCH would need both changed.
 User=root
 Group=limeos-host-access
 ExecStart=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/storage.json /run/limeos-storage-reader/executor.sock storage
@@ -36,6 +40,21 @@ NoNewPrivileges=yes
 # This dormant reader has no effectful request, shell, write flag or capability.
 PrivateMounts=no
 PrivateDevices=no
+# What this leaves: the reader compares its root mount ID with PID 1's, and a
+# cloned namespace allocates new IDs, so every setting systemd implements with
+# a mount namespace is off: ProtectSystem, ProtectHome, PrivateTmp,
+# PrivateDevices, ProtectKernelTunables/Modules/Logs, ProtectControlGroups,
+# ProtectProc, ProcSubset, and PrivateNetwork (it mounts a fresh /sys).
+# An empty capability set is therefore weaker than it reads: UID 0 still has
+# owner write on root-owned files, including /etc, /usr/lib/limeos, most of
+# /proc/sys and /sys, and owner read on root-only device nodes. What limits
+# it is the code (no write request), NoNewPrivileges and the filters below.
+# ProtectClock is off because its implied DeviceAllow rule would close the
+# device policy and refuse the block-device reads; DevicePolicy=closed with
+# DeviceAllow=block-* r was considered and needs Pi qualification first.
+# Also off, as unqualified: ProtectHostname (whether it needs a mount namespace
+# varies with the systemd version) and PrivateUsers (the reads of other UIDs'
+# /proc entries are qualified only in the host user namespace).
 # This filter rejects openat2's indirect arguments, including protected reads.
 # The fixed read role needs openat2; it has no file-write operation. Keep the
 # empty capability sets and NoNewPrivileges rather than adding privileges.
@@ -43,11 +62,15 @@ RestrictSUIDSGID=no
 RestrictRealtime=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
+RestrictNamespaces=yes
+IPAddressDeny=any
 RestrictAddressFamilies=AF_UNIX
 CapabilityBoundingSet=
 AmbientCapabilities=
 SystemCallArchitectures=native
 SystemCallFilter=@system-service openat2
+# @resources stays: the read guardian lowers its own file-descriptor limit.
+SystemCallFilter=~@privileged
 LimitNOFILE=256
 TasksMax=16
 MemoryMax=64M

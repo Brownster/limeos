@@ -1,4 +1,5 @@
 use super::*;
+mod route_sweep;
 #[tokio::test]
 async fn observations_and_history_use_current_resource_grants_and_reject_revocation() {
     use limeos_contracts::{

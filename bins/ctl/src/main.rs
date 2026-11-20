@@ -1,5 +1,7 @@
+use args::{Usage, is_help};
 use limeos_contracts::{CoreRequest, CoreResponse, Enrollment, VERSION};
 use std::io::Read;
+mod args;
 mod job;
 mod migrate;
 #[tokio::main(flavor = "current_thread")]
@@ -8,58 +10,94 @@ async fn main() {
     limeos_persistence::refuse_test_support();
     if let Err(e) = run().await {
         eprintln!("{e}");
-        std::process::exit(1);
+        // 2: malformed command line, nothing done; 1: refused or failed.
+        std::process::exit(if e.is::<Usage>() { 2 } else { 1 });
     }
 }
+
+/// What a command line asks for, decided before anything is touched.
+#[derive(Debug, PartialEq, Eq)]
+enum Route<'a> {
+    Version,
+    Help,
+    CheckCeiling(&'a str, &'a str),
+    CheckConfig(&'a str),
+    Migrate(&'a str, &'a [String]),
+    Job(&'a str, &'a [String]),
+    Core(&'a str, &'a str),
+}
+
+/// `--help`, `-h` and `--version` count only in command position, never as
+/// another option's value.
+fn route(args: &[String]) -> Result<Route<'_>, Usage> {
+    let invalid = || Usage("invalid arguments; run limeosctl --help".into());
+    match args {
+        [] => return Ok(Route::Help),
+        [first, ..] if first == "--version" => return Ok(Route::Version),
+        [first, ..] if is_help(first) => return Ok(Route::Help),
+        [cmd, file, uid] if cmd == "check-ceiling" => return Ok(Route::CheckCeiling(file, uid)),
+        [cmd, file] if cmd == "check-config" => return Ok(Route::CheckConfig(file)),
+        [cmd, ..] if cmd == "check-ceiling" || cmd == "check-config" => return Err(invalid()),
+        _ => {}
+    }
+    let (socket, rest) = match args.split_first() {
+        Some((flag, rest)) if flag == "--socket" => {
+            let path = args::value(flag, rest.first())?;
+            (path.as_str(), rest.get(1..).unwrap_or_default())
+        }
+        _ => (DEFAULT_SOCKET, args),
+    };
+    match rest {
+        [] => Err(invalid()),
+        [first, ..] if is_help(first) => Ok(Route::Help),
+        [cmd, rest @ ..] if cmd == "migrate" => Ok(Route::Migrate(socket, rest)),
+        [cmd, rest @ ..] if cmd == "job" => Ok(Route::Job(socket, rest)),
+        [cmd] if matches!(cmd.as_str(), "status" | "bootstrap" | "enroll") => {
+            Ok(Route::Core(socket, cmd))
+        }
+        [cmd] if cmd.starts_with('-') => Err(invalid()),
+        [_] => Err(Usage("unknown command; run limeosctl --help".into())),
+        _ => Err(invalid()),
+    }
+}
+
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
-    if args.iter().any(|a| a == "--version") {
-        println!("limeosctl {}", env!("CARGO_PKG_VERSION"));
-        return Ok(());
-    }
-    if args.first().is_some_and(|s| s == "check-ceiling") && args.len() == 3 {
-        use std::os::unix::fs::MetadataExt;
-        let meta = std::fs::symlink_metadata(&args[1])?;
-        if !meta.is_file() || meta.uid() != 0 || meta.mode() & 0o022 != 0 || meta.len() > 65536 {
-            return Err("Unsafe executor ceiling; preserve and repair the original file.".into());
+    let (socket, command) = match route(&args)? {
+        Route::Version => {
+            println!("limeosctl {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
         }
-        return check_ceiling(&std::fs::read(&args[1])?, args[2].parse::<u32>()?)
-            .map_err(Into::into);
-    }
-    if args.first().is_some_and(|s| s == "check-config") && args.len() == 2 {
-        match limeos_persistence::config::read(std::path::Path::new(&args[1]))? {limeos_persistence::config::ConfigRead::Valid(_)=>return Ok(()),_=>return Err("Invalid or missing configuration. Repair /etc/limeos/core.json, then run dpkg --configure limeos. Original preserved.".into())}
-    }
-    let (socket_flag, rest) = match args.as_slice() {
-        [flag, path, rest @ ..] if flag == "--socket" => (Some(path.as_str()), rest),
-        rest => (None, rest),
+        Route::Help => {
+            println!(
+                "Usage: limeosctl [--socket PATH] status|bootstrap|enroll\nbootstrap: root-only, one-use token valid for 15 minutes.\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\nExit status: 0 done, 1 refused or failed, 2 invalid command line (nothing done).\n{}\n{}",
+                migrate::USAGE,
+                job::USAGE
+            );
+            return Ok(());
+        }
+        Route::CheckCeiling(file, uid) => {
+            use std::os::unix::fs::MetadataExt;
+            let meta = std::fs::symlink_metadata(file)?;
+            if !meta.is_file() || meta.uid() != 0 || meta.mode() & 0o022 != 0 || meta.len() > 65536
+            {
+                return Err(
+                    "Unsafe executor ceiling; preserve and repair the original file.".into(),
+                );
+            }
+            return check_ceiling(&std::fs::read(file)?, uid.parse::<u32>()?).map_err(Into::into);
+        }
+        Route::CheckConfig(file) => {
+            match limeos_persistence::config::read(std::path::Path::new(file))? {limeos_persistence::config::ConfigRead::Valid(_)=>return Ok(()),_=>return Err("Invalid or missing configuration. Repair /etc/limeos/core.json, then run dpkg --configure limeos. Original preserved.".into())}
+        }
+        Route::Migrate(socket, rest) => return migrate::run(socket, rest).await,
+        Route::Job(socket, rest) => return job::run(socket, rest).await,
+        Route::Core(socket, command) => (socket, command),
     };
-    if rest.first().is_some_and(|s| s == "migrate") && !args.iter().any(|a| a == "--help") {
-        return migrate::run(socket_flag.unwrap_or(DEFAULT_SOCKET), &rest[1..]).await;
-    }
-    if rest.first().is_some_and(|s| s == "job") && !args.iter().any(|a| a == "--help" || a == "-h")
-    {
-        return job::run(socket_flag.unwrap_or(DEFAULT_SOCKET), &rest[1..]).await;
-    }
-    if args.is_empty() || args.iter().any(|a| a == "--help" || a == "-h") {
-        println!(
-            "Usage: limeosctl [--socket PATH] status|bootstrap|enroll\nbootstrap: root-only, one-use token valid for 15 minutes.\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\n{}\n{}",
-            migrate::USAGE,
-            job::USAGE
-        );
-        return Ok(());
-    }
-    let (socket, command): (&str, &String) =
-        if args.first().is_some_and(|s| s == "--socket") && args.len() == 3 {
-            (&args[1], &args[2])
-        } else if args.len() == 1 {
-            (DEFAULT_SOCKET, &args[0])
-        } else {
-            return Err("invalid arguments; run limeosctl --help".into());
-        };
-    let request = match command.as_str() {
+    let request = match command {
         "status" => CoreRequest::Health { version: VERSION },
         "bootstrap" => CoreRequest::IssueBootstrap { version: VERSION },
-        "enroll" => {
+        _ => {
             let mut input = String::new();
             std::io::stdin().take(16385).read_to_string(&mut input)?;
             if input.len() > 16384 {
@@ -72,7 +110,6 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 enrollment,
             }
         }
-        _ => return Err("unknown command; run limeosctl --help".into()),
     };
     let response = rpc(socket, &request).await?;
     println!("{}", serde_json::to_string(&response)?);
@@ -107,4 +144,62 @@ async fn rpc(
     })
     .await
     .map_err(|_| "local request timed out")?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn help_and_version_count_only_in_command_position() {
+        assert_eq!(route(&args(&["--version"])).unwrap(), Route::Version);
+        assert_eq!(route(&args(&["--help"])).unwrap(), Route::Help);
+        assert_eq!(route(&args(&["-h"])).unwrap(), Route::Help);
+        assert_eq!(route(&args(&[])).unwrap(), Route::Help);
+        assert_eq!(
+            route(&args(&["--socket", "/s", "--help"])).unwrap(),
+            Route::Help
+        );
+        // Later on, they are handed on as ordinary words for the subcommand to judge.
+        let resolve = args(&["job", "resolve", "j", "--reason", "--version"]);
+        assert_eq!(
+            route(&resolve).unwrap(),
+            Route::Job(DEFAULT_SOCKET, &resolve[1..])
+        );
+        let scan = args(&["migrate", "scan", "--root", "--help"]);
+        assert_eq!(
+            route(&scan).unwrap(),
+            Route::Migrate(DEFAULT_SOCKET, &scan[1..])
+        );
+        assert!(route(&args(&["status", "--version"])).is_err());
+        assert!(route(&args(&["status", "--help"])).is_err());
+    }
+
+    #[test]
+    fn the_socket_needs_a_real_value_and_commands_take_no_extra_words() {
+        let ok = args(&["--socket", "/run/x.sock", "status"]);
+        assert_eq!(route(&ok).unwrap(), Route::Core("/run/x.sock", "status"));
+        assert_eq!(
+            route(&args(&["enroll"])).unwrap(),
+            Route::Core(DEFAULT_SOCKET, "enroll")
+        );
+        for bad in [
+            vec!["--socket"],
+            vec!["--socket", "--version"],
+            vec!["--socket", "-h", "status"],
+            vec!["--socket", "/s"],
+            vec!["status", "extra"],
+            vec!["bootstrap", "--force"],
+            vec!["frobnicate"],
+            vec!["--frobnicate"],
+            vec!["check-ceiling", "/etc/x.json"],
+            vec!["check-config"],
+        ] {
+            assert!(route(&args(&bad)).is_err(), "{bad:?}");
+        }
+    }
 }

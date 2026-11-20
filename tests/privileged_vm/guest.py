@@ -5,6 +5,7 @@
 # ///
 """Destructive P01 acceptance tests. Run only inside a disposable systemd VM."""
 
+import grp
 import http.client
 import json
 import os
@@ -460,6 +461,19 @@ def main(package_version="0.1.0", upgrade_version="0.1.1"):
     assert json.loads(policy.read_text())["allow_health"] is False
     policy.write_bytes(old_policy)
     run("/var/lib/dpkg/info/limeos.postinst", "configure")
+    # An older package left host.json root:root, possibly 0600: configure hands
+    # it to limeos-storaged's group, and the unprivileged service starts.
+    os.chown(policy, 0, 0)
+    policy.chmod(0o600)
+    run("/var/lib/dpkg/info/limeos.postinst", "configure")
+    stat = policy.stat()
+    assert (stat.st_uid, stat.st_gid, stat.st_mode & 0o7777) == (
+        0,
+        grp.getgrnam("limeos-host-access").gr_gid,
+        0o640,
+    ), stat
+    assert policy.read_bytes() == old_policy
+    run("systemctl", "is-active", "limeos-storaged.service")
     passed("root/sudo rerun identity and corrupt configuration preserved")
     with tempfile.TemporaryDirectory() as temp:
         fake = Path(temp) / "systemctl"

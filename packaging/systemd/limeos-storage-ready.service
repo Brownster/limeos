@@ -4,6 +4,8 @@ After=local-fs.target
 
 [Service]
 Type=oneshot
+# Root stays: storage-wait refuses a non-root euid and opens every block
+# device node to probe filesystem identity with blkid.
 User=root
 Group=root
 ExecStart=/usr/lib/limeos/limeos-executor storage-wait --plan /etc/limeos/storage-wait.json
@@ -16,16 +18,29 @@ LimitCORE=0
 NoNewPrivileges=yes
 # Mount verification must run in PID 1's mount namespace. ProtectSystem,
 # ProtectHome and PrivateTmp would create a different namespace.
+# So would PrivateDevices, ProtectKernelTunables/Modules/Logs,
+# ProtectControlGroups, ProtectProc, ProcSubset and PrivateNetwork: all off.
+# An empty capability set is weaker than it reads here: UID 0 still has owner
+# write on root-owned files (/etc, /usr/lib/limeos, most of /proc/sys and
+# /sys) and owner read on root-only device nodes; the code, which only reads,
+# is what limits it. ProtectClock is off (its implied DeviceAllow rule would
+# refuse the block-device reads), as are, unqualified, ProtectHostname
+# (whether it needs a mount namespace varies with the systemd version) and
+# PrivateUsers (PID 1's /proc reads are qualified only in the host namespace).
 PrivateMounts=no
 RestrictSUIDSGID=yes
 RestrictRealtime=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
-RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+IPAddressDeny=any
+# A one-shot check that prints JSON: it opens no socket.
+RestrictAddressFamilies=none
 CapabilityBoundingSet=
 AmbientCapabilities=
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
 LimitNOFILE=256
 TasksMax=8
 MemoryMax=64M
