@@ -1,5 +1,60 @@
 use super::*;
 
+/// One recovery candidate row: id, intent, state, owner id, role, revision.
+pub(crate) type CandidateRow = (String, String, String, String, String, i64);
+
+/// The worker's candidates among jobs whose operation is in `operations` (an
+/// SQL list): every queued job, oldest first, then held jobs (dispatched, not
+/// yet settled) whose ID sorts after `cursor`, in ID order; each part at most
+/// `RECOVERY_BATCH`. Queued jobs are tried every pass and drain on their own,
+/// since a queued plan expires. Held ones wait on the executor, possibly for
+/// an operator, and could outnumber any fixed batch: a caller that pages
+/// through them with the cursor reaches every one, however many there are and
+/// whatever their age.
+pub(crate) fn candidate_rows(
+    conn: &Connection,
+    operations: &str,
+    cursor: &str,
+) -> Result<Vec<CandidateRow>> {
+    let select = "SELECT j.id,j.intent,j.state,u.id,u.role,u.grant_revision FROM jobs j JOIN users u ON u.id=j.principal";
+    let row = |r: &rusqlite::Row<'_>| -> rusqlite::Result<CandidateRow> {
+        Ok((
+            r.get(0)?,
+            r.get(1)?,
+            r.get(2)?,
+            r.get(3)?,
+            r.get(4)?,
+            r.get(5)?,
+        ))
+    };
+    let mut rows = Vec::new();
+    for (sql, cursor) in [
+        (
+            format!(
+                "{select} WHERE j.state='queued' AND json_extract(j.intent,'$.operation') IN {operations} ORDER BY j.rowid LIMIT {RECOVERY_BATCH}"
+            ),
+            None,
+        ),
+        (
+            format!(
+                "{select} WHERE j.state IN ('running','verifying','outcome_unknown','needs_intervention') AND json_extract(j.intent,'$.operation') IN {operations} AND j.id>?1 ORDER BY j.id LIMIT {RECOVERY_BATCH}"
+            ),
+            Some(cursor),
+        ),
+    ] {
+        let mut stmt = conn.prepare(&sql).map_err(durable)?;
+        let found = match cursor {
+            Some(cursor) => stmt.query_map([cursor], row),
+            None => stmt.query_map([], row),
+        }
+        .map_err(durable)?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(durable)?;
+        rows.extend(found);
+    }
+    Ok(rows)
+}
+
 impl Store {
     pub fn queue_job(
         &mut self,

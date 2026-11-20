@@ -18,6 +18,9 @@ use tokio::sync::{mpsc, oneshot};
 
 pub const SCHEMA_VERSION: u32 = 17;
 pub const QUEUE_CAPACITY: usize = 64;
+/// Queued jobs, and separately held jobs, one recovery candidate listing
+/// returns at most (`Store::stack_candidates_after`).
+pub const RECOVERY_BATCH: usize = 64;
 /// The revocation lane: small, and awaited rather than refused when full.
 const PRIORITY_CAPACITY: usize = 8;
 const PRIORITY_WAIT: Duration = Duration::from_secs(5);

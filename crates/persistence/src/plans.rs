@@ -23,21 +23,19 @@ impl Store {
         Ok(jobs)
     }
     /// Internal worker discovery is bounded. A caller cannot supply an actor.
+    /// The first page of `container_candidates_after`.
     pub fn container_candidates(&self) -> Result<Vec<(Principal, RestartJob)>> {
-        let mut stmt = self.conn.prepare("SELECT j.id,j.intent,j.state,u.id,u.role,u.grant_revision FROM jobs j JOIN users u ON u.id=j.principal WHERE j.state IN ('queued','running','verifying','outcome_unknown','needs_intervention') AND json_extract(j.intent,'$.operation') IN ('container_restart','container_start','container_stop') ORDER BY CASE j.state WHEN 'queued' THEN 0 ELSE 1 END,j.rowid LIMIT 64").map_err(durable)?;
-        stmt.query_map([], |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, String>(2)?,
-                r.get::<_, String>(3)?,
-                r.get::<_, String>(4)?,
-                r.get::<_, i64>(5)?,
-            ))
-        })
-        .map_err(durable)?
-        .map(|r| {
-            let (id, intent, state, owner, role, revision) = r.map_err(durable)?;
+        self.container_candidates_after("")
+    }
+    /// Queued container jobs, then held ones after `cursor` (`candidate_rows`).
+    pub fn container_candidates_after(&self, cursor: &str) -> Result<Vec<(Principal, RestartJob)>> {
+        super::jobs::candidate_rows(
+            &self.conn,
+            "('container_restart','container_start','container_stop')",
+            cursor,
+        )?
+        .into_iter()
+        .map(|(id, intent, state, owner, role, revision)| {
             let plan = parse::<Intent>(&intent)?.container_plan()?;
             Ok((
                 Principal {

@@ -703,3 +703,45 @@ async fn concurrent_queueing_shares_a_job_or_consumes_approval_once() {
         );
     }
 }
+
+#[test]
+fn every_held_container_job_is_listed_however_many_older_ones_are_held() {
+    let (_dir, mut store, p) = setup();
+    let batch = crate::RECOVERY_BATCH;
+    let total = batch + 3;
+    let mut held = std::collections::BTreeSet::new();
+    for i in 0..total {
+        let target = ContainerSnapshot {
+            resource: format!("container:{:064x}", i + 1),
+            ..snapshot()
+        };
+        let at = 200 + i as i64;
+        let proposal = store.plan_restart(&p, &target, at).unwrap();
+        let approval = store
+            .approve_container(&p, &proposal.plan.id, &proposal.digest, at)
+            .unwrap();
+        let job = store
+            .queue_container(
+                &p,
+                &format!("k{i}"),
+                &proposal,
+                &approval.token,
+                &target,
+                at,
+            )
+            .unwrap();
+        store.claim_container(&p, &job.id, &target, at).unwrap();
+        held.insert(job.id);
+    }
+    let first = store.container_candidates().unwrap();
+    assert_eq!(first.len(), batch);
+    let last = first.last().unwrap().1.id.clone();
+    let second = store.container_candidates_after(&last).unwrap();
+    assert_eq!(second.len(), total - batch);
+    let seen: std::collections::BTreeSet<String> = first
+        .into_iter()
+        .chain(second)
+        .map(|(_, job)| job.id)
+        .collect();
+    assert_eq!(seen, held);
+}

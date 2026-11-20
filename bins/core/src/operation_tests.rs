@@ -584,3 +584,37 @@ async fn an_absence_the_executor_did_not_close_holds_the_job_without_the_missing
     assert_eq!(state.lock().unwrap().posts, 0);
     task.abort();
 }
+#[test]
+fn recovery_rotation_lists_every_held_job_and_pauses_each() {
+    use super::operations::Rotation;
+    let batch = limeos_persistence::RECOVERY_BATCH;
+    // More held jobs than one listing returns, in ID order.
+    let held: Vec<String> = (0..2 * batch + 5).map(|i| format!("{i:064x}")).collect();
+    let list = |cursor: &str| -> Vec<&str> {
+        held.iter()
+            .map(String::as_str)
+            .filter(|id| *id > cursor)
+            .take(batch)
+            .collect()
+    };
+    let mut rotation = Rotation::default();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut polled = 0;
+    // Three listings reach every job; the fourth starts over.
+    for pass in 0..4 {
+        let page = list(rotation.cursor());
+        if pass == 3 {
+            assert_eq!(page.first().copied(), held.first().map(String::as_str));
+        }
+        rotation.advance(page.iter().copied());
+        for id in page {
+            seen.insert(id.to_owned());
+            if rotation.due(id) {
+                polled += 1;
+            }
+        }
+    }
+    assert_eq!(seen.len(), held.len());
+    // Each is looked up once per pause, however often it is listed.
+    assert_eq!(polled, held.len());
+}

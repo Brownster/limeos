@@ -9,7 +9,7 @@ use limeos_domain::{
     stack_definition, stack_project, stack_resource, verify_stack_member,
 };
 use limeos_executor_protocol::Request;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 impl Core {
     /// The protected inventory cohort decides eligibility and supplies the
@@ -479,24 +479,28 @@ impl Core {
         Ok(())
     }
 
-    /// Bounded retry of receipt reconciliation, never of an effect.
+    /// Bounded retry of receipt reconciliation, never of an effect. Held jobs
+    /// are listed in rotation (`Rotation`), so none waits behind older ones.
     pub(super) async fn dispatch_stack_candidates(
         &self,
-        recovery: &mut std::collections::HashMap<String, Instant>,
+        recovery: &mut super::operations::Rotation,
     ) {
-        let Ok(jobs) = self.db.call(|s| s.stack_candidates()).await else {
+        let cursor = recovery.cursor().to_owned();
+        let Ok(jobs) = self
+            .db
+            .call(move |s| s.stack_candidates_after(&cursor))
+            .await
+        else {
             return;
         };
-        recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));
+        recovery.advance(
+            jobs.iter()
+                .filter(|(_, job)| job.state != JobState::Queued)
+                .map(|(_, job)| job.id.as_str()),
+        );
         for (principal, job) in jobs {
-            if job.state != JobState::Queued {
-                if recovery
-                    .get(&job.id)
-                    .is_some_and(|at| at.elapsed() < Duration::from_secs(30))
-                {
-                    continue;
-                }
-                recovery.insert(job.id.clone(), Instant::now());
+            if job.state != JobState::Queued && !recovery.due(&job.id) {
+                continue;
             }
             if let Err(e) = self.dispatch_stack(principal, job).await {
                 tracing::warn!(code=?e.0,"stack job remains pending or requires reconciliation");

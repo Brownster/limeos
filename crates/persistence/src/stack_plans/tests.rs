@@ -620,3 +620,99 @@ fn partly_done_releases_locks_as_failed_never_succeeded_and_needs_proof_of_sent_
     );
     assert_eq!(locks(&store, &other.id).len(), 5);
 }
+
+/// Pages through held candidates the way core's recovery rotation does.
+fn rotation_pages(store: &Store, pages: usize) -> Vec<Vec<StackJob>> {
+    let mut cursor = String::new();
+    (0..pages)
+        .map(|_| {
+            let page: Vec<StackJob> = store
+                .stack_candidates_after(&cursor)
+                .unwrap()
+                .into_iter()
+                .map(|(_, job)| job)
+                .collect();
+            let held: Vec<&StackJob> = page
+                .iter()
+                .filter(|job| job.state != JobState::Queued)
+                .collect();
+            cursor = match held.last() {
+                Some(last) if held.len() >= crate::RECOVERY_BATCH => last.id.clone(),
+                _ => String::new(),
+            };
+            page
+        })
+        .collect()
+}
+
+#[test]
+fn every_held_stack_job_is_listed_however_many_older_ones_are_held() {
+    let (_dir, mut store, p) = setup();
+    let batch = crate::RECOVERY_BATCH;
+    let total = 2 * batch + 2;
+    let job_for = |store: &mut Store, i: usize, claim: bool| {
+        // Each stack has its own project, catalog name and members, so every
+        // job can hold its locks at once.
+        let members = (0..2)
+            .map(|m| ContainerSnapshot {
+                resource: format!("container:{:064x}", 4 * i + m + 1),
+                ..member('a', true)
+            })
+            .collect();
+        let snapshot = StackSnapshot::new(&format!("p{i}"), members).unwrap();
+        let at = 200 + i as i64;
+        let proposal = store
+            .plan_stack(
+                &p,
+                ContainerAction::Restart,
+                &format!("cat{i}"),
+                &snapshot,
+                at,
+            )
+            .unwrap();
+        let approval = store
+            .approve_stack(&p, &proposal.plan.id, &proposal.digest, at)
+            .unwrap();
+        let job = store
+            .queue_stack(
+                &p,
+                &format!("k{i}"),
+                &proposal,
+                &approval.token,
+                &snapshot,
+                at,
+            )
+            .unwrap();
+        if claim {
+            store.claim_stack(&p, &job.id, &snapshot, at).unwrap();
+        }
+        job.id
+    };
+    let held: std::collections::BTreeSet<String> =
+        (0..total).map(|i| job_for(&mut store, i, true)).collect();
+    let queued = job_for(&mut store, total, false);
+    // One listing holds a batch of held jobs; the rest wait for later pages.
+    let first = store.stack_candidates().unwrap();
+    assert_eq!(
+        first
+            .iter()
+            .filter(|(_, job)| job.state != JobState::Queued)
+            .count(),
+        batch
+    );
+    // Three pages reach every held job, the fourth starts over, and the
+    // queued job is offered on every page.
+    let pages = rotation_pages(&store, 4);
+    let mut seen = std::collections::BTreeSet::new();
+    for page in &pages {
+        assert_eq!(page[0].id, queued);
+        seen.extend(
+            page.iter()
+                .filter(|job| job.state != JobState::Queued)
+                .map(|job| job.id.clone()),
+        );
+    }
+    assert_eq!(seen, held);
+    assert_eq!(pages[3].len(), pages[0].len());
+    assert_eq!(pages[3][1].id, pages[0][1].id);
+}

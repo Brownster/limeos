@@ -5,6 +5,48 @@ use limeos_domain::{
 use limeos_executor_protocol::{Receipt, Request};
 use std::time::{Duration, Instant};
 
+/// Least time between two receipt lookups for one held job.
+const RECOVERY_PAUSE: Duration = Duration::from_secs(30);
+
+/// Fair recovery polling of held (dispatched, unsettled) jobs. Each pass lists
+/// the next page of held jobs after `cursor`, in ID order, and a short page
+/// starts over, so every held job is listed within a bounded number of passes
+/// however many are held: none can be starved by older ones. `polled` keeps
+/// each job to one lookup per `RECOVERY_PAUSE`; an entry lives only that long,
+/// so memory is bounded by the jobs polled in one pause.
+#[derive(Default)]
+pub(super) struct Rotation {
+    cursor: String,
+    polled: std::collections::HashMap<String, Instant>,
+}
+impl Rotation {
+    /// Where the next listing starts.
+    pub(super) fn cursor(&self) -> &str {
+        &self.cursor
+    }
+    /// Move past this pass's held jobs (`held`, in listing order).
+    pub(super) fn advance<'a>(&mut self, held: impl IntoIterator<Item = &'a str>) {
+        let held: Vec<&str> = held.into_iter().collect();
+        self.cursor = match held.last() {
+            Some(last) if held.len() >= limeos_persistence::RECOVERY_BATCH => (*last).to_owned(),
+            _ => String::new(),
+        };
+        self.polled.retain(|_, at| at.elapsed() < RECOVERY_PAUSE);
+    }
+    /// Whether to look up this held job now; if so, the lookup is recorded.
+    pub(super) fn due(&mut self, id: &str) -> bool {
+        if self
+            .polled
+            .get(id)
+            .is_some_and(|at| at.elapsed() < RECOVERY_PAUSE)
+        {
+            return false;
+        }
+        self.polled.insert(id.to_owned(), Instant::now());
+        true
+    }
+}
+
 impl Core {
     pub(super) async fn executor(&self, request: Request, deadline: Duration) -> Result<Receipt> {
         tokio::time::timeout(deadline, async {
@@ -475,10 +517,10 @@ impl Core {
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         // Bound recovery traffic and memory. Uncertain receipts are never retried
         // as mutations, even after their original plan has expired.
-        let mut recovery = std::collections::HashMap::<String, Instant>::new();
+        let mut recovery = Rotation::default();
         let mut target_recovery = std::collections::HashMap::<String, Instant>::new();
         let mut mount_recovery = std::collections::HashMap::<String, Instant>::new();
-        let mut stack_recovery = std::collections::HashMap::<String, Instant>::new();
+        let mut stack_recovery = Rotation::default();
         let mut resolution_retry = std::collections::HashMap::<String, Instant>::new();
         let mut audit = limeos_persistence::AuditLevel::Normal;
         let mut retention_failures = 0;
@@ -525,19 +567,22 @@ impl Core {
                     }
                 }
             }
-            let Ok(jobs) = self.db.call(|s| s.container_candidates()).await else {
+            let cursor = recovery.cursor().to_owned();
+            let Ok(jobs) = self
+                .db
+                .call(move |s| s.container_candidates_after(&cursor))
+                .await
+            else {
                 continue;
             };
-            recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));
+            recovery.advance(
+                jobs.iter()
+                    .filter(|(_, job)| job.state != JobState::Queued)
+                    .map(|(_, job)| job.id.as_str()),
+            );
             for (principal, job) in jobs {
-                if job.state != JobState::Queued {
-                    if recovery
-                        .get(&job.id)
-                        .is_some_and(|at| at.elapsed() < Duration::from_secs(30))
-                    {
-                        continue;
-                    }
-                    recovery.insert(job.id.clone(), Instant::now());
+                if job.state != JobState::Queued && !recovery.due(&job.id) {
+                    continue;
                 }
                 if let Err(e) = self.dispatch_one(principal, job).await {
                     tracing::warn!(code=?e.0,"container job remains pending or requires reconciliation");
