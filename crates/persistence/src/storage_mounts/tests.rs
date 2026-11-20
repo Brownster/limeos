@@ -718,8 +718,9 @@ fn retention_keeps_every_event_of_a_storage_mount_job() {
 }
 
 /// The startup proof check finds a settled mount job's `running` transition
-/// through its own events (`events_job`), never by kind: on a store with no
-/// mount job at all, its work does not grow with the events of other jobs.
+/// through its own events (`events_job`), never by kind, and visits mount
+/// jobs only: on a store with none, its work grows neither with the other
+/// jobs nor with their events.
 #[test]
 fn the_proof_check_reads_events_by_job_and_its_cost_stays_flat() {
     let (_dir, store, principal, _) = setup();
@@ -785,8 +786,8 @@ fn the_proof_check_reads_events_by_job_and_its_cost_stays_flat() {
         i64::from(statement.get_status(rusqlite::StatementStatus::VmStep))
     };
     let small = steps(&store, 50, 4);
-    let large = steps(&store, 50, 400);
-    // Twice the jobs, and a hundred times the events of each: the steps grow
-    // with the jobs only.
-    assert!(large < 3 * small, "{small} steps, then {large} steps");
+    let large = steps(&store, 200, 400);
+    // Five times the jobs, and a hundred times the events of each: with no
+    // mount job, the steps grow with neither.
+    assert_eq!(large, small, "{small} steps, then {large} steps");
 }

@@ -351,13 +351,16 @@ impl Store {
 /// The startup proof check: whether a settled mount job lacks the result it
 /// must have, a verified receipt for `succeeded` and, for `precondition_changed`
 /// once it ran (its `running` transition), the receipt of the refusal.
-/// Only settled mount jobs are visited (`jobs_state`, then the operation),
-/// and a `precondition_changed` one's transition is looked up among its own
-/// events (`events_job`), so the check's cost follows the mount jobs and
-/// their histories, never the events table: planned by kind
+/// It is driven from the mount plans: every mount job has its plan, naming
+/// it (checked just before, and kept by `storage_mount_plan_delete`), so
+/// only mount jobs are visited (the plans first: `CROSS JOIN` keeps that
+/// order), each through its primary key, and a
+/// `precondition_changed` one's transition is looked up among its own
+/// events (`events_job`). Its cost follows the mount jobs and their
+/// histories, never the other jobs or the events table: planned by kind
 /// (`events_kind`), it read every `job_transition` event once per
 /// `precondition_changed` job of any operation.
-pub(super) const PROOF_CHECK: &str = "SELECT EXISTS(SELECT 1 FROM jobs j WHERE j.state IN ('succeeded','precondition_changed') AND json_extract(j.intent,'$.operation')='storage_mount' AND NOT EXISTS(SELECT 1 FROM storage_mount_results r WHERE r.job=j.id) AND (j.state='succeeded' OR EXISTS(SELECT 1 FROM events e INDEXED BY events_job WHERE e.job=j.id AND json_extract(e.kind,'$.kind')='job_transition' AND json_extract(e.kind,'$.state')='running')))";
+pub(super) const PROOF_CHECK: &str = "SELECT EXISTS(SELECT 1 FROM storage_mount_plans p CROSS JOIN jobs j ON j.id=p.job WHERE p.job IS NOT NULL AND j.state IN ('succeeded','precondition_changed') AND json_extract(j.intent,'$.operation')='storage_mount' AND NOT EXISTS(SELECT 1 FROM storage_mount_results r WHERE r.job=j.id) AND (j.state='succeeded' OR EXISTS(SELECT 1 FROM events e INDEXED BY events_job WHERE e.job=j.id AND json_extract(e.kind,'$.kind')='job_transition' AND json_extract(e.kind,'$.state')='running')))";
 
 /// Check immutable proposal/job/resource/result bindings before startup recovery.
 /// Historical timestamps validate past facts without renewing execution authority.
