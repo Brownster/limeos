@@ -84,19 +84,6 @@ pub const EXPECTED_FAILURES: &[Known] = &[
               Needs the subquery to search `events_job` (or the operation filtered first)",
         pins: &[(PROOF_BY_KIND, 1.0, 1.0), (PROOF_FILES, 0.0, 15.0)],
     },
-    Known {
-        check: LOST_ANSWERS,
-        why: "`limeos_contracts::read_frame` maps every failure to read the answer, the end of \
-              the stream included, to `InvalidInput`: when the executor closes the connection \
-              unanswered (it died, or the answer was lost), core's dispatcher, recovery and \
-              resolution paths see the caller's own bad input instead of `Unavailable`. Core \
-              still holds the job for reconciliation (any failure after the connection exists \
-              counts as sent), but the code it logs and returns is wrong, and an HTTP caller \
-              would be told a retryable failure is a client error (`retry: false`). Found by \
-              driving core's real `exchange` over the socket. Needs a read that ends early to be \
-              `Unavailable`",
-        pins: &[(LOST_RATIO, 0.01, 1.0)],
-    },
 ];
 
 /// Measures the pins read, recorded by the trend checks.

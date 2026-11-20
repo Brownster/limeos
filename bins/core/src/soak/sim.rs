@@ -677,9 +677,9 @@ impl Sim {
         let logged = std::mem::take(&mut *self.log.lock().unwrap());
         for entry in logged {
             let code = entry.code.as_deref();
-            // A connection the executor closed unanswered: `read_frame`
-            // reports the end of the stream as `InvalidInput`, a defect of
-            // its own (`checks::LOST_ANSWERS`), judged there.
+            // A lost executor answer read as the caller's bad input
+            // (`checks::LOST_ANSWERS`): `read_frame` once reported the end of
+            // the stream so.
             if code == Some("InvalidInput") && !entry.error {
                 self.stats.lost_as_invalid += 1;
                 self.violation(

@@ -958,6 +958,65 @@ async fn a_written_execute_whose_answer_is_lost_is_held_until_recovery_closes_it
     task.abort();
 }
 
+/// An executor that reads a request and then closes the connection, crashing
+/// or restarting before or part-way through its answer, is unreachable, not a
+/// refusal of core's input: `Unavailable` (retryable), and sent, so whatever
+/// was asked may have happened. A frame that arrives whole but malformed is
+/// still `InvalidInput`.
+#[tokio::test]
+async fn an_executor_that_closes_mid_answer_is_unavailable_and_counts_as_sent() {
+    use tokio::io::AsyncWriteExt;
+    let (dir, core, _, _, _, _, _, task) = fixture().await;
+    task.abort();
+    let _ = task.await;
+    let path = dir.path().join("executor.sock");
+    std::fs::remove_file(&path).unwrap();
+    let listener = UnixListener::bind(&path).unwrap();
+    let answer = serde_json::to_vec(&Receipt::empty()).unwrap();
+    let mut whole = (answer.len() as u32).to_be_bytes().to_vec();
+    whole.extend_from_slice(&answer);
+    let cases: Vec<(&str, Vec<u8>, ErrorCode)> = vec![
+        ("no answer at all", Vec::new(), ErrorCode::Unavailable),
+        (
+            "part of the length",
+            whole[..2].to_vec(),
+            ErrorCode::Unavailable,
+        ),
+        (
+            "part of the answer",
+            whole[..whole.len() / 2].to_vec(),
+            ErrorCode::Unavailable,
+        ),
+        (
+            "a whole frame that is not an answer",
+            [&5u32.to_be_bytes()[..], b"nope!"].concat(),
+            ErrorCode::InvalidInput,
+        ),
+    ];
+    let written: Vec<Vec<u8>> = cases.iter().map(|case| case.1.clone()).collect();
+    let server = tokio::spawn(async move {
+        for bytes in written {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let _: Request = limeos_contracts::read_frame(&mut stream).await.unwrap();
+            stream.write_all(&bytes).await.unwrap();
+            // Dropped here: the connection closes after what was written.
+        }
+    });
+    for (what, _, code) in cases {
+        let failure = core
+            .exchange(
+                Request::ReceiptEpoch { version: VERSION },
+                limeos_contracts::RPC_DEADLINE,
+            )
+            .await
+            .err()
+            .unwrap_or_else(|| panic!("{what}: answered"));
+        assert_eq!(failure.error, Error(code), "{what}");
+        assert!(failure.sent, "{what}: the request was written");
+    }
+    server.await.unwrap();
+}
+
 /// A job held across an executor restart whose execute did reach the store:
 /// the receipt is intact, and recovery reconciles from it automatically,
 /// whatever the epoch change marked.
