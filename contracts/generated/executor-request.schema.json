@@ -462,11 +462,16 @@
       ]
     },
     {
-      "description": "Pure lookup. With no receipt, the answer's `absence` says whether one\ncan ever have been pruned for `plan`. The executor recomputes the plan's\ndigest and refuses the request unless it equals `digest`, so the expiry\nit judges by is the approved plan's own.",
+      "description": "Receipt lookup. With no receipt, the answer's `absence` says whether\none can ever have been pruned for `plan`. The executor recomputes the\nplan's digest and refuses the request unless it equals `digest`, so the\nexpiry it judges by is the approved plan's own.",
       "type": "object",
       "properties": {
         "action": {
           "type": "string"
+        },
+        "close_if_absent": {
+          "description": "With no row, record a closure: a terminal refusal that takes the\naction ID, so no execute request for it can run afterwards,\nwhatever the clock says. Only for a caller that has lost the answer\nto its execute request; a status read leaves it false and writes\nnothing. A `never_recorded` closure is answered with its receipt\n(`precondition_changed`), a `no_longer_held` one with that absence;\neither way the answer's `closed` is set.",
+          "type": "boolean",
+          "default": false
         },
         "digest": {
           "type": "string"
@@ -583,6 +588,11 @@
         "action": {
           "type": "string"
         },
+        "close_if_absent": {
+          "description": "As for `RestartReceipt`.",
+          "type": "boolean",
+          "default": false
+        },
         "digest": {
           "type": "string"
         },
@@ -646,7 +656,7 @@
       ]
     },
     {
-      "description": "Operator resolution of a stuck action. The executor re-inspects the\naction's targets read-only and, only if the result still hashes to\n`evidence_digest`, moves its own rows to `resolved` so the resource\nfrees. Idempotent by action. Never issues an Engine start, stop or\nrestart.",
+      "description": "Operator resolution of a stuck action. The executor re-inspects the\naction's targets read-only and, only if the result still hashes to\n`evidence_digest`, moves its own rows to `resolved` so the resource\nfrees. Idempotent by action. Never issues an Engine start, stop or\nrestart. With no row it always records a closure, as a receipt lookup\nwith `close_if_absent` does, and answers the absence with `closed`.",
       "type": "object",
       "properties": {
         "action": {

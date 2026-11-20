@@ -6,6 +6,7 @@ pub use limeos_domain::{
     ContainerReceipt, ContainerRequest, ExecutionState, RestartReceipt, RestartRequest,
     StackReceipt, StackRequest,
 };
+mod closure;
 pub mod compose_files;
 pub mod compose_management;
 #[cfg(feature = "deferred")]
@@ -16,11 +17,12 @@ mod logs;
 mod resolution;
 mod retention;
 mod stack;
+pub use closure::Lookup;
 pub use resolution::{RESOLVED, ResolveOutcome};
 pub use retention::verified_expiry;
 /// The receipt store's schema (`PRAGMA user_version`) after every migration.
 /// Opening a newer store refuses; tests and documentation name this constant.
-pub const RECEIPT_SCHEMA_VERSION: u32 = 7;
+pub const RECEIPT_SCHEMA_VERSION: u32 = 8;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 pub use stack::member_action;
@@ -235,6 +237,14 @@ impl ReceiptStore {
             let watermark = retention::initial_watermark(version);
             conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN legacy INTEGER NOT NULL DEFAULT 0 CHECK(legacy IN (0,1)); ALTER TABLE stack_actions ADD COLUMN legacy INTEGER NOT NULL DEFAULT 0 CHECK(legacy IN (0,1)); UPDATE actions SET legacy=1; UPDATE stack_actions SET legacy=1; CREATE TABLE retention(id INTEGER PRIMARY KEY CHECK(id=1),watermark INTEGER NOT NULL); INSERT INTO retention(id,watermark) VALUES(1,{watermark}); CREATE TABLE pruned_legacy(action TEXT PRIMARY KEY) WITHOUT ROWID; PRAGMA user_version=7; COMMIT;")).map_err(durable)?;
         }
+        if version < 8 {
+            // A closure (see `closure`) is a terminal `precondition_changed`
+            // row a receipt lookup wrote for an action it held no row for;
+            // `closed` keeps what the store knew then. Every existing row was
+            // written by an execute, so it is NULL.
+            let check = closure::CLOSED_CHECK;
+            conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN closed TEXT {check}; ALTER TABLE stack_actions ADD COLUMN closed TEXT {check}; PRAGMA user_version=8; COMMIT;")).map_err(durable)?;
+        }
         // Every migration step ends at the named schema, or the store is refused.
         if conn
             .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
@@ -252,11 +262,11 @@ impl ReceiptStore {
         }
         // Check the expected schema before any effect can be considered.
         let _ = conn
-            .prepare("SELECT action,digest,resource,state,receipt,operation,resolution,expires_at,legacy FROM actions LIMIT 0")
+            .prepare("SELECT action,digest,resource,state,receipt,operation,resolution,expires_at,legacy,closed FROM actions LIMIT 0")
             .map_err(durable)?;
         let _ = conn
             .prepare(
-                "SELECT action,digest,resource,state,receipt,operation,resolution,expires_at,legacy FROM stack_actions LIMIT 0",
+                "SELECT action,digest,resource,state,receipt,operation,resolution,expires_at,legacy,closed FROM stack_actions LIMIT 0",
             )
             .map_err(durable)?;
         let _ = conn
@@ -307,12 +317,36 @@ impl ReceiptStore {
 
     /// `expires_at` is the plan's expiry; `now` is the clock that validated it.
     fn prepare(&mut self, receipt: &RestartReceipt, expires_at: i64, now: i64) -> Result<()> {
+        self.insert_action(receipt, expires_at, now, false)
+            .map(|_| ())
+    }
+    /// The first write of a container receipt, in one transaction with the
+    /// retention it triggers. With `close`, the row is a closure: the absence
+    /// is judged in the same transaction, before pruning can raise the
+    /// watermark, and recorded in `closed`.
+    pub(crate) fn insert_action(
+        &mut self,
+        receipt: &RestartReceipt,
+        expires_at: i64,
+        now: i64,
+        close: bool,
+    ) -> Result<Option<limeos_domain::ReceiptAbsence>> {
         if fs2::available_space(&self.directory).map_err(|_| Error(ErrorCode::StateNotDurable))?
             < 8 * 1024 * 1024
         {
             return Err(Error(ErrorCode::StateNotDurable));
         }
         let tx = self.conn.transaction().map_err(durable)?;
+        let closed = close
+            .then(|| {
+                retention::absence_in(
+                    &tx,
+                    limeos_domain::ResolveKind::Container,
+                    &receipt.action,
+                    expires_at,
+                )
+            })
+            .transpose()?;
         retention::prune(&tx, now)?;
         // Last resort only: retention keeps normal operation far below this.
         let count: u32 = tx
@@ -322,7 +356,7 @@ impl ReceiptStore {
             return Err(Error(ErrorCode::Overloaded));
         }
         tx.execute(
-            "INSERT INTO actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?,?,?,?,?,?,?)",
+            "INSERT INTO actions(action,digest,resource,state,receipt,operation,expires_at,closed) VALUES(?,?,?,?,?,?,?,?)",
             params![
                 receipt.action,
                 receipt.plan_digest,
@@ -330,7 +364,8 @@ impl ReceiptStore {
                 receipt.state.as_str(),
                 encode(receipt)?,
                 receipt.operation.as_str(),
-                expires_at
+                expires_at,
+                closed.map(|c| c.as_str())
             ],
         )
         .map_err(|e| match e {
@@ -344,7 +379,8 @@ impl ReceiptStore {
         tx.commit().map_err(durable)?;
         File::open(&self.directory)
             .and_then(|f| f.sync_all())
-            .map_err(|_| Error(ErrorCode::StateNotDurable))
+            .map_err(|_| Error(ErrorCode::StateNotDurable))?;
+        Ok(closed)
     }
     fn finish(&mut self, receipt: &RestartReceipt) -> Result<()> {
         let tx = self.conn.transaction().map_err(durable)?;
@@ -389,6 +425,10 @@ impl ReceiptStore {
             if receipt.operation != request.plan.operation {
                 return Err(Error(ErrorCode::Conflict));
             }
+            // Taken by a closure: refused whatever the clock says (`closure`).
+            closure::refuse_if_unproven(
+                self.closure(limeos_domain::ResolveKind::Container, &request.action)?,
+            )?;
             return Ok(receipt);
         }
         request.plan.validate(clock())?;

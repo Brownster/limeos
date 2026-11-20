@@ -31,8 +31,10 @@ pub enum ResolveOutcome {
     /// The row is `resolved`; returned for the original call and every repeat
     /// while retention keeps the row.
     Resolved(ResolveReceipt),
-    /// The store holds no row for the action, so it has nothing to free; core
-    /// decides what the absence means (`ReceiptAbsence`).
+    /// The store held no receipt of an execute for the action, so it has
+    /// nothing to free. It has closed the action (`closure`): no execute for it
+    /// can run any more. Core decides what the absence means
+    /// (`ReceiptAbsence`).
     Absent(ReceiptAbsence),
     /// The receipt is terminal and its recorded outcome contradicts the
     /// declaration. Nothing changed.
@@ -75,8 +77,10 @@ impl ReceiptStore {
     /// evidence, declaration and administrator returns the stored confirmation
     /// without touching the Engine; anything else on a resolved row is
     /// `Conflict`. `plan` must hash to `digest` and match `kind`, or the call
-    /// is `InvalidInput`. A missing row is `Absent`, judged against the prune
-    /// watermark with that plan's own `expires_at`. A terminal row whose recorded
+    /// is `InvalidInput`. A missing row is closed (`closure`; `now` is the
+    /// executor clock, for retention only) and answered `Absent`, judged
+    /// against the prune watermark with that plan's own `expires_at`; a closure
+    /// row already there is answered the same way. A terminal row whose recorded
     /// outcome contradicts the declaration is `Refused`. A changed target
     /// (digest mismatch) or a declaration the evidence does not support is
     /// `Conflict`. Only read-only inspections reach the Engine.
@@ -93,6 +97,7 @@ impl ReceiptStore {
         declared: DeclaredOutcome,
         resolved_by: &str,
         plan: &ActionPlan,
+        now: i64,
     ) -> Result<ResolveOutcome> {
         if ![action, digest, evidence_digest, resolved_by]
             .into_iter()
@@ -100,7 +105,7 @@ impl ReceiptStore {
         {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        let expires_at = crate::retention::verified_expiry(kind, digest, plan)?;
+        crate::retention::verified_expiry(kind, digest, plan)?;
         let confirmation = ResolveReceipt {
             kind,
             action: action.into(),
@@ -108,22 +113,30 @@ impl ReceiptStore {
             declared,
             resolved_by: resolved_by.into(),
         };
+        // A closure row records an absence, not an outcome to declare against.
+        let closed = |store: &Self| store.closure(kind, action);
         // Authorize from the pure lookup, as for every other action.
-        let (operation, recorded, before) = match kind {
-            ResolveKind::Container => {
+        let (operation, recorded, before) = match (kind, plan) {
+            (ResolveKind::Container, ActionPlan::Container(plan)) => {
                 let Some(receipt) = self.receipt(action, digest)? else {
-                    let absence = self.absence_at(kind, action, expires_at)?;
+                    let (absence, _) = self.close_container(action, digest, plan, now)?;
                     return Ok(ResolveOutcome::Absent(absence));
                 };
+                if let Some(absence) = closed(self)? {
+                    return Ok(ResolveOutcome::Absent(absence));
+                }
                 ceiling.authorize(peer_uid, &receipt.before.resource, receipt.operation)?;
                 (receipt.operation, receipt.state, vec![receipt.before])
             }
-            ResolveKind::Stack => {
+            (ResolveKind::Stack, ActionPlan::Stack(plan)) => {
                 let Some(receipt): Option<StackReceipt> = self.stack_receipt(action, digest)?
                 else {
-                    let absence = self.absence_at(kind, action, expires_at)?;
+                    let (absence, _) = self.close_stack(action, digest, plan, now)?;
                     return Ok(ResolveOutcome::Absent(absence));
                 };
+                if let Some(absence) = closed(self)? {
+                    return Ok(ResolveOutcome::Absent(absence));
+                }
                 ceiling.authorize_stack(peer_uid, &receipt.before, receipt.operation)?;
                 let targets = receipt
                     .members
@@ -140,6 +153,8 @@ impl ReceiptStore {
                     .collect::<Result<Vec<_>>>()?;
                 (receipt.operation, receipt.state, targets)
             }
+            // `verified_expiry` has tied the plan's kind to `kind`.
+            _ => return Err(Error(ErrorCode::InvalidInput)),
         };
         if let Some(stored) = self.resolution(kind, action)? {
             return if stored == confirmation {

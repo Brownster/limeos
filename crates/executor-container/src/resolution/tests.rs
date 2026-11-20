@@ -213,6 +213,7 @@ async fn outcome(
             declared,
             &by(),
             &plan_for(kind, digest),
+            201,
         )
         .await
 }
@@ -365,6 +366,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
             DeclaredOutcome::AcceptedDivergence,
             &by(),
             &plan_for(kind, &first.plan_digest),
+            201,
         )
         .await;
     assert_eq!(wrong.unwrap_err().0, ErrorCode::Conflict);
@@ -451,6 +453,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
                 DeclaredOutcome::VerifiedDone,
                 &by(),
                 &plan_for(kind, &first.plan_digest),
+                201,
             )
             .await;
         assert_eq!(result.unwrap_err().0, ErrorCode::Forbidden);
@@ -467,6 +470,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
             DeclaredOutcome::VerifiedDone,
             &by(),
             &plan_for(kind, &first.plan_digest),
+            201,
         )
         .await;
     assert_eq!(bad.unwrap_err().0, ErrorCode::InvalidInput);
@@ -550,6 +554,7 @@ async fn repeating_a_resolution_is_idempotent_and_a_different_one_is_refused() {
             DeclaredOutcome::VerifiedDone,
             &"8".repeat(64),
             &plan_for(kind, &first.plan_digest),
+            201,
         )
         .await;
     assert_eq!(other_admin.unwrap_err().0, ErrorCode::Conflict);
@@ -772,6 +777,7 @@ async fn terminal(kind: ResolveKind, recorded: ExecutionState) -> Terminal {
             Some(crate::stack::Insert {
                 expires_at: request.plan.expires_at,
                 now: 201,
+                close: false,
             }),
         )
         .unwrap();
@@ -934,6 +940,7 @@ async fn a_terminal_receipt_still_needs_fresh_matching_evidence_and_the_peer_cei
                 DeclaredOutcome::VerifiedDone,
                 &by(),
                 &plan_for(t.kind, &t.digest),
+                201,
             )
             .await;
         assert_eq!(result.unwrap_err().0, ErrorCode::Forbidden);
@@ -1134,6 +1141,7 @@ async fn a_prepared_stack_left_by_a_crash_can_be_resolved_and_a_vanished_member_
             Some(crate::stack::Insert {
                 expires_at: request.plan.expires_at,
                 now: 201,
+                close: false,
             }),
         )
         .unwrap();

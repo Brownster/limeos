@@ -3,8 +3,9 @@
 //! The stack row and one `actions` row per target are written together BEFORE
 //! any Engine call, so the existing per-container unique lock also excludes a
 //! single-container action on any target. Each later change updates the member
-//! row and the stack aggregate in one transaction. Recovery only reads
-//! receipts and verifies by fresh inspection; no effect is ever resent.
+//! row and the stack aggregate in one transaction. Recovery reads receipts
+//! (closing an action no execute recorded, see `closure`) and verifies by
+//! fresh inspection; no effect is ever resent.
 use super::*;
 use crate::resolution::RESOLVED;
 use limeos_domain::{
@@ -16,11 +17,13 @@ const ACTIVE: &str = "('prepared','effect_accepted','outcome_unknown')";
 /// Last-resort cap; retention keeps normal operation far below it.
 const MAX_STACK_ROWS: u32 = 8192;
 
-/// The first write of a stack receipt: its plan's expiry and the validating clock.
+/// The first write of a stack receipt: its plan's expiry and the validating
+/// clock. With `close`, the row is a closure (`closure`).
 #[derive(Clone, Copy)]
 pub(crate) struct Insert {
     pub(crate) expires_at: i64,
     pub(crate) now: i64,
+    pub(crate) close: bool,
 }
 
 /// The member's own protected row: a container receipt under a derived action.
@@ -133,12 +136,15 @@ impl ReceiptStore {
     }
 
     /// Insert (first write) or update, with member rows, in one transaction.
+    /// A closing insert judges the absence in that transaction, before pruning
+    /// can raise the watermark, records it in the stack row's `closed` and
+    /// returns it.
     pub(crate) fn write_stack(
         &mut self,
         receipt: &StackReceipt,
         changed: &[String],
         insert: Option<Insert>,
-    ) -> Result<()> {
+    ) -> Result<Option<limeos_domain::ReceiptAbsence>> {
         if insert.is_some()
             && fs2::available_space(&self.directory)
                 .map_err(|_| Error(ErrorCode::StateNotDurable))?
@@ -148,7 +154,21 @@ impl ReceiptStore {
         }
         let body = encode(receipt)?;
         let tx = self.conn.transaction().map_err(durable)?;
-        if let Some(Insert { expires_at, now }) = insert {
+        let mut closed = None;
+        if let Some(Insert {
+            expires_at,
+            now,
+            close,
+        }) = insert
+        {
+            if close {
+                closed = Some(retention::absence_in(
+                    &tx,
+                    limeos_domain::ResolveKind::Stack,
+                    &receipt.action,
+                    expires_at,
+                )?);
+            }
             retention::prune(&tx, now)?;
             let stacks: u32 = tx
                 .query_row("SELECT count(*) FROM stack_actions", [], |r| r.get(0))
@@ -162,7 +182,7 @@ impl ReceiptStore {
                 return Err(Error(ErrorCode::Overloaded));
             }
             tx.execute(
-                "INSERT INTO stack_actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?,?,?,?,?,?,?)",
+                "INSERT INTO stack_actions(action,digest,resource,state,receipt,operation,expires_at,closed) VALUES(?,?,?,?,?,?,?,?)",
                 params![
                     receipt.action,
                     receipt.plan_digest,
@@ -170,7 +190,8 @@ impl ReceiptStore {
                     receipt.state.as_str(),
                     body,
                     receipt.operation.as_str(),
-                    expires_at
+                    expires_at,
+                    closed.map(|c: limeos_domain::ReceiptAbsence| c.as_str())
                 ],
             )
             .map_err(unique)?;
@@ -224,7 +245,7 @@ impl ReceiptStore {
                 .and_then(|f| f.sync_all())
                 .map_err(|_| Error(ErrorCode::StateNotDurable))?;
         }
-        Ok(())
+        Ok(closed)
     }
 
     /// Record a refusal that happened before any effect. The row is terminal,
@@ -260,6 +281,7 @@ impl ReceiptStore {
             Some(Insert {
                 expires_at: request.plan.expires_at,
                 now,
+                close: false,
             }),
         )?;
         Ok(receipt)
@@ -283,6 +305,10 @@ impl ReceiptStore {
             if receipt.operation != request.plan.operation {
                 return Err(Error(ErrorCode::Conflict));
             }
+            // Taken by a closure: refused whatever the clock says (`closure`).
+            crate::closure::refuse_if_unproven(
+                self.closure(limeos_domain::ResolveKind::Stack, &request.action)?,
+            )?;
             return Ok(receipt);
         }
         request.plan.validate(clock())?;
@@ -321,6 +347,7 @@ impl ReceiptStore {
             Some(Insert {
                 expires_at: request.plan.expires_at,
                 now: clock(),
+                close: false,
             }),
         )?;
         // Sync may take time. Recheck expiry immediately before initiating IPC.

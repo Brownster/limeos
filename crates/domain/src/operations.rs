@@ -34,6 +34,19 @@ impl ReceiptAbsence {
             Self::NoLongerHeld
         }
     }
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NeverRecorded => "never_recorded",
+            Self::NoLongerHeld => "no_longer_held",
+        }
+    }
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "never_recorded" => Some(Self::NeverRecorded),
+            "no_longer_held" => Some(Self::NoLongerHeld),
+            _ => None,
+        }
+    }
 }
 
 /// Seconds past a plan's expiry before core acts on a missing receipt. The

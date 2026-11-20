@@ -4,7 +4,7 @@
   "type": "object",
   "properties": {
     "absence": {
-      "description": "Set by a receipt lookup or `ResolveAction` that found no row.",
+      "description": "Set by a receipt lookup or `ResolveAction` that has no receipt to act\non: it found no row, or a `no_longer_held` closure.",
       "anyOf": [
         {
           "$ref": "#/$defs/ReceiptAbsence"
@@ -13,6 +13,11 @@
           "type": "null"
         }
       ]
+    },
+    "closed": {
+      "description": "Set by a receipt lookup or `ResolveAction` when the executor holds a\nclosure for the action, recorded now or earlier: no execute request\nfor it can run any more. Without it an absence proves nothing about an\nexecute request still on its way.",
+      "type": "boolean",
+      "default": false
     },
     "container_health": {
       "anyOf": [

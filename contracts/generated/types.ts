@@ -314,7 +314,21 @@ export type Request = { "operation": "container_health", version: number, nonce:
 /**
  * The plan exactly as core stored it.
  */
-plan: ContainerPlan, } | { "operation": "verify_restart", version: number, action: string, digest: string, after: ContainerSnapshot, } | { "operation": "inspect_stack", version: number, project: string, } | { "operation": "execute_stack", version: number, request: StackRequest, } | { "operation": "stack_receipt", version: number, action: string, digest: string, plan: StackPlan, } | { "operation": "verify_stack", version: number, action: string, digest: string, after: Array<ContainerSnapshot>, } | { "operation": "resolve_action", version: number, kind: ResolveKind, action: string,
+plan: ContainerPlan,
+/**
+ * With no row, record a closure: a terminal refusal that takes the
+ * action ID, so no execute request for it can run afterwards,
+ * whatever the clock says. Only for a caller that has lost the answer
+ * to its execute request; a status read leaves it false and writes
+ * nothing. A `never_recorded` closure is answered with its receipt
+ * (`precondition_changed`), a `no_longer_held` one with that absence;
+ * either way the answer's `closed` is set.
+ */
+close_if_absent: boolean, } | { "operation": "verify_restart", version: number, action: string, digest: string, after: ContainerSnapshot, } | { "operation": "inspect_stack", version: number, project: string, } | { "operation": "execute_stack", version: number, request: StackRequest, } | { "operation": "stack_receipt", version: number, action: string, digest: string, plan: StackPlan,
+/**
+ * As for `RestartReceipt`.
+ */
+close_if_absent: boolean, } | { "operation": "verify_stack", version: number, action: string, digest: string, after: Array<ContainerSnapshot>, } | { "operation": "resolve_action", version: number, kind: ResolveKind, action: string,
 /**
  * Digest of the stored plan, as for the receipt lookups.
  */
@@ -402,9 +416,17 @@ allow_stack: boolean, managed_containers: Array<string>,
 managed_stacks: Array<string>, };
 export type Receipt = { container_health?: ContainerHealthCohort | null, stack_cohort?: DiscoveryCohort | null, storage_mount_catalog?: StorageMountCatalog | null, storage_mount_inspection?: StorageMountInspection | null, storage_mount?: StorageMountReceipt | null, mounted_storage?: StorageMountedSnapshot | null, version: number, ready: boolean, observations?: ObservationBatch | null, inspection?: ContainerSnapshot | null, restart?: ContainerReceipt | null, stack?: StackReceipt | null, stack_members?: StackSnapshot | null, resolution?: ResolveReceipt | null,
 /**
- * Set by a receipt lookup or `ResolveAction` that found no row.
+ * Set by a receipt lookup or `ResolveAction` that has no receipt to act
+ * on: it found no row, or a `no_longer_held` closure.
  */
 absence?: ReceiptAbsence | null,
+/**
+ * Set by a receipt lookup or `ResolveAction` when the executor holds a
+ * closure for the action, recorded now or earlier: no execute request
+ * for it can run any more. Without it an absence proves nothing about an
+ * execute request still on its way.
+ */
+closed: boolean,
 /**
  * Set by `ResolveAction` when a terminal receipt's recorded outcome
  * contradicts the declaration; nothing changed.

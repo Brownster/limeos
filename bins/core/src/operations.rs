@@ -391,6 +391,7 @@ impl Core {
                         action: job.id.clone(),
                         digest: digest.clone(),
                         plan: job.plan.clone(),
+                        close_if_absent: false,
                     },
                     limeos_contracts::RPC_DEADLINE,
                 )

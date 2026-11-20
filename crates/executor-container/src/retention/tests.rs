@@ -1035,7 +1035,7 @@ fn a_process_killed_mid_prune_leaves_a_store_that_opens_with_every_row() {
 /// Turn a fresh store back into schema 5 or 6, keeping its rows.
 fn downgrade(store: ReceiptStore, to: u32) {
     let mut sql = String::from(
-        "DROP TABLE retention; DROP TABLE pruned_legacy; ALTER TABLE actions DROP COLUMN legacy; ALTER TABLE stack_actions DROP COLUMN legacy;",
+        "ALTER TABLE actions DROP COLUMN closed; ALTER TABLE stack_actions DROP COLUMN closed; DROP TABLE retention; DROP TABLE pruned_legacy; ALTER TABLE actions DROP COLUMN legacy; ALTER TABLE stack_actions DROP COLUMN legacy;",
     );
     if to == 5 {
         sql += "DROP INDEX actions_digest; DROP INDEX stack_actions_digest; ALTER TABLE actions DROP COLUMN expires_at; ALTER TABLE stack_actions DROP COLUMN expires_at;";

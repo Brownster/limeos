@@ -12,9 +12,9 @@
 //! would turn prunable history into a permanent row until the last-resort caps
 //! stop all execution. A core that crashed before completing retries
 //! `ResolveAction`: while the row is kept it gets the stored confirmation;
-//! once it is pruned, `NoLongerHeld` (the watermark covers it), and core then
-//! completes only after the plan has expired and its own fresh measurement
-//! still matches the approved evidence.
+//! once it is pruned, the executor closes the action and answers
+//! `NoLongerHeld` (the watermark covers it), and core then completes only if
+//! its own fresh measurement still matches the approved evidence.
 //!
 //! Replay. A receipt is kept until its plan has been expired for at least
 //! `RETAIN_AFTER_EXPIRY`. Every request carries its plan, and the executor
@@ -23,6 +23,22 @@
 //! clock step back by more than that margin, the plan's fresh precondition
 //! (start time and running state) still refuses it, because the original effect
 //! changed exactly those facts.
+//!
+//! Closures. A closure row (`closure`) is a `precondition_changed` refusal
+//! like any other: settled, lock-free, pruned under these rules and retired
+//! into the watermark. It stores its plan's `expires_at`, so it is kept until
+//! that plan has been expired for `RETAIN_AFTER_EXPIRY` by the clock that
+//! prunes, and while kept it refuses its action whatever the clock says. Only
+//! eligibility reads the clock: a backward step delays pruning, and a forward
+//! step can prune a closure early only for a plan that clock already holds
+//! expired by the full margin. The residual case is a pruned closure followed
+//! by a backward step of more than that margin, to before the plan's expiry,
+//! while an execute request for the action is still undelivered: it would find
+//! no row and pass the expiry check, and since nothing was sent its fresh
+//! precondition may still hold. That needs the request to outlast its plan,
+//! the retention margin and the budget of newer receipts, which the bounded
+//! accept and read deadlines make implausible, but no clock-free rule here
+//! excludes it.
 //!
 //! Pruning runs inside the transaction that inserts a new receipt, removes at
 //! most `PRUNE_BATCH` rows, oldest plan expiry first, and writes nothing when
@@ -153,37 +169,46 @@ impl ReceiptStore {
         action: &str,
         expires_at: i64,
     ) -> Result<ReceiptAbsence> {
-        if !opaque_id(action) {
-            return Err(Error(ErrorCode::InvalidInput));
-        }
-        let table = match kind {
-            ResolveKind::Container => "actions",
-            ResolveKind::Stack => "stack_actions",
-        };
-        let held: bool = self
-            .conn
-            .query_row(
-                &format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE action=?1)"),
-                [action],
-                |r| r.get(0),
-            )
-            .map_err(durable)?;
-        if held {
-            return Err(Error(ErrorCode::Conflict));
-        }
-        let tombstone: bool = self
-            .conn
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM pruned_legacy WHERE action=?1)",
-                [action],
-                |r| r.get(0),
-            )
-            .map_err(durable)?;
-        if tombstone {
-            return Ok(ReceiptAbsence::NoLongerHeld);
-        }
-        Ok(ReceiptAbsence::judge(expires_at, watermark(&self.conn)?))
+        absence_in(&self.conn, kind, action, expires_at)
     }
+}
+
+/// As `ReceiptStore::absence_at`, on any connection or open transaction, so a
+/// closure can judge the absence in the transaction that records it.
+pub(crate) fn absence_in(
+    conn: &Connection,
+    kind: ResolveKind,
+    action: &str,
+    expires_at: i64,
+) -> Result<ReceiptAbsence> {
+    if !opaque_id(action) {
+        return Err(Error(ErrorCode::InvalidInput));
+    }
+    let table = match kind {
+        ResolveKind::Container => "actions",
+        ResolveKind::Stack => "stack_actions",
+    };
+    let held: bool = conn
+        .query_row(
+            &format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE action=?1)"),
+            [action],
+            |r| r.get(0),
+        )
+        .map_err(durable)?;
+    if held {
+        return Err(Error(ErrorCode::Conflict));
+    }
+    let tombstone: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM pruned_legacy WHERE action=?1)",
+            [action],
+            |r| r.get(0),
+        )
+        .map_err(durable)?;
+    if tombstone {
+        return Ok(ReceiptAbsence::NoLongerHeld);
+    }
+    Ok(ReceiptAbsence::judge(expires_at, watermark(conn)?))
 }
 
 /// Remove settled receipts beyond the budget, raising the watermark in the

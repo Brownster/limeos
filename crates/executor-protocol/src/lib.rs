@@ -120,16 +120,25 @@ pub enum Request {
         version: u16,
         request: limeos_domain::ContainerRequest,
     },
-    /// Pure lookup. With no receipt, the answer's `absence` says whether one
-    /// can ever have been pruned for `plan`. The executor recomputes the plan's
-    /// digest and refuses the request unless it equals `digest`, so the expiry
-    /// it judges by is the approved plan's own.
+    /// Receipt lookup. With no receipt, the answer's `absence` says whether
+    /// one can ever have been pruned for `plan`. The executor recomputes the
+    /// plan's digest and refuses the request unless it equals `digest`, so the
+    /// expiry it judges by is the approved plan's own.
     RestartReceipt {
         version: u16,
         action: String,
         digest: String,
         /// The plan exactly as core stored it.
         plan: limeos_domain::ContainerPlan,
+        /// With no row, record a closure: a terminal refusal that takes the
+        /// action ID, so no execute request for it can run afterwards,
+        /// whatever the clock says. Only for a caller that has lost the answer
+        /// to its execute request; a status read leaves it false and writes
+        /// nothing. A `never_recorded` closure is answered with its receipt
+        /// (`precondition_changed`), a `no_longer_held` one with that absence;
+        /// either way the answer's `closed` is set.
+        #[serde(default)]
+        close_if_absent: bool,
     },
     VerifyRestart {
         version: u16,
@@ -152,6 +161,9 @@ pub enum Request {
         action: String,
         digest: String,
         plan: limeos_domain::StackPlan,
+        /// As for `RestartReceipt`.
+        #[serde(default)]
+        close_if_absent: bool,
     },
     /// Fresh inspections of the plan's targets; never launches an effect.
     VerifyStack {
@@ -164,7 +176,8 @@ pub enum Request {
     /// action's targets read-only and, only if the result still hashes to
     /// `evidence_digest`, moves its own rows to `resolved` so the resource
     /// frees. Idempotent by action. Never issues an Engine start, stop or
-    /// restart.
+    /// restart. With no row it always records a closure, as a receipt lookup
+    /// with `close_if_absent` does, and answers the absence with `closed`.
     ResolveAction {
         version: u16,
         kind: limeos_domain::ResolveKind,
@@ -210,9 +223,16 @@ pub struct Receipt {
     pub stack_members: Option<limeos_domain::StackSnapshot>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolution: Option<limeos_domain::ResolveReceipt>,
-    /// Set by a receipt lookup or `ResolveAction` that found no row.
+    /// Set by a receipt lookup or `ResolveAction` that has no receipt to act
+    /// on: it found no row, or a `no_longer_held` closure.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub absence: Option<limeos_domain::ReceiptAbsence>,
+    /// Set by a receipt lookup or `ResolveAction` when the executor holds a
+    /// closure for the action, recorded now or earlier: no execute request
+    /// for it can run any more. Without it an absence proves nothing about an
+    /// execute request still on its way.
+    #[serde(default)]
+    pub closed: bool,
     /// Set by `ResolveAction` when a terminal receipt's recorded outcome
     /// contradicts the declaration; nothing changed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -634,6 +654,7 @@ impl Receipt {
             stack_members: None,
             resolution: None,
             absence: None,
+            closed: false,
             resolution_refusal: None,
             logs: None,
             error: None,
@@ -1223,6 +1244,7 @@ mod tests {
             action: "d".repeat(64),
             digest: "e".repeat(64),
             plan: stack_plan(limeos_domain::ContainerAction::Restart),
+            close_if_absent: false,
         };
         assert!(ceiling.validate(1001, &receipt(VERSION)).is_ok());
         // The carried plan is bounded and well formed, as for ExecuteStack.
@@ -1233,6 +1255,7 @@ mod tests {
             action: "d".repeat(64),
             digest: "e".repeat(64),
             plan: malformed,
+            close_if_absent: true,
         };
         assert!(ceiling.validate(1001, &oversized).is_err());
         let mut bad_plan = container_plan();
@@ -1242,12 +1265,31 @@ mod tests {
             action: "d".repeat(64),
             digest: "e".repeat(64),
             plan,
+            close_if_absent: true,
         };
         assert!(ceiling.validate(1001, &restart(container_plan())).is_ok());
         assert!(ceiling.validate(1001, &restart(bad_plan)).is_err());
         let mut wire = serde_json::to_value(receipt(VERSION)).unwrap();
         wire["expires_at"] = serde_json::json!(400);
         assert!(serde_json::from_value::<Request>(wire).is_err());
+        // Closing is explicit: a lookup that does not ask is a status read.
+        let mut wire = serde_json::to_value(receipt(VERSION)).unwrap();
+        wire.as_object_mut().unwrap().remove("close_if_absent");
+        assert!(matches!(
+            serde_json::from_value::<Request>(wire.clone()).unwrap(),
+            Request::StackReceipt {
+                close_if_absent: false,
+                ..
+            }
+        ));
+        wire["close_if_absent"] = serde_json::json!(true);
+        assert!(matches!(
+            serde_json::from_value::<Request>(wire).unwrap(),
+            Request::StackReceipt {
+                close_if_absent: true,
+                ..
+            }
+        ));
         assert!(ceiling.validate(1001, &receipt(2)).is_err());
         assert!(ceiling.validate(1002, &receipt(VERSION)).is_err());
         let mut off = stack_ceiling();
