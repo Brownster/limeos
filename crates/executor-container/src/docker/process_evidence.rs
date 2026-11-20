@@ -2,11 +2,13 @@
 pub use super::read_admission::EngineReadProfile;
 use super::{
     Docker, StatusCode, Value,
-    compose_evidence::{self, EngineComposeSnapshot},
-    health_evidence::{self, EngineHealthSnapshot},
+    compose_evidence::{self, ComposeContainerMembership, ComposeOwnership, EngineComposeSnapshot},
+    health_evidence::{self, ContainerHealth, EngineHealthSnapshot},
     parse_api_version,
     read_admission::{Admission, Json, Scope},
+    storage::Refusal,
 };
+use limeos_domain::deployment::discovery::{OmissionReason, OmittedContainer};
 use limeos_domain::{
     CONTAINER_STORAGE_MAX_AGE_SECONDS, CONTAINER_STORAGE_MAX_TOTAL_MOUNTS, ContainerSnapshot,
     ContainerStorageConsumer, ContainerStorageInventory, Error, ErrorCode, Result,
@@ -190,6 +192,166 @@ impl EngineStorageProcessEvidence {
         } else {
             result
         }
+    }
+}
+
+/// What a display revalidation found since the original collection.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DisplayRevalidation {
+    /// Original resources whose facts differ now, or that the fresh read left
+    /// out: a reader shows them as changing.
+    pub changed: Vec<String>,
+    /// Compose projects declared now by containers that were not in the
+    /// original read as they are now (a container that appeared, or one now
+    /// listed only by its labels). Each joins the hidden projects, so a stack
+    /// it names or overlaps is blocked.
+    pub appeared: Vec<compose_evidence::ComposeProjectIdentity>,
+    /// Containers of unknown Compose project beyond the original count.
+    pub unattributed: u16,
+}
+
+/// The Compose facts of `fresh` that `original` did not contain: compared as a
+/// whole set of (container, project, working directory and files) facts, not
+/// only for the containers collected originally.
+fn appeared(
+    original: &EngineComposeSnapshot,
+    fresh: &EngineComposeSnapshot,
+) -> (Vec<compose_evidence::ComposeProjectIdentity>, u16) {
+    let mut projects: Vec<compose_evidence::ComposeProjectIdentity> = Vec::new();
+    let mut add = |project: &compose_evidence::ComposeProjectIdentity| {
+        if !original.hidden_projects.contains(project) && !projects.contains(project) {
+            projects.push(project.clone());
+        }
+    };
+    for member in &fresh.containers {
+        let before = original
+            .containers
+            .iter()
+            .find(|m| m.container.resource == member.container.resource);
+        if before.map(|b| &b.ownership) == Some(&member.ownership) {
+            continue;
+        }
+        if let ComposeOwnership::Compose { project, .. } = &member.ownership {
+            add(project);
+        }
+    }
+    for project in &fresh.hidden_projects {
+        add(project);
+    }
+    (
+        projects,
+        fresh.unattributed.saturating_sub(original.unattributed),
+    )
+}
+
+impl EngineStorageProcessEvidence {
+    /// For a display projection (Compose or health) only. A fresh collection
+    /// must still name the same Engine; the resources whose facts differ from
+    /// the original, or that the fresh read left out, are returned so a reader
+    /// shows them as changing, and Compose facts that are new in the fresh
+    /// read are returned to block what they touch. Evidence for an effect uses
+    /// `revalidate`.
+    pub async fn revalidate_display(&self) -> Result<DisplayRevalidation> {
+        let projection = if self.compose.is_some() {
+            Projection::Compose
+        } else if self.health.is_some() {
+            Projection::Health
+        } else {
+            return Err(unavailable());
+        };
+        let validation = self
+            .compose
+            .as_ref()
+            .map(compose_evidence::Capture::begin)
+            .transpose()?;
+        let health_validation = self
+            .health
+            .as_ref()
+            .map(health_evidence::Capture::begin)
+            .transpose()?;
+        let result = async {
+            self.lifetime.check()?;
+            let fresh = collect(
+                &self.authenticated,
+                &self.lifetime,
+                self.admission.as_ref(),
+                projection,
+            )
+            .await?;
+            self.lifetime.check()?;
+            if fresh.declarations.engine_id != self.snapshot.declarations.engine_id {
+                return Err(conflict());
+            }
+            let mut changed = Vec::new();
+            for consumer in &self.snapshot.declarations.containers {
+                let resource = &consumer.container.resource;
+                let running = |list: &[EngineRunningProcess]| {
+                    list.iter()
+                        .find(|r| r.container.resource == *resource)
+                        .map(|r| r.pid)
+                };
+                let same = fresh
+                    .declarations
+                    .containers
+                    .iter()
+                    .find(|c| c.container.resource == *resource)
+                    == Some(consumer)
+                    && running(&fresh.running) == running(&self.snapshot.running)
+                    && match (self.compose_snapshot(), &fresh.compose) {
+                        (Some(old), Some(new)) => {
+                            let find = |s: &EngineComposeSnapshot| {
+                                s.containers
+                                    .iter()
+                                    .find(|m| m.container.resource == *resource)
+                                    .cloned()
+                            };
+                            find(old) == find(new)
+                        }
+                        _ => true,
+                    }
+                    && match (self.health_snapshot(), &fresh.health) {
+                        (Some(old), Some(new)) => {
+                            let find = |s: &EngineHealthSnapshot| {
+                                s.containers.iter().position(|m| m.resource == *resource)
+                            };
+                            match (find(old), find(new)) {
+                                (Some(a), Some(b)) => {
+                                    old.containers.get(a) == new.containers.get(b)
+                                }
+                                _ => false,
+                            }
+                        }
+                        _ => true,
+                    };
+                if !same {
+                    changed.push(resource.clone());
+                }
+            }
+            let (appeared, unattributed) = match (self.compose_snapshot(), &fresh.compose) {
+                (Some(old), Some(new)) => appeared(old, new),
+                _ => (Vec::new(), 0),
+            };
+            self.authenticated.revalidate_socket()?;
+            self.lifetime.check()?;
+            Ok(DisplayRevalidation {
+                changed,
+                appeared,
+                unattributed,
+            })
+        }
+        .await;
+        let outcome = result.as_ref().map(|_| ()).map_err(|e| *e);
+        let outcome = if let Some(validation) = health_validation {
+            validation.finish(outcome)
+        } else {
+            outcome
+        };
+        let outcome = if let Some(validation) = validation {
+            validation.finish(outcome)
+        } else {
+            outcome
+        };
+        outcome.and(result)
     }
 }
 
@@ -450,6 +612,23 @@ impl AuthenticatedEngine {
         admission: Option<&Admission>,
         unique: bool,
     ) -> Result<Json> {
+        self.fetch(path, limit, budget, lifetime, admission, unique, false)
+            .await?
+            .ok_or_else(unavailable)
+    }
+    /// As `json`, but with `missing` an Engine answer of 404 (the container
+    /// was removed) is `None` rather than a refusal.
+    #[allow(clippy::too_many_arguments)]
+    async fn fetch(
+        &self,
+        path: String,
+        limit: usize,
+        budget: &ResponseBudget,
+        lifetime: &EvidenceLifetime,
+        admission: Option<&Admission>,
+        unique: bool,
+        missing: bool,
+    ) -> Result<Option<Json>> {
         lifetime.check()?;
         if let Some(admission) = admission {
             admission.ensure_body()?;
@@ -467,6 +646,9 @@ impl AuthenticatedEngine {
                 .docker
                 .request_inner("GET", path, limit, Some((self, budget)))
                 .await?;
+            if missing && status == StatusCode::NOT_FOUND {
+                return Ok(None);
+            }
             if status != StatusCode::OK {
                 return Err(unavailable());
             }
@@ -477,11 +659,46 @@ impl AuthenticatedEngine {
                     .map(Json::standard)
                     .map_err(|_| unavailable()),
             }
+            .map(Some)
         })
         .await
         .map_err(|_| unavailable())??;
         lifetime.check()?;
         Ok(value)
+    }
+}
+
+impl AuthenticatedEngine {
+    /// The Engine-wide listing for a display projection: every row decoded for
+    /// its identity, state and name only, so more containers than the profile
+    /// admits can be ordered and truncated rather than refused.
+    async fn listing(
+        &self,
+        path: String,
+        budget: &ResponseBudget,
+        lifetime: &EvidenceLifetime,
+        admission: &Admission,
+    ) -> Result<Vec<super::storage::Listed>> {
+        lifetime.check()?;
+        admission.ensure_body()?;
+        let limits = admission.limits();
+        // Body Vec growth overlap plus the selected rows, and HTTP scratch.
+        let mut scope = admission.scope();
+        scope.charge(4 * limits.listing + 64 * 1024)?;
+        let rows = tokio::time::timeout(Duration::from_secs(REQUEST_SECONDS), async {
+            let (status, bytes) = self
+                .docker
+                .request_inner("GET", path, limits.listing, Some((self, budget)))
+                .await?;
+            if status != StatusCode::OK {
+                return Err(unavailable());
+            }
+            super::storage::parse_listing(&bytes, limits.listed)
+        })
+        .await
+        .map_err(|_| unavailable())??;
+        lifetime.check()?;
+        Ok(rows)
     }
 }
 
@@ -608,15 +825,42 @@ async fn collect(
         let engine_identity = engine_id_with_scope(&info, scope.as_mut())?;
         drop(info);
         let list_path = format!("/{version}/containers/json?all=1");
-        let list = get(list_path.clone(), 512 * 1024).await?;
-        let ids =
-            super::storage::parse_storage_container_ids_with_admission(&list, scope.as_mut())?;
-        drop(list);
+        let listing = Listing {
+            authenticated,
+            budget: &budget,
+            lifetime,
+            admission,
+            projection,
+            path: &list_path,
+        };
+        let selected = listing.ids(scope.as_mut()).await?;
+        let (ids, truncated) = (&selected.ids, selected.truncated);
+        // Storage evidence refuses on any odd or changing container. A display
+        // projection leaves that one container out with a reason instead.
+        let tolerant = projection != Projection::Storage;
+        // A display projection reads a container removed since it was listed as
+        // gone (`None`) and leaves it out as changing; evidence for an effect
+        // refuses it like any other change.
+        let inspect = |id: &str| {
+            authenticated.fetch(
+                format!("/{version}/containers/{id}/json"),
+                512 * 1024,
+                &budget,
+                lifetime,
+                admission,
+                projection != Projection::Storage,
+                tolerant,
+            )
+        };
+        let mut vanished: Vec<&String> = Vec::new();
+        let mut kept: Vec<&String> = Vec::new();
         let mut containers = Vec::new();
         let mut pids = Vec::new();
         let mut members = Vec::new();
         let mut health_members = Vec::new();
+        let mut left_out = LeftOut::default();
         if let Some(scope) = &mut scope {
+            scope.reserve(&mut kept, ids.len())?;
             scope.reserve(&mut containers, ids.len())?;
             scope.reserve(&mut pids, ids.len())?;
             if capture_compose {
@@ -632,110 +876,244 @@ async fn collect(
         let mut total_mounts = 0;
         let mut running_pids = BTreeSet::new();
         let mut running_count = 0;
-        for id in &ids {
-            let value = get(format!("/{version}/containers/{id}/json"), 512 * 1024).await?;
+        if let Some(scope) = &mut scope {
+            scope.reserve(&mut vanished, ids.len())?;
+        }
+        for id in ids {
+            let Some(value) = inspect(id).await? else {
+                let scope = scope.as_mut().ok_or_else(unavailable)?;
+                vanished.push(id);
+                // The Engine says it is gone. The Compose view shows it as
+                // changing; a health read reports it gone, by leaving it out,
+                // rather than as an unavailable container of unknown policy.
+                if projection != Projection::Health {
+                    left_out.add(
+                        projection,
+                        &format!("container:{id}"),
+                        None,
+                        OmissionReason::Changing,
+                        None,
+                        scope,
+                    )?;
+                }
+                continue;
+            };
             if admission.is_some() && value["State"]["Running"].as_bool() == Some(true) {
                 running_count += 1;
                 if running_count > admission.map_or(0, |a| a.limits().running) {
                     return Err(unavailable());
                 }
             }
-            let consumer = super::storage::parse_storage_container_with_admission(
+            let admitted = admit(
                 &value,
                 id,
+                projection,
                 admission
                     .map_or(0, |a| a.limits().mounts_total)
                     .saturating_sub(total_mounts),
                 scope.as_mut(),
-            )?;
-            let pid = container_pid(&value, &consumer)?;
-            if capture_compose {
-                members.push(compose_evidence::parse(
-                    &value,
-                    &consumer.container,
-                    scope.as_mut().ok_or_else(unavailable)?,
-                )?);
-            }
-            if capture_health {
-                health_members.push(health_evidence::parse(
-                    &value,
-                    &consumer.container,
-                    scope.as_mut().ok_or_else(unavailable)?,
-                )?);
-            }
+            );
+            let admitted = match admitted {
+                Ok(admitted) => {
+                    if tolerant && !single_valid(&admitted.consumer, &engine_identity, lifetime)? {
+                        Err(Refusal::Unsupported)
+                    } else {
+                        Ok(admitted)
+                    }
+                }
+                other => other,
+            };
+            let Admitted {
+                consumer,
+                pid,
+                member,
+                health,
+            } = match admitted {
+                Ok(admitted) => admitted,
+                Err(Refusal::Unsupported) if tolerant => {
+                    let scope = scope.as_mut().ok_or_else(unavailable)?;
+                    let project = if capture_compose {
+                        compose_evidence::declared_project(&value, scope)?
+                    } else {
+                        None
+                    };
+                    let resource = format!("container:{id}");
+                    left_out.add(
+                        projection,
+                        &resource,
+                        project,
+                        OmissionReason::Unsupported,
+                        None,
+                        scope,
+                    )?;
+                    continue;
+                }
+                Err(refusal) => return Err(refusal.strict()),
+            };
             if pid != 0 {
                 if let Some(scope) = &mut scope {
                     scope.charge(32)?;
                 }
             }
             if pid != 0 && !running_pids.insert(pid) {
-                return Err(unavailable());
+                if !tolerant {
+                    return Err(unavailable());
+                }
+                // A PID reused by a restarting container: changing, not stable.
+                let scope = scope.as_mut().ok_or_else(unavailable)?;
+                let project = member.as_ref().and_then(project_of);
+                left_out.add(
+                    projection,
+                    &consumer.container.resource,
+                    project,
+                    OmissionReason::Changing,
+                    health.as_ref(),
+                    scope,
+                )?;
+                continue;
             }
             total_mounts += consumer.mounts.len();
             if total_mounts > CONTAINER_STORAGE_MAX_TOTAL_MOUNTS {
                 return Err(unavailable());
             }
+            kept.push(id);
             containers.push(consumer);
             pids.push(pid);
+            if let Some(member) = member {
+                members.push(member);
+            }
+            if let Some(health) = health {
+                health_members.push(health);
+            }
         }
+        if capture_compose {
+            // Two members naming one project with different directories or
+            // files: that project is unsupported, the others stay.
+            let names: Vec<String> = compose_evidence::conflicting(&members)
+                .into_iter()
+                .map(str::to_owned)
+                .collect();
+            let mut index = 0;
+            while let Some(member) = members.get(index) {
+                let Some(project) = project_of(member).filter(|p| names.contains(p)) else {
+                    index += 1;
+                    continue;
+                };
+                let resource = member.container.resource.clone();
+                remove_at(
+                    index,
+                    &mut kept,
+                    &mut containers,
+                    &mut pids,
+                    &mut members,
+                    &mut health_members,
+                );
+                left_out.add(
+                    projection,
+                    &resource,
+                    Some(project),
+                    OmissionReason::Unsupported,
+                    None,
+                    scope.as_mut().ok_or_else(unavailable)?,
+                )?;
+            }
+        }
+        // The second pass compares each container with its first.
+        let mut changing = Vec::new();
+        if let Some(scope) = &mut scope {
+            scope.reserve(&mut changing, kept.len())?;
+        }
+        for (index, id) in kept.iter().enumerate() {
+            let Some(value) = inspect(id).await? else {
+                vanished.push(id);
+                changing.push(index);
+                continue;
+            };
+            let mut comparison = admission.map(Admission::scope);
+            let same = unchanged(
+                &value,
+                id,
+                Before {
+                    consumer: containers.get(index).ok_or_else(unavailable)?,
+                    pid: pids.get(index).copied().ok_or_else(unavailable)?,
+                    member: members.get(index),
+                    health: health_members.get(index),
+                },
+                projection,
+                admission.map_or(0, |a| a.limits().mounts_each),
+                comparison.as_mut(),
+            );
+            match same {
+                Ok(true) => {}
+                Ok(false) | Err(Refusal::Unsupported) if tolerant => changing.push(index),
+                Ok(false) => return Err(conflict()),
+                Err(refusal) => return Err(refusal.strict()),
+            }
+        }
+        for index in changing.into_iter().rev() {
+            let resource = containers
+                .get(index)
+                .map(|c| c.container.resource.clone())
+                .ok_or_else(unavailable)?;
+            let gone = kept.get(index).is_some_and(|id| vanished.contains(id));
+            let (member, known) = remove_at(
+                index,
+                &mut kept,
+                &mut containers,
+                &mut pids,
+                &mut members,
+                &mut health_members,
+            );
+            // Removed before its second inspection: gone, as above.
+            if gone && projection == Projection::Health {
+                continue;
+            }
+            left_out.add(
+                projection,
+                &resource,
+                member.as_ref().and_then(project_of),
+                OmissionReason::Changing,
+                known.as_ref(),
+                scope.as_mut().ok_or_else(unavailable)?,
+            )?;
+        }
+        // The Engine-wide set is unchanged, but for containers removed since:
+        // those leave the listing, and nothing else may move. The whole listed
+        // set is compared, not the kept selection: a removed kept container lets
+        // a truncated one move up, which changes nothing that was read (it was
+        // never inspected and stays counted as truncated, its labels hidden).
+        let mut comparison = admission.map(Admission::scope);
+        let second = listing.ids(comparison.as_mut()).await?;
+        let gone = |id: &String| vanished.contains(&id);
+        if second
+            .all()
+            .iter()
+            .ne(selected.all().iter().filter(|id| !gone(id)))
+            || second
+                .compose
+                .iter()
+                .ne(selected.compose.iter().filter(|(id, _)| !gone(id)))
+        {
+            return Err(conflict());
+        }
+        drop(second);
+        drop(comparison);
+        let (hidden_projects, unattributed) = if capture_compose {
+            hidden(
+                selected.compose,
+                &members,
+                scope.as_mut().ok_or_else(unavailable)?,
+            )?
+        } else {
+            (Vec::new(), 0)
+        };
         let declarations = ContainerStorageInventory {
             version: 1,
             engine_id: engine_identity,
             observed_at: lifetime.observed_at,
             containers,
         };
-        if capture_compose {
-            compose_evidence::consistent(&members)?;
-        }
-        declarations
-            .validate(lifetime.clock.now()?)
-            .map_err(|_| unavailable())?;
-        for (index, ((id, before), &pid)) in ids
-            .iter()
-            .zip(&declarations.containers)
-            .zip(&pids)
-            .enumerate()
-        {
-            let value = get(format!("/{version}/containers/{id}/json"), 512 * 1024).await?;
-            let mut comparison = admission.map(Admission::scope);
-            let after = super::storage::parse_storage_container_with_admission(
-                &value,
-                id,
-                admission.map_or(0, |a| a.limits().mounts_each),
-                comparison.as_mut(),
-            )?;
-            if after != *before || container_pid(&value, &after)? != pid {
-                return Err(conflict());
-            }
-            if capture_compose
-                && compose_evidence::parse(
-                    &value,
-                    &after.container,
-                    comparison.as_mut().ok_or_else(unavailable)?,
-                )? != members[index]
-            {
-                return Err(conflict());
-            }
-            if capture_health
-                && health_evidence::parse(
-                    &value,
-                    &after.container,
-                    comparison.as_mut().ok_or_else(unavailable)?,
-                )? != health_members[index]
-            {
-                return Err(conflict());
-            }
-        }
         let mut comparison = admission.map(Admission::scope);
-        let list_json = get(list_path, 512 * 1024).await?;
-        if super::storage::parse_storage_container_ids_with_admission(
-            &list_json,
-            comparison.as_mut(),
-        )? != ids
-        {
-            return Err(conflict());
-        }
-        drop(list_json);
         let info_json = get(format!("/{version}/info"), 128 * 1024).await?;
         if engine_id_with_scope(&info_json, comparison.as_mut())? != declarations.engine_id {
             return Err(conflict());
@@ -772,6 +1150,10 @@ async fn collect(
                     .string(&declarations.engine_id)?,
                 containers_observed_at: lifetime.observed_at,
                 containers: members,
+                truncated: u16::try_from(truncated).map_err(|_| unavailable())?,
+                omitted: left_out.compose,
+                hidden_projects,
+                unattributed,
             })
         } else {
             None
@@ -784,8 +1166,17 @@ async fn collect(
                     .ok_or_else(unavailable)?
                     .string(&declarations.engine_id)?,
                 containers_observed_at: lifetime.observed_at,
-                complete: health_evidence::complete(&health_members),
-                containers: health_members,
+                complete: health_evidence::complete(&health_members)
+                    && health_evidence::complete(&left_out.health),
+                containers: {
+                    let mut all = health_members;
+                    if let Some(scope) = &mut scope {
+                        scope.reserve(&mut all, left_out.health.len())?;
+                    }
+                    all.extend(left_out.health);
+                    all.sort_by(|a, b| a.resource.cmp(&b.resource));
+                    all
+                },
             })
         } else {
             None
@@ -806,6 +1197,269 @@ async fn collect(
             unavailable()
         }
     })?
+}
+/// The Engine-wide container IDs of one collection pass.
+struct Listing<'a> {
+    authenticated: &'a AuthenticatedEngine,
+    budget: &'a ResponseBudget,
+    lifetime: &'a EvidenceLifetime,
+    admission: Option<&'a Admission>,
+    projection: Projection,
+    path: &'a str,
+}
+impl Listing<'_> {
+    /// Storage evidence refuses an Engine over its bound. The Compose display
+    /// projection keeps the first containers, running ones first, and counts
+    /// the rest, with the Compose project of every listed row.
+    async fn ids(&self, scope: Option<&mut Scope>) -> Result<super::storage::Selected> {
+        if self.projection == Projection::Compose {
+            let admission = self.admission.ok_or_else(unavailable)?;
+            let rows = self
+                .authenticated
+                .listing(self.path.into(), self.budget, self.lifetime, admission)
+                .await?;
+            return super::storage::select_listed(
+                rows,
+                admission.limits().consumers,
+                scope.ok_or_else(unavailable)?,
+            );
+        }
+        let list = self
+            .authenticated
+            .json(
+                self.path.into(),
+                512 * 1024,
+                self.budget,
+                self.lifetime,
+                self.admission,
+                self.projection != Projection::Storage,
+            )
+            .await?;
+        let ids = super::storage::parse_storage_container_ids_with_admission(&list, scope)?;
+        Ok(super::storage::Selected {
+            listed: Vec::new(),
+            ids,
+            truncated: 0,
+            compose: Vec::new(),
+        })
+    }
+}
+/// The Compose projects of listed containers that are not members (truncated
+/// or omitted), each once, and the number of listed containers whose project is
+/// unknown: labels that do not decode, or beyond the hidden-project bounds.
+fn hidden(
+    listed: Vec<(String, super::storage::ListedCompose)>,
+    members: &[ComposeContainerMembership],
+    scope: &mut Scope,
+) -> Result<(Vec<compose_evidence::ComposeProjectIdentity>, u16)> {
+    use limeos_domain::deployment::discovery::{MAX_HIDDEN_PROJECTS, MAX_HIDDEN_TEXT};
+    let mut projects: Vec<compose_evidence::ComposeProjectIdentity> = Vec::new();
+    let (mut text, mut unattributed) = (0_usize, 0_u16);
+    for (id, compose) in listed {
+        let identity = match compose {
+            super::storage::ListedCompose::None => continue,
+            super::storage::ListedCompose::Undecodable => None,
+            super::storage::ListedCompose::Project(identity) => Some(identity),
+        };
+        let member = members
+            .iter()
+            .any(|m| m.container.resource.strip_prefix("container:") == Some(id.as_str()));
+        match identity {
+            Some(_) if member => {}
+            Some(identity) if projects.contains(&identity) => {}
+            Some(identity) => {
+                let size = identity
+                    .config_files
+                    .iter()
+                    .chain([&identity.name, &identity.working_directory])
+                    .map(String::len)
+                    .sum::<usize>();
+                if projects.len() < MAX_HIDDEN_PROJECTS && text + size <= MAX_HIDDEN_TEXT {
+                    text += size;
+                    scope.reserve(&mut projects, 1)?;
+                    projects.push(identity);
+                } else {
+                    unattributed = unattributed.saturating_add(1);
+                }
+            }
+            None => unattributed = unattributed.saturating_add(1),
+        }
+    }
+    Ok((projects, unattributed))
+}
+/// One container's first-pass facts in the selected projection.
+struct Admitted {
+    consumer: ContainerStorageConsumer,
+    pid: u32,
+    member: Option<ComposeContainerMembership>,
+    health: Option<ContainerHealth>,
+}
+fn admit(
+    value: &Value,
+    id: &str,
+    projection: Projection,
+    mounts_left: usize,
+    mut scope: Option<&mut Scope>,
+) -> std::result::Result<Admitted, Refusal> {
+    let consumer = super::storage::parse_storage_container_with_admission(
+        value,
+        id,
+        mounts_left,
+        scope.as_deref_mut(),
+    )?;
+    let pid = container_pid(value, &consumer).map_err(|_| Refusal::Unsupported)?;
+    let member = if projection == Projection::Compose {
+        Some(compose_evidence::parse(
+            value,
+            &consumer.container,
+            scope.as_deref_mut().ok_or_else(unavailable)?,
+        )?)
+    } else {
+        None
+    };
+    let health = if projection == Projection::Health {
+        Some(health_evidence::parse(
+            value,
+            &consumer.container,
+            scope.ok_or_else(unavailable)?,
+        )?)
+    } else {
+        None
+    };
+    Ok(Admitted {
+        consumer,
+        pid,
+        member,
+        health,
+    })
+}
+/// One consumer alone passes the inventory's own validation. A shape it
+/// refuses (`InvalidInput`) is unsupported; any other refusal is not per item.
+fn single_valid(
+    consumer: &ContainerStorageConsumer,
+    engine_id: &str,
+    lifetime: &EvidenceLifetime,
+) -> Result<bool> {
+    let single = ContainerStorageInventory {
+        version: 1,
+        engine_id: engine_id.into(),
+        observed_at: lifetime.observed_at,
+        containers: vec![consumer.clone()],
+    };
+    match single.validate(lifetime.clock.now()?) {
+        Ok(()) => Ok(true),
+        Err(Error(ErrorCode::InvalidInput)) => Ok(false),
+        Err(_) => Err(unavailable()),
+    }
+}
+/// The first-pass facts of one kept container.
+struct Before<'a> {
+    consumer: &'a ContainerStorageConsumer,
+    pid: u32,
+    member: Option<&'a ComposeContainerMembership>,
+    health: Option<&'a ContainerHealth>,
+}
+/// Whether the second inspection repeats the first in every selected fact.
+fn unchanged(
+    value: &Value,
+    id: &str,
+    before: Before<'_>,
+    projection: Projection,
+    mounts_each: usize,
+    mut comparison: Option<&mut Scope>,
+) -> std::result::Result<bool, Refusal> {
+    let after = super::storage::parse_storage_container_with_admission(
+        value,
+        id,
+        mounts_each,
+        comparison.as_deref_mut(),
+    )?;
+    if after != *before.consumer
+        || container_pid(value, &after).map_err(|_| Refusal::Unsupported)? != before.pid
+    {
+        return Ok(false);
+    }
+    if projection == Projection::Compose
+        && Some(&compose_evidence::parse(
+            value,
+            &after.container,
+            comparison.as_deref_mut().ok_or_else(unavailable)?,
+        )?) != before.member
+    {
+        return Ok(false);
+    }
+    if projection == Projection::Health
+        && Some(&health_evidence::parse(
+            value,
+            &after.container,
+            comparison.ok_or_else(unavailable)?,
+        )?) != before.health
+    {
+        return Ok(false);
+    }
+    Ok(true)
+}
+fn project_of(member: &ComposeContainerMembership) -> Option<String> {
+    match &member.ownership {
+        ComposeOwnership::Compose { project, .. } => Some(project.name.clone()),
+        ComposeOwnership::NonCompose => None,
+    }
+}
+/// Drop one kept container from every parallel record, returning its
+/// projection facts.
+fn remove_at(
+    index: usize,
+    kept: &mut Vec<&String>,
+    containers: &mut Vec<ContainerStorageConsumer>,
+    pids: &mut Vec<u32>,
+    members: &mut Vec<ComposeContainerMembership>,
+    health: &mut Vec<ContainerHealth>,
+) -> (Option<ComposeContainerMembership>, Option<ContainerHealth>) {
+    if index < kept.len() {
+        kept.remove(index);
+    }
+    if index < containers.len() {
+        containers.remove(index);
+    }
+    if index < pids.len() {
+        pids.remove(index);
+    }
+    (
+        (index < members.len()).then(|| members.remove(index)),
+        (index < health.len()).then(|| health.remove(index)),
+    )
+}
+/// Containers a display projection left out, with their reason.
+#[derive(Default)]
+struct LeftOut {
+    compose: Vec<OmittedContainer>,
+    health: Vec<ContainerHealth>,
+}
+impl LeftOut {
+    fn add(
+        &mut self,
+        projection: Projection,
+        resource: &str,
+        project: Option<String>,
+        reason: OmissionReason,
+        known: Option<&ContainerHealth>,
+        scope: &mut Scope,
+    ) -> Result<()> {
+        match projection {
+            Projection::Compose => {
+                scope.reserve(&mut self.compose, 1)?;
+                self.compose
+                    .push(compose_evidence::omitted(resource, project, reason, scope)?);
+            }
+            Projection::Health => {
+                scope.reserve(&mut self.health, 1)?;
+                self.health
+                    .push(health_evidence::unavailable(resource, known, scope)?);
+            }
+            Projection::Storage => return Err(unavailable()),
+        }
+        Ok(())
+    }
 }
 fn engine_id(value: &Value) -> Result<String> {
     Ok(value["ID"].as_str().ok_or_else(unavailable)?.into())

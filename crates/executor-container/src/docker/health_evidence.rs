@@ -3,6 +3,7 @@ use super::{
     Docker,
     process_evidence::{self, EnginePeerPolicy, EngineStorageProcessEvidence},
     read_admission::{Scope, Validation, ValidationGate},
+    storage::Refusal,
 };
 use limeos_domain::{
     ContainerSnapshot, Error, ErrorCode, Result,
@@ -60,6 +61,28 @@ pub struct ContainerHealth {
     /// Key and resource both bind the full Engine ID; names are display text.
     pub signal: Option<AlertSignal>,
 }
+impl ContainerHealth {
+    /// The signal this container gives when its health cannot be read this
+    /// round, as for one that changed since collection.
+    pub fn unavailable_signal(&self) -> Result<Option<AlertSignal>> {
+        let id = self
+            .resource
+            .strip_prefix("container:")
+            .ok_or_else(refused)?;
+        let mut signal = automation::container_signal(
+            id,
+            None,
+            automation::ContainerHealth::Unavailable,
+            self.restart.domain(),
+        )?;
+        if let Some(signal) = &mut signal {
+            let suffix = signal.summary.strip_prefix(id).ok_or_else(refused)?;
+            signal.summary = format!("{}{suffix}", self.name);
+            signal.validate()?;
+        }
+        Ok(signal)
+    }
+}
 /// Serialize-only past observations. Completeness covers container signals only.
 /// ```compile_fail
 /// use limeos_executor_container::docker::health_evidence::EngineHealthSnapshot;
@@ -97,8 +120,14 @@ impl EngineHealthEvidence {
     pub fn storage(&self) -> &EngineStorageProcessEvidence {
         &self.inner
     }
+    /// Strict: any difference from the original collection refuses.
     pub async fn revalidate(&self) -> Result<()> {
         self.inner.revalidate().await
+    }
+    /// For alerting only: the resources whose facts changed since collection,
+    /// which a reader must report as unavailable this round.
+    pub async fn revalidate_display(&self) -> Result<Vec<String>> {
+        Ok(self.inner.revalidate_display().await?.changed)
     }
 }
 
@@ -137,32 +166,71 @@ fn refused() -> Error {
     Error(ErrorCode::Unavailable)
 }
 
+fn unsupported() -> Refusal {
+    Refusal::Unsupported
+}
+/// A container whose health cannot be read this round: changing between the
+/// two passes, or of a shape this reader does not model. Its signal is
+/// `Unavailable`, so the cohort is incomplete rather than the container gone.
+/// An unknown restart policy is monitored as `always`, never silently dropped.
+pub(super) fn unavailable(
+    resource: &str,
+    known: Option<&ContainerHealth>,
+    scope: &mut Scope,
+) -> Result<ContainerHealth> {
+    let id = resource.strip_prefix("container:").ok_or_else(refused)?;
+    let restart = known.map_or(RestartMode::Always, |k| k.restart);
+    scope.charge(2048)?;
+    let mut signal = automation::container_signal(
+        id,
+        None,
+        automation::ContainerHealth::Unavailable,
+        restart.domain(),
+    )?;
+    let name = match known {
+        Some(k) => scope.string(&k.name)?,
+        None => scope.string(id.get(..12).unwrap_or(id))?,
+    };
+    if let Some(signal) = &mut signal {
+        let suffix = signal.summary.strip_prefix(id).ok_or_else(refused)?;
+        signal.summary = format!("{name}{suffix}");
+        signal.validate()?;
+    }
+    Ok(ContainerHealth {
+        resource: scope.string(resource)?,
+        name,
+        running: false,
+        restart,
+        health: HealthStatus::Unavailable,
+        signal,
+    })
+}
 pub(super) fn parse(
     value: &Value,
     container: &ContainerSnapshot,
     scope: &mut Scope,
-) -> Result<ContainerHealth> {
+) -> std::result::Result<ContainerHealth, Refusal> {
     let state = value
         .get("State")
         .and_then(Value::as_object)
-        .ok_or_else(refused)?;
+        .ok_or_else(unsupported)?;
     let running = container.running
         & !state
             .get("Paused")
             .and_then(Value::as_bool)
-            .ok_or_else(refused)?
+            .ok_or_else(unsupported)?
         & !state
             .get("Restarting")
             .and_then(Value::as_bool)
-            .ok_or_else(refused)?
+            .ok_or_else(unsupported)?
         & !state
             .get("Dead")
             .and_then(Value::as_bool)
-            .ok_or_else(refused)?;
+            .ok_or_else(unsupported)?;
     let config = value
         .get("Config")
         .and_then(Value::as_object)
-        .ok_or_else(refused)?;
+        .ok_or_else(unsupported)?;
     let restart = value
         .get("HostConfig")
         .and_then(Value::as_object)
@@ -170,19 +238,19 @@ pub(super) fn parse(
         .and_then(Value::as_object)
         .and_then(|v| v.get("Name"))
         .and_then(Value::as_str)
-        .ok_or_else(refused)?;
+        .ok_or_else(unsupported)?;
     let restart = match restart {
         "always" => RestartMode::Always,
         "unless-stopped" => RestartMode::UnlessStopped,
         "no" | "" => RestartMode::No,
         "on-failure" => RestartMode::OnFailure,
-        _ => return Err(refused()),
+        _ => return Err(unsupported()),
     };
     let name = value
         .get("Name")
         .and_then(Value::as_str)
         .and_then(|s| s.strip_prefix('/'))
-        .ok_or_else(refused)?;
+        .ok_or_else(unsupported)?;
     if name.is_empty()
         || name.len() > 255
         || !name.as_bytes()[0].is_ascii_alphanumeric()
@@ -190,25 +258,25 @@ pub(super) fn parse(
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"_.-".contains(&b))
     {
-        return Err(refused());
+        return Err(unsupported());
     }
     let configured = match config.get("Healthcheck") {
         None | Some(Value::Null) => false,
         Some(Value::Object(check)) => match check.get("Test") {
             Some(Value::Array(test)) => {
                 if test.iter().any(|v| !v.is_string()) {
-                    return Err(refused());
+                    return Err(unsupported());
                 }
                 match test.first().and_then(Value::as_str) {
                     Some("NONE") if test.len() == 1 => false,
                     None | Some("CMD" | "CMD-SHELL") => true,
-                    _ => return Err(refused()),
+                    _ => return Err(unsupported()),
                 }
             }
             None | Some(Value::Null) => true,
-            _ => return Err(refused()),
+            _ => return Err(unsupported()),
         },
-        _ => return Err(refused()),
+        _ => return Err(unsupported()),
     };
     let health = match state.get("Health") {
         None | Some(Value::Null) => {
@@ -221,12 +289,12 @@ pub(super) fn parse(
         Some(Value::Object(result)) => {
             // A populated result requires a configured check. No command/log is retained.
             if !configured {
-                return Err(refused());
+                return Err(unsupported());
             }
             match result
                 .get("Status")
                 .and_then(Value::as_str)
-                .ok_or_else(refused)?
+                .ok_or_else(unsupported)?
             {
                 "healthy" => HealthStatus::Healthy,
                 "unhealthy" => HealthStatus::Unhealthy,
@@ -234,19 +302,19 @@ pub(super) fn parse(
                 _ => HealthStatus::Unavailable,
             }
         }
-        _ => return Err(refused()),
+        _ => return Err(unsupported()),
     };
     let id = container
         .resource
         .strip_prefix("container:")
-        .ok_or_else(refused)?;
+        .ok_or_else(unsupported)?;
     // Bound all domain signal/string-format temporaries before constructing them.
     // This is counted payload allowance, not allocator/cgroup heap accounting.
     scope.charge(2048)?;
     let mut signal =
         automation::container_signal(id, Some(running), health.domain(), restart.domain())?;
     if let Some(signal) = &mut signal {
-        let suffix = signal.summary.strip_prefix(id).ok_or_else(refused)?;
+        let suffix = signal.summary.strip_prefix(id).ok_or_else(unsupported)?;
         signal.summary = format!("{name}{suffix}");
         signal.validate()?;
     }

@@ -8,7 +8,7 @@ fn fixture() -> Value {
     }]},"engine":{"engine_id":"engine","sampled_at":99,"members":[{
         "kind":"compose","container":{"resource":format!("container:{:064x}",1),"image":format!("sha256:{}","a".repeat(64)),"started_at":"2026-10-20T00:00:00Z","running":true},
         "project":{"name":"media","working_directory":"/opt/stacks/Media","config_files":["/opt/stacks/Media/compose.yaml"]},"service":"web","one_off":false
-    }]}})
+    }],"truncated":0,"omitted":[],"hidden_projects":[],"unattributed":0}})
 }
 fn decode(value: Value) -> Result<DiscoveryCohort> {
     DiscoveryCohort::decode(&serde_json::to_vec(&value).unwrap())
@@ -21,6 +21,31 @@ fn round_trip_preserves_source_clocks_and_failed_source_withholds_counts() {
     assert_eq!(serde_json::from_slice::<Value>(&bytes).unwrap(), fixture());
     let fresh = cohort.project(101).unwrap();
     assert_eq!(fresh.stacks[0].runtime, RuntimeStatus::Running);
+    assert_eq!(fresh.truncated_containers, Some(0));
+    // A report from before the truncation count decodes as complete; a
+    // truncated one carries its count to the fresh view only.
+    let mut older = fixture();
+    older["engine"].as_object_mut().unwrap().remove("truncated");
+    older["engine"].as_object_mut().unwrap().remove("omitted");
+    older["engine"]
+        .as_object_mut()
+        .unwrap()
+        .remove("hidden_projects");
+    older["engine"]
+        .as_object_mut()
+        .unwrap()
+        .remove("unattributed");
+    assert_eq!(decode(older).unwrap().engine().unwrap().truncated, 0);
+    let mut over = fixture();
+    over["engine"]["truncated"] = json!(3);
+    let over = decode(over).unwrap();
+    assert_eq!(over.project(101).unwrap().truncated_containers, Some(3));
+    assert_eq!(
+        over.project_sources(101, true, false)
+            .unwrap()
+            .truncated_containers,
+        None
+    );
     for (catalog, engine) in [(false, true), (true, false), (false, false)] {
         let view = cohort.project_sources(101, catalog, engine).unwrap();
         assert_eq!(view.catalog.sampled_at, Some(100));
@@ -37,6 +62,96 @@ fn round_trip_preserves_source_clocks_and_failed_source_withholds_counts() {
         cohort.project(98).unwrap().catalog.state,
         SourceState::Stale
     );
+}
+
+#[test]
+fn an_omitted_member_marks_its_stack_and_only_while_the_engine_is_fresh() {
+    let mut value = fixture();
+    value["engine"]["omitted"] = json!([
+        {"resource":format!("container:{:064x}",2),"project":"media","reason":"changing"},
+        {"resource":format!("container:{:064x}",3),"project":null,"reason":"unsupported"}
+    ]);
+    let cohort = decode(value).unwrap();
+    let view = cohort.project(101).unwrap();
+    assert_eq!(view.omitted_containers.len(), 2);
+    assert_eq!(view.omitted_containers[0].reason, OmissionReason::Changing);
+    assert_eq!(view.stacks[0].issues, [StackIssue::OmittedMembers]);
+    let stale = cohort.project_sources(101, true, false).unwrap();
+    assert!(stale.omitted_containers.is_empty());
+    assert!(stale.stacks[0].issues.is_empty());
+    // A left-out container cannot also be a member, repeat, or name a bad project.
+    for bad in [
+        json!({"resource":format!("container:{:064x}",1),"project":"media","reason":"changing"}),
+        json!({"resource":"container:nothex","project":null,"reason":"changing"}),
+        json!({"resource":format!("container:{:064x}",2),"project":"Bad Name","reason":"changing"}),
+        json!({"resource":format!("container:{:064x}",2),"project":null,"reason":"gone"}),
+    ] {
+        let mut value = fixture();
+        value["engine"]["omitted"] = json!([bad]);
+        assert!(decode(value).is_err());
+    }
+    let mut repeated = fixture();
+    let one = json!({"resource":format!("container:{:064x}",2),"project":null,"reason":"changing"});
+    repeated["engine"]["omitted"] = json!([one.clone(), one]);
+    assert!(decode(repeated).is_err());
+}
+
+#[test]
+fn hidden_projects_attribute_overlap_and_unattributed_containers_block_every_stack() {
+    let hidden = |name: &str, directory: &str| json!({"name":name,"working_directory":directory,"config_files":[format!("{directory}/compose.yaml")]});
+    // A hidden container of the stack's own project: an unread member.
+    let mut value = fixture();
+    value["engine"]["hidden_projects"] = json!([hidden("media", "/opt/stacks/Media")]);
+    let view = decode(value).unwrap().project(101).unwrap();
+    assert_eq!(view.stacks[0].issues, [StackIssue::OmittedMembers]);
+    // A hidden project sharing the directory, or the name with another
+    // directory: as if it had been read whole.
+    for (other, issue) in [
+        (
+            hidden("other", "/opt/stacks/Media"),
+            StackIssue::OverlappingProject,
+        ),
+        (
+            hidden("media", "/opt/stacks/Other"),
+            StackIssue::IdentityConflict,
+        ),
+    ] {
+        let mut value = fixture();
+        value["engine"]["hidden_projects"] = json!([other]);
+        let cohort = decode(value).unwrap();
+        let view = cohort.project(101).unwrap();
+        assert!(view.stacks[0].issues.contains(&issue));
+        assert_eq!(view.stacks[0].runtime, RuntimeStatus::Conflict);
+        assert!(
+            cohort.project_sources(101, true, false).unwrap().stacks[0]
+                .issues
+                .is_empty()
+        );
+    }
+    let mut value = fixture();
+    value["engine"]["unattributed"] = json!(2);
+    let cohort = decode(value).unwrap();
+    let view = cohort.project(101).unwrap();
+    assert_eq!(view.unattributed_containers, Some(2));
+    assert_eq!(view.stacks[0].issues, [StackIssue::IncompleteInventory]);
+    assert_eq!(view.stacks[0].runtime, RuntimeStatus::Running);
+    let stale = cohort.project_sources(101, true, false).unwrap();
+    assert_eq!(stale.unattributed_containers, None);
+    assert!(stale.stacks[0].issues.is_empty());
+    // Malformed, repeated or too many hidden projects are refused.
+    let many: Vec<_> = (0..=MAX_HIDDEN_PROJECTS)
+        .map(|i| hidden(&format!("p{i}"), &format!("/opt/p{i}")))
+        .collect();
+    for bad in [
+        json!([hidden("Bad Name", "/opt/x")]),
+        json!([hidden("x", "relative")]),
+        json!([hidden("x", "/opt/x"), hidden("x", "/opt/x")]),
+        json!(many),
+    ] {
+        let mut value = fixture();
+        value["engine"]["hidden_projects"] = bad;
+        assert!(decode(value).is_err());
+    }
 }
 
 #[test]

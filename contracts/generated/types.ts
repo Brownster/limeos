@@ -124,7 +124,8 @@ export type ContainerJob = { id: string, state: JobState, plan: ContainerPlan, }
 export type ContainerRequest = { action: string, plan_digest: string, plan: ContainerPlan, };
 export type ContainerReceipt = { action: string, plan_digest: string, operation?: ContainerAction, before: ContainerSnapshot, state: ExecutionState, error: ErrorCode | null, };
 export type ExecutionState = "prepared" | "effect_accepted" | "verified" | "precondition_changed" | "outcome_unknown" | "partly_done";
-export type EventKind = { "kind": "bootstrap_issued" } | { "kind": "administrator_enrolled" } | { "kind": "legacy_identity_imported" } | { "kind": "session_created" } | { "kind": "session_revoked" } | { "kind": "grants_revised" } | { "kind": "task_issued" } | { "kind": "task_revoked" } | { "kind": "job_queued" } | { "kind": "job_recovery_required" } | { "kind": "job_transition", state: JobState, } | { "kind": "job_resolution_requested", declared: DeclaredOutcome, } | { "kind": "job_resolution_withdrawn" } | { "kind": "job_resolved", declared: DeclaredOutcome, } | { "kind": "plan_created", plan: string, } | { "kind": "plan_approved", plan: string, } | { "kind": "plan_canceled", plan: string, } | { "kind": "automation_schedule_created", schedule: string, } | { "kind": "automation_schedule_changed", schedule: string, revision: number, } | { "kind": "automation_occurrence_settled", schedule: string, revision: number, due: number, } | { "kind": "automation_observation_settled", sequence: number, complete: boolean, } | { "kind": "automation_observation_polled", digest: string, } | { "kind": "automation_notification_published", notification: string, } | { "kind": "automation_notification_created", notification: string, digest: string, } | { "kind": "automation_notification_pruned", notification: string, } | { "kind": "automation_notification_acknowledged", notification: string, } | { "kind": "automation_health_policy_changed", revision: number, digest: string, } | { "kind": "automation_notification_policy_checked", notification: string, revision: number, };
+export type ReceiptAbsence = "never_recorded" | "no_longer_held";
+export type EventKind = { "kind": "bootstrap_issued" } | { "kind": "administrator_enrolled" } | { "kind": "legacy_identity_imported" } | { "kind": "session_created" } | { "kind": "session_revoked" } | { "kind": "grants_revised" } | { "kind": "task_issued" } | { "kind": "task_revoked" } | { "kind": "job_queued" } | { "kind": "job_recovery_required" } | { "kind": "executor_receipt_missing" } | { "kind": "job_transition", state: JobState, } | { "kind": "job_resolution_requested", declared: DeclaredOutcome, } | { "kind": "job_resolution_withdrawn" } | { "kind": "job_resolved", declared: DeclaredOutcome, } | { "kind": "plan_created", plan: string, } | { "kind": "plan_approved", plan: string, } | { "kind": "plan_canceled", plan: string, } | { "kind": "automation_schedule_created", schedule: string, } | { "kind": "automation_schedule_changed", schedule: string, revision: number, } | { "kind": "automation_occurrence_settled", schedule: string, revision: number, due: number, } | { "kind": "automation_observation_settled", sequence: number, complete: boolean, } | { "kind": "automation_observation_polled", digest: string, } | { "kind": "automation_notification_published", notification: string, } | { "kind": "automation_notification_created", notification: string, digest: string, } | { "kind": "automation_notification_pruned", notification: string, } | { "kind": "automation_notification_acknowledged", notification: string, } | { "kind": "automation_health_policy_changed", revision: number, digest: string, } | { "kind": "automation_notification_policy_checked", notification: string, revision: number, };
 export type Event = { cursor: number, principal: string | null, job: string | null, event: EventKind, created: number, };
 export type Login = { username: string, password: string, };
 export type ObserveHealthEnable = { password: string, };
@@ -205,6 +206,7 @@ export type QueueStackInput = { proposal: PlannedStackAction, approval: string, 
 export type StackJobProgress = { job: StackJob, events: Array<Event>, receipt: StackReceipt | null, };
 export type DeclaredOutcome = "verified_done" | "not_done" | "accepted_divergence";
 export type ResolveKind = "container" | "stack";
+export type ActionPlan = { "container": ContainerPlan } | { "stack": StackPlan };
 export type ResolutionTarget = {
 /**
  * Full container ID, without the `container:` prefix.
@@ -230,6 +232,7 @@ export type ResolutionRequest = { job: string,
  */
 resolved_by: string, declared: DeclaredOutcome, reason: string, evidence: ResolutionEvidence, evidence_digest: string, requested_at: number, };
 export type ResolveReceipt = { kind: ResolveKind, action: string, evidence_digest: string, declared: DeclaredOutcome, resolved_by: string, };
+export type ResolveRefusal = { recorded: ExecutionState, declared: DeclaredOutcome, allowed: Array<DeclaredOutcome>, };
 export type JobResolution = { job: string, resolved_by: string, declared: DeclaredOutcome, reason: string, evidence: ResolutionEvidence, evidence_digest: string, requested_at: number, resolved_at: number, };
 export type ResolutionTargetView = {
 /**
@@ -307,7 +310,11 @@ export type ResolveJobResponse = { status: ResolveStatus, message: string, resol
  * Container IDs whose measured state blocks the declaration.
  */
 blocking: Array<string>, };
-export type Request = { "operation": "container_health", version: number, nonce: string, } | { "operation": "stack_inventory", version: number, } | { "operation": "storage_mount_catalog", version: number, } | { "operation": "inspect_storage_mount", version: number, selection: StorageMountSelection, } | { "operation": "execute_storage_mount", version: number, plan: StorageMountEffectPlan, } | { "operation": "storage_mount_receipt", version: number, action: string, digest: string, } | { "operation": "reconcile_storage_mount", version: number, action: string, digest: string, } | { "operation": "inspect_mounted_storage", version: number, plan: StorageMountEffectPlan, } | { "operation": "container_storage_inventory", version: number, } | { "operation": "inspect_storage_targets", version: number, contract: StorageContract, } | { "operation": "prepare_storage_targets", version: number, plan: TargetPreparationPlan, } | { "operation": "storage_target_receipt", version: number, action: string, digest: string, } | { "operation": "storage_inventory", version: number, } | { "operation": "health", version: number, } | { "operation": "observe", version: number, source: Source, active: boolean, } | { "operation": "inspect", version: number, resource: string, } | { "operation": "container_logs", version: number, resource: string, options: LogOptions, } | { "operation": "restart", version: number, request: ContainerRequest, } | { "operation": "execute_container", version: number, request: ContainerRequest, } | { "operation": "restart_receipt", version: number, action: string, digest: string, } | { "operation": "verify_restart", version: number, action: string, digest: string, after: ContainerSnapshot, } | { "operation": "inspect_stack", version: number, project: string, } | { "operation": "execute_stack", version: number, request: StackRequest, } | { "operation": "stack_receipt", version: number, action: string, digest: string, } | { "operation": "verify_stack", version: number, action: string, digest: string, after: Array<ContainerSnapshot>, } | { "operation": "resolve_action", version: number, kind: ResolveKind, action: string,
+export type Request = { "operation": "container_health", version: number, nonce: string, } | { "operation": "stack_inventory", version: number, } | { "operation": "storage_mount_catalog", version: number, } | { "operation": "inspect_storage_mount", version: number, selection: StorageMountSelection, } | { "operation": "execute_storage_mount", version: number, plan: StorageMountEffectPlan, } | { "operation": "storage_mount_receipt", version: number, action: string, digest: string, } | { "operation": "reconcile_storage_mount", version: number, action: string, digest: string, } | { "operation": "inspect_mounted_storage", version: number, plan: StorageMountEffectPlan, } | { "operation": "container_storage_inventory", version: number, } | { "operation": "inspect_storage_targets", version: number, contract: StorageContract, } | { "operation": "prepare_storage_targets", version: number, plan: TargetPreparationPlan, } | { "operation": "storage_target_receipt", version: number, action: string, digest: string, } | { "operation": "storage_inventory", version: number, } | { "operation": "health", version: number, } | { "operation": "observe", version: number, source: Source, active: boolean, } | { "operation": "inspect", version: number, resource: string, } | { "operation": "container_logs", version: number, resource: string, options: LogOptions, } | { "operation": "restart", version: number, request: ContainerRequest, } | { "operation": "execute_container", version: number, request: ContainerRequest, } | { "operation": "restart_receipt", version: number, action: string, digest: string,
+/**
+ * The plan exactly as core stored it.
+ */
+plan: ContainerPlan, } | { "operation": "verify_restart", version: number, action: string, digest: string, after: ContainerSnapshot, } | { "operation": "inspect_stack", version: number, project: string, } | { "operation": "execute_stack", version: number, request: StackRequest, } | { "operation": "stack_receipt", version: number, action: string, digest: string, plan: StackPlan, } | { "operation": "verify_stack", version: number, action: string, digest: string, after: Array<ContainerSnapshot>, } | { "operation": "resolve_action", version: number, kind: ResolveKind, action: string,
 /**
  * Digest of the stored plan, as for the receipt lookups.
  */
@@ -315,8 +322,31 @@ digest: string, evidence_digest: string, declared: DeclaredOutcome,
 /**
  * The resolving administrator's principal ID, recorded in the row.
  */
-resolved_by: string, };
-export type StackInventory = { version: number, generated_at: number, catalog: StackSourceStatus, engine: StackSourceStatus, engine_matches_catalog: boolean | null, stacks: Array<StackView>, other_projects: Array<StackOtherProjectView>, standalone_containers: number | null, };
+resolved_by: string,
+/**
+ * The plan exactly as core stored it: of `kind`, and hashing to
+ * `digest`, or the request is invalid. With no row, its own
+ * `expires_at` decides the answer's `absence`.
+ */
+plan: ActionPlan, };
+export type StackInventory = { version: number, generated_at: number, catalog: StackSourceStatus, engine: StackSourceStatus, engine_matches_catalog: boolean | null, stacks: Array<StackView>, other_projects: Array<StackOtherProjectView>, standalone_containers: number | null,
+/**
+ * Engine containers left out because the Engine holds more than
+ * `MAX_ENGINE_CONTAINERS`; running ones are kept first. Counts above are
+ * of the containers shown. `None` while the Engine source is not fresh.
+ */
+truncated_containers: number | null,
+/**
+ * Inspected containers left out, each with its reason; a registered
+ * stack with one of them carries `omitted_members`. Empty unless fresh.
+ */
+omitted_containers: Array<StackOmittedContainer>,
+/**
+ * Listed Engine containers whose Compose project could not be read; when
+ * above zero every stack carries `incomplete_inventory`. `None` while the
+ * Engine source is not fresh.
+ */
+unattributed_containers: number | null, };
 export type StackSourceStatus = { state: StackSourceState, sampled_at: number | null, max_age_seconds: number,
 /**
  * Remaining display lifetime, shortened by every cache/transport layer.
@@ -327,7 +357,9 @@ export type StackRuntimeStatus = "unknown" | "no_containers" | "stopped" | "runn
 export type StackCounts = { ordinary: number, running: number, one_offs: number, one_off_running: number, };
 export type StackMemberView = { container: ContainerSnapshot, one_off: boolean, };
 export type StackServiceView = { name: string, declared: boolean, runtime: StackRuntimeStatus, counts: StackCounts | null, members: Array<StackMemberView>, };
-export type StackIssue = "identity_conflict" | "overlapping_project" | "undeclared_services";
+export type StackIssue = "identity_conflict" | "overlapping_project" | "undeclared_services" | "omitted_members" | "incomplete_inventory";
+export type StackOmissionReason = "changing" | "unsupported";
+export type StackOmittedContainer = { resource: string, project: string | null, reason: StackOmissionReason, };
 export type StackView = { stack: string, project: string, working_directory: string, config_files: Array<string>, files: StackFileStatus, runtime: StackRuntimeStatus, counts: StackCounts | null, missing_services: number | null, services: Array<StackServiceView>, issues: Array<StackIssue>, };
 export type StackRegistrationRelation = "not_registered" | "catalog_unknown" | "engine_mismatch" | "identity_conflict" | "overlapping";
 export type StackOtherProjectView = { project: StackProjectIdentity, relation: StackRegistrationRelation, services: Array<StackServiceView>, };
@@ -335,7 +367,26 @@ export type StackProjectIdentity = { name: string, working_directory: string, co
 export type StackFileStatus = { "state": "not_inspected" } | { "state": "conflict", candidates: Array<ComposeFileName>, } | { "state": "unsupported", reason: StackUnsupportedSource, } | { "state": "unavailable" };
 export type StackUnsupportedSource = "yaml" | "environment" | "include" | "interpolation" | "other";
 export type CatalogFacts = { engine_id: string, sampled_at: number, stacks: Array<StackDeclaration>, };
-export type EngineFacts = { engine_id: string, sampled_at: number, members: Array<StackMembership>, };
+export type EngineFacts = { engine_id: string, sampled_at: number, members: Array<StackMembership>,
+/**
+ * Engine containers beyond `MAX_ENGINE_CONTAINERS`, not in `members`.
+ */
+truncated: number,
+/**
+ * Inspected containers left out of `members`, with their reason.
+ */
+omitted: Array<StackOmittedContainer>,
+/**
+ * Distinct Compose projects that Engine containers outside `members`
+ * (truncated or omitted) declare in their list labels: a stack named by
+ * one has an unread member, and each takes part in the overlap checks.
+ */
+hidden_projects: Array<StackProjectIdentity>,
+/**
+ * Listed containers whose Compose project could not be established: list
+ * labels that do not decode, or beyond the hidden-project bounds.
+ */
+unattributed: number, };
 export type StackDeclaration = { stack: string, project: string, working_directory: string, config_files: Array<string>, services: Array<string>, files: StackFileStatus, };
 export type StackMembership = { "kind": "standalone", container: ContainerSnapshot, } | { "kind": "compose", container: ContainerSnapshot, project: StackProjectIdentity, service: string, one_off: boolean, };
 export type DiscoveryCohort = { version: number, catalog: CatalogFacts | null, engine: EngineFacts | null, catalog_current: boolean, engine_current: boolean, catalog_valid_for_millis: number, engine_valid_for_millis: number, };
@@ -349,7 +400,16 @@ allow_stack: boolean, managed_containers: Array<string>,
  * Compose project names.
  */
 managed_stacks: Array<string>, };
-export type Receipt = { container_health?: ContainerHealthCohort | null, stack_cohort?: DiscoveryCohort | null, storage_mount_catalog?: StorageMountCatalog | null, storage_mount_inspection?: StorageMountInspection | null, storage_mount?: StorageMountReceipt | null, mounted_storage?: StorageMountedSnapshot | null, version: number, ready: boolean, observations?: ObservationBatch | null, inspection?: ContainerSnapshot | null, restart?: ContainerReceipt | null, stack?: StackReceipt | null, stack_members?: StackSnapshot | null, resolution?: ResolveReceipt | null, logs?: ContainerLogs | null, error?: ErrorCode | null, storage?: StorageInventory | null, storage_targets?: StorageTargetSnapshot | null, target_preparation?: TargetPreparationReceipt | null, container_storage?: ContainerStorageInventory | null, };
+export type Receipt = { container_health?: ContainerHealthCohort | null, stack_cohort?: DiscoveryCohort | null, storage_mount_catalog?: StorageMountCatalog | null, storage_mount_inspection?: StorageMountInspection | null, storage_mount?: StorageMountReceipt | null, mounted_storage?: StorageMountedSnapshot | null, version: number, ready: boolean, observations?: ObservationBatch | null, inspection?: ContainerSnapshot | null, restart?: ContainerReceipt | null, stack?: StackReceipt | null, stack_members?: StackSnapshot | null, resolution?: ResolveReceipt | null,
+/**
+ * Set by a receipt lookup or `ResolveAction` that found no row.
+ */
+absence?: ReceiptAbsence | null,
+/**
+ * Set by `ResolveAction` when a terminal receipt's recorded outcome
+ * contradicts the declaration; nothing changed.
+ */
+resolution_refusal?: ResolveRefusal | null, logs?: ContainerLogs | null, error?: ErrorCode | null, storage?: StorageInventory | null, storage_targets?: StorageTargetSnapshot | null, target_preparation?: TargetPreparationReceipt | null, container_storage?: ContainerStorageInventory | null, };
 export type RestartPlan = ContainerPlan;
 export type PlannedRestart = PlannedContainerAction;
 export type RestartJob = ContainerJob;

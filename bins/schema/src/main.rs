@@ -318,6 +318,7 @@ fn main() {
     ts!(limeos_domain::RestartRequest);
     ts!(limeos_domain::RestartReceipt);
     ts!(limeos_domain::ExecutionState);
+    ts!(limeos_domain::ReceiptAbsence);
     ts!(limeos_domain::EventKind);
     ts!(limeos_domain::Event);
     ts!(limeos_contracts::Login);
@@ -391,11 +392,13 @@ fn main() {
     ts!(limeos_contracts::StackJobProgress);
     ts!(limeos_domain::DeclaredOutcome);
     ts!(limeos_domain::ResolveKind);
+    ts!(limeos_domain::ActionPlan);
     ts!(limeos_domain::ResolutionTarget);
     ts!(limeos_domain::ResolutionEvidence);
     ts!(limeos_domain::ResolutionMember);
     ts!(limeos_domain::ResolutionRequest);
     ts!(limeos_domain::ResolveReceipt);
+    ts!(limeos_domain::ResolveRefusal);
     ts!(limeos_domain::JobResolution);
     ts!(limeos_contracts::ResolutionTargetView);
     ts!(limeos_contracts::ResolutionView);
@@ -412,6 +415,8 @@ fn main() {
     ts!(limeos_domain::deployment::discovery::MemberView);
     ts!(limeos_domain::deployment::discovery::ServiceView);
     ts!(limeos_domain::deployment::discovery::StackIssue);
+    ts!(limeos_domain::deployment::discovery::OmissionReason);
+    ts!(limeos_domain::deployment::discovery::OmittedContainer);
     ts!(limeos_domain::deployment::discovery::StackView);
     ts!(limeos_domain::deployment::discovery::RegistrationRelation);
     ts!(limeos_domain::deployment::discovery::OtherProjectView);

@@ -6,6 +6,50 @@ use ts_rs::TS;
 
 pub const PLAN_TTL_SECONDS: i64 = 300;
 pub const RESTART_VERSION: u16 = 1;
+/// The container executor keeps a settled receipt until its plan has been
+/// expired for at least this many seconds, and may prune it afterwards.
+pub const RECEIPT_RETAIN_AFTER_EXPIRY: i64 = 3600;
+
+/// What the executor can say about an action it holds no receipt for. It is
+/// decided from the receipt store's prune watermark, the greatest plan expiry
+/// among every receipt it ever pruned, never from the clock.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum ReceiptAbsence {
+    /// The plan expires after the watermark, so no receipt for it was ever
+    /// pruned: none was ever written, and since a durable Prepared row precedes
+    /// every Engine call, nothing was sent.
+    NeverRecorded,
+    /// A receipt for the plan may have existed and been pruned, so absence
+    /// proves nothing: the action may have run.
+    NoLongerHeld,
+}
+impl ReceiptAbsence {
+    /// Strict: a plan expiring exactly at the watermark may share its expiry
+    /// with a pruned receipt, so equality is `NoLongerHeld`.
+    pub fn judge(expires_at: i64, watermark: i64) -> Self {
+        if expires_at > watermark {
+            Self::NeverRecorded
+        } else {
+            Self::NoLongerHeld
+        }
+    }
+}
+
+/// Seconds past a plan's expiry before core acts on a missing receipt. The
+/// executor refuses a plan once `now >= expires_at`, before it prepares and
+/// again immediately before the Engine call; the margin absorbs a small step of
+/// the clock the two processes share.
+pub const EXPIRY_SETTLE_MARGIN: i64 = 5;
+
+/// Whether no execute request for a plan expiring at `expires_at` can still be
+/// accepted, judged from `asked_at`: a clock read taken before the receipt
+/// lookup was sent. Until then a delivered request whose handler has not yet
+/// reached the receipt store may still prepare and run, so the absence of a
+/// receipt, `NeverRecorded` or `NoLongerHeld`, proves nothing yet.
+pub fn execution_closed(expires_at: i64, asked_at: i64) -> bool {
+    asked_at >= expires_at.saturating_add(EXPIRY_SETTLE_MARGIN)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Risk {
@@ -146,6 +190,10 @@ impl ContainerPlan {
             return Err(Error(ErrorCode::Expired));
         }
         Ok(())
+    }
+    /// `validate` without the clock: the plan is well formed, expired or not.
+    pub fn validate_shape(&self) -> Result<()> {
+        self.validate(self.created_at)
     }
     pub fn check_current(&self, actual: &ContainerSnapshot, now: i64) -> Result<()> {
         self.validate(now)?;
@@ -339,6 +387,17 @@ mod tests {
             started_at: "2026-10-05T07:00:00.000000000Z".into(),
             running: true,
         }
+    }
+    #[test]
+    fn a_missing_receipt_is_never_sent_only_above_the_prune_watermark() {
+        use ReceiptAbsence::*;
+        assert_eq!(ReceiptAbsence::judge(10_001, 10_000), NeverRecorded);
+        // A plan sharing the expiry of a pruned receipt may have been pruned too.
+        assert_eq!(ReceiptAbsence::judge(10_000, 10_000), NoLongerHeld);
+        assert_eq!(ReceiptAbsence::judge(9_999, 10_000), NoLongerHeld);
+        // Nothing ever pruned, and history unknown.
+        assert_eq!(ReceiptAbsence::judge(i64::MIN + 1, i64::MIN), NeverRecorded);
+        assert_eq!(ReceiptAbsence::judge(i64::MAX, i64::MAX), NoLongerHeld);
     }
     #[test]
     fn lifecycle_preconditions_and_verification_bind_the_selected_incarnation() {

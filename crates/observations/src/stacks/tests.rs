@@ -19,6 +19,10 @@ fn sample(at: i64) -> DiscoveryCohort {
             engine_id: "engine".into(),
             sampled_at: at,
             members: vec![],
+            truncated: 0,
+            omitted: Vec::new(),
+            hidden_projects: Vec::new(),
+            unattributed: 0,
         }),
     )
     .unwrap()

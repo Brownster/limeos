@@ -115,6 +115,30 @@ async fn genuine_binding_preserves_full_members_replicas_oneoffs_stopped_and_unr
     );
 }
 #[tokio::test]
+async fn binding_evidence_refuses_a_read_that_left_any_container_out() {
+    // A crash-looping container, or one with an unsupported mount, is only
+    // left out of display reads; binding evidence needs the whole Engine.
+    for f in [
+        fixture(Config {
+            crash_looping: Some(1),
+            ..config()
+        })
+        .await,
+        fixture(Config {
+            mount_type: Some((1, "image")),
+            ..config()
+        })
+        .await,
+    ] {
+        let engine = inspect(&f).await.unwrap();
+        assert!(!engine.snapshot().complete());
+        refusal(
+            bind(inputs_with(configuration()).unwrap(), engine),
+            ErrorCode::Unavailable,
+        );
+    }
+}
+#[tokio::test]
 async fn expected_engine_and_raw_operator_or_managed_hash_mismatches_refuse() {
     for change in 0..3 {
         let mut c = configuration();

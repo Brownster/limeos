@@ -24,6 +24,8 @@ struct Config {
     first_running: bool,
     all_running: bool,
     running_count: Option<usize>,
+    /// Every n-th container runs instead, scattering running among stopped.
+    running_every: Option<usize>,
     duplicate_pids: bool,
     pid: Option<Value>,
     changed: Option<Change>,
@@ -39,8 +41,19 @@ struct Config {
     clock_on_final_info: Option<(Arc<AtomicI64>, i64)>,
     compose_labels: Option<Vec<Value>>,
     compose_labels_after: Option<Vec<Value>>,
+    /// List-row labels by index where they differ from the inspected ones.
+    list_labels: Option<Vec<(usize, Value)>>,
     health_inspect: Option<Value>,
     health_inspect_after: Option<Value>,
+    /// Only this container sees `health_inspect_after` (one health flip).
+    health_after_only: Option<usize>,
+    /// This container restarts between any two inspections (crash loop).
+    crash_looping: Option<usize>,
+    /// This container's mounts have this type instead of `bind`.
+    mount_type: Option<(usize, &'static str)>,
+    /// This container is removed (`--rm`) before its n-th inspection: that
+    /// inspection and later ones are 404, and later listings omit it.
+    vanishing: Option<(usize, usize)>,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -49,6 +62,7 @@ impl Default for Config {
             first_running: true,
             all_running: false,
             running_count: None,
+            running_every: None,
             duplicate_pids: false,
             pid: Some(json!(1000)),
             changed: None,
@@ -64,8 +78,13 @@ impl Default for Config {
             clock_on_final_info: None,
             compose_labels: None,
             compose_labels_after: None,
+            list_labels: None,
             health_inspect: None,
             health_inspect_after: None,
+            health_after_only: None,
+            crash_looping: None,
+            mount_type: None,
+            vanishing: None,
         }
     }
 }
@@ -105,6 +124,15 @@ impl Fixture {
             .inspect_storage_processes_with_profile(self.policy, EngineReadProfile::CombinedV1)
             .await
     }
+}
+fn is_running(config: &Config, index: usize) -> bool {
+    if let Some(every) = config.running_every {
+        return index.is_multiple_of(every);
+    }
+    config.running_count.map_or(
+        config.all_running || (index == 0 && config.first_running),
+        |count| index < count,
+    )
 }
 async fn fixture(config: Config) -> Fixture {
     let directory = tempfile::tempdir().unwrap();
@@ -182,9 +210,27 @@ async fn fixture(config: Config) -> Fixture {
                 } else {
                     config.count
                 };
+                // The Engine lists each container's labels as first inspected:
+                // a container's labels never change.
+                let labels = config.compose_labels.as_ref();
                 json!(
                     (0..count)
-                        .map(|i| json!({"Id": format!("{i:064x}")}))
+                        .filter(|i| nth == 1 || config.vanishing.is_none_or(|(at, _)| at != *i))
+                        .map(|i| {
+                            let listed = config
+                                .list_labels
+                                .as_ref()
+                                .and_then(|l| l.iter().find(|(at, _)| *at == i))
+                                .map(|(_, v)| v.clone());
+                            let labels = listed.unwrap_or_else(|| match labels {
+                                Some(labels) => labels.get(i).cloned().unwrap_or(Value::Null),
+                                None => json!({}),
+                            });
+                            json!({"Id": format!("{i:064x}"),
+                                "State": if is_running(&config, i) { "running" } else { "exited" },
+                                "Names": [format!("/c{i:03}")],
+                                "Labels": labels})
+                        })
                         .collect::<Vec<_>>()
                 )
             } else {
@@ -196,10 +242,20 @@ async fn fixture(config: Config) -> Fixture {
                     .next()
                     .unwrap();
                 let index = usize::from_str_radix(id, 16).unwrap();
-                let running = config.running_count.map_or(
-                    config.all_running || (index == 0 && config.first_running),
-                    |count| index < count,
-                );
+                if config
+                    .vanishing
+                    .is_some_and(|(at, from)| at == index && nth >= from)
+                {
+                    let body = r#"{"message":"No such container"}"#;
+                    let response = format!(
+                        "HTTP/1.1 404 Not Found\r\nContent-Length: {}\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(response.as_bytes()).await;
+                    continue;
+                }
+                let running = is_running(&config, index);
                 let source = if matches!(config.changed, Some(Change::Mount)) && nth > 1 {
                     "/mnt/replaced".into()
                 } else {
@@ -217,7 +273,11 @@ async fn fixture(config: Config) -> Fixture {
                         } else {
                             format!("/data/{i}")
                         };
-                        json!({"Type":"bind","Source":source,"Destination":destination,"RW":true})
+                        let kind = match config.mount_type {
+                            Some((at, kind)) if at == index => kind,
+                            _ => "bind",
+                        };
+                        json!({"Type":kind,"Source":source,"Destination":destination,"RW":true})
                     })
                     .collect();
                 let mut value = json!({
@@ -239,7 +299,8 @@ async fn fixture(config: Config) -> Fixture {
                         *target = patch.clone();
                     }
                 }
-                if let Some(health) = if nth > 1 {
+                let flips = config.health_after_only.is_none_or(|at| at == index);
+                if let Some(health) = if nth > 1 && flips {
                     config
                         .health_inspect_after
                         .as_ref()
@@ -280,6 +341,16 @@ async fn fixture(config: Config) -> Fixture {
                 }
                 if matches!(config.changed, Some(Change::Snapshot)) && nth > 1 {
                     value["State"]["StartedAt"] = json!("2026-10-07T00:00:01Z");
+                }
+                if config.crash_looping == Some(index) {
+                    value["State"]["StartedAt"] = json!(format!(
+                        "2026-10-07T00:{:02}:{:02}Z",
+                        nth / 60 % 60,
+                        nth % 60
+                    ));
+                    if running {
+                        value["State"]["Pid"] = json!(7000 + nth);
+                    }
                 }
                 value
             };

@@ -45,6 +45,10 @@ pub(super) struct Limits {
     pub(super) mounts_each: usize,
     pub(super) response: usize,
     pub(super) list_response: usize,
+    /// Byte cap of the selective Engine listing that orders truncation.
+    pub(super) listing: usize,
+    /// Rows that listing may name; beyond `consumers` they are truncated.
+    pub(super) listed: usize,
     pub(super) body: usize,
     pub(super) live: usize,
     pub(super) nodes: usize,
@@ -62,6 +66,8 @@ impl EngineReadProfile {
                 mounts_each: MOUNTS,
                 response: RESPONSE,
                 list_response: RESPONSE,
+                listing: RESPONSE,
+                listed: CONSUMERS,
                 body: BODY_BYTES,
                 live: LIVE_BYTES,
                 nodes: NODES,
@@ -81,7 +87,14 @@ impl EngineReadProfile {
                 mounts_each: limeos_domain::CONTAINER_STORAGE_MAX_MOUNTS,
                 response: RESPONSE,
                 list_response: 256 * 1024,
-                body: 4 * 1024 * 1024,
+                // More containers than `consumers` are listed selectively
+                // (identity, state and name only), ordered and truncated. The
+                // listing is charged 4x its byte cap, 2 MiB of the live ledger.
+                listing: 512 * 1024,
+                listed: 1024,
+                // Bytes read, not held: two listings and two inspect passes
+                // for the collection and again for its revalidation.
+                body: 8 * 1024 * 1024,
                 live: 4 * 1024 * 1024,
                 nodes: 8192,
                 strings: 256 * 1024,

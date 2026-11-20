@@ -168,3 +168,42 @@ test("short remaining server lifetime expires without another read",async()=>{
   assert.equal([...clock.timers.values()][0].ms,501);
   clock.advance(102);assert.equal(controller.getSnapshot().stale,true);controller.dispose();
 });
+
+test("left-out containers are validated and an older core's absent fields take their defaults", () => {
+  const id = n => `container:${String(n).padStart(64, "0")}`;
+  const valid = clone();
+  valid.omitted_containers = [{ resource: id(9), project: "media", reason: "changing" }, { resource: id(8), project: null, reason: "unsupported" }];
+  assert.equal(decodeStackInventory(valid).omitted_containers.length, 2);
+  for (const change of [
+    v => { v.omitted_containers = {}; }, v => { v.omitted_containers = "none"; }, v => { v.omitted_containers = null; },
+    v => { v.omitted_containers = Array(65).fill({ resource: id(9), project: null, reason: "changing" }); },
+    v => { v.omitted_containers = [{ resource: "container:short", project: null, reason: "changing" }]; },
+    v => { v.omitted_containers = [{ resource: id(9), project: "Bad Name", reason: "changing" }]; },
+    v => { v.omitted_containers = [{ resource: id(9), project: null, reason: "gone" }]; },
+    v => { v.omitted_containers = [{ resource: id(9), project: null, reason: "changing" }, { resource: id(9), project: null, reason: "unsupported" }]; },
+    // A member cannot also be left out.
+    v => { v.omitted_containers = [{ resource: v.stacks[0].services[0].members[0].container.resource, project: null, reason: "changing" }]; },
+    v => { v.unattributed_containers = -1; }, v => { v.unattributed_containers = "1"; },
+    v => { v.truncated_containers = null; v.unattributed_containers = 0; },
+    v => { v.stacks[0].issues = ["incomplete_inventory", "incomplete_inventory"]; },
+    v => { v.stacks[0].issues = ["unknown_issue"]; },
+  ]) {
+    const value = clone(); change(value); assert.throws(() => decodeStackInventory(value), StackReadError, String(change));
+  }
+  const older = clone();
+  delete older.truncated_containers; delete older.omitted_containers; delete older.unattributed_containers;
+  const decoded = decodeStackInventory(older);
+  assert.equal(decoded.truncated_containers, null);
+  assert.deepEqual(decoded.omitted_containers, []);
+  assert.equal(decoded.unattributed_containers, null);
+  assert.doesNotMatch(render({ value: decoded }), /not shown|could not be identified/);
+});
+
+test("an inventory with an unidentified container blocks and explains every stack", () => {
+  const value = clone();
+  value.unattributed_containers = 2;
+  value.stacks[0].issues = ["omitted_members", "incomplete_inventory"];
+  const html = render({ value: decodeStackInventory(value) });
+  assert.match(html, /Compose labels could not be read/);
+  assert.match(html, /2 Engine containers&#x27; Compose project could not be identified/);
+});

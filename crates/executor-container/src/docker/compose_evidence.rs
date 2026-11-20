@@ -3,16 +3,22 @@ use super::{
     Docker,
     process_evidence::{self, EnginePeerPolicy, EngineStorageProcessEvidence},
     read_admission::{Scope, Validation, ValidationGate},
+    storage::Refusal,
 };
-use limeos_domain::{ContainerSnapshot, Error, ErrorCode, Result};
+use limeos_domain::{
+    ContainerSnapshot, Error, ErrorCode, Result,
+    deployment::discovery::{OmissionReason, OmittedContainer},
+};
 use serde::Serialize;
 use serde_json::Value;
 
-const PREFIX: &str = "com.docker.compose.";
-const PROJECT: &str = "com.docker.compose.project";
+pub(super) const PREFIX: &str = "com.docker.compose.";
+pub(super) const PROJECT: &str = "com.docker.compose.project";
 const SERVICE: &str = "com.docker.compose.service";
-const DIRECTORY: &str = "com.docker.compose.project.working_dir";
-const FILES: &str = "com.docker.compose.project.config_files";
+pub(super) const DIRECTORY: &str = "com.docker.compose.project.working_dir";
+pub(super) const FILES: &str = "com.docker.compose.project.config_files";
+/// Longest config-files label: four maximal paths and their commas.
+pub(super) const FILES_LABEL: usize = 4 * 512 + 3;
 const ONEOFF: &str = "com.docker.compose.oneoff";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -48,6 +54,24 @@ pub struct EngineComposeSnapshot {
     pub engine_id: String,
     pub containers_observed_at: i64,
     pub containers: Vec<ComposeContainerMembership>,
+    /// Engine containers beyond the bound, running ones kept first; not inspected.
+    pub truncated: u16,
+    /// Containers inspected but left out: changing between the two passes, or
+    /// of a shape this reader does not model. Never in `containers`.
+    pub omitted: Vec<OmittedContainer>,
+    /// Distinct Compose projects that listed containers outside `containers`
+    /// (truncated or omitted) declare in their labels.
+    pub hidden_projects: Vec<ComposeProjectIdentity>,
+    /// Listed containers whose Compose project is unknown: labels that do not
+    /// decode, or beyond the hidden-project bounds.
+    pub unattributed: u16,
+}
+impl EngineComposeSnapshot {
+    /// Every Engine container is in `containers`: nothing truncated, omitted or
+    /// of unknown project.
+    pub fn complete(&self) -> bool {
+        self.truncated == 0 && self.omitted.is_empty() && self.unattributed == 0
+    }
 }
 /// Fixed-endpoint opaque owner. JSON cannot restore its socket, ledger or lifetime.
 /// ```compile_fail
@@ -73,8 +97,16 @@ impl EngineComposeEvidence {
     pub fn storage(&self) -> &EngineStorageProcessEvidence {
         &self.inner
     }
+    /// Strict: any difference from the original collection refuses.
     pub async fn revalidate(&self) -> Result<()> {
         self.inner.revalidate().await
+    }
+    /// For display only: the resources whose facts changed since collection,
+    /// which a reader must show as changing, and the Compose facts that are new
+    /// since, which block what they touch. Engine identity and the socket must
+    /// still match.
+    pub async fn revalidate_display(&self) -> Result<process_evidence::DisplayRevalidation> {
+        self.inner.revalidate_display().await
     }
 }
 
@@ -109,42 +141,88 @@ impl Capture {
 fn refused() -> Error {
     Error(ErrorCode::Unavailable)
 }
+/// One rule with the stack model (`limeos_domain::deployment::discovery`): a
+/// label it would refuse is never attributed here, so it degrades that one
+/// container instead of the whole inventory.
 fn name(value: &str, project: bool) -> bool {
-    let first = value.as_bytes().first().copied();
-    value.len() <= 64
-        && first.is_some_and(|c| c.is_ascii_alphanumeric() && (!project || !c.is_ascii_uppercase()))
-        && value.bytes().all(|c| {
-            (c.is_ascii_alphanumeric() && (!project || !c.is_ascii_uppercase()))
-                || b"_-".contains(&c)
-                || (!project && c == b'.')
-        })
+    limeos_domain::deployment::discovery::compose_name(value, project)
 }
 fn path(value: &str) -> bool {
-    value.starts_with('/')
-        && value.len() <= 512
-        && !value.chars().any(char::is_control)
-        && !value.contains(',')
-        && value[1..].split('/').count() <= 16
-        && value[1..]
-            .split('/')
-            .all(|part| !matches!(part, "" | "." | ".."))
+    limeos_domain::deployment::discovery::compose_path(value)
+}
+/// The ordered config files of a label value, or `None` where an inspection
+/// would refuse them: one rule for inspected containers and listed rows.
+fn config_files(files: &str) -> Option<Vec<&str>> {
+    if files.len() > FILES_LABEL {
+        return None;
+    }
+    let mut selected: Vec<&str> = Vec::new();
+    for file in files.split(',') {
+        if selected.len() == 4 || !path(file) || selected.contains(&file) {
+            return None;
+        }
+        selected.push(file);
+    }
+    Some(selected)
+}
+/// The project identity a listed row's labels declare, validated exactly as
+/// `parse` validates an inspected container's: `None` where it would refuse.
+pub(super) fn listed_identity(
+    project: &str,
+    directory: &str,
+    files: &str,
+) -> Option<ComposeProjectIdentity> {
+    if !name(project, true) || !path(directory) {
+        return None;
+    }
+    Some(ComposeProjectIdentity {
+        name: project.to_owned(),
+        working_directory: directory.to_owned(),
+        config_files: config_files(files)?
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+    })
+}
+fn unsupported() -> Refusal {
+    Refusal::Unsupported
+}
+/// The Compose project an unsupported or changing container declares, when its
+/// project label alone is well formed: the stack it belongs to is incomplete.
+pub(super) fn declared_project(value: &Value, scope: &mut Scope) -> Result<Option<String>> {
+    match value["Config"]["Labels"][PROJECT].as_str() {
+        Some(project) if name(project, true) => scope.string(project).map(Some),
+        _ => Ok(None),
+    }
+}
+pub(super) fn omitted(
+    container: &str,
+    project: Option<String>,
+    reason: OmissionReason,
+    scope: &mut Scope,
+) -> Result<OmittedContainer> {
+    Ok(OmittedContainer {
+        resource: scope.string(container)?,
+        project,
+        reason,
+    })
 }
 pub(super) fn parse(
     value: &Value,
     container: &ContainerSnapshot,
     scope: &mut Scope,
-) -> Result<ComposeContainerMembership> {
+) -> std::result::Result<ComposeContainerMembership, Refusal> {
     let config = value
         .get("Config")
         .and_then(Value::as_object)
-        .ok_or_else(refused)?;
-    let labels = config.get("Labels").ok_or_else(refused)?;
+        .ok_or_else(unsupported)?;
+    let labels = config.get("Labels").ok_or_else(unsupported)?;
     let ownership = if labels.is_null() {
         ComposeOwnership::NonCompose
     } else {
-        let labels = labels.as_object().ok_or_else(refused)?;
+        let labels = labels.as_object().ok_or_else(unsupported)?;
         if labels.values().any(|v| !v.is_string()) {
-            return Err(refused());
+            return Err(unsupported());
         }
         if !labels.keys().any(|key| key.starts_with(PREFIX)) {
             ComposeOwnership::NonCompose
@@ -153,9 +231,14 @@ pub(super) fn parse(
             if labels.contains_key("com.docker.compose.hook")
                 || labels.contains_key("com.docker.compose.relay")
             {
-                return Err(refused());
+                return Err(unsupported());
             }
-            let text = |key| labels.get(key).and_then(Value::as_str).ok_or_else(refused);
+            let text = |key| {
+                labels
+                    .get(key)
+                    .and_then(Value::as_str)
+                    .ok_or_else(unsupported)
+            };
             let project = text(PROJECT)?;
             let service = text(SERVICE)?;
             let directory = text(DIRECTORY)?;
@@ -163,21 +246,15 @@ pub(super) fn parse(
             let one_off = match text(ONEOFF)? {
                 "True" => true,
                 "False" => false,
-                _ => return Err(refused()),
+                _ => return Err(unsupported()),
             };
-            if !name(project, true)
-                || !name(service, false)
-                || !path(directory)
-                || files.len() > 4 * 512 + 3
-            {
-                return Err(refused());
+            if !name(project, true) || !name(service, false) || !path(directory) {
+                return Err(unsupported());
             }
+            let files = config_files(files).ok_or_else(unsupported)?;
             let mut selected = Vec::new();
-            for file in files.split(',') {
-                if selected.len() == 4 || !path(file) || selected.iter().any(|p| p == file) {
-                    return Err(refused());
-                }
-                scope.reserve(&mut selected, 1)?;
+            scope.reserve(&mut selected, files.len())?;
+            for file in files {
                 selected.push(scope.string(file)?);
             }
             ComposeOwnership::Compose {
@@ -201,23 +278,28 @@ pub(super) fn parse(
         ownership,
     })
 }
-pub(super) fn consistent(members: &[ComposeContainerMembership]) -> Result<()> {
+/// Project names that two members declare with different directories or files.
+pub(super) fn conflicting(members: &[ComposeContainerMembership]) -> Vec<&str> {
+    let mut names: Vec<&str> = Vec::new();
     for (i, member) in members.iter().enumerate() {
         let ComposeOwnership::Compose { project, .. } = &member.ownership else {
             continue;
         };
-        for other in &members[..i] {
+        for other in members.iter().take(i) {
             if let ComposeOwnership::Compose {
                 project: previous, ..
             } = &other.ownership
             {
-                if previous.name == project.name && previous != project {
-                    return Err(refused());
+                if previous.name == project.name
+                    && previous != project
+                    && !names.contains(&project.name.as_str())
+                {
+                    names.push(&project.name);
                 }
             }
         }
     }
-    Ok(())
+    names
 }
 
 #[cfg(test)]

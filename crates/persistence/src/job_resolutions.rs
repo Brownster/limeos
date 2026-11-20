@@ -13,9 +13,9 @@
 //! result rows are never modified.
 use super::*;
 use limeos_domain::{
-    ContainerAction, ContainerReceipt, ContainerSnapshot, DeclaredOutcome, JobResolution,
-    NeedsAttentionJob, ResolutionEvidence, ResolutionMember, ResolutionRequest, ResolveKind,
-    ResolveReceipt, StackReceipt,
+    ActionPlan, ContainerAction, ContainerReceipt, ContainerSnapshot, DeclaredOutcome,
+    JobResolution, NeedsAttentionJob, ResolutionEvidence, ResolutionMember, ResolutionRequest,
+    ResolveKind, ResolveReceipt, StackReceipt,
 };
 
 /// What core needs to gather evidence and to address the executor.
@@ -30,6 +30,12 @@ pub struct ResolutionSubject {
     /// The plan's targets as `expected`; inspect each, then
     /// `ResolutionEvidence::observe(operation, ..)`.
     pub targets: Vec<ContainerSnapshot>,
+    /// The plan's expiry: the executor judges a missing receipt against its
+    /// prune watermark with it (`limeos_domain::ReceiptAbsence`).
+    pub expires_at: i64,
+    /// The stored plan itself, which `ResolveAction` carries so the executor
+    /// can tie `expires_at` to `plan_digest`.
+    pub plan: ActionPlan,
 }
 
 /// A recorded request together with the executor addressing for step 2.
@@ -38,11 +44,19 @@ pub struct PendingResolution {
     pub request: ResolutionRequest,
     pub kind: ResolveKind,
     pub plan_digest: String,
+    /// The plan's expiry, which decides when core may complete without an
+    /// executor receipt.
+    pub expires_at: i64,
+    /// The stored plan, sent with `ResolveAction`.
+    pub plan: ActionPlan,
+    /// The plan's operation and targets, to measure the evidence again.
+    pub operation: ContainerAction,
+    pub targets: Vec<ContainerSnapshot>,
 }
 
 fn subject_of(id: &str, state: &str, intent: &str) -> Result<ResolutionSubject> {
     let state = parse::<JobState>(&format!("\"{state}\""))?;
-    let (kind, operation, plan_digest, targets) = match parse::<Intent>(intent)? {
+    let (kind, operation, plan_digest, targets, expires_at, plan) = match parse::<Intent>(intent)? {
         Intent::ContainerRestart { plan }
         | Intent::ContainerStart { plan }
         | Intent::ContainerStop { plan } => (
@@ -50,6 +64,8 @@ fn subject_of(id: &str, state: &str, intent: &str) -> Result<ResolutionSubject> 
             plan.operation,
             limeos_identity::digest(&json(&plan)?),
             vec![plan.expected.clone()],
+            plan.expires_at,
+            ActionPlan::Container(plan),
         ),
         Intent::StackRestart { plan }
         | Intent::StackStart { plan }
@@ -58,6 +74,8 @@ fn subject_of(id: &str, state: &str, intent: &str) -> Result<ResolutionSubject> 
             plan.operation,
             limeos_identity::digest(&json(&plan)?),
             plan.targets().into_iter().cloned().collect(),
+            plan.expires_at,
+            ActionPlan::Stack(plan),
         ),
         _ => return Err(Error(ErrorCode::Forbidden)),
     };
@@ -68,6 +86,8 @@ fn subject_of(id: &str, state: &str, intent: &str) -> Result<ResolutionSubject> 
         operation,
         plan_digest,
         targets,
+        expires_at,
+        plan,
     })
 }
 
@@ -373,6 +393,10 @@ impl Store {
                         request: open,
                         kind: subject.kind,
                         plan_digest: subject.plan_digest,
+                        expires_at: subject.expires_at,
+                        plan: subject.plan,
+                        operation: subject.operation,
+                        targets: subject.targets,
                     })
                 } else {
                     Err(Error(ErrorCode::Conflict))
@@ -403,6 +427,10 @@ impl Store {
                 request,
                 kind: subject.kind,
                 plan_digest: subject.plan_digest,
+                expires_at: subject.expires_at,
+                plan: subject.plan,
+                operation: subject.operation,
+                targets: subject.targets,
             })
         })
     }
@@ -470,6 +498,10 @@ impl Store {
                     request,
                     kind: subject.kind,
                     plan_digest: subject.plan_digest,
+                    expires_at: subject.expires_at,
+                    plan: subject.plan,
+                    operation: subject.operation,
+                    targets: subject.targets,
                 })
             })
             .collect()

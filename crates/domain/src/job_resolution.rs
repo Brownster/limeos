@@ -44,6 +44,39 @@ pub enum ResolveKind {
     Stack,
 }
 
+/// The plan an action was approved with, exactly as core stored it. A receipt
+/// lookup or `ResolveAction` carries it so the executor can recompute its
+/// digest, require it to equal the digest the request names, and judge a
+/// missing receipt by the plan's own `expires_at`, never by a bare number.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum ActionPlan {
+    Container(crate::ContainerPlan),
+    Stack(crate::StackPlan),
+}
+impl ActionPlan {
+    pub fn kind(&self) -> ResolveKind {
+        match self {
+            Self::Container(_) => ResolveKind::Container,
+            Self::Stack(_) => ResolveKind::Stack,
+        }
+    }
+    pub fn expires_at(&self) -> i64 {
+        match self {
+            Self::Container(plan) => plan.expires_at,
+            Self::Stack(plan) => plan.expires_at,
+        }
+    }
+    /// Every structural check of the plan, including the stack member bound,
+    /// whatever the clock: a lookup usually concerns an expired plan.
+    pub fn validate_shape(&self) -> Result<()> {
+        match self {
+            Self::Container(plan) => plan.validate_shape(),
+            Self::Stack(plan) => plan.validate_shape(),
+        }
+    }
+}
+
 /// One stuck container or stack job in the administrator-wide attention list.
 /// Read-only: it names the job and its owner, never evidence or a decision.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
@@ -252,6 +285,37 @@ pub struct ResolveReceipt {
     pub resolved_by: String,
 }
 
+/// The declarations a terminal receipt's recorded outcome leaves open, or
+/// `None` for a state that still holds its lock (or is not a receipt state).
+/// `verified`: the executor proved the intended state, so "nothing happened"
+/// contradicts it. `precondition_changed`: nothing was sent, so "it was done"
+/// contradicts it. `partly_done` (stacks): some members were done and the rest
+/// never sent, which is neither. Divergence is the operator's word on the
+/// present state and never contradicts the record.
+pub fn declarations_for_recorded(
+    state: crate::ExecutionState,
+) -> Option<&'static [DeclaredOutcome]> {
+    use crate::ExecutionState::*;
+    use DeclaredOutcome::*;
+    match state {
+        Verified => Some(&[VerifiedDone, AcceptedDivergence]),
+        PreconditionChanged => Some(&[NotDone, AcceptedDivergence]),
+        PartlyDone => Some(&[AcceptedDivergence]),
+        Prepared | EffectAccepted | OutcomeUnknown => None,
+    }
+}
+
+/// The executor's refusal to resolve a terminal receipt with a declaration
+/// its recorded outcome contradicts. Nothing changed; `allowed` lists what it
+/// would accept.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct ResolveRefusal {
+    pub recorded: crate::ExecutionState,
+    pub declared: DeclaredOutcome,
+    pub allowed: Vec<DeclaredOutcome>,
+}
+
 /// The completed audit record (step 3). Additional to, never replacing, the
 /// job's `outcome_unknown`/`needs_intervention` history.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
@@ -272,6 +336,26 @@ pub struct JobResolution {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_terminal_outcome_leaves_open_only_the_declarations_that_agree_with_it() {
+        use crate::ExecutionState::*;
+        use DeclaredOutcome::*;
+        assert_eq!(
+            declarations_for_recorded(Verified),
+            Some(&[VerifiedDone, AcceptedDivergence][..])
+        );
+        assert_eq!(
+            declarations_for_recorded(PreconditionChanged),
+            Some(&[NotDone, AcceptedDivergence][..])
+        );
+        assert_eq!(
+            declarations_for_recorded(PartlyDone),
+            Some(&[AcceptedDivergence][..])
+        );
+        for holding in [Prepared, EffectAccepted, OutcomeUnknown] {
+            assert_eq!(declarations_for_recorded(holding), None);
+        }
+    }
     fn snap(n: char, running: bool, started: &str) -> ContainerSnapshot {
         ContainerSnapshot {
             resource: format!("container:{}", n.to_string().repeat(64)),

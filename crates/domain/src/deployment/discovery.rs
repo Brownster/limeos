@@ -17,6 +17,11 @@ const _: () = assert!(
         && MAX_ENGINE_CONTAINERS > crate::MAX_STACK_MEMBERS
 );
 pub const MAX_INPUT_TEXT: usize = 48 * 1024;
+/// Distinct Compose projects of containers outside the members (truncated or
+/// omitted) that a cohort names, and their text. Beyond either bound a
+/// container counts as unattributed instead.
+pub const MAX_HIDDEN_PROJECTS: usize = 16;
+pub const MAX_HIDDEN_TEXT: usize = 8 * 1024;
 pub const MAX_REPORT_BYTES: usize = 64 * 1024;
 pub const MAX_AGE_SECONDS: i64 = 90;
 const MAX_TIME: i64 = 253_402_300_799;
@@ -169,6 +174,45 @@ pub enum StackIssue {
     IdentityConflict,
     OverlappingProject,
     UndeclaredServices,
+    /// A container of this project was left out of the read (changing,
+    /// unsupported or truncated), so its membership is incomplete and it is
+    /// not planned.
+    OmittedMembers,
+    /// Some Engine container's Compose labels could not be read, so whether it
+    /// belongs to or overlaps this stack is unknown. Every stack carries it and
+    /// none is planned.
+    IncompleteInventory,
+}
+/// Why one inspected Engine container is not among the members.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(rename = "StackOmissionReason")]
+#[schemars(rename = "StackOmissionReason")]
+#[serde(rename_all = "snake_case")]
+pub enum OmissionReason {
+    /// Its identity-relevant facts differed between the two inspections.
+    Changing,
+    /// A mount type, label set or name this reader does not model.
+    Unsupported,
+}
+/// An Engine container left out of the read with its reason. `project` is the
+/// Compose project its label names, when that label alone is well formed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(rename = "StackOmittedContainer")]
+#[schemars(rename = "StackOmittedContainer")]
+#[serde(deny_unknown_fields)]
+pub struct OmittedContainer {
+    pub resource: String,
+    pub project: Option<String>,
+    pub reason: OmissionReason,
+}
+impl OmittedContainer {
+    fn validate(&self) -> Result<()> {
+        let id = self.resource.strip_prefix("container:").unwrap_or_default();
+        if !crate::opaque_id(id) || self.project.as_deref().is_some_and(|p| !name(p, true)) {
+            return Err(invalid());
+        }
+        Ok(())
+    }
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema, TS)]
 pub struct StackView {
@@ -213,6 +257,17 @@ pub struct StackInventory {
     pub stacks: Vec<StackView>,
     pub other_projects: Vec<OtherProjectView>,
     pub standalone_containers: Option<u16>,
+    /// Engine containers left out because the Engine holds more than
+    /// `MAX_ENGINE_CONTAINERS`; running ones are kept first. Counts above are
+    /// of the containers shown. `None` while the Engine source is not fresh.
+    pub truncated_containers: Option<u16>,
+    /// Inspected containers left out, each with its reason; a registered
+    /// stack with one of them carries `omitted_members`. Empty unless fresh.
+    pub omitted_containers: Vec<OmittedContainer>,
+    /// Listed Engine containers whose Compose project could not be read; when
+    /// above zero every stack carries `incomplete_inventory`. `None` while the
+    /// Engine source is not fresh.
+    pub unattributed_containers: Option<u16>,
 }
 
 fn invalid() -> Error {
@@ -221,7 +276,10 @@ fn invalid() -> Error {
 fn limit() -> Error {
     Error(ErrorCode::Unavailable)
 }
-fn name(value: &str, project: bool) -> bool {
+/// A Compose project name (`project`) or service name as this model accepts
+/// it. The container executor reads Engine labels with this same rule, so a
+/// container it attributes is never one the model then refuses.
+pub fn compose_name(value: &str, project: bool) -> bool {
     !value.is_empty()
         && value.len() <= 64
         && value.as_bytes()[0].is_ascii_alphanumeric()
@@ -231,7 +289,13 @@ fn name(value: &str, project: bool) -> bool {
                 || (!project && b == b'.')
         })
 }
-fn path(value: &str) -> bool {
+fn name(value: &str, project: bool) -> bool {
+    compose_name(value, project)
+}
+/// A Compose working directory or config file path as this model accepts it:
+/// absolute, at most 512 bytes, 16 segments of at most 255 bytes, no empty,
+/// `.` or `..` segment, comma or control character. Shared with the executor.
+pub fn compose_path(value: &str) -> bool {
     value.starts_with('/')
         && value.len() <= 512
         && !value.contains(',')
@@ -240,6 +304,9 @@ fn path(value: &str) -> bool {
         && value[1..]
             .split('/')
             .all(|p| !matches!(p, "" | "." | "..") && p.len() <= 255)
+}
+fn path(value: &str) -> bool {
+    compose_path(value)
 }
 fn overlap(a: &str, b: &str) -> bool {
     a == b
@@ -475,13 +542,17 @@ pub fn discover(
     catalog: Option<CatalogInput<'_>>,
     engine: Option<EngineInput<'_>>,
 ) -> Result<StackInventory> {
-    discover_current(now, catalog, engine, true, true)
+    discover_current(now, catalog, engine, &[], true, true)
 }
 
+/// `hidden` are the Compose projects of Engine containers outside the members
+/// (truncated or omitted): they take part in the identity and overlap checks,
+/// so a stack is never shown free of a project the read could not inspect.
 fn discover_current(
     now: i64,
     catalog: Option<CatalogInput<'_>>,
     engine: Option<EngineInput<'_>>,
+    hidden: &[ProjectIdentity],
     catalog_current: bool,
     engine_current: bool,
 ) -> Result<StackInventory> {
@@ -521,20 +592,16 @@ fn discover_current(
         }
     }
     projects.sort_by(|a, b| a.name.cmp(&b.name));
+    let hidden = if engine_fresh { hidden } else { &[] };
     let mut stacks = Vec::new();
     for declaration in declarations {
         let mut issues = Vec::new();
         if joined {
-            if projects
-                .iter()
-                .any(|p| p.name == declaration.project && !matches(declaration, p))
-            {
+            let all = || projects.iter().copied().chain(hidden);
+            if all().any(|p| p.name == declaration.project && !matches(declaration, p)) {
                 issues.push(StackIssue::IdentityConflict);
             }
-            if projects
-                .iter()
-                .any(|p| p.name != declaration.project && overlaps(declaration, p))
-            {
+            if all().any(|p| p.name != declaration.project && overlaps(declaration, p)) {
                 issues.push(StackIssue::OverlappingProject);
             }
         }
@@ -611,6 +678,9 @@ fn discover_current(
                 .filter(|m| matches!(m, Membership::Standalone { .. }))
                 .count() as u16
         }),
+        truncated_containers: engine_fresh.then_some(0),
+        omitted_containers: Vec::new(),
+        unattributed_containers: engine_fresh.then_some(0),
     };
     report.check_size()?;
     Ok(report)

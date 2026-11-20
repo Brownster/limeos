@@ -543,6 +543,10 @@ fn engine_wide_bound_is_64_and_larger_than_every_stack_bound() {
             engine_id: "engine".into(),
             sampled_at: 100,
             members: members.clone(),
+            truncated: 0,
+            omitted: Vec::new(),
+            hidden_projects: Vec::new(),
+            unattributed: 0,
         }),
     )
     .unwrap();
@@ -563,6 +567,10 @@ fn engine_wide_bound_is_64_and_larger_than_every_stack_bound() {
                 engine_id: "engine".into(),
                 sampled_at: 100,
                 members: over.clone(),
+                truncated: 0,
+                omitted: Vec::new(),
+                hidden_projects: Vec::new(),
+                unattributed: 0,
             })
         )
         .is_err()

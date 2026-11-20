@@ -11,7 +11,8 @@ use limeos_contracts::{
     ResolutionTargetView, ResolutionView, ResolveJobInput, ResolveJobResponse, ResolveStatus,
 };
 use limeos_domain::{
-    DeclaredOutcome, JobResolution, JobState, Principal, ResolutionEvidence, validate_reason,
+    DeclaredOutcome, JobResolution, JobState, Principal, ReceiptAbsence, ResolutionEvidence,
+    ResolveReceipt, execution_closed, validate_reason,
 };
 use limeos_executor_protocol::Request;
 use limeos_persistence::{PendingResolution, ResolutionSubject};
@@ -25,8 +26,16 @@ enum Finish {
     Done(JobResolution),
     /// The executor definitely refused and the request was withdrawn.
     Refused(ErrorCode),
+    /// The executor's receipt is terminal and its recorded outcome contradicts
+    /// the declaration; the request was withdrawn.
+    Disagrees(limeos_domain::ResolveRefusal),
     /// Nothing was settled. The request stays recorded and held.
     Pending(ErrorCode),
+    /// The executor holds no receipt, but the plan expiring at this time is
+    /// still valid: a request sent for it could still run. The request stays
+    /// recorded and held, and the retry loop completes it once the plan has
+    /// expired.
+    AwaitingExpiry(i64),
 }
 
 fn awaiting(state: JobState) -> bool {
@@ -36,6 +45,17 @@ fn awaiting(state: JobState) -> bool {
     )
 }
 const PENDING_MESSAGE: &str = "The request is recorded and the job stays held. The executor could not confirm; core retries automatically. Repeat the same request or check again shortly.";
+
+/// Why a resolution without an executor receipt waits for the plan's expiry.
+fn awaiting_expiry(expires_at: i64, now: i64) -> String {
+    let wait = expires_at
+        .saturating_add(limeos_domain::EXPIRY_SETTLE_MARGIN)
+        .saturating_sub(now)
+        .max(1);
+    format!(
+        "The request is recorded and the job stays held. The executor holds no receipt for this job, but its approved plan has not expired, so a request already sent for it could still run. Core completes the decision automatically about {wait} seconds from now, once the plan has expired and a fresh measurement still matches the evidence you approved."
+    )
+}
 
 fn view_of(
     subject: &ResolutionSubject,
@@ -79,23 +99,37 @@ fn view_of(
     })
 }
 
+/// Why the executor refused: what it recorded and what that allows.
+fn disagreement(refusal: &limeos_domain::ResolveRefusal) -> String {
+    let allowed: Vec<&str> = refusal.allowed.iter().map(|d| d.as_str()).collect();
+    format!(
+        "The executor recorded this job as {}, which contradicts {}. Nothing was changed; it accepts only: {}.",
+        refusal.recorded.as_str(),
+        refusal.declared.as_str(),
+        allowed.join(", ")
+    )
+}
+
 impl Core {
     /// Fresh, read-only measurement of exactly the job's targets. A container
     /// the Engine no longer has is evidence too; any other failure is not.
     async fn gather_evidence(&self, subject: &ResolutionSubject) -> Result<ResolutionEvidence> {
-        let mut current = Vec::with_capacity(subject.targets.len());
-        for target in &subject.targets {
+        self.measure(subject.operation, &subject.targets).await
+    }
+    async fn measure(
+        &self,
+        operation: limeos_domain::ContainerAction,
+        targets: &[limeos_domain::ContainerSnapshot],
+    ) -> Result<ResolutionEvidence> {
+        let mut current = Vec::with_capacity(targets.len());
+        for target in targets {
             current.push(match self.inspect(&target.resource).await {
                 Ok(snapshot) => Some(snapshot),
                 Err(Error(ErrorCode::NotFound)) => None,
                 Err(e) => return Err(e),
             });
         }
-        ResolutionEvidence::observe(
-            subject.operation,
-            &subject.targets.iter().collect::<Vec<_>>(),
-            &current,
-        )
+        ResolutionEvidence::observe(operation, &targets.iter().collect::<Vec<_>>(), &current)
     }
 
     /// Evidence and any existing record for one job. Administrator only; the
@@ -204,12 +238,26 @@ impl Core {
             // Withdrawn, so a new decision is possible: show what changed.
             Finish::Refused(ErrorCode::Conflict) => Ok(ResolveJobResponse {
                 status: ResolveStatus::StaleEvidence,
-                message: "The executor measured something different. Nothing was changed; review the evidence and decide again.".into(),
+                message: "A fresh measurement no longer matches the evidence you approved. Nothing was changed; review the evidence and decide again.".into(),
+                resolution: None,
+                view: self.resolution_view(principal, job).await.ok(),
+                blocking: Vec::new(),
+            }),
+            Finish::Disagrees(refusal) => Ok(ResolveJobResponse {
+                status: ResolveStatus::UnsupportedDeclaration,
+                message: disagreement(&refusal),
                 resolution: None,
                 view: self.resolution_view(principal, job).await.ok(),
                 blocking: Vec::new(),
             }),
             Finish::Refused(_) => Err(Error(ErrorCode::Conflict)),
+            Finish::AwaitingExpiry(expires_at) => Ok(ResolveJobResponse {
+                status: ResolveStatus::Pending,
+                message: awaiting_expiry(expires_at, now()),
+                resolution: None,
+                view: None,
+                blocking: Vec::new(),
+            }),
             Finish::Pending(_) => Ok(ResolveJobResponse {
                 status: ResolveStatus::Pending,
                 message: PENDING_MESSAGE.into(),
@@ -225,6 +273,8 @@ impl Core {
     async fn finish_resolution(&self, pending: &PendingResolution, actor: &Principal) -> Finish {
         let request = &pending.request;
         let budget = Duration::from_secs(10 + 3 * request.evidence.targets.len() as u64);
+        // Read before the request: the executor's answer is no older than this.
+        let asked_at = now();
         let confirmation = self
             .executor(
                 Request::ResolveAction {
@@ -235,17 +285,14 @@ impl Core {
                     evidence_digest: request.evidence_digest.clone(),
                     declared: request.declared,
                     resolved_by: request.resolved_by.clone(),
+                    plan: pending.plan.clone(),
                 },
                 budget,
             )
             .await;
-        match confirmation {
-            Ok(receipt) => {
-                // An answer without a confirmation settles nothing.
-                let Some(confirmation) = receipt.resolution else {
-                    return Finish::Pending(ErrorCode::Unavailable);
-                };
-                let job = request.job.clone();
+        let complete = |confirmation: ResolveReceipt| {
+            let job = request.job.clone();
+            async move {
                 match self
                     .db
                     .call(move |s| s.complete_resolution(&job, &confirmation, now()))
@@ -255,18 +302,74 @@ impl Core {
                     Err(e) => Finish::Pending(e.0),
                 }
             }
+        };
+        let withdraw = || {
+            let (actor, job) = (actor.clone(), request.job.clone());
+            async move {
+                self.db
+                    .call(move |s| s.withdraw_resolution(&actor, &job, now()))
+                    .await
+            }
+        };
+        match confirmation {
+            Ok(receipt) => {
+                if let Some(confirmation) = receipt.resolution {
+                    return complete(confirmation).await;
+                }
+                if let Some(refusal) = receipt.resolution_refusal {
+                    return match withdraw().await {
+                        Ok(()) | Err(Error(ErrorCode::NotFound)) => Finish::Disagrees(refusal),
+                        Err(e) => Finish::Pending(e.0),
+                    };
+                }
+                match receipt.absence {
+                    // The executor holds no row, so it holds no lock to free,
+                    // and core records the confirmation itself. Whatever the
+                    // kind of absence, only once the plan has expired: until
+                    // then an execute request already sent may not yet have
+                    // reached the receipt store, and would run after core
+                    // released its locks. `no_longer_held` is no exception; a
+                    // store upgraded from schema 6 gives it for any plan.
+                    Some(ReceiptAbsence::NeverRecorded | ReceiptAbsence::NoLongerHeld) => {
+                        if !execution_closed(pending.expires_at, asked_at) {
+                            return Finish::AwaitingExpiry(pending.expires_at);
+                        }
+                    }
+                    // An answer without a confirmation settles nothing.
+                    None => return Finish::Pending(ErrorCode::Unavailable),
+                }
+                // No executor re-measured anything, and the decision may be
+                // hours old (a crash before completion). Measure again now and
+                // complete only on exactly the evidence the administrator
+                // approved; otherwise they decide again.
+                match self.measure(pending.operation, &pending.targets).await {
+                    Ok(now) if now.digest().ok().as_deref() == Some(&request.evidence_digest) => {}
+                    Ok(_) => {
+                        return match withdraw().await {
+                            Ok(()) | Err(Error(ErrorCode::NotFound)) => {
+                                Finish::Refused(ErrorCode::Conflict)
+                            }
+                            Err(e) => Finish::Pending(e.0),
+                        };
+                    }
+                    Err(e) => return Finish::Pending(e.0),
+                }
+                complete(ResolveReceipt {
+                    kind: pending.kind,
+                    action: request.job.clone(),
+                    evidence_digest: request.evidence_digest.clone(),
+                    declared: request.declared,
+                    resolved_by: request.resolved_by.clone(),
+                })
+                .await
+            }
             // Only these are a definite "no": the executor answered and did not
             // free anything. Everything else, including a lost connection, may
             // have happened and stays recorded.
             Err(Error(
                 code @ (ErrorCode::Conflict | ErrorCode::NotFound | ErrorCode::Forbidden),
             )) => {
-                let (actor, job) = (actor.clone(), request.job.clone());
-                match self
-                    .db
-                    .call(move |s| s.withdraw_resolution(&actor, &job, now()))
-                    .await
-                {
+                match withdraw().await {
                     // Already withdrawn or completed elsewhere is settled enough.
                     Ok(()) | Err(Error(ErrorCode::NotFound)) => Finish::Refused(code),
                     Err(e) => Finish::Pending(e.0),
@@ -315,9 +418,18 @@ impl Core {
                         "executor refused a pending job resolution; withdrawn"
                     )
                 }
+                Finish::Disagrees(refusal) => {
+                    tracing::warn!(
+                        recorded = refusal.recorded.as_str(),
+                        "pending job resolution contradicts the executor's recorded outcome; withdrawn"
+                    )
+                }
                 Finish::Pending(code) => {
                     tracing::warn!(?code, "job resolution stays pending")
                 }
+                Finish::AwaitingExpiry(_) => tracing::info!(
+                    "job resolution without an executor receipt waits for its plan to expire"
+                ),
             }
         }
     }

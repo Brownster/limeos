@@ -239,10 +239,17 @@ async fn malformed_or_contradictory_selected_health_refuses_but_old_selection_st
             f.inspect_combined().await.is_ok(),
             "legacy selection {pointer}"
         );
-        assert!(
-            matches!(inspect(&f).await, Err(Error(ErrorCode::Unavailable))),
+        // Per container: unavailable this round, never healthy and never gone.
+        let owner = inspect(&f).await.unwrap();
+        let snap = owner.snapshot();
+        let row = &snap.containers[0];
+        assert_eq!(row.health, HealthStatus::Unavailable, "{pointer}");
+        assert_eq!(
+            row.signal.as_ref().unwrap().status,
+            SignalStatus::Unavailable,
             "{pointer}"
         );
+        assert!(!snap.complete, "{pointer}");
     }
 }
 
@@ -261,11 +268,52 @@ async fn selected_second_pass_changes_refuse_without_promoting_a_partial_snapsho
             ..config()
         })
         .await;
-        assert!(
-            matches!(inspect(&f).await, Err(Error(ErrorCode::Conflict))),
+        // The changing container is reported unavailable with its first-pass
+        // name; neither pass's health is promoted.
+        let owner = inspect(&f).await.unwrap();
+        let snap = owner.snapshot();
+        assert_eq!(
+            snap.containers[0].health,
+            HealthStatus::Unavailable,
             "{pointer}"
         );
+        assert_eq!(
+            snap.containers[0].signal.as_ref().unwrap().summary,
+            "plex observation unavailable"
+        );
+        assert!(!snap.complete);
     }
+}
+
+#[tokio::test]
+async fn one_health_flip_marks_only_that_container_unavailable() {
+    let f = fixture(Config {
+        count: 3,
+        all_running: true,
+        health_inspect: Some(fields("always", check(), status("starting"))),
+        health_inspect_after: Some(fields("always", check(), status("healthy"))),
+        health_after_only: Some(1),
+        ..config()
+    })
+    .await;
+    let owner = inspect(&f).await.unwrap();
+    let snap = owner.snapshot();
+    let health: Vec<_> = snap.containers.iter().map(|c| c.health).collect();
+    assert_eq!(
+        health,
+        [
+            HealthStatus::Starting,
+            HealthStatus::Unavailable,
+            HealthStatus::Starting
+        ]
+    );
+    assert!(!snap.complete);
+    // Revalidation for alerting tolerates it; the strict one does not.
+    assert!(owner.revalidate_display().await.is_ok());
+    assert!(matches!(
+        owner.revalidate().await,
+        Err(Error(ErrorCode::Conflict))
+    ));
 }
 
 #[tokio::test]
@@ -470,4 +518,28 @@ async fn health_read_keeps_the_combined_profile_so_eighteen_containers_refuse() 
         inspect(&f).await,
         Err(Error(ErrorCode::Unavailable))
     ));
+}
+#[tokio::test]
+async fn a_container_removed_during_the_read_is_reported_gone_not_unavailable() {
+    // Two `restart: always` containers; the second is removed (`--rm`) before
+    // its first or its second inspection. The first stays unknown-policy-safe.
+    for from in [1, 2] {
+        let f = fixture(Config {
+            count: 2,
+            all_running: true,
+            vanishing: Some((1, from)),
+            ..config()
+        })
+        .await;
+        let owner = inspect(&f).await.unwrap();
+        let snap = owner.snapshot();
+        let gone = format!("container:{:064x}", 1);
+        assert!(
+            snap.containers.iter().all(|row| row.resource != gone),
+            "{from}"
+        );
+        assert_eq!(snap.containers.len(), 1);
+        assert!(snap.complete, "{from}");
+        assert_eq!(snap.containers[0].health, HealthStatus::Healthy);
+    }
 }

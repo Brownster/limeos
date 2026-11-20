@@ -1060,6 +1060,20 @@
           },
           {
             "additionalProperties": false,
+            "description": "The executor answered that it holds no receipt for this job, after its\nreceipt may have been pruned: whether the action ran is unknown, and the\njob stays held for an operator.",
+            "properties": {
+              "kind": {
+                "const": "executor_receipt_missing",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
             "properties": {
               "kind": {
                 "const": "job_transition",
@@ -2670,12 +2684,26 @@
         ]
       },
       "StackIssue": {
-        "enum": [
-          "identity_conflict",
-          "overlapping_project",
-          "undeclared_services"
-        ],
-        "type": "string"
+        "oneOf": [
+          {
+            "enum": [
+              "identity_conflict",
+              "overlapping_project",
+              "undeclared_services"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "omitted_members",
+            "description": "A container of this project was left out of the read (changing,\nunsupported or truncated), so its membership is incomplete and it is\nnot planned.",
+            "type": "string"
+          },
+          {
+            "const": "incomplete_inventory",
+            "description": "Some Engine container's Compose labels could not be read, so whether it\nbelongs to or overlaps this stack is unknown. Every stack carries it and\nnone is planned.",
+            "type": "string"
+          }
+        ]
       },
       "StackJob": {
         "additionalProperties": false,
@@ -2735,6 +2763,44 @@
         "required": [
           "container",
           "one_off"
+        ],
+        "type": "object"
+      },
+      "StackOmissionReason": {
+        "description": "Why one inspected Engine container is not among the members.",
+        "oneOf": [
+          {
+            "const": "changing",
+            "description": "Its identity-relevant facts differed between the two inspections.",
+            "type": "string"
+          },
+          {
+            "const": "unsupported",
+            "description": "A mount type, label set or name this reader does not model.",
+            "type": "string"
+          }
+        ]
+      },
+      "StackOmittedContainer": {
+        "additionalProperties": false,
+        "description": "An Engine container left out of the read with its reason. `project` is the\nCompose project its label names, when that label alone is well formed.",
+        "properties": {
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/StackOmissionReason"
+          },
+          "resource": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource",
+          "reason"
         ],
         "type": "object"
       },
@@ -11907,6 +11973,13 @@
                       "format": "int64",
                       "type": "integer"
                     },
+                    "omitted_containers": {
+                      "description": "Inspected containers left out, each with its reason; a registered\nstack with one of them carries `omitted_members`. Empty unless fresh.",
+                      "items": {
+                        "$ref": "#/components/schemas/StackOmittedContainer"
+                      },
+                      "type": "array"
+                    },
                     "other_projects": {
                       "items": {
                         "$ref": "#/components/schemas/StackOtherProjectView"
@@ -11928,6 +12001,26 @@
                         "null"
                       ]
                     },
+                    "truncated_containers": {
+                      "description": "Engine containers left out because the Engine holds more than\n`MAX_ENGINE_CONTAINERS`; running ones are kept first. Counts above are\nof the containers shown. `None` while the Engine source is not fresh.",
+                      "format": "uint16",
+                      "maximum": 65535,
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "unattributed_containers": {
+                      "description": "Listed Engine containers whose Compose project could not be read; when\nabove zero every stack carries `incomplete_inventory`. `None` while the\nEngine source is not fresh.",
+                      "format": "uint16",
+                      "maximum": 65535,
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
                     "version": {
                       "format": "uint16",
                       "maximum": 65535,
@@ -11941,7 +12034,8 @@
                     "catalog",
                     "engine",
                     "stacks",
-                    "other_projects"
+                    "other_projects",
+                    "omitted_containers"
                   ],
                   "title": "StackInventory",
                   "type": "object"

@@ -32,7 +32,7 @@ def restart_core():
     fixture.eventually(lambda: fixture.http("/api/v1/health")[0] == 200)
 
 
-def upgrade(candidate):
+def upgrade(candidate, authority_schema):
     previous = Path("/opt/limeos-previous-repo")
     if not previous.is_dir():
         return None
@@ -79,10 +79,13 @@ def upgrade(candidate):
     new_job, _ = fixture.queue(pending, token, "compose-upgrade-pending", cookie, csrf)
     fixture.eventually(lambda: fixture.state(new_job["id"]) == "succeeded")
     with sqlite3.connect(fixture.CORE_DB) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert db.execute("PRAGMA user_version").fetchone()[0] == authority_schema
         assert db.execute("SELECT COUNT(*) FROM container_results").fetchone()[0] == 2
     with sqlite3.connect(fixture.RECEIPTS) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert (
+            db.execute("PRAGMA user_version").fetchone()[0]
+            >= lifecycle.RECEIPT_SCHEMA_MINIMUM
+        )
         assert (
             db.execute(
                 "SELECT COUNT(*) FROM actions WHERE state='verified'"
@@ -189,7 +192,7 @@ def main(package_version="0.3.2", authority_schema=5, qualify_upgrade=True):
     fixture.eventually(
         lambda: fixture.run("docker", "info", check=False).returncode == 0
     )
-    upgrade_result = upgrade(candidate) if qualify_upgrade else None
+    upgrade_result = upgrade(candidate, authority_schema) if qualify_upgrade else None
     lifecycle.main(
         package_version=VERSION,
         authority_schema=authority_schema,

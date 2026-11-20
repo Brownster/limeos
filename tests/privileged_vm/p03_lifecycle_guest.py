@@ -17,6 +17,10 @@ sys.path.insert(0, "/root/build/source/tests/privileged_vm")
 import p03_guest as fixture
 
 BASE = "/api/v1/container"
+# The candidate's receipt schema is at least this: `RECEIPT_SCHEMA_VERSION` in
+# crates/executor-container/src/lib.rs. A guest cannot import the Rust constant,
+# and a later candidate only adds migrations, so assert "at least".
+RECEIPT_SCHEMA_MINIMUM = 6
 
 
 def repository(path):
@@ -76,7 +80,7 @@ def upgrade(candidate, package_version="0.3.2", authority_schema=5):
         assert db.execute("PRAGMA user_version").fetchone()[0] == authority_schema
         assert db.execute("SELECT COUNT(*) FROM container_results").fetchone()[0] == 2
     with sqlite3.connect(fixture.RECEIPTS) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert db.execute("PRAGMA user_version").fetchone()[0] >= RECEIPT_SCHEMA_MINIMUM
         assert (
             db.execute(
                 "SELECT COUNT(*) FROM actions WHERE operation='restart' AND state='verified'"
@@ -494,7 +498,10 @@ def main(package_version="0.3.2", authority_schema=5, qualify_upgrade=True):
     result["operations"] = ["restart", "start", "stop", "logs"]
     with sqlite3.connect(fixture.CORE_DB) as db:
         observed_schema = db.execute("PRAGMA user_version").fetchone()[0]
-    result["schemas"] = {"authority": observed_schema, "container_receipts": 3}
+    with sqlite3.connect(fixture.RECEIPTS) as db:
+        receipt_schema = db.execute("PRAGMA user_version").fetchone()[0]
+    assert receipt_schema >= RECEIPT_SCHEMA_MINIMUM
+    result["schemas"] = {"authority": observed_schema, "container_receipts": receipt_schema}
     result["footprint"].update(
         app_pss_kib=memory,
         combined_pss_kib=sum(memory.values()),

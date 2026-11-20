@@ -39,6 +39,10 @@ fn cohort() -> DiscoveryCohort {
                 service: "web".into(),
                 one_off: false,
             }],
+            truncated: 0,
+            omitted: Vec::new(),
+            hidden_projects: Vec::new(),
+            unattributed: 0,
         }),
     )
     .unwrap()

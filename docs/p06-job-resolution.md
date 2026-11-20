@@ -18,6 +18,16 @@ Only an administrator, only on an interactive session. There is no grant, task s
 
 `not_done` only releases the lock; re-plan separately. A container that no longer exists proves neither `verified_done` nor `not_done`. Reasons may not have leading or trailing whitespace or control characters.
 
+The executor may already have finished a job core still holds (core crashed before recording the result, or its own check failed). Its receipt is then terminal, and it accepts only declarations that agree with what it recorded, on top of the evidence rule above:
+
+| Recorded outcome | Accepted declarations |
+| --- | --- |
+| `verified` | `verified_done`, `accepted_divergence` |
+| `precondition_changed` (nothing was sent) | `not_done`, `accepted_divergence` |
+| `partly_done` (stacks: some members done, the rest never sent) | `accepted_divergence` |
+
+Any other declaration is refused as `unsupported_declaration`, with a message naming the recorded outcome and what it accepts; the request is withdrawn and the job stays held.
+
 ## HTTP API
 
 Both routes are on `/api/v1/jobs/{id}/resolution`, where `{id}` is the 64-hex job ID of a container or stack job (the same ID the restart and stack job routes return). Errors outside the documented bodies use the usual `ErrorEnvelope` (`code`, `message`, `retry`, `audit_id`).
@@ -73,8 +83,8 @@ Headers: `Origin`, `X-CSRF-Token`, `Content-Type: application/json`. Body, no ot
 | --- | --- | --- |
 | 200 | `resolved` | Executor and core are both released. `resolution` is the record. |
 | 202 | `pending` | Recorded and held: the executor was unreachable or its answer was lost. Core retries on its own; repeating the identical POST is safe and idempotent. The job stays locked until it completes. |
-| 409 | `stale_evidence` | The state changed since the evidence was shown, or the executor measured something different (the request is then withdrawn). `view` is fresh evidence; show it and let the administrator decide again. |
-| 409 | `unsupported_declaration` | The evidence does not support `declared`. `blocking` lists the container IDs that differ; `view` has the per-target plan-vs-measured detail. Nothing is recorded. |
+| 409 | `stale_evidence` | The state changed since the evidence was shown, or a fresh measurement at completion differs from the approved evidence (the executor's, or core's own when the executor holds no receipt); the request is then withdrawn. `view` is fresh evidence; show it and let the administrator decide again. |
+| 409 | `unsupported_declaration` | The evidence does not support `declared`. `blocking` lists the container IDs that differ; `view` has the per-target plan-vs-measured detail. Nothing is recorded. Also returned, with empty `blocking`, when the executor's terminal receipt contradicts `declared` (see above); that request is withdrawn. |
 | 409 | (`ErrorEnvelope`, `conflict`) | Another request is open for the job, the job is not awaiting resolution, or it is already resolved. GET to see `pending` or `resolution`. |
 | 400 | (`ErrorEnvelope`) | Bad body, reason rules, job ID. |
 | 401 | (`ErrorEnvelope`) | No or expired session, or wrong password. |

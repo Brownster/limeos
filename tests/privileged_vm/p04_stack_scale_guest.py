@@ -4,8 +4,9 @@
 Reuses the lifecycle guest's installer, session, Compose-labelled fixtures, plan/approve/queue helpers and the
 independent `docker events` proof. Cases: (1) 30 containers (15 running, many standalone, two multi-member
 projects): the shared inventory is fresh and a stack restart plans, runs and verifies; (2) exactly 64 containers
-(`MAX_ENGINE_CONTAINERS`) are fresh and still plan; (3) 65 containers fail closed (inventory not fresh, plans
-refuse) and recover when one is removed. A sampler records the stack reader's cgroup memory, tasks and
+(`MAX_ENGINE_CONTAINERS`) are fresh and still plan; (3) 65 containers degrade, not refuse (PR-15): the inventory
+stays fresh with `truncated_containers == 1`, keeping running containers first, so the running stack is complete
+and still plans; removing one clears the flag. A sampler records the stack reader's cgroup memory, tasks and
 descriptors against its limits (64 MiB, 16 tasks, 256 descriptors) for the whole run.
 """
 
@@ -155,7 +156,7 @@ def exactly_64():
     return detail
 
 
-@sl.case("S3 65 containers: inventory not fresh and plans refused (fail closed); recovers at 64")
+@sl.case("S3 65 containers: inventory stays fresh with a truncation flag and the running stack still plans")
 def over_65():
     ids = sl.members("sl1")
     extra = make_standalone("over", 1)[0]
@@ -163,28 +164,35 @@ def over_65():
     sl.check(engine_total() == 65, "not 65")
     seen = {}
 
-    def closed():
+    def flagged():
         status, value = inventory()
         seen["status"] = status
         if status == 200:
             seen["engine"] = value["engine"]["state"]
-        plan_status, _ = sl.stack_plan("sl1", "restart")
-        seen["plan"] = plan_status
-        return seen.get("engine") != "fresh" and plan_status in (409, 503)
+            seen["truncated"] = value.get("truncated_containers")
+        return seen.get("engine") == "fresh" and seen.get("truncated") == 1
 
-    fx.eventually(closed, timeout=240)
+    fx.eventually(flagged, timeout=240)
     final = dict(seen)
-    for _ in range(3):  # stays closed: no flapping back to a partial view
+    for _ in range(3):  # stays degraded, not refused: no flapping to unavailable
         time.sleep(5)
         status, value = inventory()
-        sl.check(status != 200 or value["engine"]["state"] != "fresh", "65 containers became fresh", value=value)
-        plan_status, _ = sl.stack_plan("sl1", "restart")
-        sl.check(plan_status in (409, 503), "plan accepted with 65 containers", status=plan_status)
+        sl.check(status == 200 and value["engine"]["state"] == "fresh", "65 containers blanked the inventory", status=status)
+        sl.check(value.get("truncated_containers") == 1, "truncation flag missing", value=value)
+    # The stopped standalone container is the one left out; the running stack is whole.
+    plan_status, proposal = sl.stack_plan("sl1", "restart", retry=True)
+    sl.check(plan_status == 201, "running stack did not plan with 65 containers", status=plan_status)
+    sl.check(
+        [m["resource"] for m in proposal["plan"]["expected"]["members"]] == ["container:" + i for i in ids],
+        "plan members are not exactly the stack's members",
+        plan=proposal["plan"]["expected"],
+    )
     fx.docker("rm", "-f", extra)
     sl.fixture["scale"].remove(extra)
     sl.check(engine_total() == 64, "not back to 64")
     value = fresh_inventory("sl1", ids)
-    return {"closed": final, "recovered_engine": value["engine"]["state"], "cgroup": cgroup_facts()}
+    sl.check(value.get("truncated_containers") == 0, "truncation flag not cleared at 64", value=value)
+    return {"degraded": final, "plan": plan_status, "recovered_engine": value["engine"]["state"], "cgroup": cgroup_facts()}
 
 
 def main():

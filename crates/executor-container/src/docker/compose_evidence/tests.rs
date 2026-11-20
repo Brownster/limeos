@@ -21,6 +21,7 @@ fn parsed(labels: Value) -> Result<ComposeContainerMembership> {
         &container(),
         &mut admission.scope(),
     )
+    .map_err(Refusal::strict)
 }
 
 #[test]
@@ -82,8 +83,9 @@ fn project_and_service_names_have_exact_literal_64_byte_grammars() {
 #[test]
 fn paths_accept_exact_byte_and_component_limits_and_refuse_noncanonical_names() {
     let mut value = labels();
-    value[DIRECTORY] = json!(format!("/{}", "d".repeat(511)));
-    value[FILES] = json!(format!("/{}", "f".repeat(511)));
+    // 512 bytes in two segments of the 255-byte segment limit.
+    value[DIRECTORY] = json!(format!("/{0}/{0}", "d".repeat(255)));
+    value[FILES] = json!(format!("/{0}/{0}", "f".repeat(255)));
     assert!(parsed(value.clone()).is_ok());
     for text in [
         "relative".into(),
@@ -95,6 +97,7 @@ fn paths_accept_exact_byte_and_component_limits_and_refuse_noncanonical_names() 
         "/private\nvalue".into(),
         "/a,b".into(),
         format!("/{}", "x".repeat(512)),
+        format!("/{}", "x".repeat(256)),
         format!("/{}", "d/".repeat(16) + "d"),
     ] {
         let mut bad = value.clone();
@@ -140,7 +143,7 @@ fn project_names_cannot_merge_different_directories_or_ordered_file_selections()
     let mut different = labels();
     different[SERVICE] = json!("replica");
     different[ONEOFF] = json!("True");
-    assert!(consistent(&[first.clone(), parsed(different).unwrap()]).is_ok());
+    assert!(conflicting(&[first.clone(), parsed(different).unwrap()]).is_empty());
     for (key, text) in [
         (DIRECTORY, "/opt/other"),
         (
@@ -150,12 +153,15 @@ fn project_names_cannot_merge_different_directories_or_ordered_file_selections()
     ] {
         let mut different = labels();
         different[key] = json!(text);
-        assert!(consistent(&[first.clone(), parsed(different).unwrap()]).is_err());
+        assert_eq!(
+            conflicting(&[first.clone(), parsed(different).unwrap()]),
+            ["media"]
+        );
     }
     let mut other = labels();
     other[PROJECT] = json!("other");
     other[DIRECTORY] = json!("/opt/other");
-    assert!(consistent(&[first, parsed(other).unwrap()]).is_ok());
+    assert!(conflicting(&[first, parsed(other).unwrap()]).is_empty());
 }
 #[test]
 fn full_container_identity_is_preserved_and_unknown_labels_environment_are_not_reported() {
@@ -172,6 +178,10 @@ fn full_container_identity_is_preserved_and_unknown_labels_environment_are_not_r
 fn capture() -> Capture {
     Capture::new(EngineComposeSnapshot {
         version: 1,
+        truncated: 0,
+        omitted: Vec::new(),
+        hidden_projects: Vec::new(),
+        unattributed: 0,
         engine_id: "synthetic-engine".into(),
         containers_observed_at: 100,
         containers: vec![],

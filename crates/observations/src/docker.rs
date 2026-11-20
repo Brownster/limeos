@@ -73,7 +73,7 @@ impl Docker {
         }
         Ok(format!("v1.{max}"))
     }
-    pub async fn inventory(&self, version: &str) -> Result<Vec<Resource>> {
+    pub async fn inventory(&self, version: &str) -> Result<(Vec<Resource>, Vec<String>)> {
         containers(
             &self
                 .json(format!("/{version}/containers/json?all=true"), 1024 * 1024)
@@ -135,32 +135,38 @@ impl Docker {
         .map_err(|_| Error(ErrorCode::Unavailable))?
     }
 }
-pub(crate) fn containers(value: &Value) -> Result<Vec<Resource>> {
+/// Containers shown in one observation.
+pub(crate) const MAX_CONTAINERS: usize = 64;
+/// An Engine holding more containers than the bound shows the first
+/// `MAX_CONTAINERS`, running ones first, then by name and ID, and says so in a
+/// source warning. One malformed row is left out with a warning; it never
+/// blanks the inventory.
+pub(crate) fn containers(value: &Value) -> Result<(Vec<Resource>, Vec<String>)> {
     let list = value.as_array().ok_or(Error(ErrorCode::Unavailable))?;
-    if list.len() > 64 {
-        return Err(Error(ErrorCode::Unavailable));
-    }
     let mut result = Vec::new();
     let mut ids = std::collections::HashSet::new();
+    let mut malformed = 0usize;
     for c in list {
         let id = text(&c["Id"], 65);
-        if id.len() != 64 || !id.bytes().all(|b| b.is_ascii_hexdigit()) || !ids.insert(id.clone()) {
-            return Err(Error(ErrorCode::Unavailable));
+        let state = text(&c["State"], 32);
+        if id.len() != 64
+            || !id.bytes().all(|b| b.is_ascii_hexdigit())
+            || !matches!(
+                state.as_str(),
+                "created" | "running" | "paused" | "restarting" | "removing" | "exited" | "dead"
+            )
+            || !ids.insert(id.clone())
+        {
+            malformed += 1;
+            continue;
         }
         let name = c["Names"]
             .as_array()
             .and_then(|a| a.first())
             .map(|v| text(v, 80))
-            .unwrap_or_else(|| id[..12].into())
+            .unwrap_or_else(|| id.chars().take(12).collect())
             .trim_start_matches('/')
             .to_owned();
-        let state = text(&c["State"], 32);
-        if !matches!(
-            state.as_str(),
-            "created" | "running" | "paused" | "restarting" | "removing" | "exited" | "dead"
-        ) {
-            return Err(Error(ErrorCode::Unavailable));
-        }
         let mut resource = Resource::new(
             format!("container:{id}"),
             ResourceKind::Container,
@@ -183,8 +189,27 @@ pub(crate) fn containers(value: &Value) -> Result<Vec<Resource>> {
         };
         result.push(resource);
     }
+    let mut warnings = Vec::new();
+    if malformed > 0 {
+        warnings.push(format!(
+            "{malformed} Engine container records were malformed and are not shown"
+        ));
+    }
+    if result.len() > MAX_CONTAINERS {
+        result.sort_by(|a, b| {
+            (a.status != "running")
+                .cmp(&(b.status != "running"))
+                .then_with(|| a.name.cmp(&b.name))
+                .then_with(|| a.id.cmp(&b.id))
+        });
+        warnings.push(format!(
+            "The Engine holds {} containers; the first {MAX_CONTAINERS} are shown, running ones first, and stack states count only those",
+            result.len()
+        ));
+        result.truncate(MAX_CONTAINERS);
+    }
     result.sort_by(|a, b| a.id.cmp(&b.id));
-    Ok(result)
+    Ok((result, warnings))
 }
 pub(crate) fn stacks(containers: &[Resource]) -> Vec<Resource> {
     let mut groups = BTreeMap::<String, Vec<&Resource>>::new();
@@ -258,7 +283,8 @@ mod tests {
     #[test]
     fn inventory_only_exposes_selected_metadata_and_stack_health() {
         let v = serde_json::json!([{"Id":"a".repeat(64),"Names":["/jellyfin"],"State":"running","Status":"Up (unhealthy)","Image":"jellyfin:stable","Labels":{"com.docker.compose.project":"media","secret":"do-not-export"},"Env":["TOKEN=secret"]}]);
-        let resources = containers(&v).unwrap();
+        let (resources, warnings) = containers(&v).unwrap();
+        assert!(warnings.is_empty());
         assert_eq!(resources[0].id, format!("container:{}", "a".repeat(64)));
         assert_eq!(stacks(&resources)[0].status, "degraded");
         assert!(
@@ -266,7 +292,54 @@ mod tests {
                 .unwrap()
                 .contains("secret")
         );
-        assert!(containers(&serde_json::json!([{"Id":"bad","State":"running"}])).is_err());
+        // One malformed record is left out, never fatal.
+        let (shown, warnings) =
+            containers(&serde_json::json!([{"Id":"bad","State":"running"}])).unwrap();
+        assert!(shown.is_empty());
+        assert_eq!(warnings.len(), 1);
+        assert!(containers(&serde_json::json!({"Id":"bad"})).is_err());
+    }
+    fn engine(count: usize, running: impl Fn(usize) -> bool) -> Value {
+        serde_json::Value::Array(
+            (0..count)
+                .map(|i| {
+                    serde_json::json!({"Id":format!("{i:064x}"),"Names":[format!("/c{i:03}")],
+                        "State": if running(i) { "running" } else { "exited" },"Status":"",
+                        "Image":"busybox","Labels": if i % 10 == 0 {
+                            serde_json::json!({"com.docker.compose.project":"media"})
+                        } else { serde_json::json!({}) }})
+                })
+                .collect(),
+        )
+    }
+    #[test]
+    fn over_the_bound_keeps_running_containers_first_with_a_warning_not_an_error() {
+        for (count, running) in [(65usize, 40usize), (200, 70), (200, 10)] {
+            // Running containers are scattered among stopped ones.
+            let is_running = |i: usize| (i * 7) % count < running;
+            let (shown, warnings) = containers(&engine(count, is_running)).unwrap();
+            assert_eq!(shown.len(), MAX_CONTAINERS, "{count}");
+            assert!(warnings[0].contains(&format!("holds {count} containers")));
+            let kept_running = shown.iter().filter(|r| r.status == "running").count();
+            assert_eq!(kept_running, running.min(MAX_CONTAINERS));
+            // Deterministic: the stopped ones kept are the first by name.
+            let mut names: Vec<_> = shown
+                .iter()
+                .filter(|r| r.status != "running")
+                .map(|r| r.name.clone())
+                .collect();
+            names.sort();
+            let mut expected: Vec<_> = (0..count)
+                .filter(|&i| !is_running(i))
+                .map(|i| format!("c{i:03}"))
+                .take(MAX_CONTAINERS.saturating_sub(running))
+                .collect();
+            expected.sort();
+            assert_eq!(names, expected);
+            assert!(shown.windows(2).all(|w| w[0].id < w[1].id));
+        }
+        let (all, warnings) = containers(&engine(64, |_| false)).unwrap();
+        assert_eq!((all.len(), warnings.len()), (64, 0));
     }
     #[test]
     fn missing_cgroups_and_counter_resets_are_unknown() {
@@ -291,7 +364,7 @@ mod tests {
         let v: Value =
             serde_json::from_str(include_str!("../../../tests/fixtures/read-semantics.json"))
                 .unwrap();
-        let r = containers(&v["docker"]).unwrap();
+        let (r, _) = containers(&v["docker"]).unwrap();
         for (a, b) in r
             .iter()
             .zip(v["expected"]["containers"].as_array().unwrap())

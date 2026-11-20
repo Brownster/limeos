@@ -268,9 +268,13 @@ async fn a_stuck_job_whose_container_was_removed_can_be_resolved() {
             &evidence.digest().unwrap(),
             DeclaredOutcome::AcceptedDivergence,
             &"9".repeat(64),
+            &limeos_domain::ActionPlan::Container(request.plan.clone()),
         )
         .await
         .unwrap();
+    let crate::ResolveOutcome::Resolved(confirmed) = confirmed else {
+        panic!("not resolved: {confirmed:?}");
+    };
     assert_eq!(confirmed.action, request.action);
     let posts = calls
         .lock()

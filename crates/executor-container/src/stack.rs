@@ -13,7 +13,15 @@ use limeos_domain::{
 };
 
 const ACTIVE: &str = "('prepared','effect_accepted','outcome_unknown')";
+/// Last-resort cap; retention keeps normal operation far below it.
 const MAX_STACK_ROWS: u32 = 8192;
+
+/// The first write of a stack receipt: its plan's expiry and the validating clock.
+#[derive(Clone, Copy)]
+pub(crate) struct Insert {
+    pub(crate) expires_at: i64,
+    pub(crate) now: i64,
+}
 
 /// The member's own protected row: a container receipt under a derived action.
 pub fn member_action(action: &str, resource: &str) -> String {
@@ -120,7 +128,7 @@ impl ReceiptStore {
             }
         }
         receipt.state = aggregate_state(&receipt.members);
-        self.write_stack(&receipt, &pending, false)?;
+        self.write_stack(&receipt, &pending, None)?;
         Ok(Some(receipt))
     }
 
@@ -129,9 +137,9 @@ impl ReceiptStore {
         &mut self,
         receipt: &StackReceipt,
         changed: &[String],
-        insert: bool,
+        insert: Option<Insert>,
     ) -> Result<()> {
-        if insert
+        if insert.is_some()
             && fs2::available_space(&self.directory)
                 .map_err(|_| Error(ErrorCode::StateNotDurable))?
                 < 8 * 1024 * 1024
@@ -140,7 +148,8 @@ impl ReceiptStore {
         }
         let body = encode(receipt)?;
         let tx = self.conn.transaction().map_err(durable)?;
-        if insert {
+        if let Some(Insert { expires_at, now }) = insert {
+            retention::prune(&tx, now)?;
             let stacks: u32 = tx
                 .query_row("SELECT count(*) FROM stack_actions", [], |r| r.get(0))
                 .map_err(durable)?;
@@ -153,28 +162,30 @@ impl ReceiptStore {
                 return Err(Error(ErrorCode::Overloaded));
             }
             tx.execute(
-                "INSERT INTO stack_actions(action,digest,resource,state,receipt,operation) VALUES(?,?,?,?,?,?)",
+                "INSERT INTO stack_actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?,?,?,?,?,?,?)",
                 params![
                     receipt.action,
                     receipt.plan_digest,
                     receipt.before.resource,
                     receipt.state.as_str(),
                     body,
-                    receipt.operation.as_str()
+                    receipt.operation.as_str(),
+                    expires_at
                 ],
             )
             .map_err(unique)?;
             for member in &receipt.members {
                 let row = member_receipt(receipt, member)?;
                 tx.execute(
-                    "INSERT INTO actions(action,digest,resource,state,receipt,operation) VALUES(?,?,?,?,?,?)",
+                    "INSERT INTO actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?,?,?,?,?,?,?)",
                     params![
                         row.action,
                         row.plan_digest,
                         row.before.resource,
                         row.state.as_str(),
                         encode(&row)?,
-                        row.operation.as_str()
+                        row.operation.as_str(),
+                        expires_at
                     ],
                 )
                 .map_err(unique)?;
@@ -208,7 +219,7 @@ impl ReceiptStore {
             }
         }
         tx.commit().map_err(durable)?;
-        if insert {
+        if insert.is_some() {
             File::open(&self.directory)
                 .and_then(|f| f.sync_all())
                 .map_err(|_| Error(ErrorCode::StateNotDurable))?;
@@ -218,7 +229,12 @@ impl ReceiptStore {
 
     /// Record a refusal that happened before any effect. The row is terminal,
     /// so it holds no lock, and a retry returns it instead of re-listing.
-    fn refuse_stack(&mut self, request: &StackRequest, error: ErrorCode) -> Result<StackReceipt> {
+    fn refuse_stack(
+        &mut self,
+        request: &StackRequest,
+        error: ErrorCode,
+        now: i64,
+    ) -> Result<StackReceipt> {
         let targets = request.plan.targets();
         let members: Vec<_> = targets
             .iter()
@@ -238,7 +254,14 @@ impl ReceiptStore {
             error: Some(error),
         };
         // Terminal rows hold no lock; member rows keep lookup cross-checks uniform.
-        self.write_stack(&receipt, &[], true)?;
+        self.write_stack(
+            &receipt,
+            &[],
+            Some(Insert {
+                expires_at: request.plan.expires_at,
+                now,
+            }),
+        )?;
         Ok(receipt)
     }
 
@@ -272,7 +295,7 @@ impl ReceiptStore {
             .ok()
             .is_none_or(|actual| request.plan.check_current(&actual, clock()).is_err());
         if drifted {
-            return self.refuse_stack(request, ErrorCode::Conflict);
+            return self.refuse_stack(request, ErrorCode::Conflict, clock());
         }
         let targets = request.plan.targets();
         let members: Vec<_> = targets
@@ -292,7 +315,14 @@ impl ReceiptStore {
             members,
             error: None,
         };
-        self.write_stack(&receipt, &[], true)?;
+        self.write_stack(
+            &receipt,
+            &[],
+            Some(Insert {
+                expires_at: request.plan.expires_at,
+                now: clock(),
+            }),
+        )?;
         // Sync may take time. Recheck expiry immediately before initiating IPC.
         if let Err(e) = request.plan.validate(clock()) {
             for member in &mut receipt.members {
@@ -302,7 +332,7 @@ impl ReceiptStore {
             receipt.state = aggregate_state(&receipt.members);
             receipt.error = Some(e.0);
             let all: Vec<_> = receipt.members.iter().map(|m| m.resource.clone()).collect();
-            self.write_stack(&receipt, &all, false)?;
+            self.write_stack(&receipt, &all, None)?;
             return Ok(receipt);
         }
         let operation = request.plan.operation;
@@ -338,7 +368,7 @@ impl ReceiptStore {
                 receipt.state = aggregate_state(&receipt.members);
                 // Nothing was sent for these, so even a failed write is accurate;
                 // the Prepared rows remain and recovery treats them as uncertain.
-                let _ = self.write_stack(&receipt, &changed, false);
+                let _ = self.write_stack(&receipt, &changed, None);
                 return Ok(receipt);
             }
             let result = tokio::time::timeout(budget, async {
@@ -372,7 +402,7 @@ impl ReceiptStore {
                 receipt.error = receipt.members[index].error;
             }
             receipt.state = aggregate_state(&receipt.members);
-            if self.write_stack(&receipt, &changed, false).is_err() {
+            if self.write_stack(&receipt, &changed, None).is_err() {
                 // The effect may have occurred. The protected Prepared rows
                 // remain the barrier to replay; never claim nothing was sent.
                 receipt.members[index].state = ExecutionState::OutcomeUnknown;
@@ -457,7 +487,7 @@ impl ReceiptStore {
             return Ok(receipt);
         }
         receipt.state = aggregate_state(&receipt.members);
-        self.write_stack(&receipt, &changed, false)?;
+        self.write_stack(&receipt, &changed, None)?;
         Ok(receipt)
     }
 }

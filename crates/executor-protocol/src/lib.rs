@@ -120,10 +120,16 @@ pub enum Request {
         version: u16,
         request: limeos_domain::ContainerRequest,
     },
+    /// Pure lookup. With no receipt, the answer's `absence` says whether one
+    /// can ever have been pruned for `plan`. The executor recomputes the plan's
+    /// digest and refuses the request unless it equals `digest`, so the expiry
+    /// it judges by is the approved plan's own.
     RestartReceipt {
         version: u16,
         action: String,
         digest: String,
+        /// The plan exactly as core stored it.
+        plan: limeos_domain::ContainerPlan,
     },
     VerifyRestart {
         version: u16,
@@ -140,10 +146,12 @@ pub enum Request {
         version: u16,
         request: limeos_domain::StackRequest,
     },
+    /// As `RestartReceipt`, for a whole-stack action.
     StackReceipt {
         version: u16,
         action: String,
         digest: String,
+        plan: limeos_domain::StackPlan,
     },
     /// Fresh inspections of the plan's targets; never launches an effect.
     VerifyStack {
@@ -167,6 +175,10 @@ pub enum Request {
         declared: limeos_domain::DeclaredOutcome,
         /// The resolving administrator's principal ID, recorded in the row.
         resolved_by: String,
+        /// The plan exactly as core stored it: of `kind`, and hashing to
+        /// `digest`, or the request is invalid. With no row, its own
+        /// `expires_at` decides the answer's `absence`.
+        plan: limeos_domain::ActionPlan,
     },
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
@@ -198,6 +210,13 @@ pub struct Receipt {
     pub stack_members: Option<limeos_domain::StackSnapshot>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolution: Option<limeos_domain::ResolveReceipt>,
+    /// Set by a receipt lookup or `ResolveAction` that found no row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub absence: Option<limeos_domain::ReceiptAbsence>,
+    /// Set by `ResolveAction` when a terminal receipt's recorded outcome
+    /// contradicts the declaration; nothing changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolution_refusal: Option<limeos_domain::ResolveRefusal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logs: Option<limeos_domain::ContainerLogs>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -478,6 +497,7 @@ impl Ceiling {
                 version,
                 action,
                 digest,
+                ..
             }
             | Request::VerifyStack {
                 version,
@@ -494,6 +514,10 @@ impl Ceiling {
                 {
                     return Err(Error(ErrorCode::InvalidInput));
                 }
+                // The carried plan is bounded like an ExecuteStack plan.
+                if let Request::StackReceipt { plan, .. } = request {
+                    plan.validate_shape()?;
+                }
                 Ok(Receipt::empty())
             }
             Request::ResolveAction {
@@ -503,6 +527,7 @@ impl Ceiling {
                 digest,
                 evidence_digest,
                 resolved_by,
+                plan,
                 ..
             } if *version == VERSION
                 && match kind {
@@ -513,12 +538,17 @@ impl Ceiling {
                     .into_iter()
                     .all(|v| limeos_domain::opaque_id(v)) =>
             {
+                if plan.kind() != *kind {
+                    return Err(Error(ErrorCode::InvalidInput));
+                }
+                plan.validate_shape()?;
                 Ok(Receipt::empty())
             }
             Request::RestartReceipt {
                 version,
                 action,
                 digest,
+                ..
             }
             | Request::VerifyRestart {
                 version,
@@ -530,6 +560,9 @@ impl Ceiling {
                 && limeos_domain::opaque_id(action)
                 && limeos_domain::opaque_id(digest) =>
             {
+                if let Request::RestartReceipt { plan, .. } = request {
+                    plan.validate_shape()?;
+                }
                 Ok(Receipt::empty())
             }
             _ => Err(Error(ErrorCode::InvalidInput)),
@@ -600,6 +633,8 @@ impl Receipt {
             stack: None,
             stack_members: None,
             resolution: None,
+            absence: None,
+            resolution_refusal: None,
             logs: None,
             error: None,
             storage: None,
@@ -975,7 +1010,7 @@ mod tests {
             running,
         }
     }
-    fn stack_request(operation: limeos_domain::ContainerAction) -> Request {
+    fn stack_plan(operation: limeos_domain::ContainerAction) -> limeos_domain::StackPlan {
         let expected = limeos_domain::StackSnapshot::new(
             "media",
             vec![
@@ -985,22 +1020,37 @@ mod tests {
             ],
         )
         .unwrap();
+        limeos_domain::StackPlan {
+            id: "f".repeat(64),
+            version: limeos_domain::STACK_VERSION,
+            operation,
+            principal: "alice".into(),
+            grant_revision: 1,
+            catalog_stack: "registered".into(),
+            expected,
+            created_at: 100,
+            expires_at: 400,
+        }
+    }
+    fn container_plan() -> limeos_domain::ContainerPlan {
+        limeos_domain::ContainerPlan {
+            id: "f".repeat(64),
+            version: limeos_domain::RESTART_VERSION,
+            operation: limeos_domain::ContainerAction::Restart,
+            principal: "alice".into(),
+            grant_revision: 1,
+            expected: stack_member('a', true),
+            created_at: 100,
+            expires_at: 400,
+        }
+    }
+    fn stack_request(operation: limeos_domain::ContainerAction) -> Request {
         Request::ExecuteStack {
             version: VERSION,
             request: limeos_domain::StackRequest {
                 action: "d".repeat(64),
                 plan_digest: "e".repeat(64),
-                plan: limeos_domain::StackPlan {
-                    id: "f".repeat(64),
-                    version: limeos_domain::STACK_VERSION,
-                    operation,
-                    principal: "alice".into(),
-                    grant_revision: 1,
-                    catalog_stack: "registered".into(),
-                    expected,
-                    created_at: 100,
-                    expires_at: 400,
-                },
+                plan: stack_plan(operation),
             },
         }
     }
@@ -1080,7 +1130,14 @@ mod tests {
     }
     #[test]
     fn resolve_action_needs_the_matching_write_authority_and_closed_fields() {
-        let resolve = |kind| Request::ResolveAction {
+        use limeos_domain::ResolveKind::{Container, Stack};
+        let plan_of = |kind| match kind {
+            Container => limeos_domain::ActionPlan::Container(container_plan()),
+            Stack => limeos_domain::ActionPlan::Stack(stack_plan(
+                limeos_domain::ContainerAction::Restart,
+            )),
+        };
+        let resolve_with = |kind, plan| Request::ResolveAction {
             version: VERSION,
             kind,
             action: "d".repeat(64),
@@ -1088,8 +1145,9 @@ mod tests {
             evidence_digest: "f".repeat(64),
             declared: limeos_domain::DeclaredOutcome::NotDone,
             resolved_by: "a".repeat(64),
+            plan,
         };
-        use limeos_domain::ResolveKind::{Container, Stack};
+        let resolve = |kind| resolve_with(kind, plan_of(kind));
         let ceiling = stack_ceiling();
         assert!(ceiling.validate(1001, &resolve(Stack)).is_ok());
         assert!(ceiling.validate(1001, &resolve(Container)).is_ok());
@@ -1125,8 +1183,37 @@ mod tests {
             evidence_digest: "f".repeat(64),
             declared,
             resolved_by: "a".repeat(64),
+            plan: plan_of(Stack),
         };
         assert!(ceiling.validate(1001, &bad).is_err());
+        // The carried plan must be of the named kind and well formed.
+        assert!(
+            ceiling
+                .validate(1001, &resolve_with(Stack, plan_of(Container)))
+                .is_err()
+        );
+        let mut malformed = stack_plan(limeos_domain::ContainerAction::Restart);
+        malformed.expires_at = malformed.created_at + limeos_domain::PLAN_TTL_SECONDS + 1;
+        assert!(
+            ceiling
+                .validate(
+                    1001,
+                    &resolve_with(Stack, limeos_domain::ActionPlan::Stack(malformed))
+                )
+                .is_err()
+        );
+        // An expired plan is still a valid question.
+        let mut old = container_plan();
+        old.created_at = 0;
+        old.expires_at = 1;
+        assert!(
+            ceiling
+                .validate(
+                    1001,
+                    &resolve_with(Container, limeos_domain::ActionPlan::Container(old))
+                )
+                .is_ok()
+        );
     }
     #[test]
     fn stack_reads_receipts_and_verification_are_independent_bounded_and_closed() {
@@ -1135,8 +1222,32 @@ mod tests {
             version,
             action: "d".repeat(64),
             digest: "e".repeat(64),
+            plan: stack_plan(limeos_domain::ContainerAction::Restart),
         };
         assert!(ceiling.validate(1001, &receipt(VERSION)).is_ok());
+        // The carried plan is bounded and well formed, as for ExecuteStack.
+        let mut malformed = stack_plan(limeos_domain::ContainerAction::Restart);
+        malformed.expected.members = vec![stack_member('a', true); 17];
+        let oversized = Request::StackReceipt {
+            version: VERSION,
+            action: "d".repeat(64),
+            digest: "e".repeat(64),
+            plan: malformed,
+        };
+        assert!(ceiling.validate(1001, &oversized).is_err());
+        let mut bad_plan = container_plan();
+        bad_plan.expires_at = bad_plan.created_at;
+        let restart = |plan| Request::RestartReceipt {
+            version: VERSION,
+            action: "d".repeat(64),
+            digest: "e".repeat(64),
+            plan,
+        };
+        assert!(ceiling.validate(1001, &restart(container_plan())).is_ok());
+        assert!(ceiling.validate(1001, &restart(bad_plan)).is_err());
+        let mut wire = serde_json::to_value(receipt(VERSION)).unwrap();
+        wire["expires_at"] = serde_json::json!(400);
+        assert!(serde_json::from_value::<Request>(wire).is_err());
         assert!(ceiling.validate(1001, &receipt(2)).is_err());
         assert!(ceiling.validate(1002, &receipt(VERSION)).is_err());
         let mut off = stack_ceiling();

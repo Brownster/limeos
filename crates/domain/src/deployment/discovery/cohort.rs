@@ -16,6 +16,61 @@ pub struct EngineFacts {
     #[ts(type = "number")]
     pub sampled_at: i64,
     pub members: Vec<Membership>,
+    /// Engine containers beyond `MAX_ENGINE_CONTAINERS`, not in `members`.
+    pub truncated: u16,
+    /// Inspected containers left out of `members`, with their reason.
+    pub omitted: Vec<OmittedContainer>,
+    /// Distinct Compose projects that Engine containers outside `members`
+    /// (truncated or omitted) declare in their list labels: a stack named by
+    /// one has an unread member, and each takes part in the overlap checks.
+    pub hidden_projects: Vec<ProjectIdentity>,
+    /// Listed containers whose Compose project could not be established: list
+    /// labels that do not decode, or beyond the hidden-project bounds.
+    pub unattributed: u16,
+}
+impl EngineFacts {
+    /// Left-out containers are distinct, never members, and with the members
+    /// within the Engine bound.
+    fn check_omitted(&self) -> Result<()> {
+        if self.members.len().saturating_add(self.omitted.len()) > MAX_ENGINE_CONTAINERS {
+            return Err(limit());
+        }
+        for (i, omitted) in self.omitted.iter().enumerate() {
+            omitted.validate()?;
+            if self.omitted[..i]
+                .iter()
+                .any(|o| o.resource == omitted.resource)
+                || self
+                    .members
+                    .iter()
+                    .any(|m| m.container().resource == omitted.resource)
+            {
+                return Err(invalid());
+            }
+        }
+        if self.hidden_projects.len() > MAX_HIDDEN_PROJECTS {
+            return Err(limit());
+        }
+        let mut text = 0_usize;
+        for (i, project) in self.hidden_projects.iter().enumerate() {
+            if !name(&project.name, true)
+                || !path(&project.working_directory)
+                || !files_valid(&project.config_files)
+                || self.hidden_projects[..i].contains(project)
+            {
+                return Err(invalid());
+            }
+            text = project
+                .config_files
+                .iter()
+                .chain([&project.name, &project.working_directory])
+                .fold(text, |total, field| total.saturating_add(field.len()));
+        }
+        if text > MAX_HIDDEN_TEXT {
+            return Err(limit());
+        }
+        Ok(())
+    }
 }
 
 /// Selected past facts, never file/Engine ownership or execution permission.
@@ -57,6 +112,10 @@ impl<'de> Deserialize<'de> for DiscoveryCohort {
                 engine_id: e.engine_id.0,
                 sampled_at: e.sampled_at,
                 members: e.members.into_iter().map(Into::into).collect(),
+                truncated: e.truncated,
+                omitted: e.omitted.into_iter().map(Into::into).collect(),
+                hidden_projects: e.hidden_projects.into_iter().map(Into::into).collect(),
+                unattributed: e.unattributed,
             }),
             wire.catalog_current,
             wire.engine_current,
@@ -100,6 +159,9 @@ impl DiscoveryCohort {
         };
         let (catalog, engine) = value.inputs();
         admit(catalog.as_ref(), engine.as_ref())?;
+        if let Some(facts) = &value.engine {
+            facts.check_omitted()?;
+        }
         source(catalog.as_ref().map(|c| c.sampled_at), MAX_TIME)?;
         source(engine.as_ref().map(|e| e.sampled_at), MAX_TIME)?;
         value.check_size()?;
@@ -149,6 +211,9 @@ impl DiscoveryCohort {
             now,
             catalog,
             engine,
+            self.engine
+                .as_ref()
+                .map_or(&[][..], |e| e.hidden_projects.as_slice()),
             catalog_current && self.catalog_current,
             engine_current && self.engine_current,
         )?;
@@ -160,6 +225,26 @@ impl DiscoveryCohort {
             .engine
             .valid_for_millis
             .min(self.engine_valid_for_millis);
+        if let (Some(count), Some(engine)) = (view.truncated_containers.as_mut(), &self.engine) {
+            *count = engine.truncated;
+            view.omitted_containers = engine.omitted.clone();
+            view.unattributed_containers = Some(engine.unattributed);
+            for stack in &mut view.stacks {
+                let unread = engine
+                    .omitted
+                    .iter()
+                    .filter_map(|o| o.project.as_deref())
+                    .chain(engine.hidden_projects.iter().map(|p| p.name.as_str()))
+                    .any(|project| project == stack.project);
+                if unread && !stack.issues.contains(&StackIssue::OmittedMembers) {
+                    stack.issues.push(StackIssue::OmittedMembers);
+                }
+                if engine.unattributed > 0 {
+                    stack.issues.push(StackIssue::IncompleteInventory);
+                }
+            }
+            view.check_size()?;
+        }
         Ok(view)
     }
     pub fn project(&self, now: i64) -> Result<StackInventory> {
@@ -284,6 +369,36 @@ struct EngineWire {
     sampled_at: i64,
     #[serde(deserialize_with = "bounded::<_, MembershipWire, MAX_ENGINE_CONTAINERS>")]
     members: Vec<MembershipWire>,
+    #[serde(default)]
+    truncated: u16,
+    #[serde(
+        default,
+        deserialize_with = "bounded::<_, OmittedWire, MAX_ENGINE_CONTAINERS>"
+    )]
+    omitted: Vec<OmittedWire>,
+    #[serde(
+        default,
+        deserialize_with = "bounded::<_, ProjectWire, MAX_HIDDEN_PROJECTS>"
+    )]
+    hidden_projects: Vec<ProjectWire>,
+    #[serde(default)]
+    unattributed: u16,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OmittedWire {
+    resource: Text<74>,
+    project: Option<Text<64>>,
+    reason: OmissionReason,
+}
+impl From<OmittedWire> for OmittedContainer {
+    fn from(w: OmittedWire) -> Self {
+        Self {
+            resource: w.resource.0,
+            project: w.project.map(|p| p.0),
+            reason: w.reason,
+        }
+    }
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -366,6 +481,15 @@ struct ProjectWire {
     #[serde(deserialize_with = "bounded::<_, Text<512>, 4>")]
     config_files: Vec<Text<512>>,
 }
+impl From<ProjectWire> for ProjectIdentity {
+    fn from(w: ProjectWire) -> Self {
+        Self {
+            name: w.name.0,
+            working_directory: w.working_directory.0,
+            config_files: w.config_files.into_iter().map(|v| v.0).collect(),
+        }
+    }
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ContainerWire {
@@ -417,11 +541,7 @@ impl TryFrom<MemberFields> for MembershipWire {
                     container: w.container.into(),
                     service: service.0,
                     one_off,
-                    project: ProjectIdentity {
-                        name: project.name.0,
-                        working_directory: project.working_directory.0,
-                        config_files: project.config_files.into_iter().map(|v| v.0).collect(),
-                    },
+                    project: project.into(),
                 }
             }
             _ => return Err("invalid stack member shape"),
