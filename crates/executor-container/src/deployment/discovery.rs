@@ -2,7 +2,10 @@ use crate::{
     compose_management::catalog::{
         ManagedFileExpectation, ManagementCatalog, ManagementCatalogEvidence,
     },
-    docker::compose_evidence::{ComposeOwnership, EngineComposeEvidence, EngineComposeSnapshot},
+    docker::{
+        compose_evidence::{ComposeOwnership, EngineComposeEvidence, EngineComposeSnapshot},
+        process_evidence::DisplayRevalidation,
+    },
 };
 use limeos_domain::deployment::discovery::{
     self as model, CatalogFacts, Declaration, DiscoveryCohort, EngineFacts, FileStatus, Membership,
@@ -95,7 +98,7 @@ fn project(
 ) -> Result<StackInventory> {
     DiscoveryCohort::new(
         Some(catalog_facts(catalog, catalog_at)?),
-        Some(engine_facts(engine, &[])?),
+        Some(engine_facts(engine, &DisplayRevalidation::default())?),
     )?
     .project(at)
 }
@@ -139,9 +142,15 @@ fn catalog_facts(catalog: &ManagementCatalog, sampled_at: i64) -> Result<Catalog
     })
 }
 
-/// `changed` names members whose facts moved since collection (from the
-/// display revalidation): they are shown as changing, not as members.
-fn engine_facts(engine: &EngineComposeSnapshot, changed: &[String]) -> Result<EngineFacts> {
+/// From the display revalidation: `changed` members are shown as changing,
+/// not as members, and `appeared` projects and `unattributed` containers are
+/// added to the hidden facts, so what is new since collection blocks the stacks
+/// it touches.
+fn engine_facts(
+    engine: &EngineComposeSnapshot,
+    revalidation: &DisplayRevalidation,
+) -> Result<EngineFacts> {
+    let changed = &revalidation.changed;
     if engine.version != 1 || engine.containers.len() > model::MAX_ENGINE_CONTAINERS {
         return Err(Error(ErrorCode::Unavailable));
     }
@@ -153,7 +162,9 @@ fn engine_facts(engine: &EngineComposeSnapshot, changed: &[String]) -> Result<En
         };
     let mut omitted = engine.omitted.clone();
     let mut hidden: Vec<ProjectIdentity> = engine.hidden_projects.iter().map(identity).collect();
-    let mut unattributed = engine.unattributed;
+    let mut unattributed = engine
+        .unattributed
+        .saturating_add(revalidation.unattributed);
     let size = |p: &ProjectIdentity| {
         p.config_files
             .iter()
@@ -161,19 +172,26 @@ fn engine_facts(engine: &EngineComposeSnapshot, changed: &[String]) -> Result<En
             .map(String::len)
             .sum::<usize>()
     };
+    // A hidden project within the bounds, or else one more unattributed.
+    let mut hide = |project: ProjectIdentity, hidden: &mut Vec<ProjectIdentity>| {
+        if hidden.contains(&project) {
+            return;
+        }
+        let text = hidden.iter().map(size).sum::<usize>() + size(&project);
+        if hidden.len() < model::MAX_HIDDEN_PROJECTS && text <= model::MAX_HIDDEN_TEXT {
+            hidden.push(project);
+        } else {
+            unattributed = unattributed.saturating_add(1);
+        }
+    };
+    for project in &revalidation.appeared {
+        hide(identity(project), &mut hidden);
+    }
     for member in &engine.containers {
         if changed.contains(&member.container.resource) {
             // A member shown as changing still takes part in the overlap checks.
             if let ComposeOwnership::Compose { project, .. } = &member.ownership {
-                let project = identity(project);
-                if !hidden.contains(&project) {
-                    let text = hidden.iter().map(size).sum::<usize>() + size(&project);
-                    if hidden.len() < model::MAX_HIDDEN_PROJECTS && text <= model::MAX_HIDDEN_TEXT {
-                        hidden.push(project);
-                    } else {
-                        unattributed = unattributed.saturating_add(1);
-                    }
-                }
+                hide(identity(project), &mut hidden);
             }
             omitted.push(model::OmittedContainer {
                 resource: member.container.resource.clone(),
@@ -334,7 +352,11 @@ mod tests {
     }
     #[test]
     fn engine_wide_bound_admits_64_containers_and_refuses_65_whole() {
-        let at_bound = engine_facts(&snapshot(model::MAX_ENGINE_CONTAINERS), &[]).unwrap();
+        let at_bound = engine_facts(
+            &snapshot(model::MAX_ENGINE_CONTAINERS),
+            &DisplayRevalidation::default(),
+        )
+        .unwrap();
         assert_eq!(at_bound.members.len(), 64);
         let report = project(&catalog(false), 100, &snapshot(64), 101).unwrap();
         assert_eq!(report.engine.state, model::SourceState::Fresh);
@@ -342,9 +364,12 @@ mod tests {
         // 16 stack members among 48 unrelated containers is plannable input.
         assert_eq!(report.stacks[0].counts.unwrap().ordinary, 16);
         assert_eq!(
-            engine_facts(&snapshot(model::MAX_ENGINE_CONTAINERS + 1), &[])
-                .unwrap_err()
-                .0,
+            engine_facts(
+                &snapshot(model::MAX_ENGINE_CONTAINERS + 1),
+                &DisplayRevalidation::default()
+            )
+            .unwrap_err()
+            .0,
             ErrorCode::Unavailable
         );
         assert!(project(&catalog(false), 100, &snapshot(65), 101).is_err());

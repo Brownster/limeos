@@ -195,12 +195,63 @@ impl EngineStorageProcessEvidence {
     }
 }
 
+/// What a display revalidation found since the original collection.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DisplayRevalidation {
+    /// Original resources whose facts differ now, or that the fresh read left
+    /// out: a reader shows them as changing.
+    pub changed: Vec<String>,
+    /// Compose projects declared now by containers that were not in the
+    /// original read as they are now (a container that appeared, or one now
+    /// listed only by its labels). Each joins the hidden projects, so a stack
+    /// it names or overlaps is blocked.
+    pub appeared: Vec<compose_evidence::ComposeProjectIdentity>,
+    /// Containers of unknown Compose project beyond the original count.
+    pub unattributed: u16,
+}
+
+/// The Compose facts of `fresh` that `original` did not contain: compared as a
+/// whole set of (container, project, working directory and files) facts, not
+/// only for the containers collected originally.
+fn appeared(
+    original: &EngineComposeSnapshot,
+    fresh: &EngineComposeSnapshot,
+) -> (Vec<compose_evidence::ComposeProjectIdentity>, u16) {
+    let mut projects: Vec<compose_evidence::ComposeProjectIdentity> = Vec::new();
+    let mut add = |project: &compose_evidence::ComposeProjectIdentity| {
+        if !original.hidden_projects.contains(project) && !projects.contains(project) {
+            projects.push(project.clone());
+        }
+    };
+    for member in &fresh.containers {
+        let before = original
+            .containers
+            .iter()
+            .find(|m| m.container.resource == member.container.resource);
+        if before.map(|b| &b.ownership) == Some(&member.ownership) {
+            continue;
+        }
+        if let ComposeOwnership::Compose { project, .. } = &member.ownership {
+            add(project);
+        }
+    }
+    for project in &fresh.hidden_projects {
+        add(project);
+    }
+    (
+        projects,
+        fresh.unattributed.saturating_sub(original.unattributed),
+    )
+}
+
 impl EngineStorageProcessEvidence {
     /// For a display projection (Compose or health) only. A fresh collection
     /// must still name the same Engine; the resources whose facts differ from
     /// the original, or that the fresh read left out, are returned so a reader
-    /// shows them as changing. Evidence for an effect uses `revalidate`.
-    pub async fn revalidate_display(&self) -> Result<Vec<String>> {
+    /// shows them as changing, and Compose facts that are new in the fresh
+    /// read are returned to block what they touch. Evidence for an effect uses
+    /// `revalidate`.
+    pub async fn revalidate_display(&self) -> Result<DisplayRevalidation> {
         let projection = if self.compose.is_some() {
             Projection::Compose
         } else if self.health.is_some() {
@@ -276,9 +327,17 @@ impl EngineStorageProcessEvidence {
                     changed.push(resource.clone());
                 }
             }
+            let (appeared, unattributed) = match (self.compose_snapshot(), &fresh.compose) {
+                (Some(old), Some(new)) => appeared(old, new),
+                _ => (Vec::new(), 0),
+            };
             self.authenticated.revalidate_socket()?;
             self.lifetime.check()?;
-            Ok(changed)
+            Ok(DisplayRevalidation {
+                changed,
+                appeared,
+                unattributed,
+            })
         }
         .await;
         let outcome = result.as_ref().map(|_| ()).map_err(|e| *e);

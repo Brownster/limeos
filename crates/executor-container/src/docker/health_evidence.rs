@@ -127,7 +127,7 @@ impl EngineHealthEvidence {
     /// For alerting only: the resources whose facts changed since collection,
     /// which a reader must report as unavailable this round.
     pub async fn revalidate_display(&self) -> Result<Vec<String>> {
-        self.inner.revalidate_display().await
+        Ok(self.inner.revalidate_display().await?.changed)
     }
 }
 

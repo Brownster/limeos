@@ -671,7 +671,7 @@ async fn a_member_changing_after_collection_is_shown_changing_but_strict_revalid
         c.compose_labels.as_mut().unwrap()[1]["com.docker.compose.service"] = json!("other");
     });
     let changed = owner.revalidate_display().await.unwrap();
-    assert_eq!(changed, [format!("container:{:064x}", 1)]);
+    assert_eq!(changed.changed, [format!("container:{:064x}", 1)]);
     let view = stacks(&owner, &["media", "tools"]).await;
     let media = view.stacks.iter().find(|s| s.project == "media").unwrap();
     assert_eq!(media.issues, [StackIssue::OmittedMembers]);
@@ -920,5 +920,55 @@ async fn a_container_removed_between_passes_is_changing_and_the_stacks_are_retur
         // Evidence for an effect still refuses a container that disappeared.
         let strict = fixture(config).await;
         assert!(strict.inspect().await.is_err());
+    }
+}
+#[tokio::test]
+async fn a_project_that_appears_after_collection_blocks_the_stack_it_overlaps() {
+    let mut other = stack_labels("other", "app");
+    other["com.docker.compose.project.working_dir"] = json!("/opt/stacks/media");
+    let mut undecodable = stack_labels("other", "app");
+    undecodable["com.docker.compose.project.working_dir"] = json!("relative");
+    // A container of an overlapping project starts between the original read
+    // and its closing revalidation: shown, inspected, or only listed (beyond
+    // the bound), or with labels that decode to no project at all.
+    for (appearing, crowd, issue) in [
+        (other.clone(), false, StackIssue::OverlappingProject),
+        (other, true, StackIssue::OverlappingProject),
+        (undecodable, false, StackIssue::IncompleteInventory),
+    ] {
+        let config = if crowd {
+            crowded(vec![
+                (0, stack_labels("media", "app")),
+                (1, stack_labels("media", "db")),
+            ])
+        } else {
+            Config {
+                count: 2,
+                all_running: true,
+                mounts: 0,
+                compose_labels: Some(vec![
+                    stack_labels("media", "app"),
+                    stack_labels("media", "db"),
+                ]),
+                ..config()
+            }
+        };
+        let fixture = fixture(config).await;
+        let owner = inspect(&fixture).await.unwrap();
+        assert!(owner.snapshot().hidden_projects.is_empty());
+        assert!(issues_of(&stacks(&owner, &["media"]).await, "media").is_empty());
+        fixture.set(|c| {
+            // Beyond 64, a stopped 66th container: listed and truncated only.
+            c.compose_labels.as_mut().unwrap().push(appearing.clone());
+            c.count += 1;
+        });
+        let view = stacks(&owner, &["media"]).await;
+        assert!(issues_of(&view, "media").contains(&issue), "{appearing}");
+        if issue == StackIssue::OverlappingProject {
+            assert_eq!(
+                view.stacks[0].runtime,
+                limeos_domain::deployment::discovery::RuntimeStatus::Conflict
+            );
+        }
     }
 }

@@ -102,9 +102,10 @@ impl EngineComposeEvidence {
         self.inner.revalidate().await
     }
     /// For display only: the resources whose facts changed since collection,
-    /// which a reader must show as changing. Engine identity, the container
-    /// set and the socket must still match.
-    pub async fn revalidate_display(&self) -> Result<Vec<String>> {
+    /// which a reader must show as changing, and the Compose facts that are new
+    /// since, which block what they touch. Engine identity and the socket must
+    /// still match.
+    pub async fn revalidate_display(&self) -> Result<process_evidence::DisplayRevalidation> {
         self.inner.revalidate_display().await
     }
 }
