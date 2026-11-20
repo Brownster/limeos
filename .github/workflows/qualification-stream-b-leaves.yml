@@ -32,7 +32,8 @@ jobs:
           python3 tests/fixtures/stream-b/check-leaves.py
           # Preserve production resolutions while adding the four local wrappers.
           cp Cargo.lock .cache/stream-b-leaf/Cargo.lock
-          cargo test --offline --manifest-path .cache/stream-b-leaf/Cargo.toml 2>&1 | tee .cache/stream-b-qualification/tests.log
+          # The runner fails when no test ran, not only when one fails.
+          python3 tests/fixtures/leaf_runner.py .cache/stream-b-leaf/Cargo.toml 2>&1 | tee .cache/stream-b-qualification/tests.log
           cargo clippy --offline --locked --manifest-path .cache/stream-b-leaf/Cargo.toml --all-targets -- -D warnings 2>&1 | tee .cache/stream-b-qualification/clippy.log
           cp .cache/stream-b-leaf/Cargo.lock .cache/stream-b-qualification/harness.lock
           sha256sum Cargo.lock .cache/stream-b-leaf/Cargo.lock > .cache/stream-b-qualification/locks.sha256

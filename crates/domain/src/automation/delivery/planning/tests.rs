@@ -95,7 +95,7 @@ fn failed_or_acknowledged_opening_is_not_delivery_proof() {
 #[test]
 fn interrupted_delivery_preserves_original_identity_without_resend() {
     let started = incident(DeliveryChannel::External).begin(1000).unwrap();
-    let recovered = started.recover_interrupted(1001).unwrap();
+    let recovered = started.finish(DeliveryResult::Unknown, 1001).unwrap();
     assert_eq!(recovered.id, started.id);
     assert_eq!(recovered.event, started.event);
     assert_eq!(recovered.attempts, started.attempts);
@@ -105,7 +105,18 @@ fn interrupted_delivery_preserves_original_identity_without_resend() {
         DeliveryDecision::NeedsReconciliation
     );
     assert!(!recovered.retry_due(5000).unwrap());
-    assert!(recovered.recover_interrupted(1010).is_err());
+    assert!(recovered.finish(DeliveryResult::Unknown, 1010).is_err());
+    assert!(started.finish(DeliveryResult::Unknown, 999).is_err());
+}
+
+#[cfg(feature = "deferred")]
+#[test]
+fn startup_recovery_is_an_unknown_delivery_result() {
+    let started = incident(DeliveryChannel::External).begin(1000).unwrap();
+    assert_eq!(
+        started.recover_interrupted(1001).unwrap(),
+        started.finish(DeliveryResult::Unknown, 1001).unwrap()
+    );
     assert!(started.recover_interrupted(999).is_err());
 }
 
@@ -114,7 +125,7 @@ fn ambiguous_opening_never_releases_recovery() {
     let opening = incident(DeliveryChannel::InApp)
         .begin(1000)
         .unwrap()
-        .recover_interrupted(1001)
+        .finish(DeliveryResult::Unknown, 1001)
         .unwrap();
     assert_eq!(
         plan_in_app_delivery(&recovery(), Some(&opening), 1010).unwrap(),

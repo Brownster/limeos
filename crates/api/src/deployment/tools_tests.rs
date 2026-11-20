@@ -76,7 +76,11 @@ impl DeploymentBackend for Stub {
 #[derive(Clone)]
 struct Unregistered(Stub);
 impl Backend for Unregistered {
-    async fn login(&self, input: Login, attempt: PasswordAttempt) -> PasswordChecked<IssuedSession> {
+    async fn login(
+        &self,
+        input: Login,
+        attempt: PasswordAttempt,
+    ) -> PasswordChecked<IssuedSession> {
         self.0.login(input, attempt).await
     }
     async fn logout(&self, token: String, csrf: String) -> Result<()> {

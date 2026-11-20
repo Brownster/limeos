@@ -1,12 +1,20 @@
 //! Pure frozen health-settings migration. No file, credential, Store or authority access.
-use super::{AlertKind, AlertPolicy, Silence, valid_time};
+use super::valid_time;
+#[cfg(feature = "deferred")]
+use super::{AlertKind, AlertPolicy, Silence};
 use serde::Serialize;
+#[cfg(feature = "deferred")]
 use serde::de::IgnoredAny;
+#[cfg(feature = "deferred")]
 use serde_json::{Map, Value};
 
+#[cfg(feature = "deferred")]
 pub const MAX_POLICY_BYTES: usize = 64 * 1024;
+#[cfg(feature = "deferred")]
 pub const MAX_ENVIRONMENT_BYTES: usize = 4096;
+#[cfg(feature = "deferred")]
 const MAX_JSON_DEPTH: usize = 64;
+#[cfg(feature = "deferred")]
 const KINDS: [(AlertKind, &str); 4] = [
     (AlertKind::Container, "container"),
     (AlertKind::Smart, "smart"),
@@ -15,6 +23,7 @@ const KINDS: [(AlertKind, &str); 4] = [
 ];
 
 /// Selected non-secret fields only. Never pass the complete process environment.
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy, Default)]
 pub struct LegacyHealthEnvironment<'a> {
     pub poll_seconds: Option<&'a str>,
@@ -22,6 +31,7 @@ pub struct LegacyHealthEnvironment<'a> {
     pub required_mounts: Option<&'a str>,
 }
 /// A protected adapter must supply the actual read outcome; this planner does no I/O.
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy)]
 pub enum LegacyPolicyRead<'a> {
     NotConfigured,
@@ -29,6 +39,7 @@ pub enum LegacyPolicyRead<'a> {
     Unreadable,
     Contents(&'a str),
 }
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PolicyFallback {
@@ -38,12 +49,14 @@ pub enum PolicyFallback {
     Malformed,
     Null,
 }
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "source", content = "reason", rename_all = "snake_case")]
 pub enum PolicyOrigin {
     Environment(PolicyFallback),
     Policy,
 }
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SettingField {
@@ -59,6 +72,7 @@ pub enum SettingField {
     SilenceExpiresAt,
     SilenceReason,
 }
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReviewReason {
@@ -73,13 +87,16 @@ pub enum ReviewReason {
     SubsecondExpiry,
 }
 /// Bounded diagnostics intentionally omit raw configuration and parser error text.
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct SettingsReview {
     pub field: SettingField,
     pub reason: ReviewReason,
     pub index: Option<usize>,
 }
+#[cfg(feature = "deferred")]
 type Result<T> = std::result::Result<T, SettingsReview>;
+#[cfg(feature = "deferred")]
 fn issue(field: SettingField, reason: ReviewReason) -> SettingsReview {
     SettingsReview {
         field,
@@ -106,6 +123,7 @@ impl PlannedTimestamp {
         self.micros
     }
 }
+#[cfg(feature = "deferred")]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct PlannedSilence {
     pub kind: AlertKind,
@@ -114,6 +132,7 @@ pub struct PlannedSilence {
     pub expires_at: Option<PlannedTimestamp>,
     pub reason: String,
 }
+#[cfg(feature = "deferred")]
 /// A complete representable candidate, not persisted configuration or execution authority.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct PlannedHealthSettings {
@@ -124,6 +143,7 @@ pub struct PlannedHealthSettings {
     silences: Vec<PlannedSilence>,
     origin: PolicyOrigin,
 }
+#[cfg(feature = "deferred")]
 impl PlannedHealthSettings {
     pub fn poll_seconds(&self) -> u32 {
         self.poll_seconds
@@ -158,9 +178,11 @@ impl PlannedHealthSettings {
 }
 
 // Python str.strip also includes these four ASCII information separators.
+#[cfg(feature = "deferred")]
 fn trim(value: &str) -> &str {
     value.trim_matches(|c: char| c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c))
 }
+#[cfg(feature = "deferred")]
 fn integer(value: Option<&str>, default: u32, field: SettingField) -> Result<u32> {
     let value = value.unwrap_or("").trim();
     if value.chars().any(|c| !c.is_ascii() && c.is_numeric()) {
@@ -195,6 +217,7 @@ fn integer(value: Option<&str>, default: u32, field: SettingField) -> Result<u32
     }
     Ok(number.max(1))
 }
+#[cfg(feature = "deferred")]
 fn json_depth(body: &str) -> Result<()> {
     let (mut depth, mut quoted, mut escape) = (0usize, false, false);
     for byte in body.bytes() {
@@ -217,6 +240,7 @@ fn json_depth(body: &str) -> Result<()> {
     }
     Ok(())
 }
+#[cfg(feature = "deferred")]
 fn read_policy(input: LegacyPolicyRead<'_>) -> Result<(Option<Value>, PolicyOrigin)> {
     let fallback = |reason| (None, PolicyOrigin::Environment(reason));
     let body = match input {
@@ -247,6 +271,7 @@ fn read_policy(input: LegacyPolicyRead<'_>) -> Result<(Option<Value>, PolicyOrig
     };
     Ok((Some(value), PolicyOrigin::Policy))
 }
+#[cfg(feature = "deferred")]
 fn falsey(value: &Value) -> bool {
     match value {
         Value::Null => true,
@@ -257,6 +282,7 @@ fn falsey(value: &Value) -> bool {
         Value::Object(value) => value.is_empty(),
     }
 }
+#[cfg(feature = "deferred")]
 fn mount(value: &str, mounts: &mut Vec<String>) -> Result<()> {
     if !value.starts_with('/') || value.contains('\0') {
         return Err(issue(
@@ -281,6 +307,7 @@ fn mount(value: &str, mounts: &mut Vec<String>) -> Result<()> {
     }
     Ok(())
 }
+#[cfg(feature = "deferred")]
 fn policy_mounts(object: &Map<String, Value>) -> Result<Vec<String>> {
     let mut mounts = Vec::new();
     if let Some(value) = object.get("required_mounts") {
@@ -304,6 +331,7 @@ fn policy_mounts(object: &Map<String, Value>) -> Result<Vec<String>> {
     }
     Ok(mounts)
 }
+#[cfg(feature = "deferred")]
 fn categories(object: &Map<String, Value>) -> Result<Vec<AlertKind>> {
     let mut disabled = Vec::new();
     if let Some(value) = object.get("categories") {
@@ -338,6 +366,7 @@ mod timestamp;
 pub(super) fn policy_timestamp(value: &str) -> Option<PlannedTimestamp> {
     timestamp::parse(value)
 }
+#[cfg(feature = "deferred")]
 fn silence(value: &Value, default_created_at: &str) -> Result<PlannedSilence> {
     let object = value
         .as_object()
@@ -411,6 +440,7 @@ fn silence(value: &Value, default_created_at: &str) -> Result<PlannedSilence> {
     })
 }
 
+#[cfg(feature = "deferred")]
 /// Produce all settings or one review issue. No partial candidate is returned.
 /// `default_created_at` is an explicit trusted migration observation time, used
 /// only where the legacy normalizer would supply its wall clock.

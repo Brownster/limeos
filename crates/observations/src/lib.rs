@@ -2,8 +2,10 @@
 mod collectors;
 mod docker;
 pub use collectors::{start_core, start_docker, start_host};
+#[cfg(feature = "deferred")]
 pub mod pool_protection;
 mod probes;
+#[cfg(feature = "deferred")]
 pub mod shares;
 pub mod stacks;
 pub mod telemetry;

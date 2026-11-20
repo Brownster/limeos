@@ -9,6 +9,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+#[cfg(feature = "deferred")]
 pub mod document;
 
 pub const SAMBA_MAX_SHARES: usize = 64;

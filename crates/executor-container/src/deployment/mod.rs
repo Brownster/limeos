@@ -1,12 +1,22 @@
 //! Read-only deployment adapters; registration belongs to the shared worker.
+#[cfg(feature = "deferred")]
 pub mod activity;
 pub mod discovery;
+#[cfg(feature = "deferred")]
 pub mod download_clients;
+#[cfg(feature = "deferred")]
 pub mod egress;
+#[cfg(feature = "deferred")]
 pub mod images;
+#[cfg(feature = "deferred")]
 pub mod indexer_apps;
+#[cfg(feature = "deferred")]
 pub mod media;
+#[cfg(feature = "deferred")]
 pub mod media_settings;
+#[cfg(feature = "deferred")]
 pub mod networks;
+#[cfg(feature = "deferred")]
 pub mod notifications;
+#[cfg(feature = "deferred")]
 pub mod tools;

@@ -500,7 +500,7 @@ fn frozen_long_running_container_rules_ignore_one_shots() {
     );
 }
 #[test]
-fn collector_gaps_are_unavailable_and_mount_paths_remain_literal() {
+fn container_collector_gaps_are_unavailable() {
     assert_eq!(
         container_signal(
             "media",
@@ -513,6 +513,10 @@ fn collector_gaps_are_unavailable_and_mount_paths_remain_literal() {
         .status,
         SignalStatus::Unavailable
     );
+}
+#[cfg(feature = "deferred")]
+#[test]
+fn collector_gaps_are_unavailable_and_mount_paths_remain_literal() {
     assert_eq!(
         smart_signal("/dev/sda", None, None).unwrap().status,
         SignalStatus::Unavailable
@@ -528,6 +532,7 @@ fn collector_gaps_are_unavailable_and_mount_paths_remain_literal() {
     assert!(required_mount_signal("relative", Some(true)).is_err());
     assert!(smart_signal(&"x".repeat(256), Some(false), None).is_err());
 }
+#[cfg(feature = "deferred")]
 #[test]
 fn frozen_protection_status_severity_without_new_thresholds() {
     assert!(

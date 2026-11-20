@@ -1,7 +1,9 @@
 use super::*;
 use crate::pools::tests::{fixtures, protected};
+#[cfg(feature = "deferred")]
 use crate::{StorageObservedDevice, StorageObservedMount};
 
+#[cfg(feature = "deferred")]
 pub(crate) fn evidence(
     config: &SnapraidConfig,
     pools: &PoolsConfig,
@@ -65,6 +67,7 @@ pub(crate) fn evidence(
         paths,
     }
 }
+#[cfg(feature = "deferred")]
 fn diff(config: &SnapraidConfig, sources: &ProtectionSourceEvidence) -> SnapraidDiffEvidence {
     SnapraidDiffEvidence {
         observed_at: 101,
@@ -136,6 +139,7 @@ fn sra002_all_roles_and_generated_files_reject_pool_roots_and_descendants_even_d
         );
     }
 }
+#[cfg(feature = "deferred")]
 #[test]
 fn sra001_accept_only_complete_fresh_mounted_evidence_for_every_path() {
     let (contract, pools, config) = protected();
@@ -157,6 +161,7 @@ fn sra001_accept_only_complete_fresh_mounted_evidence_for_every_path() {
         assert!(plan_snapraid_sync(&config, &pools, &contract, &unsafe_path, &diff, 102).is_err());
     }
 }
+#[cfg(feature = "deferred")]
 #[test]
 fn sra001_bare_directories_wrong_uuid_unknown_identity_and_duplicate_uuid_block_sync() {
     let (contract, pools, config) = protected();
@@ -180,6 +185,7 @@ fn sra001_bare_directories_wrong_uuid_unknown_identity_and_duplicate_uuid_block_
         assert!(plan_snapraid_sync(&config, &pools, &contract, &bad, &diff, 102).is_err());
     }
 }
+#[cfg(feature = "deferred")]
 #[test]
 fn sra001_boot_swap_readonly_bind_mount_and_serial_mismatch_block_sync() {
     let (contract, pools, config) = protected();
@@ -200,6 +206,7 @@ fn sra001_boot_swap_readonly_bind_mount_and_serial_mismatch_block_sync() {
         assert!(plan_snapraid_sync(&config, &pools, &contract, &bad, &diff, 102).is_err());
     }
 }
+#[cfg(feature = "deferred")]
 #[test]
 fn unqualified_multidevice_filesystem_identity_remains_closed() {
     let (mut contract, pools, config) = protected();
@@ -213,6 +220,7 @@ fn unqualified_multidevice_filesystem_identity_remains_closed() {
         StoragePlanningFindingCode::Unsupported
     );
 }
+#[cfg(feature = "deferred")]
 #[test]
 fn nested_and_ambiguous_mounts_block_sync_and_absent_files_still_require_verified_parent_mounts() {
     let (contract, pools, config) = protected();
@@ -244,6 +252,7 @@ fn nested_and_ambiguous_mounts_block_sync_and_absent_files_still_require_verifie
     ambiguous.inventory.devices[1].mounts.push(duplicate);
     assert!(plan_snapraid_sync(&config, &pools, &contract, &ambiguous, &diff, 102).is_err());
 }
+#[cfg(feature = "deferred")]
 #[test]
 fn stale_future_or_rebound_source_and_diff_evidence_block_sync() {
     let (contract, pools, config) = protected();
@@ -268,6 +277,7 @@ fn stale_future_or_rebound_source_and_diff_evidence_block_sync() {
     refreshed.observed_at = 102;
     assert!(plan_snapraid_sync(&config, &pools, &contract, &refreshed, &good, 103).is_ok());
 }
+#[cfg(feature = "deferred")]
 #[test]
 fn threshold_boundaries_pass_and_excesses_require_a_separate_operation() {
     let (contract, pools, config) = protected();
@@ -296,6 +306,7 @@ fn threshold_boundaries_pass_and_excesses_require_a_separate_operation() {
     json["force"] = true.into();
     assert!(serde_json::from_value::<SnapraidConfig>(json).is_err());
 }
+#[cfg(feature = "deferred")]
 #[test]
 fn failed_or_missing_diff_cannot_be_overridden_by_zero_counts_or_log_success() {
     let (contract, pools, config) = protected();

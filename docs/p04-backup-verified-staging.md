@@ -66,7 +66,8 @@ The executable [usage example](../crates/backup-archive/examples/stage.rs)
 opens one source descriptor, admits it, rewinds it, replays it, independently
 hashes catalog readers and discards the attempt. It accepts `POLICY.json ARCHIVE
 PRIVATE_ROOT`; root creation/permissions remain the caller's responsibility.
-Use `cargo run --release -p limeos-backup-archive --example stage -- ...`.
+Use `cargo run --release -p limeos-backup-archive --features deferred --example stage -- ...`;
+the crate is [deferred](deferred-code.md) and builds nothing without the feature.
 
 ## Tentative files and completion
 

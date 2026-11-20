@@ -179,6 +179,34 @@ def main():
         jobs=3,
     )
     step("test", "cargo", "test", "--workspace", "--locked", "--no-fail-fast", jobs=3)
+    # Sources since PR-40 also carry deferred code, which CI checks separately.
+    deferred = "\ndeferred = [" in (SOURCE / "crates/domain/Cargo.toml").read_text()
+    if deferred:
+        step(
+            "clippy-deferred",
+            "cargo",
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--locked",
+            "--features",
+            "deferred",
+            "--",
+            "-D",
+            "warnings",
+            jobs=3,
+        )
+        step(
+            "test-deferred",
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--features",
+            "deferred",
+            "--no-fail-fast",
+            jobs=3,
+        )
     step("contracts", "python3", "scripts/check_contracts.py", jobs=3)
     step("dependency-direction", "python3", "scripts/check_repository.py")
     verify_source(WORK, manifest)
@@ -191,19 +219,41 @@ def main():
         *[arg for name in BINARIES for arg in ("--bin", name)],
         jobs=2,
     )
-    log = (LOGS / "test.txt").read_text() if (LOGS / "test.txt").exists() else ""
-    totals = [
-        tuple(map(int, m))
-        for m in re.findall(
-            r"test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored", log
+    def test_totals(name):
+        path = LOGS / f"{name}.txt"
+        log = path.read_text() if path.exists() else ""
+        totals = [
+            tuple(map(int, m))
+            for m in re.findall(
+                r"test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored", log
+            )
+        ]
+        return {
+            "passed": sum(t[0] for t in totals),
+            "failed": sum(t[1] for t in totals),
+            "ignored": sum(t[2] for t in totals),
+            "result_lines": len(totals),
+        }
+
+    extra["tests"] = test_totals("test")
+    counted = [("test-count", extra["tests"])]
+    if deferred:
+        extra["tests_deferred"] = test_totals("test-deferred")
+        counted.append(("test-deferred-count", extra["tests_deferred"]))
+    # A test step that ran nothing must not read as a pass.
+    for name, totals in counted:
+        steps.append(
+            {
+                "step": name,
+                "command": "require at least one passed Rust test",
+                "jobs": None,
+                "exit": 0 if totals["passed"] > 0 else 1,
+                "seconds": 0,
+                "gate": True,
+                "log": None,
+            }
         )
-    ]
-    extra["tests"] = {
-        "passed": sum(t[0] for t in totals),
-        "failed": sum(t[1] for t in totals),
-        "ignored": sum(t[2] for t in totals),
-        "result_lines": len(totals),
-    }
+    write(steps)
     if built:
         release = SOURCE / "target/release"
         extra["binaries"] = {}

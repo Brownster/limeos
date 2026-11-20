@@ -1,10 +1,13 @@
 use super::*;
 use crate::automation::{
-    AlertEventKind, AlertSignal, IncidentState, Severity, SignalStatus, fold_alert,
+    AlertEventKind, AlertKind, AlertPolicy, AlertSignal, IncidentState, Severity, SignalStatus,
+    Silence, fold_alert,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 
+#[cfg(feature = "deferred")]
 const CREATED: &str = "2026-10-20T12:00:00+00:00";
+#[cfg(feature = "deferred")]
 fn plan(body: &str) -> Result<PlannedHealthSettings> {
     plan_health_settings(
         LegacyHealthEnvironment::default(),
@@ -24,20 +27,24 @@ fn fixture() -> Vec<Value> {
     assert_eq!(fixture["cases"].as_array().unwrap().len(), 32);
     fixture["cases"].as_array().unwrap().clone()
 }
+#[cfg(feature = "deferred")]
 fn silence_value() -> Value {
     json!({
         "kind":"mount", "key":"mount:/mnt/Media", "created_at": CREATED,
         "expires_at":"2026-10-20T13:00:00+00:00", "reason":"  disk maintenance  "
     })
 }
+#[cfg(feature = "deferred")]
 fn with_silence(silence: Value) -> Result<PlannedHealthSettings> {
     plan(&json!({"silences":[silence]}).to_string())
 }
+#[cfg(feature = "deferred")]
 fn assert_issue<T: std::fmt::Debug>(result: Result<T>, field: SettingField, reason: ReviewReason) {
     let error = result.unwrap_err();
     assert_eq!((error.field, error.reason), (field, reason));
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn frozen_daemon_cases_preserve_supported_values_or_require_explicit_review() {
     let mut cases = 0;
@@ -103,6 +110,7 @@ fn frozen_daemon_cases_preserve_supported_values_or_require_explicit_review() {
     assert_eq!(cases, 5);
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn frozen_policy_cases_preserve_categories_literal_mounts_and_silence_metadata() {
     let mut cases = 0;
@@ -155,6 +163,7 @@ fn frozen_policy_cases_preserve_categories_literal_mounts_and_silence_metadata()
     assert_eq!(cases, 7);
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn frozen_policy_file_precedence_keeps_empty_separate_from_missing() {
     let mut cases = 0;
@@ -193,16 +202,32 @@ fn frozen_policy_file_precedence_keeps_empty_separate_from_missing() {
     assert_eq!(cases, 7);
 }
 
-#[test]
-fn frozen_exclusive_expiry_and_real_fold_do_not_erase_muted_incidents() {
-    let candidate = with_silence(silence_value()).unwrap();
-    let mut policy = candidate.alert_policy();
-    policy.fail_threshold = 1;
-    let expiry = candidate.silences()[0]
-        .expires_at
-        .as_ref()
+/// The runtime form of `silence_value()` with a threshold of one.
+fn expiring_policy() -> (AlertPolicy, i64) {
+    let expiry = timestamp::parse("2026-10-20T13:00:00+00:00")
         .unwrap()
         .unix_seconds();
+    let policy = AlertPolicy {
+        fail_threshold: 1,
+        disabled: vec![],
+        silences: vec![Silence {
+            kind: AlertKind::Mount,
+            key: "mount:/mnt/Media".into(),
+            expires_at: Some(expiry),
+        }],
+    };
+    (policy, expiry)
+}
+#[cfg(feature = "deferred")]
+#[test]
+fn planned_silence_has_the_runtime_expiry() {
+    let mut planned = with_silence(silence_value()).unwrap().alert_policy();
+    planned.fail_threshold = 1;
+    assert_eq!(planned, expiring_policy().0);
+}
+#[test]
+fn frozen_exclusive_expiry_and_real_fold_do_not_erase_muted_incidents() {
+    let (policy, expiry) = expiring_policy();
     let signal = AlertSignal {
         key: "mount:/mnt/Media".into(),
         kind: AlertKind::Mount,
@@ -234,6 +259,7 @@ fn frozen_exclusive_expiry_and_real_fold_do_not_erase_muted_incidents() {
     assert_eq!(announced.event.unwrap().event, AlertEventKind::Incident);
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn integer_syntax_fallback_clamping_and_runtime_limits_are_distinct() {
     for (raw, expected) in [
@@ -321,6 +347,7 @@ fn integer_syntax_fallback_clamping_and_runtime_limits_are_distinct() {
     }
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn policy_read_outcomes_and_legacy_falsey_values_are_explicit() {
     for (source, fallback) in [
@@ -371,6 +398,7 @@ fn policy_read_outcomes_and_legacy_falsey_values_are_explicit() {
     }
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn invalid_structures_refuse_without_partial_configuration_or_raw_diagnostics() {
     for (body, field) in [
@@ -411,6 +439,7 @@ fn invalid_structures_refuse_without_partial_configuration_or_raw_diagnostics() 
     assert_eq!(candidate.alert_policy(), AlertPolicy::default());
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn literal_mounts_keep_case_components_and_exact_only_deduplication() {
     let candidate =
@@ -448,6 +477,7 @@ fn literal_mounts_keep_case_components_and_exact_only_deduplication() {
     }
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn input_and_collection_limits_never_truncate_a_candidate() {
     for (field, environment) in [
@@ -518,6 +548,7 @@ fn input_and_collection_limits_never_truncate_a_candidate() {
     }
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn silence_metadata_keeps_original_time_text_reason_and_duplicate_rows() {
     let mut raw = silence_value();
@@ -561,6 +592,7 @@ fn silence_metadata_keeps_original_time_text_reason_and_duplicate_rows() {
     ));
 }
 
+#[cfg(feature = "deferred")]
 #[test]
 fn silence_key_category_and_expiry_review_boundaries_are_explicit() {
     for (field, value, expected) in [

@@ -7,3 +7,6 @@ pub mod read_supervision;
 pub mod stack_read;
 pub mod storage_mount_admission;
 pub mod storage_mount_supervision;
+/// Host prerequisite and package planning with no production caller yet.
+#[cfg(feature = "deferred")]
+pub mod updates;

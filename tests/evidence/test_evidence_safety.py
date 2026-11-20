@@ -141,7 +141,8 @@ class GuardTests(unittest.TestCase):
                 target = tree / manifest.relative_to(ROOT)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(manifest, target)
-            shutil.copyfile(ROOT / "Cargo.lock", tree / "Cargo.lock")
+            for name in ["Cargo.lock", "Cargo.toml"]:
+                shutil.copyfile(ROOT / name, tree / name)
             write(tree, f"{RUN}/README.md", b"# Run\n")
             git(tree, "init", "--quiet")
             git(tree, "add", ".")

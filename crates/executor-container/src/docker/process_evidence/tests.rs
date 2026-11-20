@@ -314,6 +314,7 @@ async fn fixture(config: Config) -> Fixture {
 mod compose_tests;
 mod health_tests;
 mod management_tests;
+#[cfg(feature = "deferred")]
 mod source_binding_tests;
 
 #[tokio::test]

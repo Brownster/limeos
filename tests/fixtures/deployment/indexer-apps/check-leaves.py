@@ -1,38 +1,25 @@
-#!/usr/bin/env -S uv run --offline
-# /// script
-# dependencies = []
-# ///
-"""Prepare local Prowlarr application checks without changing shared roots."""
+#!/usr/bin/env python3
+"""Run the indexer app planner and adapter tests in place.
 
-import json
-import tomllib
+This harness once copied the modules into a separate wrapper crate because
+they were not declared in the workspace. They are now declared behind the
+`deferred` feature (docs/deferred-code.md), so it runs their tests in the
+workspace with that feature, through leaf_runner, which fails when no test ran.
+Earlier evidence that names this script reproduces only at its recorded source.
+
+Usage: python3 tests/fixtures/deployment/indexer-apps/check-leaves.py
+"""
+
+import sys
 from pathlib import Path
 
-root = Path(__file__).resolve().parents[4]
-destination = root / ".cache/indexer-apps-leaf"
-deps = tomllib.loads((root / "Cargo.toml").read_text())["workspace"]["dependencies"]
-common = '[lib]\npath = "lib.rs"\n[lints.rust]\nunsafe_code = "forbid"\n'
-for name in ["domain", "adapter"]:
-    (destination / name).mkdir(parents=True, exist_ok=True)
-(destination / "Cargo.toml").write_text(
-    '[workspace]\nmembers = ["domain", "adapter"]\nresolver = "2"\n'
-)
-for name in ["domain", "adapter"]:
-    manifest = (
-        f'[package]\nname = "limeos-indexer-apps-{name}-leaf"\nversion = "0.0.0"\n'
-        'edition = "2024"\npublish = false\n[dependencies]\n'
-        f'serde = {{ version = "{deps["serde"]["version"]}", features = ["derive"] }}\n'
-        f'serde_json = "{deps["serde_json"]}"\n'
-    )
-    if name == "domain":
-        manifest += f'original-domain = {{ package = "limeos-domain", path = {json.dumps(str(root / "crates/domain"))} }}\n'
-        source = (
-            "pub use original_domain::*;\n"
-            f"#[path = {json.dumps(str(root / 'crates/domain/src/deployment/mod.rs'))}]\npub mod deployment;\n"
-        )
-    else:
-        manifest += 'limeos-domain = { package = "limeos-indexer-apps-domain-leaf", path = "../domain" }\n'
-        source = f"#[path = {json.dumps(str(root / 'crates/executor-container/src/deployment'))}]\npub mod deployment {{ pub mod media; pub mod media_settings; pub mod download_clients; pub mod indexer_apps; }}\n"
-    (destination / name / "Cargo.toml").write_text(manifest + common)
-    (destination / name / "lib.rs").write_text(source)
-print(f"Prepared {destination}; shared roots unchanged")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from leaf_runner import run_deferred  # noqa: E402
+
+GROUPS = [
+    ('limeos-domain', ['--lib'], ['deployment::indexer_apps']),
+    ('limeos-executor-container', ['--lib'], ['deployment::indexer_apps']),
+]
+
+if __name__ == "__main__":
+    sys.exit(run_deferred(GROUPS))

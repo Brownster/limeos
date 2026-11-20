@@ -1,5 +1,7 @@
 //! Fresh Docker declarations. Physical path resolution is still required before effects.
-use crate::{ContainerSnapshot, Error, ErrorCode, Result, StorageContract};
+#[cfg(feature = "deferred")]
+use crate::StorageContract;
+use crate::{ContainerSnapshot, Error, ErrorCode, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -124,9 +126,11 @@ impl ContainerStorageInventory {
         Ok(())
     }
 }
+#[cfg(feature = "deferred")]
 fn beneath(path: &str, root: &str) -> bool {
     root == "/" || path == root || path.strip_prefix(root).is_some_and(|s| s.starts_with('/'))
 }
+#[cfg(feature = "deferred")]
 /// Declared overlap only. This cannot establish absence of physical consumers:
 /// aliases, symlinks, volumes, pools and nested mounts need protected resolution.
 pub fn declared_container_storage_dependencies(

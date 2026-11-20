@@ -11,6 +11,7 @@ mod path;
 pub mod read_admission;
 pub use read_admission::StorageReadProfile;
 pub mod processes;
+#[cfg(feature = "deferred")]
 pub mod protection_sources;
 mod sources;
 mod swaps;

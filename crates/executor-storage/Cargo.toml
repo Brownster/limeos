@@ -9,6 +9,10 @@ publish.workspace = true
 [lints]
 workspace = true
 
+# Readers with no production caller; see docs/deferred-code.md.
+[features]
+deferred = ["limeos-domain/deferred"]
+
 [dependencies]
 sha2.workspace = true
 limeos-domain = { path = "../domain", version = "=0.2.0" }

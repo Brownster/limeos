@@ -15,6 +15,7 @@ mod logs;
 pub use logs::*;
 mod compose;
 pub use compose::*;
+#[cfg(feature = "deferred")]
 pub mod compose_override;
 mod storage;
 pub use storage::*;
@@ -28,10 +29,12 @@ mod pools;
 pub use pools::*;
 mod protection;
 pub use protection::*;
+#[cfg(feature = "deferred")]
 pub mod backups;
 pub mod configured_dependencies;
 pub mod shares;
 pub mod storage_dependency_graph;
+#[cfg(feature = "deferred")]
 pub mod storage_impact;
 
 pub type Result<T> = std::result::Result<T, Error>;

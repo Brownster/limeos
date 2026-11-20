@@ -9,6 +9,15 @@ publish.workspace = true
 [lints]
 workspace = true
 
+# Deferred code stays out of the shipped binary; see docs/deferred-code.md.
+[features]
+deferred = [
+    "limeos-api/deferred",
+    "limeos-domain/deferred",
+    "limeos-observations/deferred",
+    "limeos-backup-archive/deferred",
+]
+
 [dependencies]
 limeos-observations = { path = "../../crates/observations", version = "=0.2.0" }
 limeos-api = { path = "../../crates/api", version = "=0.2.0" }
@@ -28,6 +37,10 @@ tracing-subscriber.workspace = true
 tempfile.workspace = true
 rusqlite.workspace = true
 limeos-backup-archive = { path = "../../crates/backup-archive", version = "=0.2.0" }
+
+[[test]]
+name = "backup_preparation_binding"
+required-features = ["deferred"]
 
 [[bin]]
 name = "limeos-core"
