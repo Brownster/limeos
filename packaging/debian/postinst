@@ -26,7 +26,7 @@ fct_execute_this() {
     [[ "${1:-}" == configure ]] || return 0
     /usr/lib/limeos/limeosctl check-config /etc/limeos/core.json
     local account group core_uid
-    for account in limeos-core limeos-containerd limeos-assistant; do fct_account "${account}"; done
+    for account in limeos-core limeos-containerd limeos-storaged limeos-assistant; do fct_account "${account}"; done
     for group in limeos-rpc limeos-host-access limeos-container-access docker; do
         getent group "${group}" >/dev/null || addgroup --system "${group}"
     done

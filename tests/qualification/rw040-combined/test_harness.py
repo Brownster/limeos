@@ -611,7 +611,12 @@ class ConfinementReproductionTests(unittest.TestCase):
         self.assertEqual(values["NoNewPrivileges"], "yes")
         self.assertEqual(values["CapabilityBoundingSet"], "")
         self.assertEqual(values["AmbientCapabilities"], "")
-        self.assertEqual(values["SystemCallFilter"], "@system-service openat2")
+        self.assertEqual(
+            [v for k, v in properties if k == "SystemCallFilter"],
+            ["@system-service openat2", "~@privileged"],
+        )
+        self.assertEqual(values["RestrictNamespaces"], "yes")
+        self.assertEqual(values["IPAddressDeny"], "any")
         self.assertEqual(values["RestrictAddressFamilies"], "AF_UNIX")
         self.assertNotIn("ExecStart", values)
         lines = {line.strip() for line in self.unit.splitlines()}

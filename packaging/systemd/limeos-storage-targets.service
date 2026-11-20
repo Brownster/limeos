@@ -5,6 +5,8 @@ ConditionPathExists=/etc/limeos/system-policy/storage-targets.json
 
 [Service]
 Type=exec
+# Root stays: the role refuses a non-root euid, creates root-owned target
+# directories and runs the root-only storage inventory before each change.
 User=root
 Group=limeos-host-access
 ExecStart=/usr/lib/limeos/limeos-executor /etc/limeos/system-policy/storage-targets.json /run/limeos-storage-targets/executor.sock storage-targets
@@ -26,12 +28,26 @@ RestartSec=2s
 TimeoutStartSec=15s
 TimeoutStopSec=5s
 NoNewPrivileges=yes
+# The inventory compares the root mount ID with PID 1's and targets must be
+# created where the host sees them, so every setting systemd implements with
+# a mount namespace is off: ProtectSystem (with ReadWritePaths), ProtectHome,
+# PrivateTmp, PrivateDevices, ProtectKernelTunables/Modules/Logs,
+# ProtectControlGroups, ProtectProc, ProcSubset and PrivateNetwork.
+# Root with only CAP_CHOWN therefore still has owner write on every
+# root-owned file (/etc, /usr/lib/limeos, most of /proc/sys and /sys) and
+# owner read on root-only device nodes; the code, which writes only approved
+# empty target directories and its journal, is what limits it. ProtectClock
+# is off (its implied DeviceAllow rule would refuse the inventory's
+# block-device reads), as are, unqualified, ProtectHostname (whether it needs
+# a mount namespace varies with the systemd version) and PrivateUsers.
 PrivateMounts=no
 PrivateDevices=no
 RestrictSUIDSGID=yes
 RestrictRealtime=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
+RestrictNamespaces=yes
+IPAddressDeny=any
 RestrictAddressFamilies=AF_UNIX
 # mkdir/fchmod operate only on root-owned paths; fchown normalizes the new
 # directory's group. No mount or DAC bypass capability is granted.
@@ -39,6 +55,8 @@ CapabilityBoundingSet=CAP_CHOWN
 AmbientCapabilities=CAP_CHOWN
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
+# @privileged stays: it contains @chown, which the fchown above needs.
+SystemCallFilter=~@resources
 LimitNOFILE=256
 TasksMax=16
 MemoryMax=64M

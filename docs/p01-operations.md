@@ -105,7 +105,7 @@ User names contain at most 64 ASCII letters, digits or `_-.:`. Enrollment is loc
 | Core | `limeos-core`, primary group `limeos-rpc` | `/var/lib/limeos/core` (0700), `/run/limeos-core` (0750) | Authority DB, executor socket access groups; no Docker group |
 | Password worker | A short-lived child of core | No state files | Bounded password IPC over inherited pipes; same systemd limits as core |
 | Container executor | `limeos-containerd`, primary group `limeos-container-access` | `/run/limeos-containerd` (0750) | Docker group; health only in P01 |
-| Host executor | root, primary group `limeos-host-access` | `/run/limeos-storaged` (0750) | Root-owned policy; health only, no ambient capabilities |
+| Host executor | `limeos-storaged`, primary group `limeos-host-access` | `/run/limeos-storaged` (0750) | Root-owned policy; host observation and health, no capabilities, private network namespace; no Docker group |
 | Reserved assistant | `limeos-assistant` | `/var/lib/limeos/assistant` (0700) | No Docker or executor access; no P01 service |
 | Packaged code/UI/contracts | root | `/usr/lib/limeos` | Services cannot modify it |
 | Independent ceilings | root | `/etc/limeos/system-policy` | Exact core UID, protocol version and allow-health flag |

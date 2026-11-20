@@ -52,6 +52,9 @@ jobs:
           cargo build --locked -p limeos-core -p limeos-executor -p limeosctl
           sudo install -m 0755 target/debug/limeos-core target/debug/limeos-executor /usr/lib/limeos/
           systemd-analyze verify packaging/systemd/*.service
+      # Offline scoring needs systemd 250+ (24.04 ships 255); ceilings per unit.
+      - name: Unit exposure ceilings
+        run: python3 scripts/check_unit_exposure.py
       - run: python3 scripts/check_repository.py
       - name: Repository check unit tests
         run: python3 -m unittest discover -s tests/repository -p 'test_*.py'
