@@ -180,10 +180,15 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    and start time) that names the scope in `SNAP/activation-scope`, and that this
    process is inside that scope's control group; otherwise it stops with
    "nothing was killed or changed". It ends the activation by its
-   scope, never by pid: `systemctl kill --kill-whom=all --signal=KILL UNIT`
-   reaches `activate.sh`, its automatic rollback and every step, including any
-   started a moment before, and nothing outside the scope (a backup started from
-   the same shell is untouched). It then waits up to 15 s for the scope to empty
+   scope, never by pid: it writes `1` to the scope's
+   `/sys/fs/cgroup/system.slice/UNIT/cgroup.kill` (cgroup v2, kernel 5.14 or
+   newer), so the kernel kills `activate.sh`, its automatic rollback and every
+   step at once, including any forked during the kill, and nothing outside the
+   scope (a backup started from the same shell is untouched). Only if that file
+   cannot be used (not a cgroup2 mount, an older kernel, a failed write) does it
+   fall back to `systemctl kill --kill-whom=all --signal=KILL UNIT`, where systemd
+   signals each process it finds in the scope; the output says which it used and
+   why. It then waits up to 15 s for the scope to empty
    and only then takes `activate.lock` and returns, holding `return.lock` the
    whole time. If the activation was inside dpkg, run `dpkg --audit` afterwards.
    Before the kill it writes `SNAP/force-takeover` and removes it once the scope

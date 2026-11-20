@@ -39,10 +39,11 @@ failure, and kill -TERM <pid> makes it roll back now. It also refuses while the
 activation's transient scope (limeos-cutover-activate-*.scope) still has
 processes, such as a step that outlived activate.sh.
 
---force is for a hung activation: it ends the activation by its scope, with
-systemctl kill --kill-whom=all --signal=KILL UNIT (activate.sh, its automatic
+--force is for a hung activation: it ends the activation by its scope, by
+writing 1 to the scope's cgroup.kill (or, where that cannot be used,
+systemctl kill --kill-whom=all --signal=KILL UNIT): activate.sh, its automatic
 rollback and every step, including any started meanwhile, and nothing outside
-the scope), waits up to 15 s for the scope to empty, and only then takes
+the scope. It waits up to 15 s for the scope to empty, and only then takes
 activate.lock and returns. If the scope does not empty (a process in
 uninterruptible I/O), it stops having changed nothing else, lists what is left
 and says what to run next; SNAPSHOT_DIR/force-takeover records the unfinished
@@ -256,19 +257,45 @@ fct_takeover_text() { # snap
     printf 'a forced return (return.sh --force, pid %s, started %s) ended this snapshot'"'"'s activation but' "${pid:-?}" "${started:-?}"
 }
 
-# --force: end the activation by its scope, not by pid. systemd signals every process in the
-# scope's cgroup, including one started a moment ago, and nothing outside it; a pid cannot be
-# reused into the cgroup. Waits, bounded, for the scope to empty; if it does not, stops having
-# changed nothing else, holding no lock, and leaves the marker for the next return.sh.
+# Kill every process in the scope. Preferably by writing 1 to the scope's cgroup.kill (cgroup v2,
+# kernel 5.14 or newer): the kernel kills the whole cgroup at once, a process forked meanwhile
+# included, and no pid is involved. Only when that file cannot be used (no cgroup2 mount, an
+# older kernel, a failed write) does it fall back to systemctl kill, where systemd lists the
+# cgroup's pids and signals each one. Says which it used.
+fct_kill_scope() { # unit cgroup
+    local unit="${1}" cgroup="${2}" base="${CUTOVER_ROOT}/sys/fs/cgroup" dir why=''
+    dir="${base}${cgroup}"
+    if [[ -z "${cgroup}" ]]; then
+        why="systemd reports no control group for ${unit}"
+    elif [[ "$(stat -f -c %T -- "${base}" 2>/dev/null || true)" != cgroup2fs \
+            || "$(stat -f -c %T -- "${dir}" 2>/dev/null || true)" != cgroup2fs ]]; then
+        why="${dir} is not on a cgroup2 file system"
+    elif [[ -L "${dir}" || ! -d "${dir}" ]]; then
+        why="${dir} is not the scope's control group directory"
+    elif [[ ! -e "${dir}/cgroup.kill" ]]; then
+        why="${dir} has no cgroup.kill (kernel before 5.14)"
+    elif ! { printf '1\n' >"${dir}/cgroup.kill"; } 2>/dev/null; then
+        why="could not write 1 to ${dir}/cgroup.kill"
+    else
+        fct_warn "--force: killed every process in scope ${unit} at once by writing 1 to ${dir}/cgroup.kill (the kernel's cgroup kill; no pid involved)"
+        return 0
+    fi
+    fct_warn "--force: ${why}; using systemctl kill --kill-whom=all --signal=KILL ${unit} instead (systemd signals each process it finds in the scope)"
+    # Fails harmlessly when the unit no longer exists (the scope has emptied already). systemd
+    # rereads the cgroup until it finds no new process, and a process with SIGKILL pending
+    # cannot complete a fork.
+    systemctl kill --kill-whom=all --signal=KILL "${unit}" >/dev/null 2>&1 || true
+}
+
+# --force: end the activation by its scope, not by pid (fct_kill_scope), touching nothing
+# outside it. Waits, bounded, for the scope to empty; if it does not, stops having changed
+# nothing else, holding no lock, and leaves the marker for the next return.sh.
 fct_end_scope() { # snap unit cgroup
     local snap="${1}" unit="${2}" cgroup="${3}" deadline
     printf 'unit=%s\npid=%s\nstarted=%s\n' "${unit}" "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"${snap}/${TAKEOVER}" \
         || fct_warn "could not record the takeover in ${snap}/${TAKEOVER}"
-    fct_warn "--force: ending the activation, every process in scope ${unit} (activate.sh, its rollback and its steps): systemctl kill --kill-whom=all --signal=KILL ${unit}; if it was inside dpkg, run dpkg --audit after this return"
-    # Fails harmlessly when the unit no longer exists (the scope has emptied already). systemd
-    # rereads the cgroup until it finds no new process, and a process with SIGKILL pending
-    # cannot complete a fork, so one call reaches every process the scope will ever hold.
-    systemctl kill --kill-whom=all --signal=KILL "${unit}" >/dev/null 2>&1 || true
+    fct_warn "--force: ending the activation, every process in scope ${unit} (activate.sh, its rollback and its steps); if it was inside dpkg, run dpkg --audit after this return"
+    fct_kill_scope "${unit}" "${cgroup}"
     deadline=$(( SECONDS + FORCE_WAIT ))
     until fct_scope_empty "${unit}" "${cgroup}"; do
         if (( SECONDS >= deadline )); then

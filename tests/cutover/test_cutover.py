@@ -22,7 +22,7 @@ SCRIPTS = REPO / "scripts/cutover"
 STUB = Path(__file__).resolve().parent / "stubs/stub.sh"
 TOOLS = [
     "systemctl", "systemd-run", "docker", "ss", "free", "curl", "dpkg", "dpkg-deb", "dpkg-query",
-    "caddy", "sleep", "limeosctl",
+    "caddy", "sleep", "limeosctl", "stat",
 ]
 NOW = 1_800_000_000
 JELLYFIN_KEY = "0123456789abcdef0123456789abcdef"
@@ -1184,7 +1184,40 @@ class ActivateTests(Harness):
         self.assertIn(":8002 ", (self.stub / "ss_out").read_text())
 
     def kill_line(self):
+        """The fallback kill, through systemd."""
         return f"systemctl kill --kill-whom=all --signal=KILL {self.scope_unit()}"
+
+    def cgroup_kills(self):
+        """Scopes the stub "kernel" killed through a write to their cgroup.kill."""
+        path = self.stub / "cgroup-kills.log"
+        return path.read_text().splitlines() if path.exists() else []
+
+    def killed(self):
+        return bool(self.cgroup_kills()) or self.kill_line() in self.calls()
+
+    def test_forced_return_falls_back_to_systemctl_kill_when_cgroup_kill_cannot_be_used(self):
+        # The stub cgroup tree: no cgroup.kill (kernel before 5.14), a cgroup.kill that cannot be
+        # written, and a cgroup tree that is not a cgroup2 mount.
+        cases = (("no-cgroup-kill", "has no cgroup.kill (kernel before 5.14)"),
+                 ("cgroup-kill-readonly", "could not write 1 to"),
+                 ("cgroupfs-tmpfs", "is not on a cgroup2 file system"))
+        for flag, reason in cases:
+            if flag == "cgroup-kill-readonly" and os.geteuid() == 0:
+                continue  # root writes a read-only file anyway
+            with self.subTest(case=flag):
+                self.setUp()
+                first = self.stalled_activation()
+                unit = self.scope_unit()
+                (self.stub / flag).touch()
+                result = self.do_return("--force")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn(reason, result.stderr)
+                self.assertIn(f"using systemctl kill --kill-whom=all --signal=KILL {unit} instead", result.stderr)
+                self.assertIn(self.kill_line(), self.calls())
+                self.assertEqual(self.cgroup_kills(), [])
+                self.assertEqual(first.wait(timeout=10), -signal.SIGKILL)
+                self.assertEqual(self.marked_pids(self.stub), [])
+                self.assert_returned()
 
     def test_an_attached_activation_runs_in_its_named_scope(self):
         self.passing_snapshot()
@@ -1233,7 +1266,11 @@ class ActivateTests(Harness):
         result = self.do_return("--force")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(f"--force: ending the activation, every process in scope {unit}", result.stderr)
-        self.assertIn(self.kill_line(), self.calls())
+        # Through the kernel's cgroup kill: no pid, and no systemd per-pid kill.
+        self.assertIn(f"--force: killed every process in scope {unit} at once by writing 1 to "
+                      f"{self.root}/sys/fs/cgroup/system.slice/{unit}/cgroup.kill", result.stderr)
+        self.assertEqual(self.cgroup_kills(), [unit])
+        self.assertNotIn(self.kill_line(), self.calls())
         # The activation and its stalled step are gone, and the activation never ran its own rollback.
         self.assertEqual(self.marked_pids(self.stub), [])
         _, err = first.communicate(timeout=10)
@@ -1298,7 +1335,8 @@ class ActivateTests(Harness):
         self.assertIn(f"Next: wait until 'systemctl is-active {unit}' prints inactive, then run: "
                       f"return.sh {self.snap} --force", err)
         # The only change was the kill; the activation itself is gone and could not roll back.
-        self.assertEqual(self.mutating_calls(), calls_before + [self.kill_line()])
+        self.assertEqual(self.mutating_calls(), calls_before)
+        self.assertEqual(self.cgroup_kills(), [unit])
         self.assertEqual(first.wait(timeout=10), -signal.SIGKILL)
         self.assertTrue(all(self.alive(pid) for pid in survivors))
         self.assertTrue((self.snap / "force-takeover").exists())
@@ -1333,7 +1371,7 @@ class ActivateTests(Harness):
     def test_a_concurrent_return_is_refused_for_the_whole_takeover(self):
         first = self.stalled_activation(unkillable=True)
         forced = self.popen_return("--force", env={"CUTOVER_FORCE_WAIT": "60"})
-        self.wait_for(lambda: self.kill_line() in self.calls())
+        self.wait_for(self.killed)
         # activate.sh is dead and its lock free by now; return.lock still keeps everyone out.
         self.assertEqual(first.wait(timeout=10), -signal.SIGKILL)
         calls_before = self.mutating_calls()
@@ -1354,7 +1392,7 @@ class ActivateTests(Harness):
         self.stalled_activation(unkillable=True)
         unit = self.scope_unit()
         forced = self.popen_return("--force", env={"CUTOVER_FORCE_WAIT": "60"})
-        self.wait_for(lambda: self.kill_line() in self.calls())
+        self.wait_for(self.killed)
         forced.kill()  # the operator's terminal went away mid-takeover
         forced.communicate(timeout=10)
         self.wait_for(lambda: self.lock_free("return.lock"))  # its short-lived children have gone too

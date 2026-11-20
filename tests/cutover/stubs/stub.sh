@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One stub for systemctl, systemd-run, docker, ss, free, curl, dpkg, dpkg-deb, dpkg-query, caddy, sleep and
+# One stub for systemctl, systemd-run, docker, ss, free, curl, dpkg, dpkg-deb, dpkg-query, caddy, sleep, stat and
 # limeosctl. sleep runs $STUB_DIR/hook-sleep when present (measure.sh's idle window). Copied under each tool's name into a PATH directory by the tests.
 # State lives in $STUB_DIR; every call is appended to $STUB_DIR/calls.log. systemd-run --scope --unit and
 # systemctl is-active/show/kill on a *.scope model a transient scope (see scope_members).
@@ -58,16 +58,41 @@ for entry in os.listdir("/proc"):
     print(entry)
 PY
 }
+# SIGKILL every member that can die, again until none is left (what the kernel's cgroup kill
+# and systemd's cgroup walk both achieve).
+scope_kill() { # unit signal
+    local round
+    local -a pids=()
+    for (( round=0; round<50; round++ )); do
+        mapfile -t pids < <(scope_members "${1}" killable)
+        (( ${#pids[@]} )) || break
+        kill -s "${2}" "${pids[@]}" 2>/dev/null || true
+    done
+}
 # The scope's cgroup under the fake root, as systemd keeps it: cgroup.procs and cgroup.events
 # while it has members (plus any pids in $STUB_DIR/cgroup-extra, which stand for members that
-# exit while a caller reads the list), and no directory once it is empty.
+# exit while a caller reads the list), and no directory once it is empty. cgroup.kill is a
+# plain file here: whatever was written to it takes effect at the next look at the scope (the
+# caller's wait for it to empty), logged in $STUB_DIR/cgroup-kills.log. Flags in $STUB_DIR:
+# no-cgroup-kill (a kernel before 5.14), cgroup-kill-readonly (the write fails).
 scope_refresh() { # unit -> members on stdout
     local members dir="${LIMEOS_CUTOVER_ROOT}/sys/fs/cgroup/system.slice/${1}"
+    if [[ -s "${dir}/cgroup.kill" ]]; then
+        : >"${dir}/cgroup.kill"
+        printf '%s\n' "${1}" >>"${STUB_DIR}/cgroup-kills.log"
+        scope_kill "${1}" KILL
+    fi
     members="$(scope_members "${1}")"
     if [[ -n "${members}" ]]; then
         mkdir -p "${dir}"
         { printf '%s\n' "${members}"; if [[ -f "${STUB_DIR}/cgroup-extra" ]]; then cat "${STUB_DIR}/cgroup-extra"; fi; } >"${dir}/cgroup.procs"
         printf 'populated 1\nfrozen 0\n' >"${dir}/cgroup.events"
+        if [[ -e "${STUB_DIR}/no-cgroup-kill" ]]; then
+            rm -f "${dir}/cgroup.kill"
+        else
+            [[ -e "${dir}/cgroup.kill" ]] || : >"${dir}/cgroup.kill"
+            if [[ -e "${STUB_DIR}/cgroup-kill-readonly" ]]; then chmod 0444 "${dir}/cgroup.kill"; fi
+        fi
         printf '%s\n' "${members}"
     else
         rm -rf "${dir}"
@@ -94,6 +119,14 @@ case "${tool}" in
         fi
         exec "$@" ;;
     sleep) if [[ -x "${STUB_DIR}/hook-sleep" ]]; then "${STUB_DIR}/hook-sleep"; fi; exit 0 ;;
+    stat)
+        # stat -f -c %T: the fake cgroup tree is a cgroup2 mount unless $STUB_DIR/cgroupfs-tmpfs
+        # exists. Anything else is the real stat.
+        if [[ "${1:-}" == -f ]]; then
+            if [[ -e "${STUB_DIR}/cgroupfs-tmpfs" ]]; then echo tmpfs; else echo cgroup2fs; fi
+            exit 0
+        fi
+        command -p stat "$@"; exit ;;
     systemctl)
         verb="${1:-}"; shift || true
         quiet=0; args=()
@@ -115,11 +148,7 @@ case "${tool}" in
                         printf 'Failed to kill unit %s: Unit %s not loaded.\n' "${scope}" "${scope}" >&2
                         exit 1
                     fi
-                    for (( round=0; round<50; round++ )); do
-                        mapfile -t pids < <(scope_members "${scope}" killable)
-                        (( ${#pids[@]} )) || break
-                        kill -s "${sig}" "${pids[@]}" 2>/dev/null || true
-                    done
+                    scope_kill "${scope}" "${sig}"
                     scope_refresh "${scope}" >/dev/null ;;
                 *) printf 'stub systemctl: unsupported %s for a scope\n' "${verb}" >&2; exit 99 ;;
             esac
