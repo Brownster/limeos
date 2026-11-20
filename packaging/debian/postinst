@@ -33,39 +33,79 @@ fct_reader_access() {
     chown root:"${group}" "${file}"
     chmod 0640 "${file}"
 }
-# Units prerm stopped while they were running, one per line, in stop order.
+# The units prerm recorded as running when it stopped them, in stop order.
+# Only these may be started from the record; effect units never are.
+RESTARTED_UNITS=(limeos-core.service limeos-containerd.service limeos-storaged.service limeos-storage-reader.service)
 RESTART_DIRECTORY=/run/limeos-package
+RECORDED=()
 fct_systemd_running() { [[ -d "${DPKG_ROOT:-}/run/systemd/system" ]]; }
-# Start the recorded units in reverse stop order, skipping the named units
-# (configure restarts the core units itself). A unit that does not start is
-# named, the others still start, and the record stays for the next attempt;
-# only a fully restored record is removed. Entries that are not this
-# package's units are ignored.
-fct_restore_units() {
-    local directory="${DPKG_ROOT:-}${RESTART_DIRECTORY}" line unit skipped index failed=0
-    local -a units=()
-    if [[ -L "${directory}" || -L "${directory}/units" ]]; then
-        printf 'Refusing symlinked restart record: %s\n' "${directory}" >&2
-        return 1
+# Owned by the user running this script (root under dpkg), no symlink, and
+# writable by no one else.
+fct_safe_path() {
+    local path="${1}" kind="${2}" owner mode type
+    if [[ -L "${path}" ]]; then return 1; fi
+    read -r owner mode type < <(stat -c '%u %a %F' -- "${path}") || return 1
+    [[ "${owner}" == "${EUID}" && "${type}" == "${kind}" ]] || return 1
+    (( (8#${mode} & 8#022) == 0 ))
+}
+# Read and delete the record: configure and the abort actions end the
+# transaction prerm began, whether or not anything is then started. An
+# unsafe record is ignored; a directory that is not ours is left alone.
+fct_take_record() {
+    local directory="${DPKG_ROOT:-}${RESTART_DIRECTORY}" line allowed known
+    RECORDED=()
+    [[ -e "${directory}" || -L "${directory}" ]] || return 0
+    if ! fct_safe_path "${directory}" directory; then
+        printf 'Warning: ignoring unsafe restart record directory %s\n' "${directory}" >&2
+        return 0
     fi
-    [[ -f "${directory}/units" ]] || return 0
-    while IFS= read -r line || [[ -n "${line}" ]]; do
-        if [[ "${line}" =~ ^limeos-[a-z][a-z-]*\.service$ ]]; then
-            units+=("${line}")
+    if [[ -e "${directory}/units" || -L "${directory}/units" ]]; then
+        if fct_safe_path "${directory}/units" 'regular file' || fct_safe_path "${directory}/units" 'regular empty file'; then
+            while IFS= read -r line || [[ -n "${line}" ]]; do
+                [[ -n "${line}" ]] || continue
+                known=0
+                for allowed in "${RESTARTED_UNITS[@]}"; do [[ "${allowed}" != "${line}" ]] || known=1; done
+                if (( known )); then
+                    RECORDED+=("${line}")
+                else
+                    printf 'Warning: ignoring unexpected restart record entry: %s\n' "${line}" >&2
+                fi
+            done <"${directory}/units"
         else
-            printf 'Ignoring unexpected restart record entry: %s\n' "${line}" >&2
+            printf 'Warning: ignoring unsafe restart record %s\n' "${directory}/units" >&2
         fi
-    done <"${directory}/units"
-    for (( index=${#units[@]}-1; index>=0; index-- )); do
-        unit="${units[index]}"
+    fi
+    rm -rf -- "${directory}"
+}
+# Start the recorded units in reverse stop order, skipping the named units
+# (configure restarts the core units itself). A unit the administrator has
+# since masked or disabled is skipped with a warning. A unit that does not
+# start is named and the others still start.
+fct_restore_units() {
+    local unit skipped index failed=0 load_state file_state
+    fct_take_record
+    for (( index=${#RECORDED[@]}-1; index>=0; index-- )); do
+        unit="${RECORDED[index]}"
         for skipped in "$@"; do [[ "${skipped}" != "${unit}" ]] || continue 2; done
+        if ! load_state="$(systemctl show "${unit}" -p LoadState --value)" || ! file_state="$(systemctl show "${unit}" -p UnitFileState --value)"; then
+            printf 'Could not query %s, which was running before the package change; start it with: systemctl start %s\n' "${unit}" "${unit}" >&2
+            failed=1
+            continue
+        fi
+        if [[ "${load_state}" == masked || "${file_state}" == masked* ]]; then
+            printf 'Warning: not starting %s: it was masked after it was stopped.\n' "${unit}" >&2
+            continue
+        fi
+        if [[ "${file_state}" == disabled ]]; then
+            printf 'Warning: not starting %s: it was disabled after it was stopped.\n' "${unit}" >&2
+            continue
+        fi
         if ! systemctl start "${unit}"; then
-            printf 'Could not start %s, which was running before the package change.\n' "${unit}" >&2
+            printf 'Could not start %s, which was running before the package change; start it with: systemctl start %s\n' "${unit}" "${unit}" >&2
             failed=1
         fi
     done
-    (( failed == 0 )) || return 1
-    rm -rf -- "${directory}"
+    (( failed == 0 ))
 }
 fct_execute_this() {
     /usr/lib/limeos/limeosctl check-config /etc/limeos/core.json
@@ -127,10 +167,12 @@ fct_execute_this() {
         printf '%s\n' 'LimeOS did not become ready within 15 seconds; inspect journalctl -u limeos-core.' >&2
         return 1
     fi
+    # Without a manager nothing is restarted, but the transaction still ends.
+    fct_take_record
 }
 # prerm stopped the services and nothing was replaced: start what it stopped.
 fct_abort() {
-    fct_systemd_running || return 0
+    if ! fct_systemd_running; then fct_take_record; return 0; fi
     systemctl daemon-reload
     fct_restore_units
 }
