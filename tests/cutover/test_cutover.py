@@ -1491,6 +1491,18 @@ class ReturnTests(Harness):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("port 8002", result.stderr)
 
+    def test_a_live_file_back_at_its_preflight_contents_is_checked_against_the_baseline(self):
+        # A at preflight, B when the writers stopped, A again on return: an update was lost.
+        self.passing_snapshot()
+        self._write("/var/lib/limeos/metrics.db", "B-written-before-the-stop")
+        result = self.approved()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self._write("/var/lib/limeos/metrics.db", "sqlite-bytes-1")
+        result = self.do_return()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("live state file changed after the writers stopped: /var/lib/limeos/metrics.db "
+                      "(checked against the post-stop baseline)", result.stderr)
+
     def test_live_database_change_is_flagged_against_post_stop_baseline(self):
         self.activated()
         self._write("/var/lib/limeos/metrics.db", "written-by-a-late-writer")

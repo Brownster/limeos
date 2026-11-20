@@ -133,30 +133,53 @@ fct_capture_hashes() {
     HASHES_CAPTURED=1
 }
 
+# Every path is checked against the post-stop baseline whenever activate recorded one (a live
+# file that went A -> B -> A must not pass because it matches preflight again), strict files
+# against the preflight snapshot as well; with no baseline, against the preflight snapshot.
 fct_verify_hashes() {
-    local snap="${1}" flag hash path record cur_hash baseline writers="${WRITERS_RUNNING}"
+    local snap="${1}" flag hash path record cur_hash base_hash baseline writers="${WRITERS_RUNNING}"
+    local have_baseline=0 against_baseline=0 against_preflight=0
+    local -A base=()
     (( HASHES_CAPTURED )) || return 0
     baseline="${snap}/state.poststop.sha256"
+    if [[ -f "${baseline}" ]]; then
+        have_baseline=1
+        while IFS= read -r record || [[ -n "${record}" ]]; do
+            [[ -n "${record}" ]] || continue
+            if fct_parse_record "${record}"; then base["${REC_PATH}"]="${REC_HASH}"; else fct_fail "malformed record in the post-stop baseline: ${record}"; fi
+        done <"${baseline}"
+    fi
     while IFS= read -r record || [[ -n "${record}" ]]; do
         [[ -n "${record}" ]] || continue
         if ! fct_parse_record "${record}"; then fct_fail "malformed state record in the snapshot: ${record}"; continue; fi
         flag="${REC_FLAG}" hash="${REC_HASH}" path="${REC_PATH}"
         if [[ -n "${UNHASHABLE["${path}"]:-}" ]]; then fct_fail "cannot verify state file: ${path} (named above)"; continue; fi
         cur_hash="${CURRENT_HASHES["${path}"]:-ABSENT}"
+        base_hash="${base["${path}"]:-ABSENT}"
         if [[ "${flag}" == S ]]; then
-            [[ "${cur_hash}" == "${hash}" ]] || fct_fail "state file changed: ${path}"
-        elif [[ "${cur_hash}" != "${hash}" ]]; then
-            # Live databases may change before the writers stop; compare to the
-            # post-stop baseline when activate recorded one.
-            if (( writers )); then
-                fct_warn "live state file differs from the snapshot (frozen writers are running): ${path}"
-            elif [[ -f "${baseline}" ]] && ! grep -qxF "${flag} ${cur_hash} ${path}" "${baseline}"; then
-                fct_fail "live state file changed after the writers stopped: ${path}"
-            elif [[ ! -f "${baseline}" ]]; then
-                fct_warn "live state file differs from the snapshot (writers may have run): ${path}"
+            against_preflight=$(( against_preflight + 1 ))
+            [[ "${cur_hash}" == "${hash}" ]] || fct_fail "state file changed: ${path} (checked against the preflight snapshot)"
+            if (( have_baseline )); then
+                against_baseline=$(( against_baseline + 1 ))
+                [[ "${cur_hash}" == "${base_hash}" ]] || fct_fail "state file changed: ${path} (checked against the post-stop baseline)"
+            fi
+        elif (( have_baseline )); then
+            against_baseline=$(( against_baseline + 1 ))
+            if [[ "${cur_hash}" != "${base_hash}" ]]; then
+                if (( writers )); then
+                    fct_warn "live state file differs from the post-stop baseline (frozen writers are running): ${path}"
+                else
+                    fct_fail "live state file changed after the writers stopped: ${path} (checked against the post-stop baseline)"
+                fi
+            fi
+        else
+            against_preflight=$(( against_preflight + 1 ))
+            if [[ "${cur_hash}" != "${hash}" ]]; then
+                fct_warn "live state file differs from the preflight snapshot (no post-stop baseline, so writers may have run): ${path}"
             fi
         fi
     done <"${snap}/state.sha256"
+    fct_log "return: state checks: ${against_baseline} against the post-stop baseline, ${against_preflight} against the preflight snapshot"
 }
 
 # Only the managed set must match the snapshot; other changes are named, not failures.
