@@ -28,6 +28,10 @@ struct EngineFixture {
     drop_execute: bool,
     /// Execute requests read, answered or not.
     executes: usize,
+    /// Refuse every execute request with this code, before any row.
+    execute_error: Option<ErrorCode>,
+    /// Receipt lookups answered.
+    lookups: usize,
 }
 #[tokio::test]
 async fn logs_recheck_revocation_after_reading_and_viewer_scope_never_reaches_executor() {
@@ -182,6 +186,8 @@ async fn fixture() -> (
         vanish_after_epoch: false,
         drop_execute: false,
         executes: 0,
+        execute_error: None,
+        lookups: 0,
     }));
     let entered = Arc::new(tokio::sync::Notify::new());
     let release = Arc::new(tokio::sync::Notify::new());
@@ -212,6 +218,10 @@ async fn fixture() -> (
                     if state.drop_execute {
                         continue;
                     }
+                    if let Some(code) = state.execute_error {
+                        response.ready = false;
+                        response.error = Some(code);
+                    }
                 }
                 if matches!(
                     request,
@@ -236,6 +246,8 @@ async fn fixture() -> (
                             truncated: false,
                         });
                     }
+                    Request::Restart { .. } | Request::ExecuteContainer { .. }
+                        if state.execute_error.is_some() => {}
                     Request::Restart { request, .. }
                     | Request::ExecuteContainer { request, .. }
                         if state.closed.is_some() =>
@@ -275,6 +287,7 @@ async fn fixture() -> (
                             limeos_identity::digest(&serde_json::to_string(&plan).unwrap()),
                             digest
                         );
+                        state.lookups += 1;
                         if !close_if_absent {
                             state.plain_reads += 1;
                         }
@@ -957,5 +970,63 @@ async fn a_job_held_across_a_store_epoch_change_reconciles_from_an_intact_receip
         0
     );
     assert_eq!(state.lock().unwrap().posts, 0);
+    task.abort();
+}
+
+/// The executor refuses the execute with `beyond_receipt_history` (its plan
+/// expires within pruned receipt history, as after a backward clock step).
+/// The refusal comes before anything is recorded for the action, and core
+/// sends one execute per job, so nothing ran or can run: the job is settled
+/// as refused at once, without a lookup or an operator.
+#[tokio::test]
+async fn an_execute_refused_beyond_receipt_history_settles_the_job_as_refused() {
+    let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
+    let snapshot = state.lock().unwrap().current.clone();
+    {
+        let mut fixture = state.lock().unwrap();
+        fixture.execute_error = Some(ErrorCode::BeyondReceiptHistory);
+        // Every plan is at or below the watermark, as the refusal implies.
+        fixture.watermark = i64::MAX;
+    }
+    let (job, _) = queued(&core, &token, &csrf, snapshot.resource.clone()).await;
+    let principal = principal_of(&core, &token).await;
+    core.dispatch_one(principal.clone(), job.clone())
+        .await
+        .unwrap();
+    let progress = settled(&core, &token, &job.id).await;
+    assert_eq!(progress.job.state, JobState::PreconditionChanged);
+    assert_eq!(missing_events(&progress), 0);
+    {
+        let fixture = state.lock().unwrap();
+        assert_eq!(
+            (fixture.executes, fixture.posts, fixture.lookups),
+            (1, 0, 0)
+        );
+        assert!(fixture.closed.is_none());
+    }
+    assert!(
+        core.db
+            .call(|s| s.container_candidates())
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let next = core
+        .db
+        .call(move |s| {
+            let plan = s.plan_container(
+                &principal,
+                limeos_domain::ContainerAction::Restart,
+                &snapshot,
+                now(),
+            )?;
+            let approval = s.approve_container(&principal, &plan.plan.id, &plan.digest, now())?;
+            let queued =
+                s.queue_container(&principal, "next", &plan, &approval.token, &snapshot, now())?;
+            s.claim_container(&principal, &queued.id, &snapshot, &"1".repeat(64), now())
+        })
+        .await
+        .unwrap();
+    assert_eq!(next.state, JobState::Running);
     task.abort();
 }

@@ -468,9 +468,10 @@ impl Core {
                     note_epoch(&epoch, value.epoch.as_deref());
                     value.restart
                 }
-                Err(failure) if !failure.sent => {
-                    // Never sent: nothing can run for this job.
-                    note_unsent();
+                Err(failure) if !failure.sent || refused_before_any_row(failure.error) => {
+                    // Never sent, or refused before the executor recorded
+                    // anything: nothing ran or can run for this job.
+                    note_execute_failure(failure);
                     let id = job.id.clone();
                     return self
                         .db
@@ -478,7 +479,7 @@ impl Core {
                         .await;
                 }
                 Err(failure) => {
-                    note_execute_failure(failure.error);
+                    note_execute_failure(failure);
                     self.mark(&job, JobState::NeedsIntervention).await?;
                     return Ok(());
                 }
@@ -662,14 +663,6 @@ impl Core {
     }
 }
 
-/// The connection to the executor could not be established, so no byte of
-/// the execute request was written: the job is released, as a refusal.
-pub(super) fn note_unsent() {
-    tracing::warn!(
-        "the container executor could not be reached; the execute request was never sent, and the job is released without effect"
-    );
-}
-
 /// The execute answer came from a receipt store other than the one the job
 /// was dispatched under (the executor reopened its store in between). Its
 /// receipt still stands; recording the new epoch has marked the held job, so
@@ -682,16 +675,31 @@ pub(super) fn note_epoch(dispatched: &str, answered: Option<&str>) {
     }
 }
 
-/// A failed execute call leaves the job held. The executor's clock-free
-/// barrier (`BeyondReceiptHistory`) gets its own message, since after a
-/// backward clock step every new action is refused the same way.
-pub(super) fn note_execute_failure(error: Error) {
-    if error.0 == ErrorCode::BeyondReceiptHistory {
+/// Whether an execute refusal proves the executor recorded nothing for the
+/// action: `BeyondReceiptHistory` is returned by its clock-free barrier only
+/// when the store holds no row for the action, before it reads a clock,
+/// contacts the Engine or writes anything (`ReceiptStore::admit`). Core sends
+/// one execute per job, so with that refusal nothing ran or can run.
+pub(super) fn refused_before_any_row(error: Error) -> bool {
+    error.0 == ErrorCode::BeyondReceiptHistory
+}
+
+/// Logs a failed execute call. One that was never sent, or refused before
+/// any row (`refused_before_any_row`), releases the job as refused; any
+/// other leaves it held for reconciliation. The clock-free barrier gets its
+/// own message, since after a backward clock step every new action is
+/// refused the same way.
+pub(super) fn note_execute_failure(failure: Failure) {
+    if !failure.sent {
         tracing::warn!(
-            "executor refused the action: its plan expires within pruned receipt history, so the executor cannot tell whether it already ran; check the system clock (the job is held for an operator)"
+            "the container executor could not be reached; the execute request was never sent, and the job is released without effect"
+        );
+    } else if refused_before_any_row(failure.error) {
+        tracing::warn!(
+            "executor refused the action: its plan expires within pruned receipt history, so the executor cannot tell whether an action with it already ran; check the system clock (nothing was recorded or run, and the job is settled as refused)"
         );
     } else {
-        tracing::warn!(code=?error.0, "execute call failed; the job is held for reconciliation");
+        tracing::warn!(code=?failure.error.0, "execute call failed; the job is held for reconciliation");
     }
 }
 

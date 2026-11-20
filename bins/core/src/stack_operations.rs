@@ -369,9 +369,13 @@ impl Core {
                     super::operations::note_epoch(&epoch, value.epoch.as_deref());
                     value.stack
                 }
-                Err(failure) if !failure.sent => {
-                    // Never sent: nothing can run for this job.
-                    super::operations::note_unsent();
+                Err(failure)
+                    if !failure.sent
+                        || super::operations::refused_before_any_row(failure.error) =>
+                {
+                    // Never sent, or refused before the executor recorded
+                    // anything: nothing ran or can run for this job.
+                    super::operations::note_execute_failure(failure);
                     let id = job.id.clone();
                     return self
                         .db
@@ -379,7 +383,7 @@ impl Core {
                         .await;
                 }
                 Err(failure) => {
-                    super::operations::note_execute_failure(failure.error);
+                    super::operations::note_execute_failure(failure);
                     // The executor may have failed before writing any row.
                     return self.release_if_unsent(&job, &digest).await;
                 }

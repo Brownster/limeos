@@ -2118,3 +2118,36 @@ async fn a_refused_connection_releases_the_stack_without_an_operator() {
     }
     assert!(member_claimable(&f, "after").await);
 }
+
+/// An ExecuteStack refused with `beyond_receipt_history` was refused before
+/// the executor recorded anything, and core sends one execute per job: the
+/// stack is settled as refused at once, with no closing lookup (which would
+/// answer `no_longer_held`) and no operator.
+#[tokio::test]
+async fn a_stack_refused_beyond_receipt_history_is_settled_as_refused() {
+    let f = admin().await;
+    {
+        let mut engine = f.engine.lock().unwrap();
+        engine.execute_error = Some(ErrorCode::BeyondReceiptHistory);
+        engine.watermark = i64::MAX;
+    }
+    let job = f.queued(ContainerAction::Restart, "beyond").await;
+    f.core
+        .dispatch_stack(f.principal().await, job.clone())
+        .await
+        .unwrap();
+    let progress = f
+        .core
+        .stack_job_progress(f.token.clone(), job.id.clone(), 0)
+        .await
+        .unwrap();
+    assert_eq!(progress.job.state, JobState::PreconditionChanged);
+    assert_eq!(missing_events(&progress), 0);
+    {
+        let engine = f.engine.lock().unwrap();
+        assert_eq!((engine.executes, engine.receipts), (1, 0));
+        assert!(engine.closed.is_none());
+    }
+    assert!(member_claimable(&f, "after").await);
+    f.task.abort();
+}
