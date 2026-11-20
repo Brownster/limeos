@@ -147,7 +147,9 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
 6. Log in through the browser (trust the Caddy CA first under `internal`).
 7. `scripts/cutover/return.sh SNAP [--dry-run] [--force]` at any time, except
    while an activation on that snapshot is still running: then it refuses and
-   names the activation's pid. That run rolls back by itself if it fails;
+   names the activation's pid (each script records its role, pid and start time
+   in `SNAP/activate.lock`; a record whose process has gone is reported as stale,
+   never as a pid to signal). That run rolls back by itself if it fails;
    `kill -TERM PID` makes it roll back now. `--force` goes on regardless and is
    only for an activation that is hung. Otherwise: removes the Caddy
    site, returns the Rust services to their snapshot state (stopped and disabled

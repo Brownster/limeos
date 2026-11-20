@@ -75,6 +75,44 @@ fct_catalog_problem() {
     fi
 }
 
+# A process's start time in clock ticks since boot (field 22 of /proc/PID/stat); empty when
+# the process is gone. A pid plus its start time names one process even if the pid is reused.
+fct_proc_start() { # pid
+    local stat=''
+    local -a fields=()
+    { IFS= read -r stat <"/proc/${1}/stat"; } 2>/dev/null || return 0
+    read -r -a fields <<<"${stat##*) }"
+    printf '%s\n' "${fields[19]:-}"
+}
+
+# The snapshot lock (SNAP/activate.lock, held on fd 9) records its holder as one line,
+# "ROLE PID START", written by whichever script takes it.
+fct_record_holder() { # lock role
+    printf '%s %s %s\n' "${2}" "$$" "$(fct_proc_start "$$")" >"${1}"
+}
+# Sets HOLDER_ROLE and HOLDER_PID from the record; succeeds only when that pid still runs
+# with the recorded start time (otherwise the record is stale: exited, or the pid reused).
+fct_live_holder() { # lock
+    local role='' pid='' start=''
+    { read -r role pid start <"${1}"; } 2>/dev/null || true
+    HOLDER_ROLE="${role:-none}"
+    HOLDER_PID="${pid:-?}"
+    [[ "${pid}" =~ ^[0-9]+$ && "${start}" =~ ^[0-9]+$ ]] || return 1
+    [[ "$(fct_proc_start "${pid}")" == "${start}" ]]
+}
+# Why the lock is unavailable, naming the holder only when the record is current.
+fct_lock_holder_text() { # lock
+    if ! fct_live_holder "${1}"; then
+        printf '%s is held, but its holder record (%s %s) is stale: that process has exited or its pid was reused, so do not signal it; find the real holder with: fuser -v %s' \
+            "${1}" "${HOLDER_ROLE}" "${HOLDER_PID}" "${1}"
+    elif [[ "${HOLDER_ROLE}" == activate ]]; then
+        printf 'activate.sh (pid %s) is running on this snapshot; it rolls back by itself if it fails. To abort it now: kill -TERM %s. Only if it is hung: return.sh --force' \
+            "${HOLDER_PID}" "${HOLDER_PID}"
+    else
+        printf '%s.sh (pid %s) is running on this snapshot; wait for it to finish' "${HOLDER_ROLE}" "${HOLDER_PID}"
+    fi
+}
+
 # One line per missing tool, so nothing is found missing halfway through a cutover.
 fct_missing_requirements() { # need_python need_systemd_run (0 or 1 each)
     local tool

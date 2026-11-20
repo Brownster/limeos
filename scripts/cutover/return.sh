@@ -89,17 +89,17 @@ fct_record_paths() { # file
 # The snapshot's activate.lock, without waiting. activate.sh's rollback runs this script with
 # the lock already held on fd 9 (the same open file, so the same lock).
 fct_lock_snapshot() { # snap
-    local lock="${1}/activate.lock" holder
+    local lock="${1}/activate.lock"
     if [[ /proc/self/fd/9 -ef "${lock}" ]] && flock -n 9; then return 0; fi
     exec 9>>"${lock}" || fct_die "cannot open ${lock}"
-    if flock -n 9; then return 0; fi
-    holder="$(head -n 1 -- "${lock}" 2>/dev/null || true)"
-    [[ "${holder}" =~ ^[0-9]+$ ]] || holder=unknown
-    if (( FORCE )); then
-        fct_warn "activate.sh (pid ${holder}) still holds ${lock}; going on because of --force"
-        return 0
+    if ! flock -n 9; then
+        if (( FORCE )) && fct_live_holder "${lock}"; then
+            fct_warn "activate.sh (pid ${HOLDER_PID}) still holds ${lock}; going on because of --force"
+            return 0
+        fi
+        fct_die "$(fct_lock_holder_text "${lock}")"
     fi
-    fct_die "activate.sh (pid ${holder}) is running on this snapshot; it rolls back by itself if it fails. To abort it now: kill -TERM ${holder}. Only if it is hung: return.sh --force"
+    fct_record_holder "${lock}" return
 }
 
 fct_frozen_writer_running() {

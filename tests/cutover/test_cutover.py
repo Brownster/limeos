@@ -247,6 +247,14 @@ class Harness(unittest.TestCase):
         self.fake_tool("env", 'if [[ "${1:-}" == --default-signal* ]]; then echo "env: unrecognized option" >&2; exit 125; fi\n'
                               f'exec "{real}" "$@"')
 
+    @staticmethod
+    def wait_for(predicate, timeout=30):
+        deadline = time.monotonic() + timeout
+        while not predicate():
+            if time.monotonic() > deadline:
+                raise AssertionError("timed out")
+            time.sleep(0.05)
+
     def fake_tool(self, name, script="exit 1"):
         """Shadow a real tool (sha256sum, mktemp, ...) with a script in the stub PATH."""
         tool = self.bin / name
@@ -828,14 +836,6 @@ class ActivateTests(Harness):
         self.addCleanup(lambda: go.touch())
         return reached, go
 
-    @staticmethod
-    def wait_for(predicate, timeout=30):
-        deadline = time.monotonic() + timeout
-        while not predicate():
-            if time.monotonic() > deadline:
-                raise AssertionError("timed out")
-            time.sleep(0.05)
-
     def popen_detached(self):
         args = self.activate_args("--yes-i-have-operator-approval")
         args[0] = str(self.snap)
@@ -983,7 +983,7 @@ class ActivateTests(Harness):
                 calls_before = len(self.mutating_calls())
                 second = self.approved()
                 self.assertNotEqual(second.returncode, 0)
-                self.assertIn("another activate.sh is running on this snapshot", second.stderr)
+                self.assertRegex(second.stderr, r"activate\.sh \(pid \d+\) is running on this snapshot")
                 self.assertEqual(len(self.mutating_calls()), calls_before)
                 go.touch()
                 log = self.snap / "activate.log"
@@ -1291,10 +1291,11 @@ class ReturnTests(Harness):
     def test_idempotent(self):
         self.activated()
         self.assertEqual(self.do_return().returncode, 0)
-        digest = tree_digest(self.root), tree_digest(self.stub / "units")
+        skip = ("calls.log", "activate.lock")  # each return records itself as the lock holder
+        digest = tree_digest(self.root, skip=skip), tree_digest(self.stub / "units")
         second = self.do_return()
         self.assertEqual(second.returncode, 0, second.stderr)
-        self.assertEqual(digest, (tree_digest(self.root), tree_digest(self.stub / "units")))
+        self.assertEqual(digest, (tree_digest(self.root, skip=skip), tree_digest(self.stub / "units")))
 
     def test_rust_units_enabled_before_the_cutover_are_restored_not_disabled(self):
         for name in RUST:
@@ -1341,6 +1342,55 @@ class ReturnTests(Harness):
                 self.assertIn(f"no {name}", result.stderr)
                 self.assertEqual(self.mutating_calls(), [])
                 (self.snap / f"{name}.away").rename(self.snap / name)
+
+    def hold_lock_with_record(self, record):
+        """Hold the snapshot lock from the test process, with RECORD as the holder line."""
+        import fcntl as _fcntl
+        lock = self.snap / "activate.lock"
+        handle = open(lock, "a")
+        self.addCleanup(handle.close)
+        _fcntl.flock(handle, _fcntl.LOCK_EX | _fcntl.LOCK_NB)
+        lock.write_text(record)
+
+    def test_a_stale_holder_record_is_not_named_as_a_process_to_signal(self):
+        own_start = Path(f"/proc/{os.getpid()}/stat").read_text().rsplit(") ", 1)[1].split()[19]
+        for label, record in (("exited", "activate 4194000 123\n"),
+                              ("reused", f"activate {os.getpid()} {int(own_start) + 1}\n")):
+            with self.subTest(record=label):
+                self.setUp()
+                self.activated()
+                self.hold_lock_with_record(record)
+                result = self.do_return()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("holder record (activate", result.stderr)
+                self.assertIn("is stale", result.stderr)
+                self.assertNotIn("kill -TERM", result.stderr)
+                self.assertEqual(self.mutating_calls(), [])
+
+    def test_a_running_return_is_named_as_the_holder(self):
+        self.activated()
+        reached, go = self.stub / "return-reached", self.stub / "return-go"
+        hook = self.stub / "hook-stop-limeos-core.service"
+        hook.write_text(f"#!/usr/bin/env bash\ntouch '{reached}'\nwhile [[ ! -e '{go}' ]]; do command -p sleep 0.05; done\n")
+        hook.chmod(0o755)
+        first = subprocess.Popen(["bash", str(SCRIPTS / "return.sh"), str(self.snap)], env=self.env,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        self.wait_for(reached.exists)
+        record = (self.snap / "activate.lock").read_text().split()
+        self.assertEqual(record[:2], ["return", str(first.pid)])
+        second = self.do_return()
+        self.assertNotEqual(second.returncode, 0)
+        self.assertIn(f"return.sh (pid {first.pid}) is running on this snapshot", second.stderr)
+        self.assertNotIn("kill -TERM", second.stderr)
+        go.touch()
+        out, err = first.communicate(timeout=60)
+        self.assertEqual(first.returncode, 0, out + err)
+
+    def test_activate_records_role_pid_and_start_time(self):
+        self.activated()
+        role, pid, start = (self.snap / "activate.lock").read_text().split()
+        self.assertEqual(role, "activate")
+        self.assertTrue(pid.isdigit() and start.isdigit())
 
     def test_return_without_prior_activate(self):
         self.passing_snapshot()
