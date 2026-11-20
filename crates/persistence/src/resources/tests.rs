@@ -849,6 +849,15 @@ fn the_v17_index_sort_stays_in_memory_up_to_the_audit_cap() {
     assert!(!past.in_memory());
     assert_eq!(
         past.needed(),
-        MIN_FREE_BYTES + past.entries * 4 / 3 * 2 + past.sort * 2
+        MIN_FREE_BYTES + crate::UPGRADE_FIXED_BYTES + past.entries * 4 / 3 * 2 + past.sort * 2
     );
+}
+
+/// Even a store with no events writes the new indexes' root pages and their
+/// WAL frames, so the estimate asks for more than the bare write reserve.
+#[test]
+fn the_v17_estimate_for_an_empty_store_exceeds_the_write_reserve() {
+    let empty = crate::IndexBuild::of([(0, 0), (0, 0), (0, 0)]);
+    assert!(empty.in_memory());
+    assert_eq!(empty.needed(), MIN_FREE_BYTES + crate::UPGRADE_FIXED_BYTES);
 }

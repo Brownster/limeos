@@ -402,10 +402,17 @@ impl IndexBuild {
             self.sort.saturating_mul(2)
         };
         MIN_FREE_BYTES
+            .saturating_add(UPGRADE_FIXED_BYTES)
             .saturating_add(pages.saturating_mul(2))
             .saturating_add(spill)
     }
 }
+/// What the upgrade writes however few events there are: the root page of each
+/// new index, the rewritten schema page, and their WAL frames and header. A
+/// few 4 KiB pages in truth; 256 KiB leaves room for a larger page size and for
+/// the WAL's own bookkeeping, so that even an empty store keeps the full write
+/// reserve after the upgrade commits.
+const UPGRADE_FIXED_BYTES: u64 = 256 * 1024;
 /// A pending schema upgrade that needs more free space than the store's
 /// directory has: what `Store::open` refused, in bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
