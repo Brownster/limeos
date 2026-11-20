@@ -337,6 +337,7 @@ async fn fixture() -> (
     });
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: "unused".into(),
@@ -347,6 +348,7 @@ async fn fixture() -> (
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
         compose_catalog: None,
     };
@@ -1028,5 +1030,198 @@ async fn an_execute_refused_beyond_receipt_history_settles_the_job_as_refused() 
         .await
         .unwrap();
     assert_eq!(next.state, JobState::Running);
+    task.abort();
+}
+
+/// A job that fails on every dispatcher pass is logged at its 1st, 2nd,
+/// 4th, 8th... failure; its first is never hidden, other jobs keep their own
+/// counts, and a job that goes through starts again from a first.
+#[test]
+fn repeated_job_failures_are_logged_logarithmically_per_job() {
+    let mut repeats = operations::Repeats::default();
+    let logged: Vec<u64> = (0..64).filter_map(|_| repeats.failed("a")).collect();
+    assert_eq!(logged, [1, 2, 4, 8, 16, 32, 64]);
+    assert_eq!(repeats.failed("b"), Some(1));
+    assert_eq!(repeats.failed("a"), None);
+    repeats.passed("a");
+    assert_eq!(repeats.failed("a"), Some(1));
+    assert_eq!(repeats.failed("b"), Some(2));
+}
+
+/// The store call deadline in the stalled-writer tests: 30 s scaled down.
+pub(super) const SHORT_CALL: Duration = Duration::from_millis(100);
+
+/// Stalls the store's writer on one item until the returned sender is
+/// used (or dropped); returns once the writer is on it. Calls queued behind
+/// it give up at their deadline before the writer starts them.
+pub(super) async fn stall_writer(db: &Database) -> std::sync::mpsc::Sender<()> {
+    let (release, stuck) = std::sync::mpsc::channel::<()>();
+    let (entered, started) = std::sync::mpsc::channel::<()>();
+    let blocker = db.clone().with_call_deadline(Duration::from_secs(60));
+    tokio::spawn(async move {
+        blocker
+            .call(move |_| {
+                entered.send(()).unwrap();
+                let _ = stuck.recv();
+                Ok(())
+            })
+            .await
+    });
+    tokio::task::spawn_blocking(move || started.recv().unwrap())
+        .await
+        .unwrap();
+    release
+}
+
+/// Waits until the store's writer has nothing to do.
+pub(super) async fn writer_idle(db: &Database) {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while db.writer_activity() != limeos_persistence::WriterActivity::default() {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("the writer goes idle");
+    // An item answers from inside itself, just before the writer is idle.
+    db.call(|_| Ok(())).await.unwrap();
+}
+
+/// Runs `pass`, a dispatch pass whose claim is its first store write, while
+/// another connection holds the store's write lock. The claim waits on it
+/// (SQLite's 500 ms busy timeout) past its caller's `SHORT_CALL` deadline;
+/// the lock is released once the writer has been on the claim for 250 ms,
+/// so the claim commits after its caller gave up on it: in doubt.
+pub(super) async fn with_claim_in_doubt<T: Send + 'static>(
+    path: &std::path::Path,
+    db: &Database,
+    pass: impl std::future::Future<Output = T> + Send + 'static,
+) -> T {
+    let lock = rusqlite::Connection::open(path).unwrap();
+    lock.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let pass = tokio::spawn(pass);
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while db
+            .writer_activity()
+            .busy_for
+            .is_none_or(|busy| busy < Duration::from_millis(250))
+        {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("the claim waits on the held lock");
+    lock.execute_batch("ROLLBACK").unwrap();
+    let result = pass.await.unwrap();
+    writer_idle(db).await;
+    result
+}
+
+/// Resource locks held by job `id`, read from outside.
+pub(super) fn locks(path: &std::path::Path, id: &str) -> i64 {
+    rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .unwrap()
+        .query_row(
+            "SELECT count(*) FROM resource_locks WHERE job=?",
+            [id],
+            |r| r.get(0),
+        )
+        .unwrap()
+}
+
+/// An authorization read stuck behind a stalled writer is a store that
+/// gave no answer, not a refusal: the job stays queued, nothing is left to
+/// run later, and the job runs once the store moves again.
+#[tokio::test]
+async fn an_authorization_read_behind_a_stalled_writer_leaves_the_job_queued() {
+    let (_dir, mut core, token, csrf, state, _, _, task) = fixture().await;
+    let resource = state.lock().unwrap().current.resource.clone();
+    let (job, _) = queued(&core, &token, &csrf, resource).await;
+    let principal = principal_of(&core, &token).await;
+    core.db = core.db.clone().with_call_deadline(SHORT_CALL);
+    let release = stall_writer(&core.db).await;
+    assert_eq!(
+        core.dispatch_one(principal.clone(), job.clone())
+            .await
+            .unwrap_err()
+            .0,
+        ErrorCode::Unavailable
+    );
+    release.send(()).unwrap();
+    writer_idle(&core.db).await;
+    let progress = core.restart_progress(token.clone(), job.id.clone(), 0);
+    assert_eq!(progress.await.unwrap().job.state, JobState::Queued);
+    assert_eq!(state.lock().unwrap().executes, 0);
+    core.dispatch_one(principal, job.clone()).await.unwrap();
+    let progress = core.restart_progress(token, job.id, 0);
+    assert_eq!(progress.await.unwrap().job.state, JobState::Succeeded);
+    assert_eq!(state.lock().unwrap().executes, 1);
+    task.abort();
+}
+
+/// A claim that commits after core gave up on it holds the job `running`
+/// with its locks and no execute sent. The next pass sends that execute,
+/// once, and the job settles and frees its locks: nothing is stranded.
+#[tokio::test]
+async fn a_claim_that_commits_after_core_gave_up_is_executed_once_on_the_next_pass() {
+    let (dir, mut core, token, csrf, state, _, _, task) = fixture().await;
+    let path = dir.path().join("core.sqlite");
+    let resource = state.lock().unwrap().current.resource.clone();
+    let (job, _) = queued(&core, &token, &csrf, resource).await;
+    let principal = principal_of(&core, &token).await;
+    // The executor's store epoch is already known, so the claim is the
+    // pass's first write.
+    let epoch = state.lock().unwrap().epoch.clone().unwrap();
+    core.db
+        .call(move |s| s.observe_executor_epoch(&epoch, now()))
+        .await
+        .unwrap();
+    core.db = core.db.clone().with_call_deadline(SHORT_CALL);
+    let (pass, p, queued_job) = (core.clone(), principal.clone(), job.clone());
+    let result = with_claim_in_doubt(&path, &core.db, async move {
+        pass.dispatch_one(p, queued_job).await
+    })
+    .await;
+    assert_eq!(result.unwrap_err().0, ErrorCode::StateNotDurable);
+    let progress = core.restart_progress(token.clone(), job.id.clone(), 0);
+    assert_eq!(progress.await.unwrap().job.state, JobState::Running);
+    assert!(locks(&path, &job.id) > 0);
+    assert_eq!(state.lock().unwrap().executes, 0);
+    // The next pass, from the candidate listing as the dispatcher reads it.
+    let (p, running) = core
+        .db
+        .call(|s| s.container_candidates_after(""))
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|(_, candidate)| candidate.id == job.id)
+        .unwrap();
+    assert_eq!(running.state, JobState::Running);
+    core.dispatch_one(p.clone(), running.clone()).await.unwrap();
+    let progress = core.restart_progress(token, job.id.clone(), 0);
+    assert_eq!(progress.await.unwrap().job.state, JobState::Succeeded);
+    assert_eq!(locks(&path, &job.id), 0);
+    let fixture = state.lock().unwrap();
+    assert_eq!((fixture.executes, fixture.lookups), (1, 0));
+    drop(fixture);
+    task.abort();
+}
+
+/// Health's signed-in check, as core answers it, reads beside a stuck
+/// writer: a live session is recognised and a made-up one refused at once,
+/// and neither puts anything in the writer's queue.
+#[tokio::test]
+async fn health_checks_a_session_beside_a_stuck_writer_without_queueing() {
+    let (_dir, core, token, _, _, _, _, task) = fixture().await;
+    let release = stall_writer(&core.db).await;
+    let asked = std::time::Instant::now();
+    assert!(Backend::signed_in(&core, token).await);
+    assert!(!Backend::signed_in(&core, "m".repeat(64)).await);
+    assert!(
+        asked.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        asked.elapsed()
+    );
+    assert_eq!(core.db.writer_activity().queued, 0);
+    release.send(()).unwrap();
     task.abort();
 }

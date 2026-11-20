@@ -57,8 +57,12 @@ pub(super) async fn run(args: &[String]) -> std::io::Result<()> {
     // One operation lives in this process at a time. Genuine retained owners are
     // not moved into arbitrary spawned tasks; other clients remain bounded by
     // the socket backlog/frame deadlines, never parallel privileged helpers.
+    // No watchdog: the unit stays Restart=no (an interrupted mount needs an
+    // operator), and one operation may legitimately hold this loop.
+    let mut watchdog = limeos_contracts::Watchdog::disabled();
     loop {
-        let (mut stream, _) = listener.accept().await?;
+        let mut stream =
+            limeos_executor::service::next_connection(&listener, &mut watchdog).await?;
         let result: Result<Receipt> = async {
             let uid = stream
                 .peer_cred()

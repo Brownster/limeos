@@ -358,6 +358,9 @@ fn main() {
     ts!(limeos_domain::automation::AutomationPage<limeos_domain::automation::ScheduleView>);
     ts!(limeos_contracts::Enrollment);
     ts!(limeos_contracts::LegacyUser);
+    ts!(limeos_contracts::Subsystem);
+    ts!(limeos_contracts::DegradedSubsystem);
+    ts!(limeos_contracts::DegradedDetail);
     ts!(limeos_contracts::Health);
     ts!(limeos_contracts::SessionView);
     ts!(limeos_contracts::ErrorEnvelope);
@@ -429,6 +432,7 @@ fn main() {
     ts!(limeos_domain::deployment::discovery::Membership);
     ts!(limeos_domain::deployment::discovery::DiscoveryCohort);
     ts!(limeos_executor_protocol::Ceiling);
+    ts!(limeos_executor_protocol::StrandedReads);
     ts!(limeos_executor_protocol::Receipt);
     types.push_str("export type RestartPlan = ContainerPlan;\nexport type PlannedRestart = PlannedContainerAction;\nexport type RestartJob = ContainerJob;\nexport type RestartRequest = ContainerRequest;\nexport type RestartReceipt = ContainerReceipt;\n");
     std::fs::write(dir.join("types.ts"), types).unwrap();

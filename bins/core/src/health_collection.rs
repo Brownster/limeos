@@ -11,7 +11,9 @@ use std::{
 };
 use tokio::{net::UnixStream, sync::Semaphore};
 type Clock = Arc<dyn Fn() -> i64 + Send + Sync>;
-const WINDOW: Duration = Duration::from_secs(4);
+/// The longest the 1 Hz background health read holds core's storage read
+/// gate.
+pub(crate) const WINDOW: Duration = Duration::from_secs(4);
 const _: () = assert!(WINDOW.as_secs() < limeos_domain::CONTAINER_STORAGE_MAX_AGE_SECONDS as u64);
 const _: () =
     assert!(WINDOW.as_secs() < limeos_domain::automation::CONTAINER_HEALTH_SECONDS as u64);
@@ -128,6 +130,7 @@ impl HealthReader {
     pub async fn read(&self, outer_deadline: Instant) -> Result<FreshContainerHealth> {
         let deadline = outer_deadline.min(Instant::now() + WINDOW);
         live(deadline)?;
+        // Background: only a free gate. A request queued for it goes first.
         let _permit = self
             .gate
             .clone()
@@ -207,6 +210,7 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
         storage_targets,
         target_preparation,
         container_storage,
+        stranded_reads,
     } = receipt;
     if version != limeos_contracts::VERSION
         || !ready
@@ -231,6 +235,7 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
         || storage_targets.is_some()
         || target_preparation.is_some()
         || container_storage.is_some()
+        || stranded_reads.is_some()
     {
         return Err(Error(ErrorCode::Unavailable));
     }

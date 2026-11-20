@@ -54,6 +54,7 @@ async fn observations_and_history_use_current_resource_grants_and_reject_revocat
     });
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         observations: cache,
         telemetry: None,
@@ -62,6 +63,7 @@ async fn observations_and_history_use_current_resource_grants_and_reject_revocat
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
         compose_catalog: None,
         password_workers: Arc::new(PasswordWorkers::new(2)),
@@ -95,6 +97,7 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
         serde_json::from_str(include_str!("../../../tests/fixtures/werkzeug-hashes.json")).unwrap();
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),
@@ -105,6 +108,7 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
         compose_catalog: None,
     };
@@ -169,6 +173,7 @@ async fn batch_imported_legacy_users_log_in_and_rerun_changes_nothing() {
         serde_json::from_str(include_str!("../../../tests/fixtures/werkzeug-hashes.json")).unwrap();
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),
@@ -179,6 +184,7 @@ async fn batch_imported_legacy_users_log_in_and_rerun_changes_nothing() {
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
         compose_catalog: None,
     };
@@ -276,6 +282,7 @@ async fn legacy_import_request_is_refused_for_a_non_root_peer_and_writes_nothing
     let db = Database::open(&dir.path().join("core.sqlite")).unwrap();
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),
@@ -286,6 +293,7 @@ async fn legacy_import_request_is_refused_for_a_non_root_peer_and_writes_nothing
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
         compose_catalog: None,
     };
@@ -318,4 +326,64 @@ async fn legacy_import_request_is_refused_for_a_non_root_peer_and_writes_nothing
             .unwrap()
             .is_none()
     );
+}
+
+/// A writer stuck on one item: health answers within its own bound instead
+/// of hanging behind it, says core is not ready, and lists the store as
+/// degraded with how long its writer has been stuck and how many calls
+/// wait; once the item returns the entry clears.
+#[tokio::test]
+async fn a_stalled_store_writer_is_reported_by_health_within_a_bound() {
+    let dir = tempfile::tempdir().unwrap();
+    let core = crate::automation_schedules::tests::core(
+        Database::open(&dir.path().join("core.sqlite")).unwrap(),
+    );
+    let healthy = core.health().await.unwrap();
+    assert!(healthy.ready && healthy.degraded.is_empty());
+    let (release, stuck) = std::sync::mpsc::channel::<()>();
+    let (entered, started) = std::sync::mpsc::channel::<()>();
+    let blocker = core.db.clone();
+    tokio::spawn(async move {
+        let _ = blocker
+            .call(move |_| {
+                entered.send(()).unwrap();
+                stuck.recv().unwrap();
+                Ok(())
+            })
+            .await;
+    });
+    tokio::task::spawn_blocking(move || started.recv().unwrap())
+        .await
+        .unwrap();
+    let asked = std::time::Instant::now();
+    let health = tokio::time::timeout(Duration::from_secs(8), core.health())
+        .await
+        .expect("health waited on the stuck writer")
+        .unwrap();
+    assert!(asked.elapsed() < Duration::from_secs(5));
+    assert!(!health.ready);
+    let store = health
+        .degraded
+        .iter()
+        .find(|d| d.subsystem == limeos_contracts::Subsystem::Store)
+        .expect("the store is listed");
+    let detail = store.detail.as_ref().unwrap();
+    assert_eq!(detail.code, ErrorCode::Unavailable);
+    assert!(
+        detail.since <= now() && detail.since >= now() - 10,
+        "{detail:?}"
+    );
+    assert!(detail.count >= 1, "{detail:?}");
+    release.send(()).unwrap();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let health = core.health().await.unwrap();
+            if health.ready && health.degraded.is_empty() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("the entry clears once the writer moves on");
 }

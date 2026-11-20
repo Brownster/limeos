@@ -1167,3 +1167,204 @@ fn legacy_batch_is_atomic_idempotent_and_never_overwrites() {
     }
     assert_eq!(count(&s, "users"), 3);
 }
+
+/// A writer stuck on one item (a hung fsync, a lock held from outside) no
+/// longer freezes its callers: each call gives up at its deadline, and how
+/// long the writer has been on that item, and how many calls wait behind
+/// it, can be read without queueing. A call the writer had not started
+/// never runs (`NotExecuted`); the call it was running may still finish
+/// (`InDoubt`), and does.
+#[tokio::test]
+async fn a_stalled_writer_fails_calls_at_their_deadline_and_shows_how_long_it_has_been_stuck() {
+    let d = tempfile::tempdir().unwrap();
+    let mut db = Database::open(&d.path().join("core.sqlite")).unwrap();
+    db.deadline = Duration::from_millis(300);
+    assert_eq!(db.call(|_| Ok(1)).await, Ok(1));
+    // The answer is sent from inside the item, so the writer marks itself
+    // idle just after; then it waits with nothing to report.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while db.writer_activity() != WriterActivity::default() {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("an idle writer reports nothing");
+    let (release, stuck) = std::sync::mpsc::channel::<()>();
+    let (entered, started) = std::sync::mpsc::channel::<()>();
+    let finished = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let blocker = db.clone();
+    let done = finished.clone();
+    let blocked = tokio::spawn(async move {
+        blocker
+            .try_call(move |_| {
+                entered.send(()).unwrap();
+                stuck.recv().unwrap();
+                done.store(true, Ordering::SeqCst);
+                Ok(())
+            })
+            .await
+    });
+    tokio::task::spawn_blocking(move || started.recv().unwrap())
+        .await
+        .unwrap();
+    let ran = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let marker = ran.clone();
+    let asked = Instant::now();
+    assert_eq!(
+        db.try_call(move |_| {
+            marker.store(true, Ordering::SeqCst);
+            Ok(2)
+        })
+        .await,
+        Err(Unanswered::NotExecuted)
+    );
+    let waited = asked.elapsed();
+    assert!(
+        waited >= Duration::from_millis(250) && waited < Duration::from_secs(5),
+        "{waited:?}"
+    );
+    // The blocked call gave up too, while its work was running: in doubt.
+    assert_eq!(blocked.await.unwrap(), Err(Unanswered::InDoubt));
+    let stalled = db.writer_activity();
+    assert!(
+        stalled
+            .busy_for
+            .is_some_and(|busy| busy >= Duration::from_millis(250)),
+        "{stalled:?}"
+    );
+    // The abandoned call still waits in the queue.
+    assert_eq!(stalled.queued, 1);
+    release.send(()).unwrap();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while db.writer_activity() != WriterActivity::default() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the writer goes idle once the item returns");
+    assert_eq!(db.call(|_| Ok(3)).await, Ok(3));
+    // The call in doubt finished after its caller left; the abandoned one,
+    // reached only after it, was skipped.
+    assert!(finished.load(Ordering::SeqCst));
+    assert!(!ran.load(Ordering::SeqCst));
+}
+
+/// `call` reports the three unanswered cases as error codes: in doubt is
+/// `StateNotDurable` ("check the job outcome before retrying"), never the
+/// `Unavailable` of work that did not run.
+#[tokio::test]
+async fn an_unanswered_call_reports_whether_its_work_may_still_commit() {
+    assert_eq!(
+        Error::from(Unanswered::NotExecuted),
+        Error(ErrorCode::Unavailable)
+    );
+    assert_eq!(
+        Error::from(Unanswered::InDoubt),
+        Error(ErrorCode::StateNotDurable)
+    );
+    assert_eq!(
+        Error::from(Unanswered::Overloaded),
+        Error(ErrorCode::Overloaded)
+    );
+    let d = tempfile::tempdir().unwrap();
+    let mut db = Database::open(&d.path().join("core.sqlite")).unwrap();
+    db.deadline = Duration::from_millis(100);
+    let (release, stuck) = std::sync::mpsc::channel::<()>();
+    let (entered, started) = std::sync::mpsc::channel::<()>();
+    let blocker = db.clone();
+    let blocked = tokio::spawn(async move {
+        blocker
+            .call(move |_| {
+                entered.send(()).unwrap();
+                stuck.recv().unwrap();
+                Ok(())
+            })
+            .await
+    });
+    tokio::task::spawn_blocking(move || started.recv().unwrap())
+        .await
+        .unwrap();
+    assert_eq!(
+        db.call(|_| Ok(())).await,
+        Err(Error(ErrorCode::Unavailable))
+    );
+    assert_eq!(
+        blocked.await.unwrap(),
+        Err(Error(ErrorCode::StateNotDurable))
+    );
+    // A caller that stops waiting before the writer reaches its work (its
+    // future dropped) abandons it as well.
+    let ran = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let marker = ran.clone();
+    let waiting = db.clone();
+    let before = db.writer_activity().queued;
+    let dropped = tokio::spawn(async move {
+        waiting
+            .call(move |_| {
+                marker.store(true, Ordering::SeqCst);
+                Ok(())
+            })
+            .await
+    });
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while db.writer_activity().queued == before {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+    })
+    .await
+    .unwrap();
+    dropped.abort();
+    assert!(dropped.await.unwrap_err().is_cancelled());
+    release.send(()).unwrap();
+    assert_eq!(db.call(|_| Ok(4)).await, Ok(4));
+    assert!(!ran.load(Ordering::SeqCst));
+}
+
+/// Health's signed-in check reads the query-only connection: it answers
+/// promptly while the writer is stuck and puts nothing in its queue, so a
+/// made-up cookie costs the store nothing.
+#[tokio::test]
+async fn a_session_is_checked_beside_a_stuck_writer_without_queueing() {
+    let d = tempfile::tempdir().unwrap();
+    let db = Database::open(&d.path().join("core.sqlite")).unwrap();
+    let digest = limeos_identity::digest(&"a".repeat(64));
+    let issued = digest.clone();
+    db.call(move |s| {
+        s.issue_bootstrap("bootstrap", 100)?;
+        s.enroll("bootstrap", "admin", "$argon2id$fixture", 101)?;
+        let record = s.login_record("admin")?.unwrap();
+        s.create_session(&record, None, &issued, &"c".repeat(64), 102)
+    })
+    .await
+    .unwrap();
+    let (release, stuck) = std::sync::mpsc::channel::<()>();
+    let (entered, started) = std::sync::mpsc::channel::<()>();
+    let blocker = db.clone();
+    let blocked = tokio::spawn(async move {
+        blocker
+            .call(move |_| {
+                entered.send(()).unwrap();
+                let _ = stuck.recv();
+                Ok(())
+            })
+            .await
+    });
+    tokio::task::spawn_blocking(move || started.recv().unwrap())
+        .await
+        .unwrap();
+    let bound = Duration::from_secs(2);
+    let asked = Instant::now();
+    assert!(db.session_live(digest, 103, bound).await);
+    assert!(
+        !db.session_live(limeos_identity::digest(&"m".repeat(64)), 103, bound)
+            .await
+    );
+    assert!(
+        asked.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        asked.elapsed()
+    );
+    assert_eq!(db.writer_activity().queued, 0);
+    release.send(()).unwrap();
+    blocked.await.unwrap().unwrap();
+}

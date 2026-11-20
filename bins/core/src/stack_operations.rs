@@ -315,37 +315,51 @@ impl Core {
             &serde_json::to_string(&job.plan).map_err(|_| Error(ErrorCode::InvalidInput))?,
         );
         let project = job.plan.expected.project()?.to_owned();
-        let recovering = job.state != JobState::Queued;
+        // A claim that committed after this process gave up on it: no
+        // execute was sent, so it is sent now rather than looked up.
+        let resumed = self.claim_in_doubt(&job.id, job.state);
+        let recovering = job.state != JobState::Queued && !resumed;
         let (mut absence, mut closed) = (None, false);
-        let receipt = if job.state == JobState::Queued {
-            // Revocation, expiry and member drift are all decided before the
-            // durable dispatch intent. A held lock leaves this job queued.
-            let (p, id) = (principal.clone(), job.id.clone());
-            // Only a definite refusal is revocation. A transient store error
-            // leaves the job queued for the next tick.
-            let revoked = match self.db.call(move |s| s.stack_job(&p, &id)).await {
-                Ok(_) => false,
-                Err(Error(ErrorCode::Forbidden | ErrorCode::Expired | ErrorCode::NotFound)) => true,
-                Err(e) => return Err(e),
+        let receipt = if !recovering {
+            let epoch = if resumed {
+                // The store epoch as it is now; an epoch changed since the
+                // claim marks the job (`observe_executor_epoch`).
+                let epoch = self.receipt_epoch().await?;
+                self.claim_resumed(&job.id);
+                epoch
+            } else {
+                // Revocation, expiry and member drift are all decided before
+                // the durable dispatch intent. A held lock leaves this job
+                // queued.
+                let (p, id) = (principal.clone(), job.id.clone());
+                // Only a definite refusal is revocation. A transient store
+                // error leaves the job queued for the next tick.
+                let revoked = match self.db.call(move |s| s.stack_job(&p, &id)).await {
+                    Ok(_) => false,
+                    Err(e) if super::operations::refused(e) => true,
+                    Err(e) => return Err(e),
+                };
+                if revoked
+                    || job.plan.grant_revision != principal.grant_revision
+                    || job.plan.validate(now()).is_err()
+                {
+                    return self.mark_stack(&job, JobState::PreconditionChanged).await;
+                }
+                let current = self.inspect_stack(&project).await?;
+                if job.plan.check_current(&current, now()).is_err() {
+                    return self.mark_stack(&job, JobState::PreconditionChanged).await;
+                }
+                // The store epoch this job is dispatched under, recorded by
+                // the claim before it takes the job (`claim_stack`).
+                let epoch = self.receipt_epoch().await?;
+                let (p, id, under) = (principal, job.id.clone(), epoch.clone());
+                job = self
+                    .claim(&job.id, move |s| {
+                        s.claim_stack(&p, &id, &current, &under, now())
+                    })
+                    .await?;
+                epoch
             };
-            if revoked
-                || job.plan.grant_revision != principal.grant_revision
-                || job.plan.validate(now()).is_err()
-            {
-                return self.mark_stack(&job, JobState::PreconditionChanged).await;
-            }
-            let current = self.inspect_stack(&project).await?;
-            if job.plan.check_current(&current, now()).is_err() {
-                return self.mark_stack(&job, JobState::PreconditionChanged).await;
-            }
-            // The store epoch this job is dispatched under, recorded by the
-            // claim before it takes the job (`claim_stack`).
-            let epoch = self.receipt_epoch().await?;
-            let (p, id, under) = (principal, job.id.clone(), epoch.clone());
-            job = self
-                .db
-                .call(move |s| s.claim_stack(&p, &id, &current, &under, now()))
-                .await?;
             // Core death from here onward requires receipt reconciliation; it
             // cannot put the job back into the dispatch queue.
             let budget = u64::from(stack_definition(job.plan.operation).timeout_seconds)
@@ -527,8 +541,14 @@ impl Core {
             if job.state != JobState::Queued && !recovery.due(&job.id) {
                 continue;
             }
-            if let Err(e) = self.dispatch_stack(principal, job).await {
-                tracing::warn!(code=?e.0,"stack job remains pending or requires reconciliation");
+            let id = job.id.clone();
+            match self.dispatch_stack(principal, job).await {
+                Ok(()) => recovery.failures.passed(&id),
+                Err(e) => {
+                    if let Some(failures) = recovery.failures.failed(&id) {
+                        tracing::warn!(code=?e.0, failures, "stack job remains pending or requires reconciliation");
+                    }
+                }
             }
         }
     }

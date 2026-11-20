@@ -27,11 +27,13 @@ async fn fixture(
         .unwrap();
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         storage_socket: Arc::new("/unused-reader".into()),
         storage_target_socket: Arc::new("/unused-targets".into()),
         storage_mount_socket: Arc::new("/unused-mounts".into()),
         storage_readers: Arc::new(Semaphore::new(1)),
+        claims_in_doubt: Default::default(),
         stacks: Default::default(),
         container_socket: Arc::new("/unused-container".into()),
         compose_catalog: None,
@@ -195,4 +197,185 @@ async fn mount_unprivileged_executor_cannot_forge_inspection_and_receives_no_req
     let (mut stream, _) = listener.accept().await.unwrap();
     use tokio::io::AsyncReadExt;
     assert_eq!(stream.read(&mut [0; 4]).await.unwrap(), 0);
+}
+
+type Requests = Arc<std::sync::Mutex<Vec<&'static str>>>;
+/// A queued storage mount job, with a root fixture whose helper never
+/// starts: an execute is reaped unstarted and reconciles as a changed
+/// precondition. It lists the requests it served.
+async fn queued_mount() -> (
+    tempfile::TempDir,
+    Core,
+    Principal,
+    StorageMountJob,
+    Requests,
+    tokio::task::JoinHandle<()>,
+) {
+    use limeos_domain::{MountEffectQuiescence, MountHelperIdentity, MountHelperOutcome};
+    let (dir, mut core, _, _, principal) = fixture(limeos_domain::Role::Administrator).await;
+    let saved = principal.clone();
+    let job = core
+        .db
+        .call(move |store| {
+            let facts = inspection(now());
+            let proposal = store.plan_storage_mount(&saved, &facts, now())?;
+            let approval = store.approve_storage_mount(
+                &saved,
+                &proposal.plan.id,
+                &proposal.digest,
+                &facts,
+                now(),
+            )?;
+            store.queue_storage_mount(
+                &saved,
+                "in-doubt",
+                &proposal,
+                &approval.token,
+                &facts,
+                now(),
+            )
+        })
+        .await
+        .unwrap();
+    let socket = dir.path().join("root-fixture.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    core.storage_mount_socket = Arc::new(socket);
+    let requests = Requests::default();
+    let seen = requests.clone();
+    let server = tokio::spawn(async move {
+        let mut written = None;
+        loop {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let request: Request = limeos_contracts::read_frame(&mut stream).await.unwrap();
+            let mut reply = Receipt::empty();
+            match request {
+                Request::InspectStorageMount { .. } => {
+                    seen.lock().unwrap().push("inspect");
+                    reply.storage_mount_inspection = Some(inspection(now()));
+                }
+                Request::ExecuteStorageMount { plan, .. } => {
+                    seen.lock().unwrap().push("execute");
+                    let receipt = limeos_domain::StorageMountReceipt {
+                        digest: limeos_identity::digest(&serde_json::to_string(&plan).unwrap()),
+                        plan: *plan,
+                        state: MountExecutionState::OutcomeUnknown,
+                        quiescence: MountEffectQuiescence::Reaped {
+                            helper: MountHelperIdentity {
+                                pid: 123,
+                                start_time_ticks: 1,
+                                mount_namespace_inode: 1,
+                                cgroup: "/fixture".into(),
+                                image_digest: "f".repeat(64),
+                            },
+                            outcome: MountHelperOutcome::NotStarted {},
+                        },
+                        after: None,
+                    };
+                    written = Some(receipt.clone());
+                    reply.storage_mount = Some(receipt);
+                }
+                Request::ReconcileStorageMount { .. } => {
+                    seen.lock().unwrap().push("reconcile");
+                    let mut receipt = written.clone().unwrap();
+                    receipt.state = MountExecutionState::PreconditionChanged;
+                    reply.storage_mount = Some(receipt);
+                }
+                _ => seen.lock().unwrap().push("other"),
+            }
+            limeos_contracts::write_frame(&mut stream, &reply)
+                .await
+                .unwrap();
+        }
+    });
+    (dir, core, principal, job, requests, server)
+}
+async fn mount_state(core: &Core, principal: &Principal, id: &str) -> JobState {
+    let (p, id) = (principal.clone(), id.to_owned());
+    core.db
+        .call(move |store| store.storage_mount_job(&p, &id))
+        .await
+        .unwrap()
+        .state
+}
+
+/// An authorization read stuck behind a stalled writer leaves the job
+/// queued, with nothing left to run later, and the job runs once the store
+/// moves again.
+#[tokio::test]
+async fn a_mount_authorization_read_behind_a_stalled_writer_leaves_the_job_queued() {
+    use crate::operation_tests::{SHORT_CALL, stall_writer, writer_idle};
+    let (_dir, mut core, principal, job, requests, server) = queued_mount().await;
+    let uid = rustix::process::geteuid().as_raw();
+    core.db = core.db.clone().with_call_deadline(SHORT_CALL);
+    let release = stall_writer(&core.db).await;
+    let pass = core.dispatch_mount(principal.clone(), job.clone());
+    let refused = ROOT_UID.scope(uid, pass).await.unwrap_err();
+    assert_eq!(refused.0, ErrorCode::Unavailable);
+    release.send(()).unwrap();
+    writer_idle(&core.db).await;
+    assert_eq!(
+        mount_state(&core, &principal, &job.id).await,
+        JobState::Queued
+    );
+    assert!(requests.lock().unwrap().is_empty());
+    let pass = core.dispatch_mount(principal.clone(), job.clone());
+    ROOT_UID.scope(uid, pass).await.unwrap();
+    assert_eq!(
+        mount_state(&core, &principal, &job.id).await,
+        JobState::PreconditionChanged
+    );
+    assert_eq!(
+        *requests.lock().unwrap(),
+        ["inspect", "execute", "reconcile", "inspect"]
+    );
+    server.abort();
+}
+
+/// A storage mount claim that commits after core gave up on it holds the
+/// job `running` with its claim set and no mount sent. The next pass sends
+/// that mount, once, instead of asking for a receipt that cannot exist, and
+/// the job settles and frees its claim set.
+#[tokio::test]
+async fn a_mount_claim_that_commits_after_core_gave_up_is_executed_once_on_the_next_pass() {
+    use crate::operation_tests::{SHORT_CALL, locks, with_claim_in_doubt};
+    let (dir, mut core, principal, job, requests, server) = queued_mount().await;
+    let path = dir.path().join("core.sqlite");
+    let uid = rustix::process::geteuid().as_raw();
+    core.db = core.db.clone().with_call_deadline(SHORT_CALL);
+    let (pass, p, queued) = (core.clone(), principal.clone(), job.clone());
+    let result = with_claim_in_doubt(
+        &path,
+        &core.db,
+        ROOT_UID.scope(uid, async move { pass.dispatch_mount(p, queued).await }),
+    )
+    .await;
+    assert_eq!(result.unwrap_err().0, ErrorCode::StateNotDurable);
+    assert_eq!(
+        mount_state(&core, &principal, &job.id).await,
+        JobState::Running
+    );
+    assert!(locks(&path, &job.id) > 0);
+    assert_eq!(*requests.lock().unwrap(), ["inspect"]);
+    let (p, listed) = core
+        .db
+        .call(|store| store.storage_mount_candidates())
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|(_, candidate)| candidate.id == job.id)
+        .unwrap();
+    ROOT_UID
+        .scope(uid, core.dispatch_mount(p, listed))
+        .await
+        .unwrap();
+    assert_eq!(
+        mount_state(&core, &principal, &job.id).await,
+        JobState::PreconditionChanged
+    );
+    assert_eq!(locks(&path, &job.id), 0);
+    assert_eq!(
+        *requests.lock().unwrap(),
+        ["inspect", "execute", "reconcile", "inspect"]
+    );
+    server.abort();
 }

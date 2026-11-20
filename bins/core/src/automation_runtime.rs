@@ -17,6 +17,8 @@ pub(crate) struct Status(Arc<Mutex<State>>);
 struct State {
     running: bool,
     rows: BTreeMap<String, (i64, ObservationRuntimeView)>,
+    /// Survives a failed run, which clears `running` and `rows`.
+    health: crate::supervision::Health,
 }
 struct Running(Status);
 impl Drop for Running {
@@ -28,6 +30,13 @@ impl Drop for Running {
     }
 }
 impl Status {
+    /// The supervisor's record of failed runs, reported by core's health.
+    pub(crate) fn health(&self) -> crate::supervision::Health {
+        self.0
+            .lock()
+            .map(|state| state.health.clone())
+            .unwrap_or_default()
+    }
     fn enter(&self) -> Result<Running> {
         let mut state = self.0.lock().map_err(|_| Error(ErrorCode::Unavailable))?;
         if state.running {
@@ -128,19 +137,25 @@ impl ObservationRuntime {
     }
     pub(crate) async fn run(mut self) -> Result<()> {
         let _running = self.status.enter()?;
+        let health = self.status.health();
         let mut timer = tokio::time::interval(Duration::from_secs(1));
         timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             timer.tick().await;
             match self.step(Instant::now() + Duration::from_secs(8)).await {
-                Ok(pass) => tracing::trace!(
-                    owners = pass.owners,
-                    admitted = pass.admitted,
-                    reads = pass.reads,
-                    completed = pass.completed,
-                    unavailable = pass.unavailable,
-                    "observation pass settled"
-                ),
+                Ok(pass) => {
+                    if health.recovered() {
+                        tracing::info!("observation runtime recovered");
+                    }
+                    tracing::trace!(
+                        owners = pass.owners,
+                        admitted = pass.admitted,
+                        reads = pass.reads,
+                        completed = pass.completed,
+                        unavailable = pass.unavailable,
+                        "observation pass settled"
+                    )
+                }
                 Err(error) => {
                     if !recoverable(&error) {
                         return Err(error);

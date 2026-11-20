@@ -15,7 +15,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use tokio::{net::TcpListener, sync::Semaphore};
+use tokio::sync::Semaphore;
 // Proposed routes that no router mounts yet, hence unused outside their tests;
 // see docs/deferred-code.md.
 #[cfg(feature = "deferred")]
@@ -36,6 +36,10 @@ mod operations;
 #[cfg(test)]
 mod read_tests;
 mod reads;
+mod serve;
+pub use serve::{Limits, serve, serve_with};
+#[cfg(test)]
+mod serve_tests;
 #[cfg(test)]
 mod stack_operation_tests;
 mod stack_operations;
@@ -407,6 +411,12 @@ pub trait Backend: Clone + Send + Sync + 'static {
     ) -> impl Future<Output = Result<SessionView>> + Send;
     fn logout(&self, token: String, csrf: String) -> impl Future<Output = Result<()>> + Send;
     fn health(&self) -> impl Future<Output = Result<Health>> + Send;
+    /// Whether `token` names a live session, for how much health shows. It
+    /// must answer promptly and add no work to the store's queue (core reads
+    /// its query-only connection); false when unsure.
+    fn signed_in(&self, token: String) -> impl Future<Output = bool> + Send {
+        async move { self.session(token, None).await.is_ok() }
+    }
     fn observations(
         &self,
         _token: String,
@@ -570,6 +580,8 @@ struct App<B> {
     origin: Arc<str>,
     limiter: Arc<Mutex<Limiter>>,
     readers: Arc<Semaphore>,
+    /// Open observation streams per session token, within `readers`.
+    streams: Arc<Mutex<HashMap<String, usize>>>,
 }
 /// Whose password is being tried. Every peer is the local proxy, so the
 /// address says nothing; forwarded headers are never trusted either.
@@ -909,6 +921,7 @@ pub fn router<B: Backend>(backend: B, origin: String) -> Router {
             origin: origin.into(),
             limiter: Arc::new(Mutex::new(Limiter::default())),
             readers: Arc::new(Semaphore::new(8)),
+            streams: Default::default(),
         })
 }
 fn failure(error: Error) -> Response {
@@ -936,6 +949,9 @@ fn failure(error: Error) -> Response {
     )
         .into_response()
 }
+/// How long a handler may take before it is answered with `Unavailable`;
+/// an event stream's body is not counted, only producing its response.
+pub const HANDLER_DEADLINE: Duration = Duration::from_secs(10);
 async fn limits(request: Request, next: Next) -> Response {
     let header_bytes: usize = request
         .headers()
@@ -945,8 +961,7 @@ async fn limits(request: Request, next: Next) -> Response {
     if header_bytes > 8192 {
         return failure(Error(ErrorCode::InvalidInput));
     }
-    let mut response = match tokio::time::timeout(Duration::from_secs(10), next.run(request)).await
-    {
+    let mut response = match tokio::time::timeout(HANDLER_DEADLINE, next.run(request)).await {
         Ok(r) => r,
         Err(_) => failure(Error(ErrorCode::Unavailable)),
     };
@@ -996,11 +1011,42 @@ fn cookie(headers: &HeaderMap) -> Result<String> {
     }
     found.ok_or(Error(ErrorCode::Unauthenticated))
 }
-async fn health<B: Backend>(State(app): State<App<B>>) -> Response {
-    match app.backend.health().await {
-        Ok(h) => axum::Json(h).into_response(),
-        Err(e) => failure(e),
+/// Unauthenticated: anyone who can reach the proxy learns whether core is
+/// ready and which subsystems are degraded. What is wrong with them, and
+/// since when, is kept for a signed-in caller (and `limeosctl status`).
+/// With the store itself degraded no session is looked up at all: health
+/// answers at once, without detail, and adds nothing to the stuck store.
+async fn health<B: Backend>(State(app): State<App<B>>, headers: HeaderMap) -> Response {
+    let mut health = match app.backend.health().await {
+        Ok(health) => health,
+        Err(e) => return failure(e),
+    };
+    let store_degraded = health
+        .degraded
+        .iter()
+        .any(|d| d.subsystem == limeos_contracts::Subsystem::Store);
+    if !health.degraded.is_empty() && (store_degraded || !signed_in(&app, &headers).await) {
+        health.degraded = health
+            .degraded
+            .into_iter()
+            .map(limeos_contracts::DegradedSubsystem::redacted)
+            .collect();
     }
+    axum::Json(health).into_response()
+}
+/// How long health waits to learn whether its caller is signed in.
+const SIGNED_IN_BOUND: Duration = Duration::from_millis(500);
+/// Whether the request carries a live session. Bounded by
+/// `SIGNED_IN_BOUND`, so a slow store cannot hold the health check: it then
+/// answers as for anyone.
+async fn signed_in<B: Backend>(app: &App<B>, headers: &HeaderMap) -> bool {
+    let Ok(token) = cookie(headers) else {
+        return false;
+    };
+    matches!(
+        tokio::time::timeout(SIGNED_IN_BOUND, app.backend.signed_in(token)).await,
+        Ok(true)
+    )
 }
 async fn login<B: Backend>(State(app): State<App<B>>, request: Request) -> Response {
     if let Err(e) = origin(&app, request.headers()) {
@@ -1084,36 +1130,6 @@ async fn logout<B: Backend>(State(app): State<App<B>>, headers: HeaderMap) -> Re
     }
 }
 
-/// All connections have bounded parsing, occupancy, and lifetime. Hyper's timer
-/// covers incomplete headers; the application deadline covers bodies and work.
-pub async fn serve(listener: TcpListener, router: Router) -> std::io::Result<()> {
-    let permits = Arc::new(Semaphore::new(64));
-    loop {
-        let (stream, _) = listener.accept().await?;
-        let Ok(permit) = permits.clone().try_acquire_owned() else {
-            continue;
-        };
-        let app = router.clone();
-        tokio::spawn(async move {
-            let _permit = permit;
-            let io = hyper_util::rt::TokioIo::new(stream);
-            let service = hyper_util::service::TowerToHyperService::new(app);
-            let mut builder = hyper::server::conn::http1::Builder::new();
-            builder
-                .timer(hyper_util::rt::TokioTimer::new())
-                .header_read_timeout(Duration::from_secs(5))
-                .max_headers(32)
-                .max_buf_size(16 * 1024)
-                .keep_alive(true);
-            let _ = tokio::time::timeout(
-                Duration::from_secs(30),
-                builder.serve_connection(io, service),
-            )
-            .await;
-        });
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1138,8 +1154,75 @@ mod tests {
                 generation: 1,
                 schema_version: 1,
                 ready: true,
+                degraded: Vec::new(),
             })
         }
+    }
+    /// A core whose store is degraded, and whose session lookups would each
+    /// put work on that store: health must not make any.
+    #[derive(Clone, Default)]
+    struct StoreStuck {
+        lookups: Arc<std::sync::atomic::AtomicUsize>,
+    }
+    impl Backend for StoreStuck {
+        async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
+            PasswordChecked::rejected()
+        }
+        async fn session(&self, _: String, _: Option<String>) -> Result<SessionView> {
+            self.lookups
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Err(Error(ErrorCode::Unavailable))
+        }
+        async fn signed_in(&self, _: String) -> bool {
+            self.lookups
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            true
+        }
+        async fn logout(&self, _: String, _: String) -> Result<()> {
+            panic!("unvalidated mutation")
+        }
+        async fn health(&self) -> Result<Health> {
+            Ok(Health {
+                version: VERSION,
+                generation: 1,
+                schema_version: 1,
+                ready: false,
+                degraded: vec![limeos_contracts::DegradedSubsystem {
+                    subsystem: limeos_contracts::Subsystem::Store,
+                    detail: Some(limeos_contracts::DegradedDetail {
+                        code: ErrorCode::Unavailable,
+                        since: 1,
+                        count: 64,
+                    }),
+                }],
+            })
+        }
+    }
+    #[tokio::test]
+    async fn health_with_the_store_degraded_answers_without_looking_up_a_session() {
+        let backend = StoreStuck::default();
+        let app = router(backend.clone(), "https://localhost".into());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/health")
+                    .header("cookie", format!("__Host-limeos={}", "m".repeat(64)))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+        let health: Health = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            health.degraded,
+            vec![limeos_contracts::DegradedSubsystem {
+                subsystem: limeos_contracts::Subsystem::Store,
+                detail: None,
+            }]
+        );
+        assert_eq!(backend.lookups.load(std::sync::atomic::Ordering::SeqCst), 0);
     }
     #[tokio::test]
     async fn no_default_login_cross_site_or_get_mutation() {
@@ -1389,6 +1472,7 @@ mod tests {
             origin: "https://localhost".into(),
             limiter: Arc::new(Mutex::new(Limiter::default())),
             readers: Arc::new(Semaphore::new(8)),
+            streams: Default::default(),
         }
     }
     fn live(app: &App<Accepting>) -> usize {

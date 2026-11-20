@@ -8,6 +8,35 @@ use std::time::{Duration, Instant};
 /// Least time between two receipt lookups for one held job.
 const RECOVERY_PAUSE: Duration = Duration::from_secs(30);
 
+/// Per-job counts of a repeated failure, so a job that fails on every pass
+/// is logged at its 1st, 2nd, 4th, 8th... failure, as the supervisor logs a
+/// failing task: the first is always logged, and a job stuck for days costs
+/// a few lines, not one per pass.
+#[derive(Default)]
+pub(super) struct Repeats(std::collections::HashMap<String, u64>);
+/// Jobs counted at once; past it the counts start again (each job's next
+/// failure is then logged as a first).
+const REPEATS_TRACKED: usize = 4096;
+impl Repeats {
+    /// Counts a failure of job `id`; the count, when this one is logged.
+    pub(super) fn failed(&mut self, id: &str) -> Option<u64> {
+        if self.0.len() >= REPEATS_TRACKED && !self.0.contains_key(id) {
+            self.0.clear();
+        }
+        let count = self.0.entry(id.to_owned()).or_default();
+        *count += 1;
+        count.is_power_of_two().then_some(*count)
+    }
+    /// Job `id` went through: a later failure is a first again.
+    pub(super) fn passed(&mut self, id: &str) {
+        self.0.remove(id);
+    }
+    /// Keeps only the jobs `listed` (the others settled or went away).
+    fn retain(&mut self, listed: impl Fn(&str) -> bool) {
+        self.0.retain(|id, _| listed(id));
+    }
+}
+
 /// Fair recovery polling of held (dispatched, unsettled) jobs. Each pass lists
 /// the next page of held jobs after `cursor`, in ID order, and a short page
 /// starts over, so every held job is listed within a bounded number of passes
@@ -18,6 +47,8 @@ const RECOVERY_PAUSE: Duration = Duration::from_secs(30);
 pub(super) struct Rotation {
     cursor: String,
     polled: std::collections::HashMap<String, Instant>,
+    /// Repeated failures of these jobs, for the log.
+    pub(super) failures: Repeats,
 }
 impl Rotation {
     /// Where the next listing starts.
@@ -58,7 +89,69 @@ pub(super) struct Failure {
     pub(super) sent: bool,
 }
 
+/// Whether an error from an authorization read is a definite refusal of the
+/// principal's authority: only then is a queued job rejected. Anything else,
+/// above all a store that gave no answer (`Unavailable`: not run,
+/// `StateNotDurable`: in doubt, `Overloaded`), leaves the job queued for the
+/// next tick.
+pub(super) fn refused(error: Error) -> bool {
+    matches!(
+        error.0,
+        ErrorCode::Forbidden
+            | ErrorCode::Expired
+            | ErrorCode::NotFound
+            | ErrorCode::Unauthenticated
+    )
+}
+
 impl Core {
+    /// Runs claim `f` for job `id`. A claim whose outcome is unknown (the
+    /// call was in doubt, or the store could not say its commit is durable)
+    /// is noted in `claims_in_doubt`; no execute is sent for it now, and the
+    /// job's next sighting decides (`claim_in_doubt`). Any other failure
+    /// leaves the job as it was.
+    pub(super) async fn claim<T: Send + 'static>(
+        &self,
+        id: &str,
+        f: impl FnOnce(&mut limeos_persistence::Store) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
+        let outcome = self.db.try_call(f).await;
+        if matches!(
+            outcome,
+            Err(limeos_persistence::Unanswered::InDoubt)
+                | Ok(Err(Error(ErrorCode::StateNotDurable)))
+        ) {
+            tracing::warn!(
+                "a job claim did not answer in time and may still commit; no execute was sent, and the next dispatcher pass sends it if the claim committed"
+            );
+            self.in_doubt().insert(id.to_owned());
+        }
+        outcome?
+    }
+    fn in_doubt(&self) -> std::sync::MutexGuard<'_, std::collections::HashSet<String>> {
+        self.claims_in_doubt
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+    /// Whether job `id`, now in `state`, holds a claim this process gave up
+    /// on that committed after all: it is `running` and no execute was sent
+    /// for it, so the dispatcher sends it now (`claim_resumed` first). The
+    /// writer runs calls in order, so the listing that showed this state was
+    /// answered after the claim had finished. A job still `queued` never got
+    /// the claim; its note goes.
+    pub(super) fn claim_in_doubt(&self, id: &str, state: JobState) -> bool {
+        let mut noted = self.in_doubt();
+        if state == JobState::Running {
+            return noted.contains(id);
+        }
+        noted.remove(id);
+        false
+    }
+    /// The execute for a claim found committed is about to be sent: forget
+    /// the note first, so it is sent once whatever happens next.
+    pub(super) fn claim_resumed(&self, id: &str) {
+        self.in_doubt().remove(id);
+    }
     pub(super) async fn executor(&self, request: Request, deadline: Duration) -> Result<Receipt> {
         self.exchange(request, deadline).await.map_err(|f| f.error)
     }
@@ -422,32 +515,51 @@ impl Core {
         let digest = limeos_identity::digest(
             &serde_json::to_string(&job.plan).map_err(|_| Error(ErrorCode::InvalidInput))?,
         );
-        let recovering = job.state != JobState::Queued;
+        // A claim that committed after this process gave up on it: no
+        // execute was sent, so it is sent now rather than looked up.
+        let resumed = self.claim_in_doubt(&job.id, job.state);
+        let recovering = job.state != JobState::Queued && !resumed;
         let (mut absence, mut closed) = (None, false);
-        let receipt = if job.state == JobState::Queued {
-            // Revocation and expiration are checked immediately before durable
-            // dispatch intent. A resource lock conflict leaves this job queued.
-            if self
-                .authorize_resource(principal.clone(), job.plan.expected.resource.clone())
-                .await
-                .is_err()
-                || job.plan.grant_revision != principal.grant_revision
-                || job.plan.validate(now()).is_err()
-            {
-                return self.mark(&job, JobState::PreconditionChanged).await;
-            }
-            let current = self.inspect(&job.plan.expected.resource).await?;
-            if job.plan.check_current(&current, now()).is_err() {
-                return self.mark(&job, JobState::PreconditionChanged).await;
-            }
-            // The store epoch this job is dispatched under, recorded by the
-            // claim before it takes the job (`claim_container`).
-            let epoch = self.receipt_epoch().await?;
-            let (p, id, under) = (principal, job.id.clone(), epoch.clone());
-            job = self
-                .db
-                .call(move |s| s.claim_container(&p, &id, &current, &under, now()))
-                .await?;
+        let receipt = if !recovering {
+            let epoch = if resumed {
+                // The store epoch as it is now; an epoch changed since the
+                // claim marks the job (`observe_executor_epoch`).
+                let epoch = self.receipt_epoch().await?;
+                self.claim_resumed(&job.id);
+                epoch
+            } else {
+                // Revocation and expiration are checked immediately before
+                // durable dispatch intent. A resource lock conflict, or a store
+                // that gives no answer, leaves this job queued.
+                let authorized = match self
+                    .authorize_resource(principal.clone(), job.plan.expected.resource.clone())
+                    .await
+                {
+                    Ok(()) => true,
+                    Err(error) if refused(error) => false,
+                    Err(error) => return Err(error),
+                };
+                if !authorized
+                    || job.plan.grant_revision != principal.grant_revision
+                    || job.plan.validate(now()).is_err()
+                {
+                    return self.mark(&job, JobState::PreconditionChanged).await;
+                }
+                let current = self.inspect(&job.plan.expected.resource).await?;
+                if job.plan.check_current(&current, now()).is_err() {
+                    return self.mark(&job, JobState::PreconditionChanged).await;
+                }
+                // The store epoch this job is dispatched under, recorded by the
+                // claim before it takes the job (`claim_container`).
+                let epoch = self.receipt_epoch().await?;
+                let (p, id, under) = (principal, job.id.clone(), epoch.clone());
+                job = self
+                    .claim(&job.id, move |s| {
+                        s.claim_container(&p, &id, &current, &under, now())
+                    })
+                    .await?;
+                epoch
+            };
             // Core death from here onward requires receipt reconciliation; it
             // cannot put the job back into the dispatch queue.
             match self
@@ -595,9 +707,15 @@ impl Core {
         let mut resolution_retry = Rotation::default();
         let mut audit = limeos_persistence::AuditLevel::Normal;
         let mut retention_failures = 0;
+        let mut store_stalled = false;
+        let mut target_failures = Repeats::default();
+        let mut mount_failures = Repeats::default();
         loop {
             // The first tick is immediate, which completes startup leftovers.
             tick.tick().await;
+            // A stuck writer makes this loop's own store calls fail at their
+            // deadline, so this runs at least every `CALL_DEADLINE` or so.
+            store_stalled = report_store(store_stalled, self.db.writer_activity());
             audit = report_audit(audit, self.db.audit_usage());
             retention_failures = report_retention(retention_failures, self.db.retention_failure());
             self.complete_pending_resolutions(&mut resolution_retry, 5)
@@ -605,6 +723,7 @@ impl Core {
             self.dispatch_stack_candidates(&mut stack_recovery).await;
             if let Ok(jobs) = self.db.call(|s| s.storage_target_candidates()).await {
                 target_recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));
+                target_failures.retain(|id| jobs.iter().any(|(_, job)| job.id == id));
                 for (principal, job) in jobs {
                     if job.state != JobState::Queued {
                         if target_recovery
@@ -615,14 +734,21 @@ impl Core {
                         }
                         target_recovery.insert(job.id.clone(), Instant::now());
                     }
-                    if let Err(e) = self.dispatch_target(principal, job).await {
-                        tracing::warn!(code=?e.0,"storage target job remains pending or requires reconciliation");
+                    let id = job.id.clone();
+                    match self.dispatch_target(principal, job).await {
+                        Ok(()) => target_failures.passed(&id),
+                        Err(e) => {
+                            if let Some(failures) = target_failures.failed(&id) {
+                                tracing::warn!(code=?e.0, failures, "storage target job remains pending or requires reconciliation");
+                            }
+                        }
                     }
                 }
             }
 
             if let Ok(jobs) = self.db.call(|store| store.storage_mount_candidates()).await {
                 mount_recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));
+                mount_failures.retain(|id| jobs.iter().any(|(_, job)| job.id == id));
                 for (principal, job) in jobs {
                     if job.state != JobState::Queued {
                         if mount_recovery
@@ -633,8 +759,14 @@ impl Core {
                         }
                         mount_recovery.insert(job.id.clone(), Instant::now());
                     }
-                    if let Err(error) = self.dispatch_mount(principal, job).await {
-                        tracing::warn!(code=?error.0, "storage mount job remains pending or requires reconciliation");
+                    let id = job.id.clone();
+                    match self.dispatch_mount(principal, job).await {
+                        Ok(()) => mount_failures.passed(&id),
+                        Err(error) => {
+                            if let Some(failures) = mount_failures.failed(&id) {
+                                tracing::warn!(code=?error.0, failures, "storage mount job remains pending or requires reconciliation");
+                            }
+                        }
                     }
                 }
             }
@@ -655,8 +787,14 @@ impl Core {
                 if job.state != JobState::Queued && !recovery.due(&job.id) {
                     continue;
                 }
-                if let Err(e) = self.dispatch_one(principal, job).await {
-                    tracing::warn!(code=?e.0,"container job remains pending or requires reconciliation");
+                let id = job.id.clone();
+                match self.dispatch_one(principal, job).await {
+                    Ok(()) => recovery.failures.passed(&id),
+                    Err(e) => {
+                        if let Some(failures) = recovery.failures.failed(&id) {
+                            tracing::warn!(code=?e.0, failures, "container job remains pending or requires reconciliation");
+                        }
+                    }
                 }
             }
         }
@@ -701,6 +839,27 @@ pub(super) fn note_execute_failure(failure: Failure) {
     } else {
         tracing::warn!(code=?failure.error.0, "execute call failed; the job is held for reconciliation");
     }
+}
+
+/// Logs when the store's writer has been on one item past `STORE_STALL`, and
+/// when it moves on again.
+fn report_store(stalled: bool, activity: limeos_persistence::WriterActivity) -> bool {
+    let now_stalled = activity
+        .busy_for
+        .is_some_and(|busy| busy >= super::STORE_STALL);
+    if now_stalled && !stalled {
+        tracing::error!(
+            busy_ms = activity
+                .busy_for
+                .map_or(0, |busy| u64::try_from(busy.as_millis())
+                    .unwrap_or(u64::MAX)),
+            queued = activity.queued,
+            "the store's writer is stuck on one item (a hung disk write or a lock held from outside); store calls fail at their deadline and health reports the store degraded"
+        );
+    } else if stalled && !now_stalled {
+        tracing::info!("the store's writer is moving again");
+    }
+    now_stalled
 }
 
 /// Logs each new failed retention batch (the latest, with the running

@@ -168,7 +168,40 @@ export type AcknowledgeNotification = { revision: number, };
 export type AutomationPage<T> = { items: Array<T>, next: string | null, partial: boolean, };
 export type Enrollment = { token: string, username: string, password: string, };
 export type LegacyUser = { username: string, password_hash: string, };
-export type Health = { version: number, generation: number, schema_version: number, ready: boolean, };
+export type Subsystem = "observation_runtime" | "storage_reader" | "store";
+export type DegradedSubsystem = { subsystem: Subsystem,
+/**
+ * What is wrong and since when. Given to an authenticated caller and to
+ * `limeosctl status`; the unauthenticated health check names only the
+ * subsystem.
+ */
+detail?: DegradedDetail | null, };
+export type DegradedDetail = {
+/**
+ * The error that describes the current state: for the observation
+ * runtime, the one that ended its latest run; for the storage reader
+ * and the store, `unavailable`.
+ */
+code: ErrorCode,
+/**
+ * When the current state began (Unix seconds): for the storage reader,
+ * when its oldest stuck read was abandoned; for the store, when its
+ * writer started the item it is still on.
+ */
+since: number,
+/**
+ * For the observation runtime, failures in the current run; it restarts
+ * after a longer wait each time. For the storage reader, reads stuck.
+ * For the store, calls waiting for its writer.
+ */
+count: number, };
+export type Health = { version: number, generation: number, schema_version: number, ready: boolean,
+/**
+ * Subsystems not working as they should right now; an entry clears as
+ * soon as its subsystem recovers. Core keeps serving requests while any
+ * is listed; an empty list is healthy.
+ */
+degraded: Array<DegradedSubsystem>, };
 export type SessionView = { principal: Principal, csrf_token: string, expires_at: number, };
 export type ErrorEnvelope = { code: ErrorCode, message: string, retry: boolean, audit_id: string, };
 export type CoreRequest = { "request": "health", version: number, } | { "request": "issue_bootstrap", version: number, } | { "request": "enroll", version: number, enrollment: Enrollment, } | { "request": "import_legacy_users", version: number, users: Array<LegacyUser>, } | { "request": "read_resolution", version: number, admin: string, job: string, } | { "request": "resolve_job", version: number, admin: string, job: string, declared: DeclaredOutcome, reason: string, evidence_digest: string, } | { "request": "check_task", version: number, token: string, task: string, operation: Operation, resource: string, } | { "request": "propose_restart", version: number, token: string, task: string, resource: string, } | { "request": "queue_restart", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "propose_container", version: number, token: string, task: string, resource: string, operation: ContainerAction, } | { "request": "queue_container", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "read_container_logs", version: number, token: string, task: string, resource: string, options: LogOptions, } | { "request": "propose_compose", version: number, token: string, task: string, selection: ComposeSelection, };
@@ -423,6 +456,11 @@ allow_stack: boolean, managed_containers: Array<string>,
  * Compose project names.
  */
 managed_stacks: Array<string>, };
+export type StrandedReads = { count: number,
+/**
+ * When the oldest of them was abandoned (Unix seconds).
+ */
+since: number, };
 export type Receipt = { container_health?: ContainerHealthCohort | null, stack_cohort?: DiscoveryCohort | null, storage_mount_catalog?: StorageMountCatalog | null, storage_mount_inspection?: StorageMountInspection | null, storage_mount?: StorageMountReceipt | null, mounted_storage?: StorageMountedSnapshot | null, version: number, ready: boolean, observations?: ObservationBatch | null, inspection?: ContainerSnapshot | null, restart?: ContainerReceipt | null, stack?: StackReceipt | null, stack_members?: StackSnapshot | null, resolution?: ResolveReceipt | null,
 /**
  * Set by a receipt lookup or `ResolveAction` that has no receipt to act
@@ -451,7 +489,12 @@ resolution_refusal?: ResolveRefusal | null,
  * earlier epoch for an operator instead of accepting a `never_recorded`
  * closure for it.
  */
-epoch?: string | null, logs?: ContainerLogs | null, error?: ErrorCode | null, storage?: StorageInventory | null, storage_targets?: StorageTargetSnapshot | null, target_preparation?: TargetPreparationReceipt | null, container_storage?: ContainerStorageInventory | null, };
+epoch?: string | null, logs?: ContainerLogs | null, error?: ErrorCode | null, storage?: StorageInventory | null, storage_targets?: StorageTargetSnapshot | null, target_preparation?: TargetPreparationReceipt | null, container_storage?: ContainerStorageInventory | null,
+/**
+ * Set on the storage reader's answer to `Health` while it has a stuck
+ * read.
+ */
+stranded_reads?: StrandedReads | null, };
 export type RestartPlan = ContainerPlan;
 export type PlannedRestart = PlannedContainerAction;
 export type RestartJob = ContainerJob;

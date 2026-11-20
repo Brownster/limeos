@@ -308,7 +308,22 @@ impl Core {
                             .await
                         {
                             Ok(Some(state)) => Finish::Superseded(state),
-                            Ok(None) => Finish::Pending(ErrorCode::Conflict),
+                            // Nothing to supersede: the retry loop removed the
+                            // request between the two calls. Report what the
+                            // job settled as rather than a retry that will
+                            // never happen.
+                            Ok(None) => {
+                                let job = request.job.clone();
+                                match self.db.call(move |s| s.job_state(&job)).await {
+                                    Ok(state) => {
+                                        match serde_json::from_value::<JobState>(state.into()) {
+                                            Ok(state) if !held(state) => Finish::Superseded(state),
+                                            _ => Finish::Pending(ErrorCode::Conflict),
+                                        }
+                                    }
+                                    Err(e) => Finish::Pending(e.0),
+                                }
+                            }
                             Err(e) => Finish::Pending(e.0),
                         }
                     }
@@ -490,7 +505,9 @@ impl Core {
                     )
                 }
                 Finish::Pending(code) => {
-                    tracing::warn!(?code, "job resolution stays pending")
+                    if let Some(failures) = retry.failures.failed(&pending.request.job) {
+                        tracing::warn!(?code, failures, "job resolution stays pending")
+                    }
                 }
                 Finish::Superseded(state) => tracing::info!(
                     state = state.as_str(),

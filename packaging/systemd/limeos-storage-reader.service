@@ -3,6 +3,10 @@ Description=LimeOS fresh storage inventory (read only)
 After=local-fs.target
 
 [Service]
+# Type=exec arms the watchdog at exec, which is enough here: before its first
+# keep-alive (sent as soon as the accept loop runs) the role only reads a
+# policy of at most 64 KiB and the installed stack selection and binds its
+# socket, well under a second; device reads start later, off that thread.
 Type=exec
 User=root
 Group=limeos-host-access
@@ -14,6 +18,17 @@ LimitCORE=0
 MemorySwapMax=0
 Restart=on-failure
 RestartSec=2s
+# Keep-alives are sent from the accept loop, so systemd restarts the unit
+# only if that loop stops being run. Longest legitimate stretch on that
+# loop's thread: framing and cached answers, well under a millisecond. The
+# device reads run elsewhere: inventory (sysfs, block devices, blkid) on its
+# own thread under a 4 s deadline, container health and the stack refresh
+# on the blocking pool. Far under 10 s, a third of the interval. A storage
+# read stuck past its deadline
+# does not stop them: a restart would not free it (the thread stays in this
+# cgroup) and would abort healthy reads; the reader refuses inventories and
+# reports it to core, which lists the reader as degraded.
+WatchdogSec=30s
 TimeoutStartSec=15s
 TimeoutStopSec=5s
 NoNewPrivileges=yes
