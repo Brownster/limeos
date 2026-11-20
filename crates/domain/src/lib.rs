@@ -53,6 +53,13 @@ pub enum ErrorCode {
     CorruptConfiguration,
     StateNotDurable,
     NotFound,
+    /// The container executor refused an execute request for an action it
+    /// holds no receipt for, because the plan expires at or below its prune
+    /// watermark: a receipt for it may have been pruned, so the executor can
+    /// no longer tell whether the action already ran. Never retried as an
+    /// effect. Fresh plans meet it only after the clock stepped back by more
+    /// than the receipt retention period, until the clock catches up.
+    BeyondReceiptHistory,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -77,6 +84,9 @@ impl Error {
                 "Durable state is unavailable. Check the job outcome before retrying."
             }
             ErrorCode::NotFound => "The resource was not found.",
+            ErrorCode::BeyondReceiptHistory => {
+                "The executor can no longer prove this action has not already run. Check the system clock; plans approved after it is correct are accepted."
+            }
         }
     }
 }

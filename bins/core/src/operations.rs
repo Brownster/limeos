@@ -419,7 +419,8 @@ impl Core {
                 .await
             {
                 Ok(value) => value.restart,
-                Err(_) => {
+                Err(e) => {
+                    note_execute_failure(e);
                     self.mark(&job, JobState::NeedsIntervention).await?;
                     return Ok(());
                 }
@@ -589,6 +590,19 @@ impl Core {
                 }
             }
         }
+    }
+}
+
+/// A failed execute call leaves the job held. The executor's clock-free
+/// barrier (`BeyondReceiptHistory`) gets its own message, since after a
+/// backward clock step every new action is refused the same way.
+pub(super) fn note_execute_failure(error: Error) {
+    if error.0 == ErrorCode::BeyondReceiptHistory {
+        tracing::warn!(
+            "executor refused the action: its plan expires within pruned receipt history, so the executor cannot tell whether it already ran; check the system clock (the job is held for an operator)"
+        );
+    } else {
+        tracing::warn!(code=?error.0, "execute call failed; the job is held for reconciliation");
     }
 }
 

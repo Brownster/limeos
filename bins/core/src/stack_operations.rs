@@ -361,7 +361,8 @@ impl Core {
                 .await
             {
                 Ok(value) => value.stack,
-                Err(_) => {
+                Err(e) => {
+                    super::operations::note_execute_failure(e);
                     // The executor may have failed before writing any row.
                     return self.release_if_unsent(&job, &digest).await;
                 }

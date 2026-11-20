@@ -130,7 +130,9 @@ async fn twenty_thousand_completed_actions_never_refuse_the_next_and_replay_stay
         .await
         .unwrap();
     assert_eq!(stored.state, ExecutionState::Verified);
-    // A pruned id cannot execute again: its plan expired long before pruning.
+    // A pruned id cannot execute again: its plan expires at or below the
+    // watermark, so it is refused before any clock is read (and it expired
+    // long before pruning besides).
     let first = first.unwrap();
     assert!(
         store
@@ -144,7 +146,7 @@ async fn twenty_thousand_completed_actions_never_refuse_the_next_and_replay_stay
             .await
             .unwrap_err()
             .0,
-        ErrorCode::Expired
+        ErrorCode::BeyondReceiptHistory
     );
     assert_eq!(engine.effects.load(Ordering::SeqCst), total as usize + 1);
     // Retention never removes a receipt whose plan could still be presented.

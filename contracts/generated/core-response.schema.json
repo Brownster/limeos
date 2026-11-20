@@ -895,19 +895,28 @@
       ]
     },
     "ErrorCode": {
-      "type": "string",
-      "enum": [
-        "invalid_input",
-        "unauthenticated",
-        "forbidden",
-        "conflict",
-        "expired",
-        "overloaded",
-        "unavailable",
-        "storage_mount_limit",
-        "corrupt_configuration",
-        "state_not_durable",
-        "not_found"
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "invalid_input",
+            "unauthenticated",
+            "forbidden",
+            "conflict",
+            "expired",
+            "overloaded",
+            "unavailable",
+            "storage_mount_limit",
+            "corrupt_configuration",
+            "state_not_durable",
+            "not_found"
+          ]
+        },
+        {
+          "description": "The container executor refused an execute request for an action it\nholds no receipt for, because the plan expires at or below its prune\nwatermark: a receipt for it may have been pruned, so the executor can\nno longer tell whether the action already ran. Never retried as an\neffect. Fresh plans meet it only after the clock stepped back by more\nthan the receipt retention period, until the clock catches up.",
+          "type": "string",
+          "const": "beyond_receipt_history"
+        }
       ]
     },
     "ExecutionState": {

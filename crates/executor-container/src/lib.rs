@@ -431,6 +431,13 @@ impl ReceiptStore {
             )?;
             return Ok(receipt);
         }
+        // No row: refused if a receipt for this plan may have been pruned,
+        // whatever the clock says (`retention`, the execute barrier).
+        self.admit(
+            limeos_domain::ResolveKind::Container,
+            &request.action,
+            request.plan.expires_at,
+        )?;
         request.plan.validate(clock())?;
         let id = request
             .plan

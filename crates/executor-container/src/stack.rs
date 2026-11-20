@@ -311,6 +311,12 @@ impl ReceiptStore {
             )?;
             return Ok(receipt);
         }
+        // As for a container action (`retention`, the execute barrier).
+        self.admit(
+            limeos_domain::ResolveKind::Stack,
+            &request.action,
+            request.plan.expires_at,
+        )?;
         request.plan.validate(clock())?;
         let project = request.plan.expected.project()?;
         let listed = tokio::time::timeout(Duration::from_secs(10), engine.project_members(project))

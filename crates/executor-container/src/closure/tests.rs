@@ -528,6 +528,168 @@ fn a_stack_closure_is_pruned_whole_with_its_member_rows() {
     );
 }
 
+/// The case retention could not exclude before: a closure pruned once its
+/// plan had been expired for the retention period, then a backward clock step
+/// to before the plan's expiry, then the delayed execute request. It finds no
+/// row and both expiry checks pass, but its plan expires at or below the
+/// watermark, so it is refused before prepare, with no Engine call.
+#[tokio::test]
+async fn a_pruned_closure_refuses_a_delayed_execute_after_the_clock_steps_back() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    for i in 0..RETAINED_ACTIONS {
+        store
+            .conn
+            .execute(
+                "INSERT INTO actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?1,?1,?1,'verified','{}','restart',?2)",
+                params![format!("filler{i}"), i64::MAX / 2],
+            )
+            .unwrap();
+    }
+    let first = container_request(&"d".repeat(64), EXPIRES);
+    assert!(matches!(
+        close(&mut store, &first, ASKED),
+        Lookup::Receipt { closed: true, .. }
+    ));
+    let pruned_at = EXPIRES + RETAIN_AFTER_EXPIRY;
+    close(
+        &mut store,
+        &container_request(&"e".repeat(64), pruned_at + 100),
+        pruned_at,
+    );
+    assert!(
+        store
+            .receipt(&first.action, &first.plan_digest)
+            .unwrap()
+            .is_none()
+    );
+    let engine = Recorder::default();
+    for clock in [STEPPED_BACK, EXPIRES - 1] {
+        assert_eq!(
+            store
+                .execute(&engine, &ceiling(), 1001, &first, || clock)
+                .await
+                .unwrap_err()
+                .0,
+            ErrorCode::BeyondReceiptHistory
+        );
+    }
+    assert!(engine.calls().is_empty());
+    // Refused before prepare: nothing recorded, no lock taken.
+    assert!(
+        store
+            .receipt(&first.action, &first.plan_digest)
+            .unwrap()
+            .is_none()
+    );
+    // A plan approved after the pruning still executes.
+    let fresh = container_request(&"f".repeat(64), pruned_at + 400);
+    let ran = store
+        .execute(&engine, &ceiling(), 1001, &fresh, || pruned_at + 200)
+        .await
+        .unwrap();
+    assert_eq!(ran.state, ExecutionState::EffectAccepted);
+    assert_eq!(engine.calls(), ["inspect", "restart"]);
+}
+
+#[tokio::test]
+async fn a_pruned_stack_closure_refuses_a_delayed_execute_after_the_clock_steps_back() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    for i in 0..RETAINED_STACKS {
+        store
+            .conn
+            .execute(
+                "INSERT INTO stack_actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?1,?1,'stack:media','verified','{}','restart',?2)",
+                params![format!("filler{i}"), i64::MAX / 2],
+            )
+            .unwrap();
+    }
+    let stack = stack_request(&"d".repeat(64));
+    close_stack(&mut store, &stack, ASKED);
+    let tx = store.conn.transaction().unwrap();
+    assert_eq!(prune(&tx, EXPIRES + RETAIN_AFTER_EXPIRY).unwrap(), 3);
+    tx.commit().unwrap();
+    let engine = Recorder::default();
+    for clock in [STEPPED_BACK, EXPIRES - 1] {
+        assert_eq!(
+            store
+                .execute_stack(&engine, &ceiling(), 1001, &stack, || clock)
+                .await
+                .unwrap_err()
+                .0,
+            ErrorCode::BeyondReceiptHistory
+        );
+    }
+    assert!(engine.calls().is_empty());
+    assert_eq!(rows(&store, "actions"), 0);
+}
+
+/// The execute barrier draws the line where an absence does: a plan
+/// expiring exactly at the watermark may share its expiry with a pruned
+/// receipt and is refused; one a second later is unknown to every pruned
+/// receipt and runs.
+#[tokio::test]
+async fn the_execute_barrier_uses_the_watermark_as_absence_does() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    raise_watermark(&store, EXPIRES);
+    let engine = Recorder::default();
+    let at = container_request(&"d".repeat(64), EXPIRES);
+    assert_eq!(
+        store
+            .receipt_absence(
+                &at.action,
+                &at.plan_digest,
+                &ActionPlan::Container(at.plan.clone())
+            )
+            .unwrap(),
+        ReceiptAbsence::NoLongerHeld
+    );
+    assert_eq!(
+        store
+            .execute(&engine, &ceiling(), 1001, &at, || STEPPED_BACK)
+            .await
+            .unwrap_err()
+            .0,
+        ErrorCode::BeyondReceiptHistory
+    );
+    let mut stack = stack_request(&"e".repeat(64));
+    assert_eq!(stack.plan.expires_at, EXPIRES);
+    assert_eq!(
+        store
+            .execute_stack(&engine, &ceiling(), 1001, &stack, || STEPPED_BACK)
+            .await
+            .unwrap_err()
+            .0,
+        ErrorCode::BeyondReceiptHistory
+    );
+    assert!(engine.calls().is_empty());
+    // On a container outside the stack, which this action then holds.
+    let after = container_request_on('c', &"f".repeat(64), EXPIRES + 1);
+    assert_eq!(
+        store
+            .execute(&engine, &ceiling(), 1001, &after, || STEPPED_BACK + 1)
+            .await
+            .unwrap()
+            .state,
+        ExecutionState::EffectAccepted
+    );
+    stack.plan.created_at += 1;
+    stack.plan.expires_at += 1;
+    stack.plan_digest = limeos_identity::digest(&encode(&stack.plan).unwrap());
+    stack.action = "c".repeat(64);
+    let ran = store
+        .execute_stack(&engine, &ceiling(), 1001, &stack, || STEPPED_BACK + 1)
+        .await
+        .unwrap();
+    assert!(
+        ran.members
+            .iter()
+            .all(|m| m.state == ExecutionState::EffectAccepted)
+    );
+}
+
 #[test]
 fn closure_kill_helper() {
     let Some(directory) = std::env::var_os("LIMEOS_CLOSURE_KILL_FIXTURE") else {

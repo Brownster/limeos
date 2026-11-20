@@ -17,12 +17,10 @@
 //! its own fresh measurement still matches the approved evidence.
 //!
 //! Replay. A receipt is kept until its plan has been expired for at least
-//! `RETAIN_AFTER_EXPIRY`. Every request carries its plan, and the executor
-//! refuses an expired plan with `Expired` before it inspects or prepares, so a
-//! repeated action id whose receipt was pruned can no longer execute. Should the
-//! clock step back by more than that margin, the plan's fresh precondition
-//! (start time and running state) still refuses it, because the original effect
-//! changed exactly those facts.
+//! `RETAIN_AFTER_EXPIRY`. Every request carries its plan, and a pruned row's
+//! plan expires at or below the watermark, so a repeated action id whose
+//! receipt was pruned is refused by the execute barrier (below) before any
+//! clock is read; an expired plan is refused with `Expired` besides.
 //!
 //! Closures. A closure row (`closure`) is a `precondition_changed` refusal
 //! like any other: settled, lock-free, pruned under these rules and retired
@@ -31,14 +29,21 @@
 //! prunes, and while kept it refuses its action whatever the clock says. Only
 //! eligibility reads the clock: a backward step delays pruning, and a forward
 //! step can prune a closure early only for a plan that clock already holds
-//! expired by the full margin. The residual case is a pruned closure followed
-//! by a backward step of more than that margin, to before the plan's expiry,
-//! while an execute request for the action is still undelivered: it would find
-//! no row and pass the expiry check, and since nothing was sent its fresh
-//! precondition may still hold. That needs the request to outlast its plan,
-//! the retention margin and the budget of newer receipts, which the bounded
-//! accept and read deadlines make implausible, but no clock-free rule here
-//! excludes it.
+//! expired by the full margin.
+//!
+//! The execute barrier. Once a closure is pruned, a delayed execute request
+//! for its action finds no row, and after a backward clock step to before the
+//! plan's expiry both expiry checks pass. So an execute for an action the
+//! store holds no row for is refused with `BeyondReceiptHistory`, before it
+//! prepares or contacts the Engine, whenever the absence would be answered
+//! `NoLongerHeld` (`ReceiptStore::admit`): its plan expires at or below the
+//! watermark, where any receipt for it may have been pruned, so the store can
+//! no longer tell whether the action was closed or already ran. The rule is
+//! the absence rule, non-strict at the watermark, and reads no clock. Its
+//! availability cost: after a backward step of more than the retention margin
+//! (plus the plan TTL), freshly approved plans also expire at or below the
+//! watermark and are refused until the clock passes it again. That is the
+//! safe direction; the executor logs each such refusal.
 //!
 //! Pruning runs inside the transaction that inserts a new receipt, removes at
 //! most `PRUNE_BATCH` rows, oldest plan expiry first, and writes nothing when
@@ -160,6 +165,17 @@ impl ReceiptStore {
     ) -> Result<ReceiptAbsence> {
         let expires_at = verified_expiry(plan.kind(), digest, plan)?;
         self.absence_at(plan.kind(), action, expires_at)
+    }
+
+    /// The execute-time barrier, for an action the store holds no row for:
+    /// refused with `BeyondReceiptHistory` when its plan expires at or below
+    /// the watermark (or its ID is a legacy tombstone), where a receipt for
+    /// it may have been pruned. Reads no clock. Pure lookup.
+    pub(crate) fn admit(&self, kind: ResolveKind, action: &str, expires_at: i64) -> Result<()> {
+        match self.absence_at(kind, action, expires_at)? {
+            ReceiptAbsence::NeverRecorded => Ok(()),
+            ReceiptAbsence::NoLongerHeld => Err(Error(ErrorCode::BeyondReceiptHistory)),
+        }
     }
 
     /// As `receipt_absence`, with an expiry already verified against the plan.

@@ -432,7 +432,8 @@ async fn run() -> std::io::Result<()> {
                         receipt.restart = Some(
                             store
                                 .execute(&engine, &restart_ceiling, peer.uid(), &request, clock)
-                                .await?,
+                                .await
+                                .inspect_err(note_refusal)?,
                         );
                     }
                     Request::RestartReceipt {
@@ -532,7 +533,8 @@ async fn run() -> std::io::Result<()> {
                                     &request,
                                     clock,
                                 )
-                                .await?,
+                                .await
+                                .inspect_err(note_refusal)?,
                         );
                     }
                     Request::StackReceipt {
@@ -661,6 +663,16 @@ async fn run() -> std::io::Result<()> {
             )
             .await;
         });
+    }
+}
+/// An execute refused by the receipt store's clock-free barrier: its plan
+/// expires at or below the prune watermark (`retention`). Logged, because
+/// every such refusal after a backward clock step looks alike to core.
+fn note_refusal(error: &limeos_domain::Error) {
+    if error.0 == limeos_domain::ErrorCode::BeyondReceiptHistory {
+        tracing::warn!(
+            "execute refused: the plan expires at or below the receipt store's prune watermark, so whether the action already ran can no longer be told; the system clock has probably stepped back, and plans are refused until it passes the watermark again"
+        );
     }
 }
 fn clock() -> i64 {
