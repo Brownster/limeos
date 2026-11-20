@@ -10,6 +10,8 @@
 //! - `soak_ninety_days`: the acceptance run, core's store open from day 30.
 //! - `soak_ninety_days_restarts`: alongside it, restarts for all 90 days.
 //! - `caps::*`: both stores at their caps and with a retention backlog.
+//! - `occurrences::*`: the occurrence pruner, which the household run does
+//!   not exercise.
 //! - `writer_thread_runs_retention_unprompted`: the production schedule the
 //!   harness otherwise replaces with its own calls.
 //! - `automation_limit_at_minimum_interval`: the known automation limit,
@@ -23,6 +25,7 @@ mod dispatch;
 mod engine;
 mod executor;
 mod fixtures;
+mod occurrences;
 mod sim;
 mod startup;
 mod support;

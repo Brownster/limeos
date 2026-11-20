@@ -4,9 +4,11 @@
 //! enables one observe-health schedule at the 30 s minimum, observes every
 //! occurrence through the store's real reservation, lease and completion
 //! paths with retention once a simulated minute, and stops at the first
-//! refused write. It asserts that the limit is still there and prints when
-//! it is reached; once result and job retention land, it fails, and the
-//! schedule belongs in the main soak instead.
+//! refused write. It asserts that the limit is still there and is the one
+//! measured: the reservation refused `StateNotDurable` at the audit cap
+//! (not at the occurrence or result caps) between days 22 and 23.5, so
+//! hitting a different limit earlier fails; once result and job retention
+//! land, it fails too, and the schedule belongs in the main soak instead.
 //!
 //! Measured (20 November 2026): the first refusal comes after 22.76
 //! simulated days, a reservation refused with `StateNotDurable` at the
@@ -17,14 +19,14 @@ use crate::{
     support::{DAY, START},
 };
 use limeos_domain::{
-    Error, Operation, Role, Scope,
+    Error, ErrorCode,
     automation::{
-        AlertKind, AlertSignal, CreateSchedule, DueDecision, MAX_TICK_SCHEDULES, MissedRunPolicy,
-        Reservation, ScheduleDefinition, ScheduledOperation, Settlement, Severity, SignalStatus,
+        AlertKind, AlertSignal, DueDecision, MAX_TICK_SCHEDULES, Reservation, Settlement, Severity,
+        SignalStatus,
     },
 };
 use limeos_persistence::{
-    HealthObservation, ObservationAdmission, ScopedHealthSignal, Store, test_support,
+    AuditUsage, HealthObservation, ObservationAdmission, ScopedHealthSignal, Store, test_support,
 };
 use std::time::{Duration, Instant};
 
@@ -42,40 +44,7 @@ fn automation_limit_at_minimum_interval() {
     store
         .enroll("bootstrap", "marc", "$argon2id$soak", START)
         .unwrap();
-    let initial = store.login_record("marc").unwrap().unwrap().principal;
-    let scope = |operation, resource: &str| Scope {
-        operation,
-        resource: resource.into(),
-    };
-    store
-        .revise_grants(
-            &initial.id,
-            Role::Administrator,
-            &[
-                scope(Operation::HealthRead, "*"),
-                scope(Operation::AutomationManage, "automation:observe-health"),
-            ],
-            START,
-        )
-        .unwrap();
-    let actor = store.login_record("marc").unwrap().unwrap().principal;
-    let schedule = store
-        .automation_create(
-            &actor,
-            &CreateSchedule {
-                definition: ScheduleDefinition {
-                    operation: ScheduledOperation::ObserveHealth,
-                    anchor: 0,
-                    interval_seconds: 30,
-                    grace_seconds: 5,
-                    missed: MissedRunPolicy::CoalesceLatest,
-                    window: None,
-                },
-            },
-            START,
-        )
-        .unwrap()
-        .schedule;
+    let schedule = crate::occurrences::observe_health_schedule(&mut store);
     let batch = HealthObservation {
         signals: vec![ScopedHealthSignal {
             resource: "host:system".into(),
@@ -107,7 +76,7 @@ fn automation_limit_at_minimum_interval() {
             .automation_schedule_page(None, MAX_TICK_SCHEDULES)
             .unwrap()
             .into_iter()
-            .find(|row| row.id == schedule.id)
+            .find(|row| row.id == schedule)
             .unwrap();
         if let DueDecision::Ready(key) = row.due(now).unwrap() {
             let step = (|| {
@@ -152,14 +121,15 @@ fn automation_limit_at_minimum_interval() {
         conn.query_row(&format!("SELECT count(*) FROM {table}"), [], |r| r.get(0))
             .unwrap()
     };
-    let (events, results, jobs) = (
+    let (events, results, jobs, occurrences) = (
         count("events"),
         count("automation_observation_results"),
         count("jobs"),
+        count("automation_occurrences"),
     );
     let file = std::fs::metadata(&path).unwrap().len();
     eprintln!(
-        "automation limit: {observed} observations; events {events}, results {results}, jobs {jobs}, file {:.1} MiB; {:.1} s",
+        "automation limit: {observed} observations; events {events}, results {results}, jobs {jobs}, occurrences {occurrences}, file {:.1} MiB; {:.1} s",
         crate::support::mib(file),
         started.elapsed().as_secs_f64()
     );
@@ -168,8 +138,51 @@ fn automation_limit_at_minimum_interval() {
             "one schedule at the 30 s minimum ran 60 simulated days without a refusal: the known limit is gone, so update retention.rs and docs/soak.md and drive the producer in the main soak"
         );
     };
-    eprintln!(
-        "automation limit: first refusal after {:.2} simulated days ({op}: {code:?})",
-        (at - START) as f64 / DAY as f64
+    let day = (at - START) as f64 / DAY as f64;
+    eprintln!("automation limit: first refusal after {day:.2} simulated days ({op}: {code:?})");
+    // The known limit, and no other: the reservation (two events) refused
+    // because the audit table is at its cap, filled by the proofs pinned to
+    // observation jobs, with the results one short of their own cap and the
+    // occurrences held at their budget by the pruner.
+    let per_event = test_support::EVENT_BYTES;
+    let (budget, batch) = crate::sim::rule_limits("automation_occurrences");
+    let results_cap = AuditUsage::LIMIT / (4 * per_event);
+    let expected = [
+        (
+            op == "reserve" && code == ErrorCode::StateNotDurable,
+            format!("the first refusal is {op}: {code:?}, not the reservation's StateNotDurable"),
+        ),
+        (
+            (events + 2) * per_event > AuditUsage::LIMIT,
+            format!("{events} events: the audit table is not at its cap"),
+        ),
+        (
+            results < results_cap,
+            format!("{results} results: their own cap ({results_cap}) was reached first"),
+        ),
+        (
+            occurrences <= budget + batch,
+            format!(
+                "{occurrences} occurrences: the occurrence pruner fell behind its budget of {budget}"
+            ),
+        ),
+        (
+            (22.0..23.5).contains(&day),
+            format!("day {day:.2}, outside the window measured (22.76) of 22 to 23.5"),
+        ),
+    ];
+    let wrong: Vec<&String> = expected
+        .iter()
+        .filter(|(ok, _)| !ok)
+        .map(|(_, why)| why)
+        .collect();
+    assert!(
+        wrong.is_empty(),
+        "the automation limit changed:\n{}",
+        wrong
+            .iter()
+            .map(|w| w.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 }
