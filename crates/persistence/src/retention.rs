@@ -529,9 +529,12 @@ impl Store {
             .collect()
     }
     /// [`Self::prune_each`], with the rows removed per table (omitting tables
-    /// with none), or the first error once every rule has run.
-    #[cfg(test)]
-    pub(super) fn prune(&mut self) -> Result<Vec<(&'static str, i64)>> {
+    /// with none), or the first error once every rule has run. This is one
+    /// retention pass without the once-a-minute gate of [`Self::maintain`],
+    /// which reads the wall clock: a caller that drives the store on its own
+    /// clock (the soak harness, `bins/core/tests/soak`) runs it once per
+    /// simulated minute instead. The daemon never calls it.
+    pub fn prune(&mut self) -> Result<Vec<(&'static str, i64)>> {
         let mut removed = Vec::new();
         let mut failed = None;
         for (table, result) in self.prune_each() {
