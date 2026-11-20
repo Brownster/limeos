@@ -255,7 +255,7 @@ fn cap_case(level: Level, prunable: bool, running: bool) -> Vec<String> {
 /// The core store at, past and full past its audit cap, with and without
 /// prunable history, with and without a job needing a recovery event.
 #[test]
-#[ignore = "the cap states of the core store: in the soak CI step (about 20 s, up to 70 MiB)"]
+#[ignore = "the cap states of the core store: in CI's soak job (about 20 s, up to 70 MiB)"]
 fn soak_core_store_at_its_audit_cap() {
     let mut problems = Vec::new();
     for level in [Level::AtCap, Level::PastCap, Level::ReserveFull] {

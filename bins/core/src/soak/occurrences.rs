@@ -72,7 +72,7 @@ pub fn observe_health_schedule(store: &mut Store) -> String {
 }
 
 #[test]
-#[ignore = "30 simulated days of occurrences at the minimum interval: in the soak CI step"]
+#[ignore = "30 simulated days of occurrences at the minimum interval: in CI's soak job"]
 fn soak_occurrences_stay_at_their_budget() {
     let dir = soak_dir();
     let (path, _) = core_store(dir.path());

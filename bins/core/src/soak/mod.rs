@@ -22,7 +22,7 @@
 //! - `automation_limit_at_minimum_interval`: the known automation limit,
 //!   measured (`--ignored`; not a pass/fail gate of the shipped scope).
 //!
-//! The ignored tests named `soak_*` are the CI soak step.
+//! The ignored tests named `soak_*` are CI's soak job.
 mod automation;
 mod caps;
 mod checks;
@@ -98,13 +98,13 @@ async fn soak_smoke() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-#[ignore = "the 90-day acceptance run: the soak CI step (cargo test -p limeos-core --bin limeos-core -- --ignored soak_)"]
+#[ignore = "the 90-day acceptance run: CI's soak job (cargo test -p limeos-core --bin limeos-core -- --ignored soak_)"]
 async fn soak_ninety_days() {
     soak(NINETY_DAYS).await;
 }
 
 #[tokio::test(flavor = "current_thread")]
-#[ignore = "the 90-day recovery run, alongside soak_ninety_days in its CI step"]
+#[ignore = "the 90-day recovery run, alongside soak_ninety_days in CI's soak job"]
 async fn soak_ninety_days_restarts() {
     soak(NINETY_DAYS_RESTARTS).await;
 }

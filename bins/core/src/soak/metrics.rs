@@ -184,7 +184,7 @@ fn sample(minute: i64) -> HostMetrics {
 }
 
 #[tokio::test(flavor = "current_thread")]
-#[ignore = "90 simulated days of host metrics: in the soak CI step"]
+#[ignore = "90 simulated days of host metrics: in CI's soak job"]
 async fn soak_metrics_store_ninety_days() {
     let dir = soak_dir();
     let path = dir.path().join("metrics.sqlite");
