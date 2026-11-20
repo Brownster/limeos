@@ -667,11 +667,23 @@ async fn authenticated_core_views_project_only_current_owned_authority_and_regis
     );
 }
 
-async fn http_health(address: std::net::SocketAddr) -> limeos_contracts::Health {
+/// `/api/v1/health`, signed in with `session` if given.
+async fn http_health(
+    address: std::net::SocketAddr,
+    session: Option<&str>,
+) -> limeos_contracts::Health {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+    let cookie = session.map_or(String::new(), |token| {
+        format!("cookie: __Host-limeos={token}\r\n")
+    });
     stream
-        .write_all(b"GET /api/v1/health HTTP/1.1\r\nhost: localhost\r\nconnection: close\r\n\r\n")
+        .write_all(
+            format!(
+                "GET /api/v1/health HTTP/1.1\r\nhost: localhost\r\n{cookie}connection: close\r\n\r\n"
+            )
+            .as_bytes(),
+        )
         .await
         .unwrap();
     let mut bytes = Vec::new();
@@ -713,10 +725,15 @@ async fn a_store_failure_during_a_pass_leaves_core_serving_and_is_reported_until
             cap: Duration::from_millis(40),
         },
     ));
+    let signed_in = token(0);
     let degraded = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
-            let health = http_health(address).await;
-            if let Some(degraded) = health.degraded.into_iter().find(|d| d.failures >= 2) {
+            let health = http_health(address, Some(&signed_in)).await;
+            if let Some(degraded) = health
+                .degraded
+                .into_iter()
+                .find(|d| d.detail.as_ref().is_some_and(|d| d.count >= 2))
+            {
                 break degraded;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -728,7 +745,18 @@ async fn a_store_failure_during_a_pass_leaves_core_serving_and_is_reported_until
         degraded.subsystem,
         limeos_contracts::Subsystem::ObservationRuntime
     );
-    assert_eq!(degraded.code, ErrorCode::StateNotDurable);
+    assert_eq!(degraded.detail.unwrap().code, ErrorCode::StateNotDurable);
+    // Without a session: which subsystem, and nothing about why or since when.
+    let anonymous = http_health(address, None).await;
+    assert_eq!(
+        anonymous.degraded,
+        vec![limeos_contracts::DegradedSubsystem {
+            subsystem: limeos_contracts::Subsystem::ObservationRuntime,
+            detail: None,
+        }]
+    );
+    let unknown = http_health(address, Some(&"f".repeat(64))).await;
+    assert!(unknown.degraded.iter().all(|d| d.detail.is_none()));
     // At least two failures: the runtime was restarted, not left stopped.
     assert!(!services.is_finished(), "a failed pass ended core");
 
@@ -736,7 +764,11 @@ async fn a_store_failure_during_a_pass_leaves_core_serving_and_is_reported_until
         .execute("UPDATE meta SET audit_bytes=? WHERE id=1", [audit])
         .unwrap();
     tokio::time::timeout(Duration::from_secs(10), async {
-        while !http_health(address).await.degraded.is_empty() {
+        while !http_health(address, Some(&signed_in))
+            .await
+            .degraded
+            .is_empty()
+        {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })

@@ -712,33 +712,52 @@
           }
         ]
       },
-      "DegradedSubsystem": {
+      "DegradedDetail": {
         "additionalProperties": false,
         "properties": {
           "code": {
             "$ref": "#/components/schemas/ErrorCode",
-            "description": "The error that ended its latest run."
+            "description": "The error that describes the current state: for the observation\nruntime, the one that ended its latest run."
           },
-          "failures": {
-            "description": "Failures in the current run; it restarts after a longer wait each time.",
+          "count": {
+            "description": "For the observation runtime, failures in the current run; it restarts\nafter a longer wait each time.",
             "format": "uint32",
             "minimum": 0,
             "type": "integer"
           },
           "since": {
-            "description": "When the current run of failures began (Unix seconds).",
+            "description": "When the current state began (Unix seconds).",
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "since",
+          "count"
+        ],
+        "type": "object"
+      },
+      "DegradedSubsystem": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DegradedDetail"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What is wrong and since when. Given to an authenticated caller and to\n`limeosctl status`; the unauthenticated health check names only the\nsubsystem."
           },
           "subsystem": {
             "$ref": "#/components/schemas/Subsystem"
           }
         },
         "required": [
-          "subsystem",
-          "code",
-          "since",
-          "failures"
+          "subsystem"
         ],
         "type": "object"
       },
@@ -3783,7 +3802,7 @@
         "type": "object"
       },
       "Subsystem": {
-        "description": "A core background task that restarts on its own after a failure.",
+        "description": "A part of the service that can fail on its own while core keeps serving.",
         "oneOf": [
           {
             "const": "observation_runtime",
@@ -12266,7 +12285,7 @@
                   "additionalProperties": false,
                   "properties": {
                     "degraded": {
-                      "description": "Background subsystems that failed and are waiting to restart. Core\nkeeps serving requests while any is listed; an empty list is healthy.",
+                      "description": "Subsystems not working as they should right now; an entry clears as\nsoon as its subsystem recovers. Core keeps serving requests while any\nis listed; an empty list is healthy.",
                       "items": {
                         "$ref": "#/components/schemas/DegradedSubsystem"
                       },

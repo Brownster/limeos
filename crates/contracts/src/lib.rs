@@ -99,11 +99,12 @@ pub struct Health {
     pub generation: i64,
     pub schema_version: u32,
     pub ready: bool,
-    /// Background subsystems that failed and are waiting to restart. Core
-    /// keeps serving requests while any is listed; an empty list is healthy.
+    /// Subsystems not working as they should right now; an entry clears as
+    /// soon as its subsystem recovers. Core keeps serving requests while any
+    /// is listed; an empty list is healthy.
     pub degraded: Vec<DegradedSubsystem>,
 }
-/// A core background task that restarts on its own after a failure.
+/// A part of the service that can fail on its own while core keeps serving.
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema, TS,
 )]
@@ -116,13 +117,33 @@ pub enum Subsystem {
 #[serde(deny_unknown_fields)]
 pub struct DegradedSubsystem {
     pub subsystem: Subsystem,
-    /// The error that ended its latest run.
+    /// What is wrong and since when. Given to an authenticated caller and to
+    /// `limeosctl status`; the unauthenticated health check names only the
+    /// subsystem.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<DegradedDetail>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct DegradedDetail {
+    /// The error that describes the current state: for the observation
+    /// runtime, the one that ended its latest run.
     pub code: ErrorCode,
-    /// When the current run of failures began (Unix seconds).
+    /// When the current state began (Unix seconds).
     #[ts(type = "number")]
     pub since: i64,
-    /// Failures in the current run; it restarts after a longer wait each time.
-    pub failures: u32,
+    /// For the observation runtime, failures in the current run; it restarts
+    /// after a longer wait each time.
+    pub count: u32,
+}
+impl DegradedSubsystem {
+    /// The entry as the unauthenticated health check shows it.
+    pub fn redacted(self) -> Self {
+        Self {
+            subsystem: self.subsystem,
+            detail: None,
+        }
+    }
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]

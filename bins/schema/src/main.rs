@@ -360,6 +360,7 @@ fn main() {
     ts!(limeos_contracts::LegacyUser);
     ts!(limeos_contracts::Subsystem);
     ts!(limeos_contracts::DegradedSubsystem);
+    ts!(limeos_contracts::DegradedDetail);
     ts!(limeos_contracts::Health);
     ts!(limeos_contracts::SessionView);
     ts!(limeos_contracts::ErrorEnvelope);

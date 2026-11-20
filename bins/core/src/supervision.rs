@@ -2,7 +2,7 @@
 //! ending core. Only startup errors (configuration, store, bind) stop the
 //! process; a task that fails later is reported in `Health::degraded` until a
 //! successful pass clears it.
-use limeos_contracts::{DegradedSubsystem, Subsystem};
+use limeos_contracts::{DegradedDetail, DegradedSubsystem, Subsystem};
 use limeos_domain::{Error, ErrorCode, Result};
 use std::{
     future::Future,
@@ -89,17 +89,20 @@ impl Health {
         let since = record
             .current
             .as_ref()
-            .filter(|c| c.code == code)
-            .map_or(at, |c| c.since);
+            .and_then(|c| c.detail.as_ref())
+            .filter(|d| d.code == code)
+            .map_or(at, |d| d.since);
         // Repeats are logged at failures 1, 2, 4, 8, ... of a run, so a
         // persistent error costs a few lines a day, not one per restart.
         let log = changed || record.streak.is_power_of_two();
         record.logged = log;
         record.current = Some(DegradedSubsystem {
             subsystem,
-            code,
-            since,
-            failures: record.streak,
+            detail: Some(DegradedDetail {
+                code,
+                since,
+                count: record.streak,
+            }),
         });
         Failure {
             failures: record.streak,
@@ -184,12 +187,12 @@ mod tests {
             })
             .collect();
         assert_eq!(logged.iter().filter(|log| **log).count(), 7);
-        let current = health.degraded().unwrap();
-        assert_eq!((current.since, current.failures), (1, 64));
+        let current = health.degraded().unwrap().detail.unwrap();
+        assert_eq!((current.since, current.count), (1, 64));
         // A different error is always logged and starts a new `since`.
         let changed = health.failed(Subsystem::ObservationRuntime, ErrorCode::InvalidInput, 70);
         assert!(changed.log);
-        assert_eq!(health.degraded().unwrap().since, 70);
+        assert_eq!(health.degraded().unwrap().detail.unwrap().since, 70);
         assert!(health.recovered());
         assert_eq!(health.degraded(), None);
         assert!(!health.recovered());
@@ -198,7 +201,7 @@ mod tests {
         let next = health.failed(Subsystem::ObservationRuntime, ErrorCode::InvalidInput, 80);
         assert_eq!(next.failures, 66);
         assert!(!next.log);
-        assert_eq!(health.degraded().unwrap().since, 80);
+        assert_eq!(health.degraded().unwrap().detail.unwrap().since, 80);
         assert!(!health.recovered());
     }
 }

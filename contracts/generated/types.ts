@@ -171,21 +171,31 @@ export type LegacyUser = { username: string, password_hash: string, };
 export type Subsystem = "observation_runtime";
 export type DegradedSubsystem = { subsystem: Subsystem,
 /**
- * The error that ended its latest run.
+ * What is wrong and since when. Given to an authenticated caller and to
+ * `limeosctl status`; the unauthenticated health check names only the
+ * subsystem.
+ */
+detail?: DegradedDetail | null, };
+export type DegradedDetail = {
+/**
+ * The error that describes the current state: for the observation
+ * runtime, the one that ended its latest run.
  */
 code: ErrorCode,
 /**
- * When the current run of failures began (Unix seconds).
+ * When the current state began (Unix seconds).
  */
 since: number,
 /**
- * Failures in the current run; it restarts after a longer wait each time.
+ * For the observation runtime, failures in the current run; it restarts
+ * after a longer wait each time.
  */
-failures: number, };
+count: number, };
 export type Health = { version: number, generation: number, schema_version: number, ready: boolean,
 /**
- * Background subsystems that failed and are waiting to restart. Core
- * keeps serving requests while any is listed; an empty list is healthy.
+ * Subsystems not working as they should right now; an entry clears as
+ * soon as its subsystem recovers. Core keeps serving requests while any
+ * is listed; an empty list is healthy.
  */
 degraded: Array<DegradedSubsystem>, };
 export type SessionView = { principal: Principal, csrf_token: string, expires_at: number, };

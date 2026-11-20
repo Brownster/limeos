@@ -1003,11 +1003,33 @@ fn cookie(headers: &HeaderMap) -> Result<String> {
     }
     found.ok_or(Error(ErrorCode::Unauthenticated))
 }
-async fn health<B: Backend>(State(app): State<App<B>>) -> Response {
-    match app.backend.health().await {
-        Ok(h) => axum::Json(h).into_response(),
-        Err(e) => failure(e),
+/// Unauthenticated: anyone who can reach the proxy learns whether core is
+/// ready and which subsystems are degraded. What is wrong with them, and
+/// since when, is kept for a signed-in caller (and `limeosctl status`).
+async fn health<B: Backend>(State(app): State<App<B>>, headers: HeaderMap) -> Response {
+    let mut health = match app.backend.health().await {
+        Ok(health) => health,
+        Err(e) => return failure(e),
+    };
+    if !health.degraded.is_empty() && !signed_in(&app, &headers).await {
+        health.degraded = health
+            .degraded
+            .into_iter()
+            .map(limeos_contracts::DegradedSubsystem::redacted)
+            .collect();
     }
+    axum::Json(health).into_response()
+}
+/// Whether the request carries a live session. Bounded, so a slow store
+/// cannot hold the health check: it then answers as for anyone.
+async fn signed_in<B: Backend>(app: &App<B>, headers: &HeaderMap) -> bool {
+    let Ok(token) = cookie(headers) else {
+        return false;
+    };
+    matches!(
+        tokio::time::timeout(Duration::from_secs(2), app.backend.session(token, None)).await,
+        Ok(Ok(_))
+    )
 }
 async fn login<B: Backend>(State(app): State<App<B>>, request: Request) -> Response {
     if let Err(e) = origin(&app, request.headers()) {
