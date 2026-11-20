@@ -1,5 +1,5 @@
 /** Generated shared wire types; runtime admission below still validates bytes. */
-import type { StackInventory } from "../../contracts/generated/types";
+import type { StackInventory, StackIssue, StackOmissionReason } from "../../contracts/generated/types";
 export type { StackInventory } from "../../contracts/generated/types";
 export type {
   StackRuntimeStatus as RuntimeStatus, StackSourceStatus as SourceStatus,
@@ -19,6 +19,11 @@ const bool = (v: unknown): boolean => typeof v === "boolean" ? v : invalid();
 const choice = (v: unknown, choices: readonly string[]): void => { if (typeof v !== "string" || !choices.includes(v)) invalid(); };
 const nullableInteger = (v: unknown, max: number): void => { if (v !== null) integer(v, max); };
 const runtimes = ["unknown", "no_containers", "stopped", "running", "partial", "conflict"];
+// Exactly the generated unions: a contract change fails the type check here.
+const omissionReasons = Object.keys({ changing: true, unsupported: true } satisfies Record<StackOmissionReason, true>);
+const issueNames = Object.keys({
+  identity_conflict: true, overlapping_project: true, undeclared_services: true, omitted_members: true, incomplete_inventory: true,
+} satisfies Record<StackIssue, true>);
 function source(v: unknown): void {
   const r = record(v); choice(r.state, ["fresh", "stale", "unavailable"]);
   nullableInteger(r.sampled_at, 253402300799);
@@ -40,7 +45,12 @@ export function decodeStackInventory(value: unknown): StackInventory {
   const r = record(value); if (r.version !== 1) invalid(); integer(r.generated_at);
   source(r.catalog); source(r.engine);
   if (r.engine_matches_catalog !== null) bool(r.engine_matches_catalog);
+  // Fields an older core does not send take their contract default.
+  if (r.truncated_containers === undefined) r.truncated_containers = null;
+  if (r.omitted_containers === undefined) r.omitted_containers = [];
+  if (r.unattributed_containers === undefined) r.unattributed_containers = null;
   nullableInteger(r.standalone_containers, 64); nullableInteger(r.truncated_containers, 65535);
+  nullableInteger(r.unattributed_containers, 65535);
   let members = 0; const ids = new Set<string>();
   const services = (value: unknown, max: number) => {
     const names = new Set<string>();
@@ -73,7 +83,9 @@ export function decodeStackInventory(value: unknown): StackInventory {
       for (const name of names) choice(name, ["compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"]);
     }
     if (files.state === "unsupported") choice(files.reason, ["yaml", "environment", "include", "interpolation", "other"]);
-    for (const issue of list(s.issues, 5)) choice(issue, ["identity_conflict", "overlapping_project", "undeclared_services", "omitted_members", "incomplete_inventory"]);
+    const issues = list(s.issues, issueNames.length);
+    for (const issue of issues) choice(issue, issueNames);
+    if (new Set(issues).size !== issues.length) invalid();
     services(s.services, 32);
   }
   const projects = new Set<string>();
@@ -82,6 +94,16 @@ export function decodeStackInventory(value: unknown): StackInventory {
     if (projects.has(name)) invalid(); projects.add(name);
     choice(p.relation, ["not_registered", "catalog_unknown", "engine_mismatch", "identity_conflict", "overlapping"]);
     services(p.services, 16);
+  }
+  // Left-out containers are distinct, never members, and only from a fresh Engine.
+  const omitted = list(r.omitted_containers, 64);
+  if (r.truncated_containers === null && (omitted.length !== 0 || r.unattributed_containers !== null)) invalid();
+  const left = new Set<string>();
+  for (const value of omitted) {
+    const o = record(value); const id = text(o.resource, 74);
+    if (!/^container:[0-9a-f]{64}$/.test(id) || left.has(id) || ids.has(id)) invalid(); left.add(id);
+    if (o.project !== null && !/^[a-z0-9][a-z0-9_-]*$/.test(text(o.project, 64))) invalid();
+    choice(o.reason, omissionReasons);
   }
   return value as StackInventory;
 }
