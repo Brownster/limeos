@@ -40,6 +40,8 @@ mod reads;
 #[cfg(test)]
 mod route_table_tests;
 mod serve;
+#[doc(hidden)]
+pub use gate::{Access, Route, respond, routes};
 pub use serve::{Limits, serve, serve_with};
 #[cfg(test)]
 mod serve_tests;

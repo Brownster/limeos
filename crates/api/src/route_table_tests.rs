@@ -1,6 +1,8 @@
 //! Walks every route in the table the router is built from. A route added
 //! later without the gate, or one that skips the backend's own session,
-//! CSRF and scope check, fails here.
+//! CSRF and scope check, fails here. The backend here is a fake that does
+//! the refusing itself; core's real check is swept route by route in
+//! `bins/core/src/tests/route_sweep.rs`.
 use super::gate::{Access, table};
 use super::*;
 use axum::{body::Body, http::Method};
@@ -78,6 +80,64 @@ fn storage_contract() -> serde_json::Value {
     .unwrap();
     fixture["cases"][0]["contract"].clone()
 }
+/// A whole reviewed storage-target proposal, as the queue route takes it.
+fn storage_target_queue() -> String {
+    let contract: limeos_domain::StorageContract =
+        serde_json::from_value(storage_contract()).unwrap();
+    let device = &contract.devices[0];
+    let preparation = limeos_domain::TargetPreparationPlan {
+        version: 1,
+        operation: limeos_domain::STORAGE_TARGET_OPERATION.into(),
+        action: "c".repeat(64),
+        expected: limeos_domain::StorageInventory {
+            host_root_mount_id: 1,
+            topology_digest: "a".repeat(64),
+            mounts_digest: "b".repeat(64),
+            fstab_digest: "c".repeat(64),
+            fstab_entries: vec![],
+            devices: vec![limeos_domain::StorageObservedDevice {
+                device: limeos_domain::StorageBlockDevice { major: 8, minor: 1 },
+                filesystem_uuid: device.filesystem_uuid.clone(),
+                filesystem: "ext4".into(),
+                serial: None,
+                boot_backing: false,
+                in_use_as_swap: false,
+                mounts: vec![],
+            }],
+        },
+        targets: vec![limeos_domain::TargetEvidence {
+            mountpoint: device.mountpoint.clone(),
+            parent: limeos_domain::DirectoryIdentity {
+                major: 8,
+                minor: 0,
+                mount_id: 1,
+                inode: 5,
+                mode: 0o40755,
+                uid: 0,
+                gid: 0,
+            },
+            existing: None,
+        }],
+        contract: contract.clone(),
+        created_at: 200,
+        expires_at: 500,
+    };
+    serde_json::to_string(&limeos_contracts::QueueStorageTargetsInput {
+        proposal: limeos_domain::PlannedStorageTargets {
+            plan: limeos_domain::StorageTargetPlan {
+                id: "f".repeat(64),
+                version: limeos_domain::STORAGE_TARGET_VERSION,
+                principal: "admin".into(),
+                grant_revision: 1,
+                preparation,
+            },
+            digest: "e".repeat(64),
+        },
+        approval: "c".repeat(64),
+        idempotency_key: "key".into(),
+    })
+    .unwrap()
+}
 /// A body each mutating route accepts, so the request reaches the backend.
 /// A new mutating route needs an entry here; the test names it otherwise.
 fn sample_body(path: &str) -> Option<String> {
@@ -125,6 +185,7 @@ fn sample_body(path: &str) -> Option<String> {
             .unwrap()
         }
         "/api/v1/storage/targets/plans" => storage_contract().to_string(),
+        "/api/v1/storage/targets/jobs" => storage_target_queue(),
         "/api/v1/storage/mounts/jobs" => {
             serde_json::to_string(&super::operation_tests::mount_queue_input()).unwrap()
         }
@@ -144,10 +205,6 @@ fn sample_body(path: &str) -> Option<String> {
     };
     Some(body)
 }
-/// Mutations whose only valid body is a whole reviewed proposal too large
-/// to keep as a fixture here. The gate cases still run for them; their
-/// scope case checks only that nothing reached the backend unrefused.
-const PROPOSAL_FIXTURE_MISSING: &[&str] = &["/api/v1/storage/targets/jobs"];
 /// Routes whose request reaches the backend with no body at all.
 fn bodiless(path: &str) -> bool {
     path.ends_with("/cancel") || path == "/api/v1/auth/logout"
@@ -244,11 +301,8 @@ async fn every_mutating_route_refuses_no_session_no_csrf_a_foreign_origin_and_no
             continue;
         }
         let (method, path) = (&entry.method, entry.path);
-        let missing = PROPOSAL_FIXTURE_MISSING.contains(&path);
         let body = if bodiless(path) {
             None
-        } else if missing {
-            Some("{}".into())
         } else {
             Some(sample_body(path).unwrap_or_else(|| panic!("add a sample body for {path}")))
         };
@@ -304,14 +358,6 @@ async fn every_mutating_route_refuses_no_session_no_csrf_a_foreign_origin_and_no
             body.clone(),
         );
         let (status, got) = send(&backend, sent).await;
-        if missing {
-            assert!(status.is_client_error(), "{path}: no scope ({status})");
-            assert!(
-                backend.calls().iter().all(|(m, ..)| m == "session"),
-                "{path}"
-            );
-            continue;
-        }
         assert_eq!(
             (status, got),
             (StatusCode::FORBIDDEN, ErrorCode::Forbidden),
@@ -327,7 +373,7 @@ async fn every_mutating_route_refuses_no_session_no_csrf_a_foreign_origin_and_no
         assert_eq!(decided[0].2.as_deref(), Some(CSRF), "{path}");
         checked += 1;
     }
-    // 37 today, plus the one without a proposal fixture: catches an empty walk.
+    // 38 today: catches an empty walk.
     assert!(checked >= 30, "only {checked} mutating routes");
 }
 

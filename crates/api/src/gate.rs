@@ -20,7 +20,7 @@ use axum::{
 
 /// What a route asks for before its handler runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Access {
+pub enum Access {
     /// No credentials: health and login only.
     Public,
     /// The session cookie.
@@ -32,8 +32,6 @@ pub(crate) enum Access {
 /// One route of the table: its path, method, access and handler.
 pub(crate) struct Entry<B> {
     pub(crate) path: &'static str,
-    /// Read by the route-table test, which sends each request with it.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) method: Method,
     pub(crate) access: Access,
     handler: MethodRouter<App<B>>,
@@ -218,6 +216,69 @@ pub(crate) fn table<B: Backend>() -> Vec<Entry<B>> {
     routes.extend(automation_history::routes::<B>());
     routes.extend(automation_policy::routes::<B>());
     routes
+}
+
+/// One mounted route as a sweep outside this crate sees it.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Route {
+    pub method: &'static str,
+    pub path: &'static str,
+    pub access: Access,
+}
+/// Every route `router` mounts, read from the same `table`: for core's
+/// route sweep, which drives the real router with the real backend.
+#[doc(hidden)]
+pub fn routes<B: Backend>() -> Vec<Route> {
+    table::<B>()
+        .into_iter()
+        .map(|entry| Route {
+            method: if entry.method == Method::POST {
+                "POST"
+            } else if entry.method == Method::GET {
+                "GET"
+            } else {
+                "unsupported"
+            },
+            path: entry.path,
+            access: entry.access,
+        })
+        .collect()
+}
+/// One request through a router built exactly as [`router`] builds it:
+/// its status and body. For core's route sweep, which has no HTTP client.
+#[doc(hidden)]
+pub async fn respond<B: Backend>(
+    backend: B,
+    origin: &str,
+    method: &str,
+    uri: &str,
+    headers: &[(&str, &str)],
+    body: Option<&str>,
+) -> (u16, String) {
+    use tower::ServiceExt;
+    let mut request = Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let Ok(request) = request.body(axum::body::Body::from(body.unwrap_or_default().to_owned()))
+    else {
+        return (0, String::new());
+    };
+    let Ok(response) = router(backend, origin.into()).oneshot(request).await;
+    let status = response.status().as_u16();
+    // An event stream's body lasts minutes: its status is the answer.
+    if response
+        .headers()
+        .get("content-type")
+        .is_some_and(|v| v.as_bytes().starts_with(b"text/event-stream"))
+    {
+        return (status, String::new());
+    }
+    let bytes = to_bytes(response.into_body(), 4 << 20)
+        .await
+        .unwrap_or_default();
+    (status, String::from_utf8_lossy(&bytes).into_owned())
 }
 
 /// The table mounted, each handler behind the gate its access names.
