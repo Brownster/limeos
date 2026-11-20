@@ -114,7 +114,7 @@ fn soak_occurrences_stay_at_their_budget() {
         }
         let running = now < suspended || now >= resumed;
         let at = epoch + Duration::from_secs((now - START) as u64);
-        if running && let Some(pass) = test_support::maintain(&mut store, at) {
+        if running && let Some(pass) = test_support::maintain(&mut store, at, now) {
             let before = occurrences()
                 + pass
                     .removed

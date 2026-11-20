@@ -16,7 +16,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 18;
+pub const SCHEMA_VERSION: u32 = 19;
 /// The schema whose upgrade builds the event indexes (`migration-v17.sql`):
 /// an upgrade from below it needs the free space `IndexBuild` measures.
 const INDEXED_SCHEMA: u32 = 17;
@@ -223,7 +223,7 @@ impl Database {
                 time.begin();
                 time.turn();
                 let maintain = |store: &mut Store, time: &writer_clock::WriterTime| {
-                    let Some(pass) = working.run(|| store.maintain(time.now())) else {
+                    let Some(pass) = working.run(|| store.maintain(time.now(), time.wall())) else {
                         return;
                     };
                     time.passed(&pass);
@@ -812,7 +812,7 @@ impl Store {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(durable)?;
         match version {
-            0..=17 => {
+            0..=18 => {
                 if version < INDEXED_SCHEMA {
                     if version < 1 {
                         tx.execute_batch(include_str!("schema.sql"))
@@ -895,7 +895,11 @@ impl Store {
                     tx.execute_batch(include_str!("migration-v17.sql"))
                         .map_err(|error| upgrade_failed(path, version, available, build, error))?;
                 }
-                tx.execute_batch(include_str!("migration-v18.sql"))
+                if version < 18 {
+                    tx.execute_batch(include_str!("migration-v18.sql"))
+                        .map_err(durable)?;
+                }
+                tx.execute_batch(include_str!("migration-v19.sql"))
                     .map_err(durable)?;
             }
             SCHEMA_VERSION => {}
@@ -1075,7 +1079,25 @@ fn remove_v10_schema(conn: &Connection) {
 }
 
 #[cfg(test)]
+fn remove_v19_schema(conn: &Connection) {
+    // Back to the version-7 and version-16 delete guards, and no job delete
+    // guard.
+    conn.execute_batch(
+        "DROP TRIGGER IF EXISTS jobs_delete; DROP TRIGGER IF EXISTS job_resources_delete; DROP TRIGGER IF EXISTS job_resolutions_delete;
+CREATE TRIGGER job_resources_delete BEFORE DELETE ON job_resources
+WHEN (SELECT state FROM jobs WHERE id=OLD.job) IS NOT 'queued'
+    OR OLD.resource=(SELECT resource FROM jobs WHERE id=OLD.job)
+BEGIN SELECT RAISE(ABORT,'immutable resource'); END;
+CREATE TRIGGER job_resolutions_delete BEFORE DELETE ON job_resolutions
+WHEN OLD.confirmation IS NOT NULL
+BEGIN SELECT RAISE(ABORT,'completed resolution is retained'); END;",
+    )
+    .unwrap();
+}
+
+#[cfg(test)]
 fn remove_v18_schema(conn: &Connection) {
+    remove_v19_schema(conn);
     conn.execute_batch("ALTER TABLE meta DROP COLUMN executor_epoch;")
         .unwrap();
 }

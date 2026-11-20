@@ -81,6 +81,16 @@ impl WriterTime {
         }
         Instant::now()
     }
+    /// Seconds since the Unix epoch, for retention rules that age rows by the
+    /// times stored in them (job-row retention): the system clock, or the
+    /// simulated one.
+    pub(crate) fn wall(&self) -> i64 {
+        #[cfg(feature = "test-support")]
+        if let Some((clock, _)) = &self.simulated {
+            return clock.now();
+        }
+        unix_now()
+    }
     /// Idle: until a send rings, and at least once a retention interval. On
     /// simulated time the interval passes only when the clock is advanced,
     /// which rings every writer: its own wait, on that clock.
@@ -104,6 +114,12 @@ impl WriterTime {
             clock.passed(pass);
         }
     }
+}
+/// The system clock in seconds since the Unix epoch (0 before it).
+pub(crate) fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
 }
 #[cfg(feature = "test-support")]
 impl Drop for WriterTime {
@@ -339,6 +355,8 @@ mod simulated {
                 usage: pass.usage,
                 failed: pass.failed.clone(),
                 removed: pass.removed.clone(),
+                job_events: pass.job_events,
+                pruned_jobs: pass.pruned_jobs.clone(),
             });
         }
     }

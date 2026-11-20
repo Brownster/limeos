@@ -64,17 +64,24 @@
 //! `stack_events`) filters on [`RETAINED_HISTORY`] and so sees either a job's
 //! whole history or none of it, never a gap, while later passes remove the
 //! rest. Nothing else is needed for crash safety: each batch commits on its
-//! own and the startup check reads no settled job's history. The job row
-//! itself, with its final state, is never removed, and serves as the snapshot
-//! when its history is gone.
+//! own and the startup check reads no settled job's history. The job row,
+//! with its final state, serves as the snapshot when its history is gone,
+//! until job-row retention ([`jobs`]) removes it, with what history it still
+//! has and every row that names it, 30 days after it last changed.
+//!
+//! Job rows (`jobs`, the last rule; see that module for the rule and why):
+//! a settled container, stack or health-probe job with no open resolution
+//! request and no authority event, past the newest `FLOOR` of its family and
+//! unchanged for `HORIZON`, goes with its events, resources, plan, result and
+//! completed resolution. Every other job stays.
 //!
 //! # Known limit: automation results (solve before enabling a producer)
 //!
 //! Nothing here bounds automation results. `automation_observation_results`
 //! holds up to `MAX_RESULTS` (65,536) rows that no trigger lets anyone
 //! delete, each result pins its observation job's events (queued,
-//! transition, settlement and notification proofs, about four), and the
-//! `jobs` table is never pruned. Together they can fill the 64 MiB audit cap
+//! transition, settlement and notification proofs, about four), and job-row
+//! retention never removes an observation job. Together they can fill the 64 MiB audit cap
 //! on their own: one observation schedule at the 30 s minimum gets there in
 //! about 23 days, after which every write but revocation is refused. No
 //! producer reserves observations yet; this must be solved (result
@@ -175,6 +182,29 @@ pub(super) const RETAINED_HISTORY: &str =
 /// A settled job whose history no check, lock or open request needs.
 const SETTLED: &str = "j.state IN ('succeeded','failed','canceled','precondition_changed','resolved') AND json_extract(j.intent,'$.operation') NOT IN ('automation_observe_health','storage_mount') AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND r.confirmation IS NULL)";
 
+/// What one batch removed: rows of its rule (events, occurrences or jobs),
+/// and of them or besides, audited events (which [`account`] has already
+/// taken off the counter).
+#[derive(Debug, Default)]
+pub(super) struct Removed {
+    pub(super) rows: i64,
+    pub(super) events: i64,
+    /// The jobs a job-row batch removed.
+    pub(super) jobs: Vec<String>,
+}
+impl Removed {
+    fn events(rows: i64) -> Self {
+        Self {
+            rows,
+            events: rows,
+            jobs: Vec::new(),
+        }
+    }
+    fn any(&self) -> bool {
+        self.rows > 0 || self.events > 0
+    }
+}
+
 struct Rule {
     table: &'static str,
     /// Rows kept before pruning starts.
@@ -182,12 +212,14 @@ struct Rule {
     /// Most rows one batch (one transaction) removes.
     batch: i64,
     rows: fn(&Connection) -> Result<i64>,
-    prune: fn(&Transaction<'_>, i64) -> Result<i64>,
+    /// One batch of at most the limit given, at the time given (seconds since
+    /// the Unix epoch; only job-row retention reads it).
+    prune: fn(&Transaction<'_>, i64, i64) -> Result<Removed>,
     /// Whether the rows it removes count against the audit cap, so startup
     /// may run it to make room for recovery ([`make_room`]).
     audited: bool,
 }
-const RULES: [Rule; 3] = [
+const RULES: [Rule; 4] = [
     Rule {
         table: "events",
         budget: EVENT_BUDGET / EVENT_BYTES,
@@ -210,6 +242,16 @@ const RULES: [Rule; 3] = [
         batch: OCCURRENCE_BATCH,
         rows: occurrences,
         prune: prune_occurrences,
+        audited: false,
+    },
+    // Not audited although it removes events: it frees only what is past its
+    // horizon, so it cannot be counted on to make room at startup.
+    Rule {
+        table: "jobs",
+        budget: jobs::FLOOR,
+        batch: jobs::BATCH,
+        rows: jobs::settled,
+        prune: jobs::prune,
         audited: false,
     },
 ];
@@ -272,7 +314,10 @@ pub(super) fn make_room(tx: &Transaction<'_>, interrupted: i64) -> Result<()> {
                 return Ok(());
             }
             let excess = (rule.rows)(tx)?.saturating_sub(rule.budget);
-            if excess <= 0 || (rule.prune)(tx, excess.min(rule.batch))? == 0 {
+            if excess <= 0
+                || (rule.prune)(tx, excess.min(rule.batch), crate::writer_clock::unix_now())?.rows
+                    == 0
+            {
                 break;
             }
         }
@@ -280,21 +325,22 @@ pub(super) fn make_room(tx: &Transaction<'_>, interrupted: i64) -> Result<()> {
     Err(Error(ErrorCode::StateNotDurable))
 }
 
-/// One batch of `rule` if its table is over budget, in its own transaction.
-/// A batch that removes nothing rolls back.
-fn run(conn: &mut Connection, rule: &Rule) -> Result<i64> {
+/// One batch of `rule` if its table is over budget, in its own transaction,
+/// at `now` (seconds since the Unix epoch). A batch that removes nothing
+/// rolls back.
+fn run(conn: &mut Connection, rule: &Rule, now: i64) -> Result<Removed> {
     let excess = (rule.rows)(conn)?.saturating_sub(rule.budget);
     if excess <= 0 {
-        return Ok(0);
+        return Ok(Removed::default());
     }
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(durable)?;
-    let rows = (rule.prune)(&tx, excess.min(rule.batch))?;
-    if rows > 0 {
+    let removed = (rule.prune)(&tx, excess.min(rule.batch), now)?;
+    if removed.any() {
         tx.commit().map_err(durable)?;
     }
-    Ok(rows)
+    Ok(removed)
 }
 
 fn audited_events(conn: &Connection) -> Result<i64> {
@@ -360,7 +406,7 @@ fn authority_candidates() -> String {
 /// history is longer is finished by later passes (see [`RETAINED_HISTORY`]).
 /// The cost of a pass follows the settled jobs and the prunable rows, not
 /// the pinned history in front of them.
-fn prune_events(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
+fn prune_events(tx: &Transaction<'_>, limit: i64, _: i64) -> Result<Removed> {
     let select = |sql: String| -> Result<Vec<i64>> {
         let mut stmt = tx.prepare(&sql).map_err(durable)?;
         stmt.query_map([limit], |r| r.get(0))
@@ -382,7 +428,7 @@ fn prune_events(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
     cursors.sort_unstable();
     cursors.truncate(usize::try_from(limit).map_err(|_| Error(ErrorCode::InvalidInput))?);
     if cursors.is_empty() {
-        return Ok(0);
+        return Ok(Removed::default());
     }
     let (loose, settled): (Vec<_>, Vec<_>) = cursors.into_iter().partition(|(_, loose)| *loose);
     let delete = |rows: Vec<(i64, bool)>| -> Result<usize> {
@@ -399,13 +445,13 @@ fn prune_events(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
     removed += delete(settled)?;
     let removed = i64::try_from(removed).map_err(|_| Error(ErrorCode::StateNotDurable))?;
     account(tx, -removed)?;
-    Ok(removed)
+    Ok(Removed::events(removed))
 }
 
 /// Removes the oldest `limit` prunable authority events; only ever called
 /// with `limit` at most the prunable count above [`AUTHORITY_BUDGET`], so the
 /// newest [`AUTHORITY_BUDGET`] prunable ones always stay.
-fn prune_authority(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
+fn prune_authority(tx: &Transaction<'_>, limit: i64, _: i64) -> Result<Removed> {
     let cursors: Vec<i64> = tx
         .prepare(&authority_candidates())
         .map_err(durable)?
@@ -414,7 +460,7 @@ fn prune_authority(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
         .collect::<std::result::Result<_, _>>()
         .map_err(durable)?;
     if cursors.is_empty() {
-        return Ok(0);
+        return Ok(Removed::default());
     }
     let removed = tx
         .execute(
@@ -424,12 +470,12 @@ fn prune_authority(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
         .map_err(durable)?;
     let removed = i64::try_from(removed).map_err(|_| Error(ErrorCode::StateNotDurable))?;
     account(tx, -removed)?;
-    Ok(removed)
+    Ok(Removed::events(removed))
 }
 
 /// Removes the oldest `limit` occurrences the delete trigger permits, keeping
 /// each schedule's newest one.
-fn prune_occurrences(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
+fn prune_occurrences(tx: &Transaction<'_>, limit: i64, _: i64) -> Result<Removed> {
     let mut stmt = tx
         .prepare("SELECT o.schedule,o.revision,o.due FROM automation_occurrences o JOIN automation_schedules s ON s.id=o.schedule LEFT JOIN jobs j ON j.id=o.job WHERE (o.job IS NULL OR j.state IN ('succeeded','failed','canceled','precondition_changed')) AND (o.revision<s.revision OR (o.revision=s.revision AND o.due<s.settled_through)) AND EXISTS(SELECT 1 FROM automation_occurrences n WHERE n.schedule=o.schedule AND (n.revision,n.due)>(o.revision,o.due)) ORDER BY o.created,o.schedule,o.revision,o.due LIMIT ?")
         .map_err(durable)?;
@@ -453,7 +499,10 @@ fn prune_occurrences(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
             )
             .map_err(durable)?;
     }
-    i64::try_from(removed).map_err(|_| Error(ErrorCode::StateNotDurable))
+    Ok(Removed {
+        rows: i64::try_from(removed).map_err(|_| Error(ErrorCode::StateNotDurable))?,
+        ..Removed::default()
+    })
 }
 
 /// How full the audit table is, against the hard cap.
@@ -495,8 +544,9 @@ impl Store {
     /// A retention pass if a minute has passed since the last one, or `None`
     /// when none was due. Every rule runs, each on its own: a failed batch
     /// is reported in the pass and retried on the next one, and never fails
-    /// the caller's work or stops another rule.
-    pub(super) fn maintain(&mut self, now: Instant) -> Option<Pass> {
+    /// the caller's work or stops another rule. `wall` is the time in
+    /// seconds since the Unix epoch, which job-row retention ages jobs by.
+    pub(super) fn maintain(&mut self, now: Instant, wall: i64) -> Option<Pass> {
         if self
             .retained_at
             .is_some_and(|at| now.saturating_duration_since(at) < INTERVAL)
@@ -504,7 +554,7 @@ impl Store {
             return None;
         }
         self.retained_at = Some(now);
-        let batches = self.prune_each();
+        let batches = self.prune_each(wall);
         let failed = batches
             .iter()
             .filter_map(|(rule, result)| result.as_ref().err().map(|error| (*rule, error.0)))
@@ -515,13 +565,25 @@ impl Store {
             #[cfg(feature = "test-support")]
             removed: batches
                 .iter()
-                .filter_map(|(rule, result)| result.as_ref().ok().map(|rows| (*rule, *rows)))
+                .filter_map(|(rule, result)| result.as_ref().ok().map(|r| (*rule, r.rows)))
+                .collect(),
+            #[cfg(feature = "test-support")]
+            job_events: batches
+                .iter()
+                .filter(|(rule, _)| *rule == "jobs")
+                .filter_map(|(_, result)| result.as_ref().ok().map(|r| r.events))
+                .sum(),
+            #[cfg(feature = "test-support")]
+            pruned_jobs: batches
+                .into_iter()
+                .filter_map(|(_, result)| result.ok().map(|r| r.jobs))
+                .flatten()
                 .collect(),
         })
     }
     /// One batch for every table over its budget, each in its own transaction,
-    /// whatever the others did. The rows removed or the error, per rule.
-    fn prune_each(&mut self) -> Vec<(&'static str, Result<i64>)> {
+    /// whatever the others did. What each removed or its error, per rule.
+    fn prune_each(&mut self, wall: i64) -> Vec<(&'static str, Result<Removed>)> {
         RULES
             .iter()
             .map(|rule| {
@@ -529,20 +591,28 @@ impl Store {
                 if self.failing_rule == Some(rule.table) {
                     return (rule.table, Err(Error(ErrorCode::StateNotDurable)));
                 }
-                (rule.table, run(&mut self.conn, rule))
+                (rule.table, run(&mut self.conn, rule, wall))
             })
             .collect()
     }
-    /// [`Self::prune_each`], with the rows removed per table (omitting tables
-    /// with none), or the first error once every rule has run.
+    /// [`Self::prune_each`] on the system clock, with the rows removed per
+    /// table (omitting tables with none), or the first error once every rule
+    /// has run.
     #[cfg(test)]
     pub(super) fn prune(&mut self) -> Result<Vec<(&'static str, i64)>> {
+        self.prune_at(crate::writer_clock::unix_now())
+    }
+    /// [`Self::prune`] at `wall` (seconds since the Unix epoch). A job-row
+    /// batch that removed only part of one job's history counts its events.
+    #[cfg(test)]
+    pub(super) fn prune_at(&mut self, wall: i64) -> Result<Vec<(&'static str, i64)>> {
         let mut removed = Vec::new();
         let mut failed = None;
-        for (table, result) in self.prune_each() {
+        for (table, result) in self.prune_each(wall) {
             match result {
-                Ok(0) => {}
-                Ok(rows) => removed.push((table, rows)),
+                Ok(r) if !r.any() => {}
+                Ok(r) if r.rows == 0 => removed.push((table, r.events)),
+                Ok(r) => removed.push((table, r.rows)),
                 Err(error) => {
                     failed.get_or_insert(error);
                 }
@@ -560,6 +630,13 @@ pub(super) struct Pass {
     /// The rows each rule's batch (one transaction) removed.
     #[cfg(feature = "test-support")]
     pub(super) removed: Vec<(&'static str, i64)>,
+    /// The events job-row retention removed with the jobs (or of one job's
+    /// long history), besides the events rules' own.
+    #[cfg(feature = "test-support")]
+    pub(super) job_events: i64,
+    /// The jobs job-row retention removed.
+    #[cfg(feature = "test-support")]
+    pub(super) pruned_jobs: Vec<String>,
 }
 
 /// The soak harness's seam (`bins/core/src/soak`), compiled only with the
@@ -590,6 +667,11 @@ pub mod test_support {
     pub const EVENT_BYTES: i64 = super::EVENT_BYTES;
     /// How far past the audit cap revocations and startup recovery may write.
     pub const AUDIT_RESERVE: i64 = super::AUDIT_RESERVE;
+    /// How long a settled job is kept after it last changed, in seconds, and
+    /// how many of the newest settled jobs of each family are kept whatever
+    /// their age (`retention/jobs.rs`).
+    pub const JOB_HORIZON: i64 = super::jobs::HORIZON;
+    pub const JOB_FLOOR: i64 = super::jobs::FLOOR;
     /// Every rule: its name, the rows it keeps and the most one batch removes.
     pub fn rules() -> Vec<(&'static str, i64, i64)> {
         RULES
@@ -598,12 +680,15 @@ pub mod test_support {
             .collect()
     }
     /// What one pass did: the audit usage after it, the rules whose batch
-    /// failed, and the rows each rule's batch removed.
+    /// failed, the rows each rule's batch removed, and the events and jobs
+    /// job-row retention removed.
     #[derive(Clone, Debug)]
     pub struct Pass {
         pub usage: Option<AuditUsage>,
         pub failed: Vec<(&'static str, ErrorCode)>,
         pub removed: Vec<(&'static str, i64)>,
+        pub job_events: i64,
+        pub pruned_jobs: Vec<String>,
     }
     thread_local! {
         static OPEN_HOOK: std::cell::Cell<Option<fn(&rusqlite::Connection)>> =
@@ -622,13 +707,16 @@ pub mod test_support {
             hook(conn);
         }
     }
-    /// The writer thread's `maintain(now)`: `None` when the last pass was
-    /// less than a minute before `now`.
-    pub fn maintain(store: &mut Store, now: Instant) -> Option<Pass> {
-        store.maintain(now).map(|pass| Pass {
+    /// The writer thread's `maintain(now, wall)`: `None` when the last pass
+    /// was less than a minute before `now`; `wall` is the same moment in
+    /// seconds since the Unix epoch.
+    pub fn maintain(store: &mut Store, now: Instant, wall: i64) -> Option<Pass> {
+        store.maintain(now, wall).map(|pass| Pass {
             usage: pass.usage,
             failed: pass.failed,
             removed: pass.removed,
+            job_events: pass.job_events,
+            pruned_jobs: pass.pruned_jobs,
         })
     }
 }
@@ -643,5 +731,6 @@ pub struct RetentionFailure {
     pub count: u64,
 }
 
+mod jobs;
 #[cfg(test)]
 mod tests;

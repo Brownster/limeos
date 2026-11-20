@@ -66,7 +66,7 @@ fn automation_limit_at_minimum_interval() {
     while now < START + 60 * DAY {
         // The writer thread's retention pass, once a simulated minute.
         if now % 60 == 0
-            && let Some(pass) = test_support::maintain(&mut store, instant(now))
+            && let Some(pass) = test_support::maintain(&mut store, instant(now), now)
             && let Some((_, code)) = pass.failed.first()
         {
             refused = Some((now, "retention pass", Error(*code)));

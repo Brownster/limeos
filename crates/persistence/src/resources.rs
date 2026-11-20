@@ -25,7 +25,8 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             include_str!("migration-v15.sql"),
             include_str!("migration-v16.sql"),
             include_str!("migration-v17.sql"),
-            include_str!("migration-v18.sql")
+            include_str!("migration-v18.sql"),
+            include_str!("migration-v19.sql")
         ))
         .map_err(durable)?;
     let mut stmt = reference

@@ -318,8 +318,8 @@ fn an_unchanged_pass_writes_nothing() {
     // Under budget: one read, no transaction.
     let (before, counted) = (files(), changes(&store));
     let now = Instant::now();
-    assert!(store.maintain(now).is_some());
-    assert!(store.maintain(now + Duration::from_secs(30)).is_none());
+    assert!(store.maintain(now, 0).is_some());
+    assert!(store.maintain(now + Duration::from_secs(30), 0).is_none());
     assert!(store.prune().unwrap().is_empty());
     assert_eq!((files(), changes(&store)), (before, counted));
     // Over budget with nothing eligible (only open work): the batch rolls
@@ -332,7 +332,7 @@ fn an_unchanged_pass_writes_nothing() {
         ))
         .unwrap();
     let (before, counted) = (files(), changes(&store));
-    assert!(store.maintain(now + INTERVAL).is_some());
+    assert!(store.maintain(now + INTERVAL, 0).is_some());
     assert!(store.prune().unwrap().is_empty());
     assert_eq!((files(), changes(&store)), (before, counted));
     assert_eq!(job_events(&store, &queued).len(), 1);
@@ -1036,7 +1036,7 @@ fn a_failing_rule_is_reported_and_the_others_still_run() {
     };
     let (rows, before) = (events(&store), occurrences(&store));
     store.failing_rule = Some("events");
-    let pass = store.maintain(Instant::now()).unwrap();
+    let pass = store.maintain(Instant::now(), 0).unwrap();
     assert_eq!(pass.failed, vec![("events", ErrorCode::StateNotDurable)]);
     assert_eq!(pass.usage, Some(store.audit_usage().unwrap()));
     assert_eq!(events(&store), rows);

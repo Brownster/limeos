@@ -187,7 +187,7 @@ fn cap_case(level: Level, prunable: bool, running: bool) -> Vec<String> {
     for minute in 2.. {
         let now = START + minute * MINUTE;
         let at = epoch + Duration::from_secs((minute * MINUTE) as u64);
-        let pass = test_support::maintain(&mut store, at).expect("a pass is due each minute");
+        let pass = test_support::maintain(&mut store, at, now).expect("a pass is due each minute");
         if !pass.failed.is_empty() {
             problems.push(format!(
                 "{case}: a retention rule failed: {:?}",
@@ -298,7 +298,8 @@ fn soak_core_retention_works_off_a_backlog() {
     while excess > 0 {
         passes += 1;
         let at = epoch + Duration::from_secs((passes * MINUTE) as u64);
-        let pass = test_support::maintain(&mut store, at).expect("a pass is due each minute");
+        let pass = test_support::maintain(&mut store, at, START + 1 + passes * MINUTE)
+            .expect("a pass is due each minute");
         assert!(
             pass.failed.is_empty(),
             "a retention rule failed: {:?}",
