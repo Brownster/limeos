@@ -318,6 +318,7 @@ fn main() {
     ts!(limeos_domain::RestartRequest);
     ts!(limeos_domain::RestartReceipt);
     ts!(limeos_domain::ExecutionState);
+    ts!(limeos_domain::ReceiptAbsence);
     ts!(limeos_domain::EventKind);
     ts!(limeos_domain::Event);
     ts!(limeos_contracts::Login);
@@ -396,6 +397,7 @@ fn main() {
     ts!(limeos_domain::ResolutionMember);
     ts!(limeos_domain::ResolutionRequest);
     ts!(limeos_domain::ResolveReceipt);
+    ts!(limeos_domain::ResolveRefusal);
     ts!(limeos_domain::JobResolution);
     ts!(limeos_contracts::ResolutionTargetView);
     ts!(limeos_contracts::ResolutionView);
