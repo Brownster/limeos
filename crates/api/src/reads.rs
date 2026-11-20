@@ -87,7 +87,7 @@ pub(super) async fn history<B: Backend>(
     }
 }
 /// A stream ends after this; EventSource reconnects and gets a full snapshot.
-const STREAM_LIFETIME: Duration = Duration::from_secs(25);
+pub(crate) const STREAM_LIFETIME: Duration = Duration::from_secs(25);
 /// Open streams one session may hold, so one viewer's tabs cannot take all
 /// eight. Hidden tabs close theirs, so two covers two visible windows.
 pub(super) const STREAMS_PER_SESSION: usize = 2;

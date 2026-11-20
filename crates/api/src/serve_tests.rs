@@ -1,7 +1,10 @@
 //! `serve` over a real socket, with the limits shortened so the tests are
 //! fast; each test says which default it stands for.
 use super::*;
-use axum::{body::Bytes, extract::Path};
+use axum::{
+    body::{Body, Bytes},
+    extract::Path,
+};
 use std::net::SocketAddr;
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
@@ -36,7 +39,23 @@ fn router() -> Router {
         )
         .route("/echo", post(|body: Bytes| async move { body }))
         .route("/large", get(|| async { "x".repeat(LARGE) }))
+        .route("/endless", get(|| async { ticks(u64::MAX, 50) }))
+        .route(
+            "/stream/{ms}",
+            get(|Path(ms): Path<u64>| async move { ticks(ms / 100, 100) }),
+        )
         .layer(middleware::from_fn(limits))
+}
+/// A streamed (chunked) body of `count` lines, one every `every` ms.
+fn ticks(count: u64, every: u64) -> Body {
+    let lines = futures_util::stream::unfold(0, move |sent| async move {
+        if sent == count {
+            return None;
+        }
+        tokio::time::sleep(Duration::from_millis(every)).await;
+        Some((Ok::<_, std::convert::Infallible>("tick\n"), sent + 1))
+    });
+    Body::from_stream(lines)
 }
 /// Below hyper's 16 KiB write buffer, so hyper takes the whole body and is
 /// done with it before any of it has been sent.
@@ -60,6 +79,7 @@ impl Client {
         }
         let status = line.split(' ').nth(1)?.parse().ok()?;
         let mut length = 0;
+        let mut chunked = false;
         loop {
             line.clear();
             self.0.read_line(&mut line).await.ok()?;
@@ -71,10 +91,28 @@ impl Client {
                 if name.eq_ignore_ascii_case("content-length") {
                     length = value.trim().parse().ok()?;
                 }
+                if name.eq_ignore_ascii_case("transfer-encoding") {
+                    chunked = value.trim().eq_ignore_ascii_case("chunked");
+                }
             }
         }
-        let mut body = vec![0; length];
-        self.0.read_exact(&mut body).await.ok()?;
+        if !chunked {
+            let mut body = vec![0; length];
+            self.0.read_exact(&mut body).await.ok()?;
+            return Some((status, String::from_utf8(body).ok()?));
+        }
+        let mut body = Vec::new();
+        loop {
+            line.clear();
+            self.0.read_line(&mut line).await.ok()?;
+            let size = usize::from_str_radix(line.trim_end(), 16).ok()?;
+            let mut chunk = vec![0; size + 2];
+            self.0.read_exact(&mut chunk).await.ok()?;
+            if size == 0 {
+                break;
+            }
+            body.extend_from_slice(&chunk[..size]);
+        }
         Some((status, String::from_utf8(body).ok()?))
     }
     async fn closed(&mut self) -> bool {
@@ -83,45 +121,148 @@ impl Client {
     }
 }
 
-/// Stands for a keep-alive connection from the proxy carrying a request at
-/// the old 30 s connection age: the connection outlives the sum of every
-/// limit, with a request in flight across that point, and is still served.
+/// The defaults scaled by 1/25 with wide margins: header and body 5 s become
+/// 200 ms, idle 30 s 1.2 s, response 60 s 2.4 s and the 25 s stream lifetime
+/// 1 s. The fixed whole-connection limit this replaced was 30 s, the idle
+/// limit: 1.2 s at this scale.
+const SCALED: Limits = Limits {
+    connections: 64,
+    header: Duration::from_millis(200),
+    body: Duration::from_millis(200),
+    idle: Duration::from_millis(1200),
+    response: Duration::from_millis(2400),
+};
+const OLD_LIFETIME: Duration = Duration::from_millis(1200);
+
+/// A keep-alive connection from the proxy, used for five times the old
+/// connection lifetime, with a request in flight across the point where
+/// that lifetime would have cut it off; every request is answered.
 #[tokio::test]
-async fn a_keep_alive_connection_older_than_every_limit_still_serves_a_request_in_flight() {
-    let address = start(router(), SHORT).await;
+async fn a_keep_alive_connection_in_use_is_served_far_past_the_old_connection_lifetime() {
+    let address = start(router(), SCALED).await;
     let started = Instant::now();
     let mut client = Client::connect(address).await;
     client.send(&request_line("/fast")).await;
     assert_eq!(client.response().await, Some((200, "fast".into())));
-    tokio::time::sleep(Duration::from_millis(200)).await;
-    // In flight from about 200 ms to 900 ms; header + body + idle is 500 ms.
-    client.send(&request_line("/sleep/700")).await;
+    // In flight from about 0.6 s to 2.4 s, across the old 1.2 s lifetime:
+    // longer than the idle limit, 600 ms inside the response limit.
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    client.send(&request_line("/sleep/1800")).await;
     assert_eq!(client.response().await, Some((200, "slept".into())));
-    for _ in 0..3 {
-        tokio::time::sleep(Duration::from_millis(200)).await;
+    // Then gaps of half the idle limit (three header limits each) until
+    // five old lifetimes have passed.
+    let mut served = 2;
+    while started.elapsed() < OLD_LIFETIME * 5 {
+        tokio::time::sleep(Duration::from_millis(600)).await;
         client.send(&request_line("/fast")).await;
-        assert_eq!(client.response().await, Some((200, "fast".into())));
+        assert_eq!(
+            client.response().await,
+            Some((200, "fast".into())),
+            "request {served} at {:?}",
+            started.elapsed()
+        );
+        served += 1;
     }
-    assert!(started.elapsed() >= Duration::from_millis(1500));
+    assert!(served >= 8, "{served}");
 }
 
 #[tokio::test]
 async fn an_idle_keep_alive_connection_stays_open_for_the_idle_limit_and_then_closes() {
-    let address = start(router(), SHORT).await;
+    let address = start(router(), SCALED).await;
     let mut client = Client::connect(address).await;
     client.send(&request_line("/fast")).await;
     assert!(client.response().await.is_some());
-    // Longer than the header limit: idle time is not header time.
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    // Three header limits: idle time is not header time.
+    tokio::time::sleep(Duration::from_millis(600)).await;
     client.send(&request_line("/fast")).await;
     assert_eq!(client.response().await, Some((200, "fast".into())));
     let idle = Instant::now();
-    assert!(client.closed().await);
+    assert!(
+        tokio::time::timeout(Duration::from_secs(10), client.closed())
+            .await
+            .unwrap()
+    );
     let waited = idle.elapsed();
     assert!(
-        waited >= Duration::from_millis(250) && waited < Duration::from_secs(3),
+        waited >= Duration::from_millis(1000) && waited < Duration::from_secs(4),
         "{waited:?}"
     );
+}
+
+/// A keep-alive connection whose second request's headers stall: dropped at
+/// the header limit counted from that request's first byte, far inside the
+/// idle limit it waited under before.
+#[tokio::test]
+async fn slow_headers_on_a_second_keep_alive_request_are_dropped_at_the_header_limit() {
+    let address = start(router(), SCALED).await;
+    let mut client = Client::connect(address).await;
+    client.send(&request_line("/fast")).await;
+    assert_eq!(client.response().await, Some((200, "fast".into())));
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    let started = Instant::now();
+    client.send("GET /fast HTTP/1.1\r\nhost: loc").await;
+    assert!(
+        tokio::time::timeout(Duration::from_secs(10), client.closed())
+            .await
+            .unwrap()
+    );
+    let waited = started.elapsed();
+    assert!(
+        waited >= Duration::from_millis(150) && waited < Duration::from_millis(900),
+        "{waited:?}"
+    );
+}
+
+/// Reads everything until the server closes, returning it and how long that
+/// took.
+async fn read_until_closed(client: &mut Client) -> (Vec<u8>, Duration) {
+    let started = Instant::now();
+    let mut received = Vec::new();
+    tokio::time::timeout(Duration::from_secs(20), async {
+        let mut chunk = [0; 4096];
+        while let Ok(n @ 1..) = client.0.read(&mut chunk).await {
+            received.extend_from_slice(&chunk[..n]);
+        }
+    })
+    .await
+    .unwrap();
+    (received, started.elapsed())
+}
+
+/// A response that never ends, read promptly, is cut off at the response
+/// limit: neither the idle nor the header limit ends it, and nothing keeps
+/// it open longer.
+#[tokio::test]
+async fn an_endless_response_is_cut_off_at_the_response_limit() {
+    let address = start(router(), SCALED).await;
+    let mut client = Client::connect(address).await;
+    client.send(&request_line("/endless")).await;
+    let (received, waited) = read_until_closed(&mut client).await;
+    assert!(
+        waited >= Duration::from_millis(2200) && waited < Duration::from_secs(5),
+        "{waited:?}"
+    );
+    // Chunks kept arriving all along: about one per 50 ms.
+    let chunks = received.windows(5).filter(|w| w == b"tick\n").count();
+    assert!(chunks >= 30, "{chunks}");
+}
+
+/// An event stream is not cut by the response limit: it ends itself at its
+/// lifetime, well inside that limit, and the connection then carries the
+/// next request.
+#[tokio::test]
+async fn an_event_stream_runs_to_its_lifetime_inside_the_response_limit() {
+    const _: () =
+        assert!(crate::reads::STREAM_LIFETIME.as_secs() * 2 <= Limits::DEFAULT_RESPONSE.as_secs());
+    let address = start(router(), SCALED).await;
+    let mut client = Client::connect(address).await;
+    // The 25 s lifetime at scale, with a tick every 100 ms (the stream's
+    // longest gap is 5 s, beyond the 1.2 s idle limit at this scale).
+    client.send(&request_line("/stream/1000")).await;
+    let (status, body) = client.response().await.unwrap();
+    assert_eq!((status, body.matches("tick").count()), (200, 10));
+    client.send(&request_line("/fast")).await;
+    assert_eq!(client.response().await, Some((200, "fast".into())));
 }
 
 #[tokio::test]

@@ -46,6 +46,11 @@ pub struct Limits {
     /// lifetime plus the handler deadline.
     pub response: Duration,
 }
+impl Limits {
+    /// The default response limit: at least twice the 25 s event stream
+    /// lifetime, so a stream ends itself well before it.
+    pub const DEFAULT_RESPONSE: Duration = Duration::from_secs(60);
+}
 impl Default for Limits {
     fn default() -> Self {
         Self {
@@ -53,7 +58,7 @@ impl Default for Limits {
             header: Duration::from_secs(5),
             body: Duration::from_secs(5),
             idle: Duration::from_secs(30),
-            response: Duration::from_secs(60),
+            response: Self::DEFAULT_RESPONSE,
         }
     }
 }
