@@ -35,8 +35,12 @@ fn router() -> Router {
             }),
         )
         .route("/echo", post(|body: Bytes| async move { body }))
+        .route("/large", get(|| async { "x".repeat(LARGE) }))
         .layer(middleware::from_fn(limits))
 }
+/// Below hyper's 16 KiB write buffer, so hyper takes the whole body and is
+/// done with it before any of it has been sent.
+const LARGE: usize = 15_000;
 fn request_line(path: &str) -> String {
     format!("GET {path} HTTP/1.1\r\nhost: localhost\r\n\r\n")
 }
@@ -284,6 +288,104 @@ async fn a_client_that_never_finishes_its_body_is_dropped_at_the_body_limit() {
     assert_eq!(client.response().await, Some((200, "abc".into())));
     client.send(&request_line("/fast")).await;
     assert_eq!(client.response().await, Some((200, "fast".into())));
+}
+
+/// Stands for a client that reads its 60 s response slowly: the response is
+/// written out in full although writing it takes longer than the idle
+/// limit, because the idle gap starts only once it has been sent.
+#[tokio::test]
+async fn a_response_read_slowly_is_sent_in_full_within_the_response_limit() {
+    // Idle 30 s and response 60 s scaled to 300 ms and 5 s; the client
+    // waits 1 s before it reads at all.
+    let limits = SHORT;
+    // Small socket buffers, so most of the response waits in hyper.
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket.set_send_buffer_size(4096).unwrap();
+    socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = socket.listen(16).unwrap();
+    let address = listener.local_addr().unwrap();
+    tokio::spawn(serve_with(listener, router(), limits));
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket.set_recv_buffer_size(2048).unwrap();
+    let mut client = Client(BufReader::with_capacity(
+        64,
+        socket.connect(address).await.unwrap(),
+    ));
+    client.send(&request_line("/large")).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let (status, body) = client.response().await.unwrap();
+    assert_eq!((status, body.len()), (200, LARGE));
+}
+
+/// The same through an in-memory pipe that holds 1 KiB, so it does not
+/// depend on the kernel's socket buffer sizing.
+#[tokio::test]
+async fn a_response_read_slowly_through_a_small_pipe_is_sent_in_full() {
+    let (near, far) = tokio::io::duplex(1024);
+    tokio::spawn(serve::connection(far, router(), SHORT));
+    let mut client = BufReader::new(near);
+    client
+        .get_mut()
+        .write_all(request_line("/large").as_bytes())
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let mut received = Vec::new();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        let mut chunk = [0; 512];
+        loop {
+            match client.read(&mut chunk).await {
+                Ok(0) | Err(_) => break,
+                Ok(n) => received.extend_from_slice(&chunk[..n]),
+            }
+            if received.ends_with(&[b'x'; 64]) && received.len() >= LARGE {
+                let text = String::from_utf8_lossy(&received);
+                if let Some((_, body)) = text.split_once("\r\n\r\n") {
+                    if body.len() >= LARGE {
+                        break;
+                    }
+                }
+            }
+        }
+    })
+    .await
+    .unwrap();
+    let text = String::from_utf8(received).unwrap();
+    let (_, body) = text.split_once("\r\n\r\n").unwrap();
+    assert_eq!(body.len(), LARGE);
+}
+
+/// A client that never reads its response is still cut off: at the
+/// response limit, not held open by the unsent bytes.
+#[tokio::test]
+async fn a_response_never_read_is_cut_off_at_the_response_limit() {
+    // Response 60 s scaled to 500 ms; idle 30 s to 5 s, so only the
+    // response limit can end it this early.
+    let limits = Limits {
+        idle: Duration::from_secs(5),
+        response: Duration::from_millis(500),
+        ..SHORT
+    };
+    let (near, far) = tokio::io::duplex(1024);
+    let served = tokio::spawn(serve::connection(far, router(), limits));
+    let mut client = near;
+    client
+        .write_all(request_line("/large").as_bytes())
+        .await
+        .unwrap();
+    let started = Instant::now();
+    tokio::time::timeout(Duration::from_secs(10), served)
+        .await
+        .unwrap()
+        .unwrap();
+    let waited = started.elapsed();
+    assert!(
+        waited >= Duration::from_millis(400) && waited < Duration::from_secs(3),
+        "{waited:?}"
+    );
+    let mut received = Vec::new();
+    client.read_to_end(&mut received).await.unwrap();
+    assert!(received.len() < LARGE, "{}", received.len());
 }
 
 #[tokio::test]

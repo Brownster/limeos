@@ -37,9 +37,11 @@ pub struct Limits {
     pub header: Duration,
     /// From the end of the headers to the end of the request body.
     pub body: Duration,
-    /// From the end of one response to the next request's first byte.
+    /// From the end of one response (its last byte written to the socket)
+    /// to the next request's first byte.
     pub idle: Duration,
-    /// From the end of the headers to the end of the response, so a client
+    /// From the end of the headers to the end of the response (its last
+    /// byte written to the socket), so a client
     /// that stops reading cannot hold a connection; above the 25 s stream
     /// lifetime plus the handler deadline.
     pub response: Duration,
@@ -151,6 +153,9 @@ enum Phase {
     Head,
     /// Headers read; the request is being handled or its response written.
     Busy,
+    /// Hyper is done with the response body, but bytes of the response may
+    /// still wait in its write buffer: still under the response limit.
+    Draining,
     /// Between a response and the next request.
     Idle,
 }
@@ -228,7 +233,7 @@ impl State {
                         match self.phase {
                             // The first byte after an idle gap starts a request.
                             Phase::Idle => self.enter(Phase::Head),
-                            Phase::Busy => self.next = true,
+                            Phase::Busy | Phase::Draining => self.next = true,
                             Phase::Head => {}
                         }
                     }
@@ -303,10 +308,24 @@ impl Activity {
         self.changed.notify_one();
         tracked
     }
-    /// The response is done: the next request's limit starts. Bytes of it
-    /// already with hyper start its header limit now.
+    /// Hyper is done with the response body. It drops the body once the
+    /// last of it is in its write buffer, before that buffer is sent, so the
+    /// response limit still applies until `flushed`.
     fn finished(&self) {
         let mut state = self.lock();
+        if state.phase == Phase::Busy {
+            state.phase = Phase::Draining;
+        }
+    }
+    /// Hyper flushed the socket, which it does only with its write buffer
+    /// empty: a finished response has been written out, so the next
+    /// request's limit starts. Bytes of it already with hyper start its
+    /// header limit now.
+    fn flushed(&self) {
+        let mut state = self.lock();
+        if state.phase != Phase::Draining {
+            return;
+        }
         let next = std::mem::take(&mut state.next);
         state.enter(if next { Phase::Head } else { Phase::Idle });
         drop(state);
@@ -328,7 +347,7 @@ impl Activity {
         state.since
             + match state.phase {
                 Phase::Head => limits.header,
-                Phase::Busy => limits.response,
+                Phase::Busy | Phase::Draining => limits.response,
                 Phase::Idle => limits.idle,
             }
     }
@@ -373,7 +392,12 @@ impl<I: AsyncWrite + Unpin> AsyncWrite for Watched<I> {
         self.stream.is_write_vectored()
     }
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.get_mut().stream).poll_flush(cx)
+        let this = self.get_mut();
+        let result = Pin::new(&mut this.stream).poll_flush(cx);
+        if matches!(result, Poll::Ready(Ok(()))) {
+            this.activity.flushed();
+        }
+        result
     }
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.get_mut().stream).poll_shutdown(cx)
@@ -414,7 +438,7 @@ impl hyper::body::Body for BodyDeadline {
     }
 }
 
-/// A response body that starts the idle gap once hyper has finished with it.
+/// A response body that tells the connection when hyper has finished with it.
 struct Tracked {
     body: Body,
     activity: Arc<Activity>,
