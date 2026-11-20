@@ -35,6 +35,13 @@ class CoreReaderProfile(unittest.TestCase):
             baseline,
             RestrictSUIDSGID=["no"],
             SystemCallFilter=["@system-service openat2"],
+            # Lifecycle, not confinement: readiness once the store is open
+            # and the listeners are bound, the watchdog from then on, and a
+            # start timeout core extends while a schema upgrade runs.
+            Type=["notify"],
+            NotifyAccess=["main"],
+            WatchdogSec=["30s"],
+            TimeoutStartSec=["90s"],
         )
         self.assertEqual(actual, expected)
 

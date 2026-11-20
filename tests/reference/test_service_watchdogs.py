@@ -49,5 +49,19 @@ class ServiceWatchdogs(unittest.TestCase):
                 self.assertIn("No watchdog" if not watched else "Longest legitimate", text)
 
 
+    def test_core_is_ready_when_it_says_so_and_executors_start_at_exec(self):
+        core = service("limeos-core.service")
+        self.assertEqual(core["Type"], ["notify"])
+        self.assertEqual(core["NotifyAccess"], ["main"])
+        # The base start timeout; core extends it while a schema upgrade runs.
+        self.assertEqual(core["TimeoutStartSec"], ["90s"])
+        for name in ("limeos-storaged.service", "limeos-storage-reader.service"):
+            with self.subTest(unit=name):
+                values = service(name)
+                self.assertEqual(values["Type"], ["exec"])
+                self.assertNotIn("NotifyAccess", values)
+                self.assertIn("Type=exec arms the watchdog at exec", (UNITS / name).read_text())
+
+
 if __name__ == "__main__":
     unittest.main()

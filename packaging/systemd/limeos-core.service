@@ -3,7 +3,10 @@ Description=LimeOS core
 After=network.target limeos-containerd.service limeos-storaged.service
 Wants=limeos-containerd.service limeos-storaged.service
 [Service]
-Type=exec
+# Ready once the store is open and the listeners are bound (READY=1), so
+# systemd's watchdog clock starts then, not at exec.
+Type=notify
+NotifyAccess=main
 User=limeos-core
 Group=limeos-rpc
 SupplementaryGroups=limeos-host-access limeos-container-access
@@ -26,7 +29,10 @@ RestartSec=2s
 # requests run on the worker threads. Far under 10 s, a third of the
 # interval.
 WatchdogSec=30s
-TimeoutStartSec=15s
+# Config, store open, a dummy password hash and binding: seconds. A schema
+# upgrade has no stated bound on SD storage, so core extends this while it
+# runs (EXTEND_TIMEOUT_USEC, one minute at a time, at most 30 minutes).
+TimeoutStartSec=90s
 TimeoutStopSec=15s
 NoNewPrivileges=yes
 PrivateTmp=yes

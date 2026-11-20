@@ -105,6 +105,90 @@ impl Watchdog {
         notify(target, "WATCHDOG=1")
     }
 }
+/// systemd's notification socket for this service, if it set one.
+pub fn notify_socket() -> Option<SocketAddr> {
+    notify_address(&std::env::var_os("NOTIFY_SOCKET")?)
+}
+
+/// Tells systemd (`Type=notify`) that the service is ready to serve. Its
+/// watchdog clock starts here, not at exec. Nothing without a notification
+/// socket.
+pub fn notify_ready() -> std::io::Result<()> {
+    match notify_socket() {
+        Some(target) => notify(&target, "READY=1\nSTATUS=Serving"),
+        None => Ok(()),
+    }
+}
+
+/// While held, keeps extending systemd's start timeout for a startup step
+/// whose duration cannot be bounded in advance (a schema upgrade), so the
+/// service is not killed and rolled back mid-step and started again only
+/// to repeat it. Every `every` it asks for `extend` more, with `status` for
+/// `systemctl status`, until `cap` has passed: past that the step is not
+/// slow but stuck (on a failing device, say), and the start timeout is let
+/// to fail the start where an operator sees it.
+pub struct StartExtension {
+    stop: Option<std::sync::mpsc::Sender<()>>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+impl StartExtension {
+    /// One minute at a time, renewed every 20 s, for at most 30 minutes.
+    pub fn from_env(status: &str) -> Self {
+        Self::new(
+            notify_socket(),
+            status,
+            Duration::from_secs(20),
+            Duration::from_secs(60),
+            Duration::from_secs(30 * 60),
+        )
+    }
+    pub fn new(
+        target: Option<SocketAddr>,
+        status: &str,
+        every: Duration,
+        extend: Duration,
+        cap: Duration,
+    ) -> Self {
+        let Some(target) = target else {
+            return Self {
+                stop: None,
+                thread: None,
+            };
+        };
+        let (stop, stopped) = std::sync::mpsc::channel::<()>();
+        let message = format!(
+            "EXTEND_TIMEOUT_USEC={}\nSTATUS={status}",
+            extend.as_micros()
+        );
+        let thread = std::thread::Builder::new()
+            .name("start-extension".into())
+            .spawn(move || {
+                let until = std::time::Instant::now() + cap;
+                while let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
+                    stopped.recv_timeout(every)
+                {
+                    if std::time::Instant::now() >= until {
+                        return;
+                    }
+                    let _ = notify(&target, &message);
+                }
+            })
+            .ok();
+        Self {
+            stop: Some(stop),
+            thread,
+        }
+    }
+}
+impl Drop for StartExtension {
+    fn drop(&mut self) {
+        drop(self.stop.take());
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
 /// `NOTIFY_SOCKET` names a filesystem path, or an abstract socket with `@`.
 fn notify_address(value: &OsStr) -> Option<SocketAddr> {
     use std::os::{linux::net::SocketAddrExt, unix::ffi::OsStrExt};
@@ -176,6 +260,61 @@ mod tests {
                 .await
                 .is_err()
         );
+    }
+
+    #[test]
+    fn a_start_extension_renews_while_held_stops_when_dropped_and_at_its_cap() {
+        use std::os::linux::net::SocketAddrExt;
+        let name = format!("limeos-extension-test-{}", std::process::id());
+        let address = SocketAddr::from_abstract_name(name.as_bytes()).unwrap();
+        let receiver = UnixDatagram::bind_addr(&address).unwrap();
+        receiver
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let target = notify_address(OsStr::new(&format!("@{name}"))).unwrap();
+        let mut buffer = [0; 128];
+        {
+            let _held = StartExtension::new(
+                Some(target.clone()),
+                "Upgrading",
+                Duration::from_millis(20),
+                Duration::from_secs(60),
+                Duration::from_secs(60),
+            );
+            for _ in 0..2 {
+                let length = receiver.recv(&mut buffer).unwrap();
+                assert_eq!(
+                    &buffer[..length],
+                    b"EXTEND_TIMEOUT_USEC=60000000\nSTATUS=Upgrading"
+                );
+            }
+        }
+        // Dropped: nothing more arrives.
+        receiver.set_nonblocking(true).unwrap();
+        while receiver.recv(&mut buffer).is_ok() {}
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(receiver.recv(&mut buffer).is_err());
+        // Past its cap it stops on its own, held or not.
+        let held = StartExtension::new(
+            Some(target),
+            "Upgrading",
+            Duration::from_millis(10),
+            Duration::from_secs(60),
+            Duration::from_millis(50),
+        );
+        std::thread::sleep(Duration::from_millis(200));
+        while receiver.recv(&mut buffer).is_ok() {}
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(receiver.recv(&mut buffer).is_err());
+        drop(held);
+        // Without a notification socket it does nothing at all.
+        drop(StartExtension::new(
+            None,
+            "x",
+            Duration::from_millis(1),
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+        ));
     }
 
     #[test]

@@ -3,6 +3,10 @@ Description=LimeOS fresh storage inventory (read only)
 After=local-fs.target
 
 [Service]
+# Type=exec arms the watchdog at exec, which is enough here: before its first
+# keep-alive (sent as soon as the accept loop runs) the role only reads a
+# policy of at most 64 KiB and the installed stack selection and binds its
+# socket, well under a second; device reads start later, off that thread.
 Type=exec
 User=root
 Group=limeos-host-access

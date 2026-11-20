@@ -1113,7 +1113,16 @@ async fn run() -> Result<()> {
     std::fs::set_permissions(&state, std::os::unix::fs::PermissionsExt::from_mode(0o700))
         .map_err(|_| Error(ErrorCode::StateNotDurable))?;
     let store = state.join("core.sqlite");
-    let db = Database::open(&store).inspect_err(|_| {
+    // A schema upgrade inside `open` builds indexes over up to 64 MiB of
+    // audit history, which on SD storage has no stated bound: systemd's
+    // start timeout is extended while it runs (up to a cap), rather than
+    // killing core mid-upgrade to roll back and repeat it.
+    let opening = limeos_contracts::StartExtension::from_env(
+        "Opening the store; a schema upgrade can take several minutes",
+    );
+    let db = Database::open(&store);
+    drop(opening);
+    let db = db.inspect_err(|_| {
         if let Some(space) = limeos_persistence::upgrade_space(&store) {
             tracing::error!(
                 from = space.from,
@@ -1159,6 +1168,12 @@ async fn run() -> Result<()> {
         .map_err(|_| Error(ErrorCode::Unavailable))?;
     let rpc = bind_socket(&socket)?;
     tracing::info!(generation = core.db.generation, "core ready");
+    // Type=notify: the store is open, the listeners are bound and serving
+    // starts below, so systemd counts core started (and starts its watchdog
+    // clock) only now.
+    if let Err(error) = limeos_contracts::notify_ready() {
+        tracing::warn!(%error, "could not tell systemd that core is ready");
+    }
     let bridge = automation_store::ObservationStoreBridge::new(core.db.clone());
     let reader = health_collection::HealthReader::new(
         (*core.storage_socket).clone(),
