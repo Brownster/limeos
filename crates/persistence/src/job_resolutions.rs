@@ -11,6 +11,19 @@
 //! After a restart `pending_resolutions` lists requests that still need step 2
 //! (idempotent at the executor) and step 3. Original job, plan, receipt and
 //! result rows are never modified.
+//!
+//! Recovery keeps polling a held job while a request is open, and whichever
+//! settles the job first wins: recovery records only what the executor's
+//! receipt or closure proves, which is at least as strong as an operator's
+//! declaration, and holding recovery back would not exclude the race anyway
+//! (a lookup already on its way when the request is recorded still lands
+//! after it). A request whose job has left the held states can then never
+//! complete, so `supersede_resolutions` (or `supersede_resolution`, when a
+//! completion loses the race) closes it: the row is deleted, as a withdrawn
+//! one is, and a `job_resolution_superseded` event records what the job
+//! settled as, so the request no longer pins the job's history and the
+//! operator sees it settled rather than pending. Retry listings name only
+//! requests whose job is still held.
 use super::*;
 use limeos_domain::{
     ActionPlan, ContainerAction, ContainerReceipt, ContainerSnapshot, DeclaredOutcome,
@@ -86,6 +99,57 @@ fn subject_of(id: &str, state: &str, intent: &str) -> Result<ResolutionSubject> 
         expires_at,
         plan,
     })
+}
+
+/// The job states a resolution applies to: every state that holds locks.
+const HELD: &str = "('running','verifying','outcome_unknown','needs_intervention')";
+
+/// Supersede the open requests whose job has left `HELD` and that match
+/// `filter` (an SQL tail; `?1` binds `job`).
+fn supersede(
+    tx: &Transaction<'_>,
+    filter: &str,
+    job: Option<&str>,
+    now: i64,
+) -> Result<Vec<(String, JobState)>> {
+    let found: Vec<(String, String, String)> = {
+        let mut stmt = tx
+            .prepare(&format!(
+                "SELECT r.job,r.resolved_by,j.state FROM job_resolutions r JOIN jobs j ON j.id=r.job WHERE r.confirmation IS NULL AND j.state NOT IN {HELD} {filter}"
+            ))
+            .map_err(durable)?;
+        let row = |r: &rusqlite::Row<'_>| Ok((r.get(0)?, r.get(1)?, r.get(2)?));
+        match job {
+            Some(job) => stmt.query_map([job], row),
+            None => stmt.query_map([], row),
+        }
+        .map_err(durable)?
+        .collect::<std::result::Result<_, _>>()
+        .map_err(durable)?
+    };
+    let mut superseded = Vec::with_capacity(found.len());
+    for (job, resolved_by, state) in found {
+        let state = parse::<JobState>(&format!("\"{state}\""))?;
+        if tx
+            .execute(
+                "DELETE FROM job_resolutions WHERE job=? AND confirmation IS NULL",
+                [&job],
+            )
+            .map_err(durable)?
+            != 1
+        {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
+        event(
+            tx,
+            Some(&resolved_by),
+            Some(&job),
+            EventKind::JobResolutionSuperseded { state },
+            now,
+        )?;
+        superseded.push((job, state));
+    }
+    Ok(superseded)
 }
 
 type Row = (String, String, String, String, String, i64, String, i64);
@@ -463,17 +527,43 @@ impl Store {
         })
     }
 
-    /// Requests that still need the executor (step 2) or completion (step 3),
-    /// oldest first. Used at startup and for retry; internal, no actor.
+    /// The first page of `pending_resolutions_after`.
     pub fn pending_resolutions(&self) -> Result<Vec<PendingResolution>> {
+        self.pending_resolutions_after("")
+    }
+
+    /// Open requests whose job is still held, so they still need the executor
+    /// (step 2) or completion (step 3): those whose job ID sorts after
+    /// `cursor`, in job ID order, at most `RECOVERY_BATCH`. A caller that
+    /// pages through them with the cursor reaches every one, however many are
+    /// open. A request whose job has settled is never listed: it is
+    /// superseded (`supersede_resolutions`). Internal, no actor.
+    pub fn pending_resolutions_after(&self, cursor: &str) -> Result<Vec<PendingResolution>> {
+        self.open_requests(
+            &format!("r.job>?1 ORDER BY r.job LIMIT {}", crate::RECOVERY_BATCH),
+            cursor,
+        )
+    }
+
+    /// The open request for one job, if its job is still held.
+    pub fn pending_resolution(&self, job: &str) -> Result<Option<PendingResolution>> {
+        Ok(self.open_requests("r.job=?1", job)?.into_iter().next())
+    }
+
+    fn open_requests(&self, filter: &str, value: &str) -> Result<Vec<PendingResolution>> {
+        let columns = REQUEST_COLUMNS
+            .split(',')
+            .map(|c| format!("r.{c}"))
+            .collect::<Vec<_>>()
+            .join(",");
         let mut stmt = self
             .conn
             .prepare(&format!(
-                "SELECT {REQUEST_COLUMNS} FROM job_resolutions WHERE confirmation IS NULL ORDER BY rowid LIMIT 64"
+                "SELECT {columns} FROM job_resolutions r JOIN jobs j ON j.id=r.job WHERE r.confirmation IS NULL AND j.state IN {HELD} AND {filter}"
             ))
             .map_err(durable)?;
         let rows = stmt
-            .query_map([], request_row)
+            .query_map([value], request_row)
             .map_err(durable)?
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(durable)?;
@@ -499,6 +589,34 @@ impl Store {
                 })
             })
             .collect()
+    }
+
+    /// Close every open request (at most `RECOVERY_BATCH` per call, oldest
+    /// first) whose job has left the held states, as superseded: the row is
+    /// deleted and one `job_resolution_superseded` event, attributed to the
+    /// requesting administrator, records the state the job settled as.
+    /// Returns each job and that state. Internal, no actor.
+    pub fn supersede_resolutions(&mut self, now: i64) -> Result<Vec<(String, JobState)>> {
+        self.write(|tx| {
+            supersede(
+                tx,
+                &format!("ORDER BY r.rowid LIMIT {}", crate::RECOVERY_BATCH),
+                None,
+                now,
+            )
+        })
+    }
+
+    /// As `supersede_resolutions`, for one job: after a completion found the
+    /// job no longer held. `None` when the job is still held or no request is
+    /// open.
+    pub fn supersede_resolution(&mut self, job: &str, now: i64) -> Result<Option<JobState>> {
+        self.write(|tx| {
+            Ok(supersede(tx, "AND r.job=?1", Some(job), now)?
+                .into_iter()
+                .next()
+                .map(|(_, state)| state))
+        })
     }
 
     /// Step 3. Only with the executor's confirmation of exactly the recorded

@@ -935,3 +935,152 @@ fn the_listing_is_bounded() {
     // Oldest first: the first job leads.
     assert_eq!(seen[0].job, first);
 }
+
+/// What recovery records when its closing lookup finds no receipt: the
+/// closure, a `precondition_changed` receipt, which settles the job.
+fn settle_by_closure(store: &mut Store, job: &ContainerJob, now: i64) {
+    let receipt = limeos_domain::RestartReceipt {
+        action: job.id.clone(),
+        plan_digest: limeos_identity::digest(&json(&job.plan).unwrap()),
+        operation: job.plan.operation,
+        before: job.plan.expected.clone(),
+        state: limeos_domain::ExecutionState::PreconditionChanged,
+        error: Some(ErrorCode::Expired),
+    };
+    assert_eq!(
+        store
+            .record_container_result(job, &receipt, None, now)
+            .unwrap(),
+        JobState::PreconditionChanged
+    );
+}
+fn superseded_events(store: &Store, p: &Principal, job: &str) -> Vec<EventKind> {
+    store
+        .container_events(p, job, 0)
+        .unwrap()
+        .into_iter()
+        .map(|e| e.event)
+        .filter(|e| matches!(e, EventKind::JobResolutionSuperseded { .. }))
+        .collect()
+}
+
+/// Recovery settles the job while an operator's request is open: the
+/// request can never complete, so it is closed as superseded, durably and
+/// once, with an event naming what the job settled as, and the job's history
+/// is no longer pinned by an open request.
+#[test]
+fn a_request_overtaken_by_recovery_is_superseded_once_with_an_event() {
+    let (_d, mut s, p) = setup();
+    let job = running(&mut s, &p, "a", "a");
+    uncertain(&mut s, &job.id);
+    let e = evidence(&job, &job.plan.expected);
+    let pending = request(&mut s, &p, &job.id, DeclaredOutcome::NotDone, "ok", &e).unwrap();
+    settle_by_closure(&mut s, &job, 310);
+    // Completion cannot apply any more, and the request is not listed for retry.
+    assert_eq!(
+        s.complete_resolution(&job.id, &confirm(&pending), 311)
+            .unwrap_err()
+            .0,
+        ErrorCode::Conflict
+    );
+    assert!(s.pending_resolutions().unwrap().is_empty());
+    assert_eq!(
+        s.supersede_resolutions(312).unwrap(),
+        vec![(job.id.clone(), JobState::PreconditionChanged)]
+    );
+    assert!(s.supersede_resolutions(313).unwrap().is_empty());
+    assert_eq!(s.supersede_resolution(&job.id, 314).unwrap(), None);
+    assert_eq!(
+        superseded_events(&s, &p, &job.id),
+        vec![EventKind::JobResolutionSuperseded {
+            state: JobState::PreconditionChanged
+        }]
+    );
+    let open: i64 = s
+        .conn
+        .query_row(
+            "SELECT count(*) FROM job_resolutions WHERE job=?",
+            [&job.id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(open, 0);
+    assert_eq!(s.job_state(&job.id).unwrap(), "precondition_changed");
+    resources::check(&s.conn).unwrap();
+}
+
+/// The completion that loses the race supersedes the request itself; a
+/// request whose job is still held is never superseded.
+#[test]
+fn only_a_request_whose_job_has_settled_is_superseded() {
+    let (_d, mut s, p) = setup();
+    let job = running(&mut s, &p, "a", "a");
+    uncertain(&mut s, &job.id);
+    let e = evidence(&job, &job.plan.expected);
+    request(&mut s, &p, &job.id, DeclaredOutcome::NotDone, "ok", &e).unwrap();
+    assert_eq!(s.supersede_resolution(&job.id, 311).unwrap(), None);
+    assert!(s.supersede_resolutions(311).unwrap().is_empty());
+    assert_eq!(s.pending_resolutions().unwrap().len(), 1);
+    settle_by_closure(&mut s, &job, 312);
+    assert_eq!(
+        s.supersede_resolution(&job.id, 313).unwrap(),
+        Some(JobState::PreconditionChanged)
+    );
+    assert_eq!(s.supersede_resolution(&job.id, 314).unwrap(), None);
+    assert_eq!(superseded_events(&s, &p, &job.id).len(), 1);
+}
+
+/// A hundred requests overtaken by recovery, older than a request still
+/// waiting on its held job: the listing for retry skips them, superseding
+/// drains them in bounded batches, and the newer request is listed at once.
+#[test]
+fn superseded_requests_never_hide_a_newer_request() {
+    let (_d, mut s, p) = setup();
+    for i in 0..100 {
+        let job = running(&mut s, &p, &format!("k{i}"), "a");
+        uncertain(&mut s, &job.id);
+        let e = evidence(&job, &job.plan.expected);
+        request(&mut s, &p, &job.id, DeclaredOutcome::NotDone, "ok", &e).unwrap();
+        settle_by_closure(&mut s, &job, 310);
+    }
+    let held = running(&mut s, &p, "held", "a");
+    uncertain(&mut s, &held.id);
+    let e = evidence(&held, &held.plan.expected);
+    let pending = request(&mut s, &p, &held.id, DeclaredOutcome::NotDone, "ok", &e).unwrap();
+    assert_eq!(s.pending_resolutions().unwrap(), vec![pending.clone()]);
+    assert_eq!(s.pending_resolution(&held.id).unwrap(), Some(pending));
+    let drained: Vec<usize> = (0..3)
+        .map(|_| s.supersede_resolutions(320).unwrap().len())
+        .collect();
+    assert_eq!(
+        drained,
+        [crate::RECOVERY_BATCH, 100 - crate::RECOVERY_BATCH, 0]
+    );
+}
+
+/// Requests whose jobs are held are listed in pages by job ID after a
+/// cursor, so a caller that rotates reaches every one however many there
+/// are.
+#[test]
+fn pending_requests_are_listed_in_pages_after_a_cursor() {
+    let (_d, mut s, p) = setup();
+    let mut jobs = Vec::new();
+    for (i, byte) in ["a", "c", "d"].into_iter().enumerate() {
+        let job = running(&mut s, &p, &format!("k{i}"), byte);
+        uncertain(&mut s, &job.id);
+        let e = evidence(&job, &job.plan.expected);
+        request(&mut s, &p, &job.id, DeclaredOutcome::NotDone, "ok", &e).unwrap();
+        jobs.push(job.id);
+    }
+    jobs.sort();
+    let listed = |s: &Store, cursor: &str| -> Vec<String> {
+        s.pending_resolutions_after(cursor)
+            .unwrap()
+            .into_iter()
+            .map(|p| p.request.job)
+            .collect()
+    };
+    assert_eq!(listed(&s, ""), jobs);
+    assert_eq!(listed(&s, &jobs[0]), jobs[1..]);
+    assert!(listed(&s, &jobs[2]).is_empty());
+}

@@ -522,7 +522,7 @@ impl Core {
         let mut target_recovery = std::collections::HashMap::<String, Instant>::new();
         let mut mount_recovery = std::collections::HashMap::<String, Instant>::new();
         let mut stack_recovery = Rotation::default();
-        let mut resolution_retry = std::collections::HashMap::<String, Instant>::new();
+        let mut resolution_retry = Rotation::default();
         let mut audit = limeos_persistence::AuditLevel::Normal;
         let mut retention_failures = 0;
         loop {

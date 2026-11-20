@@ -16,10 +16,7 @@ use limeos_domain::{
 };
 use limeos_executor_protocol::Request;
 use limeos_persistence::{PendingResolution, ResolutionSubject};
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::time::Duration;
 
 /// What the retry or completion of one recorded request came to.
 enum Finish {
@@ -31,6 +28,10 @@ enum Finish {
     Disagrees(limeos_domain::ResolveRefusal),
     /// Nothing was settled. The request stays recorded and held.
     Pending(ErrorCode),
+    /// The job had already settled by another path (recovery recorded the
+    /// executor's receipt or closure) as this state, so the request was
+    /// closed as superseded.
+    Superseded(JobState),
 }
 
 fn awaiting(state: JobState) -> bool {
@@ -81,6 +82,14 @@ fn view_of(
         pending,
         resolution,
     })
+}
+
+/// What the operator is told when recovery settled the job first.
+fn superseded(state: JobState) -> String {
+    format!(
+        "The job already settled by another path as {}: core recorded the executor's answer before this decision could complete. The request was closed; nothing else changed.",
+        state.as_str()
+    )
 }
 
 /// Why the executor refused: what it recorded and what that allows.
@@ -134,10 +143,7 @@ impl Core {
                 Ok((
                     subject,
                     s.resolution_members(&principal, &id)?,
-                    s.pending_resolutions()?
-                        .into_iter()
-                        .find(|p| p.request.job == id)
-                        .map(|p| p.request),
+                    s.pending_resolution(&id)?.map(|p| p.request),
                     s.job_resolution(&principal, &id)?,
                 ))
             })
@@ -234,6 +240,13 @@ impl Core {
                 view: self.resolution_view(principal, job).await.ok(),
                 blocking: Vec::new(),
             }),
+            Finish::Superseded(state) => Ok(ResolveJobResponse {
+                status: ResolveStatus::StaleEvidence,
+                message: superseded(state),
+                resolution: None,
+                view: self.resolution_view(principal, job).await.ok(),
+                blocking: Vec::new(),
+            }),
             Finish::Refused(_) => Err(Error(ErrorCode::Conflict)),
             Finish::Pending(_) => Ok(ResolveJobResponse {
                 status: ResolveStatus::Pending,
@@ -274,6 +287,20 @@ impl Core {
                     .await
                 {
                     Ok(resolution) => Finish::Done(resolution),
+                    // Recovery may have settled the job meanwhile: then the
+                    // request can never complete, and is closed.
+                    Err(Error(ErrorCode::Conflict)) => {
+                        let job = request.job.clone();
+                        match self
+                            .db
+                            .call(move |s| s.supersede_resolution(&job, now()))
+                            .await
+                        {
+                            Ok(Some(state)) => Finish::Superseded(state),
+                            Ok(None) => Finish::Pending(ErrorCode::Conflict),
+                            Err(e) => Finish::Pending(e.0),
+                        }
+                    }
                     Err(e) => Finish::Pending(e.0),
                 }
             }
@@ -374,27 +401,42 @@ impl Core {
     }
 
     /// Retry every recorded request that is not yet complete: run once at
-    /// startup, then on the dispatcher tick with a per-job pause. `min_age`
+    /// startup, then on the dispatcher tick. Requests whose job has already
+    /// settled by another path are closed as superseded first. The rest are
+    /// listed in rotation (`Rotation`), each retried at most once per pause,
+    /// so however many are open none waits behind older ones. `min_age`
     /// leaves a request alone while its own handler is still working on it.
     pub(super) async fn complete_pending_resolutions(
         &self,
-        retry: &mut HashMap<String, Instant>,
+        retry: &mut super::operations::Rotation,
         min_age: i64,
     ) {
-        let Ok(pending) = self.db.call(|s| s.pending_resolutions()).await else {
+        match self.db.call(|s| s.supersede_resolutions(now())).await {
+            Ok(superseded) => {
+                for (_, state) in superseded {
+                    tracing::info!(
+                        state = state.as_str(),
+                        "job resolution request superseded: the job already settled by another path"
+                    );
+                }
+            }
+            Err(e) => {
+                tracing::warn!(code=?e.0, "superseding settled job resolution requests failed")
+            }
+        }
+        let cursor = retry.cursor().to_owned();
+        let Ok(pending) = self
+            .db
+            .call(move |s| s.pending_resolutions_after(&cursor))
+            .await
+        else {
             return;
         };
-        retry.retain(|job, _| pending.iter().any(|p| &p.request.job == job));
+        retry.advance(pending.iter().map(|p| p.request.job.as_str()));
         for pending in pending {
-            let job = pending.request.job.clone();
-            if now() - pending.request.requested_at < min_age
-                || retry
-                    .get(&job)
-                    .is_some_and(|at| at.elapsed() < Duration::from_secs(30))
-            {
+            if now() - pending.request.requested_at < min_age || !retry.due(&pending.request.job) {
                 continue;
             }
-            retry.insert(job.clone(), Instant::now());
             let id = pending.request.resolved_by.clone();
             // The administrator as they are now: a demoted one cannot withdraw.
             let actor = match self.db.call(move |s| s.resolution_principal(&id)).await {
@@ -421,6 +463,10 @@ impl Core {
                 Finish::Pending(code) => {
                     tracing::warn!(?code, "job resolution stays pending")
                 }
+                Finish::Superseded(state) => tracing::info!(
+                    state = state.as_str(),
+                    "job resolution request superseded: the job already settled by another path"
+                ),
             }
         }
     }

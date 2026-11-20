@@ -1,4 +1,5 @@
 use super::*;
+use crate::operations::Rotation;
 use limeos_contracts::{Enrollment, Login};
 use limeos_domain::{ContainerAction, ContainerSnapshot, ResolveKind, ResolveReceipt};
 use limeos_executor_protocol::Receipt;
@@ -317,7 +318,7 @@ impl Fixture {
         let e = self.exec.lock().unwrap();
         (e.inspects, e.resolves, e.effects)
     }
-    async fn retry(&self, retry: &mut HashMap<String, Instant>) {
+    async fn retry(&self, retry: &mut Rotation) {
         self.core.complete_pending_resolutions(retry, 0).await;
     }
 }
@@ -533,7 +534,7 @@ async fn a_lost_answer_after_the_executor_freed_is_not_withdrawn_and_completes_l
     assert_eq!(f.state().await, JobState::NeedsIntervention);
     assert!(f.view().await.pending.is_some());
     // Startup (an empty retry map) re-sends the same request and completes.
-    let mut retry = HashMap::new();
+    let mut retry = Rotation::default();
     f.retry(&mut retry).await;
     assert_eq!(f.state().await, JobState::Resolved);
     assert_eq!(f.counts().1, 2);
@@ -590,7 +591,7 @@ async fn the_retry_loop_completes_withdraws_throttles_and_waits_for_young_reques
     f.resolve(DeclaredOutcome::NotDone).await.unwrap();
     let sent = f.counts().1;
     // A request younger than the minimum age is left to its own handler.
-    let mut retry = HashMap::new();
+    let mut retry = Rotation::default();
     f.core.complete_pending_resolutions(&mut retry, 3600).await;
     assert_eq!(f.counts().1, sent);
     // Still down: stays pending, and the next tick does not hammer.
@@ -600,18 +601,18 @@ async fn the_retry_loop_completes_withdraws_throttles_and_waits_for_young_reques
     assert!(f.view().await.pending.is_some());
     // A definite refusal on retry withdraws, acting as the recorded administrator.
     f.set(Mode::Refuse(ErrorCode::Conflict));
-    retry.clear();
+    retry = Rotation::default();
     f.retry(&mut retry).await;
     assert!(f.view().await.pending.is_none());
     // Back up with a new decision: completed by the loop with no HTTP help.
     f.set(Mode::Down);
     f.resolve(DeclaredOutcome::NotDone).await.unwrap();
     f.set(Mode::Ok);
-    retry.clear();
+    retry = Rotation::default();
     f.retry(&mut retry).await;
     assert_eq!(f.state().await, JobState::Resolved);
     f.retry(&mut retry).await;
-    assert!(retry.is_empty());
+    assert!(f.view().await.pending.is_none());
 }
 
 #[tokio::test]
@@ -635,12 +636,12 @@ async fn without_an_executor_receipt_a_resolution_completes_once_the_action_is_c
         let pending = f.resolve(DeclaredOutcome::NotDone).await.unwrap();
         assert_eq!(pending.status, ResolveStatus::Pending, "{absence:?}");
         assert_eq!(f.state().await, JobState::NeedsIntervention, "{absence:?}");
-        f.retry(&mut HashMap::new()).await;
+        f.retry(&mut Rotation::default()).await;
         assert_eq!(f.state().await, JobState::NeedsIntervention, "{absence:?}");
         assert!(f.view().await.pending.is_some(), "{absence:?}");
         // Once the executor closes it, the retry loop completes it.
         f.set(Mode::Absent(absence));
-        f.retry(&mut HashMap::new()).await;
+        f.retry(&mut Rotation::default()).await;
         assert_eq!(f.state().await, JobState::Resolved, "{absence:?}");
     }
 }
@@ -699,7 +700,7 @@ async fn a_closed_absence_withdraws_the_request_when_the_evidence_has_changed() 
         .unwrap();
     f.set(Mode::Absent(ReceiptAbsence::NeverRecorded));
     f.exec.lock().unwrap().current = Some(engine_state(T1, true));
-    f.retry(&mut HashMap::new()).await;
+    f.retry(&mut Rotation::default()).await;
     let after = f.view().await;
     assert_eq!(f.state().await, JobState::NeedsIntervention);
     assert!(after.pending.is_none() && after.resolution.is_none());
@@ -752,7 +753,7 @@ async fn a_crash_after_the_executor_resolved_completes_on_retry_even_once_pruned
         if changed {
             f.exec.lock().unwrap().current = Some(engine_state(T1, true));
         }
-        f.retry(&mut HashMap::new()).await;
+        f.retry(&mut Rotation::default()).await;
         let after = f.view().await;
         if changed {
             // The state moved since the decision: withdrawn, decide again.
@@ -1123,4 +1124,154 @@ async fn a_non_administrator_cannot_be_named_over_the_root_socket() {
         Error(ErrorCode::Forbidden)
     );
     assert_eq!(f.counts(), (0, 0, 0));
+}
+
+/// What recovery records when its closing lookup finds no receipt for a
+/// container job: the closure receipt, which settles it.
+fn closure_of(job: &limeos_domain::RestartJob) -> limeos_domain::RestartReceipt {
+    limeos_domain::RestartReceipt {
+        action: job.id.clone(),
+        plan_digest: limeos_identity::digest(&serde_json::to_string(&job.plan).unwrap()),
+        operation: job.plan.operation,
+        before: job.plan.expected.clone(),
+        state: limeos_domain::ExecutionState::PreconditionChanged,
+        error: Some(ErrorCode::Expired),
+    }
+}
+async fn settle_by_recovery(f: &Fixture) {
+    let (p, id) = (f.session.view.principal.clone(), f.job.clone());
+    f.core
+        .db
+        .call(move |s| {
+            let job = s.container_job(&p, &id)?;
+            s.record_container_result(&job, &closure_of(&job), None, now())
+        })
+        .await
+        .unwrap();
+}
+async fn superseded_events(f: &Fixture) -> Vec<limeos_domain::EventKind> {
+    f.core
+        .restart_progress(f.session.token.clone(), f.job.clone(), 0)
+        .await
+        .unwrap()
+        .events
+        .into_iter()
+        .map(|e| e.event)
+        .filter(|e| matches!(e, limeos_domain::EventKind::JobResolutionSuperseded { .. }))
+        .collect()
+}
+
+/// Recovery records a closure while an operator's request is open: the job
+/// is `precondition_changed`, so the request can never complete. It ends
+/// superseded, once, with an event naming that state, whether the retry
+/// loop finds it or a completion in flight loses the race; it is never sent
+/// to the executor again and never stays pending.
+#[tokio::test]
+async fn a_resolution_overtaken_by_recovery_ends_superseded_once() {
+    use limeos_domain::{EventKind, ReceiptAbsence};
+    let expected = vec![EventKind::JobResolutionSuperseded {
+        state: JobState::PreconditionChanged,
+    }];
+    let f = fixture().await;
+    f.set(Mode::Down);
+    let pending = f.resolve(DeclaredOutcome::NotDone).await.unwrap();
+    assert_eq!(pending.status, ResolveStatus::Pending);
+    settle_by_recovery(&f).await;
+    f.set(Mode::Absent(ReceiptAbsence::NeverRecorded));
+    let sent = f.counts().1;
+    for _ in 0..2 {
+        f.retry(&mut Rotation::default()).await;
+    }
+    assert_eq!(f.state().await, JobState::PreconditionChanged);
+    let view = f.view().await;
+    assert!(view.pending.is_none() && view.resolution.is_none());
+    assert_eq!(superseded_events(&f).await, expected);
+    assert_eq!(f.counts().1, sent);
+
+    // The same race with the completion already on its way.
+    let f = fixture().await;
+    f.set(Mode::Down);
+    f.resolve(DeclaredOutcome::NotDone).await.unwrap();
+    let id = f.job.clone();
+    let pending = f
+        .core
+        .db
+        .call(move |s| s.pending_resolution(&id))
+        .await
+        .unwrap()
+        .unwrap();
+    settle_by_recovery(&f).await;
+    f.set(Mode::Absent(ReceiptAbsence::NeverRecorded));
+    let actor = f.session.view.principal.clone();
+    assert!(matches!(
+        f.core.finish_resolution(&pending, &actor).await,
+        Finish::Superseded(JobState::PreconditionChanged)
+    ));
+    assert!(f.view().await.pending.is_none());
+    f.retry(&mut Rotation::default()).await;
+    assert_eq!(superseded_events(&f).await, expected);
+    assert_eq!(f.counts().2, 0);
+}
+
+/// A hundred requests overtaken by recovery, all older than a request on a
+/// job that is still held: the retry loop closes them and completes the
+/// newer request on its first pass instead of retrying the stuck ones.
+#[tokio::test]
+async fn a_hundred_superseded_requests_do_not_starve_a_newer_one() {
+    let f = fixture().await;
+    let p = f.session.view.principal.clone();
+    f.core
+        .db
+        .call(move |s| {
+            let other = ContainerSnapshot {
+                resource: format!("container:{}", "e".repeat(64)),
+                ..engine_state(T0, true)
+            };
+            let evidence = limeos_domain::ResolutionEvidence::observe(
+                ContainerAction::Restart,
+                &[&other],
+                std::slice::from_ref(&Some(other.clone())),
+            )?;
+            for i in 0..100 {
+                let plan = s.plan_container(&p, ContainerAction::Restart, &other, now())?;
+                let approval = s.approve_container(&p, &plan.plan.id, &plan.digest, now())?;
+                let queued = s.queue_container(
+                    &p,
+                    &format!("stuck{i}"),
+                    &plan,
+                    &approval.token,
+                    &other,
+                    now(),
+                )?;
+                let mut job = s.claim_container(&p, &queued.id, &other, now())?;
+                s.transition(
+                    &job.id,
+                    JobState::Running,
+                    JobState::NeedsIntervention,
+                    now(),
+                )?;
+                job.state = JobState::NeedsIntervention;
+                s.request_resolution(
+                    &p,
+                    &job.id,
+                    DeclaredOutcome::NotDone,
+                    LONG,
+                    &evidence,
+                    &evidence.digest()?,
+                    now(),
+                )?;
+                s.record_container_result(&job, &closure_of(&job), None, now())?;
+            }
+            Ok(())
+        })
+        .await
+        .unwrap();
+    f.set(Mode::Down);
+    assert_eq!(
+        f.resolve(DeclaredOutcome::NotDone).await.unwrap().status,
+        ResolveStatus::Pending
+    );
+    f.set(Mode::Ok);
+    f.retry(&mut Rotation::default()).await;
+    assert_eq!(f.state().await, JobState::Resolved);
 }

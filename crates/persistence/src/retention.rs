@@ -46,7 +46,7 @@
 //! [`AUTHORITY_BUDGET`] and removes older ones oldest first. So the newest
 //! prunable authority event is never removed while an older one exists.
 //!
-//! Only resolution requests and withdrawals carry a job, so only they can be
+//! Only resolution requests, withdrawals and supersessions carry a job, so only they can be
 //! pinned, and only for as long as their job's history: while the job is
 //! unsettled or has an open request, and then until the events rule prunes
 //! the settled job (its `job_queued` first), after which they are prunable
@@ -136,17 +136,18 @@ const UNREAD_AUTOMATION_KINDS: [&str; 2] = [
 /// Low-volume, high-value events, kept apart from the bulk: who issued a
 /// bootstrap token, who enrolled or imported an administrator, who revised
 /// grants, and what was declared in a resolution request and that it was
-/// withdrawn (a withdrawn request's row is deleted, so its events are the only
-/// record). Not `task_issued`: once assistant tasks issue tokens it is one per
+/// withdrawn or superseded (such a request's row is deleted, so its events
+/// are the only record). Not `task_issued`: once assistant tasks issue tokens it is one per
 /// task, for authority that expires within the hour and with the core
 /// generation. Not session events, the bulk of the table.
-pub(super) const AUTHORITY_KINDS: [&str; 6] = [
+pub(super) const AUTHORITY_KINDS: [&str; 7] = [
     "bootstrap_issued",
     "administrator_enrolled",
     "legacy_identity_imported",
     "grants_revised",
     "job_resolution_requested",
     "job_resolution_withdrawn",
+    "job_resolution_superseded",
 ];
 fn quoted(kinds: &[&str]) -> String {
     kinds

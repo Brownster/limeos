@@ -337,6 +337,24 @@
           ]
         },
         {
+          "description": "An open resolution request was closed without effect: the job had\nalready settled by another path (recovery recorded the executor's\nreceipt or closure) as `state`, so the request could never complete.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "job_resolution_superseded"
+            },
+            "state": {
+              "$ref": "#/$defs/JobState"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "state"
+          ]
+        },
+        {
           "type": "object",
           "properties": {
             "declared": {

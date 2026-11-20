@@ -219,6 +219,12 @@ pub enum EventKind {
         declared: DeclaredOutcome,
     },
     JobResolutionWithdrawn,
+    /// An open resolution request was closed without effect: the job had
+    /// already settled by another path (recovery recorded the executor's
+    /// receipt or closure) as `state`, so the request could never complete.
+    JobResolutionSuperseded {
+        state: JobState,
+    },
     JobResolved {
         declared: DeclaredOutcome,
     },
