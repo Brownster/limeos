@@ -262,6 +262,9 @@ pub struct Statement {
     pub plan: Vec<String>,
     /// Every b-tree its program walks whole (`Scan`).
     pub scans: Vec<Scan>,
+    /// Why its bytecode could not be read, if it could not: its walks are
+    /// then unknown, which the checks refuse rather than read as none.
+    pub unread: Option<String>,
 }
 impl Statement {
     /// The storage-mount proof check: the startup statement that reads
@@ -418,6 +421,7 @@ fn in_child_with(store: &str, path: &Path, cold: Option<&Path>, now: i64) -> Chi
                             .collect()
                     })
                     .unwrap_or_default(),
+                unread: s["unread"].as_str().map(str::to_owned),
             })
             .collect(),
         outside: number(&value["outside"]),
@@ -559,10 +563,13 @@ fn hook(conn: &rusqlite::Connection) {
 /// on `conn`: each cursor opened on the main database (`OpenRead`,
 /// `OpenWrite`, `ReopenIdx` with a literal root page) is named by its root
 /// page through `sqlite_schema`, and each `Rewind`, `Last` or `Count` on such
-/// a cursor is a walk of that b-tree from one end.
-fn scans(conn: &rusqlite::Connection, sql: &str) -> Vec<Scan> {
-    /// `OPFLAG_P2ISREG`: the root page is in a register, not literal.
-    const P2_IS_REGISTER: i64 = 0x02;
+/// a cursor is a walk of that b-tree from one end. A cursor number reopened
+/// on anything else (an ephemeral table, a sorter, a register-rooted
+/// b-tree) forgets its b-tree. An error if the program cannot be read.
+pub(super) fn scans(conn: &rusqlite::Connection, sql: &str) -> Result<Vec<Scan>, String> {
+    /// `OPFLAG_P2ISREG` (sqlite3.c): the root page is in a register, not
+    /// literal.
+    const P2_IS_REGISTER: i64 = 0x10;
     let mut roots: HashMap<i64, (String, String, bool)> = conn
         .prepare("SELECT rootpage,name,tbl_name,type='index' FROM sqlite_schema WHERE rootpage>0")
         .and_then(|mut s| {
@@ -571,10 +578,10 @@ fn scans(conn: &rusqlite::Connection, sql: &str) -> Vec<Scan> {
         })
         .unwrap_or_default();
     roots.insert(1, ("sqlite_schema".into(), "sqlite_schema".into(), false));
-    let Ok(mut program) = conn.prepare(&format!("EXPLAIN {sql}")) else {
-        return Vec::new();
-    };
-    let Ok(rows) = program
+    let mut program = conn
+        .prepare(&format!("EXPLAIN {sql}"))
+        .map_err(|e| e.to_string())?;
+    let rows = program
         .query_map([], |r| {
             Ok((
                 r.get::<_, String>(1)?,
@@ -585,15 +592,16 @@ fn scans(conn: &rusqlite::Connection, sql: &str) -> Vec<Scan> {
             ))
         })
         .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())
-    else {
-        return Vec::new();
-    };
+        .map_err(|e| e.to_string())?;
     let mut cursors: HashMap<i64, i64> = HashMap::new();
     let mut found = Vec::new();
     for (op, p1, p2, p3, p5) in rows {
         match op.as_str() {
             "OpenRead" | "OpenWrite" | "ReopenIdx" if p3 == 0 && p5 & P2_IS_REGISTER == 0 => {
                 cursors.insert(p1, p2);
+            }
+            _ if op.starts_with("Open") || op == "SorterOpen" => {
+                cursors.remove(&p1);
             }
             "Rewind" | "Last" | "Count" => {
                 if let Some((btree, table, index)) = cursors.get(&p1).and_then(|r| roots.get(r)) {
@@ -611,7 +619,7 @@ fn scans(conn: &rusqlite::Connection, sql: &str) -> Vec<Scan> {
             _ => {}
         }
     }
-    found
+    Ok(found)
 }
 
 /// Each statement run alone and cold on its own connection to `path` (if it
@@ -619,7 +627,16 @@ fn scans(conn: &rusqlite::Connection, sql: &str) -> Vec<Scan> {
 fn cold(path: &Path, statements: &mut [(Statement, Option<String>)]) {
     let reads = Reads::open();
     for (statement, expanded) in statements {
-        let sql = expanded.clone().unwrap_or_else(|| statement.sql.clone());
+        // A statement prepared and run inside another's run (the
+        // `PRAGMA foreign_key_check` behind `pragma_foreign_key_check`) has
+        // its expanded text commented out line by line ("-- "): its program
+        // is read from its own text, and it is not run cold, its reads being
+        // inside its parent's cold run already.
+        let nested = expanded.as_deref().is_some_and(|e| e.starts_with("-- "));
+        let sql = match expanded {
+            Some(expanded) if !nested => expanded.clone(),
+            _ => statement.sql.clone(),
+        };
         // Its bytecode, on a connection of its own (closed before the cold
         // run, so that run starts with as empty a cache as before).
         let program = rusqlite::Connection::open_with_flags(
@@ -627,7 +644,10 @@ fn cold(path: &Path, statements: &mut [(Statement, Option<String>)]) {
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )
         .expect("a side connection to the copy");
-        statement.scans = scans(&program, &sql);
+        match scans(&program, &sql) {
+            Ok(found) => statement.scans = found,
+            Err(why) => statement.unread = Some(why),
+        }
         drop(program);
         let conn = rusqlite::Connection::open_with_flags(
             path,
@@ -638,6 +658,9 @@ fn cold(path: &Path, statements: &mut [(Statement, Option<String>)]) {
             .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
             .and_then(|mut s| s.query_map([], |r| r.get::<_, String>(3))?.collect())
             .unwrap_or_default();
+        if nested {
+            continue;
+        }
         let Ok(mut prepared) = conn.prepare(&sql) else {
             continue;
         };
@@ -757,6 +780,7 @@ fn measure_in_child() {
                     "index": scan.index,
                     "op": scan.op,
                 })).collect::<Vec<_>>(),
+                "unread": s.unread,
             })).collect::<Vec<_>>(),
         })
     } else {
@@ -780,4 +804,47 @@ pub const COPY: &str = "measured on a copy";
 /// SQLite page reads of an open measured on a copy.
 pub fn pages(start: &Startup) -> u64 {
     start.opened.io.syscr
+}
+
+/// The bytecode reader names a walk whatever the statement calls its table,
+/// tells an index walk from a table walk, sees no walk in a seek, and says
+/// when it cannot read a program instead of finding nothing.
+#[test]
+fn walks_are_read_from_bytecode_under_any_alias() {
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE events(id INTEGER PRIMARY KEY, kind TEXT, created INTEGER);
+         CREATE INDEX events_kind ON events(kind);
+         CREATE TABLE meta(id INTEGER PRIMARY KEY, audit_bytes INTEGER);",
+    )
+    .unwrap();
+    let walks = |sql: &str| -> Vec<(String, String, bool)> {
+        scans(&conn, sql)
+            .unwrap()
+            .into_iter()
+            .map(|s| (s.btree, s.table, s.index))
+            .collect()
+    };
+    let events = ("events".to_owned(), "events".to_owned(), false);
+    assert_eq!(
+        walks("SELECT sum(e.created) FROM events e NOT INDEXED"),
+        [events.clone()]
+    );
+    assert_eq!(
+        walks(
+            "SELECT audit_bytes,(SELECT 0*count(x.created) FROM events AS x NOT INDEXED WHERE x.kind>'') FROM meta WHERE id=1"
+        ),
+        [events]
+    );
+    let counted = walks("SELECT count(*) FROM events");
+    assert!(
+        counted
+            .iter()
+            .all(|(_, table, index)| table == "events" && *index),
+        "count(*) walks the smallest index, not the table: {counted:?}"
+    );
+    assert!(!counted.is_empty());
+    assert_eq!(walks("SELECT created FROM events WHERE id=7"), []);
+    assert_eq!(walks("SELECT id FROM events WHERE kind='login'"), []);
+    assert!(scans(&conn, "SELECT nothing FROM no_such_table").is_err());
 }

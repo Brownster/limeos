@@ -1431,7 +1431,7 @@ pub struct ScanAllowance {
 }
 
 /// Every startup statement that walks a table growing with history, found by
-/// reading every statement's bytecode on every copy. All but the first two
+/// reading every statement's bytecode on every copy. All but the first three
 /// are startup checks over the per-job tables, one walk of each listed table
 /// (one full-scan step per row), which grow with the pinned per-job defect.
 pub const SCAN_ALLOWANCES: &[ScanAllowance] = &[
@@ -1452,6 +1452,26 @@ pub const SCAN_ALLOWANCES: &[ScanAllowance] = &[
         why: "the integrity check reads every page of the file by design (its page reads are \
               bounded per page of file by `startup under its bounds`); it makes no full-scan \
               steps",
+    },
+    ScanAllowance {
+        marker: "PRAGMA foreign_key_check",
+        tables: &[
+            "events",
+            "jobs",
+            "job_resources",
+            "container_plans",
+            "container_results",
+            "stack_plans",
+            "stack_results",
+            "job_resolutions",
+        ],
+        events_table: true,
+        steps_per_row: 0,
+        why: "the foreign-key check, which the lock and resource invariants run through \
+              `pragma_foreign_key_check` as a statement of its own, walks every table that has \
+              a foreign key by design, the events table included (bounded by retention); it \
+              makes no full-scan steps, and its page reads are inside the invariants \
+              statement's cold run, so in the startup trend",
     },
     ScanAllowance {
         marker: "(SELECT count(*) FROM events)",
@@ -1518,6 +1538,11 @@ pub const SCAN_ALLOWANCES: &[ScanAllowance] = &[
 /// walk's own last step and a statement's rounding, measured at most 2.
 pub const SMALL_SCAN_STEPS: u64 = 16;
 
+/// Rows a table walked one full-scan step a row (an allowance's
+/// `steps_per_row` 1) must hold before an open that counted no step at all
+/// is taken to have lost its counters, not to have had nothing to walk.
+pub const MEASURED_WALK: u64 = 64;
+
 /// Page reads an open may make outside every statement it executes
 /// (preparing statements, reading the schema): measured 16 on every copy of
 /// every run (`outside`), the schema's pages; twice that.
@@ -1543,11 +1568,21 @@ pub const VM_FIXED: u64 = 200_000;
 ///   once per run), plus `SMALL_SCAN_STEPS`.
 /// - The open's VM steps, but the pinned proof check's, stay linear in the
 ///   rows the store holds (`VM_PER_ROW`, `VM_FIXED`).
+/// - Every statement's bytecode was read (a statement whose walks are
+///   unknown is not taken to walk nothing), and the counters were: a store
+///   with history to walk whose open made no VM step or no full-scan step
+///   at all was not measured.
 pub fn scan_problems(trace: &super::startup::Trace, replay: u64) -> Vec<String> {
     let mut problems = Vec::new();
     for statement in &trace.statements {
         let text = statement.text();
         let allowance = SCAN_ALLOWANCES.iter().find(|a| text.contains(a.marker));
+        if let Some(why) = &statement.unread {
+            problems.push(format!(
+                "a startup statement's bytecode could not be read ({why}), so its walks are unjudged: {}",
+                statement.short()
+            ));
+        }
         for scan in &statement.scans {
             if scan.table == "events" && !scan.index && !allowance.is_some_and(|a| a.events_table) {
                 problems.push(format!(
@@ -1588,6 +1623,31 @@ pub fn scan_problems(trace: &super::startup::Trace, replay: u64) -> Vec<String> 
                 statement.short()
             ));
         }
+    }
+    let walked_rows: u64 = trace
+        .statements
+        .iter()
+        .flat_map(|statement| {
+            let text = statement.text();
+            let per_row = SCAN_ALLOWANCES
+                .iter()
+                .find(|a| text.contains(a.marker))
+                .map_or(0, |a| a.steps_per_row);
+            statement
+                .scans
+                .iter()
+                .filter(move |scan| per_row > 0 && !scan.index && history_table(&scan.table))
+                .map(|scan| scan.table.clone())
+        })
+        .map(|table| trace.rows_of(&table))
+        .max()
+        .unwrap_or(0);
+    let vm_total: u64 = trace.statements.iter().map(|s| s.vm_steps).sum();
+    let full_total: u64 = trace.statements.iter().map(|s| s.full_scans).sum();
+    if walked_rows >= MEASURED_WALK && (vm_total == 0 || full_total == 0) {
+        problems.push(format!(
+            "its statements' counters read {vm_total} VM steps and {full_total} full-scan steps, although their bytecode walks a table of {walked_rows} rows one step a row: the counters were not measured"
+        ));
     }
     let rows: u64 = trace.rows.values().sum();
     let vm = trace.vm_steps_but_defect();
