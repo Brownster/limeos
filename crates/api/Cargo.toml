@@ -9,6 +9,10 @@ publish.workspace = true
 [lints]
 workspace = true
 
+# Proposed routes with no production caller; see docs/deferred-code.md.
+[features]
+deferred = ["limeos-domain/deferred"]
+
 [dependencies]
 futures-util.workspace = true
 axum.workspace = true

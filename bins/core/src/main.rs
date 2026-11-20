@@ -16,6 +16,11 @@ use tokio::{
     net::{TcpListener, UnixListener, UnixStream},
     sync::Semaphore,
 };
+// Proposed observation runner that nothing calls yet, hence unused outside its
+// tests; see docs/deferred-code.md.
+#[cfg(feature = "deferred")]
+#[allow(dead_code)]
+mod automation;
 mod automation_history;
 mod automation_runtime;
 mod automation_schedules;

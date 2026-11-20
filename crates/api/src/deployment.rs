@@ -98,7 +98,7 @@ async fn inventory<B: DeploymentBackend>(
     let result = async {
         let token = cookie(&headers)?;
         app.backend.session(token.clone(), None).await?;
-        let report = DeploymentBackend::stack_inventory(&app.backend,token).await?;
+        let report = DeploymentBackend::stack_inventory(&app.backend, token).await?;
         report.check_size()?;
         Ok(report)
     }

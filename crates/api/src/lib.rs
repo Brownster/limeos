@@ -16,10 +16,18 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::{net::TcpListener, sync::Semaphore};
+// Proposed routes that no router mounts yet, hence unused outside their tests;
+// see docs/deferred-code.md.
+#[cfg(feature = "deferred")]
+#[allow(dead_code)]
+mod automation;
 mod automation_history;
 mod automation_policy;
 mod automation_schedules;
 mod compose;
+#[cfg(feature = "deferred")]
+#[allow(dead_code)]
+mod deployment;
 mod identity_enablement;
 mod job_resolution;
 #[cfg(test)]
