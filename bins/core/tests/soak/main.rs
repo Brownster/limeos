@@ -9,14 +9,18 @@
 //! - `soak_ninety_days`: the acceptance run, `--ignored`, its own CI step.
 //! - `automation_limit_at_minimum_interval`: the known automation limit,
 //!   measured (`--ignored`; not a pass/fail gate of the shipped scope).
+//! - `writer_thread_runs_retention_unprompted`: the production schedule the
+//!   harness otherwise replaces with its own calls.
 mod automation;
 mod checks;
 mod dispatch;
 mod engine;
 mod executor;
+mod fixtures;
 mod sim;
 mod support;
 mod workload;
+mod writer;
 
 use workload::Profile;
 

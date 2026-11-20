@@ -804,6 +804,8 @@ pub use compose::{
 pub use identity_store::Revocation;
 pub use job_resolutions::{PendingResolution, ResolutionSubject};
 pub use retention::{AuditLevel, AuditUsage, RetentionFailure};
+#[cfg(feature = "test-support")]
+pub use retention::test_support;
 pub use storage::storage_scope;
 
 #[cfg(test)]

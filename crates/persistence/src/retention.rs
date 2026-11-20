@@ -504,14 +504,19 @@ impl Store {
             return None;
         }
         self.retained_at = Some(now);
-        let failed = self
-            .prune_each()
-            .into_iter()
-            .filter_map(|(rule, result)| result.err().map(|error| (rule, error.0)))
+        let batches = self.prune_each();
+        let failed = batches
+            .iter()
+            .filter_map(|(rule, result)| result.as_ref().err().map(|error| (*rule, error.0)))
             .collect();
         Some(Pass {
             usage: self.audit_usage().ok(),
             failed,
+            #[cfg(feature = "test-support")]
+            removed: batches
+                .iter()
+                .filter_map(|(rule, result)| result.as_ref().ok().map(|rows| (*rule, *rows)))
+                .collect(),
         })
     }
     /// One batch for every table over its budget, each in its own transaction,
@@ -529,12 +534,9 @@ impl Store {
             .collect()
     }
     /// [`Self::prune_each`], with the rows removed per table (omitting tables
-    /// with none), or the first error once every rule has run. This is one
-    /// retention pass without the once-a-minute gate of [`Self::maintain`],
-    /// which reads the wall clock: a caller that drives the store on its own
-    /// clock (the soak harness, `bins/core/tests/soak`) runs it once per
-    /// simulated minute instead. The daemon never calls it.
-    pub fn prune(&mut self) -> Result<Vec<(&'static str, i64)>> {
+    /// with none), or the first error once every rule has run.
+    #[cfg(test)]
+    pub(super) fn prune(&mut self) -> Result<Vec<(&'static str, i64)>> {
         let mut removed = Vec::new();
         let mut failed = None;
         for (table, result) in self.prune_each() {
@@ -555,6 +557,48 @@ impl Store {
 pub(super) struct Pass {
     pub(super) usage: Option<AuditUsage>,
     pub(super) failed: Vec<(&'static str, ErrorCode)>,
+    /// The rows each rule's batch (one transaction) removed.
+    #[cfg(feature = "test-support")]
+    pub(super) removed: Vec<(&'static str, i64)>,
+}
+
+/// The soak harness's seam (`bins/core/tests/soak`), compiled only with the
+/// `test-support` feature, which only dev-dependencies enable: the writer
+/// thread's own retention entry point, [`Store::maintain`] with its
+/// once-a-minute gate, on the caller's clock instead of the wall clock; and
+/// the rules' limits, so the harness asserts against these constants rather
+/// than copies of them.
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod test_support {
+    use super::{AuditUsage, ErrorCode, Instant, RULES, Store};
+    /// Bytes `meta.audit_bytes` counts per row of `events`.
+    pub const EVENT_BYTES: i64 = super::EVENT_BYTES;
+    /// How far past the audit cap revocations and startup recovery may write.
+    pub const AUDIT_RESERVE: i64 = super::AUDIT_RESERVE;
+    /// Every rule: its name, the rows it keeps and the most one batch removes.
+    pub fn rules() -> Vec<(&'static str, i64, i64)> {
+        RULES
+            .iter()
+            .map(|rule| (rule.table, rule.budget, rule.batch))
+            .collect()
+    }
+    /// What one pass did: the audit usage after it, the rules whose batch
+    /// failed, and the rows each rule's batch removed.
+    pub struct Pass {
+        pub usage: Option<AuditUsage>,
+        pub failed: Vec<(&'static str, ErrorCode)>,
+        pub removed: Vec<(&'static str, i64)>,
+    }
+    /// The writer thread's `maintain(now)`: `None` when the last pass was
+    /// less than a minute before `now`.
+    pub fn maintain(store: &mut Store, now: Instant) -> Option<Pass> {
+        store.maintain(now).map(|pass| Pass {
+            usage: pass.usage,
+            failed: pass.failed,
+            removed: pass.removed,
+        })
+    }
 }
 
 /// The latest failed retention batch, for the daemon's log.

@@ -36,6 +36,9 @@ tracing-subscriber.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 rusqlite.workspace = true
+# The soak harness drives retention through the writer's own entry point on
+# its simulated clock; dev-only, so the shipped binary never has the seam.
+limeos-persistence = { path = "../../crates/persistence", version = "=0.2.0", features = ["test-support"] }
 limeos-backup-archive = { path = "../../crates/backup-archive", version = "=0.2.0" }
 # The soak harness (tests/soak) drives the real receipt store; test-only.
 limeos-executor-container = { path = "../../crates/executor-container", version = "=0.2.0" }

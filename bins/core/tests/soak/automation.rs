@@ -23,7 +23,9 @@ use limeos_domain::{
         Reservation, ScheduleDefinition, ScheduledOperation, Settlement, Severity, SignalStatus,
     },
 };
-use limeos_persistence::{HealthObservation, ObservationAdmission, ScopedHealthSignal, Store};
+use limeos_persistence::{
+    HealthObservation, ObservationAdmission, ScopedHealthSignal, Store, test_support,
+};
 use std::time::{Duration, Instant};
 
 fn deadline() -> Instant {
@@ -88,14 +90,17 @@ fn automation_limit_at_minimum_interval() {
         complete: true,
     };
     let started = Instant::now();
+    let instant = |at: i64| started + Duration::from_secs((at - START) as u64);
     let mut observed = 0u64;
     let mut refused: Option<(i64, &str, Error)> = None;
     let mut now = START + 30;
     while now < START + 60 * DAY {
+        // The writer thread's retention pass, once a simulated minute.
         if now % 60 == 0
-            && let Err(error) = store.prune()
+            && let Some(pass) = test_support::maintain(&mut store, instant(now))
+            && let Some((_, code)) = pass.failed.first()
         {
-            refused = Some((now, "retention pass", error));
+            refused = Some((now, "retention pass", Error(*code)));
             break;
         }
         let row = store

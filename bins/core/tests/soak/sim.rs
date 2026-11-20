@@ -11,7 +11,7 @@ use limeos_domain::{
     Principal, Result,
 };
 use limeos_executor_protocol::{Receipt, Request};
-use limeos_persistence::Store;
+use limeos_persistence::{Store, test_support};
 use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,
@@ -26,6 +26,16 @@ pub const LIFETIME: [ErrorCode; 3] = [
     ErrorCode::Overloaded,
     ErrorCode::BeyondReceiptHistory,
 ];
+
+/// A core retention rule's limits, from the production rules
+/// (`retention::RULES`): (rows it keeps, most rows one batch removes).
+pub fn rule_limits(rule: &str) -> (i64, i64) {
+    test_support::rules()
+        .into_iter()
+        .find(|(name, _, _)| *name == rule)
+        .map(|(_, budget, batch)| (budget, batch))
+        .unwrap_or_else(|| panic!("no retention rule named {rule}"))
+}
 
 /// Least time between two receipt lookups for one held job (core's
 /// `operations::RECOVERY_PAUSE`).
@@ -207,6 +217,8 @@ pub struct Stats {
     /// Peak rows of core's `events` table seen at any retention pass.
     pub peak_events: i64,
     pub retention_removed: BTreeMap<&'static str, i64>,
+    /// The largest batch each rule removed in one transaction.
+    pub largest_batch: BTreeMap<&'static str, i64>,
     pub dispatcher_passes: u64,
     /// Wall time spent per part of the run (for the runtime budget only).
     pub timing: BTreeMap<&'static str, std::time::Duration>,
@@ -265,6 +277,8 @@ pub struct Sim {
     /// Idle windows measured: (simulated start, thread I/O over the window).
     pub idle: Vec<(i64, Io)>,
     pub started: Instant,
+    /// The instant that stands for `START` (see `instant`).
+    pub epoch: Instant,
 }
 
 pub fn soak_dir() -> tempfile::TempDir {
@@ -327,6 +341,7 @@ impl Sim {
             startup_projection: Vec::new(),
             idle: Vec::new(),
             started: Instant::now(),
+            epoch: Instant::now(),
         }
     }
     pub fn now(&self) -> i64 {
@@ -462,28 +477,54 @@ impl Sim {
         crate::checks::after_restart(self, reason);
     }
 
-    /// One retention pass of the core store (the writer thread's
-    /// `maintain`, once a minute), judged like any other write.
-    /// Returns the rows it removed.
+    /// The instant the writer thread would read at simulated time `at`: the
+    /// gate of `maintain` compares instants only with each other.
+    pub fn instant(&self, at: i64) -> Instant {
+        self.epoch + std::time::Duration::from_secs((at - START) as u64)
+    }
+
+    /// One retention pass of the core store: the writer thread's own
+    /// `maintain`, with its once-a-minute gate, on the simulated clock. A
+    /// failed rule is a violation like any refusal, and every batch must stay
+    /// within its rule's limit. Returns the rows it removed.
     pub fn retention_pass(&mut self) -> i64 {
-        self.last_retention = self.now();
-        self.stats.retention_passes += 1;
         let events: i64 = self.count_events();
         self.stats.peak_events = self.stats.peak_events.max(events);
-        let pruned = self.db().prune();
+        let now = self.now();
+        let at = self.instant(now);
+        self.last_retention = now;
+        let Some(pass) = test_support::maintain(self.db(), at) else {
+            return 0;
+        };
+        self.stats.retention_passes += 1;
+        for (rule, code) in pass.failed {
+            self.violation(
+                crate::checks::REFUSALS,
+                format!("retention pass: the {rule} batch failed with {code:?}"),
+            );
+        }
         let mut total = 0;
-        if let Some(removed) = self.judge("retention pass", pruned, &[]) {
-            for (table, rows) in removed {
-                *self.stats.retention_removed.entry(table).or_default() += rows;
-                total += rows;
+        for (rule, rows) in pass.removed {
+            let limit = rule_limits(rule).1;
+            if rows > limit {
+                self.violation(
+                    crate::checks::BATCHES,
+                    format!("the {rule} batch removed {rows} rows in one transaction (limit {limit})"),
+                );
             }
+            if rows > 0 {
+                *self.stats.retention_removed.entry(rule).or_default() += rows;
+                let largest = self.stats.largest_batch.entry(rule).or_default();
+                *largest = (*largest).max(rows);
+            }
+            total += rows;
         }
         total
     }
     fn count_events(&mut self) -> i64 {
         self.db()
             .audit_usage()
-            .map(|usage| usage.bytes / 256)
+            .map(|usage| usage.bytes / test_support::EVENT_BYTES)
             .unwrap_or_default()
     }
 

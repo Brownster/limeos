@@ -25,6 +25,7 @@ pub const EFFECTS: &str = "every Engine effect ran at most once and matches its 
 pub const AUTHORITY: &str = "authority events all kept";
 pub const PROVOKED: &str = "provoked refusals observed";
 pub const PROJECTION: &str = "slow growth leaves at least five years";
+pub const BATCHES: &str = "every retention batch within its rule's limit";
 
 /// Checks known to fail, with the defect that makes them fail and its
 /// evidence. Both entries are one defect: the core store has no size bound.
@@ -825,7 +826,11 @@ fn report(sim: &Sim, profile: &Profile) {
     }
     let _ = writeln!(p, "faults: {:?}", sim.stats.faults);
     let _ = writeln!(p, "restarts: {:?}", sim.stats.restarts);
-    let _ = writeln!(p, "retention removed: {:?}", sim.stats.retention_removed);
+    let _ = writeln!(
+        p,
+        "retention removed: {:?}; largest batch per rule: {:?}",
+        sim.stats.retention_removed, sim.stats.largest_batch
+    );
     let _ = writeln!(p, "legitimate refusals: {:?}", sim.stats.refused);
     let _ = writeln!(p, "operations: {:?}", sim.stats.ops);
     let _ = writeln!(
@@ -949,6 +954,7 @@ fn verdict(sim: &Sim, profile: &Profile) {
     }
     let mut checks = vec![
         REFUSALS, INVARIANTS, SIZE, BUDGETS, STARTUP, IDLE, SETTLED, EFFECTS, AUTHORITY, PROVOKED,
+        BATCHES,
     ];
     if profile.trends {
         checks.extend([FLAT, STARTUP_TREND_CORE, STARTUP_TREND_RECEIPTS, PROJECTION]);
