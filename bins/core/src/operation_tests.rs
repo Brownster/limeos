@@ -413,7 +413,10 @@ async fn recovery_never_dispatches_again_and_closes_an_action_nothing_recorded()
         let id = job.id.clone();
         let mut running = core
             .db
-            .call(move |s| s.claim_container(&p, &id, &snapshot, now()))
+            .call(move |s| {
+                s.observe_executor_epoch(&"1".repeat(64), now())?;
+                s.claim_container(&p, &id, &snapshot, now())
+            })
             .await
             .unwrap();
         if prepared {
@@ -522,9 +525,14 @@ async fn claimed_unsent(
     let (job, _) = queued(core, token, csrf, snapshot.resource.clone()).await;
     let principal = core.session(token.into(), None).await.unwrap().principal;
     let (p, id) = (principal.clone(), job.id.clone());
+    let epoch = state.lock().unwrap().epoch.clone().unwrap();
     let running = core
         .db
-        .call(move |s| s.claim_container(&p, &id, &snapshot, now()))
+        .call(move |s| {
+            // Dispatched under the store's current epoch.
+            s.observe_executor_epoch(&epoch, now())?;
+            s.claim_container(&p, &id, &snapshot, now())
+        })
         .await
         .unwrap();
     (principal, running)
@@ -696,10 +704,10 @@ async fn a_recreated_store_never_releases_a_container_job_core_holds_a_result_fo
         record_events(&progress, &EventKind::ExecutorRecordDisagrees),
         1
     );
-    // Core saw no earlier epoch here: the result it holds decides alone.
+    // The new epoch marked the job, and the result it holds decides too.
     assert_eq!(
         record_events(&progress, &EventKind::ExecutorStoreChanged),
-        0
+        1
     );
     assert_eq!(state.lock().unwrap().posts, 0);
     task.abort();
@@ -712,10 +720,6 @@ async fn a_recreated_store_never_releases_a_container_job_core_holds_a_result_fo
 async fn a_container_job_dispatched_under_an_earlier_store_epoch_is_held_on_a_closure() {
     use limeos_domain::EventKind;
     let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
-    core.db
-        .call(|s| s.observe_executor_epoch(&"1".repeat(64), now()))
-        .await
-        .unwrap();
     let (principal, running) = claimed_unsent(&core, &token, &csrf, &state).await;
     state.lock().unwrap().epoch = Some("2".repeat(64));
     core.dispatch_one(principal, running.clone()).await.unwrap();

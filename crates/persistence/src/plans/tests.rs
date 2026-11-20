@@ -867,7 +867,8 @@ fn a_closure_never_overwrites_a_result_core_already_holds() {
 #[test]
 fn a_new_store_epoch_marks_held_jobs_and_their_closures_are_refused() {
     let (_dir, mut store, p) = setup();
-    // The first epoch seen marks nothing; repeating it writes nothing.
+    // The first epoch seen, with nothing held, marks nothing; repeating it
+    // writes nothing.
     assert_eq!(
         store.observe_executor_epoch(&"1".repeat(64), 200).unwrap(),
         0
@@ -906,6 +907,37 @@ fn a_new_store_epoch_marks_held_jobs_and_their_closures_are_refused() {
     assert!(store.observe_executor_epoch("not an epoch", 211).is_err());
 }
 
+/// The first epoch core ever records (a fresh install, or the first answer
+/// after the upgrade that added it) is a change like any other: a job held
+/// then was dispatched under no known epoch, so its store may since have been
+/// replaced, and its closure is not accepted. Once per job, as for any change.
+#[test]
+fn the_first_epoch_recorded_marks_every_job_already_held() {
+    let (_dir, mut store, p) = setup();
+    let (job, closure) = claimed_with_closure(&mut store, &p, "unknown", 200);
+    assert_eq!(
+        store.observe_executor_epoch(&"1".repeat(64), 205).unwrap(),
+        1
+    );
+    assert_eq!(
+        store.observe_executor_epoch(&"1".repeat(64), 206).unwrap(),
+        0
+    );
+    assert_eq!(
+        count_events(&store, &job.id, &EventKind::ExecutorStoreChanged),
+        1
+    );
+    assert_eq!(
+        store.record_container_closure(&job, &closure, 210).unwrap(),
+        JobState::NeedsIntervention
+    );
+    assert_eq!(held_locks(&store, &job.id), 1);
+    assert_eq!(
+        count_events(&store, &job.id, &EventKind::ExecutorRecordDisagrees),
+        1
+    );
+}
+
 #[test]
 fn a_store_epoch_change_leaves_queued_and_settled_jobs_alone() {
     let (_dir, mut store, p) = setup();
@@ -931,7 +963,8 @@ fn a_store_epoch_change_leaves_queued_and_settled_jobs_alone() {
 }
 
 /// Schema 18 adds the epoch column; an upgraded store has seen none yet and
-/// keeps every row.
+/// keeps every row. The first epoch it records marks the job held across the
+/// upgrade, which was dispatched under none.
 #[test]
 fn schema_seventeen_upgrade_adds_the_executor_epoch_and_keeps_every_row() {
     let (dir, mut store, p) = setup();
@@ -965,6 +998,10 @@ fn schema_seventeen_upgrade_adds_the_executor_epoch_and_keeps_every_row() {
     assert_eq!(store.job_state(&job.id).unwrap(), "needs_intervention");
     assert_eq!(
         store.observe_executor_epoch(&"1".repeat(64), 300).unwrap(),
-        0
+        1
+    );
+    assert_eq!(
+        count_events(&store, &job.id, &EventKind::ExecutorStoreChanged),
+        1
     );
 }

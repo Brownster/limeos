@@ -1448,6 +1448,8 @@ async fn claimed_at(f: &Fixture, key: &str, t0: i64) -> StackJob {
             )?;
             let approval = s.approve_stack(&principal, &plan.plan.id, &plan.digest, t0)?;
             let queued = s.queue_stack(&principal, &key, &plan, &approval.token, &members, t0)?;
+            // Dispatched under the store's epoch (the fixture's, once set).
+            s.observe_executor_epoch(&"1".repeat(64), t0)?;
             s.claim_stack(&principal, &queued.id, &members, t0)
         })
         .await
@@ -1991,11 +1993,6 @@ async fn a_stack_dispatched_under_an_earlier_store_epoch_is_held_on_a_closure() 
     use limeos_domain::EventKind;
     let f = admin().await;
     f.engine.lock().unwrap().epoch = Some("1".repeat(64));
-    f.core
-        .db
-        .call(|s| s.observe_executor_epoch(&"1".repeat(64), now()))
-        .await
-        .unwrap();
     let job = claimed_at(&f, "lost", now()).await;
     f.engine.lock().unwrap().epoch = Some("2".repeat(64));
     let current = f.current(&job).await;

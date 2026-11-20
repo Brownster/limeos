@@ -203,13 +203,15 @@ impl Store {
     }
 
     /// The container executor's receipt-store epoch, from an answer core just
-    /// received. The first one seen is recorded. One that differs from the
-    /// recorded epoch means the store core talks to is not the one it
-    /// dispatched its held jobs under: every held container and stack job gets
-    /// one `executor_store_changed` event (so a `never_recorded` closure for
-    /// it is refused, `record_container_closure`), and the new epoch is
-    /// recorded, in one transaction. Returns the jobs marked. An unchanged
-    /// epoch writes nothing.
+    /// received. One that differs from the recorded epoch means the store
+    /// core talks to is not the one it dispatched its held jobs under: every
+    /// held container and stack job gets one `executor_store_changed` event
+    /// (so a `never_recorded` closure for it is refused,
+    /// `record_container_closure`), and the new epoch is recorded, in one
+    /// transaction. The first epoch ever recorded is a change like any other:
+    /// a job held then was dispatched under no known epoch (before an
+    /// upgrade, or before an answer that carried one), so nothing ties it to
+    /// this store. Returns the jobs marked. An unchanged epoch writes nothing.
     pub fn observe_executor_epoch(&mut self, epoch: &str, now: i64) -> Result<usize> {
         if !limeos_domain::opaque_id(epoch) {
             return Err(Error(ErrorCode::InvalidInput));
@@ -229,26 +231,23 @@ impl Store {
                     r.get(0)
                 })
                 .map_err(durable)?;
-            let marked = match seen {
-                Some(seen) if seen == epoch => return Ok(0),
-                // Nothing was dispatched under a known epoch yet: an upgraded
-                // core, or a fresh install. The executor's creation floor
-                // covers a store created since.
-                None => 0,
-                Some(_) => {
-                    let kind = json(&EventKind::ExecutorStoreChanged)?;
-                    let marked = tx
-                        .execute(
-                            &format!(
-                                "INSERT INTO events(principal,job,kind,created) SELECT j.principal,j.id,?1,?2 FROM jobs j WHERE j.state IN ('running','verifying','outcome_unknown','needs_intervention') AND json_extract(j.intent,'$.operation') IN {EXECUTOR_OPERATIONS} AND NOT EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND e.kind=?1)"
-                            ),
-                            params![kind, now],
-                        )
-                        .map_err(durable)?;
-                    retention::account(tx, marked as i64)?;
-                    marked
-                }
-            };
+            if seen.as_deref() == Some(epoch) {
+                return Ok(0);
+            }
+            // A change, or the first epoch ever recorded (`None`: a fresh
+            // install, where nothing is held, or the first answer after the
+            // upgrade that added the epoch, where every held job was
+            // dispatched under none): every held job is marked.
+            let kind = json(&EventKind::ExecutorStoreChanged)?;
+            let marked = tx
+                .execute(
+                    &format!(
+                        "INSERT INTO events(principal,job,kind,created) SELECT j.principal,j.id,?1,?2 FROM jobs j WHERE j.state IN ('running','verifying','outcome_unknown','needs_intervention') AND json_extract(j.intent,'$.operation') IN {EXECUTOR_OPERATIONS} AND NOT EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND e.kind=?1)"
+                    ),
+                    params![kind, now],
+                )
+                .map_err(durable)?;
+            retention::account(tx, marked as i64)?;
             if tx
                 .execute(
                     "UPDATE meta SET executor_epoch=? WHERE id=1",
