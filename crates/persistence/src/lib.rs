@@ -218,7 +218,8 @@ impl Database {
             .name("limeos-db".into())
             .spawn(move || {
                 time.begin();
-                let maintain = |store: &mut Store, time: &mut writer_clock::WriterTime| {
+                time.turn();
+                let maintain = |store: &mut Store, time: &writer_clock::WriterTime| {
                     let Some(pass) = working.run(|| store.maintain(time.now())) else {
                         return;
                     };
@@ -233,8 +234,9 @@ impl Database {
                         }
                     }
                 };
-                maintain(&mut store, &mut time);
+                maintain(&mut store, &time);
                 loop {
+                    time.turn();
                     // Up to a burst of revocations, then one ordinary item:
                     // revocations wait behind at most one ordinary item, and
                     // ordinary work gets at least one turn in five.
@@ -250,7 +252,7 @@ impl Database {
                         working.run(|| work(&mut store));
                         served = true;
                     }
-                    maintain(&mut store, &mut time);
+                    maintain(&mut store, &time);
                     if !served {
                         if receiver.is_closed()
                             && urgent.is_closed()

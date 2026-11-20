@@ -23,7 +23,8 @@ pub(crate) enum Clock {
 pub(crate) struct WriterTime {
     #[cfg(feature = "test-support")]
     simulated: Option<(Arc<SimClock>, u64)>,
-    /// The simulated time's generation the last `now` read.
+    /// The simulated time's generation when the writer's current loop
+    /// iteration began.
     #[cfg(feature = "test-support")]
     read: u64,
     bell: Arc<Bell>,
@@ -59,13 +60,22 @@ impl WriterTime {
             clock.wait_released();
         }
     }
-    /// The time the retention gate compares.
-    pub(crate) fn now(&mut self) -> Instant {
+    /// The start of one turn of the writer's loop. On simulated time it
+    /// notes the clock's generation: the turn's retention gate reads the
+    /// clock no earlier, so once the writer goes idle at the end of a turn
+    /// that began at the current generation, any pass due then has run (and
+    /// a writer that never runs its gate still goes idle, and is seen to).
+    pub(crate) fn turn(&mut self) {
         #[cfg(feature = "test-support")]
         if let Some((clock, _)) = &self.simulated {
-            let (generation, now) = clock.read();
-            self.read = generation;
-            return now;
+            self.read = clock.read().0;
+        }
+    }
+    /// The time the retention gate compares.
+    pub(crate) fn now(&self) -> Instant {
+        #[cfg(feature = "test-support")]
+        if let Some((clock, _)) = &self.simulated {
+            return clock.read().1;
         }
         Instant::now()
     }
