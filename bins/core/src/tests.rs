@@ -54,6 +54,7 @@ async fn observations_and_history_use_current_resource_grants_and_reject_revocat
     });
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         observations: cache,
         telemetry: None,
@@ -95,6 +96,7 @@ async fn imported_hash_upgrades_only_after_successful_login_and_session_is_durab
         serde_json::from_str(include_str!("../../../tests/fixtures/werkzeug-hashes.json")).unwrap();
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),
@@ -169,6 +171,7 @@ async fn batch_imported_legacy_users_log_in_and_rerun_changes_nothing() {
         serde_json::from_str(include_str!("../../../tests/fixtures/werkzeug-hashes.json")).unwrap();
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),
@@ -276,6 +279,7 @@ async fn legacy_import_request_is_refused_for_a_non_root_peer_and_writes_nothing
     let db = Database::open(&dir.path().join("core.sqlite")).unwrap();
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: limeos_identity::hash("dummy-long-password").unwrap().into(),

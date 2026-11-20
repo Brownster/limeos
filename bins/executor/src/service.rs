@@ -1,15 +1,16 @@
 //! The resident executor roles' accept loop. Errors that leave the listener
 //! usable pause and continue; the systemd watchdog keep-alive is sent from
-//! here, so it stops when the loop stops being run or the role reports
-//! itself unhealthy.
-use limeos_contracts::{ACCEPT_PAUSE, Beat, Watchdog, accept_retryable};
+//! here, so it stops only when the loop stops being run. A role that is
+//! alive but degraded keeps sending it and says so in its health answer.
+use crate::blocking_read::BlockingReads;
+use limeos_contracts::{ACCEPT_PAUSE, Watchdog, accept_retryable};
+use limeos_executor_protocol::{Receipt, StrandedReads};
 use tokio::net::{UnixListener, UnixStream};
 
 /// Waits for the next connection, sending due keep-alives meanwhile.
 pub async fn next_connection(
     listener: &UnixListener,
     watchdog: &mut Watchdog,
-    healthy: &(dyn Fn() -> bool + Sync),
 ) -> std::io::Result<UnixStream> {
     let mut failures = 0u64;
     loop {
@@ -25,22 +26,28 @@ pub async fn next_connection(
                 }
                 Err(error) => return Err(error),
             },
-            () = watchdog.due() => match watchdog.beat(healthy()) {
-                Ok(Beat::Withheld) => tracing::error!(
-                    "executor unhealthy; withholding the watchdog keep-alive so systemd restarts it unless it recovers"
-                ),
-                Ok(Beat::Resumed) => tracing::info!("executor healthy again; watchdog keep-alive resumed"),
-                Ok(Beat::Sent | Beat::StillWithheld) => {}
-                Err(error) => tracing::warn!(%error, "watchdog keep-alive could not be sent"),
-            },
+            () = watchdog.due() => {
+                if let Err(error) = watchdog.beat() {
+                    tracing::warn!(%error, "watchdog keep-alive could not be sent");
+                }
+            }
         }
     }
+}
+
+/// The storage reader's answer to `Health`: ready, with any reads still
+/// stuck past their deadline and since when, for core to report.
+pub fn health_answer(receipt: &mut Receipt, reads: &BlockingReads) {
+    receipt.stranded_reads = reads.stranded().map(|stranded| StrandedReads {
+        count: u32::try_from(stranded.count).unwrap_or(u32::MAX),
+        since: stranded.since,
+    });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::blocking_read::{BlockingReads, Refusal};
+    use crate::blocking_read::Refusal;
     use std::{os::unix::net::UnixDatagram, sync::Arc, time::Duration};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -72,12 +79,13 @@ mod tests {
         std::iter::from_fn(|| notify.recv(&mut buffer).ok()).count()
     }
 
-    /// A storage read that never returns is abandoned at its deadline; the
-    /// service keeps answering other requests, and the keep-alive stops only
-    /// once the stranded-read bound is reached, resuming when it clears.
+    /// A storage read that never returns is abandoned at its deadline. The
+    /// service keeps answering other requests and keeps sending its
+    /// keep-alive (a restart would not free the read), refuses further reads,
+    /// and reports the stuck read and since when in its health answer until
+    /// the read returns.
     #[tokio::test]
-    async fn a_hung_read_does_not_stop_the_service_and_withholds_the_keep_alive_only_at_the_bound()
-    {
+    async fn a_hung_read_is_reported_and_refused_while_the_service_and_its_keep_alive_go_on() {
         let dir = Directory::new();
         let notify = UnixDatagram::bind(dir.0.join("notify")).unwrap();
         notify.set_nonblocking(true).unwrap();
@@ -93,57 +101,65 @@ mod tests {
         let served = reads.clone();
         let service = tokio::spawn(async move {
             loop {
-                let check = served.clone();
-                let mut stream =
-                    next_connection(&listener, &mut watchdog, &move || check.healthy())
-                        .await
-                        .unwrap();
+                let mut stream = next_connection(&listener, &mut watchdog).await.unwrap();
                 let reads = served.clone();
                 let blocked = blocked.clone();
                 tokio::spawn(async move {
                     let mut command = [0];
                     stream.read_exact(&mut command).await.unwrap();
-                    let answer: &[u8] = if command[0] == b'r' {
-                        let read = blocked.lock().unwrap().take();
-                        match reads
-                            .run("test-read", Duration::from_millis(50), move || {
-                                read.map(|r| r.recv())
-                            })
-                            .await
-                        {
-                            Ok(_) => b"read",
-                            Err(Refusal::Deadline) => b"deadline",
-                            Err(Refusal::Stranded) => b"stranded",
-                            Err(Refusal::Unavailable) => b"unavailable",
+                    let answer: Vec<u8> = match command[0] {
+                        b'r' => {
+                            let read = blocked.lock().unwrap().take();
+                            match reads
+                                .run("test-read", Duration::from_millis(50), move || {
+                                    read.map(|r| r.recv())
+                                })
+                                .await
+                            {
+                                Ok(_) => b"read".to_vec(),
+                                Err(Refusal::Deadline) => b"deadline".to_vec(),
+                                Err(Refusal::Stranded) => b"stranded".to_vec(),
+                                Err(Refusal::Unavailable) => b"unavailable".to_vec(),
+                            }
                         }
-                    } else {
-                        b"ok"
+                        _ => {
+                            let mut receipt = Receipt::empty();
+                            health_answer(&mut receipt, &reads);
+                            serde_json::to_vec(&receipt.stranded_reads).unwrap()
+                        }
                     };
-                    stream.write_all(answer).await.unwrap();
+                    stream.write_all(&answer).await.unwrap();
                 });
             }
         });
         tokio::time::sleep(Duration::from_millis(60)).await;
         assert!(beats(&notify) >= 2, "no keep-alives while healthy");
+        assert_eq!(ask(&path, b'h').await, b"null");
 
+        let abandoned = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
         assert_eq!(ask(&path, b'r').await, b"deadline");
-        assert!(!reads.healthy());
-        beats(&notify);
-        // Still answering while the read is stuck, and no new thread starts.
-        assert_eq!(ask(&path, b'h').await, b"ok");
+        let reported: Option<StrandedReads> =
+            serde_json::from_slice(&ask(&path, b'h').await).unwrap();
+        let reported = reported.expect("the stuck read is reported");
+        assert_eq!(reported.count, 1);
+        assert!((reported.since - abandoned).abs() <= 2, "{reported:?}");
         assert_eq!(ask(&path, b'r').await, b"stranded");
+        // Keep-alives go on while the read is stuck.
+        beats(&notify);
         tokio::time::sleep(Duration::from_millis(80)).await;
-        assert_eq!(beats(&notify), 0, "keep-alive sent with a stranded read");
+        assert!(beats(&notify) >= 2, "keep-alive withheld with a stuck read");
 
         release.send(()).unwrap();
         tokio::time::timeout(Duration::from_secs(5), async {
-            while beats(&notify) == 0 {
+            while ask(&path, b'h').await != b"null" {
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
         })
         .await
-        .expect("keep-alives resume once the read returns");
-        assert_eq!(ask(&path, b'h').await, b"ok");
+        .expect("the report clears once the read returns");
         service.abort();
     }
 }

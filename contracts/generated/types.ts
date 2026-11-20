@@ -168,7 +168,7 @@ export type AcknowledgeNotification = { revision: number, };
 export type AutomationPage<T> = { items: Array<T>, next: string | null, partial: boolean, };
 export type Enrollment = { token: string, username: string, password: string, };
 export type LegacyUser = { username: string, password_hash: string, };
-export type Subsystem = "observation_runtime";
+export type Subsystem = "observation_runtime" | "storage_reader";
 export type DegradedSubsystem = { subsystem: Subsystem,
 /**
  * What is wrong and since when. Given to an authenticated caller and to
@@ -179,16 +179,18 @@ detail?: DegradedDetail | null, };
 export type DegradedDetail = {
 /**
  * The error that describes the current state: for the observation
- * runtime, the one that ended its latest run.
+ * runtime, the one that ended its latest run; for the storage reader,
+ * `unavailable`.
  */
 code: ErrorCode,
 /**
- * When the current state began (Unix seconds).
+ * When the current state began (Unix seconds): for the storage reader,
+ * when its oldest stuck read was abandoned.
  */
 since: number,
 /**
  * For the observation runtime, failures in the current run; it restarts
- * after a longer wait each time.
+ * after a longer wait each time. For the storage reader, reads stuck.
  */
 count: number, };
 export type Health = { version: number, generation: number, schema_version: number, ready: boolean,
@@ -480,7 +482,12 @@ resolution_refusal?: ResolveRefusal | null,
  * earlier epoch for an operator instead of accepting a `never_recorded`
  * closure for it.
  */
-epoch?: string | null, logs?: ContainerLogs | null, error?: ErrorCode | null, storage?: StorageInventory | null, storage_targets?: StorageTargetSnapshot | null, target_preparation?: TargetPreparationReceipt | null, container_storage?: ContainerStorageInventory | null, };
+epoch?: string | null, logs?: ContainerLogs | null, error?: ErrorCode | null, storage?: StorageInventory | null, storage_targets?: StorageTargetSnapshot | null, target_preparation?: TargetPreparationReceipt | null, container_storage?: ContainerStorageInventory | null,
+/**
+ * Set on the storage reader's answer to `Health` while it has a stuck
+ * read.
+ */
+stranded_reads?: StrandedReads | null, };
 export type RestartPlan = ContainerPlan;
 export type PlannedRestart = PlannedContainerAction;
 export type RestartJob = ContainerJob;

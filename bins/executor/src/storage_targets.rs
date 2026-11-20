@@ -42,7 +42,7 @@ pub(super) async fn run(args: &[String]) -> std::io::Result<()> {
     let mut watchdog = limeos_contracts::Watchdog::from_env();
     loop {
         let mut stream =
-            limeos_executor::service::next_connection(&listener, &mut watchdog, &|| true).await?;
+            limeos_executor::service::next_connection(&listener, &mut watchdog).await?;
         let Ok(connection) = connections.clone().try_acquire_owned() else {
             continue;
         };

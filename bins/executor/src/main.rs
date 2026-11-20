@@ -291,18 +291,16 @@ async fn run() -> std::io::Result<()> {
             }
         });
     }
-    // At most one inventory read may be stuck in the kernel at a time; with
-    // one stranded the reader refuses inventories and withholds its watchdog
-    // keep-alive, so systemd restarts it unless the read returns first.
+    // At most one inventory read may be stuck in the kernel at a time. With
+    // one stranded the reader refuses inventories, serves everything else,
+    // keeps its watchdog keep-alive (a restart would not free the read and
+    // would abort the healthy reads in flight), and reports the stuck read in
+    // its health answer, which core lists as degraded.
     let inventory_reads = Arc::new(limeos_executor::blocking_read::BlockingReads::new(1));
     let mut watchdog = limeos_contracts::Watchdog::from_env();
-    let health = inventory_reads.clone();
     loop {
         let mut stream =
-            limeos_executor::service::next_connection(&listener, &mut watchdog, &|| {
-                health.healthy()
-            })
-            .await?;
+            limeos_executor::service::next_connection(&listener, &mut watchdog).await?;
         let Ok(permit) = permits.clone().try_acquire_owned() else {
             continue;
         };
@@ -634,7 +632,11 @@ async fn run() -> std::io::Result<()> {
                         answer(&mut receipt, Answer::resolve(outcome));
                         receipt.epoch = Some(store.epoch().to_owned());
                     }
-                    Request::Health { .. } => {}
+                    Request::Health { .. } => {
+                        if storage_reader {
+                            limeos_executor::service::health_answer(&mut receipt, &inventory_reads);
+                        }
+                    }
                     Request::ReceiptEpoch { .. } => {
                         receipt.epoch = Some(
                             epoch
@@ -672,7 +674,7 @@ fn note_inventory_refusal(refusal: limeos_executor::blocking_read::Refusal) {
             "storage inventory missed its 4 s deadline and was abandoned; a disk may be failing (its read is left to finish)"
         ),
         Refusal::Stranded => tracing::warn!(
-            "storage inventory refused: an earlier read is still stuck; the reader restarts unless it returns"
+            "storage inventory refused: an earlier read is still stuck in the kernel; inventories stay refused until it returns, and core reports the storage reader degraded"
         ),
         Refusal::Unavailable => tracing::warn!("storage inventory could not start"),
     }

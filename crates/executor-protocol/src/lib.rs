@@ -209,6 +209,17 @@ pub enum Request {
         disputed: bool,
     },
 }
+/// Storage reads the storage reader abandoned at their deadline and that are
+/// still stuck (typically in the kernel, on a failing disk). Restarting the
+/// reader would not free them; it refuses further inventories meanwhile.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct StrandedReads {
+    pub count: u32,
+    /// When the oldest of them was abandoned (Unix seconds).
+    #[ts(type = "number")]
+    pub since: i64,
+}
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct Receipt {
@@ -274,6 +285,10 @@ pub struct Receipt {
     pub target_preparation: Option<limeos_domain::TargetPreparationReceipt>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub container_storage: Option<limeos_domain::ContainerStorageInventory>,
+    /// Set on the storage reader's answer to `Health` while it has a stuck
+    /// read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stranded_reads: Option<StrandedReads>,
 }
 /// Independent, root-owned authority for the one closed nonpersistent mount.
 #[derive(Clone, Serialize, Deserialize, JsonSchema, TS)]
@@ -692,6 +707,7 @@ impl Receipt {
             storage_targets: None,
             target_preparation: None,
             container_storage: None,
+            stranded_reads: None,
         }
     }
 }

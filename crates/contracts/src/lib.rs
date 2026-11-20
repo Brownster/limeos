@@ -112,6 +112,10 @@ pub struct Health {
 pub enum Subsystem {
     /// The 1 Hz health-observation and automation runtime.
     ObservationRuntime,
+    /// The storage reader has a storage read stuck past its deadline (a
+    /// failing disk, typically); it refuses storage inventory until the read
+    /// returns and serves everything else.
+    StorageReader,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
@@ -127,13 +131,15 @@ pub struct DegradedSubsystem {
 #[serde(deny_unknown_fields)]
 pub struct DegradedDetail {
     /// The error that describes the current state: for the observation
-    /// runtime, the one that ended its latest run.
+    /// runtime, the one that ended its latest run; for the storage reader,
+    /// `unavailable`.
     pub code: ErrorCode,
-    /// When the current state began (Unix seconds).
+    /// When the current state began (Unix seconds): for the storage reader,
+    /// when its oldest stuck read was abandoned.
     #[ts(type = "number")]
     pub since: i64,
     /// For the observation runtime, failures in the current run; it restarts
-    /// after a longer wait each time.
+    /// after a longer wait each time. For the storage reader, reads stuck.
     pub count: u32,
 }
 impl DegradedSubsystem {

@@ -27,6 +27,7 @@ async fn fixture(
         .unwrap();
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         storage_socket: Arc::new("/unused-reader".into()),
         storage_target_socket: Arc::new("/unused-targets".into()),

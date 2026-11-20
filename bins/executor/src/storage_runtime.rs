@@ -62,7 +62,7 @@ pub(super) async fn run(args: &[String]) -> std::io::Result<()> {
     let mut watchdog = limeos_contracts::Watchdog::disabled();
     loop {
         let mut stream =
-            limeos_executor::service::next_connection(&listener, &mut watchdog, &|| true).await?;
+            limeos_executor::service::next_connection(&listener, &mut watchdog).await?;
         let result: Result<Receipt> = async {
             let uid = stream
                 .peer_cred()

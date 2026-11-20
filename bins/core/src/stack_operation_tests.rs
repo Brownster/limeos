@@ -534,6 +534,7 @@ async fn fixture(role: limeos_domain::Role, grants: Option<Vec<Scope>>) -> Fixtu
     });
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: "unused".into(),

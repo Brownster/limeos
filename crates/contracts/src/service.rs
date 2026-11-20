@@ -32,24 +32,16 @@ pub fn accept_retryable(error: &std::io::Error) -> bool {
 }
 
 /// The systemd watchdog, sent from inside a service's accept loop so a
-/// keep-alive proves the loop is still being run. Does nothing unless systemd
-/// set `NOTIFY_SOCKET` and `WATCHDOG_USEC` for this process (`WatchdogSec=`).
+/// keep-alive proves the loop is still being run, and nothing more: a
+/// service that is alive but degraded keeps sending it and reports the
+/// degradation through its health answer, since a restart cannot fix what
+/// a stuck device or a stuck kernel read has broken. Does nothing unless
+/// systemd set `NOTIFY_SOCKET` and `WATCHDOG_USEC` for this process
+/// (`WatchdogSec=`).
 pub struct Watchdog {
     target: Option<SocketAddr>,
     interval: Duration,
     next: tokio::time::Instant,
-    withholding: bool,
-}
-/// What one due keep-alive did.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Beat {
-    Sent,
-    /// Sent again after being withheld.
-    Resumed,
-    /// Withheld because the service is unhealthy; systemd restarts it if
-    /// this lasts `WatchdogSec`.
-    Withheld,
-    StillWithheld,
 }
 impl Watchdog {
     pub fn from_env() -> Self {
@@ -84,7 +76,6 @@ impl Watchdog {
             target: Some(target),
             interval: interval.max(Duration::from_millis(10)),
             next: tokio::time::Instant::now(),
-            withholding: false,
         }
     }
     pub fn disabled() -> Self {
@@ -92,7 +83,6 @@ impl Watchdog {
             target: None,
             interval: Duration::MAX,
             next: tokio::time::Instant::now(),
-            withholding: false,
         }
     }
     pub fn enabled(&self) -> bool {
@@ -106,27 +96,13 @@ impl Watchdog {
             std::future::pending::<()>().await;
         }
     }
-    /// Sends `WATCHDOG=1` if `healthy`, and schedules the next check either way.
-    pub fn beat(&mut self, healthy: bool) -> std::io::Result<Beat> {
+    /// Sends `WATCHDOG=1` and schedules the next one.
+    pub fn beat(&mut self) -> std::io::Result<()> {
         let Some(target) = &self.target else {
-            return Ok(Beat::StillWithheld);
+            return Ok(());
         };
         self.next = tokio::time::Instant::now() + self.interval;
-        if !healthy {
-            let first = !self.withholding;
-            self.withholding = true;
-            return Ok(if first {
-                Beat::Withheld
-            } else {
-                Beat::StillWithheld
-            });
-        }
-        notify(target, "WATCHDOG=1")?;
-        Ok(if std::mem::take(&mut self.withholding) {
-            Beat::Resumed
-        } else {
-            Beat::Sent
-        })
+        notify(target, "WATCHDOG=1")
     }
 }
 /// `NOTIFY_SOCKET` names a filesystem path, or an abstract socket with `@`.
@@ -172,23 +148,27 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn keep_alives_reach_an_abstract_socket_and_stop_while_unhealthy() {
+    async fn keep_alives_reach_an_abstract_socket_on_schedule() {
         use std::os::linux::net::SocketAddrExt;
         let name = format!("limeos-watchdog-test-{}", std::process::id());
         let address = SocketAddr::from_abstract_name(name.as_bytes()).unwrap();
         let receiver = UnixDatagram::bind_addr(&address).unwrap();
         receiver.set_nonblocking(true).unwrap();
         let target = notify_address(OsStr::new(&format!("@{name}"))).unwrap();
-        let mut watchdog = Watchdog::new(target, Duration::from_millis(10));
+        let mut watchdog = Watchdog::new(target, Duration::from_millis(200));
         watchdog.due().await;
-        assert_eq!(watchdog.beat(true).unwrap(), Beat::Sent);
+        watchdog.beat().unwrap();
         let mut buffer = [0; 32];
         let length = receiver.recv(&mut buffer).unwrap();
         assert_eq!(&buffer[..length], b"WATCHDOG=1");
-        assert_eq!(watchdog.beat(false).unwrap(), Beat::Withheld);
-        assert_eq!(watchdog.beat(false).unwrap(), Beat::StillWithheld);
-        assert!(receiver.recv(&mut buffer).is_err());
-        assert_eq!(watchdog.beat(true).unwrap(), Beat::Resumed);
+        // The next one is due an interval later, not at once.
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), watchdog.due())
+                .await
+                .is_err()
+        );
+        watchdog.due().await;
+        watchdog.beat().unwrap();
         assert!(receiver.recv(&mut buffer).is_ok());
         let disabled = Watchdog::disabled();
         assert!(

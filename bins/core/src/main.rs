@@ -31,6 +31,7 @@ mod identity_enablement;
 mod job_resolution;
 mod operations;
 mod password_admission;
+mod reader_health;
 use password_admission::PasswordWorkers;
 mod stack_operations;
 mod stacks;
@@ -59,6 +60,7 @@ enum PasswordJob<'a> {
 #[derive(Clone)]
 struct Core {
     automation_status: automation_runtime::Status,
+    reader_health: reader_health::Status,
     db: Database,
     password_workers: Arc<PasswordWorkers>,
     dummy_hash: Arc<str>,
@@ -561,6 +563,7 @@ impl Backend for Core {
                 .health()
                 .degraded()
                 .into_iter()
+                .chain(self.reader_health.degraded())
                 .collect(),
         })
     }
@@ -1029,7 +1032,7 @@ async fn rpc_server(core: Core, listener: UnixListener) -> std::io::Result<()> {
         let accepted = tokio::select! {
             accepted = listener.accept() => accepted,
             () = watchdog.due() => {
-                if let Err(error) = watchdog.beat(true) {
+                if let Err(error) = watchdog.beat() {
                     tracing::warn!(%error, "watchdog keep-alive could not be sent");
                 }
                 continue;
@@ -1130,6 +1133,7 @@ async fn run() -> Result<()> {
     );
     let mut core = Core {
         automation_status: automation_runtime::Status::default(),
+        reader_health: Default::default(),
         stacks: limeos_observations::stacks::start_proxy(config.storage_socket.clone().into()),
         db,
         password_workers: Arc::new(PasswordWorkers::new(2)),
@@ -1169,7 +1173,8 @@ async fn run() -> Result<()> {
 /// Everything core runs once started. Only a listener that can no longer
 /// accept ends it (systemd then restarts core). The dispatcher handles each
 /// job's errors itself and never returns; the observation runtime is
-/// restarted after a failure and reported in `Health::degraded` meanwhile.
+/// restarted after a failure and reported in `Health::degraded` meanwhile;
+/// the storage reader's health is asked for and reported there too.
 async fn services(
     core: Core,
     http: TcpListener,
@@ -1180,6 +1185,8 @@ async fn services(
     backoff: supervision::Backoff,
 ) -> Result<()> {
     let app = limeos_api::router(core.clone(), origin);
+    let reader_health =
+        reader_health::Watcher::new((*core.storage_socket).clone(), core.reader_health.clone());
     let dispatcher = core.clone();
     let status = core.automation_status.clone();
     let observation = supervision::supervise(
@@ -1200,6 +1207,7 @@ async fn services(
         result=rpc_server(core,rpc)=>result.map_err(|_|Error(ErrorCode::Unavailable)),
         _=dispatcher.dispatcher()=>Err(Error(ErrorCode::Unavailable)),
         _=observation=>Err(Error(ErrorCode::Unavailable)),
+        ()=reader_health.run()=>Err(Error(ErrorCode::Unavailable)),
     }
 }
 

@@ -208,6 +208,7 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
         storage_targets,
         target_preparation,
         container_storage,
+        stranded_reads,
     } = receipt;
     if version != limeos_contracts::VERSION
         || !ready
@@ -232,6 +233,7 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
         || storage_targets.is_some()
         || target_preparation.is_some()
         || container_storage.is_some()
+        || stranded_reads.is_some()
     {
         return Err(Error(ErrorCode::Unavailable));
     }

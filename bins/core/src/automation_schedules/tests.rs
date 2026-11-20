@@ -7,6 +7,7 @@ use std::time::Duration;
 pub(crate) fn core(db: Database) -> Core {
     Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: "unused".into(),

@@ -55,6 +55,7 @@ async fn fixture(
     .unwrap();
     let core = Core {
         automation_status: Default::default(),
+        reader_health: Default::default(),
         db,
         compose_catalog: Some(Arc::new(catalog)),
         container_socket: Arc::new("/unreachable".into()),
