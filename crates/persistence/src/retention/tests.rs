@@ -644,8 +644,8 @@ fn a_kill_between_passes_leaves_a_pruned_job_and_resumes() {
     Store::open(&path).unwrap();
 }
 
-/// Over its budget, the authority class loses its oldest events and nothing
-/// else, and never an event of a job whose history is still retained.
+/// Over its budget, the authority class loses its oldest prunable events and
+/// nothing else, and never an event of a job whose history is still retained.
 #[test]
 fn authority_events_are_pruned_only_against_their_own_budget() {
     let (_dir, mut store, actor) = setup();
@@ -672,18 +672,123 @@ fn authority_events_are_pruned_only_against_their_own_budget() {
         .unwrap();
     let before = authority(&store);
     let bulk = events(&store) - before.len() as i64;
-    assert_eq!(store.prune().unwrap(), vec![("authority events", 10)]);
+    assert_eq!(store.prune().unwrap(), vec![("authority events", 9)]);
     let after = authority(&store);
-    assert_eq!(after.len() as i64, AUTHORITY_BUDGET);
-    // Oldest first: enrolment's three job-less events and the seven oldest
+    // The open job's withdrawal is pinned and outside the budget.
+    assert_eq!(after.len() as i64, AUTHORITY_BUDGET + 1);
+    // Oldest first: enrolment's three job-less events and the six oldest
     // revisions; the open job's withdrawal stays with its history.
     let removed: Vec<_> = before.iter().filter(|row| !after.contains(row)).collect();
-    assert_eq!(removed.len(), 10);
+    assert_eq!(removed.len(), 9);
     assert!(enrolment[..3].iter().all(|row| removed.contains(&row)));
     assert!(after.contains(&enrolment[3]));
     assert_eq!(events(&store) - after.len() as i64, bulk);
     assert_eq!(audit(&store), events(&store) * EVENT_BYTES);
     assert!(store.prune().unwrap().is_empty());
+}
+
+/// A job in `needs_intervention` (retained history) with `pairs` resolution
+/// requests and withdrawals: pinned authority events.
+fn uncertain_with_requests(store: &mut Store, actor: &Principal, pairs: usize) -> String {
+    let job = probe(store, actor, "uncertain", "uncertain", 300);
+    store
+        .transition(&job, JobState::Queued, JobState::Running, 300)
+        .unwrap();
+    store
+        .transition(&job, JobState::Running, JobState::NeedsIntervention, 300)
+        .unwrap();
+    store
+        .write(|tx| {
+            for _ in 0..pairs {
+                event(
+                    tx,
+                    Some(&actor.id),
+                    Some(&job),
+                    EventKind::JobResolutionRequested {
+                        declared: limeos_domain::DeclaredOutcome::NotDone,
+                    },
+                    301,
+                )?;
+                event(
+                    tx,
+                    Some(&actor.id),
+                    Some(&job),
+                    EventKind::JobResolutionWithdrawn,
+                    301,
+                )?;
+            }
+            Ok(())
+        })
+        .unwrap();
+    job
+}
+
+/// The reviewer's store: 2,048 request/withdrawal pairs on one retained
+/// uncertain job fill the budget on their own. Pinned events do not consume
+/// it, so the newest authority event (a legacy import) and the enrolment
+/// events stay, and the pinned ones stay too.
+#[test]
+fn pinned_authority_events_do_not_consume_the_budget() {
+    let (_dir, mut store, actor) = setup();
+    let job = uncertain_with_requests(&mut store, &actor, 2048);
+    store
+        .import_legacy_user("bob", "pbkdf2:sha256:1000000$IgjABokZwwl2gggv$686315920b24fb807abeb0a436ce6385be3f3026e35d934ffbaf15be1a0e7ce1", 302)
+        .unwrap();
+    let before = authority(&store);
+    // Enrolment's three, the 4,096 pinned, the import.
+    assert_eq!(before.len() as i64, 3 + AUTHORITY_BUDGET + 1);
+    assert!(
+        before
+            .last()
+            .unwrap()
+            .1
+            .contains("legacy_identity_imported")
+    );
+    drain(&mut store);
+    assert_eq!(authority(&store), before);
+    assert_eq!(count(&store, &job), 3 + AUTHORITY_BUDGET);
+}
+
+/// Over the budget, only prunable (unpinned) authority events count: the
+/// newest `AUTHORITY_BUDGET` of them stay, older ones go oldest first, and
+/// the newest prunable event is never removed while older ones exist.
+#[test]
+fn the_budget_keeps_the_newest_prunable_authority_events() {
+    let (_dir, mut store, actor) = setup();
+    let job = uncertain_with_requests(&mut store, &actor, 300);
+    let pinned = count(&store, &job);
+    let kind = json(&EventKind::GrantsRevised).unwrap();
+    let extra = 2 * AUTHORITY_BATCH + 7;
+    store
+        .write(|tx| {
+            let added = tx.execute("WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<?) INSERT INTO events(principal,job,kind,created) SELECT ?,NULL,?,303 FROM c", params![AUTHORITY_BUDGET + extra - 3, actor.id, kind]).map_err(durable)?;
+            account(tx, added as i64)
+        })
+        .unwrap();
+    let prunable = |store: &Store| -> Vec<(i64, String)> {
+        let held = job_events(store, &job);
+        authority(store)
+            .into_iter()
+            .filter(|row| !held.contains(row))
+            .collect()
+    };
+    let before = prunable(&store);
+    assert_eq!(before.len() as i64, AUTHORITY_BUDGET + extra);
+    let newest = before.last().unwrap().clone();
+    loop {
+        let removed = store.prune().unwrap();
+        let now = prunable(&store);
+        assert!(now.contains(&newest));
+        assert!(now.len() as i64 >= AUTHORITY_BUDGET);
+        // Always a suffix: only the oldest ever go.
+        assert_eq!(now, before[before.len() - now.len()..]);
+        if removed.is_empty() {
+            break;
+        }
+    }
+    assert_eq!(prunable(&store).len() as i64, AUTHORITY_BUDGET);
+    assert_eq!(count(&store, &job), pinned);
+    assert_eq!(audit(&store), events(&store) * EVENT_BYTES);
 }
 
 /// The plans of both candidate queries: job-less rows through `events_job`,

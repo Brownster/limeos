@@ -39,10 +39,20 @@
 //!   unless listed in [`UNREAD_AUTOMATION_KINDS`], so a future kind fails safe.
 //!
 //! Authority events ([`AUTHORITY_KINDS`]) are a class of their own: the events
-//! rule never removes them, whatever the pressure from bulk history. Their own
-//! rule keeps the newest [`AUTHORITY_BUDGET`] and removes older ones oldest
-//! first, skipping any whose job still has its history, so it never leaves a
-//! gap in a retained job.
+//! rule never removes them, whatever the pressure from bulk history. An
+//! authority event of a job that still has its history ([`RETAINED_HISTORY`])
+//! is pinned: kept, so a retained job never shows a gap, and outside the
+//! budget. Of the others (prunable), their own rule keeps the newest
+//! [`AUTHORITY_BUDGET`] and removes older ones oldest first. So the newest
+//! prunable authority event is never removed while an older one exists.
+//!
+//! Only resolution requests and withdrawals carry a job, so only they can be
+//! pinned, and only for as long as their job's history: while the job is
+//! unsettled or has an open request, and then until the events rule prunes
+//! the settled job (its `job_queued` first), after which they are prunable
+//! and count against the budget. Until then they are bounded like the rest
+//! of the job's pinned history: each is written through the ordinary write
+//! gate, which refuses at the audit cap.
 //!
 //! Every batch removes at most its limit of rows, oldest first by cursor, so a
 //! job with a long history (a health probe cycling through `verifying` and
@@ -97,9 +107,10 @@ const EVENT_BATCH: i64 = 1024;
 /// rows a minute, which one batch removes.
 const OCCURRENCE_BUDGET: i64 = 1024;
 const OCCURRENCE_BATCH: i64 = 512;
-/// Authority events kept: 1 MiB of the cap, decades of administration at any
-/// plausible rate (a few enrolments, imports and grant revisions, and a
-/// resolution request per intervention).
+/// Prunable authority events kept: 1 MiB of the cap, decades of
+/// administration at any plausible rate (a few enrolments, imports and grant
+/// revisions, and a resolution request per intervention). Pinned ones are
+/// kept besides.
 const AUTHORITY_BUDGET: i64 = 4096;
 const AUTHORITY_BATCH: i64 = 256;
 pub(super) const INTERVAL: Duration = Duration::from_secs(60);
@@ -292,12 +303,10 @@ fn audited_events(conn: &Connection) -> Result<i64> {
     Ok(bytes / EVENT_BYTES)
 }
 
+/// Prunable authority events: the rule's budget counts only these.
 fn authority_events(conn: &Connection) -> Result<i64> {
     conn.query_row(
-        &format!(
-            "SELECT count(*) FROM events WHERE json_extract(kind,'$.kind') IN ({})",
-            quoted(&AUTHORITY_KINDS)
-        ),
+        &format!("SELECT count(*) FROM events WHERE {}", prunable_authority()),
         [],
         |r| r.get(0),
     )
@@ -330,12 +339,19 @@ fn settled_candidates() -> String {
         quoted(&AUTHORITY_KINDS)
     )
 }
-/// The oldest authority events, through `events_kind`, except those of a job
-/// that still has its history.
+/// An authority event that is not pinned: job-less, or of a job whose
+/// history is already being pruned. Read through `events_kind`.
+fn prunable_authority() -> String {
+    format!(
+        "json_extract(kind,'$.kind') IN ({}) AND (job IS NULL OR NOT {RETAINED_HISTORY})",
+        quoted(&AUTHORITY_KINDS)
+    )
+}
+/// The oldest prunable authority events.
 fn authority_candidates() -> String {
     format!(
-        "SELECT cursor FROM events WHERE json_extract(kind,'$.kind') IN ({}) AND (job IS NULL OR NOT {RETAINED_HISTORY}) ORDER BY cursor LIMIT ?",
-        quoted(&AUTHORITY_KINDS)
+        "SELECT cursor FROM events WHERE {} ORDER BY cursor LIMIT ?",
+        prunable_authority()
     )
 }
 
@@ -385,8 +401,9 @@ fn prune_events(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
     Ok(removed)
 }
 
-/// Removes the oldest `limit` authority events that may go (see
-/// [`authority_candidates`]); only ever called above [`AUTHORITY_BUDGET`].
+/// Removes the oldest `limit` prunable authority events; only ever called
+/// with `limit` at most the prunable count above [`AUTHORITY_BUDGET`], so the
+/// newest [`AUTHORITY_BUDGET`] prunable ones always stay.
 fn prune_authority(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
     let cursors: Vec<i64> = tx
         .prepare(&authority_candidates())
