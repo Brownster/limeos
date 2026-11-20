@@ -488,18 +488,12 @@ impl Store {
         let audit_bytes = retention::reconcile(&tx)?;
         let interrupted = interrupted_jobs(&tx)?;
         // Recovery records use the revocation reserve past the cap. When even
-        // that is full, retention runs first, in its ordinary bounded batches
-        // (each its own transaction; the checks above have passed and the core
-        // lock keeps every other writer out), and startup is refused only when
-        // nothing more can be pruned.
-        let tx = if retention::recovery_fits(interrupted, audit_bytes) {
-            tx
-        } else {
-            tx.commit().map_err(durable)?;
-            retention::make_room(&mut conn, interrupted)?;
-            conn.transaction_with_behavior(TransactionBehavior::Immediate)
-                .map_err(durable)?
-        };
+        // that is full, retention runs first, in this transaction (so a
+        // refusal still changes nothing, upgrade included), and startup is
+        // refused only when nothing more can be pruned.
+        if !retention::recovery_fits(interrupted, audit_bytes) {
+            retention::make_room(&tx, interrupted)?;
+        }
         tx.execute("UPDATE meta SET generation=generation+1 WHERE id=1", [])
             .map_err(durable)?;
         let generation = tx

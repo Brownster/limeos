@@ -5,9 +5,11 @@
 //! writes nothing. A table over budget gets one batch of oldest-first deletions
 //! in its own short IMMEDIATE transaction; a batch that finds nothing eligible
 //! rolls back, so an idle or unchanged store is never written by retention.
-//! Startup also runs the events rule, before the writer thread exists, when
-//! the recovery events for interrupted jobs would not fit in the reserve
-//! ([`make_room`]); it refuses only when nothing more is prunable.
+//! Startup also runs the events rule, inside its own transaction and before
+//! the writer thread exists, when the recovery events for interrupted jobs
+//! would not fit in the reserve ([`make_room`]); it refuses, rolling back the
+//! whole startup (any schema upgrade too), only when nothing more is
+//! prunable.
 //!
 //! # What is never pruned
 //!
@@ -234,18 +236,23 @@ pub(super) fn recovery_fits(interrupted: i64, audit_bytes: i64) -> bool {
         || interrupted.saturating_mul(EVENT_BYTES) <= AUDIT_LIMIT + AUDIT_RESERVE - audit_bytes
 }
 
-/// Startup, when recovery does not fit: the events rule's ordinary batches,
-/// each its own transaction, until it fits. Refused only when a batch finds
-/// nothing more to prune (the history is pinned).
-pub(super) fn make_room(conn: &mut Connection, interrupted: i64) -> Result<()> {
+/// Startup, when recovery does not fit: the events rule's batches, inside
+/// the startup transaction so a refusal leaves nothing changed (a schema
+/// upgrade stays atomic with startup). It needs room for one event per
+/// interrupted job, so it removes about that many rows, rounded up to a
+/// batch. Refused when a batch finds nothing more to prune (pinned history).
+pub(super) fn make_room(tx: &Transaction<'_>, interrupted: i64) -> Result<()> {
+    let rule = &RULES[0];
     loop {
-        let bytes = audited_events(conn)?
+        let rows = (rule.rows)(tx)?;
+        let bytes = rows
             .checked_mul(EVENT_BYTES)
             .ok_or(Error(ErrorCode::StateNotDurable))?;
         if recovery_fits(interrupted, bytes) {
             return Ok(());
         }
-        if run(conn, &RULES[0])? == 0 {
+        let excess = rows.saturating_sub(rule.budget);
+        if excess <= 0 || (rule.prune)(tx, excess.min(rule.batch))? == 0 {
             return Err(Error(ErrorCode::StateNotDurable));
         }
     }
