@@ -124,6 +124,8 @@ Writes fail closed below an 8 MiB free-space reserve or at the 64 MiB audit allo
 
 Upgrading to schema 17 builds three indexes over the audit table inside the startup transaction. Core estimates the free space this needs in the state directory (`/var/lib/limeos`) from the audit table itself: the indexes' entries (measured key sizes plus 25 bytes each) with a third added for page overhead, counted twice because the new pages are written to the WAL and then to the database, above the 8 MiB reserve that must remain afterwards, plus a fixed 256 KiB for the index roots and write-ahead log that even an empty table needs. That is about 170 bytes per job-less session event and about 340 per job transition: about 51 MiB for a full allowance of session events and about 93 MiB for a full allowance of job transitions. With less, core refuses to start before writing anything and logs `the database schema upgrade needs more free space` with the bytes needed and available; free space and restart. If the build runs out of space all the same, the upgrade rolls back and core logs the same message, asking for another estimate's worth on top of what was free. The index sort runs in memory for the upgrade, not in temporary files: at most about 31 MiB, within core's 128 MiB memory limit, for a full allowance whose every event has a job. Only a table far past the allowance (over 32 MiB of sort) sorts in temporary files in core's private `/tmp` (`PrivateTmp=yes`), and the estimate then adds twice that sort.
 
+Upgrading to schema 18 adds one nullable column to the one-row `meta` table (`executor_epoch`, the container executor's receipt-store epoch core last saw; ADR 0003) and needs no space estimate beyond the write reserve.
+
 For a configuration failure:
 
 ```sh

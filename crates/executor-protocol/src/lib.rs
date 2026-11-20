@@ -237,6 +237,15 @@ pub struct Receipt {
     /// contradicts the declaration; nothing changed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolution_refusal: Option<limeos_domain::ResolveRefusal>,
+    /// The container executor's receipt-store epoch, set on every answer that
+    /// read or wrote the receipt store (execute, lookup, verify, resolve). It
+    /// changes whenever the store is reopened, so a store lost and recreated,
+    /// or restored from an older copy, never answers under the epoch core
+    /// dispatched under: core then holds every job it dispatched under the
+    /// earlier epoch for an operator instead of accepting a `never_recorded`
+    /// closure for it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub epoch: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logs: Option<limeos_domain::ContainerLogs>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -656,6 +665,7 @@ impl Receipt {
             absence: None,
             closed: false,
             resolution_refusal: None,
+            epoch: None,
             logs: None,
             error: None,
             storage: None,

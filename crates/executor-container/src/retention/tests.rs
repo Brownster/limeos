@@ -5,6 +5,9 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+/// A store the tests create starts at its creation floor (`initial_watermark`).
+const FRESH: i64 = crate::TEST_STORE_CREATED + PLAN_TTL_SECONDS;
+
 fn private_dir() -> tempfile::TempDir {
     tempfile::Builder::new()
         .permissions(std::fs::Permissions::from_mode(0o700))
@@ -82,7 +85,7 @@ fn count(store: &ReceiptStore, sql: &str) -> u32 {
 #[tokio::test]
 async fn twenty_thousand_completed_actions_never_refuse_the_next_and_replay_stays_closed() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let engine = Engine1 {
         current: Mutex::new(snapshot('a', 0, true)),
         effects: AtomicUsize::new(0),
@@ -165,7 +168,7 @@ async fn twenty_thousand_completed_actions_never_refuse_the_next_and_replay_stay
 #[tokio::test]
 async fn a_replayed_id_whose_receipt_was_pruned_is_refused_even_if_the_clock_steps_back() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let engine = Engine1 {
         current: Mutex::new(snapshot('a', 0, true)),
         effects: AtomicUsize::new(0),
@@ -213,7 +216,7 @@ async fn a_replayed_id_whose_receipt_was_pruned_is_refused_even_if_the_clock_ste
 #[tokio::test]
 async fn a_pruned_action_id_with_a_new_valid_plan_executes_like_a_fresh_id() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let engine = Engine1 {
         current: Mutex::new(snapshot('a', 0, true)),
         effects: AtomicUsize::new(0),
@@ -313,7 +316,7 @@ fn prune_all(store: &mut ReceiptStore, now: i64) -> u32 {
 #[test]
 fn pruning_removes_only_old_terminal_receipts_and_whole_settled_stacks() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let old = 0;
     let now = 100_000;
     for i in 0..3000u32 {
@@ -482,7 +485,7 @@ fn pruning_removes_only_old_terminal_receipts_and_whole_settled_stacks() {
 #[test]
 fn resolved_receipts_are_pruned_as_settled_history_and_lock_holders_never_are() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     // Standalone: five resolved receipts, oldest of the settled ones; three
     // lock holders, older still; and settled history up to the budget.
     for i in 0..5u32 {
@@ -652,9 +655,10 @@ fn settled_stack(store: &ReceiptStore, i: u32, expires_at: i64) {
 #[test]
 fn a_pruned_stack_is_no_longer_held_whatever_the_clock_does_and_a_new_plan_is_never_recorded() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
-    // Nothing pruned yet: any plan without a row was never recorded.
-    assert_eq!(watermark_of(&store), i64::MIN);
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    // Nothing pruned yet: any plan without a row (and younger than the
+    // store) was never recorded.
+    assert_eq!(watermark_of(&store), FRESH);
     assert_eq!(
         absence(&store, ResolveKind::Stack, &id('5', 0), 0),
         ReceiptAbsence::NeverRecorded
@@ -666,7 +670,7 @@ fn a_pruned_stack_is_no_longer_held_whatever_the_clock_does_and_a_new_plan_is_ne
     }
     // Nothing is pruned until a plan has been expired for the retention hour.
     assert_eq!(prune_all(&mut store, expires + RETAIN_AFTER_EXPIRY - 1), 0);
-    assert_eq!(watermark_of(&store), i64::MIN);
+    assert_eq!(watermark_of(&store), FRESH);
     let pruned_at = expires + RETAIN_AFTER_EXPIRY;
     assert_eq!(prune_all(&mut store, pruned_at), 2);
     assert_eq!(watermark_of(&store), expires);
@@ -704,7 +708,7 @@ fn a_pruned_stack_is_no_longer_held_whatever_the_clock_does_and_a_new_plan_is_ne
     );
     // Durable across a restart.
     drop(store);
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     assert_eq!(watermark_of(&store), expires);
     // Never decreases: a row with an older expiry pruned later, at a clock that
     // stepped back, leaves the watermark where it was.
@@ -742,7 +746,7 @@ fn a_pruned_stack_is_no_longer_held_whatever_the_clock_does_and_a_new_plan_is_ne
 #[test]
 fn a_missing_receipt_is_judged_by_the_carried_plan_and_a_forged_expiry_is_refused() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     // The action ran with a plan expiring at `w`, settled, and was pruned.
     let ran = restart(0, snapshot('a', 0, true));
     let w = ran.plan.expires_at;
@@ -821,7 +825,7 @@ fn a_missing_receipt_is_judged_by_the_carried_plan_and_a_forged_expiry_is_refuse
 #[test]
 fn the_watermark_covers_standalone_receipts_and_moves_in_the_pruning_transaction() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     for i in 0..RETAINED_ACTIONS + 3 {
         insert(
             &store,
@@ -839,7 +843,7 @@ fn the_watermark_covers_standalone_receipts_and_moves_in_the_pruning_transaction
         assert_eq!(prune(&tx, 100_000).unwrap(), 3);
         tx.rollback().unwrap();
     }
-    assert_eq!(watermark_of(&store), i64::MIN);
+    assert_eq!(watermark_of(&store), FRESH);
     assert_eq!(prune_all(&mut store, 100_000), 3);
     assert_eq!(watermark_of(&store), 1_002);
     for i in 0..3 {
@@ -862,7 +866,7 @@ fn the_watermark_covers_standalone_receipts_and_moves_in_the_pruning_transaction
 #[test]
 fn a_batch_stops_before_a_stack_that_would_exceed_the_row_bound() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let members = limeos_domain::MAX_STACK_MEMBERS as u32;
     for i in 0..RETAINED_STACKS + 10 {
         let digest = format!("dw{i}");
@@ -949,7 +953,7 @@ impl Engine for Drifted {
 async fn settled_stack_receipts_are_pruned_with_their_members_and_retained_ones_still_cross_check()
 {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let total = 1000;
     for i in 0..total {
         let request = stack_request(i);
@@ -985,7 +989,8 @@ fn prune_kill_helper() {
     let Some(directory) = std::env::var_os("LIMEOS_RECEIPT_PRUNE_FIXTURE") else {
         return;
     };
-    let mut store = ReceiptStore::open(Path::new(&directory)).unwrap();
+    let mut store =
+        ReceiptStore::open_at(Path::new(&directory), crate::TEST_STORE_CREATED).unwrap();
     let tx = store.conn.transaction().unwrap();
     assert!(prune(&tx, 100_000).unwrap() > 0);
     // Killed with the deletions written but not committed.
@@ -995,7 +1000,7 @@ fn prune_kill_helper() {
 fn a_process_killed_mid_prune_leaves_a_store_that_opens_with_every_row() {
     let dir = private_dir();
     {
-        let store = ReceiptStore::open(dir.path()).unwrap();
+        let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
         for i in 0..(RETAINED_ACTIONS + 500) {
             insert(
                 &store,
@@ -1019,13 +1024,13 @@ fn a_process_killed_mid_prune_leaves_a_store_that_opens_with_every_row() {
         .status()
         .unwrap();
     assert!(!status.success());
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     assert_eq!(
         count(&store, "SELECT count(*) FROM actions"),
         RETAINED_ACTIONS + 500
     );
     // The watermark moves with the deletions or not at all.
-    assert_eq!(watermark_of(&store), i64::MIN);
+    assert_eq!(watermark_of(&store), FRESH);
     assert!(prune_all(&mut store, 100_000) > 0);
     assert_eq!(watermark_of(&store), 0);
     assert_eq!(
@@ -1049,7 +1054,7 @@ fn downgrade(store: ReceiptStore, to: u32) {
 #[test]
 fn schema_five_upgrade_keeps_receipts_and_retains_them_for_a_plan_lifetime() {
     let dir = private_dir();
-    let store = ReceiptStore::open(dir.path()).unwrap();
+    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     insert(
         &store,
         "actions",
@@ -1060,7 +1065,7 @@ fn schema_five_upgrade_keeps_receipts_and_retains_them_for_a_plan_lifetime() {
         0,
     );
     downgrade(store, 5);
-    let store = ReceiptStore::open(dir.path()).unwrap();
+    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let version: u32 = store
         .conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
@@ -1086,7 +1091,7 @@ fn schema_five_upgrade_keeps_receipts_and_retains_them_for_a_plan_lifetime() {
 #[test]
 fn a_pruned_pre_upgrade_receipt_is_no_longer_held_even_above_its_back_filled_expiry() {
     let dir = private_dir();
-    let store = ReceiptStore::open(dir.path()).unwrap();
+    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     for i in 0..RETAINED_ACTIONS + 1 {
         insert(
             &store,
@@ -1100,7 +1105,7 @@ fn a_pruned_pre_upgrade_receipt_is_no_longer_held_even_above_its_back_filled_exp
     }
     settled_stack(&store, 0, 0);
     downgrade(store, 5);
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     assert_eq!(
         count(&store, "SELECT count(*) FROM actions WHERE legacy=0"),
         0
@@ -1159,7 +1164,7 @@ fn a_pruned_pre_upgrade_receipt_is_no_longer_held_even_above_its_back_filled_exp
     );
     // The tombstones survive a restart.
     drop(store);
-    let store = ReceiptStore::open(dir.path()).unwrap();
+    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     assert_eq!(
         absence(&store, ResolveKind::Container, &gone, back_filled + 100_000),
         ReceiptAbsence::NoLongerHeld
@@ -1169,7 +1174,7 @@ fn a_pruned_pre_upgrade_receipt_is_no_longer_held_even_above_its_back_filled_exp
 #[test]
 fn a_schema_six_store_that_may_have_pruned_without_a_watermark_never_claims_never_recorded() {
     let dir = private_dir();
-    let store = ReceiptStore::open(dir.path()).unwrap();
+    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     insert(
         &store,
         "actions",
@@ -1180,7 +1185,7 @@ fn a_schema_six_store_that_may_have_pruned_without_a_watermark_never_claims_neve
         1_000,
     );
     downgrade(store, 6);
-    let store = ReceiptStore::open(dir.path()).unwrap();
+    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     assert_eq!(watermark_of(&store), i64::MAX);
     assert_eq!(
         count(&store, "SELECT count(*) FROM actions WHERE legacy=1"),

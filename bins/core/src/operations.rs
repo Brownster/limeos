@@ -64,6 +64,14 @@ impl Core {
             if !response.ready {
                 return Err(Error(ErrorCode::Unavailable));
             }
+            // Before any caller acts on a receipt answer: a store epoch other
+            // than the one last seen marks every held job, so a closure in
+            // this very answer is judged against it (`observe_executor_epoch`).
+            if let Some(epoch) = response.epoch.clone() {
+                self.db
+                    .call(move |s| s.observe_executor_epoch(&epoch, now()))
+                    .await?;
+            }
             Ok(response)
         })
         .await
@@ -472,6 +480,17 @@ impl Core {
         {
             self.mark(&job, JobState::NeedsIntervention).await?;
             return Err(Error(ErrorCode::Conflict));
+        }
+        if closed {
+            // A closure of an action the executor never recorded: released
+            // like a refusal, unless it contradicts a result core holds or a
+            // dispatch under an earlier store epoch; then the job is held
+            // (`record_container_closure`).
+            return self
+                .db
+                .call(move |s| s.record_container_closure(&job, &receipt, now()))
+                .await
+                .map(|_| ());
         }
         let mut after = None;
         if matches!(

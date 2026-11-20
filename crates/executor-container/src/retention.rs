@@ -50,7 +50,9 @@
 //! nothing is over budget. The row and file caps stay as last-resort stops.
 //!
 //! Absence. The same transaction raises the prune watermark, the greatest
-//! `expires_at` among every row ever pruned; it never decreases. A row stores
+//! `expires_at` among every row ever pruned (or, for a store created since
+//! schema 7, its creation floor if greater: `initial_watermark`); it never
+//! decreases. A row stores
 //! its plan's `expires_at`, and a stack's member rows store the stack's, so a
 //! pruned receipt always has `expires_at <= watermark`. A lookup that finds no
 //! row for a plan expiring strictly after the watermark therefore proves that
@@ -100,11 +102,29 @@ pub(crate) fn legacy_expiry_sql() -> String {
     format!("CAST(strftime('%s','now') AS INTEGER)+{PLAN_TTL_SECONDS}")
 }
 
-/// The watermark a store starts with when it gains one (schema 7). Before
-/// schema 6 nothing was ever pruned; a schema 6 store may have pruned rows
-/// whose expiry nobody recorded.
-pub(crate) fn initial_watermark(version: u32) -> i64 {
-    if version == 6 { i64::MAX } else { i64::MIN }
+/// The watermark a store starts with when it gains one (schema 7); `version`
+/// is the schema it was opened at and `now` the executor clock.
+///
+/// A store created now (version 0) knows nothing of what ran before it
+/// existed, perhaps in a store since lost, so it must not answer
+/// `NeverRecorded` for any plan that could predate it. Plans carry absolute
+/// expiries from core's clock, on the same host, and are valid only while
+/// `expires_at <= created_at + PLAN_TTL_SECONDS`; a plan created no later
+/// than this store therefore expires no later than `now + PLAN_TTL_SECONDS`.
+/// That is the creation floor, and the tight bound: any margin above it
+/// would answer `NoLongerHeld` (and refuse at execute) plans approved after
+/// the store existed. A clock that stepped back before the creation defeats
+/// it, as does a store restored from an older copy; core's check of the
+/// store epoch covers both (`ReceiptStore::epoch`).
+///
+/// Before schema 6 nothing was ever pruned. A schema 6 store may have pruned
+/// rows whose expiry nobody recorded, so it never claims `NeverRecorded`.
+pub(crate) fn initial_watermark(version: u32, now: i64) -> i64 {
+    match version {
+        0 => now.saturating_add(PLAN_TTL_SECONDS),
+        6 => i64::MAX,
+        _ => i64::MIN,
+    }
 }
 
 /// The greatest plan expiry among every receipt ever pruned.

@@ -39,6 +39,13 @@
         }
       ]
     },
+    "epoch": {
+      "description": "The container executor's receipt-store epoch, set on every answer that\nread or wrote the receipt store (execute, lookup, verify, resolve). It\nchanges whenever the store is reopened, so a store lost and recreated,\nor restored from an older copy, never answers under the epoch core\ndispatched under: core then holds every job it dispatched under the\nearlier epoch for an operator instead of accepting a `never_recorded`\nclosure for it.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "error": {
       "anyOf": [
         {

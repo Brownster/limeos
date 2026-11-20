@@ -145,6 +145,22 @@ impl Store {
         })?;
         Ok(next)
     }
+    /// As `record_container_closure`, for a stack job's closure receipt.
+    pub fn record_stack_closure(
+        &mut self,
+        job: &StackJob,
+        receipt: &StackReceipt,
+        now: i64,
+    ) -> Result<JobState> {
+        if receipt.state != ExecutionState::PreconditionChanged {
+            return Err(Error(ErrorCode::Conflict));
+        }
+        if self.closure_disputed(&job.id, "stack_results", &json(receipt)?)? {
+            self.record_receipt_disagrees(&job.id, now)?;
+            return Ok(JobState::NeedsIntervention);
+        }
+        self.record_stack_result(job, receipt, None, now)
+    }
     /// The last recorded per-member evidence for a job, if any.
     #[allow(clippy::type_complexity)]
     pub fn stack_result(

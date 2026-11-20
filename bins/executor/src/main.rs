@@ -435,6 +435,7 @@ async fn run() -> std::io::Result<()> {
                                 .await
                                 .inspect_err(note_refusal)?,
                         );
+                        receipt.epoch = Some(store.epoch().to_owned());
                     }
                     Request::RestartReceipt {
                         action,
@@ -463,6 +464,7 @@ async fn run() -> std::io::Result<()> {
                             clock(),
                         )?;
                         answer(&mut receipt, Answer::restart_lookup(lookup));
+                        receipt.epoch = Some(store.epoch().to_owned());
                     }
                     Request::VerifyRestart {
                         action,
@@ -488,6 +490,7 @@ async fn run() -> std::io::Result<()> {
                                 )
                                 .await?,
                         );
+                        receipt.epoch = Some(store.epoch().to_owned());
                     }
                     Request::InspectStack { project, .. }
                         if source == limeos_contracts::Source::Docker =>
@@ -525,6 +528,7 @@ async fn run() -> std::io::Result<()> {
                                 .await
                                 .inspect_err(note_refusal)?,
                         );
+                        receipt.epoch = Some(store.epoch().to_owned());
                     }
                     Request::StackReceipt {
                         action,
@@ -550,6 +554,7 @@ async fn run() -> std::io::Result<()> {
                             clock(),
                         )?;
                         answer(&mut receipt, Answer::stack_lookup(lookup));
+                        receipt.epoch = Some(store.epoch().to_owned());
                     }
                     Request::VerifyStack {
                         action,
@@ -575,6 +580,7 @@ async fn run() -> std::io::Result<()> {
                                 )
                                 .await?,
                         );
+                        receipt.epoch = Some(store.epoch().to_owned());
                     }
                     Request::ResolveAction {
                         kind,
@@ -609,6 +615,7 @@ async fn run() -> std::io::Result<()> {
                             )
                             .await?;
                         answer(&mut receipt, Answer::resolve(outcome));
+                        receipt.epoch = Some(store.epoch().to_owned());
                     }
                     Request::Health { .. } => {}
                     _ => return Err(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden)),

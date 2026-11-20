@@ -200,6 +200,7 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
         absence,
         closed,
         resolution_refusal,
+        epoch,
         logs,
         error,
         storage,
@@ -224,6 +225,7 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
         || absence.is_some()
         || closed
         || resolution_refusal.is_some()
+        || epoch.is_some()
         || logs.is_some()
         || storage.is_some()
         || storage_targets.is_some()

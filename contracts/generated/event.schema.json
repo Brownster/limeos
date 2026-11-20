@@ -202,6 +202,34 @@
           ]
         },
         {
+          "description": "The container executor's receipt store changed while this job was held:\nan answer carried a store epoch other than the one core last saw (a\nstore reopened, lost and recreated, or restored from an older copy).\nThe store may have lost what this job did, so a `never_recorded`\nclosure for it is not accepted.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "executor_store_changed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "The executor answered with a closure saying it never recorded this job,\nwhich contradicts what core holds: a result core already recorded, or\na dispatch under an earlier store epoch. Nothing was released; the job\nstays held for an operator.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "executor_record_disagrees"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
           "type": "object",
           "properties": {
             "kind": {

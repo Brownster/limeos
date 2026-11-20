@@ -28,6 +28,12 @@
 //!   operator), and a late execute is refused with `Expired` rather than shown
 //!   a receipt that claims nothing was sent.
 //!
+//! A `never_recorded` answer is only as good as the store's history: a store
+//! created now starts its watermark at a creation floor, and every open draws
+//! a new epoch that core checks, so a store lost, recreated or restored never
+//! certifies an action it did not see (`retention::initial_watermark`,
+//! `ReceiptStore::epoch`).
+//!
 //! A closure row is not an action's receipt for any other purpose: `verify`
 //! and `verify_stack` find nothing in it to verify, and `ResolveAction`
 //! answers it as the absence it records. Retention prunes it like any settled

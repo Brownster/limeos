@@ -212,6 +212,17 @@ pub enum EventKind {
     /// receipt may have been pruned: whether the action ran is unknown, and the
     /// job stays held for an operator.
     ExecutorReceiptMissing,
+    /// The container executor's receipt store changed while this job was held:
+    /// an answer carried a store epoch other than the one core last saw (a
+    /// store reopened, lost and recreated, or restored from an older copy).
+    /// The store may have lost what this job did, so a `never_recorded`
+    /// closure for it is not accepted.
+    ExecutorStoreChanged,
+    /// The executor answered with a closure saying it never recorded this job,
+    /// which contradicts what core holds: a result core already recorded, or
+    /// a dispatch under an earlier store epoch. Nothing was released; the job
+    /// stays held for an operator.
+    ExecutorRecordDisagrees,
     JobTransition {
         state: JobState,
     },

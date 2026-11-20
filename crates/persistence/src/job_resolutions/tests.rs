@@ -670,7 +670,7 @@ fn migration_from_version_15_widens_the_job_states_and_keeps_existing_rows() {
         // Rebuild the version-15 shape: no table, triggers or widened CHECK.
         s.conn
             .execute_batch(
-                "DROP INDEX events_notification; DROP INDEX events_kind; DROP INDEX events_job; DROP TRIGGER jobs_resolved_update; DROP TRIGGER jobs_resolved_insert; DROP TABLE job_resolutions;
+                "ALTER TABLE meta DROP COLUMN executor_epoch; DROP INDEX events_notification; DROP INDEX events_kind; DROP INDEX events_job; DROP TRIGGER jobs_resolved_update; DROP TRIGGER jobs_resolved_insert; DROP TABLE job_resolutions;
                  PRAGMA writable_schema=ON;
                  UPDATE sqlite_schema SET sql=replace(sql,',''resolved'')',')') WHERE type='table' AND name='jobs';
                  PRAGMA writable_schema=RESET;

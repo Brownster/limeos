@@ -221,7 +221,8 @@ async fn a_stuck_job_whose_container_was_removed_can_be_resolved() {
         .permissions(std::fs::Permissions::from_mode(0o700))
         .tempdir()
         .unwrap();
-    let mut store = crate::ReceiptStore::open(receipts.path()).unwrap();
+    let mut store =
+        crate::ReceiptStore::open_at(receipts.path(), crate::TEST_STORE_CREATED).unwrap();
     let ceiling = crate::ContainerCeiling {
         version: 1,
         core_uid: 1001,

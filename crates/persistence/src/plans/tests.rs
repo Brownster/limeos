@@ -745,3 +745,226 @@ fn every_held_container_job_is_listed_however_many_older_ones_are_held() {
         .collect();
     assert_eq!(seen, held);
 }
+
+/// A claimed restart job on the fixture container and its closure receipt,
+/// as a closing lookup answers it for an action it never recorded.
+fn claimed_with_closure(
+    store: &mut Store,
+    p: &Principal,
+    key: &str,
+    at: i64,
+) -> (RestartJob, limeos_domain::RestartReceipt) {
+    let (proposal, approval) = approved(store, p, at);
+    let job = store
+        .queue_container(p, key, &proposal, &approval.token, &snapshot(), at + 2)
+        .unwrap();
+    let job = store
+        .claim_container(p, &job.id, &snapshot(), at + 3)
+        .unwrap();
+    let closure = limeos_domain::RestartReceipt {
+        action: job.id.clone(),
+        plan_digest: limeos_identity::digest(&json(&job.plan).unwrap()),
+        operation: job.plan.operation,
+        before: job.plan.expected.clone(),
+        state: limeos_domain::ExecutionState::PreconditionChanged,
+        error: Some(ErrorCode::Expired),
+    };
+    (job, closure)
+}
+fn count_events(store: &Store, job: &str, kind: &EventKind) -> i64 {
+    store
+        .conn
+        .query_row(
+            "SELECT count(*) FROM events WHERE job=? AND kind=?",
+            params![job, json(kind).unwrap()],
+            |r| r.get(0),
+        )
+        .unwrap()
+}
+fn held_locks(store: &Store, job: &str) -> i64 {
+    store
+        .conn
+        .query_row(
+            "SELECT count(*) FROM resource_locks WHERE job=?",
+            [job],
+            |r| r.get(0),
+        )
+        .unwrap()
+}
+
+/// With nothing against it, a closure releases the job like any refusal,
+/// and a repeat changes nothing.
+#[test]
+fn an_undisputed_closure_releases_the_job_once() {
+    let (_dir, mut store, p) = setup();
+    store.observe_executor_epoch(&"1".repeat(64), 200).unwrap();
+    let (job, closure) = claimed_with_closure(&mut store, &p, "closed", 200);
+    for _ in 0..2 {
+        assert_eq!(
+            store.record_container_closure(&job, &closure, 210).unwrap(),
+            JobState::PreconditionChanged
+        );
+    }
+    assert_eq!(held_locks(&store, &job.id), 0);
+    assert_eq!(
+        count_events(&store, &job.id, &EventKind::ExecutorRecordDisagrees),
+        0
+    );
+}
+
+/// Core already holds a result for the job: the executor ran it and then
+/// lost its store. A closure saying it never recorded the action never
+/// overwrites that result or releases the job.
+#[test]
+fn a_closure_never_overwrites_a_result_core_already_holds() {
+    use limeos_domain::ExecutionState;
+    let (_dir, mut store, p) = setup();
+    let (job, closure) = claimed_with_closure(&mut store, &p, "ran", 200);
+    let ran = limeos_domain::RestartReceipt {
+        state: ExecutionState::OutcomeUnknown,
+        error: Some(ErrorCode::Unavailable),
+        ..closure.clone()
+    };
+    assert_eq!(
+        store
+            .record_container_result(&job, &ran, None, 205)
+            .unwrap(),
+        JobState::NeedsIntervention
+    );
+    let stored = |store: &Store| -> String {
+        store
+            .conn
+            .query_row(
+                "SELECT receipt FROM container_results WHERE job=?",
+                [&job.id],
+                |r| r.get(0),
+            )
+            .unwrap()
+    };
+    let before = stored(&store);
+    let mut held = job.clone();
+    held.state = JobState::NeedsIntervention;
+    for _ in 0..2 {
+        assert_eq!(
+            store
+                .record_container_closure(&held, &closure, 210)
+                .unwrap(),
+            JobState::NeedsIntervention
+        );
+    }
+    assert_eq!(stored(&store), before);
+    assert_eq!(store.job_state(&job.id).unwrap(), "needs_intervention");
+    assert_eq!(held_locks(&store, &job.id), 1);
+    assert_eq!(
+        count_events(&store, &job.id, &EventKind::ExecutorRecordDisagrees),
+        1
+    );
+}
+
+/// The executor's store changed (a new epoch) while the job was held: its
+/// closure is not accepted, the job stays held, and a job dispatched after
+/// the change is released as usual.
+#[test]
+fn a_new_store_epoch_marks_held_jobs_and_their_closures_are_refused() {
+    let (_dir, mut store, p) = setup();
+    // The first epoch seen marks nothing; repeating it writes nothing.
+    assert_eq!(
+        store.observe_executor_epoch(&"1".repeat(64), 200).unwrap(),
+        0
+    );
+    let (job, closure) = claimed_with_closure(&mut store, &p, "before", 200);
+    assert_eq!(
+        store.observe_executor_epoch(&"1".repeat(64), 205).unwrap(),
+        0
+    );
+    assert_eq!(
+        count_events(&store, &job.id, &EventKind::ExecutorStoreChanged),
+        0
+    );
+    // A new epoch: the held job is marked once, however often it changes.
+    assert_eq!(
+        store.observe_executor_epoch(&"2".repeat(64), 206).unwrap(),
+        1
+    );
+    assert_eq!(
+        store.observe_executor_epoch(&"3".repeat(64), 207).unwrap(),
+        0
+    );
+    assert_eq!(
+        count_events(&store, &job.id, &EventKind::ExecutorStoreChanged),
+        1
+    );
+    assert_eq!(
+        store.record_container_closure(&job, &closure, 210).unwrap(),
+        JobState::NeedsIntervention
+    );
+    assert_eq!(held_locks(&store, &job.id), 1);
+    assert_eq!(
+        count_events(&store, &job.id, &EventKind::ExecutorRecordDisagrees),
+        1
+    );
+    assert!(store.observe_executor_epoch("not an epoch", 211).is_err());
+}
+
+#[test]
+fn a_store_epoch_change_leaves_queued_and_settled_jobs_alone() {
+    let (_dir, mut store, p) = setup();
+    store.observe_executor_epoch(&"1".repeat(64), 200).unwrap();
+    let (settled, closure) = claimed_with_closure(&mut store, &p, "settled", 200);
+    store
+        .record_container_closure(&settled, &closure, 205)
+        .unwrap();
+    let (proposal, approval) = approved(&mut store, &p, 206);
+    let queued = store
+        .queue_container(&p, "queued", &proposal, &approval.token, &snapshot(), 208)
+        .unwrap();
+    assert_eq!(
+        store.observe_executor_epoch(&"2".repeat(64), 209).unwrap(),
+        0
+    );
+    for job in [&settled.id, &queued.id] {
+        assert_eq!(
+            count_events(&store, job, &EventKind::ExecutorStoreChanged),
+            0
+        );
+    }
+}
+
+/// Schema 18 adds the epoch column; an upgraded store has seen none yet and
+/// keeps every row.
+#[test]
+fn schema_seventeen_upgrade_adds_the_executor_epoch_and_keeps_every_row() {
+    let (dir, mut store, p) = setup();
+    let path = dir.path().join("core.sqlite");
+    let (job, _) = claimed_with_closure(&mut store, &p, "kept", 200);
+    let jobs = |store: &Store| -> i64 {
+        store
+            .conn
+            .query_row("SELECT count(*) FROM jobs", [], |r| r.get(0))
+            .unwrap()
+    };
+    let before = jobs(&store);
+    crate::remove_v18_schema(&store.conn);
+    store.conn.execute_batch("PRAGMA user_version=17").unwrap();
+    drop(store);
+    assert_eq!(crate::upgrade_space(&path), None);
+    let mut store = Store::open(&path).unwrap();
+    let version: u32 = store
+        .conn
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .unwrap();
+    assert_eq!(version, SCHEMA_VERSION);
+    assert_eq!(jobs(&store), before);
+    let epoch: Option<String> = store
+        .conn
+        .query_row("SELECT executor_epoch FROM meta WHERE id=1", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(epoch, None);
+    assert_eq!(store.job_state(&job.id).unwrap(), "needs_intervention");
+    assert_eq!(
+        store.observe_executor_epoch(&"1".repeat(64), 300).unwrap(),
+        0
+    );
+}

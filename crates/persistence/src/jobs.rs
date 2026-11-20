@@ -1,5 +1,8 @@
 use super::*;
 
+/// The operations whose jobs the container executor's receipts settle.
+const EXECUTOR_OPERATIONS: &str = "('container_restart','container_start','container_stop','stack_restart','stack_start','stack_stop')";
+
 /// One recovery candidate row: id, intent, state, owner id, role, revision.
 pub(crate) type CandidateRow = (String, String, String, String, String, i64);
 
@@ -196,6 +199,118 @@ impl Store {
     /// one `executor_receipt_missing` event records why. Repeating it changes
     /// nothing, so the recovery poll cannot grow the audit log.
     pub fn record_receipt_missing(&mut self, id: &str, now: i64) -> Result<()> {
+        self.hold_for_operator(id, EventKind::ExecutorReceiptMissing, now)
+    }
+
+    /// The container executor's receipt-store epoch, from an answer core just
+    /// received. The first one seen is recorded. One that differs from the
+    /// recorded epoch means the store core talks to is not the one it
+    /// dispatched its held jobs under: every held container and stack job gets
+    /// one `executor_store_changed` event (so a `never_recorded` closure for
+    /// it is refused, `record_container_closure`), and the new epoch is
+    /// recorded, in one transaction. Returns the jobs marked. An unchanged
+    /// epoch writes nothing.
+    pub fn observe_executor_epoch(&mut self, epoch: &str, now: i64) -> Result<usize> {
+        if !limeos_domain::opaque_id(epoch) {
+            return Err(Error(ErrorCode::InvalidInput));
+        }
+        let seen: Option<String> = self
+            .conn
+            .query_row("SELECT executor_epoch FROM meta WHERE id=1", [], |r| {
+                r.get(0)
+            })
+            .map_err(durable)?;
+        if seen.as_deref() == Some(epoch) {
+            return Ok(0);
+        }
+        self.write(|tx| {
+            let seen: Option<String> = tx
+                .query_row("SELECT executor_epoch FROM meta WHERE id=1", [], |r| {
+                    r.get(0)
+                })
+                .map_err(durable)?;
+            let marked = match seen {
+                Some(seen) if seen == epoch => return Ok(0),
+                // Nothing was dispatched under a known epoch yet: an upgraded
+                // core, or a fresh install. The executor's creation floor
+                // covers a store created since.
+                None => 0,
+                Some(_) => {
+                    let kind = json(&EventKind::ExecutorStoreChanged)?;
+                    let marked = tx
+                        .execute(
+                            &format!(
+                                "INSERT INTO events(principal,job,kind,created) SELECT j.principal,j.id,?1,?2 FROM jobs j WHERE j.state IN ('running','verifying','outcome_unknown','needs_intervention') AND json_extract(j.intent,'$.operation') IN {EXECUTOR_OPERATIONS} AND NOT EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND e.kind=?1)"
+                            ),
+                            params![kind, now],
+                        )
+                        .map_err(durable)?;
+                    retention::account(tx, marked as i64)?;
+                    marked
+                }
+            };
+            if tx
+                .execute(
+                    "UPDATE meta SET executor_epoch=? WHERE id=1",
+                    [epoch],
+                )
+                .map_err(durable)?
+                != 1
+            {
+                return Err(Error(ErrorCode::StateNotDurable));
+            }
+            Ok(marked)
+        })
+    }
+
+    /// Whether a `never_recorded` closure (`body`, the receipt as recorded)
+    /// for this job contradicts what core holds: a result already recorded
+    /// in `results` other than this very closure, or an
+    /// `executor_store_changed` event, since the store it was dispatched to
+    /// may have lost the job's receipt. Pure lookup.
+    pub(crate) fn closure_disputed(&self, id: &str, results: &str, body: &str) -> Result<bool> {
+        let state: String = self
+            .conn
+            .query_row("SELECT state FROM jobs WHERE id=?", [id], |r| r.get(0))
+            .optional()
+            .map_err(durable)?
+            .ok_or(Error(ErrorCode::NotFound))?;
+        let recorded: Option<String> = self
+            .conn
+            .query_row(
+                &format!("SELECT receipt FROM {results} WHERE job=?"),
+                [id],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(durable)?;
+        if state == JobState::PreconditionChanged.as_str() && recorded.as_deref() == Some(body) {
+            // The same closure, recorded before: a repeat.
+            return Ok(false);
+        }
+        if recorded.is_some() {
+            return Ok(true);
+        }
+        self.conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM events WHERE job=? AND kind=?)",
+                params![id, json(&EventKind::ExecutorStoreChanged)?],
+                |r| r.get(0),
+            )
+            .map_err(durable)
+    }
+
+    /// A `never_recorded` closure contradicted what core holds
+    /// (`closure_disputed`): nothing is released. The job moves to (or stays
+    /// in) `needs_intervention` with every lock, and one
+    /// `executor_record_disagrees` event records why; a repeat writes nothing.
+    pub fn record_receipt_disagrees(&mut self, id: &str, now: i64) -> Result<()> {
+        self.hold_for_operator(id, EventKind::ExecutorRecordDisagrees, now)
+    }
+
+    /// Hold an uncertain container or stack job for an operator, recording
+    /// `reason` once.
+    fn hold_for_operator(&mut self, id: &str, reason: EventKind, now: i64) -> Result<()> {
         self.write(|tx| {
             let (principal, state, intent): (String, String, String) = tx
                 .query_row(
@@ -244,7 +359,7 @@ impl Store {
                     now,
                 )?;
             }
-            let kind = json(&EventKind::ExecutorReceiptMissing)?;
+            let kind = json(&reason)?;
             let recorded: i64 = tx
                 .query_row(
                     "SELECT count(*) FROM events WHERE job=? AND kind=?",
@@ -253,13 +368,7 @@ impl Store {
                 )
                 .map_err(durable)?;
             if recorded == 0 {
-                event(
-                    tx,
-                    Some(&principal),
-                    Some(id),
-                    EventKind::ExecutorReceiptMissing,
-                    now,
-                )?;
+                event(tx, Some(&principal), Some(id), reason, now)?;
             }
             Ok(())
         })

@@ -43,6 +43,8 @@ struct Engine {
     closed: Option<limeos_domain::ReceiptAbsence>,
     /// Receipt lookups that did not ask to close: core never sends one.
     plain_reads: usize,
+    /// The receipt store's epoch, sent with every receipt answer once set.
+    epoch: Option<String>,
 }
 fn snap(c: char, running: bool) -> ContainerSnapshot {
     ContainerSnapshot {
@@ -268,6 +270,15 @@ fn close(
 }
 fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
     let mut response = Receipt::empty();
+    if matches!(
+        request,
+        Request::ExecuteStack { .. }
+            | Request::StackReceipt { .. }
+            | Request::VerifyStack { .. }
+            | Request::ResolveAction { .. }
+    ) {
+        response.epoch = state.epoch.clone();
+    }
     match request {
         Request::InspectStack { .. } => {
             state.inspects += 1;
@@ -1906,4 +1917,117 @@ async fn a_hidden_overlapping_project_or_an_unattributed_container_refuses_plann
         assert_eq!(f.engine.lock().unwrap().inspects, 0);
         f.task.abort();
     }
+}
+
+fn record_events(
+    progress: &limeos_contracts::StackJobProgress,
+    kind: &limeos_domain::EventKind,
+) -> usize {
+    progress.events.iter().filter(|e| &e.event == kind).count()
+}
+
+/// The executor ran the stack and core recorded its uncertain outcome; then
+/// the receipt store was lost and recreated (a new epoch, no row). The
+/// recovery lookup's closure says the action was never recorded, which
+/// contradicts the result core holds: the job stays held with every lock,
+/// the result is kept, and the disagreement is recorded once.
+#[tokio::test]
+async fn a_recreated_store_never_releases_a_stack_core_holds_a_result_for() {
+    use limeos_domain::EventKind;
+    let f = admin().await;
+    {
+        let mut engine = f.engine.lock().unwrap();
+        engine.epoch = Some("1".repeat(64));
+        engine.fail_at = Some(1);
+        engine.fail_without_effect = true;
+    }
+    let job = f.queued(ContainerAction::Restart, "ran").await;
+    f.core
+        .dispatch_stack(f.principal().await, job.clone())
+        .await
+        .unwrap();
+    let held = f
+        .core
+        .stack_job_progress(f.token.clone(), job.id.clone(), 0)
+        .await
+        .unwrap();
+    assert_eq!(held.job.state, JobState::NeedsIntervention);
+    {
+        let mut engine = f.engine.lock().unwrap();
+        engine.receipt = None;
+        engine.epoch = Some("2".repeat(64));
+    }
+    for _ in 0..2 {
+        let current = f.current(&job).await;
+        f.core
+            .dispatch_stack(f.principal().await, current)
+            .await
+            .unwrap();
+    }
+    let progress = f
+        .core
+        .stack_job_progress(f.token.clone(), job.id.clone(), 0)
+        .await
+        .unwrap();
+    assert_eq!(progress.job.state, JobState::NeedsIntervention);
+    assert_eq!(progress.receipt, held.receipt);
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorRecordDisagrees),
+        1
+    );
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorStoreChanged),
+        1
+    );
+    assert!(!member_claimable(&f, "after").await);
+    f.task.abort();
+}
+
+/// A stack dispatched while core knew the store's epoch, its execute answer
+/// lost before any row; the store is then replaced by an older copy (a new
+/// epoch, no row). Its closure is not accepted: the stack stays held.
+#[tokio::test]
+async fn a_stack_dispatched_under_an_earlier_store_epoch_is_held_on_a_closure() {
+    use limeos_domain::EventKind;
+    let f = admin().await;
+    f.engine.lock().unwrap().epoch = Some("1".repeat(64));
+    f.core
+        .db
+        .call(|s| s.observe_executor_epoch(&"1".repeat(64), now()))
+        .await
+        .unwrap();
+    let job = claimed_at(&f, "lost", now()).await;
+    f.engine.lock().unwrap().epoch = Some("2".repeat(64));
+    let current = f.current(&job).await;
+    f.core
+        .dispatch_stack(f.principal().await, current)
+        .await
+        .unwrap();
+    let progress = f
+        .core
+        .stack_job_progress(f.token.clone(), job.id.clone(), 0)
+        .await
+        .unwrap();
+    assert_eq!(progress.job.state, JobState::NeedsIntervention);
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorStoreChanged),
+        1
+    );
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorRecordDisagrees),
+        1
+    );
+    assert!(!member_claimable(&f, "after").await);
+    // Under one unchanged epoch, the same closure releases a stack at once.
+    let next = admin().await;
+    next.engine.lock().unwrap().epoch = Some("1".repeat(64));
+    let job = claimed_at(&next, "fresh", now()).await;
+    let current = next.current(&job).await;
+    next.core
+        .dispatch_stack(next.principal().await, current)
+        .await
+        .unwrap();
+    assert_eq!(next.state(&job).await, JobState::PreconditionChanged);
+    f.task.abort();
+    next.task.abort();
 }

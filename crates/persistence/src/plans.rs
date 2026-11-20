@@ -96,6 +96,28 @@ impl Store {
         })?;
         Ok(next)
     }
+    /// A closure receipt for this job from a closing lookup: the executor
+    /// never recorded the action, so nothing was sent and nothing can be. It
+    /// is recorded like any refusal (`record_container_result`, which
+    /// releases the locks as `precondition_changed`), unless it contradicts
+    /// what core holds (`closure_disputed`): then nothing is released and the
+    /// job is held for an operator (`record_receipt_disagrees`). Never
+    /// overwrites a result already recorded.
+    pub fn record_container_closure(
+        &mut self,
+        job: &RestartJob,
+        receipt: &limeos_domain::RestartReceipt,
+        now: i64,
+    ) -> Result<JobState> {
+        if receipt.state != limeos_domain::ExecutionState::PreconditionChanged {
+            return Err(Error(ErrorCode::Conflict));
+        }
+        if self.closure_disputed(&job.id, "container_results", &json(receipt)?)? {
+            self.record_receipt_disagrees(&job.id, now)?;
+            return Ok(JobState::NeedsIntervention);
+        }
+        self.record_container_result(job, receipt, None, now)
+    }
     pub fn plan_restart(
         &mut self,
         principal: &Principal,

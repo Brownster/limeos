@@ -716,3 +716,83 @@ fn every_held_stack_job_is_listed_however_many_older_ones_are_held() {
     assert_eq!(pages[3].len(), pages[0].len());
     assert_eq!(pages[3][1].id, pages[0][1].id);
 }
+
+/// A stack job's closure receipt, as a closing lookup answers it.
+fn closure_of(job: &StackJob) -> StackReceipt {
+    let base = receipt(job, &[ExecutionState::PreconditionChanged; 2]);
+    StackReceipt {
+        error: Some(ErrorCode::Expired),
+        members: base
+            .members
+            .iter()
+            .map(|m| StackMemberReceipt {
+                error: Some(ErrorCode::Expired),
+                ..m.clone()
+            })
+            .collect(),
+        ..base
+    }
+}
+fn disagreements(s: &Store, job: &str) -> i64 {
+    s.conn
+        .query_row(
+            "SELECT count(*) FROM events WHERE job=? AND kind=?",
+            params![job, json(&EventKind::ExecutorRecordDisagrees).unwrap()],
+            |r| r.get(0),
+        )
+        .unwrap()
+}
+
+/// As for a container job: a closure never overwrites a stack result core
+/// already holds (the executor ran the stack, then lost its store).
+#[test]
+fn a_stack_closure_never_overwrites_a_result_core_already_holds() {
+    let (_dir, mut s, p) = setup();
+    let job = queued(&mut s, &p, ContainerAction::Restart, "ran", 200);
+    let job = s.claim_stack(&p, &job.id, &stack(), 203).unwrap();
+    let held = locks(&s, &job.id);
+    let ran = receipt(
+        &job,
+        &[
+            ExecutionState::EffectAccepted,
+            ExecutionState::OutcomeUnknown,
+        ],
+    );
+    s.record_stack_result(&job, &ran, None, 204).unwrap();
+    for _ in 0..2 {
+        assert_eq!(
+            s.record_stack_closure(&job, &closure_of(&job), 205)
+                .unwrap(),
+            JobState::NeedsIntervention
+        );
+    }
+    assert_eq!(s.stack_result(&p, &job.id).unwrap().unwrap().0, ran);
+    assert_eq!(locks(&s, &job.id), held);
+    assert_eq!(disagreements(&s, &job.id), 1);
+}
+
+/// A stack held across a store epoch change is not released by a closure;
+/// without the change it is.
+#[test]
+fn a_stack_closure_after_a_store_epoch_change_is_refused() {
+    for changed in [false, true] {
+        let (_dir, mut s, p) = setup();
+        s.observe_executor_epoch(&"1".repeat(64), 200).unwrap();
+        let job = queued(&mut s, &p, ContainerAction::Restart, "lost", 200);
+        let job = s.claim_stack(&p, &job.id, &stack(), 203).unwrap();
+        if changed {
+            assert_eq!(s.observe_executor_epoch(&"2".repeat(64), 204).unwrap(), 1);
+        }
+        let state = s
+            .record_stack_closure(&job, &closure_of(&job), 205)
+            .unwrap();
+        if changed {
+            assert_eq!(state, JobState::NeedsIntervention);
+            assert_eq!(locks(&s, &job.id).len(), 5);
+            assert_eq!(disagreements(&s, &job.id), 1);
+        } else {
+            assert_eq!(state, JobState::PreconditionChanged);
+            assert!(locks(&s, &job.id).is_empty());
+        }
+    }
+}

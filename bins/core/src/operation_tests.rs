@@ -18,6 +18,8 @@ struct EngineFixture {
     closed: Option<limeos_domain::ReceiptAbsence>,
     /// Lookups that did not ask to close: core never sends one.
     plain_reads: usize,
+    /// The receipt store's epoch, sent with every receipt answer.
+    epoch: Option<String>,
 }
 #[tokio::test]
 async fn logs_recheck_revocation_after_reading_and_viewer_scope_never_reaches_executor() {
@@ -168,6 +170,7 @@ async fn fixture() -> (
         closes: true,
         closed: None,
         plain_reads: 0,
+        epoch: Some("1".repeat(64)),
     }));
     let entered = Arc::new(tokio::sync::Notify::new());
     let release = Arc::new(tokio::sync::Notify::new());
@@ -189,6 +192,15 @@ async fn fixture() -> (
             let response = {
                 let mut state = fixture.lock().unwrap();
                 let mut response = Receipt::empty();
+                if matches!(
+                    request,
+                    Request::Restart { .. }
+                        | Request::ExecuteContainer { .. }
+                        | Request::RestartReceipt { .. }
+                        | Request::VerifyRestart { .. }
+                ) {
+                    response.epoch = state.epoch.clone();
+                }
                 match request {
                     Request::Inspect { .. } => response.inspection = Some(state.current.clone()),
                     Request::ContainerLogs { .. } => {
@@ -617,4 +629,109 @@ fn recovery_rotation_lists_every_held_job_and_pauses_each() {
     assert_eq!(seen.len(), held.len());
     // Each is looked up once per pause, however often it is listed.
     assert_eq!(polled, held.len());
+}
+
+fn record_events(
+    progress: &limeos_contracts::JobProgress,
+    kind: &limeos_domain::EventKind,
+) -> usize {
+    progress.events.iter().filter(|e| &e.event == kind).count()
+}
+
+/// The executor ran the action and core recorded its uncertain outcome; then
+/// the receipt store was lost and recreated (a new epoch, no row). The
+/// recovery lookup's closure says it was never recorded, contradicting the
+/// result core holds: the job stays held with its lock and its result, and
+/// the disagreement is recorded once.
+#[tokio::test]
+async fn a_recreated_store_never_releases_a_container_job_core_holds_a_result_for() {
+    use limeos_domain::EventKind;
+    let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
+    let (principal, running) = claimed_unsent(&core, &token, &csrf, &state).await;
+    // The execute answer: the restart may have happened.
+    let ran = RestartReceipt {
+        operation: running.plan.operation,
+        action: running.id.clone(),
+        plan_digest: limeos_identity::digest(&serde_json::to_string(&running.plan).unwrap()),
+        before: running.plan.expected.clone(),
+        state: ExecutionState::OutcomeUnknown,
+        error: Some(ErrorCode::Unavailable),
+    };
+    let (job, recorded) = (running.clone(), ran.clone());
+    core.db
+        .call(move |s| s.record_container_result(&job, &recorded, None, now()))
+        .await
+        .unwrap();
+    // The store is lost and recreated: no row, and a new epoch.
+    state.lock().unwrap().epoch = Some("2".repeat(64));
+    for _ in 0..2 {
+        let id = running.id.clone();
+        let current = core
+            .db
+            .call(move |s| s.container_candidates())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|(_, job)| job)
+            .find(|job| job.id == id)
+            .unwrap();
+        core.dispatch_one(principal.clone(), current).await.unwrap();
+    }
+    let progress = core
+        .restart_progress(token.clone(), running.id.clone(), 0)
+        .await
+        .unwrap();
+    assert_eq!(progress.job.state, JobState::NeedsIntervention);
+    // The result core recorded from the execute answer is kept.
+    let (admin, id) = (principal_of(&core, &token).await, running.id.clone());
+    let members = core
+        .db
+        .call(move |s| s.resolution_members(&admin, &id))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(members[0].state, ran.state);
+    assert_eq!(members[0].error, ran.error);
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorRecordDisagrees),
+        1
+    );
+    // Core saw no earlier epoch here: the result it holds decides alone.
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorStoreChanged),
+        0
+    );
+    assert_eq!(state.lock().unwrap().posts, 0);
+    task.abort();
+}
+
+/// A job dispatched while core knew the store's epoch, its execute answer
+/// lost before any row; the store is then replaced by an older copy (a new
+/// epoch). Its closure is not accepted: the job stays held.
+#[tokio::test]
+async fn a_container_job_dispatched_under_an_earlier_store_epoch_is_held_on_a_closure() {
+    use limeos_domain::EventKind;
+    let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
+    core.db
+        .call(|s| s.observe_executor_epoch(&"1".repeat(64), now()))
+        .await
+        .unwrap();
+    let (principal, running) = claimed_unsent(&core, &token, &csrf, &state).await;
+    state.lock().unwrap().epoch = Some("2".repeat(64));
+    core.dispatch_one(principal, running.clone()).await.unwrap();
+    let progress = core
+        .restart_progress(token.clone(), running.id.clone(), 0)
+        .await
+        .unwrap();
+    assert_eq!(progress.job.state, JobState::NeedsIntervention);
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorStoreChanged),
+        1
+    );
+    assert_eq!(
+        record_events(&progress, &EventKind::ExecutorRecordDisagrees),
+        1
+    );
+    assert_eq!(state.lock().unwrap().posts, 0);
+    task.abort();
 }

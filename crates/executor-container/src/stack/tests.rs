@@ -156,7 +156,7 @@ fn states(receipt: &StackReceipt) -> Vec<(char, ExecutionState)> {
 #[tokio::test]
 async fn restart_writes_prepared_rows_for_exactly_the_targets_then_effects_in_id_order() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let engine = StackEngine::new();
     let request = request(ContainerAction::Restart);
     let receipt = store
@@ -199,7 +199,7 @@ async fn restart_writes_prepared_rows_for_exactly_the_targets_then_effects_in_id
 #[tokio::test]
 async fn start_and_stop_select_targets_by_state_and_use_their_own_engine_call() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let engine = StackEngine::new();
     let mut start = request(ContainerAction::Start);
     start.action = "e".repeat(64);
@@ -211,7 +211,7 @@ async fn start_and_stop_select_targets_by_state_and_use_their_own_engine_call() 
     assert_eq!(engine.calls(), ["start c"]);
     // The start action is unresolved and holds the stack; use a fresh store.
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let engine = StackEngine::new();
     let stop = request(ContainerAction::Stop);
     store
@@ -224,7 +224,7 @@ async fn start_and_stop_select_targets_by_state_and_use_their_own_engine_call() 
 #[tokio::test]
 async fn targets_are_verified_independently_and_release_only_their_own_locks() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let engine = StackEngine::new();
     let request = request(ContainerAction::Restart);
     store
@@ -290,7 +290,7 @@ async fn targets_are_verified_independently_and_release_only_their_own_locks() {
 #[tokio::test]
 async fn single_container_actions_and_other_stack_actions_cannot_share_a_member() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let engine = StackEngine::new();
     let first = request(ContainerAction::Restart);
     store
@@ -329,7 +329,7 @@ async fn single_container_actions_and_other_stack_actions_cannot_share_a_member(
 #[tokio::test]
 async fn partial_failure_is_fail_stop_records_each_member_and_tolerates_partial_verification() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let all_running = vec![snap('a', true), snap('b', true), snap('c', true)];
     let engine = StackEngine::with(all_running.clone(), Some('b'));
     let request = request_for(ContainerAction::Restart, all_running);
@@ -453,7 +453,7 @@ impl Engine for Racing {
 async fn a_target_that_changed_during_the_run_is_not_sent_and_ends_the_run() {
     for (change_after, sent) in [(0, 0), (1, 1)] {
         let dir = private_dir();
-        let mut store = ReceiptStore::open(dir.path()).unwrap();
+        let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
         let engine = Racing {
             inner: StackEngine::new(),
             change_after,
@@ -489,7 +489,7 @@ async fn a_target_that_changed_during_the_run_is_not_sent_and_ends_the_run() {
 async fn member_drift_is_refused_whole_without_effects_locks_or_a_replay_hole() {
     for drift in 0..4 {
         let dir = private_dir();
-        let mut store = ReceiptStore::open(dir.path()).unwrap();
+        let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
         let mut actual = members();
         match drift {
             0 => actual.push(snap('d', true)),
@@ -529,7 +529,7 @@ async fn member_drift_is_refused_whole_without_effects_locks_or_a_replay_hole() 
 #[tokio::test]
 async fn expired_plans_and_bad_digests_are_refused_before_any_engine_contact() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let engine = StackEngine::new();
     let request = request(ContainerAction::Restart);
     assert_eq!(
@@ -571,7 +571,7 @@ async fn every_execute_path_refuses_its_plan_from_expiry_before_and_after_prepar
     // any Engine contact, and no row is written.
     for at in [expires_at, settle, expires_at + 3600] {
         let dir = private_dir();
-        let mut store = ReceiptStore::open(dir.path()).unwrap();
+        let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
         let engine = StackEngine::new();
         let refused = store
             .execute_stack(&engine, &ceiling(), 1001, &stack, || at)
@@ -593,7 +593,7 @@ async fn every_execute_path_refuses_its_plan_from_expiry_before_and_after_prepar
     // records the refusal and nothing reaches the Engine. Every clock read up
     // to and including the insert is valid; the next one is expired.
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let engine = StackEngine::new();
     let reads = AtomicUsize::new(0);
     let clock = || {
@@ -638,7 +638,7 @@ async fn every_execute_path_refuses_its_plan_from_expiry_before_and_after_prepar
 #[tokio::test]
 async fn authorization_failures_write_nothing_and_never_reach_the_engine() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let engine = StackEngine::new();
     let request = request(ContainerAction::Restart);
     let change = |f: &dyn Fn(&mut ContainerCeiling)| {
@@ -692,7 +692,7 @@ async fn authorization_failures_write_nothing_and_never_reach_the_engine() {
 #[tokio::test]
 async fn replay_by_action_returns_the_stored_receipt_without_any_effect() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let engine = StackEngine::new();
     let request = request(ContainerAction::Restart);
     let first = store
@@ -723,7 +723,7 @@ async fn replay_by_action_returns_the_stored_receipt_without_any_effect() {
 #[tokio::test]
 async fn tampered_member_or_stack_rows_are_reported_as_not_durable() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let engine = StackEngine::new();
     let request = request(ContainerAction::Restart);
     store
@@ -749,13 +749,13 @@ async fn tampered_member_or_stack_rows_are_reported_as_not_durable() {
 #[test]
 fn schema_three_upgrade_adds_the_stack_table_and_keeps_container_receipts() {
     let dir = private_dir();
-    let store = ReceiptStore::open(dir.path()).unwrap();
+    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     store
         .conn
         .execute_batch("DROP TABLE retention; DROP TABLE pruned_legacy; DROP TABLE stack_actions; PRAGMA user_version=3;")
         .unwrap();
     drop(store);
-    let store = ReceiptStore::open(dir.path()).unwrap();
+    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let version: u32 = store
         .conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
@@ -817,7 +817,7 @@ fn stack_crash_helper() {
         .build()
         .unwrap();
     runtime.block_on(async {
-        let mut store = ReceiptStore::open(&directory).unwrap();
+        let mut store = ReceiptStore::open_at(&directory, crate::TEST_STORE_CREATED).unwrap();
         let _ = store
             .execute_stack(
                 &CrashEngine {
@@ -850,7 +850,7 @@ async fn crash_before_the_first_effect_result_never_replays_and_stays_uncertain(
     // The first Engine call made its host effect, then the process died before
     // any member result was persisted: every member is still Prepared.
     let dir = crash_after(1);
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let request = request(ContainerAction::Restart);
     let engine = StackEngine::new();
     // Re-delivery of the same action returns the stored Prepared receipt.
@@ -918,7 +918,7 @@ async fn crash_before_the_first_effect_result_never_replays_and_stays_uncertain(
 #[tokio::test]
 async fn crash_between_two_effects_keeps_the_first_result_and_never_sends_the_second() {
     let dir = crash_after(2);
-    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     let request = request(ContainerAction::Restart);
     let engine = StackEngine::new();
     let found = store
@@ -959,7 +959,7 @@ async fn crash_between_two_effects_keeps_the_first_result_and_never_sends_the_se
     );
     // Reopening the store (a second restart) keeps the same evidence.
     drop(store);
-    let store = ReceiptStore::open(dir.path()).unwrap();
+    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
     assert_eq!(
         store
             .stack_receipt(&request.action, &request.plan_digest)

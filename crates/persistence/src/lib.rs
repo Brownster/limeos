@@ -16,7 +16,10 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 17;
+pub const SCHEMA_VERSION: u32 = 18;
+/// The schema whose upgrade builds the event indexes (`migration-v17.sql`):
+/// an upgrade from below it needs the free space `IndexBuild` measures.
+const INDEXED_SCHEMA: u32 = 17;
 pub const QUEUE_CAPACITY: usize = 64;
 /// Queued jobs, and separately held jobs, one recovery candidate listing
 /// returns at most (`Store::stack_candidates_after`).
@@ -438,7 +441,7 @@ fn upgrade_failed(
     build: IndexBuild,
     error: rusqlite::Error,
 ) -> Error {
-    if (1..SCHEMA_VERSION).contains(&from)
+    if (1..INDEXED_SCHEMA).contains(&from)
         && error.sqlite_error_code() == Some(rusqlite::ErrorCode::DiskFull)
         && let Ok(mut short) = UPGRADE_SHORT.lock()
     {
@@ -471,7 +474,7 @@ pub fn upgrade_space(path: &Path) -> Option<UpgradeSpace> {
     let from: u32 = conn
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .ok()?;
-    if !(1..SCHEMA_VERSION).contains(&from) {
+    if !(1..INDEXED_SCHEMA).contains(&from) {
         return None;
     }
     let needed = IndexBuild::measure(&conn).ok()?.needed();
@@ -560,7 +563,7 @@ impl Store {
             .map_err(durable)?;
         // Measured before the transaction: `temp_store` cannot change inside
         // one, and no earlier migration touches `events`.
-        let upgrading = (1..SCHEMA_VERSION).contains(&version);
+        let upgrading = (1..INDEXED_SCHEMA).contains(&version);
         let build = if upgrading {
             IndexBuild::measure(&conn)?
         } else {
@@ -576,87 +579,91 @@ impl Store {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(durable)?;
         match version {
-            0..=16 => {
-                if version < 1 {
-                    tx.execute_batch(include_str!("schema.sql"))
-                        .map_err(durable)?;
+            0..=17 => {
+                if version < INDEXED_SCHEMA {
+                    if version < 1 {
+                        tx.execute_batch(include_str!("schema.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 2 {
+                        tx.execute_batch(include_str!("migration-v2.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 3 {
+                        tx.execute_batch(include_str!("migration-v3.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 4 {
+                        tx.execute_batch(include_str!("migration-v4.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 5 {
+                        tx.execute_batch(include_str!("migration-v5.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 6 {
+                        tx.execute_batch(include_str!("migration-v6.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 7 {
+                        tx.execute_batch(include_str!("migration-v7.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 8 {
+                        tx.execute_batch(include_str!("migration-v8.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 9 {
+                        tx.execute_batch(include_str!("migration-v9.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 10 {
+                        tx.execute_batch(include_str!("migration-v10.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 11 {
+                        tx.execute_batch(include_str!("migration-v11.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 12 {
+                        tx.execute_batch(include_str!("migration-v12.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 13 {
+                        tx.execute_batch(include_str!("migration-v13.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 14 {
+                        tx.execute_batch(include_str!("migration-v14.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 15 {
+                        tx.execute_batch(include_str!("migration-v15.sql"))
+                            .map_err(durable)?;
+                    }
+                    if version < 16 {
+                        tx.execute_batch(include_str!("migration-v16.sql"))
+                            .map_err(durable)?;
+                    }
+                    // Version 17 builds three indexes over `events` inside this
+                    // transaction. Refuse before building them, writing nothing,
+                    // when they would not fit above the free-space reserve; core
+                    // then logs the space needed (`upgrade_space`), and also when
+                    // the build or the commit runs out of space all the same.
+                    available = available_space(&directory)?;
+                    if available < build.needed() {
+                        return Err(Error(ErrorCode::StateNotDurable));
+                    }
+                    #[cfg(test)]
+                    if let Some(pages) = UPGRADE_MAX_PAGES.get() {
+                        tx.pragma_update(None, "max_page_count", pages)
+                            .map_err(durable)?;
+                    }
+                    tx.execute_batch(include_str!("migration-v17.sql"))
+                        .map_err(|error| upgrade_failed(path, version, available, build, error))?;
                 }
-                if version < 2 {
-                    tx.execute_batch(include_str!("migration-v2.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 3 {
-                    tx.execute_batch(include_str!("migration-v3.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 4 {
-                    tx.execute_batch(include_str!("migration-v4.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 5 {
-                    tx.execute_batch(include_str!("migration-v5.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 6 {
-                    tx.execute_batch(include_str!("migration-v6.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 7 {
-                    tx.execute_batch(include_str!("migration-v7.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 8 {
-                    tx.execute_batch(include_str!("migration-v8.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 9 {
-                    tx.execute_batch(include_str!("migration-v9.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 10 {
-                    tx.execute_batch(include_str!("migration-v10.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 11 {
-                    tx.execute_batch(include_str!("migration-v11.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 12 {
-                    tx.execute_batch(include_str!("migration-v12.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 13 {
-                    tx.execute_batch(include_str!("migration-v13.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 14 {
-                    tx.execute_batch(include_str!("migration-v14.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 15 {
-                    tx.execute_batch(include_str!("migration-v15.sql"))
-                        .map_err(durable)?;
-                }
-                if version < 16 {
-                    tx.execute_batch(include_str!("migration-v16.sql"))
-                        .map_err(durable)?;
-                }
-                // Version 17 builds three indexes over `events` inside this
-                // transaction. Refuse before building them, writing nothing,
-                // when they would not fit above the free-space reserve; core
-                // then logs the space needed (`upgrade_space`), and also when
-                // the build or the commit runs out of space all the same.
-                available = available_space(&directory)?;
-                if available < build.needed() {
-                    return Err(Error(ErrorCode::StateNotDurable));
-                }
-                #[cfg(test)]
-                if let Some(pages) = UPGRADE_MAX_PAGES.get() {
-                    tx.pragma_update(None, "max_page_count", pages)
-                        .map_err(durable)?;
-                }
-                tx.execute_batch(include_str!("migration-v17.sql"))
-                    .map_err(|error| upgrade_failed(path, version, available, build, error))?;
+                tx.execute_batch(include_str!("migration-v18.sql"))
+                    .map_err(durable)?;
             }
             SCHEMA_VERSION => {}
             _ => return Err(Error(ErrorCode::Conflict)),
@@ -806,7 +813,14 @@ fn remove_v10_schema(conn: &Connection) {
 }
 
 #[cfg(test)]
+fn remove_v18_schema(conn: &Connection) {
+    conn.execute_batch("ALTER TABLE meta DROP COLUMN executor_epoch;")
+        .unwrap();
+}
+
+#[cfg(test)]
 fn remove_v17_schema(conn: &Connection) {
+    remove_v18_schema(conn);
     conn.execute_batch("DROP INDEX IF EXISTS events_notification; DROP INDEX IF EXISTS events_kind; DROP INDEX IF EXISTS events_job;")
         .unwrap();
 }

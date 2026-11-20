@@ -247,7 +247,9 @@ impl Core {
 
     /// The receipt of a closure the lookup made: nothing was sent, and no
     /// execute for this action can run any more. It releases the locks as
-    /// `precondition_changed`, like any refusal, once it matches the job.
+    /// `precondition_changed`, like any refusal, once it matches the job,
+    /// unless it contradicts a result core holds or a dispatch under an
+    /// earlier store epoch; then the job is held (`record_stack_closure`).
     async fn record_closure(
         &self,
         job: &StackJob,
@@ -266,7 +268,7 @@ impl Core {
         }
         let job = job.clone();
         self.db
-            .call(move |s| s.record_stack_result(&job, &receipt, None, now()))
+            .call(move |s| s.record_stack_closure(&job, &receipt, now()))
             .await
             .map(|_| ())
     }
@@ -395,6 +397,9 @@ impl Core {
             self.mark_stack(&job, JobState::NeedsIntervention).await?;
             return Ok(());
         };
+        if closed {
+            return self.record_closure(&job, &digest, receipt).await;
+        }
         // Reject mismatched IPC evidence before it can unlock a core resource.
         if receipt.validate().is_err()
             || receipt.action != job.id
