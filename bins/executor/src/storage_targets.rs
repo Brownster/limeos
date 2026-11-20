@@ -39,7 +39,10 @@ pub(super) async fn run(args: &[String]) -> std::io::Result<()> {
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o660))?;
     let connections = Arc::new(Semaphore::new(4));
     let operation = Arc::new(Semaphore::new(1));
-    let mut watchdog = limeos_contracts::Watchdog::from_env();
+    // No watchdog: preparation's fsyncs and the inventory run on this loop's
+    // thread and can legitimately outlast any keep-alive interval
+    // (limeos-storage-targets.service says why).
+    let mut watchdog = limeos_contracts::Watchdog::disabled();
     loop {
         let mut stream =
             limeos_executor::service::next_connection(&listener, &mut watchdog).await?;

@@ -297,7 +297,14 @@ async fn run() -> std::io::Result<()> {
     // would abort the healthy reads in flight), and reports the stuck read in
     // its health answer, which core lists as degraded.
     let inventory_reads = Arc::new(limeos_executor::blocking_read::BlockingReads::new(1));
-    let mut watchdog = limeos_contracts::Watchdog::from_env();
+    // The container executor's receipt-store fsyncs run on this loop's thread
+    // and can legitimately outlast any keep-alive interval, so it never takes
+    // part in the watchdog (limeos-containerd.service says why).
+    let mut watchdog = if source == limeos_contracts::Source::Docker {
+        limeos_contracts::Watchdog::disabled()
+    } else {
+        limeos_contracts::Watchdog::from_env()
+    };
     loop {
         let mut stream =
             limeos_executor::service::next_connection(&listener, &mut watchdog).await?;

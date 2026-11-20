@@ -16,8 +16,15 @@ MemorySwapMax=0
 ProtectProc=invisible
 Restart=on-failure
 RestartSec=2s
-# Keep-alives are sent from the accept loop; systemd restarts the unit if
-# they stop.
+# Keep-alives are sent from the RPC accept loop; systemd restarts the unit
+# if it stops being run. Longest legitimate stretch on that loop's thread
+# (the main thread, which also polls the HTTP accept loop, the dispatcher
+# and the observation runtime): decoding 64 KiB executor frames and
+# metadata lookups of sockets under /run (tmpfs), well under a millisecond.
+# Store work runs on the store's own thread, password hashing on its
+# workers, telemetry on its own thread, executor calls are async, HTTP
+# requests run on the worker threads. Far under 10 s, a third of the
+# interval.
 WatchdogSec=30s
 TimeoutStartSec=15s
 TimeoutStopSec=15s

@@ -17,7 +17,11 @@ ProtectProc=invisible
 Restart=on-failure
 RestartSec=2s
 # Keep-alives are sent from the accept loop; systemd restarts the unit if
-# they stop.
+# it stops being run. Longest legitimate stretch on that loop's thread:
+# reads of /proc and /sys pseudo-files (memory, no device I/O, well under a
+# millisecond); lsblk runs as a child awaited asynchronously under a 3 s
+# deadline, and observation answers come from a cache. Far under 10 s, a
+# third of the interval.
 WatchdogSec=30s
 TimeoutStartSec=15s
 TimeoutStopSec=15s
