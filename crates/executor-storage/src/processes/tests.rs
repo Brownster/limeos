@@ -1038,28 +1038,67 @@ fn real_owner_drop_resource_measurement() {
         println!("{}", String::from_utf8_lossy(&output.stdout));
         return;
     }
-    let children: Vec<_> = (0..64).map(|_| OwnedChild::new()).collect();
-    let baseline = fd_count();
-    let kernel = LocalChildren::default();
-    let now = kernel.clock().unwrap();
-    let d = declaration(64, now.wall.as_secs() as i64);
-    let mut b = bindings(&d);
-    for (binding, child) in b.iter_mut().zip(&children) {
-        binding.pid = child.0.id();
+    // The collection runs under the production deadlines: a 2 s work budget
+    // (`WORK`) and the declaration's 5 s lease. Unloaded, all 64 processes
+    // collect in milliseconds; a loaded machine can stretch the attempt past
+    // either deadline, which is the deadline working, not a descriptor fault.
+    // Only such an attempt is retried: it must fail with `TimedOut` or
+    // `Conflict` after at least `WORK` has elapsed (a lease lapse needs over
+    // 4 s), and must still have released every descriptor. Any other failure,
+    // or a fast one, fails at once; every descriptor count stays exact.
+    const ATTEMPTS: usize = 5;
+    for attempt in 1..=ATTEMPTS {
+        // Fresh children per attempt: `sleep 20` must outlive slow attempts.
+        let children: Vec<_> = (0..64).map(|_| OwnedChild::new()).collect();
+        let baseline = fd_count();
+        let started = Instant::now();
+        let loaded = |failure: &Failure, phase: &str| {
+            let deadline = matches!(failure, Failure::TimedOut | Failure::Conflict)
+                && started.elapsed() >= WORK;
+            assert!(
+                deadline && attempt < ATTEMPTS,
+                "{phase} failed with {failure:?} after {:?} (attempt {attempt}/{ATTEMPTS})",
+                started.elapsed()
+            );
+            eprintln!(
+                "real_fd_measurement attempt {attempt}: {phase} hit the {failure:?} deadline after {:?} under load; retrying",
+                started.elapsed()
+            );
+        };
+        let kernel = LocalChildren::default();
+        let now = kernel.clock().unwrap();
+        let d = declaration(64, now.wall.as_secs() as i64);
+        let mut b = bindings(&d);
+        for (binding, child) in b.iter_mut().zip(&children) {
+            binding.pid = child.0.id();
+        }
+        let sorted = validate_bindings(&d, &b).unwrap();
+        let e = match collect(kernel, &d, &sorted, Lease::new(&d, now).unwrap()) {
+            Ok(e) => e,
+            Err(failure) => {
+                assert_eq!(fd_count(), baseline);
+                loaded(&failure, "collection");
+                continue;
+            }
+        };
+        assert_eq!(fd_count(), baseline + 261);
+        if let Err(failure) = e.revalidate() {
+            drop(e);
+            assert_eq!(fd_count(), baseline);
+            loaded(&failure, "revalidation");
+            continue;
+        }
+        println!(
+            "real_fd_measurement processes=64 baseline={baseline} retained={} peak={} attempt={attempt} host_namespace_authentication=private_substitution",
+            fd_count() - baseline,
+            e.kernel.peak_fds.get() - baseline
+        );
+        drop(e);
+        assert_eq!(fd_count(), baseline);
+        drop(children);
+        assert_eq!(fd_count(), baseline);
+        return;
     }
-    let sorted = validate_bindings(&d, &b).unwrap();
-    let e = collect(kernel, &d, &sorted, Lease::new(&d, now).unwrap()).unwrap();
-    assert_eq!(fd_count(), baseline + 261);
-    assert_eq!(e.revalidate(), Ok(()));
-    println!(
-        "real_fd_measurement processes=64 baseline={baseline} retained={} peak={} host_namespace_authentication=private_substitution",
-        fd_count() - baseline,
-        e.kernel.peak_fds.get() - baseline
-    );
-    drop(e);
-    assert_eq!(fd_count(), baseline);
-    drop(children);
-    assert_eq!(fd_count(), baseline);
 }
 #[test]
 fn real_ordinary_descriptors_cannot_substitute_for_namespace_or_root() {

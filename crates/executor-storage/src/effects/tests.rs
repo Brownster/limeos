@@ -374,6 +374,28 @@ fn dropped_journal_releases_its_lock_while_a_child_shares_the_descriptor() {
     drop(child_copy);
 }
 
+/// The constructors return early (`?`) between taking the lock and building
+/// the journal; those paths drop only the `ProcessLock` that `acquire`
+/// returned. A failing constructor's descriptor cannot be duplicated from a
+/// test, so this drives the guard directly, as such an early return does.
+#[test]
+fn acquired_lock_unlocks_on_an_early_drop_while_a_child_shares_the_descriptor() {
+    let (directory, journal) = fixture();
+    drop(journal);
+    let fd = rustix::fs::open(
+        directory.path().join(LOCK),
+        OFlags::RDWR | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .unwrap();
+    let lock = ProcessLock::acquire(fd, FlockOperation::NonBlockingLockExclusive).unwrap();
+    let child_copy = lock.0.try_clone().unwrap();
+    assert!(matches!(reopen(directory.path()), Err(Failure::Conflict)));
+    drop(lock);
+    assert!(reopen(directory.path()).is_ok());
+    drop(child_copy);
+}
+
 #[test]
 fn symlink_and_hardlink_journal_auxiliaries_refuse() {
     let (directory, journal) = fixture();

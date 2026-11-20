@@ -39,6 +39,15 @@ pub struct MountJournal {
 /// this process would be refused with `Conflict`. The container executor's
 /// receipt lock does the same.
 pub(crate) struct ProcessLock(pub(crate) OwnedFd);
+impl ProcessLock {
+    /// Takes the flock and wraps the descriptor in one step, so every error
+    /// between locking and building the journal unlocks too, not only the
+    /// journal's own drop.
+    pub(crate) fn acquire(lock: OwnedFd, operation: FlockOperation) -> Result<Self> {
+        rustix::fs::flock(&lock, operation).map_err(|_| Failure::Conflict)?;
+        Ok(Self(lock))
+    }
+}
 impl Drop for ProcessLock {
     fn drop(&mut self) {
         // If it fails, the close still releases the lock once the last
@@ -167,8 +176,7 @@ impl MountJournal {
         )
         .map_err(|_| Failure::StateNotDurable)?;
         private_file(&lock, 0)?;
-        rustix::fs::flock(&lock, FlockOperation::NonBlockingLockShared)
-            .map_err(|_| Failure::Conflict)?;
+        let lock = ProcessLock::acquire(lock, FlockOperation::NonBlockingLockShared)?;
         check_files(&directory, 0)?;
         let file = rustix::fs::openat(
             &directory,
@@ -196,7 +204,7 @@ impl MountJournal {
         }
         let result = Self {
             conn,
-            _lock: ProcessLock(lock),
+            _lock: lock,
             directory,
             fresh_launch: None,
         };
@@ -212,8 +220,7 @@ impl MountJournal {
         )
         .map_err(|_| Failure::StateNotDurable)?;
         private_file(&lock, owner)?;
-        rustix::fs::flock(&lock, FlockOperation::NonBlockingLockExclusive)
-            .map_err(|_| Failure::Conflict)?;
+        let lock = ProcessLock::acquire(lock, FlockOperation::NonBlockingLockExclusive)?;
         check_files(&directory, owner)?;
         let file = rustix::fs::openat(
             &directory,
@@ -258,7 +265,7 @@ impl MountJournal {
         rustix::fs::fsync(&directory).map_err(|_| Failure::StateNotDurable)?;
         let result = Self {
             conn,
-            _lock: ProcessLock(lock),
+            _lock: lock,
             directory,
             fresh_launch: None,
         };

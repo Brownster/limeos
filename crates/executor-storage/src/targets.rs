@@ -250,8 +250,8 @@ impl Journal {
         )
         .map_err(|_| Failure::StateNotDurable)?;
         private_file(&lock, 0)?;
-        rustix::fs::flock(&lock, FlockOperation::NonBlockingLockShared)
-            .map_err(|_| Failure::Conflict)?;
+        let lock =
+            crate::effects::ProcessLock::acquire(lock, FlockOperation::NonBlockingLockShared)?;
         for name in ["targets.sqlite", "targets.sqlite-wal", "targets.sqlite-shm"] {
             match rustix::fs::openat(
                 &directory,
@@ -280,7 +280,7 @@ impl Journal {
         }
         let journal = Self {
             conn,
-            _lock: crate::effects::ProcessLock(lock),
+            _lock: lock,
             directory,
         };
         journal.check()?;
@@ -303,8 +303,8 @@ impl Journal {
         )
         .map_err(|_| Failure::StateNotDurable)?;
         private_file(&lock, owner)?;
-        rustix::fs::flock(&lock, FlockOperation::NonBlockingLockExclusive)
-            .map_err(|_| Failure::Conflict)?;
+        let lock =
+            crate::effects::ProcessLock::acquire(lock, FlockOperation::NonBlockingLockExclusive)?;
         for name in [
             "targets.sqlite",
             "targets.sqlite-wal",
@@ -376,7 +376,7 @@ impl Journal {
         rustix::fs::fsync(&sync).map_err(|_| Failure::StateNotDurable)?;
         let journal = Self {
             conn,
-            _lock: crate::effects::ProcessLock(lock),
+            _lock: lock,
             directory: sync,
         };
         journal.check()?;
