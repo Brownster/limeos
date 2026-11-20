@@ -650,7 +650,7 @@ fn v16_upgrade_on_a_nearly_full_disk_refuses_before_building_indexes() {
     let conn = Connection::open(&path).unwrap();
     let (version, indexes): (u32, i64) = conn
         .query_row(
-            "SELECT (SELECT user_version FROM pragma_user_version),(SELECT count(*) FROM sqlite_schema WHERE type='index' AND name IN ('events_job','events_kind'))",
+            "SELECT (SELECT user_version FROM pragma_user_version),(SELECT count(*) FROM sqlite_schema WHERE type='index' AND name IN ('events_job','events_kind','events_notification'))",
             [],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )
@@ -670,6 +670,8 @@ fn missing_or_changed_event_indexes_refuse_startup() {
         "DROP INDEX events_job",
         "DROP INDEX events_job; CREATE INDEX events_job ON events(job)",
         "DROP INDEX events_kind",
+        "DROP INDEX events_notification",
+        "DROP INDEX events_notification; CREATE INDEX events_notification ON events(json_extract(kind,'$.notification'))",
     ] {
         let (dir, s, _) = setup();
         s.conn.execute_batch(tamper).unwrap();

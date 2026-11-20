@@ -4,6 +4,21 @@ use sha2::{Digest, Sha256};
 use std::time::{Duration, Instant};
 
 mod check;
+/// The per-row startup queries on `events` of this module's checks.
+#[cfg(test)]
+pub(super) fn startup_event_queries() -> Vec<&'static str> {
+    vec![
+        check::JOB_PROOF,
+        check::JOBLESS_PROOF,
+        check::NOTIFICATION_PROOF,
+        check::CREATED_PROOFS,
+        check::DELIVERY_TIMES,
+        check::QUEUED_PROOF,
+        check::SETTLEMENT_COUNT,
+        check::NOTIFICATION_COUNT,
+        polling::POLL_PROOFS,
+    ]
+}
 mod container_read;
 mod in_app;
 mod polling;

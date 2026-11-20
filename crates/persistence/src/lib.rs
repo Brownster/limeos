@@ -276,7 +276,7 @@ fn available_space(directory: &Path) -> Result<u64> {
 thread_local! {
     static OPEN_FREE_BYTES: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
 }
-/// Free space the upgrade to schema 17 needs for `events` rows: its two
+/// Free space the upgrade to schema 17 needs for `events` rows: its
 /// indexes take about 52 bytes per event (13 MB at 250,000 events), written
 /// once to the WAL and once to the database file, plus margin, above the
 /// 8 MiB reserve. At most about 42 MiB, at the audit cap.
@@ -459,7 +459,7 @@ impl Store {
                     tx.execute_batch(include_str!("migration-v16.sql"))
                         .map_err(durable)?;
                 }
-                // Version 17 builds two indexes over `events` inside this
+                // Version 17 builds three indexes over `events` inside this
                 // transaction. Refuse before building them, writing nothing,
                 // when they would not fit above the free-space reserve; core
                 // then logs the space needed (`upgrade_space`).
@@ -622,7 +622,7 @@ fn remove_v10_schema(conn: &Connection) {
 
 #[cfg(test)]
 fn remove_v17_schema(conn: &Connection) {
-    conn.execute_batch("DROP INDEX IF EXISTS events_kind; DROP INDEX IF EXISTS events_job;")
+    conn.execute_batch("DROP INDEX IF EXISTS events_notification; DROP INDEX IF EXISTS events_kind; DROP INDEX IF EXISTS events_job;")
         .unwrap();
 }
 

@@ -85,7 +85,7 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         }
     }
     // Startup and retention cost depend on these indexes, not only correctness.
-    for name in ["events_job", "events_kind"] {
+    for name in ["events_job", "events_kind", "events_notification"] {
         let expected: String = reference
             .query_row(
                 "SELECT sql FROM sqlite_schema WHERE type='index' AND name=?",

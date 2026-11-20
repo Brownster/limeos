@@ -602,11 +602,16 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             },
             recorded,
         )?;
-        let proofs:i64=conn.query_row("SELECT count(*) FROM events WHERE job=? AND json_extract(kind,'$.kind')='automation_observation_polled'",[job],|r|r.get(0)).map_err(durable)?;
+        let proofs: i64 = conn
+            .query_row(POLL_PROOFS, [job], |r| r.get(0))
+            .map_err(durable)?;
         check::require(proofs == 1)?;
     }
     check::require(seen == count)
 }
+
+/// A polled job's proofs, through `events_job`.
+pub(crate) const POLL_PROOFS: &str = "SELECT count(*) FROM events INDEXED BY events_job WHERE job=? AND json_extract(kind,'$.kind')='automation_observation_polled'";
 
 #[cfg(test)]
 mod tests;

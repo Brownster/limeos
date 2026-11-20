@@ -7,6 +7,33 @@ pub(super) fn require(value: bool) -> Result<()> {
         Err(Error(ErrorCode::StateNotDurable))
     }
 }
+// Per-row startup proofs on `events`. Each names its index, so no lookup
+// scans the table: a job's events through `events_job`, a notification's
+// through `events_notification`, any other job-less kind through
+// `events_kind`. The index narrows; the exact `kind` comparison decides.
+// Narrowing notification proofs by kind alone still read every proof of that
+// kind once per notification, quadratic in the notifications ever published.
+pub(crate) const JOB_PROOF: &str = "SELECT count(*),coalesce(sum(principal IS NOT ? OR created<>?),0) FROM events INDEXED BY events_job WHERE job=? AND kind=?";
+pub(crate) const JOBLESS_PROOF: &str = "SELECT count(*),coalesce(sum(principal IS NOT ? OR created<>?),0) FROM events INDEXED BY events_kind WHERE json_extract(kind,'$.kind')=? AND job IS NULL AND kind=?";
+pub(crate) const CREATED_PROOFS: &str = "SELECT kind,principal,created FROM events INDEXED BY events_job WHERE job=? AND json_extract(kind,'$.kind')='automation_notification_created'";
+pub(crate) const NOTIFICATION_PROOF: &str = "SELECT count(*),coalesce(sum(principal IS NOT ? OR created<>?),0) FROM events INDEXED BY events_notification WHERE json_extract(kind,'$.notification')=? AND job IS NULL AND kind=?";
+pub(crate) const DELIVERY_TIMES: &str = "SELECT (SELECT min(created) FROM events INDEXED BY events_notification WHERE json_extract(kind,'$.notification')=?1 AND principal=?2 AND job IS NULL AND kind=?3),(SELECT max(created) FROM events INDEXED BY events_notification WHERE json_extract(kind,'$.notification')=?1 AND principal=?2 AND job IS NULL AND kind=?4),(SELECT min(created) FROM events INDEXED BY events_notification WHERE json_extract(kind,'$.notification')=?1 AND principal=?2 AND job IS NULL AND kind=?5)";
+pub(crate) const QUEUED_PROOF: &str =
+    "SELECT created,cursor FROM events INDEXED BY events_job WHERE job=? AND kind=?";
+pub(crate) const SETTLEMENT_COUNT: &str = "SELECT count(*) FROM events INDEXED BY events_job WHERE job=? AND json_extract(kind,'$.kind') IN ('job_transition','automation_observation_settled')";
+pub(crate) const NOTIFICATION_COUNT: &str = "SELECT count(*) FROM events INDEXED BY events_notification WHERE json_extract(kind,'$.notification')=? AND kind=?";
+
+/// A string field of an encoded event: `kind` is the key of `events_kind`,
+/// `notification` of `events_notification`.
+fn field(kind: &EventKind, name: &str) -> Option<String> {
+    Some(
+        serde_json::to_value(kind)
+            .ok()?
+            .get(name)?
+            .as_str()?
+            .to_owned(),
+    )
+}
 pub(super) fn audit(
     conn: &Connection,
     owner: &str,
@@ -14,12 +41,40 @@ pub(super) fn audit(
     kind: EventKind,
     at: i64,
 ) -> Result<()> {
-    let counts:(i64,i64)=conn.query_row("SELECT count(*),coalesce(sum(principal IS NOT ? OR created<>?),0) FROM events WHERE job IS ? AND kind=?",params![owner,at,job,json(&kind)?],|r|Ok((r.get(0)?,r.get(1)?))).map_err(durable)?;
+    let encoded = json(&kind)?;
+    let counts: (i64, i64) = match job {
+        Some(job) => conn.query_row(JOB_PROOF, params![owner, at, job, encoded], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        }),
+        None => match field(&kind, "notification") {
+            Some(notification) => conn.query_row(
+                NOTIFICATION_PROOF,
+                params![owner, at, notification, encoded],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            ),
+            None => conn.query_row(
+                JOBLESS_PROOF,
+                params![
+                    owner,
+                    at,
+                    field(&kind, "kind").ok_or(Error(ErrorCode::InvalidInput))?,
+                    encoded
+                ],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            ),
+        },
+    }
+    .map_err(durable)?;
     require(counts == (1, 0))
+}
+/// Events of exactly `kind`, about notification `id`, anywhere.
+fn notification_count(conn: &Connection, id: &str, kind: &EventKind) -> Result<i64> {
+    conn.query_row(NOTIFICATION_COUNT, params![id, json(kind)?], |r| r.get(0))
+        .map_err(durable)
 }
 type DeliveryTimes = (Option<i64>, Option<i64>, Option<i64>);
 fn created_proofs(conn: &Connection, owner: &str, job: &str, at: i64, expected: i64) -> Result<()> {
-    let mut stmt=conn.prepare("SELECT kind,principal,created FROM events WHERE job=? AND json_extract(kind,'$.kind')='automation_notification_created'").map_err(durable)?;
+    let mut stmt = conn.prepare(CREATED_PROOFS).map_err(durable)?;
     let mut rows = stmt.query([job]).map_err(durable)?;
     let mut count = 0;
     while let Some(row) = rows.next().map_err(durable)? {
@@ -52,7 +107,25 @@ fn created_proofs(conn: &Connection, owner: &str, job: &str, at: i64, expected: 
                     )? == digest,
             )?;
         } else {
-            let (delivered,ack,pruned):DeliveryTimes=conn.query_row("SELECT (SELECT min(created) FROM events WHERE principal=? AND job IS NULL AND kind=?),(SELECT max(created) FROM events WHERE principal=? AND job IS NULL AND kind=?),(SELECT min(created) FROM events WHERE principal=? AND job IS NULL AND kind=?)",params![owner,json(&EventKind::AutomationNotificationPublished {notification:id.clone()})?,owner,json(&EventKind::AutomationNotificationAcknowledged {notification:id.clone()})?,owner,json(&EventKind::AutomationNotificationPruned {notification:id.clone()})?],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).map_err(durable)?;
+            let (delivered, ack, pruned): DeliveryTimes = conn
+                .query_row(
+                    DELIVERY_TIMES,
+                    params![
+                        id,
+                        owner,
+                        json(&EventKind::AutomationNotificationPublished {
+                            notification: id.clone()
+                        })?,
+                        json(&EventKind::AutomationNotificationAcknowledged {
+                            notification: id.clone()
+                        })?,
+                        json(&EventKind::AutomationNotificationPruned {
+                            notification: id.clone()
+                        })?
+                    ],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .map_err(durable)?;
             let delivered = delivered.ok_or(Error(ErrorCode::StateNotDurable))?;
             let pruned = pruned.ok_or(Error(ErrorCode::StateNotDurable))?;
             require(
@@ -143,21 +216,14 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         } else if reason == "expired" {
             require(at >= deadline && !complete)?;
         }
-        let queued: i64 = conn
+        let (queued, queued_cursor): (i64, i64) = conn
             .query_row(
-                "SELECT created FROM events WHERE job=? AND kind=?",
+                QUEUED_PROOF,
                 params![job, json(&EventKind::JobQueued)?],
-                |r| r.get(0),
+                |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .map_err(durable)?;
         require(at >= queued)?;
-        let queued_cursor: i64 = conn
-            .query_row(
-                "SELECT cursor FROM events WHERE job=? AND kind=?",
-                params![job, json(&EventKind::JobQueued)?],
-                |r| r.get(0),
-            )
-            .map_err(durable)?;
         let policy_revision = row.get::<_, i64>(13).map_err(durable)?;
         require(
             policy_revision == super::super::policy::revision_before(conn, &owner, queued_cursor)?,
@@ -179,7 +245,9 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             EventKind::AutomationObservationSettled { sequence, complete },
             at,
         )?;
-        let transitions:i64=conn.query_row("SELECT count(*) FROM events WHERE job=? AND json_extract(kind,'$.kind') IN ('job_transition','automation_observation_settled')",[&job],|r|r.get(0)).map_err(durable)?;
+        let transitions: i64 = conn
+            .query_row(SETTLEMENT_COUNT, [&job], |r| r.get(0))
+            .map_err(durable)?;
         require(transitions == 2)?;
         created_proofs(conn, &owner, &job, at, row.get(12).map_err(durable)?)?;
     }
@@ -226,15 +294,13 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             },
             n.event.at,
         )?;
-        let pruned: i64 = conn
-            .query_row(
-                "SELECT count(*) FROM events WHERE kind=?",
-                [json(&EventKind::AutomationNotificationPruned {
-                    notification: id.clone(),
-                })?],
-                |r| r.get(0),
-            )
-            .map_err(durable)?;
+        let pruned = notification_count(
+            conn,
+            &id,
+            &EventKind::AutomationNotificationPruned {
+                notification: id.clone(),
+            },
+        )?;
         require(pruned == 0)?;
         let origin:Option<(String,i64,i64,i64,String)>=conn.query_row("SELECT owner,owner_revision,sequence,recorded,outcome FROM automation_observation_results WHERE job=?",[&row.job],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional().map_err(durable)?;
         let (owner, revision, sequence, at, outcome) =
@@ -246,15 +312,13 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
                 && n.event.at == at
                 && outcome == "succeeded",
         )?;
-        let publications: i64 = conn
-            .query_row(
-                "SELECT count(*) FROM events WHERE kind=?",
-                [json(&EventKind::AutomationNotificationPublished {
-                    notification: id.clone(),
-                })?],
-                |r| r.get(0),
-            )
-            .map_err(durable)?;
+        let publications = notification_count(
+            conn,
+            &id,
+            &EventKind::AutomationNotificationPublished {
+                notification: id.clone(),
+            },
+        )?;
         match n.delivery {
             DeliveryState::Pending => require(
                 publications == 0
@@ -280,15 +344,13 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             }
             _ => return Err(Error(ErrorCode::StateNotDurable)),
         }
-        let acknowledgments: i64 = conn
-            .query_row(
-                "SELECT count(*) FROM events WHERE kind=?",
-                [json(&EventKind::AutomationNotificationAcknowledged {
-                    notification: id.clone(),
-                })?],
-                |r| r.get(0),
-            )
-            .map_err(durable)?;
+        let acknowledgments = notification_count(
+            conn,
+            &id,
+            &EventKind::AutomationNotificationAcknowledged {
+                notification: id.clone(),
+            },
+        )?;
         if let Some(at) = n.acknowledged_at {
             audit(
                 conn,
