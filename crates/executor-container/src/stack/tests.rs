@@ -679,7 +679,7 @@ fn schema_three_upgrade_adds_the_stack_table_and_keeps_container_receipts() {
         .conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 6);
+    assert_eq!(version, crate::RECEIPT_SCHEMA_VERSION);
     assert_eq!(rows(&store, "stack_actions"), 0);
 }
 

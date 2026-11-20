@@ -747,7 +747,7 @@ fn schema_five_upgrade_keeps_receipts_and_retains_them_for_a_plan_lifetime() {
         .conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 6);
+    assert_eq!(version, crate::RECEIPT_SCHEMA_VERSION);
     let wall = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()

@@ -483,7 +483,18 @@ fn receipt_paths_are_private_single_owner_and_fail_closed_on_links_or_future_sch
             & 0o777,
         0o600
     );
-    store.conn.execute_batch("PRAGMA user_version=99;").unwrap();
+    let version: u32 = store
+        .conn
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(version, RECEIPT_SCHEMA_VERSION);
+    store
+        .conn
+        .execute_batch(&format!(
+            "PRAGMA user_version={};",
+            RECEIPT_SCHEMA_VERSION + 1
+        ))
+        .unwrap();
     drop(store);
     assert!(ReceiptStore::open(dir.path()).is_err());
     let unsafe_dir = private_dir();

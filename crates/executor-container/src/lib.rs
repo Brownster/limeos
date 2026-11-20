@@ -17,6 +17,9 @@ mod resolution;
 mod retention;
 mod stack;
 pub use resolution::RESOLVED;
+/// The receipt store's schema (`PRAGMA user_version`) after every migration.
+/// Opening a newer store refuses; tests and documentation name this constant.
+pub const RECEIPT_SCHEMA_VERSION: u32 = 6;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 pub use stack::member_action;
@@ -199,7 +202,7 @@ impl ReceiptStore {
             0 => {
                 conn.execute_batch("BEGIN IMMEDIATE; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL); CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','outcome_unknown'); PRAGMA user_version=1; COMMIT;").map_err(durable)?;
             }
-            1..=6 => {}
+            1..=RECEIPT_SCHEMA_VERSION => {}
             _ => return Err(Error(ErrorCode::Conflict)),
         }
         if version < 2 {
@@ -222,6 +225,14 @@ impl ReceiptStore {
             // for as long as that plan could still present the action again.
             let legacy = retention::legacy_expiry_sql();
             conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0; ALTER TABLE stack_actions ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0; UPDATE actions SET expires_at={legacy}; UPDATE stack_actions SET expires_at={legacy}; CREATE INDEX actions_digest ON actions(digest); CREATE INDEX stack_actions_digest ON stack_actions(digest); PRAGMA user_version=6; COMMIT;")).map_err(durable)?;
+        }
+        // Every migration step ends at the named schema, or the store is refused.
+        if conn
+            .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
+            .map_err(durable)?
+            != RECEIPT_SCHEMA_VERSION
+        {
+            return Err(Error(ErrorCode::StateNotDurable));
         }
         if conn
             .query_row("PRAGMA quick_check(1)", [], |r| r.get::<_, String>(0))

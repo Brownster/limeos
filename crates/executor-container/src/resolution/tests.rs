@@ -814,7 +814,7 @@ fn schema_four_upgrade_keeps_rows_and_adds_the_resolved_state() {
         .conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 6);
+    assert_eq!(version, crate::RECEIPT_SCHEMA_VERSION);
     assert_eq!(
         count(&store, "SELECT count(*) FROM actions WHERE action='a1'"),
         1
