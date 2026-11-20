@@ -348,6 +348,17 @@ impl Store {
     }
 }
 
+/// The startup proof check: whether a settled mount job lacks the result it
+/// must have, a verified receipt for `succeeded` and, for `precondition_changed`
+/// once it ran (its `running` transition), the receipt of the refusal.
+/// Only settled mount jobs are visited (`jobs_state`, then the operation),
+/// and a `precondition_changed` one's transition is looked up among its own
+/// events (`events_job`), so the check's cost follows the mount jobs and
+/// their histories, never the events table: planned by kind
+/// (`events_kind`), it read every `job_transition` event once per
+/// `precondition_changed` job of any operation.
+pub(super) const PROOF_CHECK: &str = "SELECT EXISTS(SELECT 1 FROM jobs j WHERE j.state IN ('succeeded','precondition_changed') AND json_extract(j.intent,'$.operation')='storage_mount' AND NOT EXISTS(SELECT 1 FROM storage_mount_results r WHERE r.job=j.id) AND (j.state='succeeded' OR EXISTS(SELECT 1 FROM events e INDEXED BY events_job WHERE e.job=j.id AND json_extract(e.kind,'$.kind')='job_transition' AND json_extract(e.kind,'$.state')='running')))";
+
 /// Check immutable proposal/job/resource/result bindings before startup recovery.
 /// Historical timestamps validate past facts without renewing execution authority.
 pub(super) fn check(conn: &Connection) -> Result<()> {
@@ -453,10 +464,9 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
     // Audit from jobs as well as existing results: a deleted terminal receipt
     // must not disappear from an INNER JOIN and silently pass startup. A plan
     // rejected while still queued legitimately has no executor receipt.
-    let missing_terminal_proof: bool = conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM jobs j WHERE json_extract(j.intent,'$.operation')='storage_mount' AND (j.state='succeeded' OR (j.state='precondition_changed' AND EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND json_extract(e.kind,'$.kind')='job_transition' AND json_extract(e.kind,'$.state')='running'))) AND NOT EXISTS(SELECT 1 FROM storage_mount_results r WHERE r.job=j.id))",
-        [], |row| row.get(0),
-    ).map_err(durable)?;
+    let missing_terminal_proof: bool = conn
+        .query_row(PROOF_CHECK, [], |row| row.get(0))
+        .map_err(durable)?;
     if missing_terminal_proof {
         return Err(Error(ErrorCode::StateNotDurable));
     }

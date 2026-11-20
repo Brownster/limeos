@@ -716,3 +716,77 @@ fn retention_keeps_every_event_of_a_storage_mount_job() {
     drop(store);
     Store::open(&dir.path().join("core.sqlite")).unwrap();
 }
+
+/// The startup proof check finds a settled mount job's `running` transition
+/// through its own events (`events_job`), never by kind: on a store with no
+/// mount job at all, its work does not grow with the events of other jobs.
+#[test]
+fn the_proof_check_reads_events_by_job_and_its_cost_stays_flat() {
+    let (_dir, store, principal, _) = setup();
+    let plan: Vec<String> = store
+        .conn
+        .prepare(&format!("EXPLAIN QUERY PLAN {PROOF_CHECK}"))
+        .unwrap()
+        .query_map([], |r| r.get::<_, String>(3))
+        .unwrap()
+        .collect::<std::result::Result<_, _>>()
+        .unwrap();
+    assert!(
+        plan.iter()
+            .any(|step| step.starts_with("SEARCH e USING") && step.contains("INDEX events_job")),
+        "{plan:?}"
+    );
+    for step in &plan {
+        assert!(!step.contains("events_kind"), "{plan:?}");
+        assert!(!step.starts_with("SCAN e"), "{plan:?}");
+    }
+    // Settled container jobs with long transition histories, no mount job:
+    // the check's steps follow the jobs, not their events.
+    let steps = |store: &Store, jobs: i64, history: i64| -> i64 {
+        let transition = json(&EventKind::JobTransition {
+            state: JobState::Running,
+        })
+        .unwrap();
+        let base: i64 = store
+            .conn
+            .query_row("SELECT count(*) FROM jobs", [], |r| r.get(0))
+            .unwrap();
+        for n in 0..jobs {
+            let id = format!("{:064x}", base + n + 1);
+            store
+                .conn
+                .execute(
+                    "INSERT INTO jobs VALUES(?,?,?,?,?,?,'queued',1,1,300)",
+                    params![
+                        id,
+                        principal.id,
+                        id,
+                        r#"{"operation":"container_restart"}"#,
+                        "d".repeat(64),
+                        format!("container:{id}")
+                    ],
+                )
+                .unwrap();
+            store
+                .conn
+                .execute(
+                    "UPDATE jobs SET state='precondition_changed' WHERE id=?",
+                    [&id],
+                )
+                .unwrap();
+            store.conn.execute(
+                "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<?) INSERT INTO events(principal,job,kind,created) SELECT ?,?,?,300 FROM c",
+                params![history, principal.id, id, transition],
+            ).unwrap();
+        }
+        let mut statement = store.conn.prepare(PROOF_CHECK).unwrap();
+        let missing: bool = statement.query_row([], |r| r.get(0)).unwrap();
+        assert!(!missing);
+        i64::from(statement.get_status(rusqlite::StatementStatus::VmStep))
+    };
+    let small = steps(&store, 50, 4);
+    let large = steps(&store, 50, 400);
+    // Twice the jobs, and a hundred times the events of each: the steps grow
+    // with the jobs only.
+    assert!(large < 3 * small, "{small} steps, then {large} steps");
+}
