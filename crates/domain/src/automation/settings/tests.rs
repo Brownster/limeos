@@ -1,6 +1,7 @@
 use super::*;
 use crate::automation::{
-    AlertEventKind, AlertSignal, IncidentState, Severity, SignalStatus, fold_alert,
+    AlertEventKind, AlertKind, AlertPolicy, AlertSignal, IncidentState, Severity, SignalStatus,
+    Silence, fold_alert,
 };
 use serde_json::{Value, json};
 

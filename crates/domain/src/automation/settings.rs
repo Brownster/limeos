@@ -1,12 +1,16 @@
 //! Pure frozen health-settings migration. No file, credential, Store or authority access.
-use super::{AlertKind, AlertPolicy, Silence, valid_time};
+use super::valid_time;
+#[cfg(feature = "deferred")]
+use super::{AlertKind, AlertPolicy, Silence};
 use serde::Serialize;
 #[cfg(feature = "deferred")]
 use serde::de::IgnoredAny;
 #[cfg(feature = "deferred")]
 use serde_json::{Map, Value};
 
+#[cfg(feature = "deferred")]
 pub const MAX_POLICY_BYTES: usize = 64 * 1024;
+#[cfg(feature = "deferred")]
 pub const MAX_ENVIRONMENT_BYTES: usize = 4096;
 #[cfg(feature = "deferred")]
 const MAX_JSON_DEPTH: usize = 64;
@@ -19,6 +23,7 @@ const KINDS: [(AlertKind, &str); 4] = [
 ];
 
 /// Selected non-secret fields only. Never pass the complete process environment.
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy, Default)]
 pub struct LegacyHealthEnvironment<'a> {
     pub poll_seconds: Option<&'a str>,
@@ -26,6 +31,7 @@ pub struct LegacyHealthEnvironment<'a> {
     pub required_mounts: Option<&'a str>,
 }
 /// A protected adapter must supply the actual read outcome; this planner does no I/O.
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy)]
 pub enum LegacyPolicyRead<'a> {
     NotConfigured,
@@ -33,6 +39,7 @@ pub enum LegacyPolicyRead<'a> {
     Unreadable,
     Contents(&'a str),
 }
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PolicyFallback {
@@ -42,12 +49,14 @@ pub enum PolicyFallback {
     Malformed,
     Null,
 }
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "source", content = "reason", rename_all = "snake_case")]
 pub enum PolicyOrigin {
     Environment(PolicyFallback),
     Policy,
 }
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SettingField {
@@ -63,6 +72,7 @@ pub enum SettingField {
     SilenceExpiresAt,
     SilenceReason,
 }
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReviewReason {
@@ -77,6 +87,7 @@ pub enum ReviewReason {
     SubsecondExpiry,
 }
 /// Bounded diagnostics intentionally omit raw configuration and parser error text.
+#[cfg(feature = "deferred")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct SettingsReview {
     pub field: SettingField,
@@ -112,6 +123,7 @@ impl PlannedTimestamp {
         self.micros
     }
 }
+#[cfg(feature = "deferred")]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct PlannedSilence {
     pub kind: AlertKind,
@@ -120,6 +132,7 @@ pub struct PlannedSilence {
     pub expires_at: Option<PlannedTimestamp>,
     pub reason: String,
 }
+#[cfg(feature = "deferred")]
 /// A complete representable candidate, not persisted configuration or execution authority.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct PlannedHealthSettings {
@@ -130,6 +143,7 @@ pub struct PlannedHealthSettings {
     silences: Vec<PlannedSilence>,
     origin: PolicyOrigin,
 }
+#[cfg(feature = "deferred")]
 impl PlannedHealthSettings {
     pub fn poll_seconds(&self) -> u32 {
         self.poll_seconds
