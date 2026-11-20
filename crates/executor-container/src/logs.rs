@@ -1,74 +1,70 @@
 //! Bounded container log reads: the newest whole lines, terminal controls
 //! stripped, private keys and credential-bearing lines redacted.
 //!
-//! Redaction is line based. A line is credential-bearing by structure, not
-//! because a word such as "token" appears in prose. A *key* is a maximal run
-//! of ASCII letters, digits, `_`, `-` and `.`; its components are split at
-//! `_`, `-`, `.` and where a lower-case letter or digit meets an upper-case
-//! one. A key is *sensitive* when a component ends with a credential word
-//! (`password`, `passwd`, `passphrase`, `secret`, `token`, `apikey`,
-//! `privatekey`, `credential(s)`, `cookie`, `signature`), is exactly
-//! `session`, `sessionid`, `authorization` or `auth`, or is `key` after `api`
-//! or `private`: `db_password`, `accessToken`, `X-Api-Key`, `Set-Cookie`. A
-//! line is redacted when it has any of:
-//! - (a) **an assignment**: a sensitive key immediately followed by closing
-//!   bytes (quotes, `]`, URL-encoded `%22`, `%27`, `%5D`, and backslashes for
-//!   any escaping depth up to the bound below), optional spaces, an operator
-//!   (`=`, `:`, `=>`, `:=`, `%3D` or `%3A`), optional spaces and a non-empty
-//!   value. A quoted value is non-empty unless the same quote, at the same
-//!   escape depth, closes it at once; an unquoted one is anything but
-//!   whitespace or the line's end, punctuation included: `password=x`,
-//!   `"api_key": "x"`, `\"token\":\"x\"`, `user[password]=x`,
-//!   `DB_PASSWORD=;a&b`, `password=";a&b"`, `password%3Dx`;
-//! - (b) **a name/value record**: within one brace-delimited object, or at
-//!   the line's top level (one line of comma-separated pairs), a field keyed
-//!   `name`, `key`, `env` or `variable` whose value is a sensitive key, and a
-//!   field keyed `value` or `val` with a non-empty value (field keys in any
-//!   case), in either order and whatever lies between, quoted or not:
-//!   `{"name":"DB_PASSWORD","value":"x"}`, `{"value":"x","name":"DB_PASSWORD"}`,
-//!   `{"name":"DB_PASSWORD","type":"string","value":"x"}`,
-//!   `name: DB_PASSWORD, value: x`, `{ name: 'DB_PASSWORD', value: 'x' }`. A
-//!   field of a nested object belongs to that object only;
-//! - (c) **an option**: `--key value` or `-key value`, separated by spaces or
-//!   tabs, when the option name's *last* component is sensitive:
-//!   `--password x`, `--db-password x`, `--api-key x`, but not
-//!   `--token-ttl 3600` or `--session-timeout 30`, which name settings;
-//! - (d) **a bare keyword then a value**: a sensitive key written in upper
-//!   case, then spaces and a non-empty token, quoted or not (`PASSWORD 'x'`,
-//!   `PASSWORD hunter2`), and `IDENTIFIED [WITH plugin] BY x`. In lower or
-//!   mixed case the same shape is prose and is kept: `password reset email
-//!   sent`, `Secret "db-creds" not found`;
-//! - (e) **a value of a known secret shape** anywhere in the line, after any
+//! Redaction is line based, and a line that names a credential is redacted
+//! unless it is plainly prose: a redactor that lists the forms a secret can
+//! take after its name (assignments, records, options, keywords) keeps
+//! missing forms, and a missed secret is worse than a hidden line.
+//!
+//! A *key* is a maximal run of ASCII letters, digits, `_`, `-` and `.`. Its
+//! *components* are its runs of letters, split where a lower-case letter
+//! meets an upper-case one; digits, `_`, `-` and `.` separate them. A
+//! component is a *sensitive word* when, with or without one plural `s`, it
+//! ends with `password`, `passwd`, `passphrase`, `secret`, `token`,
+//! `apikey`, `privatekey`, `credential(s)`, `cookie` or `signature`, is
+//! exactly `session`, `sessionid`, `authorization`, `auth` or `identified`
+//! (SQL's `IDENTIFIED BY 'x'`), or is `key` after `api` or `private`:
+//! `db_password`, `accessToken`, `X-Api-Key`, `Set-Cookie`, `tokens`,
+//! `PASSWORD2`. One inside a longer run of letters, with no boundary after
+//! it, does not count (`secretary`, `tokenizer`). A line is redacted when:
+//! - (a) **it names a sensitive word and is not plain prose there**. Plain
+//!   prose means both of:
+//!   - the key that holds each sensitive word is one plain word: letters,
+//!     upper case only first, before any sentence-ending dots (`Password`,
+//!     `tokens`, `token.`). In `--password`, `DB_PASSWORD`, `PASSWORD`,
+//!     `accessToken` or `token2` the word is part of a name, never prose;
+//!   - for every sensitive word, the text from its end (after the plural
+//!     `s`) to the next sensitive word or the line's end holds only spaces,
+//!     words of at most 15 lower-case ASCII letters, and `.`, `,`, `;`, `!`
+//!     or `?` each followed by a space or the line's end. Anything else
+//!     there (a digit, an upper-case letter, a quote, `=`, `:`, `-`, `_`,
+//!     `/`, `\`, `@`, `%`, `+`, a bracket or brace, a tab, a non-ASCII byte,
+//!     a longer word) could be or introduce a value.
+//!
+//!   What precedes the first sensitive word's key does not matter;
+//! - (b) **it holds a value of a known secret shape** anywhere, after any
 //!   amount of whitespace: a bearer credential, a JWT, cloud and service key
 //!   prefixes, URL userinfo.
 //!
-//! A word that only names a credential (`password reset`, `the token bucket`,
-//! `processed 4096 tokens`, `{"metric":"session","value":42}`) is kept. The
-//! rules redact on structure, whatever the value, so some lines without a
-//! secret go too: a sensitive key assigned a non-secret (`TOKEN_TTL=3600`,
-//! `"token_type":"bearer"`, `limeos_core::session: started`), an upper-case
-//! key before any word (`SECRET_KEY not set`), and a record whose name field
-//! merely is a sensitive word (`{"name":"session","value":5}`).
+//! Kept: `processed 4096 tokens`, `session started`, `password reset email
+//! sent to user`, `invalid password for user bob`, `the token bucket
+//! refilled`. Redacted though harmless, by design: `--token-ttl 3600`,
+//! `Secret "db-creds" not found`, `{"metric":"session","value":42}`,
+//! `max_tokens=4096`, `token refresh failed: upstream returned 401`,
+//! `secrets are mounted read-only` (the hyphen), `SECRET_KEY not set`, a
+//! sensitive word before non-ASCII text, `limeos_core::session: started`.
 //!
-//! Bounds: every scan is one forward pass, reading a bounded number of bytes
-//! from each position (closing bytes and a value's opening escapes stop at
-//! `MAX_ESCAPE`, 72 bytes: a quote escaped for JSON nested six levels deep
-//! has 63 backslashes before it), and brace nesting is tracked to
-//! `MAX_DEPTH` (32) levels, deeper objects counting as the deepest one; so
-//! the cost is linear in the line and no input can make it panic.
+//! Bounds: one forward pass finds the keys and reads each once to find its
+//! sensitive words and check it is a plain word; each sensitive word closes
+//! the span after the previous one, and the spans do not overlap, so each
+//! is read once; the shape checks read a bounded number of bytes from each
+//! position. The cost is linear in the line and no input can make it panic.
 //!
-//! Known limits: a secret on the line after its key (YAML block style
+//! Known limits. A line is kept when every sensitive word on it is a plain
+//! word followed by lower-case prose, so it shows a secret made of
+//! lower-case words given bare after its name with no quoting, operator or
+//! option dashes (`password hunter`), a secret that is exactly a
+//! capitalised or lower-case sensitive word (`password Secret`: the next
+//! sensitive word ends the span), and a secret that comes *before* the
+//! sensitive word with only prose after it (`hunter2 is the password`).
+//! Also missed: a secret on the line after its key (YAML block style
 //! `password: |`, or `- name: DB_PASSWORD` then `value: x`); a key written
-//! with look-alike Unicode letters; a value wrapped in base64 or another
-//! encoding (a basic auth header is caught by its key, not its value); a
-//! secret stated in prose (`the password is hunter2`) or passed positionally
-//! (`mysql -phunter2`, `htpasswd -b file bob hunter2`); a keyword in lower
-//! case before a bare value (`alter role app password 'x'`, read as prose by
-//! rule (d)); JSON escaped more than six levels deep; a name/value record
-//! that is URL-encoded or split across lines.
+//! with look-alike Unicode letters (non-ASCII *after* a sensitive word does
+//! redact); a value wrapped in base64 or another encoding (a basic auth
+//! header is caught by its key, not its value); a secret passed with no
+//! sensitive word on its line (`mysql -phunter2`).
 //!
-//! Key blocks with their BEGIN/END markers are
-//! reliable; a key body without markers (its BEGIN dropped by the Engine's
+//! Key blocks with their BEGIN/END markers are reliable; a key body without markers (its BEGIN dropped by the Engine's
 //! tail or our window, its END never written) is caught only best effort, by
 //! withholding leading lines that look like one. A known limit: the Engine
 //! splits a log entry at 16 KiB, so a tail can start on a later piece of a
@@ -318,14 +314,13 @@ fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) -> bool {
     }
     omitted
 }
-/// Whether a line carries a credential, judged by structure rather than by
-/// words in prose: a sensitive key given a value (rules (a) to (d) in the
-/// module documentation), or a value with a known secret shape (rule (e)).
-/// Each scan reads the line's bytes once or a bounded number of bytes per
-/// position, so the cost is linear in the line.
+/// Whether a line carries a credential: a value with a known secret shape,
+/// or a sensitive word followed by anything but plain prose (the module
+/// documentation states both). Each scan reads the line's bytes once or a
+/// bounded number of bytes per position, so the cost is linear in the line.
 fn credential(line: &str) -> bool {
-    let bytes = line.as_bytes();
-    keyed_secret(bytes)
+    let bytes = line.trim_end_matches(['\n', '\r']).as_bytes();
+    named_without_prose(bytes)
         || (0..bytes.len()).any(|at| secret_shape(bytes, at))
         || line.split_whitespace().any(|part| {
             part.split_once("://")
@@ -338,221 +333,79 @@ fn alnum(b: u8) -> bool {
 fn key_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.')
 }
-fn quote(b: u8) -> bool {
-    matches!(b, b'"' | b'\'' | b'`')
-}
 /// The count of spaces and tabs at the start of `rest`.
 fn spaces(rest: &[u8]) -> usize {
     rest.iter()
         .take_while(|&&b| matches!(b, b' ' | b'\t'))
         .count()
 }
-/// The longest run of closing bytes read between a key and its operator, and
-/// of backslashes before a value's opening quote. A quote escaped for JSON
-/// nested six levels deep inside JSON strings has 63 backslashes before it;
-/// deeper escaping is a known limit. The bound keeps every scan from one
-/// position constant.
-const MAX_ESCAPE: usize = 72;
-/// Brace nesting tracked for name/value records; deeper objects count as the
-/// deepest tracked one.
-const MAX_DEPTH: usize = 32;
-/// Field keys whose value names a variable (any case).
-const NAME_FIELDS: &[&[u8]] = &[b"name", b"key", b"env", b"variable"];
-/// Field keys whose value is that variable's value (any case).
-const VALUE_FIELDS: &[&[u8]] = &[b"value", b"val"];
-
-/// A sensitive key given a value, by the rules (a) to (d) in the module
-/// documentation. One forward pass over the line's keys (maximal runs of
-/// letters, digits, `_`, `-` and `.`) and braces; from each key it reads a
-/// bounded number of bytes, plus the token after it, which the pass then
-/// reads once more, so the cost stays linear in the line.
-fn keyed_secret(bytes: &[u8]) -> bool {
-    let mut records = Records::default();
+/// The longest word of lower-case letters plain prose may contain.
+const MAX_WORD: usize = 15;
+/// Whether `bytes` names a sensitive word and is not plain prose there:
+/// the key holding a sensitive word is not a plain word, or the text after a
+/// sensitive word, up to the next one or the line's end, is not prose. One
+/// forward pass over the line's keys (maximal runs of letters, digits, `_`,
+/// `-` and `.`); each sensitive word closes the span after the previous one,
+/// which `prose` reads once, so every byte is read a bounded number of times.
+fn named_without_prose(bytes: &[u8]) -> bool {
+    // The end of the last sensitive word so far.
+    let mut after = None;
     let mut at = 0;
-    while let Some(&b) = bytes.get(at) {
-        if b == b'{' {
-            records.open();
-        } else if b == b'}' {
-            records.close();
-        } else if key_byte(b) {
-            let end = bytes
-                .get(at..)
-                .and_then(|rest| rest.iter().position(|&b| !key_byte(b)))
-                .map_or(bytes.len(), |len| at + len);
-            let key = bytes.get(at..end).unwrap_or_default();
-            if keyed(key, bytes.get(end..).unwrap_or_default(), &mut records) {
-                return true;
-            }
-            at = end;
+    while at < bytes.len() {
+        let len = bytes
+            .get(at..)
+            .unwrap_or_default()
+            .iter()
+            .take_while(|&&b| key_byte(b))
+            .count();
+        if len == 0 {
+            at += 1;
             continue;
         }
-        at += 1;
-    }
-    false
-}
-/// Whether `key`, followed by `rest`, gives a sensitive key a value, noting
-/// a name/value record's fields in `records` on the way.
-fn keyed(key: &[u8], rest: &[u8], records: &mut Records) -> bool {
-    if let Some(value) = assigned(rest) {
-        // (a) An assignment.
-        if sensitive_key(key) && non_empty(value) {
+        let key = bytes.get(at..at + len).unwrap_or_default();
+        let (mut named, mut leak) = (false, false);
+        sensitive_words(key, |start, end| {
+            named = true;
+            if let Some(from) = after {
+                leak |= !prose(bytes, from, at + start);
+            }
+            after = Some(at + end);
+        });
+        if leak || (named && !plain_word(key)) {
             return true;
         }
-        // (b) A name/value record's fields.
-        let field = |names: &[&[u8]]| names.iter().any(|name| key.eq_ignore_ascii_case(name));
-        if field(NAME_FIELDS) && sensitive_key(word(value)) {
-            records.name();
-        } else if field(VALUE_FIELDS) && non_empty(value) {
-            records.value();
-        }
-        return records.complete();
+        at += len;
     }
-    let gap = spaces(rest);
-    let next = rest.get(gap..).unwrap_or_default();
-    if gap == 0 {
-        return false;
-    }
-    if key.starts_with(b"-") {
-        // (c) An option whose name ends in a sensitive component.
-        return last_component_sensitive(key) && non_empty(next);
-    }
-    // (d) A bare keyword in upper case.
-    let shouted = key.iter().any(u8::is_ascii_uppercase) && !key.iter().any(u8::is_ascii_lowercase);
-    shouted
-        && ((sensitive_key(key) && non_empty(next))
-            || (key == b"IDENTIFIED" && identified_by(next)))
+    after.is_some_and(|from| !prose(bytes, from, bytes.len()))
 }
-/// After a key: closing bytes (quotes, `]`, URL-encoded quotes or bracket,
-/// backslashes), optional spaces, an operator (`=`, `:`, `=>`, `:=`, `%3D`,
-/// `%3A`) and optional spaces. Returns what follows, the value, when there is
-/// such an operator.
-fn assigned(rest: &[u8]) -> Option<&[u8]> {
-    let mut closing = 0;
-    while closing < MAX_ESCAPE {
-        let tail = rest.get(closing..).unwrap_or_default();
-        closing += match tail {
-            [b'\\' | b']', ..] => 1,
-            [q, ..] if quote(*q) => 1,
-            [b'%', b'2', b'2' | b'7', ..] | [b'%', b'5', b'D' | b'd', ..] => 3,
-            _ => break,
-        };
-    }
-    let rest = rest.get(closing..).unwrap_or_default();
-    let rest = rest.get(spaces(rest)..).unwrap_or_default();
-    let operator = match rest {
-        [b'=', b'>', ..] | [b':', b'=', ..] => 2,
-        [b'=' | b':', ..] => 1,
-        [b'%', b'3', b'D' | b'd' | b'A' | b'a', ..] => 3,
-        _ => return None,
-    };
-    let value = rest.get(operator..).unwrap_or_default();
-    Some(value.get(spaces(value)..).unwrap_or_default())
+/// A key that is one plain word: ASCII letters, upper case only first
+/// (`Password`, `tokens`), before any sentence-ending dots.
+fn plain_word(key: &[u8]) -> bool {
+    let mut letters = key.iter().take(
+        key.iter()
+            .rposition(|&b| b != b'.')
+            .map_or(0, |last| last + 1),
+    );
+    letters.next().is_some_and(u8::is_ascii_alphabetic) && letters.all(u8::is_ascii_lowercase)
 }
-/// A non-empty value starts `rest`: a quoted one (after up to `MAX_ESCAPE`
-/// backslashes) unless the same quote at the same escape depth closes it at
-/// once or the line ends; otherwise anything but whitespace or the end,
-/// punctuation included.
-fn non_empty(rest: &[u8]) -> bool {
-    let escapes = rest
-        .iter()
-        .take(MAX_ESCAPE)
-        .take_while(|&&b| b == b'\\')
-        .count();
-    match rest.get(escapes).copied() {
-        Some(q) if quote(q) => {
-            let inner = rest.get(escapes + 1..).unwrap_or_default();
-            let closes = inner
-                .get(..escapes)
-                .is_some_and(|e| e.iter().all(|&b| b == b'\\'))
-                && inner.get(escapes) == Some(&q);
-            !inner.is_empty() && !closes && !matches!(inner.first(), Some(b'\n' | b'\r'))
-        }
-        _ => rest.first().is_some_and(|b| !b.is_ascii_whitespace()),
-    }
-}
-/// The key that starts a value, after its opening quote and escapes.
-fn word(value: &[u8]) -> &[u8] {
-    let opening = value
-        .iter()
-        .take(MAX_ESCAPE)
-        .take_while(|&&b| b == b'\\' || quote(b))
-        .count();
-    let value = value.get(opening..).unwrap_or_default();
-    let len = value.iter().take_while(|&&b| key_byte(b)).count();
-    value.get(..len).unwrap_or_default()
-}
-/// After `IDENTIFIED` and spaces: an optional `WITH plugin`, then `BY` and a
-/// non-empty value (`IDENTIFIED BY 'x'`, `IDENTIFIED WITH p BY 'x'`).
-fn identified_by(rest: &[u8]) -> bool {
-    fn token(rest: &[u8]) -> usize {
-        rest.iter().take_while(|b| !b.is_ascii_whitespace()).count()
-    }
-    /// `rest` after `len` bytes and at least one space.
-    fn skip(rest: &[u8], len: usize) -> Option<&[u8]> {
-        let rest = rest.get(len..).unwrap_or_default();
-        let gap = spaces(rest);
-        (gap > 0).then(|| rest.get(gap..).unwrap_or_default())
-    }
-    let mut rest = rest;
-    if rest.starts_with(b"WITH") && token(rest) == 4 {
-        let Some(plugin) = skip(rest, 4) else {
-            return false;
-        };
-        let Some(after) = skip(plugin, token(plugin)) else {
-            return false;
-        };
-        rest = after;
-    }
-    rest.starts_with(b"BY") && token(rest) == 2 && skip(rest, 2).is_some_and(non_empty)
-}
-/// Name/value record state: for the line's top level and each enclosing
-/// brace-delimited object (up to `MAX_DEPTH`), whether a name field named a
-/// sensitive key and whether a value field had a value.
-struct Records {
-    levels: [(bool, bool); MAX_DEPTH],
-    depth: usize,
-    beyond: usize,
-}
-impl Default for Records {
-    fn default() -> Self {
-        Self {
-            levels: [(false, false); MAX_DEPTH],
-            depth: 0,
-            beyond: 0,
-        }
-    }
-}
-impl Records {
-    fn open(&mut self) {
-        if self.depth + 1 < MAX_DEPTH {
-            self.depth += 1;
-            if let Some(level) = self.levels.get_mut(self.depth) {
-                *level = (false, false);
+/// Whether `line[from..to]` is plain prose: spaces, words of at most
+/// `MAX_WORD` lower-case ASCII letters, and `.`, `,`, `;`, `!` or `?` each
+/// followed by a space or the line's end.
+fn prose(line: &[u8], from: usize, to: usize) -> bool {
+    let mut word = 0;
+    for at in from..to {
+        match line.get(at).copied() {
+            Some(b'a'..=b'z') if word < MAX_WORD => word += 1,
+            Some(b' ') => word = 0,
+            Some(b'.' | b',' | b';' | b'!' | b'?')
+                if matches!(line.get(at + 1), None | Some(b' ')) =>
+            {
+                word = 0
             }
-        } else {
-            self.beyond = self.beyond.saturating_add(1);
+            _ => return false,
         }
     }
-    fn close(&mut self) {
-        if self.beyond > 0 {
-            self.beyond -= 1;
-        } else {
-            self.depth = self.depth.saturating_sub(1);
-        }
-    }
-    fn name(&mut self) {
-        if let Some(level) = self.levels.get_mut(self.depth) {
-            level.0 = true;
-        }
-    }
-    fn value(&mut self) {
-        if let Some(level) = self.levels.get_mut(self.depth) {
-            level.1 = true;
-        }
-    }
-    fn complete(&self) -> bool {
-        self.levels.get(self.depth) == Some(&(true, true))
-    }
+    true
 }
 /// Words that make a key component sensitive when it ends with one.
 const KEY_SUFFIXES: &[&[u8]] = &[
@@ -569,47 +422,73 @@ const KEY_SUFFIXES: &[&[u8]] = &[
     b"signature",
 ];
 /// Words that make a key component sensitive only when it is exactly one.
-const KEY_WORDS: &[&[u8]] = &[b"session", b"sessionid", b"authorization", b"auth"];
-/// A key whose name has a sensitive component. Components are split at `_`,
-/// `-`, `.` and a lower-case letter or digit followed by an upper-case one
-/// (`accessToken`); `api` or `private` followed by `key` counts as one.
-fn sensitive_key(key: &[u8]) -> bool {
-    let mut any = false;
-    components(key, |sensitive| any |= sensitive);
-    any
-}
-/// Whether a key's last component is sensitive (`--db-password`, not
-/// `--token-ttl`).
-fn last_component_sensitive(key: &[u8]) -> bool {
-    let mut last = false;
-    components(key, |sensitive| last = sensitive);
-    last
-}
-/// Calls `each` with whether each component of `key`, in order, is
-/// sensitive.
-fn components(key: &[u8], mut each: impl FnMut(bool)) {
-    let mut previous = Vec::new();
-    for word in key.split(|&b| matches!(b, b'_' | b'-' | b'.')) {
-        let mut start = 0;
-        for at in 1..=word.len() {
-            let camel = matches!(
-                (word.get(at - 1), word.get(at)),
-                (Some(a), Some(b))
-                    if (a.is_ascii_lowercase() || a.is_ascii_digit()) && b.is_ascii_uppercase()
-            );
-            if at < word.len() && !camel {
-                continue;
-            }
-            let part = word.get(start..at).unwrap_or_default().to_ascii_lowercase();
-            start = at;
-            each(
-                KEY_SUFFIXES.iter().any(|suffix| part.ends_with(suffix))
-                    || KEY_WORDS.contains(&part.as_slice())
-                    || (part == b"key" && matches!(previous.as_slice(), b"api" | b"private")),
-            );
-            previous = part;
+/// `identified` is SQL's `IDENTIFIED BY 'x'`, a password with no other word
+/// naming it.
+const KEY_WORDS: &[&[u8]] = &[
+    b"session",
+    b"sessionid",
+    b"authorization",
+    b"auth",
+    b"identified",
+];
+/// Calls `each` with the range, within `key`, of each sensitive word in it,
+/// in order. Components are the runs of ASCII letters, split where a
+/// lower-case letter meets an upper-case one (`accessToken`); digits, `_`,
+/// `-` and `.` separate them. A component is sensitive when it, or it
+/// without one plural `s`, ends with a word of `KEY_SUFFIXES`, is one of
+/// `KEY_WORDS`, or is `key` after `api` or `private`. The range is that word
+/// with its `s`: a component's leading letters (`csrf` in `csrftoken`) stay
+/// outside it, in the text the prose test reads.
+fn sensitive_words(key: &[u8], mut each: impl FnMut(usize, usize)) {
+    let mut previous: &[u8] = &[];
+    let mut start = 0;
+    for at in 1..=key.len() {
+        let (a, b) = (key.get(at - 1).copied(), key.get(at).copied());
+        let joined = matches!((a, b), (Some(a), Some(b))
+            if a.is_ascii_alphabetic()
+                && b.is_ascii_alphabetic()
+                && !(a.is_ascii_lowercase() && b.is_ascii_uppercase()));
+        if joined {
+            continue;
         }
+        let part = key.get(start..at).unwrap_or_default();
+        let from = start;
+        start = at;
+        if !part.iter().all(u8::is_ascii_alphabetic) {
+            continue;
+        }
+        let stem = match part.split_last() {
+            Some((s, stem)) if s.eq_ignore_ascii_case(&b's') => stem,
+            _ => part,
+        };
+        let found = sensitive(part, previous)
+            .map(|len| part.len() - len)
+            .or_else(|| sensitive(stem, previous).map(|len| stem.len() - len));
+        if let Some(lead) = found {
+            each(from + lead, at);
+        }
+        previous = part;
     }
+}
+/// The length of the sensitive word `part` ends with, after a component
+/// `previous`, if it is sensitive.
+fn sensitive(part: &[u8], previous: &[u8]) -> Option<usize> {
+    let ends = |word: &[u8]| {
+        part.len()
+            .checked_sub(word.len())
+            .and_then(|from| part.get(from..))
+            .is_some_and(|tail| tail.eq_ignore_ascii_case(word))
+    };
+    if let Some(word) = KEY_SUFFIXES.iter().find(|word| ends(word)) {
+        return Some(word.len());
+    }
+    let is = |word: &[u8]| part.eq_ignore_ascii_case(word);
+    (KEY_WORDS.iter().any(|word| is(word))
+        || (is(b"key")
+            && [&b"api"[..], b"private"]
+                .iter()
+                .any(|w| previous.eq_ignore_ascii_case(w))))
+    .then_some(part.len())
 }
 /// Whether a known secret value starts at `at`. Every check reads at most a
 /// fixed number of bytes, except the JWT scan, which starts only where the
@@ -1122,38 +1001,6 @@ mod tests {
         }
     }
     #[test]
-    fn ordinary_lines_that_only_mention_a_sensitive_word_survive() {
-        let digest = "a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4";
-        for line in [
-            "processed 4096 tokens".to_owned(),
-            "session started".to_owned(),
-            "secretary".to_owned(),
-            "the token bucket refilled".to_owned(),
-            "id=550e8400-e29b-41d4-a716-446655440000 ready".to_owned(),
-            format!("pulling docker.io/library/nginx@sha256:{digest}"),
-            format!("image=nginx@sha256:{digest}"),
-            "password reset email sent to user".to_owned(),
-            "tokenizer loaded".to_owned(),
-            "max_tokens=4096 prompt_tokens: 12".to_owned(),
-            r#"{"usage":{"prompt_tokens":12,"completion_tokens":40}}"#.to_owned(),
-            r#"{"event":"token_refreshed","user":"bob"}"#.to_owned(),
-            r#"{"type":"session","id":5}"#.to_owned(),
-            "msg=\"login failed for bob: password mismatch\"".to_owned(),
-            "authorization failed for user bob".to_owned(),
-            "the bearer of bad news".to_owned(),
-            "Bearer token required".to_owned(),
-            "secrets are mounted read-only".to_owned(),
-            "active_sessions=5".to_owned(),
-            "connected to postgres://db:5432/app".to_owned(),
-            "risk-free reconciliation done in 12ms".to_owned(),
-            "skipped 3 jobs".to_owned(),
-            "2026-11-19T00:00:00.000000001Z GET /health 200".to_owned(),
-            "Ünïcödé session 😀 started".to_owned(),
-        ] {
-            assert_eq!(filtered(&line), format!("{line}\n"), "{line:?}");
-        }
-    }
-    #[test]
     fn redaction_never_panics_and_stays_bounded_on_arbitrary_input() {
         let pieces: &[&str] = &[
             "eyJ",
@@ -1259,13 +1106,18 @@ mod tests {
             "IDENTIFIED BY ",
             "IDENTIFIED WITH x ",
             "--db-token ",
+            "token a ",
+            "password. ",
+            "csrftoken",
+            "tokens",
+            "Session, ",
         ] {
             let line = unit.repeat(CONTAINER_LOG_BYTES / unit.len() - 1);
             decode_all(line.as_bytes(), true).unwrap();
         }
     }
-    /// Lines the reviewers found the structural rule emitting while the
-    /// substring rule it replaced redacted them.
+    /// Lines the reviewers found emitted by an earlier rule while the
+    /// substring rule redacted them, over four review rounds.
     const REPRODUCTIONS: &[&str] = &[
         r#""body":"{\"user\":\"bob\",\"password\":\"hunter2\"}""#,
         r#"{"level":"info","body":"{\"user\":\"bob\",\"password\":\"hunter2\"}"}"#,
@@ -1279,7 +1131,7 @@ mod tests {
         "Authorization: Bearer                     abcDEF123456",
         "token=Bearer                                      abcDEF123456",
         "Bearer                                            abcDEF123456",
-        // Second review round.
+        // Second and third rounds.
         "DB_PASSWORD=;a&b",
         r#"{"value":"hunter2","name":"DB_PASSWORD"}"#,
         r#"{"name":"DB_PASSWORD","type":"string","value":"hunter2"}"#,
@@ -1287,10 +1139,14 @@ mod tests {
         "{ name: 'DB_PASSWORD', value: 'x' }",
         "PASSWORD hunter2",
         "password%3Dx",
-        r#"{"log":"{\\\"token\\\":\\\"s3cr3t\\\"}"}"#,
         r#"{"log":"{\\\\\\\"token\\\\\\\":\\\\\\\"s3cr3t\\\\\\\"}"}"#,
         "CREATE USER 'app'@'%' IDENTIFIED BY 'hunter2'",
         "ALTER USER app IDENTIFIED WITH caching_sha2_password BY 'hunter2'",
+        // Fourth round.
+        "--s3-secret-access-key hunter2",
+        r#"{"value":"}hunter2","name":"DB_PASSWORD"}"#,
+        r#"{"name":"DB_PASSWORD","value":"}hunter2"}"#,
+        "alter role app password 'x'",
     ];
     #[test]
     fn reported_misses_are_redacted() {
@@ -1298,46 +1154,291 @@ mod tests {
             assert_eq!(filtered(line), CREDENTIAL_REDACTED, "{line:?}");
         }
     }
-    /// Lines the reviewers found redacted though they carry no credential: a
-    /// sensitive word as a quoted value, an option that names a setting, a
-    /// sensitive word before a quoted name in prose.
-    const SURVIVORS: &[&str] = &[
-        r#"{"metric":"session","value":42}"#,
-        "--token-ttl 3600",
-        "--session-timeout 30",
-        r#"Secret "db-creds" not found"#,
+    /// Lines and whether the prose rule redacts them, as the owner listed
+    /// them and as earlier reviews found them.
+    const OUTCOMES: &[(&str, bool)] = &[
+        // Kept: only lower-case prose follows each sensitive word.
+        ("processed 4096 tokens", false),
+        ("session started", false),
+        ("password reset email sent to user", false),
+        ("the token bucket refilled", false),
+        ("secretary", false),
+        ("tokenizer loaded", false),
+        ("authorization failed for user bob", false),
+        ("invalid password for user bob", false),
+        ("Bearer token required", false),
+        ("the Authorization header is missing", false),
+        ("Secret rotation scheduled", false),
+        ("password reset. check your inbox, then sign in!", false),
+        ("the user was identified by email", false),
+        ("session started for the token.", false),
+        ("Password expired; Tokens revoked.", false),
+        // Kept: no sensitive word.
+        ("the bearer of bad news", false),
+        ("id=550e8400-e29b-41d4-a716-446655440000 ready", false),
+        ("connected to postgres://db:5432/app", false),
+        ("risk-free reconciliation done in 12ms", false),
+        ("skipped 3 jobs", false),
+        ("2026-11-19T00:00:00.000000001Z GET /health 200", false),
+        // Redacted: a value could follow the sensitive word.
+        ("--s3-secret-access-key hunter2", true),
+        (r#"{"value":"}hunter2","name":"DB_PASSWORD"}"#, true),
+        (r#"{"name":"DB_PASSWORD","value":"}hunter2"}"#, true),
+        ("alter role app password 'x'", true),
+        ("ALTER ROLE app PASSWORD 'x'", true),
+        ("PASSWORD hunter2", true),
+        ("DB_PASSWORD=;a&b", true),
+        ("DB_PASSWORD2=hunter2", true),
+        ("password%3Dx", true),
+        ("name: DB_PASSWORD, value: x", true),
+        ("{ name: 'DB_PASSWORD', value: 'x' }", true),
+        ("password hunter2secret", true),
+        ("password reset.hunter", true),
+        ("password\thunter", true),
+        ("password abcdefghijklmnop", true),
+        // Redacted: the sensitive word is in a key that is not a plain word.
+        ("--password x", true),
+        ("app --api-key abc", true),
+        ("PASSWORD hunter", true),
+        ("value=hunter2, name=PASSWORD", true),
+        ("password SECRET", true),
+        ("accessToken expired", true),
+        // Redacted though harmless: the accepted cost.
+        ("secrets are mounted read-only", true),
+        ("--token-ttl 3600", true),
+        ("--session-timeout 30", true),
+        (r#"Secret "db-creds" not found"#, true),
+        (r#"{"metric":"session","value":42}"#, true),
+        (r#"{"name":"session duration","value":42}"#, true),
+        ("max_tokens=4096 prompt_tokens: 12", true),
+        ("msg=\"login failed for bob: password mismatch\"", true),
+        ("token refresh failed: upstream returned 401", true),
+        (r#"{"event":"token_refreshed","user":"bob"}"#, true),
+        (
+            r#"{"usage":{"prompt_tokens":12,"completion_tokens":40}}"#,
+            true,
+        ),
+        (r#"{"type":"session","id":5}"#, true),
+        ("active_sessions=5", true),
+        ("limeos_core::session: started", true),
+        ("Ünïcödé session 😀 started", true),
+        ("SECRET_KEY not set", true),
     ];
     #[test]
-    fn reported_over_redactions_survive() {
-        for line in SURVIVORS {
+    fn listed_lines_have_their_listed_outcome() {
+        let digest = "a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4";
+        let shown = [
+            format!("pulling docker.io/library/nginx@sha256:{digest}"),
+            format!("image=nginx@sha256:{digest}"),
+        ];
+        let lines = OUTCOMES
+            .iter()
+            .map(|&(line, redact)| (line.to_owned(), redact))
+            .chain(shown.into_iter().map(|line| (line, false)));
+        for (line, redact) in lines {
+            let expected = if redact {
+                CREDENTIAL_REDACTED.to_owned()
+            } else {
+                format!("{line}\n")
+            };
+            assert_eq!(filtered(&line), expected, "{line:?}");
+        }
+    }
+    /// The documented limits, pinned so that a change to them is deliberate:
+    /// each carries a secret and is shown.
+    const KNOWN_LIMITS: &[&str] = &[
+        // Lower-case words given bare after the sensitive word.
+        "password hunter",
+        // A secret that is itself a sensitive word ends the span.
+        "password Secret",
+        // A secret before the sensitive word, only prose after it.
+        "hunter2 is the password",
+        // No sensitive word on the line.
+        "mysql -phunter2",
+        // The value on the next line: this line has only the key.
+        "password",
+    ];
+    #[test]
+    fn documented_limits_are_shown() {
+        for line in KNOWN_LIMITS {
             assert_eq!(filtered(line), format!("{line}\n"), "{line:?}");
+        }
+    }
+    /// A small xorshift generator, so the generated tests are repeatable.
+    fn generator(mut state: u64) -> impl FnMut(usize) -> usize {
+        move |bound: usize| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state % bound as u64) as usize
+        }
+    }
+    /// Sensitive words as plain words, as prose writes them.
+    const SENSITIVE_WORDS: &[&str] = &[
+        "password",
+        "passwd",
+        "passphrase",
+        "secret",
+        "token",
+        "apikey",
+        "privatekey",
+        "credential",
+        "credentials",
+        "cookie",
+        "signature",
+        "session",
+        "sessionid",
+        "authorization",
+        "auth",
+        "identified",
+        "tokens",
+        "secrets",
+        "passwords",
+        "Password",
+        "Tokens",
+        "csrftoken",
+    ];
+    /// Sensitive words inside keys that are not plain words: never prose.
+    const SENSITIVE_KEYS: &[&str] = &[
+        "TOKEN",
+        "DB_PASSWORD",
+        "accessToken",
+        "X-Api-Key",
+        "api_key",
+        "PGPASSWORD",
+        "Set-Cookie",
+        "private_key",
+        "--password",
+        "-token",
+        "token2",
+        "auth0",
+        "password.file",
+    ];
+    /// Lower-case words with no sensitive word in them.
+    const PROSE_WORDS: &[&str] = &[
+        "alpha", "bravo", "charlie", "delta", "echo", "is", "a", "the", "for", "user", "bob",
+        "mismatch", "reset", "rotated", "expired", "missing", "q",
+    ];
+    /// What may stand before the first sensitive word: anything.
+    const PREFIXES: &[&str] = &[
+        "",
+        "INFO ",
+        "2026-11-19T00:00:00.000000001Z ",
+        "app[1]: ",
+        "{\"msg\":\"",
+        "Error 42: ",
+        "The Thing ",
+        "x=1 ",
+    ];
+    /// Pieces that are not plain prose: anything but lower-case letters and
+    /// spaces, punctuation not followed by a space, and an over-long word.
+    const NOT_PROSE: &[&str] = &[
+        "0",
+        "7",
+        "Q",
+        "Z",
+        "\"",
+        "'",
+        "`",
+        "=",
+        ":",
+        "-",
+        "_",
+        "/",
+        "\\",
+        "@",
+        "%",
+        "+",
+        "[",
+        "]",
+        "{",
+        "}",
+        "(",
+        ")",
+        "<",
+        ">",
+        "#",
+        "$",
+        "&",
+        "*",
+        "|",
+        "~",
+        "^",
+        "\t",
+        "é",
+        "😀",
+        "\u{a0}",
+        ".x",
+        ",x",
+        "!x",
+        "?x",
+        ";x",
+        "abcdefghijklmnop",
+    ];
+    #[test]
+    fn a_sensitive_word_followed_by_anything_but_lower_case_prose_is_redacted() {
+        let mut next = generator(0x2545_f491_4f6c_dd1d);
+        let pick =
+            |next: &mut dyn FnMut(usize) -> usize, from: &[&'static str]| from[next(from.len())];
+        for _ in 0..4000 {
+            let prefix = pick(&mut next, PREFIXES);
+            let word = if next(2) == 0 {
+                pick(&mut next, SENSITIVE_WORDS)
+            } else {
+                pick(&mut next, SENSITIVE_KEYS)
+            };
+            let mut value: Vec<String> = (0..next(4))
+                .map(|_| pick(&mut next, PROSE_WORDS).to_owned())
+                .collect();
+            let other = pick(&mut next, NOT_PROSE);
+            let at = next(value.len() + 1);
+            // Glued to a neighbouring word, or a word of its own.
+            match value.get_mut(at) {
+                Some(word) if next(2) == 0 => word.insert_str(0, other),
+                _ => value.insert(at, other.to_owned()),
+            }
+            // Directly after the sensitive word only what cannot extend it.
+            let glue = at == 0 && !other.starts_with(|c: char| c.is_ascii_alphabetic());
+            let gap = if glue && next(2) == 0 { "" } else { " " };
+            let line = format!("{prefix}{word}{gap}{}", value.join(" "));
+            assert_eq!(filtered(&line), CREDENTIAL_REDACTED, "{line:?}");
+        }
+    }
+    /// A sensitive word or key after any prefix, then only lower-case prose.
+    fn prose_after(next: &mut dyn FnMut(usize) -> usize, words: &[&str]) -> String {
+        let mut line = format!(
+            "{}{}",
+            PREFIXES[next(PREFIXES.len())],
+            words[next(words.len())]
+        );
+        for _ in 0..next(6) {
+            line.push_str([" ", " ", ", ", ". ", "; "][next(5)]);
+            line.push_str(PROSE_WORDS[next(PROSE_WORDS.len())]);
+        }
+        line.push_str(["", "", ".", "!", "?", " "][next(6)]);
+        line
+    }
+    #[test]
+    fn a_sensitive_word_followed_only_by_lower_case_prose_is_shown() {
+        let mut next = generator(0x9e37_79b9_7f4a_7c15);
+        for _ in 0..4000 {
+            let line = prose_after(&mut next, SENSITIVE_WORDS);
+            assert_eq!(filtered(&line), format!("{line}\n"), "{line:?}");
+        }
+    }
+    #[test]
+    fn a_sensitive_word_in_a_key_that_is_not_a_plain_word_is_never_prose() {
+        let mut next = generator(0x6a09_e667_f3bc_c908);
+        for _ in 0..2000 {
+            let line = prose_after(&mut next, SENSITIVE_KEYS);
+            assert_eq!(filtered(&line), CREDENTIAL_REDACTED, "{line:?}");
         }
     }
     /// The decision of the substring rule this module replaced (as of
     /// 9249bb7), kept only as an oracle for the no-regression corpus.
     fn substring_rule(line: &str) -> bool {
         let lower = line.to_ascii_lowercase();
-        [
-            "password",
-            "passwd",
-            "passphrase",
-            "secret",
-            "api_key",
-            "api-key",
-            "apikey",
-            "token",
-            "authorization",
-            "bearer ",
-            "ghp_",
-            "github_pat_",
-            "sk-ant-",
-            "sk-proj-",
-            "x-amz-credential",
-            "x-amz-signature",
-            "x-goog-signature",
-        ]
-        .iter()
-        .any(|marker| lower.contains(marker))
+        ORACLE_MARKERS.iter().any(|marker| lower.contains(marker))
             || lower.split_whitespace().any(|part| {
                 part.split_once("://").is_some_and(|(_, rest)| {
                     rest.split('/').next().unwrap_or_default().contains('@')
@@ -1347,6 +1448,25 @@ mod tests {
                 .split(|c: char| c.is_whitespace() || "\"'=:,[]{}".contains(c))
                 .any(|part| part.starts_with("sk-") && part.len() >= 16)
     }
+    const ORACLE_MARKERS: &[&str] = &[
+        "password",
+        "passwd",
+        "passphrase",
+        "secret",
+        "api_key",
+        "api-key",
+        "apikey",
+        "token",
+        "authorization",
+        "bearer ",
+        "ghp_",
+        "github_pat_",
+        "sk-ant-",
+        "sk-proj-",
+        "x-amz-credential",
+        "x-amz-signature",
+        "x-goog-signature",
+    ];
     /// Realistic credential-bearing lines, written as programs and tools
     /// write them.
     const CREDENTIAL_LINES: &[&str] = &[
@@ -1453,62 +1573,27 @@ mod tests {
         "sk-proj-abcdefghijklmnopqrstuvwxyz012345",
         "using key sk-ant-api03-abcdefghijklmnop0123456789",
     ];
-    /// Lines with no credential, as the ordinary-lines test and container
-    /// logs have them; some name a sensitive word in prose.
-    const PROSE_LINES: &[&str] = &[
-        "processed 4096 tokens",
-        "session started",
-        "secretary",
-        "the token bucket refilled",
-        "password reset email sent to user",
-        "tokenizer loaded",
-        "max_tokens=4096 prompt_tokens: 12",
-        r#"{"usage":{"prompt_tokens":12,"completion_tokens":40}}"#,
-        r#"{"event":"token_refreshed","user":"bob"}"#,
-        r#"{"type":"session","id":5}"#,
-        "msg=\"login failed for bob: password mismatch\"",
-        "authorization failed for user bob",
-        "the bearer of bad news",
-        "Bearer token required",
-        "secrets are mounted read-only",
-        "active_sessions=5",
-        "connected to postgres://db:5432/app",
-        "risk-free reconciliation done in 12ms",
-        "skipped 3 jobs",
-        "GET /health 200",
-        "Starting server on port 8080",
-        "token refresh failed: upstream returned 401",
-        "Secret rotation scheduled",
-        "invalid password for user bob",
-        "the Authorization header is missing",
-    ];
-    /// Lines the substring rule redacted that are intentionally emitted now.
-    /// Reviewed: each names a sensitive word without giving it a value.
+    /// Lines the substring rule redacted that the prose rule shows. Reviewed
+    /// line by line: each is plain prose after its sensitive word, or has
+    /// none, and carries no secret.
     const NO_LONGER_REDACTED: &[&str] = &[
         "processed 4096 tokens",
-        "secretary",
-        "the token bucket refilled",
         "password reset email sent to user",
+        "the token bucket refilled",
+        "secretary",
         "tokenizer loaded",
-        "max_tokens=4096 prompt_tokens: 12",
-        r#"{"usage":{"prompt_tokens":12,"completion_tokens":40}}"#,
-        r#"{"event":"token_refreshed","user":"bob"}"#,
-        "msg=\"login failed for bob: password mismatch\"",
         "authorization failed for user bob",
-        "the bearer of bad news",
-        "Bearer token required",
-        "secrets are mounted read-only",
-        "token refresh failed: upstream returned 401",
-        "Secret rotation scheduled",
         "invalid password for user bob",
+        "Bearer token required",
         "the Authorization header is missing",
-        // A setting named after a token (its lifetime in seconds), and prose
-        // naming a Kubernetes Secret object: neither carries a value of one.
-        "--token-ttl 3600",
-        r#"Secret "db-creds" not found"#,
+        "Secret rotation scheduled",
+        "password reset. check your inbox, then sign in!",
+        "session started for the token.",
+        "Password expired; Tokens revoked.",
+        "the bearer of bad news",
     ];
-    /// The corpus: every credential line, each in a few surroundings, and the
-    /// prose lines.
+    /// The corpus: every credential line and reported miss, each in a few
+    /// surroundings, the listed lines and the systematic variants.
     fn corpus() -> Vec<String> {
         let mut lines = Vec::new();
         for line in CREDENTIAL_LINES.iter().chain(REPRODUCTIONS) {
@@ -1535,8 +1620,7 @@ mod tests {
                 format!("{key}: \"{key}\""),
             ]);
         }
-        lines.extend(PROSE_LINES.iter().map(|line| (*line).to_owned()));
-        lines.extend(SURVIVORS.iter().map(|line| (*line).to_owned()));
+        lines.extend(OUTCOMES.iter().map(|(line, _)| (*line).to_owned()));
         lines.extend(variants());
         lines
     }
@@ -1567,41 +1651,46 @@ mod tests {
     fn quote_at(depth: u32) -> String {
         format!("{}\"", "\\".repeat((1 << depth) - 1))
     }
-    /// Every sensitive key in every form (assignment, name/value record,
-    /// option, bare keyword), quoted and not, escaped zero to three levels
-    /// deep, with the record's fields in each order. Each line carries a
-    /// credential.
+    /// Every sensitive key in every form earlier rules enumerated
+    /// (assignment, name/value record, option, bare keyword and SQL in both
+    /// cases), quoted and not, escaped zero to six levels deep, with the
+    /// record's fields in each order and with braces inside its strings.
+    /// Each line carries a credential.
     fn variants() -> Vec<String> {
         let names = ["name", "key", "env", "variable", "Name", "Key", "NAME"];
         let values = ["value", "Value", "val"];
         let mut lines = Vec::new();
         for (i, key) in VARIANT_KEYS.iter().enumerate() {
             let upper = key.to_ascii_uppercase().replace('-', "_");
+            let lower = key.to_ascii_lowercase();
             let (name, value) = (names[i % names.len()], values[i % values.len()]);
-            // (a) Assignment, through every operator.
+            // Assignments, through every operator.
             for op in ["=", ":", " = ", ": ", ":=", " => ", "%3D", "%3A", "%3d"] {
                 for v in ["hunter2", ";a&b", "&x", ",abc"] {
                     lines.push(format!("{key}{op}{v}"));
                 }
                 lines.push(format!("'{key}'{op}'hunter2'"));
-                for depth in 0..4 {
+                for depth in 0..7 {
                     let q = quote_at(depth);
                     lines.push(format!("{q}{key}{q}{op}{q}hunter2{q}"));
                     lines.push(format!("{{{q}user{q}:{q}bob{q},{q}{key}{q}{op}{q} x{q}}}"));
                 }
             }
-            // (b) Name/value records, in each field order.
+            // Name/value records, in each field order, with and without a
+            // brace inside the value.
             let orders: [&[usize]; 4] = [&[0, 1], &[1, 0], &[0, 2, 1], &[1, 2, 0]];
             for order in orders {
-                for depth in 0..4 {
-                    let q = quote_at(depth);
-                    let fields = [
-                        format!("{q}{name}{q}:{q}{upper}{q}"),
-                        format!("{q}{value}{q}:{q}hunter2{q}"),
-                        format!("{q}type{q}:{q}string{q}"),
-                    ];
-                    let record: Vec<_> = order.iter().map(|&f| fields[f].as_str()).collect();
-                    lines.push(format!("{{{}}}", record.join(",")));
+                for secret in ["hunter2", "}hunter2", "{hunter2", "x}"] {
+                    for depth in 0..7 {
+                        let q = quote_at(depth);
+                        let fields = [
+                            format!("{q}{name}{q}:{q}{upper}{q}"),
+                            format!("{q}{value}{q}:{q}{secret}{q}"),
+                            format!("{q}type{q}:{q}string{q}"),
+                        ];
+                        let record: Vec<_> = order.iter().map(|&f| fields[f].as_str()).collect();
+                        lines.push(format!("{{{}}}", record.join(",")));
+                    }
                 }
                 let node = [
                     format!("{name}: '{upper}'"),
@@ -1620,7 +1709,7 @@ mod tests {
                     lines.push(record.join(", "));
                 }
             }
-            // (c) Options whose last component is the sensitive key.
+            // Options, with the sensitive key anywhere in the name.
             for form in [
                 "--{} x",
                 "-{} x",
@@ -1628,17 +1717,28 @@ mod tests {
                 "--{}\tx",
                 "--{} 'x'",
                 "--{} \"x\"",
+                "--{}-access-key hunter2",
+                "--s3-{}-access-key hunter2",
+                "--{}-file /run/secrets/x",
+                "-{}=x",
             ] {
                 lines.push(form.replace("{}", key));
             }
-            // (d) The key in upper case before a bare value.
-            for form in [
-                "{} hunter2",
-                "{} 'hunter2'",
-                "{} \"hunter2\"",
-                "WITH {} hunter2",
-            ] {
-                lines.push(form.replace("{}", &upper));
+            // Bare keywords and SQL, in upper and lower case.
+            for case in [&upper, &lower] {
+                for form in [
+                    "{} hunter2",
+                    "{} 'hunter2'",
+                    "{} \"hunter2\"",
+                    "WITH {} hunter2",
+                    "ALTER ROLE app {} 'x'",
+                    "alter role app {} 'x'",
+                    "alter role app with login {} 'hunter2';",
+                    "create user app with {} \"hunter2\"",
+                    "statement: alter user postgres {} 'md5abc'",
+                ] {
+                    lines.push(form.replace("{}", case));
+                }
             }
         }
         lines
@@ -1646,67 +1746,79 @@ mod tests {
     #[test]
     fn every_systematic_variant_is_redacted() {
         let lines = variants();
-        assert!(lines.len() >= 2500, "{}", lines.len());
+        assert!(lines.len() >= 6000, "{}", lines.len());
         let missed: Vec<_> = lines.iter().filter(|line| !redacted(line)).collect();
         assert!(missed.is_empty(), "{} missed: {missed:#?}", missed.len());
     }
     #[test]
-    fn escaping_and_nesting_are_bounded_and_still_redact_within_the_bound() {
-        // JSON escaped up to six levels deep (63 backslashes before a quote).
-        for depth in 0..7 {
+    fn escaping_and_nesting_at_any_depth_redact() {
+        // JSON escaped to any depth: the backslashes follow the key.
+        for depth in 0..12 {
             let q = quote_at(depth);
             for line in [
                 format!("{q}token{q}:{q}s3cr3t{q}"),
                 format!("{{{q}name{q}:{q}DB_PASSWORD{q},{q}value{q}:{q}x{q}}}"),
+                format!("{{{q}value{q}:{q}}}x{q},{q}name{q}:{q}DB_PASSWORD{q}}}"),
             ] {
                 assert!(redacted(&line), "{depth}: {line}");
             }
         }
-        // A record nested past the depth bound still pairs its own fields.
+        // However deeply nested, and whatever objects lie between fields.
         let deep = "{".repeat(10_000);
-        let line = format!(r#"{deep}"name":"DB_PASSWORD","value":"x""#);
-        assert!(redacted(&line));
-        // The top level is one record, whatever objects lie between its
-        // fields; a field inside an object is not the top level's.
         let shut = "}".repeat(10_000);
-        let line = format!(r#""name":"DB_PASSWORD",{deep}{shut},"value":"x""#);
-        assert!(redacted(&line));
-        let line = format!(r#"{deep}"name":"DB_PASSWORD"{shut},"value":"x""#);
-        assert!(!redacted(&line));
-        // Fields of different objects are not one record.
-        let line =
-            r#"[{"name":"DB_PASSWORD","valueFrom":{"ref":"db"}},{"name":"PORT","value":"8080"}]"#;
-        assert!(!redacted(line));
-        // An empty value gives nothing to redact.
         for line in [
-            r#"{"password":""}"#,
+            format!(r#"{deep}"name":"DB_PASSWORD","value":"x""#),
+            format!(r#""name":"DB_PASSWORD",{deep}{shut},"value":"x""#),
+            format!(r#"{deep}"name":"DB_PASSWORD"{shut},"value":"x""#),
+            r#"[{"name":"DB_PASSWORD","valueFrom":{"ref":"db"}},{"name":"PORT","value":"8080"}]"#
+                .to_owned(),
+        ] {
+            assert!(redacted(&line), "{line}");
+        }
+        // An empty value is redacted too: the rule does not read values.
+        for line in [
             r#"{"password":""}"#,
             "password=",
             "password:   ",
             r#"{"name":"DB_PASSWORD","value":""}"#,
-            "--password",
+            "--password-file",
         ] {
-            assert!(!redacted(line), "{line}");
+            assert!(redacted(line), "{line}");
         }
     }
     fn redacted(line: &str) -> bool {
         filtered(line) == CREDENTIAL_REDACTED
     }
+    /// An independent, coarser reading of plain prose: after the first of the
+    /// substring rule's markers, only lower-case letters, spaces and
+    /// sentence punctuation.
+    fn prose_after_marker(line: &str) -> bool {
+        let lower = line.to_ascii_lowercase();
+        let first = ORACLE_MARKERS
+            .iter()
+            .filter_map(|marker| lower.find(marker).map(|at| at + marker.len()))
+            .min();
+        first.is_some_and(|at| {
+            lower[at..]
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b" .,;!?".contains(&b))
+        })
+    }
     #[test]
-    fn every_corpus_line_the_substring_rule_redacted_is_still_redacted() {
+    fn every_corpus_line_the_substring_rule_redacted_is_still_redacted_unless_plain_prose() {
         let corpus = corpus();
-        assert!(corpus.len() >= 3400, "{}", corpus.len());
+        assert!(corpus.len() >= 6000, "{}", corpus.len());
         let emitted: Vec<_> = corpus
             .iter()
             .filter(|line| substring_rule(line) && !redacted(line))
             .map(String::as_str)
             .collect();
         assert_eq!(emitted, NO_LONGER_REDACTED);
+        for line in NO_LONGER_REDACTED {
+            assert!(prose_after_marker(line), "{line:?}");
+        }
         for line in CREDENTIAL_LINES {
             assert!(redacted(line), "{line:?}");
-        }
-        for line in PROSE_LINES {
-            assert!(!redacted(line), "{line:?}");
         }
     }
     #[test]
