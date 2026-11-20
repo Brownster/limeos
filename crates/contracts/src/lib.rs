@@ -9,6 +9,8 @@ mod operations;
 pub use operations::*;
 mod resolution;
 pub use resolution::*;
+mod service;
+pub use service::*;
 
 pub const VERSION: u16 = 1;
 pub const FRAME_LIMIT: usize = 64 * 1024;
@@ -97,6 +99,30 @@ pub struct Health {
     pub generation: i64,
     pub schema_version: u32,
     pub ready: bool,
+    /// Background subsystems that failed and are waiting to restart. Core
+    /// keeps serving requests while any is listed; an empty list is healthy.
+    pub degraded: Vec<DegradedSubsystem>,
+}
+/// A core background task that restarts on its own after a failure.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema, TS,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Subsystem {
+    /// The 1 Hz health-observation and automation runtime.
+    ObservationRuntime,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct DegradedSubsystem {
+    pub subsystem: Subsystem,
+    /// The error that ended its latest run.
+    pub code: ErrorCode,
+    /// When the current run of failures began (Unix seconds).
+    #[ts(type = "number")]
+    pub since: i64,
+    /// Failures in the current run; it restarts after a longer wait each time.
+    pub failures: u32,
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]

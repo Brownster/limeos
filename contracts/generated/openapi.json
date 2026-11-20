@@ -712,6 +712,36 @@
           }
         ]
       },
+      "DegradedSubsystem": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode",
+            "description": "The error that ended its latest run."
+          },
+          "failures": {
+            "description": "Failures in the current run; it restarts after a longer wait each time.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "since": {
+            "description": "When the current run of failures began (Unix seconds).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "subsystem": {
+            "$ref": "#/components/schemas/Subsystem"
+          }
+        },
+        "required": [
+          "subsystem",
+          "code",
+          "since",
+          "failures"
+        ],
+        "type": "object"
+      },
       "DeliveryChannel": {
         "enum": [
           "in_app",
@@ -3751,6 +3781,16 @@
           "preparation"
         ],
         "type": "object"
+      },
+      "Subsystem": {
+        "description": "A core background task that restarts on its own after a failure.",
+        "oneOf": [
+          {
+            "const": "observation_runtime",
+            "description": "The 1 Hz health-observation and automation runtime.",
+            "type": "string"
+          }
+        ]
       },
       "TargetEvidence": {
         "additionalProperties": false,
@@ -12225,6 +12265,13 @@
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "additionalProperties": false,
                   "properties": {
+                    "degraded": {
+                      "description": "Background subsystems that failed and are waiting to restart. Core\nkeeps serving requests while any is listed; an empty list is healthy.",
+                      "items": {
+                        "$ref": "#/components/schemas/DegradedSubsystem"
+                      },
+                      "type": "array"
+                    },
                     "generation": {
                       "format": "int64",
                       "type": "integer"
@@ -12248,7 +12295,8 @@
                     "version",
                     "generation",
                     "schema_version",
-                    "ready"
+                    "ready",
+                    "degraded"
                   ],
                   "title": "Health",
                   "type": "object"

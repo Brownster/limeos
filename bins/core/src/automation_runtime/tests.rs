@@ -666,3 +666,83 @@ async fn authenticated_core_views_project_only_current_owned_authority_and_regis
         ScheduleStatus::AwaitingProducer
     );
 }
+
+async fn http_health(address: std::net::SocketAddr) -> limeos_contracts::Health {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+    stream
+        .write_all(b"GET /api/v1/health HTTP/1.1\r\nhost: localhost\r\nconnection: close\r\n\r\n")
+        .await
+        .unwrap();
+    let mut bytes = Vec::new();
+    stream.read_to_end(&mut bytes).await.unwrap();
+    let text = String::from_utf8(bytes).unwrap();
+    assert!(text.starts_with("HTTP/1.1 200"), "{text}");
+    serde_json::from_str(text.split("\r\n\r\n").nth(1).unwrap()).unwrap()
+}
+
+#[tokio::test]
+async fn a_store_failure_during_a_pass_leaves_core_serving_and_is_reported_until_a_pass_succeeds() {
+    let f = fixture(1, 1).await;
+    let status = Status::default();
+    let mut core = crate::automation_schedules::tests::core(f.db.clone());
+    core.automation_status = status.clone();
+    // The audit cap refuses every write with `StateNotDurable`, the same
+    // refusal a full disk or a SQLite error gives.
+    let connection = rusqlite::Connection::open(f.dir.path().join("core.sqlite")).unwrap();
+    let audit: i64 = connection
+        .query_row("SELECT audit_bytes FROM meta WHERE id=1", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    connection
+        .execute("UPDATE meta SET audit_bytes=? WHERE id=1", [i64::MAX / 2])
+        .unwrap();
+    let http = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = http.local_addr().unwrap();
+    let rpc = UnixListener::bind(f.dir.path().join("core.sock")).unwrap();
+    let services = tokio::spawn(crate::services(
+        core,
+        http,
+        rpc,
+        "https://localhost".into(),
+        f.bridge.clone(),
+        f.reader.clone(),
+        crate::supervision::Backoff {
+            base: Duration::from_millis(10),
+            cap: Duration::from_millis(40),
+        },
+    ));
+    let degraded = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let health = http_health(address).await;
+            if let Some(degraded) = health.degraded.into_iter().find(|d| d.failures >= 2) {
+                break degraded;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the failed runtime is reported while HTTP keeps answering");
+    assert_eq!(
+        degraded.subsystem,
+        limeos_contracts::Subsystem::ObservationRuntime
+    );
+    assert_eq!(degraded.code, ErrorCode::StateNotDurable);
+    // At least two failures: the runtime was restarted, not left stopped.
+    assert!(!services.is_finished(), "a failed pass ended core");
+
+    connection
+        .execute("UPDATE meta SET audit_bytes=? WHERE id=1", [audit])
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !http_health(address).await.degraded.is_empty() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("a successful pass clears the degraded state");
+    assert!(status.0.lock().unwrap().running);
+    assert!(!services.is_finished());
+    services.abort();
+}

@@ -37,6 +37,7 @@ mod stacks;
 mod storage;
 mod storage_mounts;
 mod storage_targets;
+mod supervision;
 
 fn now() -> i64 {
     SystemTime::now()
@@ -555,6 +556,12 @@ impl Backend for Core {
             generation: self.db.generation,
             schema_version: limeos_persistence::SCHEMA_VERSION,
             ready: true,
+            degraded: self
+                .automation_status
+                .health()
+                .degraded()
+                .into_iter()
+                .collect(),
         })
     }
     async fn observations(&self, token: String) -> Result<limeos_contracts::Overview> {
@@ -1015,8 +1022,24 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
 }
 async fn rpc_server(core: Core, listener: UnixListener) -> std::io::Result<()> {
     let permits = Arc::new(Semaphore::new(16));
+    let mut failures = 0u64;
     loop {
-        let (stream, _) = listener.accept().await?;
+        let stream = match listener.accept().await {
+            Ok((stream, _)) => {
+                failures = 0;
+                stream
+            }
+            // Descriptor exhaustion or an aborted peer: the listener still works.
+            Err(error) if limeos_contracts::accept_retryable(&error) => {
+                failures += 1;
+                if failures.is_power_of_two() {
+                    tracing::warn!(%error, failures, "local RPC accept failed; retrying");
+                }
+                tokio::time::sleep(limeos_contracts::ACCEPT_PAUSE).await;
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
         let Ok(permit) = permits.clone().try_acquire_owned() else {
             continue;
         };
@@ -1121,23 +1144,51 @@ async fn run() -> Result<()> {
         .map_err(|_| Error(ErrorCode::Unavailable))?;
     let rpc = bind_socket(&socket)?;
     tracing::info!(generation = core.db.generation, "core ready");
-    let app = limeos_api::router(core.clone(), config.origin);
+    let bridge = automation_store::ObservationStoreBridge::new(core.db.clone());
+    let reader = health_collection::HealthReader::new(
+        (*core.storage_socket).clone(),
+        core.storage_readers.clone(),
+    );
+    tokio::select! {
+        result=services(core,http,rpc,config.origin,bridge,reader,supervision::Backoff::STANDARD)=>result,
+        _=tokio::signal::ctrl_c()=>Ok(()),
+        _=async {if let Ok(mut signal)=tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()){signal.recv().await;}}=>Ok(()),
+    }
+}
+/// Everything core runs once started. Only a listener that can no longer
+/// accept ends it (systemd then restarts core). The dispatcher handles each
+/// job's errors itself and never returns; the observation runtime is
+/// restarted after a failure and reported in `Health::degraded` meanwhile.
+async fn services(
+    core: Core,
+    http: TcpListener,
+    rpc: UnixListener,
+    origin: String,
+    bridge: automation_store::ObservationStoreBridge,
+    reader: health_collection::HealthReader,
+    backoff: supervision::Backoff,
+) -> Result<()> {
+    let app = limeos_api::router(core.clone(), origin);
     let dispatcher = core.clone();
-    let automation = automation_runtime::ObservationRuntime::new(
-        automation_store::ObservationStoreBridge::new(core.db.clone()),
-        health_collection::HealthReader::new(
-            (*core.storage_socket).clone(),
-            core.storage_readers.clone(),
-        ),
-        core.automation_status.clone(),
+    let status = core.automation_status.clone();
+    let observation = supervision::supervise(
+        limeos_contracts::Subsystem::ObservationRuntime,
+        status.health(),
+        backoff,
+        move || {
+            automation_runtime::ObservationRuntime::new(
+                bridge.clone(),
+                reader.clone(),
+                status.clone(),
+            )
+            .run()
+        },
     );
     tokio::select! {
         result=limeos_api::serve(http,app)=>result.map_err(|_|Error(ErrorCode::Unavailable)),
         result=rpc_server(core,rpc)=>result.map_err(|_|Error(ErrorCode::Unavailable)),
         _=dispatcher.dispatcher()=>Err(Error(ErrorCode::Unavailable)),
-        result=automation.run()=>result,
-        _=tokio::signal::ctrl_c()=>Ok(()),
-        _=async {if let Ok(mut signal)=tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()){signal.recv().await;}}=>Ok(()),
+        _=observation=>Err(Error(ErrorCode::Unavailable)),
     }
 }
 

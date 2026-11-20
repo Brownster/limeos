@@ -168,7 +168,26 @@ export type AcknowledgeNotification = { revision: number, };
 export type AutomationPage<T> = { items: Array<T>, next: string | null, partial: boolean, };
 export type Enrollment = { token: string, username: string, password: string, };
 export type LegacyUser = { username: string, password_hash: string, };
-export type Health = { version: number, generation: number, schema_version: number, ready: boolean, };
+export type Subsystem = "observation_runtime";
+export type DegradedSubsystem = { subsystem: Subsystem,
+/**
+ * The error that ended its latest run.
+ */
+code: ErrorCode,
+/**
+ * When the current run of failures began (Unix seconds).
+ */
+since: number,
+/**
+ * Failures in the current run; it restarts after a longer wait each time.
+ */
+failures: number, };
+export type Health = { version: number, generation: number, schema_version: number, ready: boolean,
+/**
+ * Background subsystems that failed and are waiting to restart. Core
+ * keeps serving requests while any is listed; an empty list is healthy.
+ */
+degraded: Array<DegradedSubsystem>, };
 export type SessionView = { principal: Principal, csrf_token: string, expires_at: number, };
 export type ErrorEnvelope = { code: ErrorCode, message: string, retry: boolean, audit_id: string, };
 export type CoreRequest = { "request": "health", version: number, } | { "request": "issue_bootstrap", version: number, } | { "request": "enroll", version: number, enrollment: Enrollment, } | { "request": "import_legacy_users", version: number, users: Array<LegacyUser>, } | { "request": "read_resolution", version: number, admin: string, job: string, } | { "request": "resolve_job", version: number, admin: string, job: string, declared: DeclaredOutcome, reason: string, evidence_digest: string, } | { "request": "check_task", version: number, token: string, task: string, operation: Operation, resource: string, } | { "request": "propose_restart", version: number, token: string, task: string, resource: string, } | { "request": "queue_restart", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "propose_container", version: number, token: string, task: string, resource: string, operation: ContainerAction, } | { "request": "queue_container", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "read_container_logs", version: number, token: string, task: string, resource: string, options: LogOptions, } | { "request": "propose_compose", version: number, token: string, task: string, selection: ComposeSelection, };

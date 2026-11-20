@@ -5,6 +5,13 @@
     {
       "type": "object",
       "properties": {
+        "degraded": {
+          "description": "Background subsystems that failed and are waiting to restart. Core\nkeeps serving requests while any is listed; an empty list is healthy.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DegradedSubsystem"
+          }
+        },
         "generation": {
           "type": "integer",
           "format": "int64"
@@ -34,7 +41,8 @@
         "version",
         "generation",
         "schema_version",
-        "ready"
+        "ready",
+        "degraded"
       ]
     },
     {
@@ -894,6 +902,36 @@
         }
       ]
     },
+    "DegradedSubsystem": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "description": "The error that ended its latest run.",
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "failures": {
+          "description": "Failures in the current run; it restarts after a longer wait each time.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "since": {
+          "description": "When the current run of failures began (Unix seconds).",
+          "type": "integer",
+          "format": "int64"
+        },
+        "subsystem": {
+          "$ref": "#/$defs/Subsystem"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "subsystem",
+        "code",
+        "since",
+        "failures"
+      ]
+    },
     "ErrorCode": {
       "oneOf": [
         {
@@ -1260,6 +1298,16 @@
           "description": "HTTP 409. The evidence does not support `declared`; `blocking` names the\ntargets that differ and `view` carries the evidence.",
           "type": "string",
           "const": "unsupported_declaration"
+        }
+      ]
+    },
+    "Subsystem": {
+      "description": "A core background task that restarts on its own after a failure.",
+      "oneOf": [
+        {
+          "description": "The 1 Hz health-observation and automation runtime.",
+          "type": "string",
+          "const": "observation_runtime"
         }
       ]
     }

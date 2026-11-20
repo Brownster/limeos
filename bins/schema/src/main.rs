@@ -358,6 +358,8 @@ fn main() {
     ts!(limeos_domain::automation::AutomationPage<limeos_domain::automation::ScheduleView>);
     ts!(limeos_contracts::Enrollment);
     ts!(limeos_contracts::LegacyUser);
+    ts!(limeos_contracts::Subsystem);
+    ts!(limeos_contracts::DegradedSubsystem);
     ts!(limeos_contracts::Health);
     ts!(limeos_contracts::SessionView);
     ts!(limeos_contracts::ErrorEnvelope);

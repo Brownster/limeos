@@ -43,6 +43,7 @@ impl Backend for ReadBackend {
             generation: 1,
             schema_version: 1,
             ready: true,
+            degraded: Vec::new(),
         })
     }
     async fn observations(&self, _: String) -> Result<Overview> {

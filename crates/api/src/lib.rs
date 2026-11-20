@@ -1089,7 +1089,16 @@ async fn logout<B: Backend>(State(app): State<App<B>>, headers: HeaderMap) -> Re
 pub async fn serve(listener: TcpListener, router: Router) -> std::io::Result<()> {
     let permits = Arc::new(Semaphore::new(64));
     loop {
-        let (stream, _) = listener.accept().await?;
+        let stream = match listener.accept().await {
+            Ok((stream, _)) => stream,
+            // Descriptor exhaustion or an aborted peer: the listener still
+            // works, so pause and keep serving instead of ending core.
+            Err(error) if limeos_contracts::accept_retryable(&error) => {
+                tokio::time::sleep(limeos_contracts::ACCEPT_PAUSE).await;
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
         let Ok(permit) = permits.clone().try_acquire_owned() else {
             continue;
         };
@@ -1138,6 +1147,7 @@ mod tests {
                 generation: 1,
                 schema_version: 1,
                 ready: true,
+                degraded: Vec::new(),
             })
         }
     }
