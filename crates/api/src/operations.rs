@@ -1,5 +1,5 @@
 use super::*;
-use axum::extract::{Path, Query};
+use gate::{Path, Query};
 
 pub(super) fn credentials<B>(app: &App<B>, headers: &HeaderMap) -> Result<(String, String)> {
     origin(app, headers)?;
@@ -51,9 +51,6 @@ pub(super) async fn plan<B: Backend>(State(app): State<App<B>>, request: Request
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
         app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
-        app.backend
             .plan_restart(token, csrf, input(request).await?)
             .await
     }
@@ -69,9 +66,6 @@ pub(super) async fn container_plan<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend
             .plan_container(token, csrf, input(request).await?)
             .await
@@ -89,9 +83,6 @@ pub(super) async fn approve<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         let value: limeos_contracts::ApprovalInput = input(request).await?;
         app.backend
             .approve_container(token, csrf, id, value.digest)
@@ -115,9 +106,6 @@ pub(super) async fn container_queue<B: Backend>(
 async fn queue_inner<B: Backend>(app: App<B>, request: Request, legacy: bool) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         let value: limeos_contracts::QueueRestartInput = input(request).await?;
         if legacy && value.proposal.plan.operation != limeos_domain::ContainerAction::Restart {
             return Err(Error(ErrorCode::InvalidInput));
@@ -163,9 +151,6 @@ pub(super) async fn progress<B: Backend>(
 async fn cancel<B: Backend>(app: App<B>, id: String, headers: HeaderMap, plan: bool) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, &headers)?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend.cancel_restart(token, csrf, id, plan).await
     }
     .await;

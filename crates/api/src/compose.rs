@@ -1,13 +1,10 @@
 use super::*;
-use axum::extract::Path;
+use gate::Path;
 use operations::{credentials, input};
 
 pub(super) async fn plan<B: Backend>(State(app): State<App<B>>, request: Request) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend
             .plan_compose(token, csrf, input(request).await?)
             .await
@@ -36,9 +33,6 @@ pub(super) async fn approve<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, request.headers())?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         let value: limeos_contracts::ApprovalInput = input(request).await?;
         app.backend
             .approve_compose(token, csrf, id, value.digest)
@@ -57,9 +51,6 @@ pub(super) async fn cancel<B: Backend>(
 ) -> Response {
     let result = async {
         let (token, csrf) = credentials(&app, &headers)?;
-        app.backend
-            .session(token.clone(), Some(csrf.clone()))
-            .await?;
         app.backend.cancel_compose(token, csrf, id).await
     }
     .await;

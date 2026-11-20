@@ -1,19 +1,20 @@
 //! Owned persisted alert/notification history. GET never collects or publishes.
 use super::*;
-use axum::extract::{Path, Query};
+use gate::{Entry, Path, Query, read, write};
 use limeos_domain::automation::{
     AcknowledgeNotification, AlertState, AutomationPage, DeliveryChannel, DeliveryState,
     MAX_REVISION, MAX_TICK_SCHEDULES, Notification,
 };
 
-pub(super) fn routes<B: Backend>() -> Router<App<B>> {
-    Router::new()
-        .route("/api/v1/automation/alerts", get(alerts::<B>))
-        .route("/api/v1/automation/notifications", get(notifications::<B>))
-        .route(
+pub(super) fn routes<B: Backend>() -> Vec<Entry<B>> {
+    vec![
+        read("/api/v1/automation/alerts", alerts::<B>),
+        read("/api/v1/automation/notifications", notifications::<B>),
+        write(
             "/api/v1/automation/notifications/{id}/acknowledgment",
-            post(acknowledge::<B>),
-        )
+            acknowledge::<B>,
+        ),
+    ]
 }
 
 #[derive(serde::Deserialize)]

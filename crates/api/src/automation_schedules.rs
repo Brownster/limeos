@@ -1,15 +1,14 @@
 //! Fixed ObserveHealth schedule metadata. No runner, alerts or notifications.
 use super::*;
-use axum::extract::{Path, Query};
+use gate::{Entry, Path, Query, read, write};
 use limeos_domain::automation::{MAX_REVISION, MAX_TICK_SCHEDULES, PauseSchedule, ScheduleView};
 
-pub(super) fn routes<B: Backend>() -> Router<App<B>> {
-    Router::new()
-        .route(
-            "/api/v1/automation/schedules",
-            get(page::<B>).post(create::<B>),
-        )
-        .route("/api/v1/automation/schedules/{id}/pause", post(pause::<B>))
+pub(super) fn routes<B: Backend>() -> Vec<Entry<B>> {
+    vec![
+        read("/api/v1/automation/schedules", page::<B>),
+        write("/api/v1/automation/schedules", create::<B>),
+        write("/api/v1/automation/schedules/{id}/pause", pause::<B>),
+    ]
 }
 
 #[derive(serde::Deserialize)]

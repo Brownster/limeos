@@ -38,6 +38,13 @@ fn job() -> limeos_domain::StackJob {
         plan: plan().plan,
     }
 }
+/// As core does, in the call itself: the session's CSRF value must match.
+fn csrf_matches(csrf: &str) -> Result<()> {
+    if csrf != "b".repeat(64) {
+        return Err(Error(ErrorCode::Forbidden));
+    }
+    Ok(())
+}
 impl TestBackend for Stub {
     async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
@@ -65,9 +72,10 @@ impl TestBackend for Stub {
     async fn plan_stack(
         &self,
         _: String,
-        _: String,
+        csrf: String,
         input: limeos_contracts::StackInput,
     ) -> Result<limeos_domain::PlannedStackAction> {
+        csrf_matches(&csrf)?;
         assert_eq!(input.project, "media");
         self.mutations.fetch_add(1, Ordering::SeqCst);
         Ok(plan())
@@ -75,10 +83,11 @@ impl TestBackend for Stub {
     async fn approve_stack(
         &self,
         _: String,
-        _: String,
+        csrf: String,
         id: String,
         digest: String,
     ) -> Result<limeos_domain::PlanApproval> {
+        csrf_matches(&csrf)?;
         assert_eq!((id, digest), ("c".repeat(64), "d".repeat(64)));
         self.mutations.fetch_add(1, Ordering::SeqCst);
         Ok(limeos_domain::PlanApproval {
@@ -89,14 +98,16 @@ impl TestBackend for Stub {
     async fn queue_stack(
         &self,
         _: String,
-        _: String,
+        csrf: String,
         input: limeos_contracts::QueueStackInput,
     ) -> Result<limeos_domain::StackJob> {
+        csrf_matches(&csrf)?;
         assert_eq!(input.idempotency_key, "key");
         self.mutations.fetch_add(1, Ordering::SeqCst);
         Ok(job())
     }
-    async fn cancel_stack_action(&self, _: String, _: String, _: String, _: bool) -> Result<()> {
+    async fn cancel_stack_action(&self, _: String, csrf: String, _: String, _: bool) -> Result<()> {
+        csrf_matches(&csrf)?;
         self.mutations.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
@@ -145,7 +156,7 @@ async fn status(stub: &Stub, request: Request) -> StatusCode {
         .status()
 }
 const PLAN: &str = r#"{"project":"media","operation":"restart"}"#;
-fn queue_body() -> String {
+pub(super) fn queue_body() -> String {
     serde_json::json!({"proposal": plan(), "approval": "f".repeat(64), "idempotency_key": "key"})
         .to_string()
 }

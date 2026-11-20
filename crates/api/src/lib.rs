@@ -28,6 +28,7 @@ mod compose;
 #[cfg(feature = "deferred")]
 #[allow(dead_code)]
 mod deployment;
+mod gate;
 mod identity_enablement;
 mod job_resolution;
 #[cfg(test)]
@@ -36,6 +37,8 @@ mod operations;
 #[cfg(test)]
 mod read_tests;
 mod reads;
+#[cfg(test)]
+mod route_table_tests;
 mod serve;
 pub use serve::{Limits, serve, serve_with};
 #[cfg(test)]
@@ -625,195 +628,17 @@ impl Drop for Charge<'_> {
     }
 }
 pub fn router<B: Backend>(backend: B, origin: String) -> Router {
-    Router::new()
-        .route("/api/v1/deployment/stacks", get(stacks::inventory::<B>))
-        .route("/api/v1/health", get(health::<B>))
-        .route(
-            "/api/v1/storage/mounts/targets",
-            get(storage_mounts::catalog::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/plans",
-            post(storage_mounts::plan::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/plans/{id}",
-            get(storage_mounts::read::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/plans/{id}/approval",
-            post(storage_mounts::approve::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/plans/{id}/cancel",
-            post(storage_mounts::cancel::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/jobs",
-            get(storage_mounts::jobs::<B>).post(storage_mounts::queue::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/jobs/{id}",
-            get(storage_mounts::job::<B>),
-        )
-        .route(
-            "/api/v1/storage/mounts/jobs/{id}/cancel",
-            post(storage_mounts::cancel_job::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/plans",
-            post(storage::target_plan::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/plans/{id}",
-            get(storage::target_read::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/plans/{id}/approval",
-            post(storage::target_approve::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/plans/{id}/cancel",
-            post(storage::target_cancel::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/jobs",
-            post(storage::target_queue::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/jobs/{id}",
-            get(storage::target_job::<B>),
-        )
-        .route(
-            "/api/v1/storage/targets/jobs/{id}/cancel",
-            post(storage::target_cancel_job::<B>),
-        )
-        .route("/api/v1/storage/inventory", get(storage::inventory::<B>))
-        .route(
-            "/api/v1/storage/container-dependencies",
-            get(storage::container_dependencies::<B>),
-        )
-        .route("/api/v1/storage/plans", post(storage::plan::<B>))
-        .route("/api/v1/storage/plans/{id}", get(storage::read::<B>))
-        .route(
-            "/api/v1/storage/plans/{id}/approval",
-            post(storage::approve::<B>),
-        )
-        .route(
-            "/api/v1/storage/plans/{id}/cancel",
-            post(storage::cancel::<B>),
-        )
-        .route("/api/v1/auth/login", post(login::<B>))
-        .route(
-            "/api/v1/auth/capabilities/observe-health/enable",
-            post(identity_enablement::enable::<B>),
-        )
-        .route("/api/v1/auth/session", get(session::<B>))
-        .route("/api/v1/auth/logout", post(logout::<B>))
-        .route("/api/v1/overview", get(reads::overview::<B>))
-        .route("/api/v1/resources", get(reads::resources::<B>))
-        .route("/api/v1/system/history", get(reads::history::<B>))
-        .route("/api/v1/observations/stream", get(reads::stream::<B>))
-        .route("/api/v1/compose/plans", post(compose::plan::<B>))
-        .route("/api/v1/compose/plans/{id}", get(compose::read::<B>))
-        .route(
-            "/api/v1/compose/plans/{id}/approval",
-            post(compose::approve::<B>),
-        )
-        .route(
-            "/api/v1/compose/plans/{id}/cancel",
-            post(compose::cancel::<B>),
-        )
-        .route(
-            "/api/v1/container/restart/plans",
-            post(operations::plan::<B>),
-        )
-        .route(
-            "/api/v1/container/plans",
-            post(operations::container_plan::<B>),
-        )
-        .route(
-            "/api/v1/container/plans/{id}/approval",
-            post(operations::approve::<B>),
-        )
-        .route(
-            "/api/v1/container/plans/{id}/cancel",
-            post(operations::cancel_plan::<B>),
-        )
-        .route(
-            "/api/v1/container/jobs",
-            post(operations::container_queue::<B>).get(operations::jobs::<B>),
-        )
-        .route(
-            "/api/v1/container/jobs/{id}",
-            get(operations::progress::<B>),
-        )
-        .route(
-            "/api/v1/container/jobs/{id}/cancel",
-            post(operations::cancel_job::<B>),
-        )
-        .route("/api/v1/containers/{id}/logs", get(operations::logs::<B>))
-        .route(
-            "/api/v1/container/restart/plans/{id}/approval",
-            post(operations::approve::<B>),
-        )
-        .route(
-            "/api/v1/container/restart/plans/{id}/cancel",
-            post(operations::cancel_plan::<B>),
-        )
-        .route(
-            "/api/v1/container/restart/jobs",
-            post(operations::queue::<B>).get(operations::jobs::<B>),
-        )
-        .route(
-            "/api/v1/container/restart/jobs/{id}",
-            get(operations::progress::<B>),
-        )
-        .route(
-            "/api/v1/container/restart/jobs/{id}/cancel",
-            post(operations::cancel_job::<B>),
-        )
-        .route("/api/v1/stack/plans", post(stack_operations::plan::<B>))
-        .route(
-            "/api/v1/stack/plans/{id}/approval",
-            post(stack_operations::approve::<B>),
-        )
-        .route(
-            "/api/v1/stack/plans/{id}/cancel",
-            post(stack_operations::cancel_plan::<B>),
-        )
-        .route(
-            "/api/v1/stack/jobs",
-            post(stack_operations::queue::<B>).get(stack_operations::jobs::<B>),
-        )
-        .route(
-            "/api/v1/stack/jobs/{id}",
-            get(stack_operations::progress::<B>),
-        )
-        .route(
-            "/api/v1/stack/jobs/{id}/cancel",
-            post(stack_operations::cancel_job::<B>),
-        )
-        .route(
-            "/api/v1/jobs/needs-attention",
-            get(job_resolution::needs_attention::<B>),
-        )
-        .route(
-            "/api/v1/jobs/{id}/resolution",
-            get(job_resolution::read::<B>).post(job_resolution::resolve::<B>),
-        )
-        .merge(automation_schedules::routes::<B>())
-        .merge(automation_history::routes::<B>())
-        .merge(automation_policy::routes::<B>())
+    let app = App {
+        backend,
+        origin: origin.into(),
+        limiter: Arc::new(Mutex::new(Limiter::default())),
+        readers: Arc::new(Semaphore::new(8)),
+        streams: Default::default(),
+    };
+    gate::mount(&app)
         .fallback(|| async { failure(Error(ErrorCode::NotFound)) })
         .layer(middleware::from_fn(limits))
-        .with_state(App {
-            backend,
-            origin: origin.into(),
-            limiter: Arc::new(Mutex::new(Limiter::default())),
-            readers: Arc::new(Semaphore::new(8)),
-            streams: Default::default(),
-        })
+        .with_state(app)
 }
 fn failure(error: Error) -> Response {
     let status = match error.0 {

@@ -4,88 +4,95 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use tower::ServiceExt;
 #[derive(Clone)]
 struct Mutations(Arc<AtomicUsize>);
+impl Mutations {
+    /// As core does, in the call itself: a wrong CSRF value is refused before
+    /// anything counts as a mutation.
+    fn mutate<T>(&self, csrf: &str) -> Result<T> {
+        if csrf != "b".repeat(64) {
+            return Err(Error(ErrorCode::Forbidden));
+        }
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(Error(ErrorCode::Unavailable))
+    }
+}
 impl TestBackend for Mutations {
+    /// Routes this fake does not count still check the CSRF binding, as core does.
+    fn fallback(&self, _: &'static str, _: Option<&str>, csrf: Option<&str>) -> Error {
+        if csrf.is_some_and(|csrf| csrf != "b".repeat(64)) {
+            return Error(ErrorCode::Forbidden);
+        }
+        Error(ErrorCode::Unavailable)
+    }
     async fn plan_storage_mount(
         &self,
         _: String,
-        _: String,
+        csrf: String,
         _: limeos_domain::StorageMountSelection,
     ) -> Result<limeos_domain::PlannedStorageMount> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+        self.mutate(&csrf)
     }
     async fn approve_storage_mount(
         &self,
         _: String,
-        _: String,
+        csrf: String,
         _: String,
         _: String,
     ) -> Result<limeos_domain::PlanApproval> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+        self.mutate(&csrf)
     }
     async fn queue_storage_mount(
         &self,
         _: String,
-        _: String,
+        csrf: String,
         _: limeos_contracts::QueueStorageMountInput,
     ) -> Result<limeos_domain::StorageMountJob> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+        self.mutate(&csrf)
     }
-    async fn cancel_storage_mount(&self, _: String, _: String, _: String) -> Result<()> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+    async fn cancel_storage_mount(&self, _: String, csrf: String, _: String) -> Result<()> {
+        self.mutate(&csrf)
     }
-    async fn cancel_storage_mount_job(&self, _: String, _: String, _: String) -> Result<()> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+    async fn cancel_storage_mount_job(&self, _: String, csrf: String, _: String) -> Result<()> {
+        self.mutate(&csrf)
     }
     async fn plan_storage(
         &self,
         _: String,
-        _: String,
+        csrf: String,
         _: limeos_domain::StorageSetupInput,
     ) -> Result<limeos_domain::PlannedStorageSetup> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+        self.mutate(&csrf)
     }
     async fn approve_storage(
         &self,
         _: String,
-        _: String,
+        csrf: String,
         _: String,
         _: String,
     ) -> Result<limeos_domain::PlanApproval> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+        self.mutate(&csrf)
     }
-    async fn cancel_storage(&self, _: String, _: String, _: String) -> Result<()> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+    async fn cancel_storage(&self, _: String, csrf: String, _: String) -> Result<()> {
+        self.mutate(&csrf)
     }
     async fn plan_compose(
         &self,
         _: String,
-        _: String,
+        csrf: String,
         _: limeos_domain::ComposeSelection,
     ) -> Result<limeos_domain::PlannedCompose> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+        self.mutate(&csrf)
     }
     async fn approve_compose(
         &self,
         _: String,
-        _: String,
+        csrf: String,
         _: String,
         _: String,
     ) -> Result<limeos_domain::PlanApproval> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+        self.mutate(&csrf)
     }
-    async fn cancel_compose(&self, _: String, _: String, _: String) -> Result<()> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+    async fn cancel_compose(&self, _: String, csrf: String, _: String) -> Result<()> {
+        self.mutate(&csrf)
     }
     async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
@@ -113,34 +120,30 @@ impl TestBackend for Mutations {
     async fn plan_restart(
         &self,
         _: String,
-        _: String,
+        csrf: String,
         _: limeos_contracts::RestartInput,
     ) -> Result<limeos_domain::PlannedRestart> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+        self.mutate(&csrf)
     }
     async fn plan_container(
         &self,
         _: String,
-        _: String,
+        csrf: String,
         _: limeos_contracts::ContainerInput,
     ) -> Result<limeos_domain::PlannedContainerAction> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+        self.mutate(&csrf)
     }
     async fn approve_container(
         &self,
         _: String,
-        _: String,
+        csrf: String,
         _: String,
         _: String,
     ) -> Result<limeos_domain::PlanApproval> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+        self.mutate(&csrf)
     }
-    async fn cancel_restart(&self, _: String, _: String, _: String, _: bool) -> Result<()> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(Error(ErrorCode::Unavailable))
+    async fn cancel_restart(&self, _: String, csrf: String, _: String, _: bool) -> Result<()> {
+        self.mutate(&csrf)
     }
 }
 #[tokio::test]
@@ -178,7 +181,10 @@ async fn every_mutation_rejects_get_origin_csrf_and_untyped_extra_fields() {
         for (method, origin, csrf, status) in [
             ("GET", "https://localhost", "b".repeat(64), 405),
             ("POST", "https://foreign.invalid", "b".repeat(64), 403),
-            ("POST", "https://localhost", "a".repeat(64), 403),
+            // Core checks the CSRF binding in the call itself, after the body
+            // is parsed: an empty body is refused first, a valid one with 403
+            // (the route-table test sends valid bodies). Neither mutates.
+            ("POST", "https://localhost", "a".repeat(64), 0),
         ] {
             let response = router
                 .clone()
@@ -195,7 +201,11 @@ async fn every_mutation_rejects_get_origin_csrf_and_untyped_extra_fields() {
                 )
                 .await
                 .unwrap();
-            assert_eq!(response.status().as_u16(), status, "{path}");
+            if status == 0 {
+                assert!(matches!(response.status().as_u16(), 400 | 403), "{path}");
+            } else {
+                assert_eq!(response.status().as_u16(), status, "{path}");
+            }
         }
     }
     assert_eq!(mutations.load(Ordering::SeqCst), 0);
@@ -327,9 +337,8 @@ async fn mount_catalog_and_job_reads_never_dispatch_and_selection_accepts_no_pat
     assert_eq!(mutations.load(Ordering::SeqCst), 0);
 }
 
-#[tokio::test]
-async fn mount_queue_accepts_a_valid_large_plan_but_retains_a_bounded_http_body() {
-    use limeos_domain::*;
+/// A valid reviewed mount proposal of 16 to 32 KiB, as one queue body.
+pub(super) fn mount_queue_input() -> limeos_contracts::QueueStorageMountInput {
     let identity = serde_json::json!({"major":8,"minor":1,"mount_id":10,"inode":2,"mode":16877,"uid":0,"gid":0});
     let mut devices = vec![
         serde_json::json!({"device":{"major":8,"minor":16},"filesystem_uuid":"uuid-data","filesystem":"ext4","serial":null,"boot_backing":false,"mounts":[]}),
@@ -345,7 +354,12 @@ async fn mount_queue_accepts_a_valid_large_plan_but_retains_a_bounded_http_body(
                 "target":{"mountpoint":"/mnt/data","parent":identity,"existing":identity},
                 "physical_devices":[{"major":8,"minor":16}],"consumer_digest":"d".repeat(64),"created_at":100,"expires_at":400}},"digest":"b".repeat(64)},
         "approval":"c".repeat(64),"idempotency_key":"mount-http-fixture"});
-    let input: limeos_contracts::QueueStorageMountInput = serde_json::from_value(value).unwrap();
+    serde_json::from_value(value).unwrap()
+}
+#[tokio::test]
+async fn mount_queue_accepts_a_valid_large_plan_but_retains_a_bounded_http_body() {
+    use limeos_domain::*;
+    let input = mount_queue_input();
     input.proposal.plan.validate(100).unwrap();
     let body = serde_json::to_string(&input).unwrap();
     assert!(body.len() > 16 * 1024 && body.len() < 32 * 1024);

@@ -6,7 +6,6 @@ pub(super) async fn inventory<B: Backend>(
 ) -> Response {
     let result = async {
         let token = cookie(&headers)?;
-        app.backend.session(token.clone(), None).await?;
         let report = app.backend.stack_inventory(token).await?;
         report.check_size()?;
         Ok(report)
@@ -58,6 +57,10 @@ mod tests {
             &self,
             _: String,
         ) -> Result<limeos_domain::deployment::discovery::StackInventory> {
+            // As core does: the session is checked in the call, before the cache.
+            if self.expired {
+                return Err(Error(ErrorCode::Unauthenticated));
+            }
             self.calls.fetch_add(1, Ordering::SeqCst);
             let mut value = limeos_domain::deployment::discovery::discover(100, None, None)?;
             if self.oversize {
