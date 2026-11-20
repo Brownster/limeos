@@ -242,8 +242,24 @@ statement run cold on a consistent backup taken at the same moment. The WAL
 frames it replays are counted from the WAL itself (the frames after its
 header that carry its current salts, up to the last that commits a
 transaction). Recovery reads them before the first statement runs, outside
-every statement. The open must keep every committed transaction: the same
-jobs as the live store (a digest of their ids) and at least its events.
+every statement. The open must keep every committed transaction, held to
+identity and content: before the open, a side connection on the live store
+(the same moment, the writer idle) reads every job id and every event (its
+cursor, principal, job, kind and time) and the jobs recovery must mark
+(`running` or `verifying`); after it, the child reads the reopened store the
+same way. Every committed job must be there and no other, every event
+through the last committed cursor must be there unchanged (the same count
+and digest of those rows), and after that cursor the open may have added
+only one `job_recovery_required` event for each interrupted job. Counting
+events would not do: those recovery events can make up for committed ones
+lost. Nothing legitimately removes a row across this open: `Store::open`
+runs no retention rule, job-row retention included (the writer thread runs
+those after the open, and the child opens without one), except `make_room`
+when the recovery events would not fit within the audit reserve past the
+cap; the check refuses such an image outright rather than guess what it
+pruned, and the soak never takes one (its events stay at their budget, half
+the cap). A test (`a_crash_image_must_keep_every_committed_event_unchanged`)
+holds the check to a dropped, a changed and an added event.
 
 On the last night of the main run the open executed 50 statements: 82,213
 page reads, 16 of them outside every statement (the same 16 on every copy of
@@ -284,7 +300,7 @@ same faults; page counts differed by a few percent.
 
 Startup on crash images: 20 per scenario, each replaying 7 to 262 committed
 WAL frames (up to 1.1 MiB of WAL), every one opened and kept every committed
-job and event; recovery read 1.0 to 1.6 pages per frame replayed beyond the
+job and event (counted then; held to identity and content since); recovery read 1.0 to 1.6 pages per frame replayed beyond the
 16 outside every statement of a clean open, and the opens read no more than
 their statements did cold on a consistent copy plus that.
 
@@ -385,7 +401,7 @@ CI (not re-measured this round).
 | every table within its budget | every table in both stores, found by walking `sqlite_master`; the events budget from the production rule, the receipt budgets from `limits` |
 | sizes and bounded tables flat across the last third | the bounded tables' bytes and rows, and the file size beyond what per-job tables added, over days 60 to 90 |
 | slow growth leaves at least five years | the per-job tables' growth, projected to the core file bound (expected failure, pinned) |
-| startup under its bounds | every open's wall time (5 s core, 2 s receipts: the catastrophic only); on every copy and crash image, the cold page reads of core's startup statements but the proof check at most 3.2 per page of file and WAL, the receipt store's open at most 2.0; every crash image opens and keeps every committed job and event |
+| startup under its bounds | every open's wall time (5 s core, 2 s receipts: the catastrophic only); on every copy and crash image, the cold page reads of core's startup statements but the proof check at most 3.2 per page of file and WAL, the receipt store's open at most 2.0; every crash image opens and keeps every committed job and event unchanged (ids, and each event's cursor, principal, job, kind and time), adding only one recovery event per interrupted job |
 | core startup reads nothing its checks do not explain | on every copy and crash image, from every statement's bytecode and counters: every statement's program read, nested ones included; no statement walks the events table itself (only `quick_check` and the foreign-key check may); only the statements in `SCAN_ALLOWANCES` walk a table growing with history (`events` or a per-job table, or an index of one), each only its listed tables, with a reason; each statement's full-scan steps at most its listed tables' rows times its steps per row (0 or 1), plus its walks of bounded tables (their rows, once per run), plus 16; the counters measured (some VM and full-scan steps once a table walked one step a row holds 64 rows); the open's VM steps but the proof check's at most 64 per retained row plus 200,000; at most 32 page reads outside every statement (measured 16) plus 2 per WAL frame replayed; the open reads at most what its statements read cold, plus 3%, 256 pages and 2 per WAL frame replayed |
 | the storage-mount proof check reads little without storage mounts | the statement that reads `storage_mount_results`: its plan does not look events up by kind, and it reads at most an eighth of the file cold (expected failure, pinned) |
 | core startup work grows only with the per-job tables | over the last third, the statements' cold reads (but the proof check's) grow by at most 10 per page the per-job tables gain |
@@ -460,6 +476,7 @@ again:
 | The executor skips the closure on an absent receipt (its request handling) | `container_requests::answer` passes `false` for `close_if_absent` to both receipt lookups | `soak_smoke`, recovery closes every absent action it asks about: "the lookup for job 753c9591dbb3 answered Some(NeverRecorded) without closing the action" (393 lookups) |
 | Core records no executor epoch before acting on an answer (the epoch the dispatcher asks for before each claim) | `exchange` no longer calls `observe_executor_epoch` | `soak_smoke`, no job dispatched before a receipt-store change is released on a closure alone: "job b29be7ba8243 was held when the receipt store changed, and released on a closure from the new store" (3 jobs); every Engine effect: "job b29be7ba8243 (Container Restart, fault Some(ReceiptStoreLost { older: true })) is precondition_changed after 1 Engine effects for 1 targets" |
 | Retention forgets open resolution requests | `retention::SETTLED` loses `AND NOT EXISTS(… job_resolutions … confirmation IS NULL)` | `soak_ninety_days`, a job's history stays while its resolution request is open: "day 21 10:01:30: the job settled (succeeded) with its resolution request open lost its history: retention pruned 3 events in 1 passes" |
+| A crash open that loses a committed event (the harness's own check) | `core_crash` deletes one committed event from the image before the child opens it | `soak_smoke`, startup under its bounds: "day 1 06:05:00: a crash image of the core store lost committed work in its open (18 WAL frames to replay): 1285 events through cursor 1286 digest to 74746d82… (committed: 1286 events, d09ef811…)", on both crash images |
 
 The stack-proposal shim and its mutation are gone with the shim: stack
 proposals are core's own `propose_stack`.
