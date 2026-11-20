@@ -50,21 +50,15 @@ pub(super) fn authenticate(
 }
 
 /// Authority removal that no full queue, full disk or full audit table may
-/// refuse; see `Database::revoke`.
+/// refuse; see `Database::revoke`. Only removal: a grant revision can widen
+/// access, so it takes the ordinary write gates (`Store::revise_grants`).
 pub enum Revocation {
     /// Logout: the session digest and its CSRF digest, checked together.
-    Session {
-        digest: String,
-        csrf: String,
-    },
-    Task {
-        digest: String,
-    },
-    Grants {
-        principal: String,
-        role: Role,
-        scopes: Vec<Scope>,
-    },
+    Session { digest: String, csrf: String },
+    /// A task token, which no production path issues yet: assistant tasks
+    /// (RW-050) are to revoke theirs when the task ends or its integration is
+    /// disconnected.
+    Task { digest: String },
 }
 
 impl Store {
@@ -75,11 +69,6 @@ impl Store {
                 self.revoke_session(&digest, now)
             }
             Revocation::Task { digest } => self.revoke_task(&digest, now),
-            Revocation::Grants {
-                principal,
-                role,
-                scopes,
-            } => self.revise_grants(&principal, role, &scopes, now),
         }
     }
     pub fn issue_bootstrap(&mut self, digest: &str, now: i64) -> Result<i64> {
@@ -298,12 +287,10 @@ impl Store {
         if scopes.len() > 32 {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        // A revision may also widen grants, so unlike session and task
-        // revocation it is refused rather than left unrecorded.
-        self.revocation_write(|tx, recordable| {
-            if !recordable {
-                return Err(Error(ErrorCode::StateNotDurable));
-            }
+        // A revision can promote a role or add scopes, so it takes every gate
+        // of an ordinary write: refused below the free-space reserve and at
+        // the audit cap, never drawing on the revocation reserve.
+        self.write(|tx| {
             if tx
                 .execute(
                     "UPDATE users SET role=?,grant_revision=grant_revision+1 WHERE id=?",

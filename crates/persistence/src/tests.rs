@@ -458,8 +458,7 @@ fn revocation_succeeds_with_the_audit_cap_hit() {
     s.revoke_task("session-task", 211).unwrap();
     assert_eq!(live(&s, "session"), (false, false));
     assert_eq!(events(&s), before + 2);
-    // Past the reserve too: authority is still removed, without its event,
-    // while a grant revision (which may widen access) is refused.
+    // Past the reserve too: authority is still removed, without its event.
     s.conn
         .execute(
             "UPDATE meta SET audit_bytes=?",
@@ -470,20 +469,48 @@ fn revocation_succeeds_with_the_audit_cap_hit() {
     s.revoke_task("late-task", 212).unwrap();
     assert_eq!(live(&s, "late"), (false, false));
     assert_eq!(events(&s), before + 2);
-    assert_eq!(
-        s.revise_grants(&p.id, Role::Viewer, &[], 213)
-            .unwrap_err()
-            .0,
-        ErrorCode::StateNotDurable
-    );
+}
+
+/// A grant revision can promote a role or add scopes, so no gate of an
+/// ordinary write is lifted for it: refused at the audit cap (it never uses
+/// the revocation reserve) and below the free-space reserve.
+#[test]
+fn grant_revisions_take_the_ordinary_write_gates() {
+    let (_d, mut s, p) = setup();
+    let widen = [Scope {
+        operation: Operation::AutomationManage,
+        resource: "*".into(),
+    }];
+    let refused = |s: &mut Store| {
+        let before = events(&s);
+        assert_eq!(
+            s.revise_grants(&p.id, Role::Administrator, &widen, 213)
+                .unwrap_err()
+                .0,
+            ErrorCode::StateNotDurable
+        );
+        assert_eq!(s.grants(&p).unwrap().len(), 5);
+        assert_eq!(events(&s), before);
+    };
+    s.conn
+        .execute("UPDATE meta SET audit_bytes=?", [AUDIT_LIMIT])
+        .unwrap();
+    refused(&mut s);
     s.conn
         .execute(
             "UPDATE meta SET audit_bytes=?",
             [AUDIT_LIMIT + retention::AUDIT_RESERVE - 256],
         )
         .unwrap();
-    s.revise_grants(&p.id, Role::Viewer, &[], 214).unwrap();
-    assert_eq!(events(&s), before + 3);
+    refused(&mut s);
+    s.conn
+        .execute("UPDATE meta SET audit_bytes=?", [events(&s) * 256])
+        .unwrap();
+    s.free_bytes = Some(MIN_FREE_BYTES - 1);
+    refused(&mut s);
+    s.free_bytes = None;
+    s.revise_grants(&p.id, Role::Administrator, &widen, 214)
+        .unwrap();
 }
 
 #[test]
@@ -501,9 +528,8 @@ fn revocation_succeeds_below_the_free_space_reserve() {
     let before = events(&s);
     s.revoke_session("session", 211).unwrap();
     s.revoke_task("session-task", 211).unwrap();
-    s.revise_grants(&p.id, Role::Viewer, &[], 212).unwrap();
     assert_eq!(live(&s, "session"), (false, false));
-    assert_eq!(events(&s), before + 3);
+    assert_eq!(events(&s), before + 2);
 }
 
 #[tokio::test]
@@ -511,15 +537,14 @@ async fn revocation_succeeds_with_the_queue_full_and_overtakes_it() {
     use std::sync::Mutex;
     let d = tempfile::tempdir().unwrap();
     let path = d.path().join("core.sqlite");
-    let principal = {
+    {
         let mut s = Store::open(&path).unwrap();
         s.issue_bootstrap("token", 100).unwrap();
         s.enroll("token", "alice", "$argon2id$fixture", 101)
             .unwrap();
         let p = s.login_record("alice").unwrap().unwrap().principal;
         revocable(&mut s, &p, "session");
-        p
-    };
+    }
     let db = Database::open(&path).unwrap();
     let (release, released) = std::sync::mpsc::channel::<()>();
     let (busy, occupied) = oneshot::channel();
@@ -563,17 +588,12 @@ async fn revocation_succeeds_with_the_queue_full_and_overtakes_it() {
         Revocation::Task {
             digest: "session-task".into(),
         },
-        Revocation::Grants {
-            principal: principal.id.clone(),
-            role: Role::Viewer,
-            scopes: vec![],
-        },
     ]
     .map(|revocation| {
         let db = db.clone();
         tokio::spawn(async move { db.revoke(revocation, 250).await })
     });
-    while db.priority.capacity() > PRIORITY_CAPACITY - 3 {
+    while db.priority.capacity() > PRIORITY_CAPACITY - 2 {
         tokio::task::yield_now().await;
     }
     release.send(()).unwrap();
@@ -584,19 +604,19 @@ async fn revocation_succeeds_with_the_queue_full_and_overtakes_it() {
     for call in ordinary {
         call.await.unwrap().unwrap();
     }
-    // Every queued item ran after all three revocations.
+    // Every queued item ran after both revocations.
     let seen = std::mem::take(&mut *seen.lock().unwrap());
     assert_eq!(seen.len(), QUEUE_CAPACITY);
     assert!(seen.iter().all(|state| *state == (false, false)));
     let events: i64 = db
         .call(|s| {
             s.conn
-                .query_row("SELECT count(*) FROM events WHERE json_extract(kind,'$.kind') IN ('session_revoked','task_revoked','grants_revised') AND created=250", [], |r| r.get(0))
+                .query_row("SELECT count(*) FROM events WHERE json_extract(kind,'$.kind') IN ('session_revoked','task_revoked') AND created=250", [], |r| r.get(0))
                 .map_err(durable)
         })
         .await
         .unwrap();
-    assert_eq!(events, 3);
+    assert_eq!(events, 2);
 }
 
 #[test]
