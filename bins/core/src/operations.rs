@@ -8,6 +8,35 @@ use std::time::{Duration, Instant};
 /// Least time between two receipt lookups for one held job.
 const RECOVERY_PAUSE: Duration = Duration::from_secs(30);
 
+/// Per-job counts of a repeated failure, so a job that fails on every pass
+/// is logged at its 1st, 2nd, 4th, 8th... failure, as the supervisor logs a
+/// failing task: the first is always logged, and a job stuck for days costs
+/// a few lines, not one per pass.
+#[derive(Default)]
+pub(super) struct Repeats(std::collections::HashMap<String, u64>);
+/// Jobs counted at once; past it the counts start again (each job's next
+/// failure is then logged as a first).
+const REPEATS_TRACKED: usize = 4096;
+impl Repeats {
+    /// Counts a failure of job `id`; the count, when this one is logged.
+    pub(super) fn failed(&mut self, id: &str) -> Option<u64> {
+        if self.0.len() >= REPEATS_TRACKED && !self.0.contains_key(id) {
+            self.0.clear();
+        }
+        let count = self.0.entry(id.to_owned()).or_default();
+        *count += 1;
+        count.is_power_of_two().then_some(*count)
+    }
+    /// Job `id` went through: a later failure is a first again.
+    pub(super) fn passed(&mut self, id: &str) {
+        self.0.remove(id);
+    }
+    /// Keeps only the jobs `listed` (the others settled or went away).
+    fn retain(&mut self, listed: impl Fn(&str) -> bool) {
+        self.0.retain(|id, _| listed(id));
+    }
+}
+
 /// Fair recovery polling of held (dispatched, unsettled) jobs. Each pass lists
 /// the next page of held jobs after `cursor`, in ID order, and a short page
 /// starts over, so every held job is listed within a bounded number of passes
@@ -18,6 +47,8 @@ const RECOVERY_PAUSE: Duration = Duration::from_secs(30);
 pub(super) struct Rotation {
     cursor: String,
     polled: std::collections::HashMap<String, Instant>,
+    /// Repeated failures of these jobs, for the log.
+    pub(super) failures: Repeats,
 }
 impl Rotation {
     /// Where the next listing starts.
@@ -596,6 +627,8 @@ impl Core {
         let mut audit = limeos_persistence::AuditLevel::Normal;
         let mut retention_failures = 0;
         let mut store_stalled = false;
+        let mut target_failures = Repeats::default();
+        let mut mount_failures = Repeats::default();
         loop {
             // The first tick is immediate, which completes startup leftovers.
             tick.tick().await;
@@ -609,6 +642,7 @@ impl Core {
             self.dispatch_stack_candidates(&mut stack_recovery).await;
             if let Ok(jobs) = self.db.call(|s| s.storage_target_candidates()).await {
                 target_recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));
+                target_failures.retain(|id| jobs.iter().any(|(_, job)| job.id == id));
                 for (principal, job) in jobs {
                     if job.state != JobState::Queued {
                         if target_recovery
@@ -619,14 +653,21 @@ impl Core {
                         }
                         target_recovery.insert(job.id.clone(), Instant::now());
                     }
-                    if let Err(e) = self.dispatch_target(principal, job).await {
-                        tracing::warn!(code=?e.0,"storage target job remains pending or requires reconciliation");
+                    let id = job.id.clone();
+                    match self.dispatch_target(principal, job).await {
+                        Ok(()) => target_failures.passed(&id),
+                        Err(e) => {
+                            if let Some(failures) = target_failures.failed(&id) {
+                                tracing::warn!(code=?e.0, failures, "storage target job remains pending or requires reconciliation");
+                            }
+                        }
                     }
                 }
             }
 
             if let Ok(jobs) = self.db.call(|store| store.storage_mount_candidates()).await {
                 mount_recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));
+                mount_failures.retain(|id| jobs.iter().any(|(_, job)| job.id == id));
                 for (principal, job) in jobs {
                     if job.state != JobState::Queued {
                         if mount_recovery
@@ -637,8 +678,14 @@ impl Core {
                         }
                         mount_recovery.insert(job.id.clone(), Instant::now());
                     }
-                    if let Err(error) = self.dispatch_mount(principal, job).await {
-                        tracing::warn!(code=?error.0, "storage mount job remains pending or requires reconciliation");
+                    let id = job.id.clone();
+                    match self.dispatch_mount(principal, job).await {
+                        Ok(()) => mount_failures.passed(&id),
+                        Err(error) => {
+                            if let Some(failures) = mount_failures.failed(&id) {
+                                tracing::warn!(code=?error.0, failures, "storage mount job remains pending or requires reconciliation");
+                            }
+                        }
                     }
                 }
             }
@@ -659,8 +706,14 @@ impl Core {
                 if job.state != JobState::Queued && !recovery.due(&job.id) {
                     continue;
                 }
-                if let Err(e) = self.dispatch_one(principal, job).await {
-                    tracing::warn!(code=?e.0,"container job remains pending or requires reconciliation");
+                let id = job.id.clone();
+                match self.dispatch_one(principal, job).await {
+                    Ok(()) => recovery.failures.passed(&id),
+                    Err(e) => {
+                        if let Some(failures) = recovery.failures.failed(&id) {
+                            tracing::warn!(code=?e.0, failures, "container job remains pending or requires reconciliation");
+                        }
+                    }
                 }
             }
         }

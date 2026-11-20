@@ -527,8 +527,14 @@ impl Core {
             if job.state != JobState::Queued && !recovery.due(&job.id) {
                 continue;
             }
-            if let Err(e) = self.dispatch_stack(principal, job).await {
-                tracing::warn!(code=?e.0,"stack job remains pending or requires reconciliation");
+            let id = job.id.clone();
+            match self.dispatch_stack(principal, job).await {
+                Ok(()) => recovery.failures.passed(&id),
+                Err(e) => {
+                    if let Some(failures) = recovery.failures.failed(&id) {
+                        tracing::warn!(code=?e.0, failures, "stack job remains pending or requires reconciliation");
+                    }
+                }
             }
         }
     }

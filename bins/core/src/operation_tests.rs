@@ -1031,3 +1031,18 @@ async fn an_execute_refused_beyond_receipt_history_settles_the_job_as_refused() 
     assert_eq!(next.state, JobState::Running);
     task.abort();
 }
+
+/// A job that fails on every dispatcher pass is logged at its 1st, 2nd,
+/// 4th, 8th... failure; its first is never hidden, other jobs keep their own
+/// counts, and a job that goes through starts again from a first.
+#[test]
+fn repeated_job_failures_are_logged_logarithmically_per_job() {
+    let mut repeats = operations::Repeats::default();
+    let logged: Vec<u64> = (0..64).filter_map(|_| repeats.failed("a")).collect();
+    assert_eq!(logged, [1, 2, 4, 8, 16, 32, 64]);
+    assert_eq!(repeats.failed("b"), Some(1));
+    assert_eq!(repeats.failed("a"), None);
+    repeats.passed("a");
+    assert_eq!(repeats.failed("a"), Some(1));
+    assert_eq!(repeats.failed("b"), Some(2));
+}
