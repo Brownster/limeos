@@ -1167,3 +1167,59 @@ fn legacy_batch_is_atomic_idempotent_and_never_overwrites() {
     }
     assert_eq!(count(&s, "users"), 3);
 }
+
+/// A writer stuck on one item (a hung fsync, a lock held from outside) no
+/// longer freezes its callers: each call gives up at its deadline with
+/// `Unavailable`, and how long the writer has been on that item, and how
+/// many calls wait behind it, can be read without queueing.
+#[tokio::test]
+async fn a_stalled_writer_fails_calls_at_their_deadline_and_shows_how_long_it_has_been_stuck() {
+    let d = tempfile::tempdir().unwrap();
+    let mut db = Database::open(&d.path().join("core.sqlite")).unwrap();
+    db.deadline = Duration::from_millis(300);
+    assert_eq!(db.call(|_| Ok(1)).await, Ok(1));
+    let idle = db.writer_activity();
+    assert_eq!((idle.busy_for, idle.queued), (None, 0));
+    let (release, stuck) = std::sync::mpsc::channel::<()>();
+    let (entered, started) = std::sync::mpsc::channel::<()>();
+    let blocker = db.clone();
+    let blocked = tokio::spawn(async move {
+        blocker
+            .call(move |_| {
+                entered.send(()).unwrap();
+                stuck.recv().unwrap();
+                Ok(())
+            })
+            .await
+    });
+    tokio::task::spawn_blocking(move || started.recv().unwrap())
+        .await
+        .unwrap();
+    let asked = Instant::now();
+    assert_eq!(db.call(|_| Ok(2)).await, Err(Error(ErrorCode::Unavailable)));
+    let waited = asked.elapsed();
+    assert!(
+        waited >= Duration::from_millis(250) && waited < Duration::from_secs(5),
+        "{waited:?}"
+    );
+    // The blocked call itself gave up too, though its work still runs.
+    assert_eq!(blocked.await.unwrap(), Err(Error(ErrorCode::Unavailable)));
+    let stalled = db.writer_activity();
+    assert!(
+        stalled
+            .busy_for
+            .is_some_and(|busy| busy >= Duration::from_millis(250)),
+        "{stalled:?}"
+    );
+    // The abandoned call still waits in the queue.
+    assert_eq!(stalled.queued, 1);
+    release.send(()).unwrap();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while db.writer_activity() != WriterActivity::default() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the writer goes idle once the item returns");
+    assert_eq!(db.call(|_| Ok(3)).await, Ok(3));
+}

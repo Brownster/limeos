@@ -595,9 +595,13 @@ impl Core {
         let mut resolution_retry = Rotation::default();
         let mut audit = limeos_persistence::AuditLevel::Normal;
         let mut retention_failures = 0;
+        let mut store_stalled = false;
         loop {
             // The first tick is immediate, which completes startup leftovers.
             tick.tick().await;
+            // A stuck writer makes this loop's own store calls fail at their
+            // deadline, so this runs at least every `CALL_DEADLINE` or so.
+            store_stalled = report_store(store_stalled, self.db.writer_activity());
             audit = report_audit(audit, self.db.audit_usage());
             retention_failures = report_retention(retention_failures, self.db.retention_failure());
             self.complete_pending_resolutions(&mut resolution_retry, 5)
@@ -701,6 +705,27 @@ pub(super) fn note_execute_failure(failure: Failure) {
     } else {
         tracing::warn!(code=?failure.error.0, "execute call failed; the job is held for reconciliation");
     }
+}
+
+/// Logs when the store's writer has been on one item past `STORE_STALL`, and
+/// when it moves on again.
+fn report_store(stalled: bool, activity: limeos_persistence::WriterActivity) -> bool {
+    let now_stalled = activity
+        .busy_for
+        .is_some_and(|busy| busy >= super::STORE_STALL);
+    if now_stalled && !stalled {
+        tracing::error!(
+            busy_ms = activity
+                .busy_for
+                .map_or(0, |busy| u64::try_from(busy.as_millis())
+                    .unwrap_or(u64::MAX)),
+            queued = activity.queued,
+            "the store's writer is stuck on one item (a hung disk write or a lock held from outside); store calls fail at their deadline and health reports the store degraded"
+        );
+    } else if stalled && !now_stalled {
+        tracing::info!("the store's writer is moving again");
+    }
+    now_stalled
 }
 
 /// Logs each new failed retention batch (the latest, with the running

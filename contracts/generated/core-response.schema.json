@@ -906,17 +906,17 @@
       "type": "object",
       "properties": {
         "code": {
-          "description": "The error that describes the current state: for the observation\nruntime, the one that ended its latest run; for the storage reader,\n`unavailable`.",
+          "description": "The error that describes the current state: for the observation\nruntime, the one that ended its latest run; for the storage reader\nand the store, `unavailable`.",
           "$ref": "#/$defs/ErrorCode"
         },
         "count": {
-          "description": "For the observation runtime, failures in the current run; it restarts\nafter a longer wait each time. For the storage reader, reads stuck.",
+          "description": "For the observation runtime, failures in the current run; it restarts\nafter a longer wait each time. For the storage reader, reads stuck.\nFor the store, calls waiting for its writer.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
         "since": {
-          "description": "When the current state began (Unix seconds): for the storage reader,\nwhen its oldest stuck read was abandoned.",
+          "description": "When the current state began (Unix seconds): for the storage reader,\nwhen its oldest stuck read was abandoned; for the store, when its\nwriter started the item it is still on.",
           "type": "integer",
           "format": "int64"
         }
@@ -1332,6 +1332,11 @@
           "description": "The storage reader has a storage read stuck past its deadline (a\nfailing disk, typically); it refuses storage inventory until the read\nreturns and serves everything else.",
           "type": "string",
           "const": "storage_reader"
+        },
+        {
+          "description": "The store's single writer thread has been on one item for too long\n(a hung fsync, a lock held from outside), or did not answer a probe\nin time. Requests that need the store fail at their deadline\nmeanwhile, and core reports itself not ready.",
+          "type": "string",
+          "const": "store"
         }
       ]
     }

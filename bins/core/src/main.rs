@@ -10,7 +10,7 @@ use limeos_persistence::{
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::{
     net::{TcpListener, UnixListener, UnixStream},
@@ -552,18 +552,19 @@ impl Backend for Core {
         self.db.revoke(revocation, now()).await
     }
     async fn health(&self) -> Result<Health> {
-        self.db.call(|_| Ok(())).await?;
+        let store = self.store_health().await?;
         Ok(Health {
             version: VERSION,
             generation: self.db.generation,
             schema_version: limeos_persistence::SCHEMA_VERSION,
-            ready: true,
+            ready: store.is_none(),
             degraded: self
                 .automation_status
                 .health()
                 .degraded()
                 .into_iter()
                 .chain(self.reader_health.degraded())
+                .chain(store)
                 .collect(),
         })
     }
@@ -1027,6 +1028,12 @@ async fn rpc_server(core: Core, listener: UnixListener) -> std::io::Result<()> {
     let permits = Arc::new(Semaphore::new(16));
     let mut failures = 0u64;
     // Sent from this loop, so systemd restarts core if it stops being run.
+    // It does not depend on the store's writer: a stuck writer is almost
+    // always the device (a hung fsync on a failing SD card) or a lock held
+    // from outside, which a new process meets again, so restarting would
+    // loop, and a thread in uninterruptible sleep would keep the old process
+    // from exiting. Store calls fail at their deadline instead, and health
+    // reports the store degraded and core not ready.
     let mut watchdog = limeos_contracts::Watchdog::from_env();
     loop {
         let accepted = tokio::select! {
@@ -1093,6 +1100,37 @@ fn bind_socket(path: &Path) -> Result<UnixListener> {
     std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o660))
         .map_err(|_| Error(ErrorCode::Unavailable))?;
     Ok(listener)
+}
+/// An item the store's writer is still on after this is not legitimate work
+/// (each is a sub-second commit): the store is reported degraded.
+const STORE_STALL: Duration = Duration::from_secs(10);
+/// How long health waits for the writer to answer a probe; it never waits
+/// out the full call deadline.
+const STORE_PROBE: Duration = Duration::from_secs(2);
+impl Core {
+    /// The store as a degraded subsystem, if its writer is stuck. Read from
+    /// the writer's activity, which needs no queue, and from a probe bounded
+    /// by `STORE_PROBE`, so health answers even when every call is stuck.
+    /// A closed writer or a full queue is an error, as before.
+    async fn store_health(&self) -> Result<Option<limeos_contracts::DegradedSubsystem>> {
+        let activity = self.db.writer_activity();
+        let stalled = activity.busy_for.filter(|busy| *busy >= STORE_STALL);
+        if stalled.is_none() {
+            if let Ok(answer) = tokio::time::timeout(STORE_PROBE, self.db.call(|_| Ok(()))).await {
+                return answer.map(|()| None);
+            }
+        }
+        let activity = self.db.writer_activity();
+        let busy = activity.busy_for.unwrap_or(STORE_PROBE);
+        Ok(Some(limeos_contracts::DegradedSubsystem {
+            subsystem: limeos_contracts::Subsystem::Store,
+            detail: Some(limeos_contracts::DegradedDetail {
+                code: ErrorCode::Unavailable,
+                since: now() - i64::try_from(busy.as_secs()).unwrap_or(i64::MAX / 2),
+                count: u32::try_from(activity.queued).unwrap_or(u32::MAX),
+            }),
+        }))
+    }
 }
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {

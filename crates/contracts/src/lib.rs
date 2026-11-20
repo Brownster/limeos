@@ -116,6 +116,11 @@ pub enum Subsystem {
     /// failing disk, typically); it refuses storage inventory until the read
     /// returns and serves everything else.
     StorageReader,
+    /// The store's single writer thread has been on one item for too long
+    /// (a hung fsync, a lock held from outside), or did not answer a probe
+    /// in time. Requests that need the store fail at their deadline
+    /// meanwhile, and core reports itself not ready.
+    Store,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
@@ -131,15 +136,17 @@ pub struct DegradedSubsystem {
 #[serde(deny_unknown_fields)]
 pub struct DegradedDetail {
     /// The error that describes the current state: for the observation
-    /// runtime, the one that ended its latest run; for the storage reader,
-    /// `unavailable`.
+    /// runtime, the one that ended its latest run; for the storage reader
+    /// and the store, `unavailable`.
     pub code: ErrorCode,
     /// When the current state began (Unix seconds): for the storage reader,
-    /// when its oldest stuck read was abandoned.
+    /// when its oldest stuck read was abandoned; for the store, when its
+    /// writer started the item it is still on.
     #[ts(type = "number")]
     pub since: i64,
     /// For the observation runtime, failures in the current run; it restarts
     /// after a longer wait each time. For the storage reader, reads stuck.
+    /// For the store, calls waiting for its writer.
     pub count: u32,
 }
 impl DegradedSubsystem {

@@ -10,7 +10,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc,
-        atomic::{AtomicI64, Ordering},
+        atomic::{AtomicI64, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -30,9 +30,56 @@ const PRIORITY_WAIT: Duration = Duration::from_secs(5);
 /// Revocations the writer serves before one ordinary item when both lanes
 /// have work, so neither lane can starve the other.
 const PRIORITY_BURST: usize = 4;
+/// How long a caller waits for the writer to answer one call, queueing
+/// included. The longest legitimate item is a sub-second commit (retention
+/// passes delete in bounded batches, SQLite gives up on a held lock after
+/// 500 ms, and the startup migration is not a call), so a full queue of 64
+/// still answers well inside it on SD storage. Past it the call fails with
+/// `Unavailable` and its work may still run later, as when an HTTP request
+/// gives up at its own deadline.
+pub const CALL_DEADLINE: Duration = Duration::from_secs(30);
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
 type Work = Box<dyn FnOnce(&mut Store) + Send>;
+
+/// What the writer thread is doing, readable without queueing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct WriterActivity {
+    /// How long it has been on its current item (a call, a revocation or a
+    /// retention pass); `None` while it waits for work.
+    pub busy_for: Option<Duration>,
+    /// Calls queued behind it.
+    pub queued: usize,
+}
+/// When the writer started its current item, as milliseconds after
+/// `origin` plus one; zero while idle.
+struct Busy {
+    origin: Instant,
+    started: AtomicU64,
+}
+impl Busy {
+    fn new() -> Self {
+        Self {
+            origin: Instant::now(),
+            started: AtomicU64::new(0),
+        }
+    }
+    fn run<T>(&self, item: impl FnOnce() -> T) -> T {
+        let since = u64::try_from(self.origin.elapsed().as_millis()).unwrap_or(u64::MAX - 1);
+        self.started.store(since + 1, Ordering::SeqCst);
+        let value = item();
+        self.started.store(0, Ordering::SeqCst);
+        value
+    }
+    fn busy_for(&self) -> Option<Duration> {
+        let started = self.started.load(Ordering::SeqCst).checked_sub(1)?;
+        Some(
+            self.origin
+                .elapsed()
+                .saturating_sub(Duration::from_millis(started)),
+        )
+    }
+}
 
 /// Wakes the writer thread without taking a slot in either queue. A sender
 /// rings after every successful send. The writer clears the flag when it
@@ -89,6 +136,9 @@ pub struct Database {
     bell: Arc<Bell>,
     audit: Arc<AtomicI64>,
     retention: Arc<std::sync::Mutex<Option<RetentionFailure>>>,
+    busy: Arc<Busy>,
+    /// `CALL_DEADLINE`; shorter in tests.
+    deadline: Duration,
     pub generation: i64,
     #[cfg(test)]
     admitted: Arc<std::sync::atomic::AtomicUsize>,
@@ -112,11 +162,13 @@ impl Database {
         let retention = Arc::new(std::sync::Mutex::new(None::<RetentionFailure>));
         let failures = retention.clone();
         let doorbell = bell.clone();
+        let busy = Arc::new(Busy::new());
+        let working = busy.clone();
         std::thread::Builder::new()
             .name("limeos-db".into())
             .spawn(move || {
                 let maintain = |store: &mut Store| {
-                    let Some(pass) = store.maintain(Instant::now()) else {
+                    let Some(pass) = working.run(|| store.maintain(Instant::now())) else {
                         return;
                     };
                     if let Some(usage) = pass.usage {
@@ -139,11 +191,11 @@ impl Database {
                         let Ok(work) = urgent.try_recv() else {
                             break;
                         };
-                        work(&mut store);
+                        working.run(|| work(&mut store));
                         served = true;
                     }
                     if let Ok(work) = receiver.try_recv() {
-                        work(&mut store);
+                        working.run(|| work(&mut store));
                         served = true;
                     }
                     maintain(&mut store);
@@ -180,10 +232,21 @@ impl Database {
             bell,
             audit,
             retention,
+            busy,
+            deadline: CALL_DEADLINE,
             generation,
             #[cfg(test)]
             admitted: Arc::default(),
         })
+    }
+    /// What the writer is doing now. Never queues, so core can report a
+    /// writer stuck on one item (a hung fsync, a lock held from outside)
+    /// while every call waits behind it.
+    pub fn writer_activity(&self) -> WriterActivity {
+        WriterActivity {
+            busy_for: self.busy.busy_for(),
+            queued: self.sender.max_capacity() - self.sender.capacity(),
+        }
     }
     /// Audit usage as of the writer's last retention pass (at most a minute
     /// old). Never queues, so health reporting works when the queue is full.
@@ -228,8 +291,14 @@ impl Database {
             .map_err(|_| Error(ErrorCode::Overloaded))?
             .map_err(|_| Error(ErrorCode::Unavailable))?;
         self.bell.ring();
-        receiver.await.map_err(|_| Error(ErrorCode::Unavailable))?
+        tokio::time::timeout(self.deadline, receiver)
+            .await
+            .map_err(|_| Error(ErrorCode::Unavailable))?
+            .map_err(|_| Error(ErrorCode::Unavailable))?
     }
+    /// Runs `f` on the writer thread. Fails with `Overloaded` when the queue
+    /// is full and with `Unavailable` when the writer has not answered
+    /// within `CALL_DEADLINE`; in that case `f` may still run later.
     pub async fn call<T: Send + 'static>(
         &self,
         f: impl FnOnce(&mut Store) -> Result<T> + Send + 'static,
@@ -241,7 +310,10 @@ impl Database {
             }))
             .map_err(|_| Error(ErrorCode::Overloaded))?;
         self.bell.ring();
-        receiver.await.map_err(|_| Error(ErrorCode::Unavailable))?
+        tokio::time::timeout(self.deadline, receiver)
+            .await
+            .map_err(|_| Error(ErrorCode::Unavailable))?
+            .map_err(|_| Error(ErrorCode::Unavailable))?
     }
 }
 

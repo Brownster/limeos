@@ -168,7 +168,7 @@ export type AcknowledgeNotification = { revision: number, };
 export type AutomationPage<T> = { items: Array<T>, next: string | null, partial: boolean, };
 export type Enrollment = { token: string, username: string, password: string, };
 export type LegacyUser = { username: string, password_hash: string, };
-export type Subsystem = "observation_runtime" | "storage_reader";
+export type Subsystem = "observation_runtime" | "storage_reader" | "store";
 export type DegradedSubsystem = { subsystem: Subsystem,
 /**
  * What is wrong and since when. Given to an authenticated caller and to
@@ -179,18 +179,20 @@ detail?: DegradedDetail | null, };
 export type DegradedDetail = {
 /**
  * The error that describes the current state: for the observation
- * runtime, the one that ended its latest run; for the storage reader,
- * `unavailable`.
+ * runtime, the one that ended its latest run; for the storage reader
+ * and the store, `unavailable`.
  */
 code: ErrorCode,
 /**
  * When the current state began (Unix seconds): for the storage reader,
- * when its oldest stuck read was abandoned.
+ * when its oldest stuck read was abandoned; for the store, when its
+ * writer started the item it is still on.
  */
 since: number,
 /**
  * For the observation runtime, failures in the current run; it restarts
  * after a longer wait each time. For the storage reader, reads stuck.
+ * For the store, calls waiting for its writer.
  */
 count: number, };
 export type Health = { version: number, generation: number, schema_version: number, ready: boolean,
