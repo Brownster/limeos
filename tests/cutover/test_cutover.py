@@ -301,13 +301,34 @@ class Harness(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         (self.stub / "calls.log").write_text("")
 
-    def scope_unit(self):
-        """The transient scope the scripts name for this snapshot."""
+    def scope_unit(self, snap=None):
+        """The transient scope the scripts name for a snapshot (this one by default)."""
         unit = subprocess.run(
-            ["bash", "-c", f'source "{SCRIPTS}/lib.sh"; fct_scope_unit "$1"', "_", str(self.snap)],
+            ["bash", "-c", f'source "{SCRIPTS}/lib.sh"; fct_scope_unit "$1"', "_", str(snap or self.snap)],
             capture_output=True, text=True, check=True).stdout.strip()
-        self.assertRegex(unit, r"^limeos-cutover-activate-snap-\d+\.scope$")
+        self.assertRegex(unit, r"^limeos-cutover-activate-[0-9a-f]{32}\.scope$")
         return unit
+
+    def hold_lock_with_record(self, record, name="activate.lock"):
+        """Hold a snapshot lock from the test process, with RECORD as the holder line."""
+        lock = self.snap / name
+        handle = open(lock, "a")
+        self.addCleanup(handle.close)
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock.write_text(record)
+        return handle
+
+    def own_record(self, role, unit=""):
+        """A current holder record naming the test process."""
+        start = Path(f"/proc/{os.getpid()}/stat").read_text().rsplit(") ", 1)[1].split()[19]
+        return f"{role} {os.getpid()} {start}{' ' + unit if unit else ''}\n"
+
+    def scope_member(self, unit):
+        """A process inside the stub scope UNIT (cleaned up with the harness's other processes)."""
+        member = subprocess.Popen(["bash", "-c", "while :; do command -p sleep 0.05; done"],
+                                  env={**self.env, "STUB_SCOPE": unit}, start_new_session=True)
+        self.addCleanup(lambda: (member.kill(), member.wait()))
+        return member
 
     def scoped_calls(self):
         """(scope, call) for every stub call; scope is "-" outside any transient scope."""
@@ -1346,23 +1367,75 @@ class ActivateTests(Harness):
         self.assertIn(f"return.sh {self.snap} --force", plain.stderr)
         self.assertEqual(self.mutating_calls(), calls_before)
 
-    def test_a_plain_return_refuses_while_the_scope_still_has_processes(self):
+    def test_a_return_refuses_while_the_scope_still_has_processes_and_force_kills_nothing(self):
         # activate.sh died (here: SIGKILL from outside) and released its lock, but its step lives on.
+        # With the lock free there is no live activation whose identity --force could check, so it
+        # kills nothing either and names the command that would.
         first = self.stalled_activation()
         unit = self.scope_unit()
         first.kill()
         first.wait(timeout=10)  # (its step still holds the stderr pipe)
         self.wait_for(lambda: self.lock_free("activate.lock"))
+        # The stalled step's long-lived processes (its sleep children come and go by themselves).
+        step = [pid for pid in self.pids_with(b"STUB_SCOPE=" + unit.encode())
+                if Path(f"/proc/{pid}/comm").read_text().strip() != "sleep"]
+        self.assertTrue(step)
         calls_before = self.mutating_calls()
-        plain = self.do_return()
-        self.assertEqual(plain.returncode, 1, plain.stdout + plain.stderr)
-        self.assertIn(f"activate.sh is no longer running, but its scope {unit} still has processes", plain.stderr)
-        self.assertIn(f"return.sh {self.snap} --force", plain.stderr)
+        for extra in ((), ("--force",)):
+            with self.subTest(extra=extra):
+                result = self.do_return(*extra)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn(f"activate.sh is no longer running, but its scope {unit} still has processes", result.stderr)
+                self.assertIn(f"systemctl kill --kill-whom=all --signal=KILL {unit}", result.stderr)
+                self.assertNotIn("--force: ending the activation", result.stderr)
         self.assertEqual(self.mutating_calls(), calls_before)
-        forced = self.do_return("--force")
-        self.assertEqual(forced.returncode, 0, forced.stdout + forced.stderr)
-        self.assertEqual(self.marked_pids(self.stub), [])
+        self.assertTrue(all(self.alive(pid) for pid in step))
+        # Once the step has gone, a plain return completes.
+        self.kill_strays(self.stub)
+        self.wait_for(lambda: not self.pids_with(b"STUB_SCOPE=" + unit.encode()))
+        done = self.do_return()
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assert_returned()
+
+    def test_scope_names_differ_for_snapshots_sharing_a_basename(self):
+        units = set()
+        for parent in ("a", "b", "a/b", "c-d", "c_d"):
+            directory = Path(self._tmp.name) / parent / "snap"
+            directory.mkdir(parents=True)
+            units.add(self.scope_unit(directory))
+        self.assertEqual(len(units), 5, units)
+        self.assertTrue(all(len(unit) <= 255 for unit in units))
+
+    def test_an_activation_records_its_scope_in_the_snapshot(self):
+        self.passing_snapshot()
+        result = self.approved()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.snap / "activation-scope").read_text(), self.scope_unit() + "\n")
+
+    def test_forced_return_kills_nothing_unless_the_holder_is_inside_the_recorded_scope(self):
+        self.passing_snapshot()
+        unit = self.scope_unit()
+        other = "limeos-cutover-activate-" + "0" * 32 + ".scope"
+        (self.snap / "activation-scope").write_text(unit + "\n")
+        member = self.scope_member(unit)  # the scope exists and is busy
+        cases = (
+            ("stale", "activate 4194000 123 " + unit + "\n", "is stale"),
+            ("not an activation", self.own_record("return"), "--force overrides only an activation"),
+            ("another unit", self.own_record("activate", other), f"records scope {other}, not this snapshot's {unit}"),
+            ("outside the unit", self.own_record("activate", unit), f"is not inside {unit}"),
+        )
+        for label, record, fragment in cases:
+            with self.subTest(case=label):
+                handle = self.hold_lock_with_record(record)
+                result = self.do_return("--force")
+                handle.close()
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn(fragment, result.stderr)
+                self.assertIn("nothing was killed", result.stderr)
+                self.assertEqual(self.mutating_calls(), [])
+                self.assertFalse([l for l in self.calls() if l.startswith("systemctl kill")])
+                self.assertTrue(self.alive(member.pid))
+                self.assertFalse((self.snap / "force-takeover").exists())
 
     def test_health_failures_roll_back(self):
         base = {
@@ -1675,15 +1748,6 @@ class ReturnTests(Harness):
                 self.assertIn(f"no {name}", result.stderr)
                 self.assertEqual(self.mutating_calls(), [])
                 (self.snap / f"{name}.away").rename(self.snap / name)
-
-    def hold_lock_with_record(self, record):
-        """Hold the snapshot lock from the test process, with RECORD as the holder line."""
-        import fcntl as _fcntl
-        lock = self.snap / "activate.lock"
-        handle = open(lock, "a")
-        self.addCleanup(handle.close)
-        _fcntl.flock(handle, _fcntl.LOCK_EX | _fcntl.LOCK_NB)
-        lock.write_text(record)
 
     def test_a_stale_holder_record_is_not_named_as_a_process_to_signal(self):
         own_start = Path(f"/proc/{os.getpid()}/stat").read_text().rsplit(") ", 1)[1].split()[19]

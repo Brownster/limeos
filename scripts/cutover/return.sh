@@ -124,29 +124,42 @@ fct_lock_snapshot() { # snap
     fct_record_holder "${lock}" return
 }
 
+# The scope this snapshot's activation ran in, as activate.sh recorded it; nothing for a
+# snapshot never activated (or activated before scopes).
+fct_recorded_scope() { # snap
+    local file="${1}/activation-scope" unit=''
+    [[ -e "${file}" ]] || return 0
+    { IFS= read -r unit <"${file}"; } 2>/dev/null || true
+    [[ "${unit}" =~ ${SCOPE_RE} ]] || fct_die "${file} does not name an activation scope (${unit@Q}); nothing was changed"
+    printf '%s\n' "${unit}"
+}
+
 # activate.lock, and an activation scope with no process left in it: only then has the
 # activation ended, whoever still holds or has released its lock. Holding return.lock and
 # activate.lock, nothing can join the scope again (a new activation needs activate.lock).
+# --force kills only when a live activate.sh holds this snapshot's lock from inside the scope
+# the snapshot records; with the lock free there is no such process to vouch for the unit.
 fct_claim_activation() { # snap
-    local snap="${1}" lock="${1}/activate.lock" unit cgroup held=0
-    unit="$(fct_scope_unit "${snap}")" || fct_die "cannot name the activation's transient scope for ${snap}"
+    local snap="${1}" lock="${1}/activate.lock" unit cgroup='' held=0
     exec 9>>"${lock}" || fct_die "cannot open ${lock}"
     flock -n 9 || held=1
-    cgroup="$(fct_scope_cgroup "${unit}")"
-    if (( ! held )) && fct_scope_empty "${unit}" "${cgroup}"; then
+    unit="$(fct_recorded_scope "${snap}")"
+    if [[ -n "${unit}" ]]; then cgroup="$(fct_scope_cgroup "${unit}")"; fi
+    if (( ! held )) && { [[ -z "${unit}" ]] || fct_scope_empty "${unit}" "${cgroup}"; }; then
         fct_finish_takeover "${snap}" "${unit}"
         return 0
     fi
-    if (( ! FORCE )); then
-        if [[ -e "${snap}/${TAKEOVER}" ]] && ! fct_scope_empty "${unit}" "${cgroup}"; then
+    if (( ! held )); then
+        if [[ -e "${snap}/${TAKEOVER}" ]]; then
             fct_refuse_scope "${snap}" "${unit}" "${cgroup}" "$(fct_takeover_text "${snap}") did not finish: its scope ${unit} still has processes:" \
                 "The activation's automatic rollback was ended, and the old service is still stopped; this return changed nothing."
         fi
-        if (( held )); then fct_die "$(fct_lock_holder_text "${lock}")"; fi
         fct_refuse_scope "${snap}" "${unit}" "${cgroup}" \
             "activate.sh is no longer running, but its scope ${unit} still has processes (a step it left behind may still change packages or restart services):" \
-            "This return changed nothing. To end them now instead of waiting: return.sh ${snap} --force"
+            "This return changed nothing; --force does not end them either, since no activation holds ${lock} to vouch for the unit. To end them yourself, after checking they are this activation's (systemd-cgls --unit ${unit}): systemctl kill --kill-whom=all --signal=KILL ${unit}"
     fi
+    (( FORCE )) || fct_die "$(fct_lock_holder_text "${lock}")"
+    fct_check_holder_in_scope "${lock}" "${unit}" "${cgroup}"
     fct_end_scope "${snap}" "${unit}" "${cgroup}"
     if (( held )); then
         local deadline=$(( SECONDS + 5 ))
@@ -159,6 +172,31 @@ fct_claim_activation() { # snap
         done
     fi
     fct_finish_takeover "${snap}" "${unit}"
+}
+
+# --force acts only on a current activate.sh record (pid and start time) that names this
+# snapshot's scope, for a process that is inside that scope's control group. Otherwise it
+# stops before killing anything.
+fct_check_holder_in_scope() { # lock unit cgroup
+    local lock="${1}" unit="${2}" cgroup="${3}" pid=''
+    local -a members=()
+    if ! fct_live_holder "${lock}"; then
+        fct_die "--force: $(fct_lock_holder_text "${lock}"); nothing was killed or changed"
+    fi
+    [[ "${HOLDER_ROLE}" == activate ]] \
+        || fct_die "--force overrides only an activation, but ${lock} is held by ${HOLDER_ROLE}.sh (pid ${HOLDER_PID}); nothing was killed or changed"
+    [[ -n "${unit}" ]] \
+        || fct_die "--force: this snapshot records no activation scope (${lock%/*}/activation-scope), so the activation holding ${lock} (pid ${HOLDER_PID}) cannot be ended by unit; nothing was killed or changed"
+    [[ "${HOLDER_UNIT}" == "${unit}" ]] \
+        || fct_die "--force: the activation holding ${lock} (pid ${HOLDER_PID}) records scope ${HOLDER_UNIT:-none}, not this snapshot's ${unit}; nothing was killed or changed"
+    if [[ -n "${cgroup}" ]]; then
+        { mapfile -t members <"${CUTOVER_ROOT}/sys/fs/cgroup${cgroup}/cgroup.procs"; } 2>/dev/null || members=()
+    fi
+    for pid in "${members[@]}"; do [[ "${pid}" == "${HOLDER_PID}" ]] && break; pid=''; done
+    # Checked again afterwards: the member found is the recorded process, not a reused pid.
+    if [[ -z "${pid}" ]] || ! fct_proc_running "${HOLDER_PID}" "${HOLDER_START}"; then
+        fct_die "--force: activate.sh (pid ${HOLDER_PID}) holding ${lock} is not inside ${unit} (control group ${cgroup:-unknown}); nothing was killed or changed"
+    fi
 }
 
 # The scope's control group path (/system.slice/UNIT), or nothing when systemd has no such unit.

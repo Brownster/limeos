@@ -106,16 +106,17 @@ fct_pause() { read -r -t 0.2 <> <(:) || true; }
 
 # Every activation of a snapshot runs inside this transient scope (systemd-run --scope
 # --unit), in attached mode too, so the kernel's cgroup, not a list of pids, says which
-# processes are the activation's; return.sh --force ends it by this unit. Derived from the
-# snapshot's real path, so activate.sh and return.sh name the same unit.
+# processes are the activation's; return.sh --force ends it by this unit. Named from the
+# first 32 hex digits of the SHA-256 of the snapshot's real path, so two snapshots never
+# share a unit (62 characters, within systemd's unit-name rules). activate.sh records it in
+# SNAP/activation-scope, which return.sh reads.
+SCOPE_RE='^limeos-cutover-activate-[0-9a-f]{32}\.scope$'
 fct_scope_unit() { # snapshot_dir
-    local real base crc _
+    local real digest _
     real="$(cd -P -- "${1}" && pwd -P)" || return 1
-    base="${real##*/}"
-    base="${base//[^A-Za-z0-9_]/_}"
-    read -r crc _ < <(printf '%s' "${real}" | cksum)
-    [[ "${crc}" =~ ^[0-9]+$ ]] || return 1
-    printf 'limeos-cutover-activate-%s-%s.scope\n' "${base:0:48}" "${crc}"
+    read -r digest _ < <(printf '%s' "${real}" | sha256sum) || return 1
+    [[ "${digest}" =~ ^[0-9a-f]{64}$ ]] || return 1
+    printf 'limeos-cutover-activate-%s.scope\n' "${digest:0:32}"
 }
 
 # The snapshot's locks (SNAP/activate.lock on fd 9, SNAP/return.lock on fd 8) record their

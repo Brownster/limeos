@@ -51,7 +51,7 @@ then KILL) and the rollback goes ahead anyway. The rollback runs once and to the
 end: signals are ignored while it runs.
 
 Every run happens inside a transient systemd scope named for the snapshot,
-limeos-cutover-activate-<snapshot>-<checksum>.scope (systemd-run --scope --unit;
+limeos-cutover-activate-<SHA-256 of its path>.scope (systemd-run --scope --unit;
 systemd-run is required, and if it cannot create the scope nothing has changed).
 Everything the run starts stays in that scope, which is how return.sh --force
 ends exactly the activation and nothing else.
@@ -371,6 +371,8 @@ fct_main() {
         fct_lock "${unit}"
         fct_refuse_if_active
         if [[ -z "${SCOPE_UNIT}" ]]; then
+            # Which scope is this snapshot's, for return.sh (it never derives the name itself).
+            printf '%s\n' "${unit}" >"${SNAP}/activation-scope" || fct_die "cannot record the scope in ${SNAP}/activation-scope; nothing was changed"
             if (( ATTACHED )); then fct_enter_scope "${unit}" "${original_args[@]}"; fi
             local rc=0
             fct_detach "${unit}" "${original_args[@]}" || rc=$?

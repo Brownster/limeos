@@ -103,8 +103,9 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    The step is signalled by its process group, which a helper process in that
    group keeps from being reused until the script has finished with the step.
    Every activation runs inside a transient systemd scope named for the
-   snapshot, `limeos-cutover-activate-<snapshot>-<checksum>.scope` (printed at the
-   start and recorded in `SNAP/activate.lock`); everything it starts, steps and
+   snapshot, `limeos-cutover-activate-<first 32 hex digits of the SHA-256 of the
+   snapshot's real path>.scope`, so two snapshots never share one (printed at the
+   start, recorded in `SNAP/activation-scope` and `SNAP/activate.lock`); everything it starts, steps and
    rollback included, stays in that scope. `systemd-run` is required, with
    `--attached` too; if it is missing or cannot create the scope, nothing has
    changed.
@@ -169,9 +170,16 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    pid to signal). That run rolls back by itself if it fails; `kill -TERM PID`
    makes it roll back now. It also refuses while the activation's scope still
    has processes after `activate.sh` itself has gone (a step it left behind), and
-   lists them.
+   lists them. `--force` does not end those: with `activate.lock` free there is no
+   live activation to vouch for the unit, so it kills nothing and names the
+   command to run yourself once `systemd-cgls --unit UNIT` shows they are the
+   activation's (`systemctl kill --kill-whom=all --signal=KILL UNIT`).
 
-   `--force` is only for an activation that is hung. It ends the activation by its
+   `--force` is only for an activation that is hung. Before killing anything it
+   checks that `SNAP/activate.lock` is held by a current `activate.sh` record (pid
+   and start time) that names the scope in `SNAP/activation-scope`, and that this
+   process is inside that scope's control group; otherwise it stops with
+   "nothing was killed or changed". It ends the activation by its
    scope, never by pid: `systemctl kill --kill-whom=all --signal=KILL UNIT`
    reaches `activate.sh`, its automatic rollback and every step, including any
    started a moment before, and nothing outside the scope (a backup started from
@@ -194,7 +202,7 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    To inspect the unit:
 
    ```sh
-   systemctl status limeos-cutover-activate-...scope     # name from the message or SNAP/activate.lock
+   systemctl status limeos-cutover-activate-...scope     # name from the message or SNAP/activation-scope
    systemd-cgls --unit limeos-cutover-activate-...scope
    cat /sys/fs/cgroup/system.slice/limeos-cutover-activate-...scope/cgroup.procs
    ps -o pid,stat,wchan:32,args -p PID                   # state D: waiting on I/O
