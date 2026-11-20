@@ -30,6 +30,9 @@ struct Engine {
     lookup_unavailable: bool,
     /// ResolveAction finds no row, as after retention pruned it.
     resolve_missing: bool,
+    /// ResolveAction finds a terminal receipt with this recorded outcome and
+    /// refuses any declaration it does not allow.
+    resolve_recorded: Option<ExecutionState>,
     /// The executor's prune watermark: a lookup without a row answers
     /// `NeverRecorded` only for a plan expiring after it.
     watermark: i64,
@@ -368,6 +371,17 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
                     state.watermark,
                 ));
                 return Some(response);
+            }
+            if let Some(recorded) = state.resolve_recorded {
+                let allowed = limeos_domain::declarations_for_recorded(recorded).unwrap();
+                if !allowed.contains(&declared) {
+                    response.resolution_refusal = Some(limeos_domain::ResolveRefusal {
+                        recorded,
+                        declared,
+                        allowed: allowed.to_vec(),
+                    });
+                    return Some(response);
+                }
             }
             response.resolution = Some(limeos_domain::ResolveReceipt {
                 kind,
@@ -1372,6 +1386,61 @@ async fn an_operator_resolves_a_stack_whose_executor_receipt_was_pruned() {
             .is_empty()
     );
     assert_eq!(f.engine.lock().unwrap().resolves, 1);
+    f.task.abort();
+}
+
+#[tokio::test]
+async fn a_declaration_the_executors_recorded_outcome_contradicts_is_refused_with_the_reason() {
+    use limeos_domain::DeclaredOutcome;
+    let f = admin().await;
+    // The executor finished and verified the stack; core crashed before
+    // recording it, so the job is held while the receipt is terminal.
+    let job = claimed_at(&f, "terminal", now()).await;
+    let id = job.id.clone();
+    f.core
+        .db
+        .call(move |s| s.transition(&id, JobState::Running, JobState::NeedsIntervention, now()))
+        .await
+        .unwrap();
+    f.engine.lock().unwrap().resolve_recorded = Some(ExecutionState::Verified);
+    let operator = f.principal().await;
+    let view = f
+        .core
+        .resolution_view(operator.clone(), job.id.clone())
+        .await
+        .unwrap();
+    let refused = f
+        .core
+        .resolve_as(
+            operator.clone(),
+            job.id.clone(),
+            DeclaredOutcome::NotDone,
+            "Nothing happened.".into(),
+            view.evidence_digest.clone().unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        refused.status,
+        limeos_contracts::ResolveStatus::UnsupportedDeclaration
+    );
+    assert!(refused.message.contains("verified"), "{}", refused.message);
+    assert!(refused.message.contains("accepted_divergence"));
+    // Withdrawn and still held: the operator can decide again.
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    assert!(refused.view.unwrap().pending.is_none());
+    let done = f
+        .core
+        .resolve_as(
+            operator,
+            job.id.clone(),
+            DeclaredOutcome::AcceptedDivergence,
+            "The executor verified it; core lost the result.".into(),
+            view.evidence_digest.unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(done.status, limeos_contracts::ResolveStatus::Resolved);
     f.task.abort();
 }
 

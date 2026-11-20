@@ -535,8 +535,316 @@ async fn repeating_a_resolution_is_idempotent_and_a_different_one_is_refused() {
     assert_eq!(other_admin.unwrap_err().0, ErrorCode::Conflict);
 }
 
+/// A receipt the executor finished while core still holds the job.
+struct Terminal {
+    _dir: tempfile::TempDir,
+    store: ReceiptStore,
+    engine: RecordingEngine,
+    kind: ResolveKind,
+    action: String,
+    digest: String,
+    targets: Vec<ContainerSnapshot>,
+}
+impl Terminal {
+    /// The stored row: state and receipt body.
+    fn row(&self) -> (String, String) {
+        let table = match self.kind {
+            ResolveKind::Container => "actions",
+            ResolveKind::Stack => "stack_actions",
+        };
+        self.store
+            .conn
+            .query_row(
+                &format!("SELECT state,receipt FROM {table} WHERE action=?"),
+                [&self.action],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap()
+    }
+    /// Resolve on what the administrator is shown now; also returns how many
+    /// inspections the executor itself made.
+    async fn resolve(&mut self, declared: DeclaredOutcome) -> (Result<ResolveOutcome>, usize) {
+        let evidence = shown(&self.engine, &self.targets).await;
+        let inspections = self.engine.inspections.load(Ordering::SeqCst);
+        let result = outcome(
+            &mut self.store,
+            &self.engine,
+            self.kind,
+            &self.action,
+            &self.digest,
+            &evidence,
+            declared,
+        )
+        .await;
+        (
+            result,
+            self.engine.inspections.load(Ordering::SeqCst) - inspections,
+        )
+    }
+}
+/// A container receipt left `verified` or `precondition_changed`, or a stack
+/// receipt left `verified`, `precondition_changed` or `partly_done`.
+async fn terminal(kind: ResolveKind, recorded: ExecutionState) -> Terminal {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let engine = RecordingEngine::new(false);
+    if kind == ResolveKind::Container {
+        let request = single('d', 'a');
+        if recorded == ExecutionState::Verified {
+            store
+                .execute(&engine, &ceiling(), 1001, &request, || 201)
+                .await
+                .unwrap();
+            let after = engine.members.lock().unwrap()[0].clone();
+            let receipt = store
+                .verify(
+                    &engine,
+                    &ceiling(),
+                    1001,
+                    &request.action,
+                    &request.plan_digest,
+                    &after,
+                )
+                .await
+                .unwrap();
+            assert_eq!(receipt.state, recorded);
+        } else {
+            // The plan expired between the Prepared row and the Engine call.
+            let calls = AtomicUsize::new(0);
+            let receipt = store
+                .execute(&engine, &ceiling(), 1001, &request, || {
+                    if calls.fetch_add(1, Ordering::SeqCst) < 3 {
+                        201
+                    } else {
+                        600
+                    }
+                })
+                .await
+                .unwrap();
+            assert_eq!(receipt.state, recorded);
+        }
+        return Terminal {
+            _dir: dir,
+            store,
+            engine,
+            kind,
+            action: request.action,
+            digest: request.plan_digest,
+            targets: vec![snap('a', true)],
+        };
+    }
+    let request = stack_request();
+    let targets: Vec<_> = request.plan.targets().into_iter().cloned().collect();
+    let states = match recorded {
+        ExecutionState::Verified => [ExecutionState::Verified; 2],
+        ExecutionState::PreconditionChanged => [ExecutionState::PreconditionChanged; 2],
+        _ => [
+            ExecutionState::Verified,
+            ExecutionState::PreconditionChanged,
+        ],
+    };
+    for (target, state) in targets.iter().zip(states) {
+        if state == ExecutionState::Verified {
+            engine.restarted(target.resource.chars().last().unwrap());
+        }
+    }
+    let members: Vec<_> = targets
+        .iter()
+        .zip(states)
+        .map(|(t, state)| limeos_domain::StackMemberReceipt {
+            resource: t.resource.clone(),
+            state,
+            error: None,
+        })
+        .collect();
+    let receipt = limeos_domain::StackReceipt {
+        action: request.action.clone(),
+        plan_digest: request.plan_digest.clone(),
+        operation: request.plan.operation,
+        before: request.plan.expected.clone(),
+        state: limeos_domain::aggregate_state(&members),
+        members,
+        error: None,
+    };
+    assert_eq!(receipt.state, recorded);
+    store
+        .write_stack(
+            &receipt,
+            &[],
+            Some(crate::stack::Insert {
+                expires_at: request.plan.expires_at,
+                now: 201,
+            }),
+        )
+        .unwrap();
+    Terminal {
+        _dir: dir,
+        store,
+        engine,
+        kind,
+        action: request.action,
+        digest: request.plan_digest,
+        targets,
+    }
+}
+
 #[tokio::test]
-async fn an_action_that_no_longer_holds_the_resource_is_not_resolvable() {
+async fn a_terminal_receipt_is_resolvable_only_by_a_declaration_its_outcome_allows() {
+    use DeclaredOutcome::*;
+    use ExecutionState::*;
+    let table: [(ResolveKind, ExecutionState, &[DeclaredOutcome]); 5] = [
+        (
+            ResolveKind::Container,
+            Verified,
+            &[VerifiedDone, AcceptedDivergence],
+        ),
+        (
+            ResolveKind::Container,
+            PreconditionChanged,
+            &[NotDone, AcceptedDivergence],
+        ),
+        (
+            ResolveKind::Stack,
+            Verified,
+            &[VerifiedDone, AcceptedDivergence],
+        ),
+        (
+            ResolveKind::Stack,
+            PreconditionChanged,
+            &[NotDone, AcceptedDivergence],
+        ),
+        (ResolveKind::Stack, PartlyDone, &[AcceptedDivergence]),
+    ];
+    for (kind, recorded, allowed) in table {
+        for declared in [VerifiedDone, NotDone, AcceptedDivergence] {
+            let case = format!("{kind:?} {recorded:?} {declared:?}");
+            let mut t = terminal(kind, recorded).await;
+            let (mutations, before) = (t.engine.mutations(), t.row());
+            let (result, inspected) = t.resolve(declared).await;
+            let result = result.unwrap();
+            assert_eq!(t.engine.mutations(), mutations, "{case}");
+            if !allowed.contains(&declared) {
+                // Refused with the reason, before any Engine contact; nothing changed.
+                assert_eq!(
+                    result,
+                    ResolveOutcome::Refused(limeos_domain::ResolveRefusal {
+                        recorded,
+                        declared,
+                        allowed: allowed.to_vec(),
+                    }),
+                    "{case}"
+                );
+                assert_eq!(t.row(), before, "{case}");
+                assert_eq!(inspected, 0, "{case}");
+                assert!(
+                    t.store.resolution(kind, &t.action).unwrap().is_none(),
+                    "{case}"
+                );
+                continue;
+            }
+            let ResolveOutcome::Resolved(confirmed) = result else {
+                panic!("{case}: {result:?}");
+            };
+            // Resolved, with the original receipt kept as recorded.
+            assert_eq!(t.row(), (RESOLVED.to_owned(), before.1.clone()), "{case}");
+            assert_eq!(
+                t.store.resolution(kind, &t.action).unwrap(),
+                Some(confirmed.clone()),
+                "{case}"
+            );
+            match kind {
+                ResolveKind::Container => assert_eq!(
+                    t.store
+                        .receipt(&t.action, &t.digest)
+                        .unwrap()
+                        .unwrap()
+                        .state,
+                    recorded,
+                    "{case}"
+                ),
+                ResolveKind::Stack => assert_eq!(
+                    t.store
+                        .stack_receipt(&t.action, &t.digest)
+                        .unwrap()
+                        .unwrap()
+                        .state,
+                    recorded,
+                    "{case}"
+                ),
+            }
+            // An idempotent retry is answered from the row, without inspecting.
+            let (again, inspected) = t.resolve(declared).await;
+            assert_eq!(
+                again.unwrap(),
+                ResolveOutcome::Resolved(confirmed),
+                "{case}"
+            );
+            assert_eq!(inspected, 0, "{case}");
+            // A different declaration cannot rewrite it.
+            let other = if declared == AcceptedDivergence {
+                allowed[0]
+            } else {
+                AcceptedDivergence
+            };
+            if other != declared {
+                assert_eq!(
+                    t.resolve(other).await.0.unwrap_err().0,
+                    ErrorCode::Conflict,
+                    "{case}"
+                );
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_terminal_receipt_still_needs_fresh_matching_evidence_and_the_peer_ceiling() {
+    let mut t = terminal(ResolveKind::Container, ExecutionState::Verified).await;
+    let evidence = shown(&t.engine, &t.targets).await;
+    // The container changed after the administrator looked.
+    t.engine.restarted('a');
+    assert_eq!(
+        outcome(
+            &mut t.store,
+            &t.engine,
+            t.kind,
+            &t.action,
+            &t.digest,
+            &evidence,
+            DeclaredOutcome::VerifiedDone
+        )
+        .await
+        .unwrap_err()
+        .0,
+        ErrorCode::Conflict
+    );
+    let other = ContainerCeiling {
+        managed_containers: Vec::new(),
+        ..ceiling()
+    };
+    for (uid, ceiling) in [(1002, ceiling()), (1001, other)] {
+        let result = t
+            .store
+            .resolve_action(
+                &t.engine,
+                &ceiling,
+                uid,
+                t.kind,
+                &t.action,
+                &t.digest,
+                &evidence.digest().unwrap(),
+                DeclaredOutcome::VerifiedDone,
+                &by(),
+                EXPIRES,
+            )
+            .await;
+        assert_eq!(result.unwrap_err().0, ErrorCode::Forbidden);
+    }
+    assert_eq!(t.row().0, "verified");
+}
+
+#[tokio::test]
+async fn kind_and_table_must_agree() {
     let dir = private_dir();
     let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = RecordingEngine::new(false);
@@ -545,35 +853,8 @@ async fn an_action_that_no_longer_holds_the_resource_is_not_resolvable() {
         .execute(&engine, &ceiling(), 1001, &first, || 201)
         .await
         .unwrap();
-    let after = engine.members.lock().unwrap()[0].clone();
-    store
-        .verify(
-            &engine,
-            &ceiling(),
-            1001,
-            &first.action,
-            &first.plan_digest,
-            &after,
-        )
-        .await
-        .unwrap();
     let evidence = shown(&engine, &[snap('a', true)]).await;
-    assert_eq!(
-        resolve(
-            &mut store,
-            &engine,
-            ResolveKind::Container,
-            &first.action,
-            &first.plan_digest,
-            &evidence,
-            DeclaredOutcome::AcceptedDivergence
-        )
-        .await
-        .unwrap_err()
-        .0,
-        ErrorCode::Conflict
-    );
-    // Kind and table must agree: a container action is not a stack action.
+    // A container action is not a stack action.
     assert_eq!(
         outcome(
             &mut store,

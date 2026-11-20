@@ -399,7 +399,12 @@ export type Receipt = { container_health?: ContainerHealthCohort | null, stack_c
 /**
  * Set by a receipt lookup or `ResolveAction` that found no row.
  */
-absence?: ReceiptAbsence | null, logs?: ContainerLogs | null, error?: ErrorCode | null, storage?: StorageInventory | null, storage_targets?: StorageTargetSnapshot | null, target_preparation?: TargetPreparationReceipt | null, container_storage?: ContainerStorageInventory | null, };
+absence?: ReceiptAbsence | null,
+/**
+ * Set by `ResolveAction` when a terminal receipt's recorded outcome
+ * contradicts the declaration; nothing changed.
+ */
+resolution_refusal?: ResolveRefusal | null, logs?: ContainerLogs | null, error?: ErrorCode | null, storage?: StorageInventory | null, storage_targets?: StorageTargetSnapshot | null, target_preparation?: TargetPreparationReceipt | null, container_storage?: ContainerStorageInventory | null, };
 export type RestartPlan = ContainerPlan;
 export type PlannedRestart = PlannedContainerAction;
 export type RestartJob = ContainerJob;

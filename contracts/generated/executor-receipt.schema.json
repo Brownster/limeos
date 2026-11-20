@@ -97,6 +97,17 @@
         }
       ]
     },
+    "resolution_refusal": {
+      "description": "Set by `ResolveAction` when a terminal receipt's recorded outcome\ncontradicts the declaration; nothing changed.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ResolveRefusal"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "restart": {
       "anyOf": [
         {
@@ -1126,6 +1137,30 @@
         "evidence_digest",
         "declared",
         "resolved_by"
+      ]
+    },
+    "ResolveRefusal": {
+      "description": "The executor's refusal to resolve a terminal receipt with a declaration\nits recorded outcome contradicts. Nothing changed; `allowed` lists what it\nwould accept.",
+      "type": "object",
+      "properties": {
+        "allowed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DeclaredOutcome"
+          }
+        },
+        "declared": {
+          "$ref": "#/$defs/DeclaredOutcome"
+        },
+        "recorded": {
+          "$ref": "#/$defs/ExecutionState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "recorded",
+        "declared",
+        "allowed"
       ]
     },
     "Resource": {

@@ -26,6 +26,9 @@ enum Finish {
     Done(JobResolution),
     /// The executor definitely refused and the request was withdrawn.
     Refused(ErrorCode),
+    /// The executor's receipt is terminal and its recorded outcome contradicts
+    /// the declaration; the request was withdrawn.
+    Disagrees(limeos_domain::ResolveRefusal),
     /// Nothing was settled. The request stays recorded and held.
     Pending(ErrorCode),
 }
@@ -78,6 +81,17 @@ fn view_of(
         pending,
         resolution,
     })
+}
+
+/// Why the executor refused: what it recorded and what that allows.
+fn disagreement(refusal: &limeos_domain::ResolveRefusal) -> String {
+    let allowed: Vec<&str> = refusal.allowed.iter().map(|d| d.as_str()).collect();
+    format!(
+        "The executor recorded this job as {}, which contradicts {}. Nothing was changed; it accepts only: {}.",
+        refusal.recorded.as_str(),
+        refusal.declared.as_str(),
+        allowed.join(", ")
+    )
 }
 
 impl Core {
@@ -210,6 +224,13 @@ impl Core {
                 view: self.resolution_view(principal, job).await.ok(),
                 blocking: Vec::new(),
             }),
+            Finish::Disagrees(refusal) => Ok(ResolveJobResponse {
+                status: ResolveStatus::UnsupportedDeclaration,
+                message: disagreement(&refusal),
+                resolution: None,
+                view: self.resolution_view(principal, job).await.ok(),
+                blocking: Vec::new(),
+            }),
             Finish::Refused(_) => Err(Error(ErrorCode::Conflict)),
             Finish::Pending(_) => Ok(ResolveJobResponse {
                 status: ResolveStatus::Pending,
@@ -254,10 +275,24 @@ impl Core {
                 }
             }
         };
+        let withdraw = || {
+            let (actor, job) = (actor.clone(), request.job.clone());
+            async move {
+                self.db
+                    .call(move |s| s.withdraw_resolution(&actor, &job, now()))
+                    .await
+            }
+        };
         match confirmation {
             Ok(receipt) => {
                 if let Some(confirmation) = receipt.resolution {
                     return complete(confirmation).await;
+                }
+                if let Some(refusal) = receipt.resolution_refusal {
+                    return match withdraw().await {
+                        Ok(()) | Err(Error(ErrorCode::NotFound)) => Finish::Disagrees(refusal),
+                        Err(e) => Finish::Pending(e.0),
+                    };
                 }
                 match receipt.absence {
                     // The executor holds no row, so it holds no lock to free, and
@@ -285,12 +320,7 @@ impl Core {
             Err(Error(
                 code @ (ErrorCode::Conflict | ErrorCode::NotFound | ErrorCode::Forbidden),
             )) => {
-                let (actor, job) = (actor.clone(), request.job.clone());
-                match self
-                    .db
-                    .call(move |s| s.withdraw_resolution(&actor, &job, now()))
-                    .await
-                {
+                match withdraw().await {
                     // Already withdrawn or completed elsewhere is settled enough.
                     Ok(()) | Err(Error(ErrorCode::NotFound)) => Finish::Refused(code),
                     Err(e) => Finish::Pending(e.0),
@@ -337,6 +367,12 @@ impl Core {
                     tracing::warn!(
                         ?code,
                         "executor refused a pending job resolution; withdrawn"
+                    )
+                }
+                Finish::Disagrees(refusal) => {
+                    tracing::warn!(
+                        recorded = refusal.recorded.as_str(),
+                        "pending job resolution contradicts the executor's recorded outcome; withdrawn"
                     )
                 }
                 Finish::Pending(code) => {

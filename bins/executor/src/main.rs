@@ -614,6 +614,9 @@ async fn run() -> std::io::Result<()> {
                             limeos_executor_container::ResolveOutcome::Absent(absence) => {
                                 receipt.absence = Some(absence);
                             }
+                            limeos_executor_container::ResolveOutcome::Refused(refusal) => {
+                                receipt.resolution_refusal = Some(refusal);
+                            }
                         }
                     }
                     Request::Health { .. } => {}

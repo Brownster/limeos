@@ -212,6 +212,10 @@ pub struct Receipt {
     /// Set by a receipt lookup or `ResolveAction` that found no row.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub absence: Option<limeos_domain::ReceiptAbsence>,
+    /// Set by `ResolveAction` when a terminal receipt's recorded outcome
+    /// contradicts the declaration; nothing changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolution_refusal: Option<limeos_domain::ResolveRefusal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logs: Option<limeos_domain::ContainerLogs>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -617,6 +621,7 @@ impl Receipt {
             stack_members: None,
             resolution: None,
             absence: None,
+            resolution_refusal: None,
             logs: None,
             error: None,
             storage: None,
