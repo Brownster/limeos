@@ -676,10 +676,10 @@ fn recovery_rotation_lists_every_held_job_and_pauses_each() {
         if pass == 3 {
             assert_eq!(page.first().copied(), held.first().map(String::as_str));
         }
-        rotation.advance(page.iter().copied());
+        rotation.advance(page.iter().copied(), monotonic());
         for id in page {
             seen.insert(id.to_owned());
-            if rotation.due(id) {
+            if rotation.due(id, monotonic()) {
                 polled += 1;
             }
         }
@@ -687,6 +687,26 @@ fn recovery_rotation_lists_every_held_job_and_pauses_each() {
     assert_eq!(seen.len(), held.len());
     // Each is looked up once per pause, however often it is listed.
     assert_eq!(polled, held.len());
+}
+
+/// The test-only clock override: a thread that installs a simulated clock
+/// reads it in `now` and `monotonic`; every other thread keeps the system
+/// clocks, and so does this one once it is removed.
+#[test]
+fn an_installed_clock_is_read_on_its_thread_only() {
+    let start = 1_767_225_600;
+    let clock = limeos_persistence::test_support::SimClock::new(start);
+    test_clock::install(Some(clock.clone()));
+    clock.set(start + 90);
+    assert_eq!(now(), start + 90);
+    assert_eq!(monotonic(), clock.instant());
+    let elsewhere = std::thread::spawn(now).join().unwrap();
+    assert!(
+        elsewhere > start + 300 * 86_400,
+        "another thread read the simulated clock"
+    );
+    test_clock::install(None);
+    assert!(now() > start + 300 * 86_400);
 }
 
 fn record_events(

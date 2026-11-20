@@ -476,9 +476,11 @@ impl Core {
         else {
             return;
         };
-        retry.advance(pending.iter().map(|p| p.request.job.as_str()));
+        retry.advance(pending.iter().map(|p| p.request.job.as_str()), monotonic());
         for pending in pending {
-            if now() - pending.request.requested_at < min_age || !retry.due(&pending.request.job) {
+            if now() - pending.request.requested_at < min_age
+                || !retry.due(&pending.request.job, monotonic())
+            {
                 continue;
             }
             let id = pending.request.resolved_by.clone();

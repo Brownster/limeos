@@ -41,11 +41,45 @@ mod storage_targets;
 mod supervision;
 
 fn now() -> i64 {
+    #[cfg(test)]
+    if let Some(now) = test_clock::now() {
+        return now;
+    }
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
         .min(i64::MAX as u64) as i64
+}
+/// The monotonic time core paces recovery lookups by (`operations::Rotation`).
+fn monotonic() -> std::time::Instant {
+    #[cfg(test)]
+    if let Some(at) = test_clock::instant() {
+        return at;
+    }
+    std::time::Instant::now()
+}
+/// Unit tests only: a thread may read a simulated clock instead of the system
+/// clocks (`now`, `monotonic`). The soak installs one on its own thread and on
+/// its store's writer thread, so core's own code runs on simulated time while
+/// every other test, on its own threads, keeps the system clock.
+#[cfg(test)]
+mod test_clock {
+    use limeos_persistence::test_support::SimClock;
+    use std::{cell::RefCell, sync::Arc};
+    thread_local! {
+        static CLOCK: RefCell<Option<Arc<SimClock>>> = const { RefCell::new(None) };
+    }
+    /// This thread reads `clock` from now on (`None`: the system clocks).
+    pub(crate) fn install(clock: Option<Arc<SimClock>>) {
+        CLOCK.with(|c| *c.borrow_mut() = clock);
+    }
+    pub(super) fn now() -> Option<i64> {
+        CLOCK.with(|c| c.borrow().as_ref().map(|c| c.now()))
+    }
+    pub(super) fn instant() -> Option<std::time::Instant> {
+        CLOCK.with(|c| c.borrow().as_ref().map(|c| c.instant()))
+    }
 }
 /// Work for a password worker. A verification carries the request's attempt
 /// handle, so it cannot be issued without marking when its comparison starts.
