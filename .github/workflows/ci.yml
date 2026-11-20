@@ -30,6 +30,17 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
+      # Deferred code (docs/deferred-code.md) is compiled and tested here only.
+      # --workspace enables the feature on every member that declares it.
+      - name: Clippy with deferred code
+        run: cargo clippy --workspace --all-targets --locked --features deferred -- -D warnings
+      - name: Tests with deferred code
+        run: cargo test --workspace --locked --features deferred
+      - name: Shipped binaries exclude deferred code
+        run: |
+          set -Eeuo pipefail
+          enabled=$(cargo tree --locked -e normal,build --prefix none -f '{p}|{f}' -p limeos-core -p limeos-executor -p limeosctl | awk -F'|' '$2 ~ /(^|,)deferred(,|$)/' | sort -u)
+          if [[ -n "$enabled" ]]; then printf 'Deferred feature enabled in a shipped binary:\n%s\n' "$enabled" >&2; exit 1; fi
       - run: cargo deny check
       - run: cargo audit
       - run: shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh tests/fixtures/backup-archives/generate.sh

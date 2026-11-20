@@ -81,11 +81,11 @@ for name, (deps, source) in packages.items():
             )
             manifest += f"{dep} = {{ {fields} }}\n"
     if name == "domain":
-        manifest += f'original-domain = {{ package = "limeos-domain", path = {json.dumps(str(root / "crates/domain"))} }}\n'
+        manifest += f'original-domain = {{ package = "limeos-domain", path = {json.dumps(str(root / "crates/domain"))}, features = ["deferred"] }}\n'
     else:
         manifest += 'limeos-domain = { package = "limeos-stream-b-domain-leaf", path = "../domain" }\n'
     if name == "adapter":
-        manifest += f'original-executor = {{ package = "limeos-executor-container", path = {json.dumps(str(root / "crates/executor-container"))} }}\n'
+        manifest += f'original-executor = {{ package = "limeos-executor-container", path = {json.dumps(str(root / "crates/executor-container"))}, features = ["deferred"] }}\n'
     if name == "api":
         manifest += f"limeos-contracts = {{ path = {json.dumps(str(root / 'crates/contracts'))} }}\n"
     (package / "Cargo.toml").write_text(

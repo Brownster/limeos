@@ -50,6 +50,21 @@ for crate, allowed in ALLOWED.items():
             f"{crate}: adapter dependency in domain"
         )
     assert config["lints"]["workspace"], f"{crate}: unsafe-code policy not inherited"
+# Deferred code (docs/deferred-code.md) is reachable only through each crate's
+# own `deferred` feature: never a default, never enabled by a dependency entry.
+for manifest in [*ROOT.glob("crates/*/Cargo.toml"), *ROOT.glob("bins/*/Cargo.toml")]:
+    config = tomllib.loads(manifest.read_text())
+    features = config.get("features", {})
+    assert "deferred" not in features.get("default", []), (
+        f"{manifest.parent.name}: deferred enabled by default"
+    )
+    for section in [config, *config.get("target", {}).values()]:
+        for kind in ["dependencies", "dev-dependencies", "build-dependencies"]:
+            for name, details in section.get(kind, {}).items():
+                if isinstance(details, dict):
+                    assert "deferred" not in details.get("features", []), (
+                        f"{manifest.parent.name}: {name} enables deferred unconditionally"
+                    )
 listing = subprocess.run(
     ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=False
 )
