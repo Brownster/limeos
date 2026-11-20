@@ -39,3 +39,9 @@ The Compose projection used by stack inventory reads with `EngineReadProfile::En
 | Retained report (streamed count) | 256 KiB (CombinedV1: 48 KiB) | storage plus Compose snapshot of 64 containers |
 
 The wire cohort (64 KiB) and aggregate input text (48 KiB) are unchanged: a 64-member realistic cohort serializes to under 32 KiB. The reader service allowances (64 MiB, 16 tasks, 256 FDs, worker 20 MiB RSS, 67 FDs) are unchanged; descriptors do not scale with container count because requests are sequential.
+
+## Per-container degradation (PR-17)
+
+The double inspection compares each container with its own first pass. In the display projections (Compose for stack inventory, health for alerting) a container whose selected facts changed between the passes is left out as `changing`, and one with a shape the reader does not model (a mount type other than bind, volume or source-less tmpfs, a Compose label set outside the supported subset, two members naming one project with different directories or files) is left out as `unsupported`; the rest are returned. The stack inventory lists them in `omitted_containers` and marks a registered stack with one of them `omitted_members`, which core never plans; the health cohort reports them with an `unavailable` signal, so it is incomplete rather than silent. Their display revalidation (`revalidate_display`) still requires the same Engine, container set and socket, and returns the containers that changed since collection so the reader shows them as changing. Budget, transport and Engine-identity failures still refuse the whole read.
+
+Evidence that authorizes an effect is unchanged: the storage projection, `Docker::storage_inventory`, `project_members` (stack plans and execution), the strict `revalidate`, and Compose binding evidence, which also refuses a read that truncated or left out any container.

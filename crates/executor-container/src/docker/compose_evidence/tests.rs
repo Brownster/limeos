@@ -21,6 +21,7 @@ fn parsed(labels: Value) -> Result<ComposeContainerMembership> {
         &container(),
         &mut admission.scope(),
     )
+    .map_err(Refusal::strict)
 }
 
 #[test]
@@ -140,7 +141,7 @@ fn project_names_cannot_merge_different_directories_or_ordered_file_selections()
     let mut different = labels();
     different[SERVICE] = json!("replica");
     different[ONEOFF] = json!("True");
-    assert!(consistent(&[first.clone(), parsed(different).unwrap()]).is_ok());
+    assert!(conflicting(&[first.clone(), parsed(different).unwrap()]).is_empty());
     for (key, text) in [
         (DIRECTORY, "/opt/other"),
         (
@@ -150,12 +151,15 @@ fn project_names_cannot_merge_different_directories_or_ordered_file_selections()
     ] {
         let mut different = labels();
         different[key] = json!(text);
-        assert!(consistent(&[first.clone(), parsed(different).unwrap()]).is_err());
+        assert_eq!(
+            conflicting(&[first.clone(), parsed(different).unwrap()]),
+            ["media"]
+        );
     }
     let mut other = labels();
     other[PROJECT] = json!("other");
     other[DIRECTORY] = json!("/opt/other");
-    assert!(consistent(&[first, parsed(other).unwrap()]).is_ok());
+    assert!(conflicting(&[first, parsed(other).unwrap()]).is_empty());
 }
 #[test]
 fn full_container_identity_is_preserved_and_unknown_labels_environment_are_not_reported() {
@@ -173,6 +177,7 @@ fn capture() -> Capture {
     Capture::new(EngineComposeSnapshot {
         version: 1,
         truncated: 0,
+        omitted: Vec::new(),
         engine_id: "synthetic-engine".into(),
         containers_observed_at: 100,
         containers: vec![],

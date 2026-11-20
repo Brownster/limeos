@@ -412,6 +412,8 @@ fn main() {
     ts!(limeos_domain::deployment::discovery::MemberView);
     ts!(limeos_domain::deployment::discovery::ServiceView);
     ts!(limeos_domain::deployment::discovery::StackIssue);
+    ts!(limeos_domain::deployment::discovery::OmissionReason);
+    ts!(limeos_domain::deployment::discovery::OmittedContainer);
     ts!(limeos_domain::deployment::discovery::StackView);
     ts!(limeos_domain::deployment::discovery::RegistrationRelation);
     ts!(limeos_domain::deployment::discovery::OtherProjectView);

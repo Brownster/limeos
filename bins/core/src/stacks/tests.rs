@@ -40,6 +40,7 @@ fn cohort() -> DiscoveryCohort {
                 one_off: false,
             }],
             truncated: 0,
+            omitted: Vec::new(),
         }),
     )
     .unwrap()

@@ -2670,12 +2670,21 @@
         ]
       },
       "StackIssue": {
-        "enum": [
-          "identity_conflict",
-          "overlapping_project",
-          "undeclared_services"
-        ],
-        "type": "string"
+        "oneOf": [
+          {
+            "enum": [
+              "identity_conflict",
+              "overlapping_project",
+              "undeclared_services"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "omitted_members",
+            "description": "A container of this project was left out of the read (changing or\nunsupported), so its membership is incomplete and it is not planned.",
+            "type": "string"
+          }
+        ]
       },
       "StackJob": {
         "additionalProperties": false,
@@ -2735,6 +2744,44 @@
         "required": [
           "container",
           "one_off"
+        ],
+        "type": "object"
+      },
+      "StackOmissionReason": {
+        "description": "Why one inspected Engine container is not among the members.",
+        "oneOf": [
+          {
+            "const": "changing",
+            "description": "Its identity-relevant facts differed between the two inspections.",
+            "type": "string"
+          },
+          {
+            "const": "unsupported",
+            "description": "A mount type, label set or name this reader does not model.",
+            "type": "string"
+          }
+        ]
+      },
+      "StackOmittedContainer": {
+        "additionalProperties": false,
+        "description": "An Engine container left out of the read with its reason. `project` is the\nCompose project its label names, when that label alone is well formed.",
+        "properties": {
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/StackOmissionReason"
+          },
+          "resource": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource",
+          "reason"
         ],
         "type": "object"
       },
@@ -11907,6 +11954,13 @@
                       "format": "int64",
                       "type": "integer"
                     },
+                    "omitted_containers": {
+                      "description": "Inspected containers left out, each with its reason; a registered\nstack with one of them carries `omitted_members`. Empty unless fresh.",
+                      "items": {
+                        "$ref": "#/components/schemas/StackOmittedContainer"
+                      },
+                      "type": "array"
+                    },
                     "other_projects": {
                       "items": {
                         "$ref": "#/components/schemas/StackOtherProjectView"
@@ -11951,7 +12005,8 @@
                     "catalog",
                     "engine",
                     "stacks",
-                    "other_projects"
+                    "other_projects",
+                    "omitted_containers"
                   ],
                   "title": "StackInventory",
                   "type": "object"

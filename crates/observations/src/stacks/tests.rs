@@ -20,6 +20,7 @@ fn sample(at: i64) -> DiscoveryCohort {
             sampled_at: at,
             members: vec![],
             truncated: 0,
+            omitted: Vec::new(),
         }),
     )
     .unwrap()

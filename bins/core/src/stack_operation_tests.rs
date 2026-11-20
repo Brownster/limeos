@@ -132,6 +132,7 @@ fn crowded_cohort(
             sampled_at: now(),
             members: engine,
             truncated: 0,
+            omitted: Vec::new(),
         }),
     )
     .unwrap()

@@ -39,6 +39,7 @@ export function StackManagement({ value, loading = false, stale = false, error =
         {stack.issues.includes("identity_conflict") && <p className="error">Engine project labels differ from the registered directory or ordered Compose files.</p>}
         {stack.issues.includes("overlapping_project") && <p className="error">Another Engine project overlaps this stack. Membership counts are withheld.</p>}
         {stack.issues.includes("undeclared_services") && <p className="notice">Additional services are absent from the registration and are shown below.</p>}
+        {stack.issues.includes("omitted_members") && <p className="notice">A container of this stack is changing or unsupported and is not shown; stack actions wait until it is read whole.</p>}
         <details><summary>Services and members · {stack.services.length}</summary>
           <p>Expected configuration files</p><ul>{stack.config_files.map(file => <li key={file}><code style={{ overflowWrap: "anywhere" }}>{file}</code></li>)}</ul>
           <Services value={stack.services} stale={stale} />

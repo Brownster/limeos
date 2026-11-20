@@ -169,6 +169,40 @@ pub enum StackIssue {
     IdentityConflict,
     OverlappingProject,
     UndeclaredServices,
+    /// A container of this project was left out of the read (changing or
+    /// unsupported), so its membership is incomplete and it is not planned.
+    OmittedMembers,
+}
+/// Why one inspected Engine container is not among the members.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(rename = "StackOmissionReason")]
+#[schemars(rename = "StackOmissionReason")]
+#[serde(rename_all = "snake_case")]
+pub enum OmissionReason {
+    /// Its identity-relevant facts differed between the two inspections.
+    Changing,
+    /// A mount type, label set or name this reader does not model.
+    Unsupported,
+}
+/// An Engine container left out of the read with its reason. `project` is the
+/// Compose project its label names, when that label alone is well formed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(rename = "StackOmittedContainer")]
+#[schemars(rename = "StackOmittedContainer")]
+#[serde(deny_unknown_fields)]
+pub struct OmittedContainer {
+    pub resource: String,
+    pub project: Option<String>,
+    pub reason: OmissionReason,
+}
+impl OmittedContainer {
+    fn validate(&self) -> Result<()> {
+        let id = self.resource.strip_prefix("container:").unwrap_or_default();
+        if !crate::opaque_id(id) || self.project.as_deref().is_some_and(|p| !name(p, true)) {
+            return Err(invalid());
+        }
+        Ok(())
+    }
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema, TS)]
 pub struct StackView {
@@ -217,6 +251,9 @@ pub struct StackInventory {
     /// `MAX_ENGINE_CONTAINERS`; running ones are kept first. Counts above are
     /// of the containers shown. `None` while the Engine source is not fresh.
     pub truncated_containers: Option<u16>,
+    /// Inspected containers left out, each with its reason; a registered
+    /// stack with one of them carries `omitted_members`. Empty unless fresh.
+    pub omitted_containers: Vec<OmittedContainer>,
 }
 
 fn invalid() -> Error {
@@ -616,6 +653,7 @@ fn discover_current(
                 .count() as u16
         }),
         truncated_containers: engine_fresh.then_some(0),
+        omitted_containers: Vec::new(),
     };
     report.check_size()?;
     Ok(report)

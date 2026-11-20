@@ -18,6 +18,31 @@ pub struct EngineFacts {
     pub members: Vec<Membership>,
     /// Engine containers beyond `MAX_ENGINE_CONTAINERS`, not in `members`.
     pub truncated: u16,
+    /// Inspected containers left out of `members`, with their reason.
+    pub omitted: Vec<OmittedContainer>,
+}
+impl EngineFacts {
+    /// Left-out containers are distinct, never members, and with the members
+    /// within the Engine bound.
+    fn check_omitted(&self) -> Result<()> {
+        if self.members.len().saturating_add(self.omitted.len()) > MAX_ENGINE_CONTAINERS {
+            return Err(limit());
+        }
+        for (i, omitted) in self.omitted.iter().enumerate() {
+            omitted.validate()?;
+            if self.omitted[..i]
+                .iter()
+                .any(|o| o.resource == omitted.resource)
+                || self
+                    .members
+                    .iter()
+                    .any(|m| m.container().resource == omitted.resource)
+            {
+                return Err(invalid());
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Selected past facts, never file/Engine ownership or execution permission.
@@ -60,6 +85,7 @@ impl<'de> Deserialize<'de> for DiscoveryCohort {
                 sampled_at: e.sampled_at,
                 members: e.members.into_iter().map(Into::into).collect(),
                 truncated: e.truncated,
+                omitted: e.omitted.into_iter().map(Into::into).collect(),
             }),
             wire.catalog_current,
             wire.engine_current,
@@ -103,6 +129,9 @@ impl DiscoveryCohort {
         };
         let (catalog, engine) = value.inputs();
         admit(catalog.as_ref(), engine.as_ref())?;
+        if let Some(facts) = &value.engine {
+            facts.check_omitted()?;
+        }
         source(catalog.as_ref().map(|c| c.sampled_at), MAX_TIME)?;
         source(engine.as_ref().map(|e| e.sampled_at), MAX_TIME)?;
         value.check_size()?;
@@ -165,6 +194,18 @@ impl DiscoveryCohort {
             .min(self.engine_valid_for_millis);
         if let (Some(count), Some(engine)) = (view.truncated_containers.as_mut(), &self.engine) {
             *count = engine.truncated;
+            view.omitted_containers = engine.omitted.clone();
+            for stack in &mut view.stacks {
+                if engine
+                    .omitted
+                    .iter()
+                    .any(|o| o.project.as_deref() == Some(stack.project.as_str()))
+                    && !stack.issues.contains(&StackIssue::OmittedMembers)
+                {
+                    stack.issues.push(StackIssue::OmittedMembers);
+                }
+            }
+            view.check_size()?;
         }
         Ok(view)
     }
@@ -292,6 +333,27 @@ struct EngineWire {
     members: Vec<MembershipWire>,
     #[serde(default)]
     truncated: u16,
+    #[serde(
+        default,
+        deserialize_with = "bounded::<_, OmittedWire, MAX_ENGINE_CONTAINERS>"
+    )]
+    omitted: Vec<OmittedWire>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OmittedWire {
+    resource: Text<74>,
+    project: Option<Text<64>>,
+    reason: OmissionReason,
+}
+impl From<OmittedWire> for OmittedContainer {
+    fn from(w: OmittedWire) -> Self {
+        Self {
+            resource: w.resource.0,
+            project: w.project.map(|p| p.0),
+            reason: w.reason,
+        }
+    }
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

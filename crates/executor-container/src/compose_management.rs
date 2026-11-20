@@ -232,6 +232,11 @@ fn assemble(
     window: Window,
 ) -> Result<ComposeBindingEvidence> {
     window.poll(&|| false)?;
+    // Binding evidence needs the whole Engine: a truncated read, or one that
+    // left a changing or unsupported container out, is refused, never matched.
+    if !engine.snapshot().complete() {
+        return Err(unavailable());
+    }
     let members = matched(&catalog, selected, &files, engine.snapshot())?;
     let stack_resource = format!("stack:{}", catalog.catalog().stacks[selected].stack);
     let owner = ComposeBindingEvidence {

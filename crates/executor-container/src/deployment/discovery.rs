@@ -23,13 +23,15 @@ pub async fn inventory(
         return Err(Error(ErrorCode::Conflict));
     }
     catalog.revalidate(cancelled)?;
-    engine.revalidate().await?;
-    let report = project(
-        catalog.catalog(),
-        catalog.snapshot().observed_at,
-        engine.snapshot(),
-        now()?,
-    )?;
+    let changed = engine.revalidate_display().await?;
+    let report = DiscoveryCohort::new(
+        Some(catalog_facts(
+            catalog.catalog(),
+            catalog.snapshot().observed_at,
+        )?),
+        Some(engine_facts(engine.snapshot(), &changed)?),
+    )?
+    .project(now()?)?;
     catalog.revalidate(cancelled)?;
     if cancelled() {
         return Err(Error(ErrorCode::Conflict));
@@ -49,9 +51,15 @@ pub async fn cohort(
         return Err(Error(ErrorCode::Conflict));
     }
     let catalog = catalog.filter(|c| c.revalidate(cancelled).is_ok());
+    // Display data: a container that changed since collection is shown as
+    // changing; only an Engine, container set or socket change drops the source.
     let engine = match engine {
-        Some(e) if e.revalidate().await.is_ok() => Some(e),
-        _ => None,
+        Some(e) => e
+            .revalidate_display()
+            .await
+            .ok()
+            .map(|changed| (e, changed)),
+        None => None,
     };
     if cancelled() {
         return Err(Error(ErrorCode::Conflict));
@@ -60,7 +68,9 @@ pub async fn cohort(
     let catalog = catalog
         .map(|c| catalog_facts(c.catalog(), c.snapshot().observed_at))
         .transpose()?;
-    let engine = engine.map(|e| engine_facts(e.snapshot())).transpose()?;
+    let engine = engine
+        .map(|(e, changed)| engine_facts(e.snapshot(), &changed))
+        .transpose()?;
     let report = DiscoveryCohort::new(catalog, engine)?;
     if cancelled() {
         return Err(Error(ErrorCode::Conflict));
@@ -76,6 +86,7 @@ fn now() -> Result<i64> {
     i64::try_from(at).map_err(|_| Error(ErrorCode::Unavailable))
 }
 
+#[cfg(test)]
 fn project(
     catalog: &ManagementCatalog,
     catalog_at: i64,
@@ -84,7 +95,7 @@ fn project(
 ) -> Result<StackInventory> {
     DiscoveryCohort::new(
         Some(catalog_facts(catalog, catalog_at)?),
-        Some(engine_facts(engine)?),
+        Some(engine_facts(engine, &[])?),
     )?
     .project(at)
 }
@@ -128,13 +139,30 @@ fn catalog_facts(catalog: &ManagementCatalog, sampled_at: i64) -> Result<Catalog
     })
 }
 
-fn engine_facts(engine: &EngineComposeSnapshot) -> Result<EngineFacts> {
+/// `changed` names members whose facts moved since collection (from the
+/// display revalidation): they are shown as changing, not as members.
+fn engine_facts(engine: &EngineComposeSnapshot, changed: &[String]) -> Result<EngineFacts> {
     if engine.version != 1 || engine.containers.len() > model::MAX_ENGINE_CONTAINERS {
         return Err(Error(ErrorCode::Unavailable));
     }
+    let mut omitted = engine.omitted.clone();
+    for member in &engine.containers {
+        if changed.contains(&member.container.resource) {
+            omitted.push(model::OmittedContainer {
+                resource: member.container.resource.clone(),
+                project: match &member.ownership {
+                    ComposeOwnership::Compose { project, .. } => Some(project.name.clone()),
+                    ComposeOwnership::NonCompose => None,
+                },
+                reason: model::OmissionReason::Changing,
+            });
+        }
+    }
+    omitted.sort_by(|a, b| a.resource.cmp(&b.resource));
     let members: Vec<_> = engine
         .containers
         .iter()
+        .filter(|member| !changed.contains(&member.container.resource))
         .map(|member| match &member.ownership {
             ComposeOwnership::NonCompose => Membership::Standalone {
                 container: member.container.clone(),
@@ -160,6 +188,7 @@ fn engine_facts(engine: &EngineComposeSnapshot) -> Result<EngineFacts> {
         sampled_at: engine.containers_observed_at,
         members,
         truncated: engine.truncated,
+        omitted,
     })
 }
 
@@ -197,6 +226,7 @@ mod tests {
         let engine = EngineComposeSnapshot {
             version: 1,
             truncated: 0,
+            omitted: Vec::new(),
             engine_id: "engine-a".into(),
             containers_observed_at: 100,
             containers: vec![],
@@ -226,6 +256,7 @@ mod tests {
         let mut engine = EngineComposeSnapshot {
             version: 1,
             truncated: 0,
+            omitted: Vec::new(),
             engine_id: "other".into(),
             containers_observed_at: 100,
             containers: vec![],
@@ -242,6 +273,7 @@ mod tests {
         EngineComposeSnapshot {
             version: 1,
             truncated: 0,
+            omitted: Vec::new(),
             engine_id: "engine-a".into(),
             containers_observed_at: 100,
             containers: (0..count)
@@ -271,7 +303,7 @@ mod tests {
     }
     #[test]
     fn engine_wide_bound_admits_64_containers_and_refuses_65_whole() {
-        let at_bound = engine_facts(&snapshot(model::MAX_ENGINE_CONTAINERS)).unwrap();
+        let at_bound = engine_facts(&snapshot(model::MAX_ENGINE_CONTAINERS), &[]).unwrap();
         assert_eq!(at_bound.members.len(), 64);
         let report = project(&catalog(false), 100, &snapshot(64), 101).unwrap();
         assert_eq!(report.engine.state, model::SourceState::Fresh);
@@ -279,7 +311,7 @@ mod tests {
         // 16 stack members among 48 unrelated containers is plannable input.
         assert_eq!(report.stacks[0].counts.unwrap().ordinary, 16);
         assert_eq!(
-            engine_facts(&snapshot(model::MAX_ENGINE_CONTAINERS + 1))
+            engine_facts(&snapshot(model::MAX_ENGINE_CONTAINERS + 1), &[])
                 .unwrap_err()
                 .0,
             ErrorCode::Unavailable

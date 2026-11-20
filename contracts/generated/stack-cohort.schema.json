@@ -124,6 +124,13 @@
             "$ref": "#/$defs/StackMembership"
           }
         },
+        "omitted": {
+          "description": "Inspected containers left out of `members`, with their reason.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StackOmittedContainer"
+          }
+        },
         "sampled_at": {
           "type": "integer",
           "format": "int64"
@@ -140,7 +147,8 @@
         "engine_id",
         "sampled_at",
         "members",
-        "truncated"
+        "truncated",
+        "omitted"
       ]
     },
     "StackDeclaration": {
@@ -298,6 +306,44 @@
             "one_off"
           ]
         }
+      ]
+    },
+    "StackOmissionReason": {
+      "description": "Why one inspected Engine container is not among the members.",
+      "oneOf": [
+        {
+          "description": "Its identity-relevant facts differed between the two inspections.",
+          "type": "string",
+          "const": "changing"
+        },
+        {
+          "description": "A mount type, label set or name this reader does not model.",
+          "type": "string",
+          "const": "unsupported"
+        }
+      ]
+    },
+    "StackOmittedContainer": {
+      "description": "An Engine container left out of the read with its reason. `project` is the\nCompose project its label names, when that label alone is well formed.",
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "$ref": "#/$defs/StackOmissionReason"
+        },
+        "resource": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "reason"
       ]
     },
     "StackProjectIdentity": {

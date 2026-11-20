@@ -322,7 +322,12 @@ export type StackInventory = { version: number, generated_at: number, catalog: S
  * `MAX_ENGINE_CONTAINERS`; running ones are kept first. Counts above are
  * of the containers shown. `None` while the Engine source is not fresh.
  */
-truncated_containers: number | null, };
+truncated_containers: number | null,
+/**
+ * Inspected containers left out, each with its reason; a registered
+ * stack with one of them carries `omitted_members`. Empty unless fresh.
+ */
+omitted_containers: Array<StackOmittedContainer>, };
 export type StackSourceStatus = { state: StackSourceState, sampled_at: number | null, max_age_seconds: number,
 /**
  * Remaining display lifetime, shortened by every cache/transport layer.
@@ -333,7 +338,9 @@ export type StackRuntimeStatus = "unknown" | "no_containers" | "stopped" | "runn
 export type StackCounts = { ordinary: number, running: number, one_offs: number, one_off_running: number, };
 export type StackMemberView = { container: ContainerSnapshot, one_off: boolean, };
 export type StackServiceView = { name: string, declared: boolean, runtime: StackRuntimeStatus, counts: StackCounts | null, members: Array<StackMemberView>, };
-export type StackIssue = "identity_conflict" | "overlapping_project" | "undeclared_services";
+export type StackIssue = "identity_conflict" | "overlapping_project" | "undeclared_services" | "omitted_members";
+export type StackOmissionReason = "changing" | "unsupported";
+export type StackOmittedContainer = { resource: string, project: string | null, reason: StackOmissionReason, };
 export type StackView = { stack: string, project: string, working_directory: string, config_files: Array<string>, files: StackFileStatus, runtime: StackRuntimeStatus, counts: StackCounts | null, missing_services: number | null, services: Array<StackServiceView>, issues: Array<StackIssue>, };
 export type StackRegistrationRelation = "not_registered" | "catalog_unknown" | "engine_mismatch" | "identity_conflict" | "overlapping";
 export type StackOtherProjectView = { project: StackProjectIdentity, relation: StackRegistrationRelation, services: Array<StackServiceView>, };
@@ -345,7 +352,11 @@ export type EngineFacts = { engine_id: string, sampled_at: number, members: Arra
 /**
  * Engine containers beyond `MAX_ENGINE_CONTAINERS`, not in `members`.
  */
-truncated: number, };
+truncated: number,
+/**
+ * Inspected containers left out of `members`, with their reason.
+ */
+omitted: Array<StackOmittedContainer>, };
 export type StackDeclaration = { stack: string, project: string, working_directory: string, config_files: Array<string>, services: Array<string>, files: StackFileStatus, };
 export type StackMembership = { "kind": "standalone", container: ContainerSnapshot, } | { "kind": "compose", container: ContainerSnapshot, project: StackProjectIdentity, service: string, one_off: boolean, };
 export type DiscoveryCohort = { version: number, catalog: CatalogFacts | null, engine: EngineFacts | null, catalog_current: boolean, engine_current: boolean, catalog_valid_for_millis: number, engine_valid_for_millis: number, };

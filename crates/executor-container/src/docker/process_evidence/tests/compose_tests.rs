@@ -2,6 +2,9 @@ use super::*;
 use crate::docker::compose_evidence::{
     ComposeOwnership, EngineComposeEvidence, inspect_compose_membership,
 };
+use limeos_domain::deployment::discovery::{
+    CatalogFacts, Declaration, DiscoveryCohort, FileStatus, OmissionReason, StackIssue,
+};
 
 fn labels(service: &str) -> Value {
     json!({"com.docker.compose.project":"media","com.docker.compose.service":service,
@@ -214,10 +217,19 @@ async fn ambiguous_project_name_cannot_merge_directories_or_file_order() {
             ..config()
         })
         .await;
-        assert!(matches!(
-            inspect(&fixture).await,
-            Err(Error(ErrorCode::Unavailable))
-        ));
+        // Never merged: the whole project is left out as unsupported.
+        let owner = inspect(&fixture).await.unwrap();
+        let snapshot = owner.snapshot();
+        assert!(snapshot.containers.is_empty());
+        assert_eq!(snapshot.omitted.len(), 2);
+        assert!(
+            snapshot
+                .omitted
+                .iter()
+                .all(|o| o.project.as_deref() == Some("media")
+                    && o.reason == OmissionReason::Unsupported)
+        );
+        assert!(!snapshot.complete());
     }
 }
 #[tokio::test]
@@ -228,7 +240,7 @@ async fn malformed_partial_metadata_refuses_while_old_storage_interfaces_stay_un
         json!([]),
     ] {
         let fixture = fixture(Config {
-            compose_labels: Some(vec![malformed, Value::Null]),
+            compose_labels: Some(vec![malformed.clone(), Value::Null]),
             ..config()
         })
         .await;
@@ -240,10 +252,23 @@ async fn malformed_partial_metadata_refuses_while_old_storage_interfaces_stay_un
                 .unwrap()
                 .contains("com.docker.compose")
         );
-        assert!(matches!(
-            inspect(&fixture).await,
-            Err(Error(ErrorCode::Unavailable))
-        ));
+        // The odd container is left out with a reason; the other is kept.
+        let owner = inspect(&fixture).await.unwrap();
+        let snapshot = owner.snapshot();
+        assert_eq!(snapshot.containers.len(), 1);
+        assert_eq!(
+            snapshot.containers[0].container.resource,
+            format!("container:{:064x}", 1)
+        );
+        assert_eq!(
+            snapshot.omitted[0].resource,
+            format!("container:{:064x}", 0)
+        );
+        assert_eq!(snapshot.omitted[0].reason, OmissionReason::Unsupported);
+        assert_eq!(
+            snapshot.omitted[0].project.as_deref(),
+            malformed["com.docker.compose.project"].as_str()
+        );
     }
 }
 #[tokio::test]
@@ -265,10 +290,18 @@ async fn selected_label_changes_between_initial_inspection_passes_refuse() {
             ..config()
         })
         .await;
-        assert!(matches!(
-            inspect(&fixture).await,
-            Err(Error(ErrorCode::Conflict))
-        ));
+        // Per container: the changed one is reported changing, never promoted
+        // with either pass's labels; the stable one is returned.
+        let owner = inspect(&fixture).await.unwrap();
+        let snapshot = owner.snapshot();
+        assert_eq!(snapshot.containers.len(), 1);
+        assert_eq!(
+            snapshot.containers[0].container.resource,
+            format!("container:{:064x}", 1)
+        );
+        assert_eq!(snapshot.omitted.len(), 1);
+        assert_eq!(snapshot.omitted[0].reason, OmissionReason::Changing);
+        assert_eq!(snapshot.omitted[0].project.as_deref(), Some("media"));
     }
 }
 #[tokio::test]
@@ -528,4 +561,197 @@ async fn engine_wide_profile_admits_the_wybie_shape_of_eighteen_containers() {
             .await
             .is_err()
     );
+}
+
+fn stack_labels(project: &str, service: &str) -> Value {
+    json!({"com.docker.compose.project":project,"com.docker.compose.service":service,
+        "com.docker.compose.project.working_dir":format!("/opt/stacks/{project}"),
+        "com.docker.compose.project.config_files":format!("/opt/stacks/{project}/compose.yaml"),
+        "com.docker.compose.oneoff":"False"})
+}
+fn registered(projects: &[&str]) -> CatalogFacts {
+    CatalogFacts {
+        engine_id: "fixture-engine".into(),
+        sampled_at: 0,
+        stacks: projects
+            .iter()
+            .map(|p| Declaration {
+                stack: (*p).into(),
+                project: (*p).into(),
+                working_directory: format!("/opt/stacks/{p}"),
+                config_files: vec![format!("/opt/stacks/{p}/compose.yaml")],
+                services: vec!["app".into(), "db".into()],
+                files: FileStatus::NotInspected,
+            })
+            .collect(),
+    }
+}
+/// The stack inventory a reader projects from this collection.
+async fn stacks(
+    owner: &EngineComposeEvidence,
+    projects: &[&str],
+) -> limeos_domain::deployment::discovery::StackInventory {
+    let facts = crate::deployment::discovery::cohort(None, Some(owner), &|| false)
+        .await
+        .unwrap();
+    let engine = facts.engine().unwrap().clone();
+    let mut catalog = registered(projects);
+    catalog.sampled_at = engine.sampled_at;
+    DiscoveryCohort::new(Some(catalog), Some(engine))
+        .unwrap()
+        .project(owner.snapshot().containers_observed_at)
+        .unwrap()
+}
+#[tokio::test]
+async fn one_crash_looping_container_is_changing_and_the_other_stacks_are_returned() {
+    // media: 0, 1; tools: 2 (restart: always, crash looping), 3; 4 standalone.
+    let fixture = fixture(Config {
+        count: 5,
+        all_running: true,
+        crash_looping: Some(2),
+        compose_labels: Some(vec![
+            stack_labels("media", "app"),
+            stack_labels("media", "db"),
+            stack_labels("tools", "app"),
+            stack_labels("tools", "db"),
+            Value::Null,
+        ]),
+        ..config()
+    })
+    .await;
+    let owner = inspect(&fixture).await.unwrap();
+    let snapshot = owner.snapshot();
+    assert_eq!(snapshot.containers.len(), 4);
+    assert_eq!(snapshot.omitted.len(), 1);
+    assert_eq!(
+        snapshot.omitted[0].resource,
+        format!("container:{:064x}", 2)
+    );
+    assert_eq!(snapshot.omitted[0].reason, OmissionReason::Changing);
+    assert_eq!(snapshot.omitted[0].project.as_deref(), Some("tools"));
+    // Excluded from the storage facts too: nothing unstable is retained.
+    assert!(
+        owner
+            .storage()
+            .declarations()
+            .containers
+            .iter()
+            .all(|c| c.container.resource != snapshot.omitted[0].resource)
+    );
+    let view = stacks(&owner, &["media", "tools"]).await;
+    assert_eq!(
+        view.engine.state,
+        limeos_domain::deployment::discovery::SourceState::Fresh
+    );
+    let media = view.stacks.iter().find(|s| s.project == "media").unwrap();
+    assert!(media.issues.is_empty());
+    assert_eq!(media.counts.unwrap().running, 2);
+    let tools = view.stacks.iter().find(|s| s.project == "tools").unwrap();
+    // Its stack is incomplete: shown with the reason, never planned.
+    assert_eq!(tools.issues, [StackIssue::OmittedMembers]);
+    assert_eq!(view.omitted_containers.len(), 1);
+    assert_eq!(view.standalone_containers, Some(1));
+}
+#[tokio::test]
+async fn a_member_changing_after_collection_is_shown_changing_but_strict_revalidation_refuses() {
+    let fixture = fixture(Config {
+        count: 3,
+        all_running: true,
+        compose_labels: Some(vec![
+            stack_labels("media", "app"),
+            stack_labels("media", "db"),
+            stack_labels("tools", "app"),
+        ]),
+        ..config()
+    })
+    .await;
+    let owner = inspect(&fixture).await.unwrap();
+    assert!(owner.snapshot().complete());
+    fixture.set(|c| {
+        c.compose_labels.as_mut().unwrap()[1]["com.docker.compose.service"] = json!("other");
+    });
+    let changed = owner.revalidate_display().await.unwrap();
+    assert_eq!(changed, [format!("container:{:064x}", 1)]);
+    let view = stacks(&owner, &["media", "tools"]).await;
+    let media = view.stacks.iter().find(|s| s.project == "media").unwrap();
+    assert_eq!(media.issues, [StackIssue::OmittedMembers]);
+    assert!(
+        view.stacks
+            .iter()
+            .find(|s| s.project == "tools")
+            .unwrap()
+            .issues
+            .is_empty()
+    );
+    // Evidence for an effect stays strict.
+    let strict = inspect(&fixture).await.unwrap();
+    fixture.set(|c| {
+        c.compose_labels.as_mut().unwrap()[1]["com.docker.compose.service"] = json!("third");
+    });
+    assert!(matches!(
+        strict.revalidate().await,
+        Err(Error(ErrorCode::Conflict))
+    ));
+}
+#[tokio::test]
+async fn an_image_mount_and_a_five_file_label_mark_only_their_containers_unsupported() {
+    let mut five = stack_labels("tools", "db");
+    five["com.docker.compose.project.config_files"] = json!(
+        (1..=5)
+            .map(|i| format!("/opt/stacks/tools/{i}.yaml"))
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    let fixture = fixture(Config {
+        count: 5,
+        all_running: true,
+        mount_type: Some((1, "image")),
+        compose_labels: Some(vec![
+            stack_labels("media", "app"),
+            stack_labels("media", "db"),
+            stack_labels("tools", "app"),
+            five,
+            stack_labels("other", "app"),
+        ]),
+        ..config()
+    })
+    .await;
+    let owner = inspect(&fixture).await.unwrap();
+    let snapshot = owner.snapshot();
+    assert_eq!(snapshot.containers.len(), 3);
+    let omitted: Vec<_> = snapshot
+        .omitted
+        .iter()
+        .map(|o| (o.resource.clone(), o.project.clone(), o.reason))
+        .collect();
+    assert_eq!(
+        omitted,
+        [
+            (
+                format!("container:{:064x}", 1),
+                Some("media".into()),
+                OmissionReason::Unsupported
+            ),
+            (
+                format!("container:{:064x}", 3),
+                Some("tools".into()),
+                OmissionReason::Unsupported
+            ),
+        ]
+    );
+    let view = stacks(&owner, &["media", "tools", "other"]).await;
+    let issues = |p: &str| {
+        view.stacks
+            .iter()
+            .find(|s| s.project == p)
+            .unwrap()
+            .issues
+            .clone()
+    };
+    assert_eq!(issues("media"), [StackIssue::OmittedMembers]);
+    assert_eq!(issues("tools"), [StackIssue::OmittedMembers]);
+    assert!(issues("other").is_empty());
+    // Storage evidence refuses the unknown mount type whole, as before.
+    assert!(fixture.inspect().await.is_err());
+    assert!(fixture.docker.storage_inventory().await.is_err());
 }

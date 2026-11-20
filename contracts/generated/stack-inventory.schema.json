@@ -19,6 +19,13 @@
       "type": "integer",
       "format": "int64"
     },
+    "omitted_containers": {
+      "description": "Inspected containers left out, each with its reason; a registered\nstack with one of them carries `omitted_members`. Empty unless fresh.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/StackOmittedContainer"
+      }
+    },
     "other_projects": {
       "type": "array",
       "items": {
@@ -63,7 +70,8 @@
     "catalog",
     "engine",
     "stacks",
-    "other_projects"
+    "other_projects",
+    "omitted_containers"
   ],
   "$defs": {
     "ComposeFileName": {
@@ -204,11 +212,20 @@
       ]
     },
     "StackIssue": {
-      "type": "string",
-      "enum": [
-        "identity_conflict",
-        "overlapping_project",
-        "undeclared_services"
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "identity_conflict",
+            "overlapping_project",
+            "undeclared_services"
+          ]
+        },
+        {
+          "description": "A container of this project was left out of the read (changing or\nunsupported), so its membership is incomplete and it is not planned.",
+          "type": "string",
+          "const": "omitted_members"
+        }
       ]
     },
     "StackMemberView": {
@@ -224,6 +241,44 @@
       "required": [
         "container",
         "one_off"
+      ]
+    },
+    "StackOmissionReason": {
+      "description": "Why one inspected Engine container is not among the members.",
+      "oneOf": [
+        {
+          "description": "Its identity-relevant facts differed between the two inspections.",
+          "type": "string",
+          "const": "changing"
+        },
+        {
+          "description": "A mount type, label set or name this reader does not model.",
+          "type": "string",
+          "const": "unsupported"
+        }
+      ]
+    },
+    "StackOmittedContainer": {
+      "description": "An Engine container left out of the read with its reason. `project` is the\nCompose project its label names, when that label alone is well formed.",
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "$ref": "#/$defs/StackOmissionReason"
+        },
+        "resource": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "reason"
       ]
     },
     "StackOtherProjectView": {

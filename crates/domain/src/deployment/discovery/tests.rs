@@ -544,6 +544,7 @@ fn engine_wide_bound_is_64_and_larger_than_every_stack_bound() {
             sampled_at: 100,
             members: members.clone(),
             truncated: 0,
+            omitted: Vec::new(),
         }),
     )
     .unwrap();
@@ -565,6 +566,7 @@ fn engine_wide_bound_is_64_and_larger_than_every_stack_bound() {
                 sampled_at: 100,
                 members: over.clone(),
                 truncated: 0,
+                omitted: Vec::new(),
             })
         )
         .is_err()

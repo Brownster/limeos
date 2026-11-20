@@ -8,7 +8,7 @@ fn fixture() -> Value {
     }]},"engine":{"engine_id":"engine","sampled_at":99,"members":[{
         "kind":"compose","container":{"resource":format!("container:{:064x}",1),"image":format!("sha256:{}","a".repeat(64)),"started_at":"2026-10-20T00:00:00Z","running":true},
         "project":{"name":"media","working_directory":"/opt/stacks/Media","config_files":["/opt/stacks/Media/compose.yaml"]},"service":"web","one_off":false
-    }],"truncated":0}})
+    }],"truncated":0,"omitted":[]}})
 }
 fn decode(value: Value) -> Result<DiscoveryCohort> {
     DiscoveryCohort::decode(&serde_json::to_vec(&value).unwrap())
@@ -26,6 +26,7 @@ fn round_trip_preserves_source_clocks_and_failed_source_withholds_counts() {
     // truncated one carries its count to the fresh view only.
     let mut older = fixture();
     older["engine"].as_object_mut().unwrap().remove("truncated");
+    older["engine"].as_object_mut().unwrap().remove("omitted");
     assert_eq!(decode(older).unwrap().engine().unwrap().truncated, 0);
     let mut over = fixture();
     over["engine"]["truncated"] = json!(3);
@@ -53,6 +54,38 @@ fn round_trip_preserves_source_clocks_and_failed_source_withholds_counts() {
         cohort.project(98).unwrap().catalog.state,
         SourceState::Stale
     );
+}
+
+#[test]
+fn an_omitted_member_marks_its_stack_and_only_while_the_engine_is_fresh() {
+    let mut value = fixture();
+    value["engine"]["omitted"] = json!([
+        {"resource":format!("container:{:064x}",2),"project":"media","reason":"changing"},
+        {"resource":format!("container:{:064x}",3),"project":null,"reason":"unsupported"}
+    ]);
+    let cohort = decode(value).unwrap();
+    let view = cohort.project(101).unwrap();
+    assert_eq!(view.omitted_containers.len(), 2);
+    assert_eq!(view.omitted_containers[0].reason, OmissionReason::Changing);
+    assert_eq!(view.stacks[0].issues, [StackIssue::OmittedMembers]);
+    let stale = cohort.project_sources(101, true, false).unwrap();
+    assert!(stale.omitted_containers.is_empty());
+    assert!(stale.stacks[0].issues.is_empty());
+    // A left-out container cannot also be a member, repeat, or name a bad project.
+    for bad in [
+        json!({"resource":format!("container:{:064x}",1),"project":"media","reason":"changing"}),
+        json!({"resource":"container:nothex","project":null,"reason":"changing"}),
+        json!({"resource":format!("container:{:064x}",2),"project":"Bad Name","reason":"changing"}),
+        json!({"resource":format!("container:{:064x}",2),"project":null,"reason":"gone"}),
+    ] {
+        let mut value = fixture();
+        value["engine"]["omitted"] = json!([bad]);
+        assert!(decode(value).is_err());
+    }
+    let mut repeated = fixture();
+    let one = json!({"resource":format!("container:{:064x}",2),"project":null,"reason":"changing"});
+    repeated["engine"]["omitted"] = json!([one.clone(), one]);
+    assert!(decode(repeated).is_err());
 }
 
 #[test]

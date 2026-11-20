@@ -43,6 +43,12 @@ struct Config {
     compose_labels_after: Option<Vec<Value>>,
     health_inspect: Option<Value>,
     health_inspect_after: Option<Value>,
+    /// Only this container sees `health_inspect_after` (one health flip).
+    health_after_only: Option<usize>,
+    /// This container restarts between any two inspections (crash loop).
+    crash_looping: Option<usize>,
+    /// This container's mounts have this type instead of `bind`.
+    mount_type: Option<(usize, &'static str)>,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -69,6 +75,9 @@ impl Default for Config {
             compose_labels_after: None,
             health_inspect: None,
             health_inspect_after: None,
+            health_after_only: None,
+            crash_looping: None,
+            mount_type: None,
         }
     }
 }
@@ -228,7 +237,11 @@ async fn fixture(config: Config) -> Fixture {
                         } else {
                             format!("/data/{i}")
                         };
-                        json!({"Type":"bind","Source":source,"Destination":destination,"RW":true})
+                        let kind = match config.mount_type {
+                            Some((at, kind)) if at == index => kind,
+                            _ => "bind",
+                        };
+                        json!({"Type":kind,"Source":source,"Destination":destination,"RW":true})
                     })
                     .collect();
                 let mut value = json!({
@@ -250,7 +263,8 @@ async fn fixture(config: Config) -> Fixture {
                         *target = patch.clone();
                     }
                 }
-                if let Some(health) = if nth > 1 {
+                let flips = config.health_after_only.is_none_or(|at| at == index);
+                if let Some(health) = if nth > 1 && flips {
                     config
                         .health_inspect_after
                         .as_ref()
@@ -291,6 +305,16 @@ async fn fixture(config: Config) -> Fixture {
                 }
                 if matches!(config.changed, Some(Change::Snapshot)) && nth > 1 {
                     value["State"]["StartedAt"] = json!("2026-10-07T00:00:01Z");
+                }
+                if config.crash_looping == Some(index) {
+                    value["State"]["StartedAt"] = json!(format!(
+                        "2026-10-07T00:{:02}:{:02}Z",
+                        nth / 60 % 60,
+                        nth % 60
+                    ));
+                    if running {
+                        value["State"]["Pid"] = json!(7000 + nth);
+                    }
                 }
                 value
             };

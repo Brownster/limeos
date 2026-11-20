@@ -49,7 +49,9 @@ pub(crate) async fn collect(nonce: &str, cancelled: &dyn Fn() -> bool) -> Result
     }
     let engine = inspect_container_health().await?;
     sample(20 * MIB, 49, 226)?;
-    engine.revalidate().await?;
+    // Alerting reads tolerate one container changing since collection: it is
+    // reported with an unavailable signal, never as healthy or gone.
+    let changed = engine.revalidate_display().await?;
     let snapshot = engine.snapshot();
     let mut members = Vec::new();
     members
@@ -58,7 +60,11 @@ pub(crate) async fn collect(nonce: &str, cancelled: &dyn Fn() -> bool) -> Result
     for member in &snapshot.containers {
         members.push(ContainerHealthMember {
             resource: member.resource.clone(),
-            signal: member.signal.clone(),
+            signal: if changed.contains(&member.resource) {
+                member.unavailable_signal()?
+            } else {
+                member.signal.clone()
+            },
         });
     }
     members.sort_by(|a, b| a.resource.cmp(&b.resource));

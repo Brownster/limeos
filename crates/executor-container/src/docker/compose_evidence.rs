@@ -3,8 +3,12 @@ use super::{
     Docker,
     process_evidence::{self, EnginePeerPolicy, EngineStorageProcessEvidence},
     read_admission::{Scope, Validation, ValidationGate},
+    storage::Refusal,
 };
-use limeos_domain::{ContainerSnapshot, Error, ErrorCode, Result};
+use limeos_domain::{
+    ContainerSnapshot, Error, ErrorCode, Result,
+    deployment::discovery::{OmissionReason, OmittedContainer},
+};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -50,6 +54,15 @@ pub struct EngineComposeSnapshot {
     pub containers: Vec<ComposeContainerMembership>,
     /// Engine containers beyond the bound, running ones kept first; not inspected.
     pub truncated: u16,
+    /// Containers inspected but left out: changing between the two passes, or
+    /// of a shape this reader does not model. Never in `containers`.
+    pub omitted: Vec<OmittedContainer>,
+}
+impl EngineComposeSnapshot {
+    /// Every Engine container is in `containers`: nothing truncated or omitted.
+    pub fn complete(&self) -> bool {
+        self.truncated == 0 && self.omitted.is_empty()
+    }
 }
 /// Fixed-endpoint opaque owner. JSON cannot restore its socket, ledger or lifetime.
 /// ```compile_fail
@@ -75,8 +88,15 @@ impl EngineComposeEvidence {
     pub fn storage(&self) -> &EngineStorageProcessEvidence {
         &self.inner
     }
+    /// Strict: any difference from the original collection refuses.
     pub async fn revalidate(&self) -> Result<()> {
         self.inner.revalidate().await
+    }
+    /// For display only: the resources whose facts changed since collection,
+    /// which a reader must show as changing. Engine identity, the container
+    /// set and the socket must still match.
+    pub async fn revalidate_display(&self) -> Result<Vec<String>> {
+        self.inner.revalidate_display().await
     }
 }
 
@@ -131,22 +151,45 @@ fn path(value: &str) -> bool {
             .split('/')
             .all(|part| !matches!(part, "" | "." | ".."))
 }
+fn unsupported() -> Refusal {
+    Refusal::Unsupported
+}
+/// The Compose project an unsupported or changing container declares, when its
+/// project label alone is well formed: the stack it belongs to is incomplete.
+pub(super) fn declared_project(value: &Value, scope: &mut Scope) -> Result<Option<String>> {
+    match value["Config"]["Labels"][PROJECT].as_str() {
+        Some(project) if name(project, true) => scope.string(project).map(Some),
+        _ => Ok(None),
+    }
+}
+pub(super) fn omitted(
+    container: &str,
+    project: Option<String>,
+    reason: OmissionReason,
+    scope: &mut Scope,
+) -> Result<OmittedContainer> {
+    Ok(OmittedContainer {
+        resource: scope.string(container)?,
+        project,
+        reason,
+    })
+}
 pub(super) fn parse(
     value: &Value,
     container: &ContainerSnapshot,
     scope: &mut Scope,
-) -> Result<ComposeContainerMembership> {
+) -> std::result::Result<ComposeContainerMembership, Refusal> {
     let config = value
         .get("Config")
         .and_then(Value::as_object)
-        .ok_or_else(refused)?;
-    let labels = config.get("Labels").ok_or_else(refused)?;
+        .ok_or_else(unsupported)?;
+    let labels = config.get("Labels").ok_or_else(unsupported)?;
     let ownership = if labels.is_null() {
         ComposeOwnership::NonCompose
     } else {
-        let labels = labels.as_object().ok_or_else(refused)?;
+        let labels = labels.as_object().ok_or_else(unsupported)?;
         if labels.values().any(|v| !v.is_string()) {
-            return Err(refused());
+            return Err(unsupported());
         }
         if !labels.keys().any(|key| key.starts_with(PREFIX)) {
             ComposeOwnership::NonCompose
@@ -155,9 +198,14 @@ pub(super) fn parse(
             if labels.contains_key("com.docker.compose.hook")
                 || labels.contains_key("com.docker.compose.relay")
             {
-                return Err(refused());
+                return Err(unsupported());
             }
-            let text = |key| labels.get(key).and_then(Value::as_str).ok_or_else(refused);
+            let text = |key| {
+                labels
+                    .get(key)
+                    .and_then(Value::as_str)
+                    .ok_or_else(unsupported)
+            };
             let project = text(PROJECT)?;
             let service = text(SERVICE)?;
             let directory = text(DIRECTORY)?;
@@ -165,19 +213,19 @@ pub(super) fn parse(
             let one_off = match text(ONEOFF)? {
                 "True" => true,
                 "False" => false,
-                _ => return Err(refused()),
+                _ => return Err(unsupported()),
             };
             if !name(project, true)
                 || !name(service, false)
                 || !path(directory)
                 || files.len() > 4 * 512 + 3
             {
-                return Err(refused());
+                return Err(unsupported());
             }
             let mut selected = Vec::new();
             for file in files.split(',') {
                 if selected.len() == 4 || !path(file) || selected.iter().any(|p| p == file) {
-                    return Err(refused());
+                    return Err(unsupported());
                 }
                 scope.reserve(&mut selected, 1)?;
                 selected.push(scope.string(file)?);
@@ -203,23 +251,28 @@ pub(super) fn parse(
         ownership,
     })
 }
-pub(super) fn consistent(members: &[ComposeContainerMembership]) -> Result<()> {
+/// Project names that two members declare with different directories or files.
+pub(super) fn conflicting(members: &[ComposeContainerMembership]) -> Vec<&str> {
+    let mut names: Vec<&str> = Vec::new();
     for (i, member) in members.iter().enumerate() {
         let ComposeOwnership::Compose { project, .. } = &member.ownership else {
             continue;
         };
-        for other in &members[..i] {
+        for other in members.iter().take(i) {
             if let ComposeOwnership::Compose {
                 project: previous, ..
             } = &other.ownership
             {
-                if previous.name == project.name && previous != project {
-                    return Err(refused());
+                if previous.name == project.name
+                    && previous != project
+                    && !names.contains(&project.name.as_str())
+                {
+                    names.push(&project.name);
                 }
             }
         }
     }
-    Ok(())
+    names
 }
 
 #[cfg(test)]

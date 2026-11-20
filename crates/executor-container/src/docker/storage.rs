@@ -10,6 +10,32 @@ use std::collections::BTreeSet;
 fn unavailable() -> Error {
     Error(ErrorCode::Unavailable)
 }
+/// Why one container's facts were not admitted. `Unsupported` is a shape this
+/// reader does not model (a mount type, a label set); a display projection
+/// leaves that one container out with a reason. `Fatal` (budget, transport or
+/// Engine inconsistency) refuses the whole collection. Evidence for an effect
+/// treats both as a refusal.
+#[derive(Debug)]
+pub(super) enum Refusal {
+    Unsupported,
+    Fatal(Error),
+}
+impl From<Error> for Refusal {
+    fn from(error: Error) -> Self {
+        Self::Fatal(error)
+    }
+}
+impl Refusal {
+    pub(super) fn strict(self) -> Error {
+        match self {
+            Self::Unsupported => unavailable(),
+            Self::Fatal(error) => error,
+        }
+    }
+}
+fn unsupported() -> Refusal {
+    Refusal::Unsupported
+}
 fn clock() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -32,7 +58,7 @@ impl Docker {
         let value = self
             .json(format!("/{version}/containers/{id}/json"), 512 * 1024)
             .await?;
-        parse_storage_container(&value, id)
+        parse_storage_container(&value, id).map_err(Refusal::strict)
     }
     pub async fn storage_inventory(&self) -> Result<ContainerStorageInventory> {
         let observed_at = clock();
@@ -187,7 +213,10 @@ pub(super) fn select_listed(
     Ok((result, truncated))
 }
 
-pub(super) fn parse_storage_container(value: &Value, id: &str) -> Result<ContainerStorageConsumer> {
+pub(super) fn parse_storage_container(
+    value: &Value,
+    id: &str,
+) -> std::result::Result<ContainerStorageConsumer, Refusal> {
     parse_storage_container_with_admission(value, id, usize::MAX, None)
 }
 fn owned(admission: &mut Option<&mut super::read_admission::Scope>, text: &str) -> Result<String> {
@@ -201,9 +230,9 @@ pub(super) fn parse_storage_container_with_admission(
     id: &str,
     selected_limit: usize,
     mut admission: Option<&mut super::read_admission::Scope>,
-) -> Result<ContainerStorageConsumer> {
+) -> std::result::Result<ContainerStorageConsumer, Refusal> {
     if value["Id"].as_str() != Some(id) {
-        return Err(unavailable());
+        return Err(unavailable().into());
     }
     if let Some(scope) = &mut admission {
         scope.charge(id.len() + 10)?;
@@ -212,64 +241,64 @@ pub(super) fn parse_storage_container_with_admission(
         resource: format!("container:{id}"),
         image: owned(
             &mut admission,
-            value["Image"].as_str().ok_or_else(unavailable)?,
+            value["Image"].as_str().ok_or_else(unsupported)?,
         )?,
         started_at: owned(
             &mut admission,
             value["State"]["StartedAt"]
                 .as_str()
-                .ok_or_else(unavailable)?,
+                .ok_or_else(unsupported)?,
         )?,
         running: value["State"]["Running"]
             .as_bool()
-            .ok_or_else(unavailable)?,
+            .ok_or_else(unsupported)?,
     };
-    let raw_mounts = value["Mounts"].as_array().ok_or_else(unavailable)?;
+    let raw_mounts = value["Mounts"].as_array().ok_or_else(unsupported)?;
     if raw_mounts.len() > CONTAINER_STORAGE_MAX_MOUNTS {
-        return Err(unavailable());
+        return Err(unsupported());
     }
     let mut mounts = vec![];
     let mut destinations = BTreeSet::new();
     for raw in raw_mounts {
-        let destination = raw["Destination"].as_str().ok_or_else(unavailable)?;
-        let writable = raw["RW"].as_bool().ok_or_else(unavailable)?;
+        let destination = raw["Destination"].as_str().ok_or_else(unsupported)?;
+        let writable = raw["RW"].as_bool().ok_or_else(unsupported)?;
         if let Some(scope) = &mut admission {
             scope.charge(48)?;
         }
         if !container_storage_path(destination) || !destinations.insert(destination) {
-            return Err(unavailable());
+            return Err(unsupported());
         }
         if admission.is_some()
             && raw["Type"].as_str() != Some("tmpfs")
             && mounts.len() >= selected_limit
         {
-            return Err(unavailable());
+            return Err(unavailable().into());
         }
         let source = match raw["Type"].as_str() {
             Some("bind") => ContainerStorageSource::Bind {
                 path: owned(
                     &mut admission,
-                    raw["Source"].as_str().ok_or_else(unavailable)?,
+                    raw["Source"].as_str().ok_or_else(unsupported)?,
                 )?,
             },
             Some("volume") => ContainerStorageSource::Volume {
                 path: owned(
                     &mut admission,
-                    raw["Source"].as_str().ok_or_else(unavailable)?,
+                    raw["Source"].as_str().ok_or_else(unsupported)?,
                 )?,
                 name: owned(
                     &mut admission,
-                    raw["Name"].as_str().ok_or_else(unavailable)?,
+                    raw["Name"].as_str().ok_or_else(unsupported)?,
                 )?,
                 driver: owned(
                     &mut admission,
-                    raw["Driver"].as_str().ok_or_else(unavailable)?,
+                    raw["Driver"].as_str().ok_or_else(unsupported)?,
                 )?,
             },
             Some("tmpfs") if raw.get("Source").is_none() || raw["Source"].as_str() == Some("") => {
                 continue;
             }
-            _ => return Err(unavailable()),
+            _ => return Err(unsupported()),
         };
         if let Some(scope) = &mut admission {
             scope.reserve(&mut mounts, 1)?;
