@@ -61,6 +61,26 @@ pub enum Revocation {
     Task { digest: String },
 }
 
+impl Revocation {
+    /// Whether there is authority left to remove, read without the writer: a
+    /// session must authenticate with its CSRF digest (errors as
+    /// `authenticate`), and a token must exist and not be revoked yet.
+    pub(super) fn admit(&self, conn: &Connection, now: i64) -> Result<bool> {
+        match self {
+            Revocation::Session { digest, csrf } => {
+                authenticate(conn, digest, Some(csrf), now).map(|_| true)
+            }
+            Revocation::Task { digest } => conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM task_tokens WHERE digest=? AND revoked=0)",
+                    [digest],
+                    |r| r.get(0),
+                )
+                .map_err(durable),
+        }
+    }
+}
+
 impl Store {
     pub(super) fn apply_revocation(&mut self, revocation: Revocation, now: i64) -> Result<()> {
         match revocation {

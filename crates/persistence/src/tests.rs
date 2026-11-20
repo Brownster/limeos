@@ -619,6 +619,136 @@ async fn revocation_succeeds_with_the_queue_full_and_overtakes_it() {
     assert_eq!(events, 2);
 }
 
+/// A store with a live session and task token for `alice`, opened as the
+/// daemon opens it.
+fn database(d: &tempfile::TempDir) -> Database {
+    let path = d.path().join("core.sqlite");
+    {
+        let mut s = Store::open(&path).unwrap();
+        s.issue_bootstrap("token", 100).unwrap();
+        s.enroll("token", "alice", "$argon2id$fixture", 101)
+            .unwrap();
+        let p = s.login_record("alice").unwrap().unwrap().principal;
+        revocable(&mut s, &p, "session");
+    }
+    Database::open(&path).unwrap()
+}
+/// Proves a retention pass runs between ordinary calls: clears the pass time,
+/// then sees it set again.
+async fn maintained(db: &Database) -> bool {
+    db.call(|s| {
+        s.retained_at = None;
+        Ok(())
+    })
+    .await
+    .unwrap();
+    db.call(|s| Ok(s.retained_at.is_some())).await.unwrap()
+}
+
+/// Logouts with well-formed but unknown cookies or a wrong CSRF value are
+/// refused before the writer: none reaches the revocation lane or takes an
+/// ordinary slot, so ordinary calls and retention keep running.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn unauthenticated_logouts_never_reach_the_writer() {
+    let d = tempfile::tempdir().unwrap();
+    let db = database(&d);
+    let flood: Vec<_> = (0..2000)
+        .map(|i| {
+            let db = db.clone();
+            tokio::spawn(async move {
+                let revocation = if i % 2 == 0 {
+                    Revocation::Session {
+                        digest: format!("unknown-{i}"),
+                        csrf: "csrf".into(),
+                    }
+                } else {
+                    Revocation::Session {
+                        digest: "session".into(),
+                        csrf: format!("wrong-{i}"),
+                    }
+                };
+                db.revoke(revocation, 250).await.unwrap_err().0
+            })
+        })
+        .collect();
+    for _ in 0..200 {
+        db.call(|s| Ok(live(s, "session"))).await.unwrap();
+    }
+    assert!(maintained(&db).await);
+    for (i, refused) in flood.into_iter().enumerate() {
+        let expected = if i % 2 == 0 {
+            ErrorCode::Unauthenticated
+        } else {
+            ErrorCode::Forbidden
+        };
+        assert_eq!(refused.await.unwrap(), expected);
+    }
+    assert_eq!(db.admitted.load(Ordering::SeqCst), 0);
+    assert_eq!(db.priority.capacity(), PRIORITY_CAPACITY);
+    // Unknown or revoked task tokens need nothing either.
+    db.revoke(
+        Revocation::Task {
+            digest: "unknown".into(),
+        },
+        250,
+    )
+    .await
+    .unwrap();
+    assert_eq!(db.admitted.load(Ordering::SeqCst), 0);
+    // A genuine logout still goes through.
+    db.revoke(
+        Revocation::Session {
+            digest: "session".into(),
+            csrf: "csrf".into(),
+        },
+        251,
+    )
+    .await
+    .unwrap();
+    assert_eq!(db.admitted.load(Ordering::SeqCst), 1);
+    assert!(!db.call(|s| Ok(live(s, "session").0)).await.unwrap());
+}
+
+/// Revocation work that keeps its lane full forever (each item queues the
+/// next) still lets ordinary calls and the retention pass through.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_full_revocation_lane_cannot_starve_ordinary_work() {
+    use std::sync::atomic::{AtomicBool, AtomicUsize};
+    fn chain(lane: mpsc::Sender<Work>, stop: Arc<AtomicBool>, runs: Arc<AtomicUsize>) -> Work {
+        Box::new(move |_| {
+            runs.fetch_add(1, Ordering::SeqCst);
+            if !stop.load(Ordering::SeqCst) {
+                let next = chain(lane.clone(), stop.clone(), runs.clone());
+                let _ = lane.try_send(next);
+            }
+        })
+    }
+    let d = tempfile::tempdir().unwrap();
+    let db = database(&d);
+    let (stop, runs) = (
+        Arc::new(AtomicBool::new(false)),
+        Arc::new(AtomicUsize::new(0)),
+    );
+    for _ in 0..PRIORITY_BURST {
+        db.priority
+            .send(chain(db.priority.clone(), stop.clone(), runs.clone()))
+            .await
+            .unwrap();
+    }
+    db.bell.ring();
+    let ordinary = async {
+        for _ in 0..50 {
+            db.call(|s| Ok(live(s, "session"))).await.unwrap();
+        }
+        maintained(&db).await
+    };
+    let progressed = tokio::time::timeout(Duration::from_secs(20), ordinary).await;
+    stop.store(true, Ordering::SeqCst);
+    assert_eq!(progressed, Ok(true));
+    // The revocation lane was served throughout, not parked.
+    assert!(runs.load(Ordering::SeqCst) >= 50 * PRIORITY_BURST);
+}
+
 #[test]
 fn crash_helper() {
     let Some(path) = std::env::var_os("LIMEOS_CRASH_TEST_PATH") else {

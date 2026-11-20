@@ -21,25 +21,95 @@ pub const QUEUE_CAPACITY: usize = 64;
 /// The revocation lane: small, and awaited rather than refused when full.
 const PRIORITY_CAPACITY: usize = 8;
 const PRIORITY_WAIT: Duration = Duration::from_secs(5);
+/// Revocations the writer serves before one ordinary item when both lanes
+/// have work, so neither lane can starve the other.
+const PRIORITY_BURST: usize = 4;
 const MIN_FREE_BYTES: u64 = 8 * 1024 * 1024;
 const AUDIT_LIMIT: i64 = 64 * 1024 * 1024;
 type Work = Box<dyn FnOnce(&mut Store) + Send>;
+
+/// Wakes the writer thread without taking a slot in either queue. A sender
+/// rings after every successful send. The writer clears the flag when it
+/// wakes, then tries both lanes, and waits again only after finding both
+/// empty, so a ring between its last check and its wait is never lost.
+struct Bell {
+    rung: std::sync::Mutex<bool>,
+    ring: std::sync::Condvar,
+}
+impl Bell {
+    fn ring(&self) {
+        if let Ok(mut rung) = self.rung.lock() {
+            *rung = true;
+            self.ring.notify_one();
+        }
+    }
+    /// Returns once rung, clearing it, or after `timeout`.
+    fn wait(&self, timeout: Duration) {
+        let Ok(mut rung) = self.rung.lock() else {
+            return;
+        };
+        let deadline = Instant::now() + timeout;
+        while !*rung {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                break;
+            }
+            match self.ring.wait_timeout(rung, left) {
+                Ok((guard, _)) => rung = guard,
+                Err(_) => return,
+            }
+        }
+        *rung = false;
+    }
+}
+/// Rings when the last `Database` handle drops, after its senders, so the
+/// writer finds both lanes closed and exits.
+struct LastHandle(Arc<Bell>);
+impl Drop for LastHandle {
+    fn drop(&mut self) {
+        self.0.ring();
+    }
+}
 
 #[derive(Clone)]
 pub struct Database {
     sender: mpsc::Sender<Work>,
     priority: mpsc::Sender<Work>,
+    /// A query-only connection for revocation admission, so a request that
+    /// fails it touches neither lane.
+    reader: Arc<std::sync::Mutex<Connection>>,
+    bell: Arc<Bell>,
     audit: Arc<AtomicI64>,
     pub generation: i64,
+    #[cfg(test)]
+    admitted: Arc<std::sync::atomic::AtomicUsize>,
+    // Last, so it drops after the senders.
+    _last: Arc<LastHandle>,
 }
 impl Database {
     pub fn open(path: &Path) -> Result<Self> {
         let mut store = Store::open(path)?;
         let generation = store.generation;
         let audit = Arc::new(AtomicI64::new(store.audit_usage()?.bytes));
+        let reader = Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .map_err(durable)?;
+        reader
+            .busy_timeout(Duration::from_millis(500))
+            .map_err(durable)?;
+        reader
+            .execute_batch("PRAGMA query_only=ON; PRAGMA trusted_schema=OFF;")
+            .map_err(durable)?;
         let (sender, mut receiver) = mpsc::channel::<Work>(QUEUE_CAPACITY);
         let (priority, mut urgent) = mpsc::channel::<Work>(PRIORITY_CAPACITY);
+        let bell = Arc::new(Bell {
+            rung: std::sync::Mutex::new(false),
+            ring: std::sync::Condvar::new(),
+        });
         let observed = audit.clone();
+        let doorbell = bell.clone();
         std::thread::Builder::new()
             .name("limeos-db".into())
             .spawn(move || {
@@ -50,18 +120,34 @@ impl Database {
                 };
                 maintain(&mut store);
                 loop {
-                    // Revocations never wait behind ordinary work.
-                    while let Ok(work) = urgent.try_recv() {
+                    // Up to a burst of revocations, then one ordinary item:
+                    // revocations wait behind at most one ordinary item, and
+                    // ordinary work gets at least one turn in five.
+                    let mut served = false;
+                    for _ in 0..PRIORITY_BURST {
+                        let Ok(work) = urgent.try_recv() else {
+                            break;
+                        };
                         work(&mut store);
+                        served = true;
                     }
-                    let Some(work) = receiver.blocking_recv() else {
-                        break;
-                    };
-                    while let Ok(work) = urgent.try_recv() {
+                    if let Ok(work) = receiver.try_recv() {
                         work(&mut store);
+                        served = true;
                     }
-                    work(&mut store);
                     maintain(&mut store);
+                    if !served {
+                        if receiver.is_closed()
+                            && urgent.is_closed()
+                            && receiver.is_empty()
+                            && urgent.is_empty()
+                        {
+                            break;
+                        }
+                        // Idle: sleep until a send rings, and at least once a
+                        // retention interval so an idle store is maintained.
+                        doorbell.wait(retention::INTERVAL);
+                    }
                 }
                 let _ = store.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)");
             })
@@ -69,8 +155,13 @@ impl Database {
         Ok(Self {
             sender,
             priority,
+            reader: Arc::new(std::sync::Mutex::new(reader)),
+            _last: Arc::new(LastHandle(bell.clone())),
+            bell,
             audit,
             generation,
+            #[cfg(test)]
+            admitted: Arc::default(),
         })
     }
     /// Audit usage as of the writer's last retention pass (at most a minute
@@ -80,10 +171,27 @@ impl Database {
             bytes: self.audit.load(Ordering::SeqCst),
         }
     }
-    /// Session, task and grant revocation. These take a separate lane that the
-    /// writer drains before each ordinary item, and wait for space in it (up to
-    /// a deadline) instead of failing when the ordinary queue is full.
+    /// Session and task revocation. Admission first reads the session (with
+    /// its CSRF digest) or the token on a query-only connection: an unknown or
+    /// mismatched session is refused exactly as `authenticate` refuses it, and
+    /// an unknown or already revoked token needs nothing, so neither touches
+    /// the writer. An admitted revocation takes a separate lane that the writer
+    /// serves ahead of ordinary work, and waits for space in it (up to a
+    /// deadline) instead of failing when the ordinary queue is full.
     pub async fn revoke(&self, revocation: Revocation, now: i64) -> Result<()> {
+        let reader = self.reader.clone();
+        let (revocation, admitted) = tokio::task::spawn_blocking(move || {
+            let conn = reader.lock().map_err(|_| Error(ErrorCode::Unavailable))?;
+            let admitted = revocation.admit(&conn, now)?;
+            Ok::<_, Error>((revocation, admitted))
+        })
+        .await
+        .map_err(|_| Error(ErrorCode::Unavailable))??;
+        if !admitted {
+            return Ok(());
+        }
+        #[cfg(test)]
+        self.admitted.fetch_add(1, Ordering::SeqCst);
         let (sender, receiver) = oneshot::channel();
         let work: Work = Box::new(move |s| {
             let _ = sender.send(s.apply_revocation(revocation, now));
@@ -92,9 +200,7 @@ impl Database {
             .await
             .map_err(|_| Error(ErrorCode::Overloaded))?
             .map_err(|_| Error(ErrorCode::Unavailable))?;
-        // Wake an idle writer. A full ordinary queue means it is busy and
-        // drains the lane before its next item, so a refused wake is harmless.
-        let _ = self.sender.try_send(Box::new(|_: &mut Store| {}));
+        self.bell.ring();
         receiver.await.map_err(|_| Error(ErrorCode::Unavailable))?
     }
     pub async fn call<T: Send + 'static>(
@@ -107,6 +213,7 @@ impl Database {
                 let _ = sender.send(f(s));
             }))
             .map_err(|_| Error(ErrorCode::Overloaded))?;
+        self.bell.ring();
         receiver.await.map_err(|_| Error(ErrorCode::Unavailable))?
     }
 }
