@@ -134,6 +134,131 @@ async fn a_client_that_never_finishes_its_headers_is_dropped_at_the_header_limit
     );
 }
 
+/// A request coalesced with the start of the next one: hyper buffers the
+/// second request's first bytes while it serves the first, so no further
+/// socket read marks them. Its headers still get the 5 s header limit, not
+/// the 30 s idle limit, counted from the end of the first response.
+#[tokio::test]
+async fn a_pipelined_request_that_never_finishes_its_headers_is_dropped_at_the_header_limit() {
+    // Header 5 s and idle 30 s scaled to 200 ms and 3 s.
+    let limits = Limits {
+        header: Duration::from_millis(200),
+        idle: Duration::from_secs(3),
+        ..SHORT
+    };
+    let address = start(router(), limits).await;
+    let mut client = Client::connect(address).await;
+    client
+        .send(&format!(
+            "{}GET /fast HTTP/1.1\r\nhost: loc",
+            request_line("/fast")
+        ))
+        .await;
+    assert_eq!(client.response().await, Some((200, "fast".into())));
+    let answered = Instant::now();
+    assert!(
+        tokio::time::timeout(Duration::from_secs(10), client.closed())
+            .await
+            .unwrap()
+    );
+    let waited = answered.elapsed();
+    assert!(
+        waited >= Duration::from_millis(150) && waited < Duration::from_millis(1500),
+        "{waited:?}"
+    );
+}
+
+/// The same after a request with a body: the body's length on the wire,
+/// not the socket reads, says where the next request starts.
+#[tokio::test]
+async fn a_pipelined_request_after_a_body_gets_the_header_limit() {
+    let limits = Limits {
+        header: Duration::from_millis(200),
+        idle: Duration::from_secs(3),
+        ..SHORT
+    };
+    let address = start(router(), limits).await;
+    let mut client = Client::connect(address).await;
+    client
+        .send("POST /echo HTTP/1.1\r\nhost: localhost\r\ncontent-length: 8\r\n\r\nab\r\n\r\ncdGET /fast HTTP/1.1\r\nho")
+        .await;
+    assert_eq!(client.response().await, Some((200, "ab\r\n\r\ncd".into())));
+    let answered = Instant::now();
+    assert!(
+        tokio::time::timeout(Duration::from_secs(10), client.closed())
+            .await
+            .unwrap()
+    );
+    assert!(
+        answered.elapsed() < Duration::from_millis(1500),
+        "{:?}",
+        answered.elapsed()
+    );
+}
+
+/// A chunked body's end is not tracked, so its answer closes the connection
+/// rather than reading a next request whose start is unknown.
+#[tokio::test]
+async fn a_chunked_request_is_answered_and_its_connection_closed() {
+    let address = start(router(), SHORT).await;
+    let mut client = Client::connect(address).await;
+    client
+        .send("POST /echo HTTP/1.1\r\nhost: localhost\r\ntransfer-encoding: chunked\r\n\r\n3\r\nabc\r\n0\r\n\r\n")
+        .await;
+    assert_eq!(client.response().await, Some((200, "abc".into())));
+    assert!(
+        tokio::time::timeout(Duration::from_secs(2), client.closed())
+            .await
+            .unwrap()
+    );
+}
+
+/// Blank lines before a request line are skipped, as hyper skips them; a
+/// request split across many writes is still one request.
+#[tokio::test]
+async fn leading_blank_lines_and_split_headers_are_one_request() {
+    let address = start(router(), SHORT).await;
+    let mut client = Client::connect(address).await;
+    for part in [
+        "\r\n\r\nGET /fa",
+        "st HTTP/1.1\r",
+        "\nhost: localhost\r\n",
+        "\r\n",
+    ] {
+        client.send(part).await;
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert_eq!(client.response().await, Some((200, "fast".into())));
+    client.send("GET /fast HTTP/1.1\nhost: localhost\n\n").await;
+    assert_eq!(client.response().await, Some((200, "fast".into())));
+}
+
+/// A complete pipelined request is answered, and the connection then idles
+/// under the idle limit as usual.
+#[tokio::test]
+async fn complete_pipelined_requests_are_all_answered() {
+    let limits = Limits {
+        header: Duration::from_millis(200),
+        idle: Duration::from_secs(3),
+        ..SHORT
+    };
+    let address = start(router(), limits).await;
+    let mut client = Client::connect(address).await;
+    client
+        .send(&format!(
+            "{}{}",
+            request_line("/fast"),
+            request_line("/sleep/10")
+        ))
+        .await;
+    assert_eq!(client.response().await, Some((200, "fast".into())));
+    assert_eq!(client.response().await, Some((200, "slept".into())));
+    // Idle well past the header limit, then served again.
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    client.send(&request_line("/fast")).await;
+    assert_eq!(client.response().await, Some((200, "fast".into())));
+}
+
 #[tokio::test]
 async fn a_client_that_never_finishes_its_body_is_dropped_at_the_body_limit() {
     let address = start(router(), SHORT).await;

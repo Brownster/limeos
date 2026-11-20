@@ -18,7 +18,7 @@ use std::{
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
-    net::{TcpListener, TcpStream},
+    net::TcpListener,
     sync::{Notify, Semaphore},
     time::{Instant, Sleep},
 };
@@ -31,7 +31,9 @@ pub struct Limits {
     /// Open connections; a connection beyond it is closed at once.
     pub connections: usize,
     /// From a connection's start, or a request's first byte, to the end of
-    /// its headers.
+    /// its headers. A request whose first bytes arrived while the one before
+    /// it was still being answered (pipelined, or in the same packet) is
+    /// timed from the end of that answer.
     pub header: Duration,
     /// From the end of the headers to the end of the request body.
     pub body: Duration,
@@ -82,7 +84,10 @@ pub async fn serve_with(listener: TcpListener, router: Router, limits: Limits) -
     }
 }
 
-async fn connection(stream: TcpStream, app: Router, limits: Limits) {
+pub(crate) async fn connection<I>(stream: I, app: Router, limits: Limits)
+where
+    I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     let activity = Arc::new(Activity::new());
     let io = hyper_util::rt::TokioIo::new(Watched {
         stream,
@@ -91,7 +96,9 @@ async fn connection(stream: TcpStream, app: Router, limits: Limits) {
     let requests = activity.clone();
     let service = hyper::service::service_fn(move |request: hyper::Request<Incoming>| {
         let activity = requests.clone();
-        activity.set(Phase::Busy);
+        // Hyper's own view of the body's length on the wire; `None` for a
+        // chunked body, whose end this connection does not track.
+        let tracked = activity.request(hyper::body::Body::size_hint(request.body()).exact());
         let request = request.map(|body| {
             Body::new(BodyDeadline {
                 body,
@@ -100,7 +107,15 @@ async fn connection(stream: TcpStream, app: Router, limits: Limits) {
         });
         let app = app.clone();
         async move {
-            let Ok(response) = app.oneshot(request).await;
+            let Ok(mut response) = app.oneshot(request).await;
+            if !tracked {
+                // Where the next request starts is unknown, so its header
+                // limit could not be applied: answer and close instead.
+                response.headers_mut().insert(
+                    axum::http::header::CONNECTION,
+                    axum::http::HeaderValue::from_static("close"),
+                );
+            }
             Ok::<_, Infallible>(response.map(|body| Body::new(Tracked { body, activity })))
         }
     });
@@ -109,7 +124,7 @@ async fn connection(stream: TcpStream, app: Router, limits: Limits) {
         .timer(hyper_util::rt::TokioTimer::new())
         // Hyper's own header timer also runs while idle between requests,
         // which would make the idle limit the header limit. `Activity`
-        // times both instead.
+        // times both instead, from the request boundaries it tracks.
         .header_read_timeout(None)
         .max_headers(32)
         .max_buf_size(16 * 1024)
@@ -139,35 +154,179 @@ enum Phase {
     /// Between a response and the next request.
     Idle,
 }
+/// Where the bytes handed to hyper stand against request boundaries. Hyper
+/// reads ahead: one socket read can carry the end of one request and the
+/// start of the next, which hyper keeps buffered while it serves the first.
+/// Following the boundaries, not the reads, lets the header limit apply to
+/// a request whose first bytes were read early.
+enum Stream {
+    /// In a request's headers.
+    Head(HeadScan),
+    /// The headers ended; hyper has not yet said how long the body is.
+    /// `after` holds the bytes handed over after the headers meanwhile.
+    Parsed { after: Vec<u8> },
+    /// In a body with `remaining` bytes left on the wire.
+    Body { remaining: u64 },
+    /// A body whose end is not tracked (chunked); the response closes the
+    /// connection, so no later request is read.
+    Untracked,
+}
+/// Finds the blank line that ends a request's headers, as hyper's parser
+/// does: lines end with LF or CRLF, and blank lines before the request
+/// line are skipped.
+#[derive(Clone, Copy, Default)]
+struct HeadScan {
+    /// A byte other than CR or LF has been seen in this request.
+    started: bool,
+    /// The current line has such a byte.
+    line: bool,
+}
+impl HeadScan {
+    /// The index just past the headers' end in `bytes`, if it is there.
+    fn feed(&mut self, bytes: &[u8]) -> Option<usize> {
+        for (index, byte) in bytes.iter().enumerate() {
+            match byte {
+                b'\n' if self.started && !self.line => return Some(index + 1),
+                b'\n' => self.line = false,
+                b'\r' => {}
+                _ => {
+                    self.started = true;
+                    self.line = true;
+                }
+            }
+        }
+        None
+    }
+}
+/// More than hyper buffers (`max_buf_size`); beyond it the boundaries are
+/// given up and the connection closes after the current response.
+const MAX_AFTER_HEAD: usize = 64 * 1024;
+struct State {
+    phase: Phase,
+    since: Instant,
+    stream: Stream,
+    /// A later request's first bytes reached hyper while this one was busy.
+    next: bool,
+}
 /// Which limit applies to a connection now, and since when.
 struct Activity {
-    state: Mutex<(Phase, Instant)>,
+    state: Mutex<State>,
     changed: Notify,
+}
+impl State {
+    fn enter(&mut self, phase: Phase) {
+        self.phase = phase;
+        self.since = Instant::now();
+    }
+    /// Accounts for bytes handed to hyper.
+    fn delivered(&mut self, mut bytes: &[u8]) {
+        loop {
+            match &mut self.stream {
+                Stream::Head(scan) => {
+                    let end = scan.feed(bytes);
+                    if scan.started {
+                        match self.phase {
+                            // The first byte after an idle gap starts a request.
+                            Phase::Idle => self.enter(Phase::Head),
+                            Phase::Busy => self.next = true,
+                            Phase::Head => {}
+                        }
+                    }
+                    if let Some(end) = end {
+                        self.stream = Stream::Parsed {
+                            after: bytes[end..].to_vec(),
+                        };
+                    }
+                    return;
+                }
+                Stream::Parsed { after } => {
+                    if after.len() + bytes.len() > MAX_AFTER_HEAD {
+                        self.stream = Stream::Untracked;
+                    } else {
+                        after.extend_from_slice(bytes);
+                    }
+                    return;
+                }
+                Stream::Body { remaining } => {
+                    let taken = bytes
+                        .len()
+                        .min(usize::try_from(*remaining).unwrap_or(usize::MAX));
+                    *remaining -= taken as u64;
+                    bytes = &bytes[taken..];
+                    if *remaining > 0 {
+                        return;
+                    }
+                    self.stream = Stream::Head(HeadScan::default());
+                    if bytes.is_empty() {
+                        return;
+                    }
+                }
+                Stream::Untracked => return,
+            }
+        }
+    }
 }
 impl Activity {
     fn new() -> Self {
         Self {
-            state: Mutex::new((Phase::Head, Instant::now())),
+            state: Mutex::new(State {
+                phase: Phase::Head,
+                since: Instant::now(),
+                stream: Stream::Head(HeadScan::default()),
+                next: false,
+            }),
             changed: Notify::new(),
         }
     }
-    fn set(&self, phase: Phase) {
-        *self.state.lock().unwrap_or_else(PoisonError::into_inner) = (phase, Instant::now());
+    fn lock(&self) -> std::sync::MutexGuard<'_, State> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+    /// Hyper parsed a request's headers; `body` is its length on the wire.
+    /// Returns whether the request's end is tracked.
+    fn request(&self, body: Option<u64>) -> bool {
+        let mut state = self.lock();
+        state.enter(Phase::Busy);
+        state.next = false;
+        let after = match std::mem::replace(&mut state.stream, Stream::Untracked) {
+            Stream::Parsed { after } => Some(after),
+            _ => None,
+        };
+        let tracked = match (after, body) {
+            (Some(after), Some(remaining)) => {
+                state.stream = Stream::Body { remaining };
+                state.delivered(&after);
+                true
+            }
+            _ => false,
+        };
+        drop(state);
+        self.changed.notify_one();
+        tracked
+    }
+    /// The response is done: the next request's limit starts. Bytes of it
+    /// already with hyper start its header limit now.
+    fn finished(&self) {
+        let mut state = self.lock();
+        let next = std::mem::take(&mut state.next);
+        state.enter(if next { Phase::Head } else { Phase::Idle });
+        drop(state);
         self.changed.notify_one();
     }
-    /// Bytes arrived: the first byte after an idle gap starts a request.
-    fn read(&self) {
-        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
-        if state.0 == Phase::Idle {
-            *state = (Phase::Head, Instant::now());
-            drop(state);
+    /// Bytes arrived from the socket and were handed to hyper.
+    fn read(&self, bytes: &[u8]) {
+        let mut state = self.lock();
+        let before = (state.phase, state.since);
+        state.delivered(bytes);
+        let changed = (state.phase, state.since) != before;
+        drop(state);
+        if changed {
             self.changed.notify_one();
         }
     }
     fn deadline(&self, limits: &Limits) -> Instant {
-        let (phase, since) = *self.state.lock().unwrap_or_else(PoisonError::into_inner);
-        since
-            + match phase {
+        let state = self.lock();
+        state.since
+            + match state.phase {
                 Phase::Head => limits.header,
                 Phase::Busy => limits.response,
                 Phase::Idle => limits.idle,
@@ -175,12 +334,12 @@ impl Activity {
     }
 }
 
-/// The socket, noting when request bytes arrive.
-struct Watched {
-    stream: TcpStream,
+/// The socket, noting which request the bytes read belong to.
+struct Watched<I> {
+    stream: I,
     activity: Arc<Activity>,
 }
-impl AsyncRead for Watched {
+impl<I: AsyncRead + Unpin> AsyncRead for Watched<I> {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -190,12 +349,12 @@ impl AsyncRead for Watched {
         let before = buf.filled().len();
         let result = Pin::new(&mut this.stream).poll_read(cx, buf);
         if matches!(result, Poll::Ready(Ok(()))) && buf.filled().len() > before {
-            this.activity.read();
+            this.activity.read(&buf.filled()[before..]);
         }
         result
     }
 }
-impl AsyncWrite for Watched {
+impl<I: AsyncWrite + Unpin> AsyncWrite for Watched<I> {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -262,7 +421,7 @@ struct Tracked {
 }
 impl Drop for Tracked {
     fn drop(&mut self) {
-        self.activity.set(Phase::Idle);
+        self.activity.finished();
     }
 }
 impl hyper::body::Body for Tracked {
