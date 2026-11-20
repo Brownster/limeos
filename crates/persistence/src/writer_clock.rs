@@ -67,14 +67,16 @@ impl WriterTime {
     /// a writer that never runs its gate still goes idle, and is seen to).
     pub(crate) fn turn(&mut self) {
         #[cfg(feature = "test-support")]
-        if let Some((clock, _)) = &self.simulated {
+        if let Some((clock, id)) = &self.simulated {
+            clock.doing(*id, "serving a call or a revocation");
             self.read = clock.read().0;
         }
     }
     /// The time the retention gate compares.
     pub(crate) fn now(&self) -> Instant {
         #[cfg(feature = "test-support")]
-        if let Some((clock, _)) = &self.simulated {
+        if let Some((clock, id)) = &self.simulated {
+            clock.doing(*id, "running its retention gate or a pass");
             return clock.read().1;
         }
         Instant::now()
@@ -127,7 +129,16 @@ mod simulated {
         bell: Arc<Bell>,
         /// The generation this writer last went idle at, while it is idle.
         idle_at: Option<u64>,
+        /// What it was last seen doing, for a writer that does not settle.
+        doing: &'static str,
+        /// The generation its current turn began at.
+        turn: u64,
     }
+    /// How long [`SimClock::settle`] waits, in real time, for the writers to
+    /// go idle: far beyond any turn's work on a loaded CI runner (a retention
+    /// pass is one batch of at most 1,024 rows), so only a writer that never
+    /// goes idle reaches it.
+    const SETTLE_LIMIT: Duration = Duration::from_secs(120);
     struct State {
         now: i64,
         generation: u64,
@@ -203,14 +214,45 @@ mod simulated {
             self.settle();
         }
         /// Returns once every writer is idle after reading the current time.
+        /// Panics, saying what each writer still busy was doing, if they are
+        /// not within [`SETTLE_LIMIT`] of real time: a writer that never goes
+        /// idle would otherwise hang the test until the CI job's timeout.
         pub fn settle(&self) {
+            self.settle_within(SETTLE_LIMIT);
+        }
+        /// [`SimClock::settle`], waiting at most `limit` of real time.
+        pub fn settle_within(&self, limit: Duration) {
+            let deadline = Instant::now() + limit;
             let mut state = self.lock();
-            while state
-                .writers
-                .values()
-                .any(|w| w.idle_at != Some(state.generation))
-            {
-                state = self.wait(state);
+            loop {
+                let busy: Vec<String> = state
+                    .writers
+                    .iter()
+                    .filter(|(_, w)| w.idle_at != Some(state.generation))
+                    .map(|(id, w)| {
+                        format!(
+                            "writer {id}: {} (its turn began at generation {}, idle at {:?})",
+                            w.doing, w.turn, w.idle_at
+                        )
+                    })
+                    .collect();
+                if busy.is_empty() {
+                    return;
+                }
+                let left = deadline.saturating_duration_since(Instant::now());
+                assert!(
+                    !left.is_zero(),
+                    "the simulated clock's writers did not go idle within {:?} of real time after it moved to generation {} ({} s simulated): {}",
+                    limit,
+                    state.generation,
+                    state.now,
+                    busy.join("; ")
+                );
+                state = self
+                    .changed
+                    .wait_timeout(state, left)
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .0;
             }
         }
         /// Every retention pass the writers ran since the last call.
@@ -248,6 +290,8 @@ mod simulated {
                 Writer {
                     bell,
                     idle_at: None,
+                    doing: "starting (waiting to be released, or its first pass)",
+                    turn: 0,
                 },
             );
             id
@@ -274,9 +318,21 @@ mod simulated {
             let mut state = self.lock();
             if let Some(writer) = state.writers.get_mut(&id) {
                 writer.idle_at = idle.then_some(generation);
+                writer.doing = if idle { "idle" } else { "woken" };
             }
             drop(state);
             self.changed.notify_all();
+        }
+        /// What writer `id` is doing now (`settle`'s message, if it hangs).
+        pub(super) fn doing(&self, id: u64, what: &'static str) {
+            let mut state = self.lock();
+            let generation = state.generation;
+            if let Some(writer) = state.writers.get_mut(&id) {
+                if what.starts_with("serving") {
+                    writer.turn = generation;
+                }
+                writer.doing = what;
+            }
         }
         pub(super) fn passed(&self, pass: &crate::retention::Pass) {
             self.lock().passes.push(Pass {
@@ -285,5 +341,41 @@ mod simulated {
                 removed: pass.removed.clone(),
             });
         }
+    }
+}
+
+#[cfg(all(test, feature = "test-support"))]
+mod tests {
+    use super::*;
+    /// A writer that never goes idle fails `settle` within its bound, and the
+    /// failure says what that writer was doing.
+    #[test]
+    fn a_writer_that_never_goes_idle_fails_settle_with_what_it_was_doing() {
+        let clock = SimClock::new(1_000);
+        let bell = Arc::new(Bell {
+            rung: std::sync::Mutex::new(false),
+            ring: std::sync::Condvar::new(),
+        });
+        let mut time = WriterTime::new(Clock::Simulated(clock.clone()), bell);
+        time.turn();
+        let _ = time.now();
+        let started = Instant::now();
+        let failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            clock.settle_within(Duration::from_millis(50));
+        }))
+        .expect_err("settle returned with a busy writer");
+        assert!(started.elapsed() < Duration::from_secs(10));
+        let message = failure
+            .downcast_ref::<String>()
+            .cloned()
+            .unwrap_or_default();
+        assert!(
+            message.contains("did not go idle") && message.contains("running its retention gate"),
+            "{message}"
+        );
+        // Once it goes idle at the current generation, settle returns.
+        let (writer, id) = time.simulated.as_ref().expect("on the simulated clock");
+        writer.idle(*id, time.read, true);
+        clock.settle_within(Duration::from_millis(50));
     }
 }
