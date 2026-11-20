@@ -128,10 +128,11 @@ state; any surviving cgroup must report no populated descendants. Unsupported
 cgroup layout, timeout, failed stop or blocked descendants abort replacement.
 These checks control package teardown only and never mint a helper receipt.
 
-The optional-service LoadState query is checked normally. Masked, error, unknown
-or failed-manager states abort replacement. A missing unit may be skipped only
-when it is genuinely not-found, inactive, has no manager cgroup and has no
-remaining standard unit cgroup in the supported unified hierarchy. An absent
+The optional-service LoadState query is checked normally. Error, unknown or
+failed-manager states abort replacement. A missing or masked unit may be
+skipped only when it is not-found or masked, inactive, has no manager cgroup
+and has no remaining standard unit cgroup in the supported unified hierarchy;
+a masked unit with work aborts replacement. An absent
 mount or empty cgroup never supplies a recorded helper cleanup fact.
 
 The root mount journal remains in `/var/lib/limeos/executors/storage/mounts.sqlite`

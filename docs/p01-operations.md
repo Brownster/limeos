@@ -139,7 +139,18 @@ sudo /usr/lib/limeos/limeosctl status
 sudo dpkg --verify limeos
 ```
 
-The installer preserves corrupt files and exits with a repair instruction. Activation and removal errors surface to dpkg. Removal stops core, then its executors, then the optional storage units; removal and purge then drop the three services' enablement links and reload systemd. Both can be repeated and tolerate units that are already gone or were never enabled. Neither deletes `/var/lib/limeos` (authority, assistant state, executor receipts and journals), the ceilings or any other file under `/etc/limeos`, drop-ins under `/etc/systemd/system`, or the service accounts and groups; purge loses only `/etc/limeos/core.json`, which dpkg deletes as a conffile. Reinstall a compatible package to recover. An upgrade restarts the three services and starts the storage reader again if it was running; the storage target and mount services stay stopped until started by hand. An upgrade from a package built before this behaviour cannot know the reader was running: start it by hand once. Online backup, encrypted restore and the production updater are P04 work. Never copy an active SQLite database file without its WAL as a backup.
+The installer preserves corrupt files and exits with a repair instruction. Activation and removal errors surface to dpkg. Removal stops core, then its executors, then the optional storage units, and fails, naming the unit and its pids, if any process survives a stop or systemd cannot say; nothing is killed. Removal and purge then drop the three services' enablement links and reload systemd. Both can be repeated and tolerate units that are already gone or were never enabled. Neither deletes `/var/lib/limeos` (authority, assistant state, executor receipts and journals), the ceilings or any other file under `/etc/limeos`, drop-ins under `/etc/systemd/system`, or the service accounts and groups; purge loses only `/etc/limeos/core.json`, which dpkg deletes as a conffile. Reinstall a compatible package to recover. An upgrade restarts the three services and starts the storage reader again if it was running; the storage target and mount services stay stopped until started by hand. An upgrade from a package built before this behaviour cannot know the reader was running: start it by hand once.
+
+A failed upgrade from such a package can also leave every service stopped: its pre-removal script stops them, and when the upgrade then aborts, its post-installation script does not start them again. The new package's `failed-upgrade` step refuses only when a process survives a stop or systemd cannot answer. After such a failure, start the services by hand (the reader only if it was running before):
+
+```sh
+sudo dpkg --audit
+sudo systemctl start limeos-storaged.service limeos-containerd.service limeos-core.service
+sudo systemctl start limeos-storage-reader.service
+sudo /usr/lib/limeos/limeosctl status
+```
+
+Between packages that both have this behaviour, an aborted upgrade, removal or deconfiguration starts again the core services and the reader if it stopped them, except units masked or disabled meanwhile. The record of what to start lives in `/run/limeos-package` and is used once, by the step that ends the package change. Online backup, encrypted restore and the production updater are P04 work. Never copy an active SQLite database file without its WAL as a backup.
 
 ## Limits and verification
 
