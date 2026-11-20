@@ -119,7 +119,7 @@ pub(crate) fn host(previous: &mut Option<(u64, u64)>) -> (HostMetrics, Vec<Strin
     )
 }
 // No caller-controlled executable, arguments, environment or output paths.
-pub(crate) async fn block_devices() -> Result<Vec<Resource>> {
+pub(crate) async fn block_devices() -> Result<(Vec<Resource>, Vec<String>)> {
     let mut child = tokio::process::Command::new("/usr/bin/lsblk")
         .args([
             "--bytes",
@@ -161,113 +161,249 @@ pub(crate) async fn block_devices() -> Result<Vec<Resource>> {
     .await
     .map_err(|_| Error(ErrorCode::Unavailable))?
 }
-pub(crate) fn disks(value: &Value) -> Result<Vec<Resource>> {
-    fn visit(
-        dev: &Value,
-        parent: Option<String>,
-        depth: usize,
-        result: &mut Vec<Resource>,
-    ) -> Result<()> {
-        if depth > 8 || result.len() >= 64 {
-            return Err(Error(ErrorCode::Unavailable));
+/// Devices kept in one observation. Loop and rom devices are skipped first and
+/// never count against it.
+const MAX_DEVICES: usize = 64;
+const MAX_DEPTH: usize = 8;
+/// Per-kind cap on the source warnings that name individual devices.
+const MAX_NAMED: usize = 8;
+struct Found {
+    kind: String,
+    name: String,
+    path: String,
+    identity: String,
+    mounts: Vec<String>,
+    swap: bool,
+    filesystem: Option<String>,
+    size: Option<u64>,
+    parent: Option<usize>,
+}
+fn visit(
+    dev: &Value,
+    parent: Option<usize>,
+    depth: usize,
+    found: &mut Vec<Found>,
+    omitted: &mut bool,
+) {
+    let kind = text(&dev["type"], 32);
+    if matches!(kind.as_str(), "loop" | "rom") {
+        return;
+    }
+    if depth > MAX_DEPTH || found.len() >= MAX_DEVICES {
+        *omitted = true;
+        return;
+    }
+    let name = text(&dev["name"], 64);
+    let uuid = text(&dev["uuid"], 128);
+    let serial = text(&dev["serial"], 128);
+    let path = text(&dev["path"], 128);
+    let identity = if !uuid.is_empty() {
+        format!("uuid:{uuid}")
+    } else if !serial.is_empty() {
+        format!("serial:{serial}")
+    } else {
+        format!("device:{path}")
+    };
+    let filesystem = Some(text(&dev["fstype"], 64)).filter(|s| !s.is_empty());
+    let mut mounts: Vec<String> = dev["mountpoints"]
+        .as_array()
+        .map(|all| {
+            all.iter()
+                .filter(|v| v.is_string())
+                .take(32)
+                .map(|v| text(v, 256))
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    // An active swap area is listed as `[SWAP]`; it is not a path.
+    let swap = mounts.iter().any(|m| m == "[SWAP]");
+    mounts.retain(|m| m != "[SWAP]");
+    // Several mountpoints (bind mounts, subvolumes): shortest path first.
+    mounts.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
+    mounts.dedup();
+    let index = found.len();
+    found.push(Found {
+        kind,
+        name,
+        path,
+        identity,
+        mounts,
+        swap,
+        filesystem,
+        size: dev["size"]
+            .as_u64()
+            .or_else(|| dev["size"].as_str()?.parse().ok()),
+        parent,
+    });
+    if let Some(children) = dev["children"].as_array() {
+        for c in children {
+            visit(c, Some(index), depth + 1, found, omitted);
         }
-        let kind = text(&dev["type"], 32);
-        if matches!(kind.as_str(), "loop" | "rom") {
-            return Ok(());
+    }
+}
+fn named(warnings: &mut Vec<String>, lines: Vec<String>, more: impl Fn(usize) -> String) {
+    let extra = lines.len().saturating_sub(MAX_NAMED);
+    warnings.extend(lines.into_iter().take(MAX_NAMED));
+    if extra > 0 {
+        warnings.push(more(extra));
+    }
+}
+/// One odd device never blanks the inventory. A duplicated UUID, serial or
+/// path makes exactly those devices `ambiguous`: listed, with a reason, under
+/// an `ambiguous:` id and without an identity, so nothing can address them.
+pub(crate) fn disks(value: &Value) -> Result<(Vec<Resource>, Vec<String>)> {
+    let devices = value["blockdevices"]
+        .as_array()
+        .ok_or(Error(ErrorCode::Unavailable))?;
+    let mut found = Vec::new();
+    let mut omitted = false;
+    for dev in devices {
+        visit(dev, None, 0, &mut found, &mut omitted);
+    }
+    let mut uses = std::collections::BTreeMap::<&str, Vec<&str>>::new();
+    for f in &found {
+        uses.entry(&f.identity).or_default().push(&f.name);
+    }
+    let mut warnings = Vec::new();
+    named(
+        &mut warnings,
+        uses.iter()
+            .filter(|(_, names)| names.len() > 1)
+            .map(|(identity, names)| {
+                format!(
+                    "Devices {} share {identity}; they are shown as ambiguous and cannot be used as identities",
+                    names.join(", ")
+                )
+            })
+            .collect(),
+        |n| format!("{n} more identifiers are shared by several devices"),
+    );
+    let ids: Vec<String> = found
+        .iter()
+        .map(|f| {
+            if uses
+                .get(f.identity.as_str())
+                .is_some_and(|names| names.len() > 1)
+            {
+                format!(
+                    "ambiguous:{}",
+                    if f.path.is_empty() { &f.name } else { &f.path }
+                )
+            } else {
+                f.identity.clone()
+            }
+        })
+        .collect();
+    let mut several = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let mut result = Vec::new();
+    for (f, id) in found.iter().zip(&ids) {
+        // Malformed input naming one path twice: keep the first only.
+        if !seen.insert(id.as_str()) {
+            omitted = true;
+            continue;
         }
-        let name = text(&dev["name"], 64);
-        let uuid = text(&dev["uuid"], 128);
-        let serial = text(&dev["serial"], 128);
-        let path = text(&dev["path"], 128);
-        let identity = if !uuid.is_empty() {
-            format!("uuid:{uuid}")
-        } else if !serial.is_empty() {
-            format!("serial:{serial}")
+        let ambiguous = id.starts_with("ambiguous:");
+        let status = if ambiguous {
+            "ambiguous"
+        } else if f.swap {
+            "swap"
+        } else if f.mounts.is_empty() {
+            "unmounted"
         } else {
-            format!("device:{path}")
+            "mounted"
         };
-        let id = identity.clone();
-        let mounts = dev["mountpoints"]
-            .as_array()
-            .and_then(|a| a.iter().find(|v| v.is_string()))
-            .map(|v| text(v, 256))
-            .filter(|s| !s.is_empty());
         let mut r = Resource::new(
             id.clone(),
-            if kind == "disk" {
+            if f.kind == "disk" {
                 ResourceKind::Disk
             } else {
                 ResourceKind::Partition
             },
-            name,
-            if mounts.is_some() {
-                "mounted"
-            } else {
-                "unmounted"
-            }
-            .into(),
+            f.name.clone(),
+            status.into(),
             Source::Storage,
         );
-        r.identity = Some(identity);
-        r.parent = parent;
-        r.mountpoint = mounts;
-        r.filesystem = Some(text(&dev["fstype"], 64)).filter(|s| !s.is_empty());
-        r.size_bytes = dev["size"]
-            .as_u64()
-            .or_else(|| dev["size"].as_str()?.parse().ok());
-        result.push(r);
-        if let Some(children) = dev["children"].as_array() {
-            for c in children {
-                visit(c, Some(id.clone()), depth + 1, result)?;
-            }
+        r.identity = (!ambiguous).then(|| f.identity.clone());
+        r.parent = f.parent.and_then(|p| ids.get(p)).cloned();
+        r.mountpoint = f.mounts.first().cloned();
+        if f.mounts.len() > 1 {
+            several.push(format!(
+                "{} is mounted at {} paths; the shortest is shown",
+                f.name,
+                f.mounts.len()
+            ));
         }
-        Ok(())
+        r.filesystem = f.filesystem.clone();
+        r.size_bytes = f.size;
+        result.push(r);
     }
-    let devices = value["blockdevices"]
-        .as_array()
-        .ok_or(Error(ErrorCode::Unavailable))?;
-    let mut result = Vec::new();
-    for dev in devices {
-        visit(dev, None, 0, &mut result)?;
+    named(&mut warnings, several, |n| {
+        format!("{n} more devices are mounted at several paths")
+    });
+    if omitted {
+        warnings.push(format!(
+            "Storage inventory exceeds {MAX_DEVICES} devices or nesting depth {MAX_DEPTH}; some devices are omitted"
+        ));
     }
-    // Duplicate UUIDs are ambiguous, not usable resource identities.
-    let mut ids = std::collections::HashSet::new();
-    if result.iter().any(|r| !ids.insert(r.id.clone())) {
-        return Err(Error(ErrorCode::Unavailable));
-    }
-    Ok(result)
+    Ok((result, warnings))
 }
+/// Undo the kernel's octal escaping of a mountinfo field (`\040`, `\011`,
+/// `\012`, `\134` and any other `\ooo`). A malformed escape or non-UTF-8
+/// result is refused.
+fn unescape(field: &str) -> Option<String> {
+    let mut out = Vec::with_capacity(field.len());
+    let mut bytes = field.bytes();
+    while let Some(byte) = bytes.next() {
+        if byte != b'\\' {
+            out.push(byte);
+            continue;
+        }
+        let mut value = 0u32;
+        for _ in 0..3 {
+            let digit = bytes.next().filter(|d| (b'0'..=b'7').contains(d))?;
+            value = value * 8 + u32::from(digit - b'0');
+        }
+        out.push(u8::try_from(value).ok()?);
+    }
+    String::from_utf8(out).ok()
+}
+/// Mergerfs pools by mountpoint. Stacked mounts at one mountpoint are one pool:
+/// the last listed, which is the one visible there.
 pub(crate) fn pools(mounts: &str) -> Vec<Resource> {
-    mounts
-        .lines()
-        .filter_map(|line| {
-            let (left, right) = line.split_once(" - ")?;
-            let fs = right.split_whitespace().next()?;
-            if !matches!(fs, "fuse.mergerfs" | "mergerfs") {
-                return None;
-            }
-            let mount = left
-                .split_whitespace()
-                .nth(4)?
-                .replace("\\040", " ")
-                .replace("\\011", "\t")
-                .replace("\\134", "\\");
-            if mount.len() > 256 {
-                return None;
-            }
-            let mut r = Resource::new(
-                format!("pool:{mount}"),
-                ResourceKind::Pool,
-                mount.clone(),
-                "mounted".into(),
-                Source::Pools,
-            );
-            r.mountpoint = Some(mount);
-            r.filesystem = Some(fs.into());
-            Some(r)
-        })
-        .take(16)
-        .collect()
+    let mut found = std::collections::BTreeMap::new();
+    for line in mounts.lines() {
+        let Some((left, right)) = line.split_once(" - ") else {
+            continue;
+        };
+        let Some(fs) = right.split_whitespace().next() else {
+            continue;
+        };
+        if !matches!(fs, "fuse.mergerfs" | "mergerfs") {
+            continue;
+        }
+        let Some(mount) = left.split_whitespace().nth(4).and_then(unescape) else {
+            continue;
+        };
+        if mount.len() > 256 {
+            continue;
+        }
+        if found.len() >= 16 && !found.contains_key(&mount) {
+            continue;
+        }
+        let mut r = Resource::new(
+            format!("pool:{mount}"),
+            ResourceKind::Pool,
+            mount.clone(),
+            "mounted".into(),
+            Source::Pools,
+        );
+        r.mountpoint = Some(mount.clone());
+        r.filesystem = Some(fs.into());
+        found.insert(mount, r);
+    }
+    found.into_values().collect()
 }
 #[cfg(test)]
 mod tests {
@@ -282,30 +418,136 @@ mod tests {
         assert_eq!(cpu_counters("cpu 1 2"), None);
     }
     #[test]
-    fn disk_identity_is_uuid_not_device_name_and_duplicates_fail_closed() {
+    fn disk_identity_is_uuid_not_device_name_and_a_duplicate_is_ambiguous_not_fatal() {
         let mut v = serde_json::json!({"blockdevices":[{"name":"sda","path":"/dev/sda","type":"disk","size":100,"serial":"drive-1","children":[{"name":"sda1","path":"/dev/sda1","type":"part","uuid":"data-1","fstype":"ext4","mountpoints":["/mnt/data"]}]}]});
-        let a = disks(&v).unwrap();
+        let (a, warnings) = disks(&v).unwrap();
+        assert!(warnings.is_empty());
         assert_eq!(a[1].id, "uuid:data-1");
         assert_eq!(a[1].status, "mounted");
         v["blockdevices"][0]["children"][0]["name"] = "sdb1".into();
-        assert_eq!(disks(&v).unwrap()[1].id, a[1].id);
-        let child = v["blockdevices"][0]["children"][0].clone();
+        assert_eq!(disks(&v).unwrap().0[1].id, a[1].id);
+        let mut child = v["blockdevices"][0]["children"][0].clone();
+        child["path"] = "/dev/sdb1".into();
         v["blockdevices"][0]["children"]
             .as_array_mut()
             .unwrap()
             .push(child);
-        assert!(disks(&v).is_err());
+        let (r, warnings) = disks(&v).unwrap();
+        assert_eq!(r.len(), 3);
+        assert_eq!(r[0].id, "serial:drive-1");
+        for (resource, path) in r[1..].iter().zip(["/dev/sda1", "/dev/sdb1"]) {
+            assert_eq!(resource.id, format!("ambiguous:{path}"));
+            assert_eq!(resource.status, "ambiguous");
+            assert_eq!(resource.identity, None);
+            assert_eq!(resource.parent.as_deref(), Some("serial:drive-1"));
+        }
+        assert!(warnings[0].contains("share uuid:data-1"));
         assert_eq!(
             pools("1 2 0:1 / /mnt/media rw - fuse.mergerfs media rw")[0].id,
             "pool:/mnt/media"
         );
+    }
+    fn part(name: &str, uuid: &str, fstype: &str, mounts: serde_json::Value) -> Value {
+        serde_json::json!({"name":name,"path":format!("/dev/{name}"),"type":"part","size":10,"uuid":uuid,"fstype":fstype,"mountpoints":mounts})
+    }
+    #[test]
+    fn btrfs_members_cloned_serials_swap_and_loops_keep_the_rest_of_the_inventory() {
+        let mut devices: Vec<Value> = (0..100)
+            .map(|i| serde_json::json!({"name":format!("loop{i}"),"path":format!("/dev/loop{i}"),"type":"loop","size":1,"mountpoints":[format!("/snap/core/{i}")]}))
+            .collect();
+        devices
+            .push(serde_json::json!({"name":"sr0","path":"/dev/sr0","type":"rom","serial":"cd"}));
+        // Two disks with the serial a USB bridge reports for both.
+        devices.push(serde_json::json!({"name":"sda","path":"/dev/sda","type":"disk","serial":"bridge","children":[
+            part("sda1", "pool-fs", "btrfs", serde_json::json!(["/srv/pool", "/srv/pool/@media", null])),
+        ]}));
+        devices.push(serde_json::json!({"name":"sdb","path":"/dev/sdb","type":"disk","serial":"bridge","children":[
+            part("sdb1", "pool-fs", "btrfs", serde_json::json!([null])),
+        ]}));
+        devices.push(serde_json::json!({"name":"mmcblk0","path":"/dev/mmcblk0","type":"disk","serial":"0xboot","children":[
+            part("mmcblk0p1", "boot-1", "vfat", serde_json::json!(["/boot/firmware"])),
+            part("mmcblk0p2", "root-1", "ext4", serde_json::json!(["/"])),
+            part("mmcblk0p3", "swap-1", "swap", serde_json::json!(["[SWAP]"])),
+        ]}));
+        let (r, warnings) = disks(&serde_json::json!({ "blockdevices": devices })).unwrap();
+        // Loop and rom devices never count against the bound.
+        assert_eq!(r.len(), 8, "{r:?}");
+        let get = |name: &str| r.iter().find(|d| d.name == name).unwrap();
+        for name in ["sda", "sdb", "sda1", "sdb1"] {
+            assert_eq!(get(name).status, "ambiguous", "{name}");
+            assert_eq!(get(name).identity, None);
+            assert!(get(name).id.starts_with("ambiguous:/dev/"));
+        }
+        assert_eq!(get("sda1").parent.as_deref(), Some("ambiguous:/dev/sda"));
+        // Visible: the chosen mountpoint is deterministic and the rest is noted.
+        assert_eq!(get("sda1").mountpoint.as_deref(), Some("/srv/pool"));
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w == "sda1 is mounted at 2 paths; the shortest is shown")
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains("sda, sdb share serial:bridge"))
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains("sda1, sdb1 share uuid:pool-fs"))
+        );
+        assert_eq!(get("mmcblk0p2").id, "uuid:root-1");
+        assert_eq!(get("mmcblk0p2").status, "mounted");
+        let swap = get("mmcblk0p3");
+        assert_eq!(
+            (swap.status.as_str(), swap.mountpoint.as_deref()),
+            ("swap", None)
+        );
+        assert_eq!(swap.filesystem.as_deref(), Some("swap"));
+        assert_eq!(swap.id, "uuid:swap-1");
+    }
+    #[test]
+    fn more_devices_than_the_bound_are_truncated_with_a_warning() {
+        let devices: Vec<Value> = (0..80)
+            .map(|i| serde_json::json!({"name":format!("sd{i}"),"path":format!("/dev/sd{i}"),"type":"disk","serial":format!("s{i}")}))
+            .collect();
+        let (r, warnings) = disks(&serde_json::json!({ "blockdevices": devices })).unwrap();
+        assert_eq!(r.len(), MAX_DEVICES);
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains("some devices are omitted"))
+        );
+        assert!(disks(&serde_json::json!({"blockdevices": "no"})).is_err());
+    }
+    #[test]
+    fn mountinfo_octal_escapes_are_decoded_and_stacked_mounts_are_one_pool() {
+        let mounts = "\
+36 1 0:30 / /mnt/a\\012b rw - fuse.mergerfs a rw
+37 1 0:31 / /mnt/media\\040pool rw - fuse.mergerfs one rw
+38 1 0:32 / /mnt/media\\040pool rw - mergerfs two rw
+39 1 0:33 / /mnt/x\\043y rw - fuse.mergerfs x rw
+40 1 0:34 / /mnt/bad\\9 rw - fuse.mergerfs bad rw
+41 1 0:35 / /mnt/data rw - ext4 /dev/sda1 rw";
+        let p = pools(mounts);
+        let ids: Vec<_> = p.iter().map(|r| r.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            ["pool:/mnt/a\nb", "pool:/mnt/media pool", "pool:/mnt/x#y"]
+        );
+        // The later, visible mount at one mountpoint wins.
+        assert_eq!(p[1].filesystem.as_deref(), Some("mergerfs"));
+        assert_eq!(unescape("/a\\134b"), Some("/a\\b".into()));
+        assert_eq!(unescape("/a\\400"), None);
+        assert_eq!(unescape("/a\\01"), None);
     }
     #[test]
     fn frozen_reference_disk_fixture_agrees_on_identity_mount_and_status() {
         let v: Value =
             serde_json::from_str(include_str!("../../../tests/fixtures/read-semantics.json"))
                 .unwrap();
-        let r = disks(&v["lsblk"]).unwrap();
+        let (r, warnings) = disks(&v["lsblk"]).unwrap();
+        assert!(warnings.is_empty());
         let expected = &v["expected"]["disk"];
         assert_eq!(
             r[0].id,

@@ -15,10 +15,10 @@ pub fn start_host() -> Cache {
                 sources: vec![fresh(Source::Host, warnings)],
             });
             match probes::block_devices().await {
-                Ok(resources) => c.update(ObservationBatch {
+                Ok((resources, warnings)) => c.update(ObservationBatch {
                     host: None,
                     resources,
-                    sources: vec![fresh(Source::Storage, Vec::new())],
+                    sources: vec![fresh(Source::Storage, warnings)],
                 }),
                 Err(_) => c.failed(&[Source::Storage]),
             }
