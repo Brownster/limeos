@@ -153,8 +153,10 @@ impl Store {
     }
     /// Nothing was sent: the executor holds no row for this action and
     /// answered that none can ever have been pruned
-    /// (`limeos_domain::ReceiptAbsence::NeverRecorded`), and every Engine call
-    /// is preceded by a durable Prepared row. Releases the locks.
+    /// (`limeos_domain::ReceiptAbsence::NeverRecorded`), every Engine call
+    /// is preceded by a durable Prepared row, and the plan had expired when
+    /// core asked (`limeos_domain::execution_closed`), so no delayed request
+    /// can still write one. Releases the locks.
     pub fn record_stack_unsent(&mut self, job: &StackJob, now: i64) -> Result<()> {
         self.write(|tx| {
             let (state, intent): (String, String) = tx

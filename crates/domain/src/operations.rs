@@ -36,6 +36,21 @@ impl ReceiptAbsence {
     }
 }
 
+/// Seconds past a plan's expiry before core acts on a missing receipt. The
+/// executor refuses a plan once `now >= expires_at`, before it prepares and
+/// again immediately before the Engine call; the margin absorbs a small step of
+/// the clock the two processes share.
+pub const EXPIRY_SETTLE_MARGIN: i64 = 5;
+
+/// Whether no execute request for a plan expiring at `expires_at` can still be
+/// accepted, judged from `asked_at`: a clock read taken before the receipt
+/// lookup was sent. Until then a delivered request whose handler has not yet
+/// reached the receipt store may still prepare and run, so the absence of a
+/// receipt, `NeverRecorded` or `NoLongerHeld`, proves nothing yet.
+pub fn execution_closed(expires_at: i64, asked_at: i64) -> bool {
+    asked_at >= expires_at.saturating_add(EXPIRY_SETTLE_MARGIN)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Risk {
     Disruptive,

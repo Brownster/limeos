@@ -1010,8 +1010,26 @@ async fn a_held_stack_resolves_on_per_member_evidence_and_frees_every_member() {
     f.task.abort();
 }
 
+/// Whether a single-container job can claim the stack's first member now.
+async fn member_claimable(f: &Fixture, key: &str) -> bool {
+    let member = f.engine.lock().unwrap().members[0].clone();
+    let principal = f.principal().await;
+    let key = key.to_owned();
+    f.core
+        .db
+        .call(move |s| {
+            let plan = s.plan_container(&principal, ContainerAction::Restart, &member, now())?;
+            let approval = s.approve_container(&principal, &plan.plan.id, &plan.digest, now())?;
+            let queued =
+                s.queue_container(&principal, &key, &plan, &approval.token, &member, now())?;
+            s.claim_container(&principal, &queued.id, &member, now())
+        })
+        .await
+        .is_ok()
+}
+
 #[tokio::test]
-async fn an_executor_failure_before_any_row_releases_the_locks_as_unsent() {
+async fn an_executor_failure_before_any_row_holds_the_stack_until_its_plan_has_expired() {
     for code in [
         ErrorCode::Expired,
         ErrorCode::Unavailable,
@@ -1026,40 +1044,76 @@ async fn an_executor_failure_before_any_row_releases_the_locks_as_unsent() {
             .dispatch_stack(f.principal().await, job.clone())
             .await
             .unwrap();
-        assert_eq!(
-            f.state(&job).await,
-            JobState::PreconditionChanged,
-            "{code:?}"
-        );
+        // The lookup finds no row and none was ever pruned, but the plan is
+        // still valid: the request may have reached a handler that has not yet
+        // taken the receipt store, and it could still prepare and run. The job
+        // keeps every lock and stays a recovery candidate.
+        assert_eq!(f.state(&job).await, JobState::Running, "{code:?}");
         {
             let engine = f.engine.lock().unwrap();
             assert_eq!((engine.executes, engine.receipts), (1, 1));
         }
-        assert!(
+        assert_eq!(
             f.core
                 .db
                 .call(|s| s.stack_candidates())
                 .await
                 .unwrap()
-                .is_empty()
+                .len(),
+            1
         );
-        // The released members are usable by a single-container job again.
-        let member = snap('a', true);
-        let principal = f.principal().await;
-        let claimed = f
+        assert!(!member_claimable(&f, "after").await, "{code:?}");
+        // Recovery keeps asking, and never sends the effect again.
+        let current = f.current(&job).await;
+        f.core
+            .dispatch_stack(f.principal().await, current)
+            .await
+            .unwrap();
+        assert_eq!(f.state(&job).await, JobState::Running, "{code:?}");
+        let engine = f.engine.lock().unwrap();
+        assert_eq!((engine.executes, engine.receipts), (1, 2));
+        drop(engine);
+        f.task.abort();
+    }
+}
+
+#[tokio::test]
+async fn a_never_recorded_stack_is_released_only_past_its_plan_expiry_and_margin() {
+    use limeos_domain::{EXPIRY_SETTLE_MARGIN, PLAN_TTL_SECONDS};
+    // Seconds since the plan expired when recovery asks; negative is unexpired.
+    for (since_expiry, released) in [
+        (-60, false),
+        (0, false),
+        (EXPIRY_SETTLE_MARGIN - 3, false),
+        (EXPIRY_SETTLE_MARGIN + 5, true),
+    ] {
+        let f = admin().await;
+        let job = claimed_at(&f, "window", now() - PLAN_TTL_SECONDS - since_expiry).await;
+        let current = f.current(&job).await;
+        f.core
+            .dispatch_stack(f.principal().await, current)
+            .await
+            .unwrap();
+        let progress = f
             .core
-            .db
-            .call(move |s| {
-                let plan =
-                    s.plan_container(&principal, ContainerAction::Restart, &member, now())?;
-                let approval =
-                    s.approve_container(&principal, &plan.plan.id, &plan.digest, now())?;
-                let queued =
-                    s.queue_container(&principal, "after", &plan, &approval.token, &member, now())?;
-                s.claim_container(&principal, &queued.id, &member, now())
-            })
-            .await;
-        assert!(claimed.is_ok(), "{code:?}");
+            .stack_job_progress(f.token.clone(), job.id.clone(), 0)
+            .await
+            .unwrap();
+        let expected = if released {
+            JobState::PreconditionChanged
+        } else {
+            JobState::Running
+        };
+        assert_eq!(progress.job.state, expected, "{since_expiry}");
+        assert_eq!(missing_events(&progress), 0);
+        assert_eq!(
+            member_claimable(&f, "after").await,
+            released,
+            "{since_expiry}"
+        );
+        let engine = f.engine.lock().unwrap();
+        assert_eq!((engine.executes, engine.receipts), (0, 1));
+        drop(engine);
         f.task.abort();
     }
 }
@@ -1096,13 +1150,14 @@ async fn when_the_lookup_cannot_prove_nothing_was_sent_the_stack_stays_held_unti
             .is_err()
     );
     assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
-    // A later lookup that succeeds and finds no row proves nothing was sent.
+    // A later lookup that succeeds and finds no row proves nothing was sent
+    // only once the plan has expired; until then the job stays held.
     f.engine.lock().unwrap().lookup_unavailable = false;
     f.core
         .dispatch_stack(f.principal().await, current)
         .await
         .unwrap();
-    assert_eq!(f.state(&job).await, JobState::PreconditionChanged);
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
     assert_eq!(f.engine.lock().unwrap().executes, 1);
     f.task.abort();
 }
