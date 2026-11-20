@@ -275,17 +275,99 @@ fn available_space(directory: &Path) -> Result<u64> {
 #[cfg(test)]
 thread_local! {
     static OPEN_FREE_BYTES: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+    /// Tests: the schema-17 index build runs with this page limit, which
+    /// fails it as a full disk would.
+    static UPGRADE_MAX_PAGES: std::cell::Cell<Option<i64>> = const { std::cell::Cell::new(None) };
 }
-/// Free space the upgrade to schema 17 needs for `events` rows: its
-/// indexes take about 52 bytes per event (13 MB at 250,000 events), written
-/// once to the WAL and once to the database file, plus margin, above the
-/// 8 MiB reserve. At most about 42 MiB, at the audit cap.
-const UPGRADE_BYTES_PER_EVENT: u64 = 128;
-fn upgrade_bytes(rows: i64) -> u64 {
-    u64::try_from(rows)
-        .unwrap_or(u64::MAX)
-        .saturating_mul(UPGRADE_BYTES_PER_EVENT)
-        .saturating_add(MIN_FREE_BYTES)
+/// The upgrade to schema 17 (`migration-v17.sql`): what its three indexes
+/// over `events` need, measured from the rows they will hold.
+///
+/// An index entry is its key plus at most [`ENTRY_OVERHEAD`] bytes. The keys
+/// are measured: `job` (64 bytes for a job's event, none for a job-less one),
+/// the event kind's name, and the notification id where there is one. A
+/// sorted build fills its pages nearly full; the safety factor of 4/3 covers
+/// interior pages, page and WAL frame headers and partly filled pages. The
+/// new pages are written once to the WAL and once to the database file (the
+/// WAL keeps its size until the first write after the checkpoint), and the
+/// 8 MiB write reserve must remain afterwards:
+///
+/// `needed = reserve + 2 × 4/3 × entries`, plus twice the largest sort when
+/// it spills to temporary files.
+///
+/// The sort that orders each index's entries runs in memory (`temp_store`),
+/// so it needs no space outside the state directory and cannot fail there
+/// after this check passed. It holds one index at a time: the largest
+/// index's entries plus [`SORT_OVERHEAD`] per row, about 31 MiB at most for
+/// a table at the audit cap whose every event has a job. Above
+/// [`SORT_MEMORY`] (only a table far past the cap) it spills to temporary
+/// files instead, counted as twice its size: in core's private `/tmp`, which
+/// on Raspberry Pi OS shares the root filesystem with the state directory.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct IndexBuild {
+    /// Bytes of the three indexes' entries.
+    entries: u64,
+    /// Bytes of the largest index's sort.
+    sort: u64,
+}
+/// A record header (up to 5 bytes), `cursor` and the rowid (up to 8 each),
+/// the cell's length (2) and its pointer (2).
+const ENTRY_OVERHEAD: u64 = 25;
+/// Per sorted row: SQLite's sorter record (16 bytes) and the allocator's
+/// overhead for it.
+const SORT_OVERHEAD: u64 = 32;
+/// The largest sort kept in memory: a quarter of core's 128 MiB memory limit.
+const SORT_MEMORY: u64 = 32 * 1024 * 1024;
+impl IndexBuild {
+    fn measure(conn: &Connection) -> Result<Self> {
+        let (rows, job, kind, notifications, notification): (i64, i64, i64, i64, i64) = conn
+            .query_row(
+                "SELECT count(*),coalesce(sum(octet_length(job)),0),coalesce(sum(octet_length(json_extract(kind,'$.kind'))),0),count(json_extract(kind,'$.notification')),coalesce(sum(octet_length(json_extract(kind,'$.notification'))),0) FROM events",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .map_err(durable)?;
+        let bytes = |value: i64| u64::try_from(value).unwrap_or(0);
+        Ok(Self::of([
+            (bytes(rows), bytes(job)),
+            (bytes(rows), bytes(kind)),
+            (bytes(notifications), bytes(notification)),
+        ]))
+    }
+    /// From the rows and key bytes of `events_job`, `events_kind` and
+    /// `events_notification`.
+    fn of(indexes: [(u64, u64); 3]) -> Self {
+        let indexes = indexes.map(|(rows, keys)| {
+            (
+                rows,
+                rows.saturating_mul(ENTRY_OVERHEAD).saturating_add(keys),
+            )
+        });
+        Self {
+            entries: indexes
+                .iter()
+                .fold(0, |sum, (_, entries)| sum.saturating_add(*entries)),
+            sort: indexes
+                .iter()
+                .map(|(rows, entries)| entries.saturating_add(rows.saturating_mul(SORT_OVERHEAD)))
+                .max()
+                .unwrap_or(0),
+        }
+    }
+    fn in_memory(self) -> bool {
+        self.sort <= SORT_MEMORY
+    }
+    /// Free space the upgrade needs, the write reserve included.
+    fn needed(self) -> u64 {
+        let pages = self.entries.saturating_mul(4) / 3;
+        let spill = if self.in_memory() {
+            0
+        } else {
+            self.sort.saturating_mul(2)
+        };
+        MIN_FREE_BYTES
+            .saturating_add(pages.saturating_mul(2))
+            .saturating_add(spill)
+    }
 }
 /// A pending schema upgrade that needs more free space than the store's
 /// directory has: what `Store::open` refused, in bytes.
@@ -295,10 +377,48 @@ pub struct UpgradeSpace {
     pub needed: u64,
     pub available: u64,
 }
+/// An index build that ran out of space although the check passed, noted by
+/// `Store::open` for [`upgrade_space`]: the database path and the shortfall.
+static UPGRADE_SHORT: std::sync::Mutex<Option<(PathBuf, UpgradeSpace)>> =
+    std::sync::Mutex::new(None);
+/// The error for a failed index build or startup commit while upgrading: a
+/// full disk is noted (asking for another estimate's worth on top of what
+/// was free) so core logs the same message as for a refused upgrade.
+fn upgrade_failed(
+    path: &Path,
+    from: u32,
+    available: u64,
+    build: IndexBuild,
+    error: rusqlite::Error,
+) -> Error {
+    if (1..SCHEMA_VERSION).contains(&from)
+        && error.sqlite_error_code() == Some(rusqlite::ErrorCode::DiskFull)
+        && let Ok(mut short) = UPGRADE_SHORT.lock()
+    {
+        *short = Some((
+            path.to_path_buf(),
+            UpgradeSpace {
+                from,
+                needed: available.saturating_add(build.needed() - MIN_FREE_BYTES),
+                available,
+            },
+        ));
+    }
+    Error(ErrorCode::StateNotDurable)
+}
 /// After `Database::open` fails: whether a pending upgrade lacks free space,
 /// so the daemon can say how much it needs. Reads the store without changing
 /// it; `None` when no upgrade is pending, it fits, or the store is unreadable.
+/// An upgrade that `Store::open` found short of space mid-build is reported
+/// once, as noted then.
 pub fn upgrade_space(path: &Path) -> Option<UpgradeSpace> {
+    if let Some((_, space)) = UPGRADE_SHORT
+        .lock()
+        .ok()
+        .and_then(|mut short| short.take_if(|(noted, _)| noted == path))
+    {
+        return Some(space);
+    }
     let conn =
         Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
     let from: u32 = conn
@@ -307,11 +427,8 @@ pub fn upgrade_space(path: &Path) -> Option<UpgradeSpace> {
     if !(1..SCHEMA_VERSION).contains(&from) {
         return None;
     }
-    let rows: i64 = conn
-        .query_row("SELECT count(*) FROM events", [], |r| r.get(0))
-        .ok()?;
+    let needed = IndexBuild::measure(&conn).ok()?.needed();
     let available = available_space(path.parent()?).ok()?;
-    let needed = upgrade_bytes(rows);
     (available < needed).then_some(UpgradeSpace {
         from,
         needed,
@@ -390,6 +507,20 @@ impl Store {
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(durable)?;
+        // Measured before the transaction: `temp_store` cannot change inside
+        // one, and no earlier migration touches `events`.
+        let upgrading = (1..SCHEMA_VERSION).contains(&version);
+        let build = if upgrading {
+            IndexBuild::measure(&conn)?
+        } else {
+            IndexBuild::default()
+        };
+        let mut available = 0;
+        if upgrading {
+            let store = if build.in_memory() { "MEMORY" } else { "FILE" };
+            conn.execute_batch(&format!("PRAGMA temp_store={store}"))
+                .map_err(durable)?;
+        }
         let tx = conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(durable)?;
@@ -462,15 +593,19 @@ impl Store {
                 // Version 17 builds three indexes over `events` inside this
                 // transaction. Refuse before building them, writing nothing,
                 // when they would not fit above the free-space reserve; core
-                // then logs the space needed (`upgrade_space`).
-                let rows: i64 = tx
-                    .query_row("SELECT count(*) FROM events", [], |r| r.get(0))
-                    .map_err(durable)?;
-                if available_space(&directory)? < upgrade_bytes(rows) {
+                // then logs the space needed (`upgrade_space`), and also when
+                // the build or the commit runs out of space all the same.
+                available = available_space(&directory)?;
+                if available < build.needed() {
                     return Err(Error(ErrorCode::StateNotDurable));
                 }
+                #[cfg(test)]
+                if let Some(pages) = UPGRADE_MAX_PAGES.get() {
+                    tx.pragma_update(None, "max_page_count", pages)
+                        .map_err(durable)?;
+                }
                 tx.execute_batch(include_str!("migration-v17.sql"))
-                    .map_err(durable)?;
+                    .map_err(|error| upgrade_failed(path, version, available, build, error))?;
             }
             SCHEMA_VERSION => {}
             _ => return Err(Error(ErrorCode::Conflict)),
@@ -516,7 +651,12 @@ impl Store {
             [],
         )
         .map_err(durable)?;
-        tx.commit().map_err(durable)?;
+        tx.commit()
+            .map_err(|error| upgrade_failed(path, version, available, build, error))?;
+        if upgrading {
+            conn.execute_batch("PRAGMA temp_store=DEFAULT")
+                .map_err(durable)?;
+        }
         Ok(Self {
             conn,
             _lock: lock,
