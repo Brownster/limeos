@@ -38,7 +38,10 @@ body refuses. Without a key file, preflight
 refuses unless --no-playback-check is given (then check the dashboard yourself).
 The stack management catalog (/etc/limeos/management-catalog.json, from
 `limeosctl migrate propose-catalog`) must exist: activate.sh starts the stack reader
-with it. Every unit state, the container list, the limeos package state and the
+with it. Without the cgroup2 unified hierarchy and cgroup.kill (kernel 5.14 or
+newer) preflight warns but passes: return.sh --force could then not end a hung
+activation by its scope and would stop without killing anything unless given
+--allow-systemctl-kill-fallback. Every unit state, the container list, the limeos package state and the
 listening ports are recorded as found; a query that times out (30 s) or gives no
 answer refuses, naming it, so a snapshot never holds a blank or guessed state.
 Exit 0: snapshot written and every check passed. Exit 1: refused or failed.
@@ -220,6 +223,9 @@ fct_main() {
     local problem
     problem="$(fct_catalog_problem)"
     [[ -z "${problem}" ]] || refusals+=("stack management catalog: ${problem}")
+    # Transient scopes go to system.slice; return.sh --force ends one through its cgroup.kill.
+    problem="$(fct_cgroup_kill_problem /system.slice)"
+    [[ -z "${problem}" ]] || warnings+=("the cgroup2 unified hierarchy with cgroup.kill is not available (${problem}): return.sh --force could not end a hung activation by its scope and would stop without killing anything, unless run with --allow-systemctl-kill-fallback (systemd then signals the scope's processes by pid, so a pid reused meanwhile could be hit)")
     local running name
     # From the listing recorded above; when docker did not answer that is refused already, and
     # no container is reported as stopped on its account.

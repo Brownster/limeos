@@ -172,6 +172,8 @@ class Harness(unittest.TestCase):
         self.reader_listens()
         self._write("/etc/caddy/Caddyfile", "import /etc/caddy/conf.d/*.caddy\n")
         self._write("/pkg/limeos_1.0.0_arm64.deb", "deb")
+        # The cgroup2 unified hierarchy with cgroup.kill (kernel 5.14 or newer), as on Debian 12.
+        self._write("/sys/fs/cgroup/system.slice/cgroup.kill", "")
         for name in [*FROZEN, *UNTOUCHED]:
             self._unit(name)
         self._unit("caddy.service", "inactive", "disabled")
@@ -668,6 +670,27 @@ class PreflightTests(Harness):
         result = self.preflight(state_list=False)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("/home/holly", (self.snap / "state.sha256").read_text())
+
+    def test_warns_without_refusing_when_cgroup_kill_is_unavailable(self):
+        cases = (("no cgroup.kill", lambda: (self.root / "sys/fs/cgroup/system.slice/cgroup.kill").unlink(),
+                  "has no cgroup.kill (kernel before 5.14)"),
+                 ("not cgroup2", lambda: (self.stub / "cgroupfs-tmpfs").touch(), "is not on a cgroup2 file system"))
+        for label, breakage, reason in cases:
+            with self.subTest(case=label):
+                self.setUp()
+                breakage()
+                result = self.preflight()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("WARN: the cgroup2 unified hierarchy with cgroup.kill is not available", result.stderr)
+                self.assertIn(reason, result.stderr)
+                self.assertIn("return.sh --force could not end a hung activation", result.stderr)
+                self.assertIn("--allow-systemctl-kill-fallback", result.stderr)
+                self.assertIn("cgroup.kill is not available", (self.snap / "findings.txt").read_text())
+        # On a host that has it, nothing is said.
+        self.setUp()
+        result = self.preflight()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("cgroup.kill", result.stderr)
 
     def test_refused_snapshot_blocks_activate(self):
         (self.stub / "free_out").write_text(FREE_OK.replace("6000000000", "1000000000"))
@@ -1294,9 +1317,10 @@ class ActivateTests(Harness):
     def killed(self):
         return bool(self.cgroup_kills()) or self.kill_line() in self.calls()
 
-    def test_forced_return_falls_back_to_systemctl_kill_when_cgroup_kill_cannot_be_used(self):
+    def test_forced_return_kills_nothing_when_cgroup_kill_cannot_be_used_unless_asked(self):
         # The stub cgroup tree: no cgroup.kill (kernel before 5.14), a cgroup.kill that cannot be
-        # written, and a cgroup tree that is not a cgroup2 mount.
+        # written, and a cgroup tree that is not a cgroup2 mount. systemctl kill would signal pids one
+        # by one, so it runs only with --allow-systemctl-kill-fallback.
         cases = (("no-cgroup-kill", "has no cgroup.kill (kernel before 5.14)"),
                  ("cgroup-kill-readonly", "could not write 1 to"),
                  ("cgroupfs-tmpfs", "is not on a cgroup2 file system"))
@@ -1308,7 +1332,23 @@ class ActivateTests(Harness):
                 first = self.stalled_activation()
                 unit = self.scope_unit()
                 (self.stub / flag).touch()
-                result = self.do_return("--force")
+                calls_before = self.mutating_calls()
+                refused = self.do_return("--force")
+                self.assertEqual(refused.returncode, 1, refused.stdout + refused.stderr)
+                err = refused.stderr
+                self.assertIn(reason, err)
+                self.assertIn("Nothing was killed or changed", err)
+                self.assertIn(f"Inspect: systemctl status {unit}; systemd-cgls --unit {unit}", err)
+                self.assertIn(f"systemctl kill --kill-whom=all --signal=KILL {unit}", err)
+                self.assertIn(f"run: return.sh {self.snap}\n", err)
+                self.assertIn(f"return.sh {self.snap} --force --allow-systemctl-kill-fallback", err)
+                self.assertNotIn(self.kill_line(), self.calls())
+                self.assertEqual(self.cgroup_kills(), [])
+                self.assertEqual(self.mutating_calls(), calls_before)
+                self.assertIsNone(first.poll(), "the activation was killed")
+                self.assertFalse((self.snap / "force-takeover").exists())
+                # With the opt-in, the fallback runs.
+                result = self.do_return("--force", "--allow-systemctl-kill-fallback")
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertIn(reason, result.stderr)
                 self.assertIn(f"using systemctl kill --kill-whom=all --signal=KILL {unit} instead", result.stderr)
@@ -1317,6 +1357,16 @@ class ActivateTests(Harness):
                 self.assertEqual(first.wait(timeout=10), -signal.SIGKILL)
                 self.assertEqual(self.marked_pids(self.stub), [])
                 self.assert_returned()
+
+    def test_the_kill_fallback_flag_needs_force(self):
+        self.passing_snapshot()
+        result = self.do_return("--allow-systemctl-kill-fallback")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("--allow-systemctl-kill-fallback applies only with --force", result.stderr)
+        self.assertEqual(self.mutating_calls(), [])
+        usage = self.do_return("--help").stdout
+        self.assertIn("--allow-systemctl-kill-fallback", usage)
+        self.assertIn("pid", usage)
 
     def test_an_attached_activation_runs_in_its_named_scope(self):
         self.passing_snapshot()

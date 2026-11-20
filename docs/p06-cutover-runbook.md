@@ -79,6 +79,13 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    `LoadState`; to confirm on the host which form systemd 252 uses). `activate.sh` and
    `return.sh` refuse, before any change, a snapshot whose `units.txt` has a
    blank, unknown or missing state, as they refuse a missing hash.
+   Preflight also checks that the cgroup2 unified hierarchy with `cgroup.kill`
+   (kernel 5.14 or newer) is available, which `return.sh --force` needs. If not,
+   it passes with `WARN: the cgroup2 unified hierarchy with cgroup.kill is not
+   available (REASON): return.sh --force could not end a hung activation by its
+   scope and would stop without killing anything, unless run with
+   --allow-systemctl-kill-fallback (...)`; decide before the window whether you
+   accept that (see step 7).
 3. Rehearse: `scripts/cutover/activate.sh SNAP --dry-run --package PATH
    --expected-version V --host HOST` prints every command and changes nothing;
    interrupting it never starts a rollback.
@@ -217,11 +224,20 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    `/sys/fs/cgroup/system.slice/UNIT/cgroup.kill` (cgroup v2, kernel 5.14 or
    newer), so the kernel kills `activate.sh`, its automatic rollback and every
    step at once, including any forked during the kill, and nothing outside the
-   scope (a backup started from the same shell is untouched). Only if that file
-   cannot be used (not a cgroup2 mount, an older kernel, a failed write) does it
-   fall back to `systemctl kill --kill-whom=all --signal=KILL UNIT`, where systemd
-   signals each process it finds in the scope; the output says which it used and
-   why. It then waits up to 15 s for the scope to empty
+   scope (a backup started from the same shell is untouched). If that file
+   cannot be used (not a cgroup2 mount, an older kernel, a failed write) it kills
+   nothing: it prints `ERROR: --force: cannot end the activation's scope UNIT
+   through the kernel's cgroup.kill: REASON. Nothing was killed or changed.`,
+   then `Inspect: systemctl status UNIT; systemd-cgls --unit UNIT`, the command
+   to end it yourself once those are the activation's processes (`systemctl kill
+   --kill-whom=all --signal=KILL UNIT`), and `return.sh SNAP` to run once
+   `systemctl is-active UNIT` prints `inactive`. On such a host
+   `return.sh SNAP --force --allow-systemctl-kill-fallback` lets `return.sh` run
+   that `systemctl kill` itself. Caveat: on systemd 252 systemd lists the scope's
+   pids and signals each one, so a process that exits in between can have its pid
+   reused by an unrelated process, which would then be killed; check the scope
+   with `systemd-cgls` first. The output says which kill it used and why. It then
+   waits up to 15 s for the scope to empty
    and only then takes `activate.lock` and returns, holding `return.lock` the
    whole time. If the activation was inside dpkg, run `dpkg --audit` afterwards.
    Before the kill it writes `SNAP/force-takeover` and removes it once the scope

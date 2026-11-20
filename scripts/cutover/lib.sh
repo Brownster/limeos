@@ -128,6 +128,22 @@ fct_scope_unit() { # snapshot_dir
     printf 'limeos-cutover-activate-%s.scope\n' "${digest:0:32}"
 }
 
+# Empty when the kernel's cgroup.kill can end every process of control group CGROUP (a path under
+# /sys/fs/cgroup, such as /system.slice/UNIT) at once, with no pid involved; otherwise why not. It
+# needs the cgroup2 unified hierarchy and kernel 5.14 or newer (the root cgroup has no cgroup.kill).
+fct_cgroup_kill_problem() { # cgroup
+    local base="${CUTOVER_ROOT}/sys/fs/cgroup" dir
+    dir="${base}${1}"
+    if [[ "$(stat -f -c %T -- "${base}" 2>/dev/null || true)" != cgroup2fs \
+            || "$(stat -f -c %T -- "${dir}" 2>/dev/null || true)" != cgroup2fs ]]; then
+        printf '%s is not on a cgroup2 file system (the unified hierarchy)\n' "${dir}"
+    elif [[ -L "${dir}" || ! -d "${dir}" ]]; then
+        printf '%s is not a control group directory\n' "${dir}"
+    elif [[ ! -e "${dir}/cgroup.kill" ]]; then
+        printf '%s has no cgroup.kill (kernel before 5.14)\n' "${dir}"
+    fi
+}
+
 # The snapshot's locks (SNAP/activate.lock on fd 9, SNAP/return.lock on fd 8) record their
 # holder as one line, "ROLE PID START [UNIT]", written by whichever script takes them; an
 # activation adds the transient scope it runs in.

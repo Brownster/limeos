@@ -11,6 +11,9 @@ source "${SCRIPT_DIR}/lib.sh"
 SITE_NAME=limeos-cutover.caddy
 FAILURES=0
 FORCE=0
+# --allow-systemctl-kill-fallback: let --force end the scope with systemctl kill when cgroup.kill
+# cannot be used.
+KILL_FALLBACK=0
 HASHES_CAPTURED=0
 WRITERS_RUNNING=0
 declare -A CURRENT_HASHES=()
@@ -29,7 +32,8 @@ ACTION_TIMEOUT="${CUTOVER_ACTION_TIMEOUT:-180}"
 
 fct_usage() {
     cat <<'USAGE'
-Usage: return.sh SNAPSHOT_DIR [--site-dir DIR] [--force] [--dry-run] [--help]
+Usage: return.sh SNAPSHOT_DIR [--site-dir DIR] [--force [--allow-systemctl-kill-fallback]]
+                 [--dry-run] [--help]
 
 Restores the frozen app from a preflight snapshot. Safe to run repeatedly.
 Exit 0 only when hashes, the managed containers' IDs and StartedAt (from the
@@ -58,10 +62,21 @@ activation's transient scope (limeos-cutover-activate-*.scope) still has
 processes, such as a step that outlived activate.sh.
 
 --force is for a hung activation: it ends the activation by its scope, by
-writing 1 to the scope's cgroup.kill (or, where that cannot be used,
-systemctl kill --kill-whom=all --signal=KILL UNIT): activate.sh, its automatic
-rollback and every step, including any started meanwhile, and nothing outside
-the scope. It waits up to 15 s for the scope to empty, and only then takes
+writing 1 to the scope's cgroup.kill (cgroup v2, kernel 5.14 or newer; the
+kernel kills the whole cgroup at once, no pid involved): activate.sh, its
+automatic rollback and every step, including any started meanwhile, and nothing
+outside the scope. Where cgroup.kill cannot be used (no cgroup2 unified
+hierarchy, an older kernel, a failed write) it stops without killing anything,
+says why, and prints the commands to inspect and end the scope by hand.
+
+--allow-systemctl-kill-fallback (only with --force) lets it fall back to
+systemctl kill --kill-whom=all --signal=KILL UNIT there instead. Caveat: on
+systemd 252 that lists the scope's pids and signals each one, so a process
+that exits in between can have its pid reused by an unrelated process, which
+would then be killed. Use it only on a host without cgroup.kill, after
+checking the scope with systemd-cgls --unit UNIT.
+
+It waits up to 15 s for the scope to empty, and only then takes
 activate.lock and returns. If the scope does not empty (a process in
 uninterruptible I/O), it stops having changed nothing else, lists what is left
 and says what to run next; SNAPSHOT_DIR/force-takeover records the unfinished
@@ -340,30 +355,47 @@ fct_takeover_text() { # snap
     printf 'a forced return (return.sh --force, pid %s, started %s) ended this snapshot'"'"'s activation but' "${pid:-?}" "${started:-?}"
 }
 
-# Kill every process in the scope. Preferably by writing 1 to the scope's cgroup.kill (cgroup v2,
-# kernel 5.14 or newer): the kernel kills the whole cgroup at once, a process forked meanwhile
-# included, and no pid is involved. Only when that file cannot be used (no cgroup2 mount, an
-# older kernel, a failed write) does it fall back to systemctl kill, where systemd lists the
-# cgroup's pids and signals each one. Says which it used.
-fct_kill_scope() { # unit cgroup
-    local unit="${1}" cgroup="${2}" base="${CUTOVER_ROOT}/sys/fs/cgroup" dir why=''
-    dir="${base}${cgroup}"
-    if [[ -z "${cgroup}" ]]; then
-        why="systemd reports no control group for ${unit}"
-    elif [[ "$(stat -f -c %T -- "${base}" 2>/dev/null || true)" != cgroup2fs \
-            || "$(stat -f -c %T -- "${dir}" 2>/dev/null || true)" != cgroup2fs ]]; then
-        why="${dir} is not on a cgroup2 file system"
-    elif [[ -L "${dir}" || ! -d "${dir}" ]]; then
-        why="${dir} is not the scope's control group directory"
-    elif [[ ! -e "${dir}/cgroup.kill" ]]; then
-        why="${dir} has no cgroup.kill (kernel before 5.14)"
-    elif ! { printf '1\n' >"${dir}/cgroup.kill"; } 2>/dev/null; then
-        why="could not write 1 to ${dir}/cgroup.kill"
-    else
-        fct_warn "--force: killed every process in scope ${unit} at once by writing 1 to ${dir}/cgroup.kill (the kernel's cgroup kill; no pid involved)"
-        return 0
+# Why the scope's cgroup.kill cannot be used (empty when it can).
+fct_scope_kill_problem() { # unit cgroup
+    if [[ -z "${2}" ]]; then printf 'systemd reports no control group for %s\n' "${1}"; return 0; fi
+    fct_cgroup_kill_problem "${2}"
+}
+
+# cgroup.kill cannot be used and the fallback was not asked for: stop, having killed and changed
+# nothing, and say exactly how to finish by hand.
+fct_refuse_kill() { # snap unit why
+    {
+        printf "ERROR: --force: cannot end the activation's scope %s through the kernel's cgroup.kill: %s. Nothing was killed or changed.\n" "${2}" "${3}"
+        printf "return.sh does not fall back to systemctl kill by itself: systemd would list the scope's pids and signal each one, and a pid reused in between could belong to an unrelated process.\n"
+        printf 'Inspect: systemctl status %s; systemd-cgls --unit %s\n' "${2}" "${2}"
+        printf "End it yourself, once those are the activation's processes: systemctl kill --kill-whom=all --signal=KILL %s\n" "${2}"
+        printf "Then wait until 'systemctl is-active %s' prints inactive, and run: return.sh %s\n" "${2}" "${1}"
+        printf 'Or let return.sh do that kill, accepting the pid-reuse risk: return.sh %s --force --allow-systemctl-kill-fallback\n' "${1}"
+    } >&2 || true
+    exit 1
+}
+
+# Kill every process in the scope by writing 1 to its cgroup.kill (cgroup v2, kernel 5.14 or
+# newer): the kernel kills the whole cgroup at once, a process forked meanwhile included, and no
+# pid is involved. WHY (from fct_scope_kill_problem) says it cannot be used; then, or when the
+# write fails, only --allow-systemctl-kill-fallback makes it use systemctl kill, where systemd
+# lists the cgroup's pids and signals each one. Otherwise it removes the takeover marker (nothing
+# was ended) and stops. Says which it used.
+fct_kill_scope() { # snap unit cgroup why
+    local snap="${1}" unit="${2}" cgroup="${3}" why="${4}" file
+    if [[ -z "${why}" ]]; then
+        file="${CUTOVER_ROOT}/sys/fs/cgroup${cgroup}/cgroup.kill"
+        if { printf '1\n' >"${file}"; } 2>/dev/null; then
+            fct_warn "--force: killed every process in scope ${unit} at once by writing 1 to ${file} (the kernel's cgroup kill; no pid involved)"
+            return 0
+        fi
+        why="could not write 1 to ${file}"
+        if (( ! KILL_FALLBACK )); then
+            rm -f -- "${snap}/${TAKEOVER}" || fct_warn "could not remove ${snap}/${TAKEOVER}"
+            fct_refuse_kill "${snap}" "${unit}" "${why}"
+        fi
     fi
-    fct_warn "--force: ${why}; using systemctl kill --kill-whom=all --signal=KILL ${unit} instead (systemd signals each process it finds in the scope)"
+    fct_warn "--force: ${why}; using systemctl kill --kill-whom=all --signal=KILL ${unit} instead (--allow-systemctl-kill-fallback: systemd signals each process it finds in the scope by pid, so a pid reused meanwhile could be hit)"
     # Fails harmlessly when the unit no longer exists (the scope has emptied already). systemd
     # rereads the cgroup until it finds no new process, and a process with SIGKILL pending
     # cannot complete a fork.
@@ -372,13 +404,16 @@ fct_kill_scope() { # unit cgroup
 
 # --force: end the activation by its scope, not by pid (fct_kill_scope), touching nothing
 # outside it. Waits, bounded, for the scope to empty; if it does not, stops having changed
-# nothing else, holding no lock, and leaves the marker for the next return.sh.
+# nothing else, holding no lock, and leaves the marker for the next return.sh. When cgroup.kill
+# cannot be used and the fallback was not asked for, stops before writing the marker.
 fct_end_scope() { # snap unit cgroup
-    local snap="${1}" unit="${2}" cgroup="${3}" deadline
+    local snap="${1}" unit="${2}" cgroup="${3}" deadline why
+    why="$(fct_scope_kill_problem "${unit}" "${cgroup}")"
+    if [[ -n "${why}" ]] && (( ! KILL_FALLBACK )); then fct_refuse_kill "${snap}" "${unit}" "${why}"; fi
     printf 'unit=%s\npid=%s\nstarted=%s\n' "${unit}" "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"${snap}/${TAKEOVER}" \
         || fct_warn "could not record the takeover in ${snap}/${TAKEOVER}"
     fct_warn "--force: ending the activation, every process in scope ${unit} (activate.sh, its rollback and its steps); if it was inside dpkg, run dpkg --audit after this return"
-    fct_kill_scope "${unit}" "${cgroup}"
+    fct_kill_scope "${snap}" "${unit}" "${cgroup}" "${why}"
     deadline=$(( SECONDS + FORCE_WAIT ))
     local empty
     while :; do
@@ -558,12 +593,14 @@ fct_main() {
             --dry-run) DRY_RUN=1; shift ;;
             --site-dir) site_dir="${2:?--site-dir needs a directory}"; shift 2 ;;
             --force) FORCE=1; shift ;;
+            --allow-systemctl-kill-fallback) KILL_FALLBACK=1; shift ;;
             -h|--help) fct_usage; return 0 ;;
             -*) fct_usage >&2; fct_die "unknown argument: ${1}" ;;
             *) [[ -z "${snap}" ]] || fct_die 'only one snapshot directory is accepted'; snap="${1}"; shift ;;
         esac
     done
     [[ -n "${snap}" ]] || { fct_usage >&2; fct_die 'a snapshot directory is required'; }
+    if (( KILL_FALLBACK && ! FORCE )); then fct_die '--allow-systemctl-kill-fallback applies only with --force'; fi
     fct_require_root
     fct_snapshot_check "${snap}" 0 "This return cannot follow it: write the state the unit had before the cutover into ${snap}/units.txt as 'managed UNIT ACTIVE ENABLED' (for example 'managed pi-health.service active enabled') and run return.sh again, or restore by hand (docs/p06-cutover-runbook.md)."
     if (( ! DRY_RUN )); then fct_lock_snapshot "${snap}"; fi
