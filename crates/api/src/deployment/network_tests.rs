@@ -93,7 +93,7 @@ struct Stub {
     oversize: bool,
     source_missing: bool,
 }
-impl Backend for Stub {
+impl TestBackend for Stub {
     async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
     }
@@ -136,22 +136,22 @@ impl DeploymentBackend for Stub {
 }
 #[derive(Clone, Default)]
 struct Unregistered(Stub);
-impl Backend for Unregistered {
+impl TestBackend for Unregistered {
     async fn login(
         &self,
         input: Login,
         attempt: PasswordAttempt,
     ) -> PasswordChecked<IssuedSession> {
-        self.0.login(input, attempt).await
+        TestBackend::login(&self.0, input, attempt).await
     }
     async fn logout(&self, token: String, csrf: String) -> Result<()> {
-        self.0.logout(token, csrf).await
+        TestBackend::logout(&self.0, token, csrf).await
     }
     async fn health(&self) -> Result<Health> {
-        self.0.health().await
+        TestBackend::health(&self.0).await
     }
     async fn session(&self, token: String, csrf: Option<String>) -> Result<SessionView> {
-        self.0.session(token, csrf).await
+        TestBackend::session(&self.0, token, csrf).await
     }
 }
 impl DeploymentBackend for Unregistered {}

@@ -10,7 +10,7 @@ pub(crate) struct ReadBackend {
     changes: tokio::sync::watch::Sender<u64>,
     size: usize,
 }
-impl Backend for ReadBackend {
+impl TestBackend for ReadBackend {
     async fn container_storage_inventory(
         &self,
         _: String,

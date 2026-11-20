@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use tower::ServiceExt;
 #[derive(Clone)]
 struct Mutations(Arc<AtomicUsize>);
-impl Backend for Mutations {
+impl TestBackend for Mutations {
     async fn plan_storage_mount(
         &self,
         _: String,

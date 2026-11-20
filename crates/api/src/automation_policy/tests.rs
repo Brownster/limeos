@@ -9,7 +9,7 @@ struct Stub {
     value: HealthPolicyView,
     calls: Arc<AtomicUsize>,
 }
-impl Backend for Stub {
+impl TestBackend for Stub {
     async fn login(&self, _: Login, _: PasswordAttempt) -> PasswordChecked<IssuedSession> {
         PasswordChecked::rejected()
     }
