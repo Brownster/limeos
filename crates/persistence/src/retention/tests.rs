@@ -367,6 +367,217 @@ fn stale_cursors_get_the_job_snapshot_and_never_a_gap() {
     );
 }
 
+/// Events in the long-history fixture: a health-probe-like job cycling
+/// through `verifying` and `outcome_unknown` before it settles.
+const LONG: i64 = 50_000;
+
+/// A queued container job owned by `actor`.
+fn container(store: &mut Store, actor: &Principal, key: &str, byte: &str) -> String {
+    let before = limeos_domain::ContainerSnapshot {
+        resource: format!("container:{}", byte.repeat(64)),
+        image: format!("sha256:{}", "b".repeat(64)),
+        started_at: "2026-10-05T07:00:00Z".into(),
+        running: true,
+    };
+    let plan = store.plan_restart(actor, &before, 200).unwrap();
+    let approval = store
+        .approve_container(actor, &plan.plan.id, &plan.digest, 201)
+        .unwrap();
+    store
+        .queue_container(actor, key, &plan, &approval.token, &before, 202)
+        .unwrap()
+        .id
+}
+
+/// A container job with `LONG` events: queued, running, verifying, then
+/// `outcome_unknown`/`verifying` cycles, then succeeded. The state changes
+/// run through the jobs triggers; the cycles are bulk-inserted and accounted.
+fn long_history(store: &mut Store, actor: &Principal, now: i64) -> String {
+    let job = container(store, actor, "long", "d");
+    let transition = |state| json(&EventKind::JobTransition { state }).unwrap();
+    let (unknown, verifying) = (
+        transition(JobState::OutcomeUnknown),
+        transition(JobState::Verifying),
+    );
+    let cycles = LONG - 4;
+    assert_eq!(cycles % 2, 0);
+    store
+        .write(|tx| {
+            for state in [JobState::Running, JobState::Verifying] {
+                tx.execute(
+                    "UPDATE jobs SET state=? WHERE id=?",
+                    params![state.as_str(), job],
+                )
+                .map_err(durable)?;
+                event(tx, Some(&actor.id), Some(&job), EventKind::JobTransition { state }, now)?;
+            }
+            let added = tx.execute("WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<?) INSERT INTO events(principal,job,kind,created) SELECT ?,?,CASE x%2 WHEN 1 THEN ? ELSE ? END,? FROM c", params![cycles, actor.id, job, unknown, verifying, now]).map_err(durable)?;
+            account(tx, added as i64)?;
+            tx.execute("UPDATE jobs SET state='succeeded' WHERE id=?", [&job])
+                .map_err(durable)?;
+            event(
+                tx,
+                Some(&actor.id),
+                Some(&job),
+                EventKind::JobTransition {
+                    state: JobState::Succeeded,
+                },
+                now,
+            )
+        })
+        .unwrap();
+    assert_eq!(count(store, &job), LONG);
+    job
+}
+fn count(store: &Store, job: &str) -> i64 {
+    store
+        .conn
+        .query_row("SELECT count(*) FROM events WHERE job=?", [job], |r| {
+            r.get(0)
+        })
+        .unwrap()
+}
+
+#[test]
+fn the_retained_history_mark_is_the_job_queued_event() {
+    assert!(RETAINED_HISTORY.contains(&format!(
+        "q.kind='{}'",
+        json(&EventKind::JobQueued).unwrap()
+    )));
+}
+
+/// A settled job with 50,000 events is removed in transactions of at most
+/// one batch, and after every one of them each reader sees the job either
+/// with its whole history or with none, for any cursor.
+#[test]
+fn a_long_history_is_pruned_in_bounded_batches_and_never_read_partially() {
+    let (_dir, mut store, actor) = setup();
+    let job = long_history(&mut store, &actor, 300);
+    let first = store.container_events(&actor, &job, 0).unwrap();
+    assert_eq!(first.len(), 128);
+    let middle = job_events(&store, &job)[(LONG / 2) as usize].0;
+    let later = store.container_events(&actor, &job, middle).unwrap();
+    assert_eq!(later.len(), 128);
+    fill(&mut store, &actor.id, BUDGET_ROWS, 301);
+    let mut passes = 0;
+    loop {
+        let changes = |store: &Store| -> i64 {
+            store
+                .conn
+                .query_row("SELECT total_changes()", [], |r| r.get(0))
+                .unwrap()
+        };
+        let before = changes(&store);
+        let removed = store.prune().unwrap();
+        // Each rule is one transaction: its deletes plus the counter update.
+        for (table, rows) in &removed {
+            assert!(*rows <= EVENT_BATCH, "{table}: {rows} rows in one batch");
+        }
+        assert!(changes(&store) - before <= removed.len() as i64 * (EVENT_BATCH + 1));
+        let left = count(&store, &job);
+        if left == LONG {
+            assert_eq!(store.container_events(&actor, &job, 0).unwrap(), first);
+            assert_eq!(store.container_events(&actor, &job, middle).unwrap(), later);
+        } else {
+            for after in [0, first[0].cursor, middle, middle + LONG] {
+                assert!(
+                    store
+                        .container_events(&actor, &job, after)
+                        .unwrap()
+                        .is_empty(),
+                    "partial history visible with {left} events left"
+                );
+            }
+        }
+        if removed.is_empty() {
+            break;
+        }
+        passes += 1;
+    }
+    assert_eq!(count(&store, &job), 0);
+    assert!(passes >= LONG / EVENT_BATCH);
+    assert_eq!(
+        store.container_job(&actor, &job).unwrap().state,
+        JobState::Succeeded
+    );
+    assert_eq!(audit(&store), events(&store) * EVENT_BYTES);
+}
+
+#[test]
+fn prune_between_passes_helper() {
+    let Some(path) = std::env::var_os("LIMEOS_PRUNE_BETWEEN_PATH") else {
+        return;
+    };
+    let ready = std::env::var_os("LIMEOS_PRUNE_READY_PATH").unwrap();
+    let mut store = Store::open(Path::new(&path)).unwrap();
+    let actor = scale::actor(&mut store);
+    let job = long_history(&mut store, &actor, 300);
+    fill(&mut store, &actor.id, BUDGET_ROWS, 301);
+    while count(&store, &job) == LONG {
+        store.prune().unwrap();
+    }
+    assert!(count(&store, &job) > 0);
+    // Committed passes only: the parent kills this process here.
+    std::fs::write(&ready, job.as_bytes()).unwrap();
+    loop {
+        std::thread::park();
+    }
+}
+
+#[test]
+fn a_kill_between_passes_leaves_a_pruned_job_and_resumes() {
+    use std::os::unix::process::ExitStatusExt;
+    struct ChildGuard(std::process::Child);
+    impl Drop for ChildGuard {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("core.sqlite");
+    let ready = path.with_extension("ready");
+    let mut child = ChildGuard(
+        std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "retention::tests::prune_between_passes_helper"])
+            .env("LIMEOS_PRUNE_BETWEEN_PATH", &path)
+            .env("LIMEOS_PRUNE_READY_PATH", &ready)
+            .spawn()
+            .unwrap(),
+    );
+    for _ in 0..6000 {
+        if ready.exists() {
+            break;
+        }
+        assert!(child.0.try_wait().unwrap().is_none());
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // The file is written in one call; wait for its contents.
+    let mut job = String::new();
+    for _ in 0..100 {
+        job = std::fs::read_to_string(&ready).unwrap_or_default();
+        if !job.is_empty() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(!job.is_empty());
+    child.0.kill().unwrap();
+    assert_eq!(child.0.wait().unwrap().signal(), Some(9));
+    let mut store = Store::open(&path).unwrap();
+    resources::check(&store.conn).unwrap();
+    let actor = store.login_record("alice").unwrap().unwrap().principal;
+    let left = count(&store, &job);
+    assert!(0 < left && left < LONG);
+    assert!(store.container_events(&actor, &job, 0).unwrap().is_empty());
+    assert_eq!(audit(&store), events(&store) * EVENT_BYTES);
+    drain(&mut store);
+    assert_eq!(count(&store, &job), 0);
+    assert_eq!(audit(&store), events(&store) * EVENT_BYTES);
+    drop(store);
+    Store::open(&path).unwrap();
+}
+
 #[test]
 fn prune_crash_helper() {
     let Some(path) = std::env::var_os("LIMEOS_PRUNE_CRASH_PATH") else {

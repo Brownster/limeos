@@ -33,10 +33,19 @@
 //!   policy-check proofs. Any other job-less `automation_*` kind is pinned too
 //!   unless listed in [`UNREAD_AUTOMATION_KINDS`], so a future kind fails safe.
 //!
-//! A job's events are removed together, so a per-job reader
-//! (`container_events`, `stack_events`) sees either a job's whole history or
-//! none of it, never a gap. The job row itself, with its final state, is never
-//! removed, and serves as the snapshot when its history is gone.
+//! Every batch removes at most its limit of rows, oldest first by cursor, so a
+//! job with a long history (a health probe cycling through `verifying` and
+//! `outcome_unknown`) is removed over several passes. A job's `job_queued`
+//! event is written with the job row and is its oldest event, and a job's
+//! events all become eligible together (a settled job never becomes unsettled
+//! again), so the first batch that touches a job removes `job_queued`. Its
+//! absence is the durable "pruned" mark: a per-job reader (`container_events`,
+//! `stack_events`) filters on [`RETAINED_HISTORY`] and so sees either a job's
+//! whole history or none of it, never a gap, while later passes remove the
+//! rest. Nothing else is needed for crash safety: each batch commits on its
+//! own and the startup check reads no settled job's history. The job row
+//! itself, with its final state, is never removed, and serves as the snapshot
+//! when its history is gone.
 //!
 //! Occurrences (mirroring the `automation_occurrence_delete` trigger):
 //! - An occurrence whose job is not `succeeded`, `failed`, `canceled` or
@@ -94,6 +103,11 @@ fn loose() -> String {
         "e.job IS NULL AND (json_extract(e.kind,'$.kind') NOT GLOB 'automation_*' OR json_extract(e.kind,'$.kind') IN ({unread}))"
     )
 }
+/// True while the job of the `events` row in scope still has its whole
+/// history: retention removes a job's `job_queued` event, its oldest, in the
+/// first batch that touches it. Per-job readers add this to their filter.
+pub(super) const RETAINED_HISTORY: &str =
+    r#"EXISTS(SELECT 1 FROM events q WHERE q.job=events.job AND q.kind='{"kind":"job_queued"}')"#;
 /// A settled job whose history no check, lock or open request needs.
 const SETTLED: &str = "j.state IN ('succeeded','failed','canceled','precondition_changed','resolved') AND json_extract(j.intent,'$.operation') NOT IN ('automation_observe_health','storage_mount') AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND r.confirmation IS NULL)";
 
@@ -101,7 +115,7 @@ struct Rule {
     table: &'static str,
     /// Rows kept before pruning starts.
     budget: i64,
-    /// Most rows one batch removes (whole jobs may add a few more).
+    /// Most rows one batch (one transaction) removes.
     batch: i64,
     rows: fn(&Connection) -> Result<i64>,
     prune: fn(&Transaction<'_>, i64) -> Result<i64>,
@@ -170,7 +184,8 @@ fn occurrences(conn: &Connection) -> Result<i64> {
     .map_err(durable)
 }
 
-/// Removes the oldest `limit` eligible events, completing any job they touch.
+/// Removes the oldest `limit` eligible events, and never more: a job whose
+/// history is longer is finished by later passes (see [`RETAINED_HISTORY`]).
 fn prune_events(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
     let loose = loose();
     let horizon: Option<i64> = tx
@@ -183,6 +198,8 @@ fn prune_events(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
     let Some(horizon) = horizon else {
         return Ok(0);
     };
+    // Eligibility does not change inside the transaction, so the two deletes
+    // remove exactly the rows selected above.
     let mut removed = tx
         .execute(
             &format!("DELETE FROM events AS e WHERE e.cursor<=? AND {loose}"),
@@ -193,7 +210,7 @@ fn prune_events(tx: &Transaction<'_>, limit: i64) -> Result<i64> {
     tests::pause_mid_batch();
     removed += tx
         .execute(
-            &format!("DELETE FROM events WHERE job IN (SELECT e.job FROM events e JOIN jobs j ON j.id=e.job WHERE e.cursor<=? AND {SETTLED})"),
+            &format!("DELETE FROM events AS e WHERE e.cursor<=? AND e.job IN (SELECT j.id FROM jobs j WHERE {SETTLED})"),
             [horizon],
         )
         .map_err(durable)?;
