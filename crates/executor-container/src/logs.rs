@@ -1,7 +1,11 @@
 //! Bounded container log reads: the newest whole lines, terminal controls
 //! stripped, private keys and credential-bearing lines redacted.
 //!
-//! Redaction is line based. Key blocks with their BEGIN/END markers are
+//! Redaction is line based. A line is credential-bearing by structure, not
+//! because a word such as "token" appears in prose: a sensitive key given a
+//! value (`password=`, `"api_key":`, `Cookie:`), or a value of a known secret
+//! shape (a bearer credential, a JWT, cloud and service key prefixes, URL
+//! userinfo). Key blocks with their BEGIN/END markers are
 //! reliable; a key body without markers (its BEGIN dropped by the Engine's
 //! tail or our window, its END never written) is caught only best effort, by
 //! withholding leading lines that look like one. A known limit: the Engine
@@ -252,36 +256,201 @@ fn render<'a>(clean: &'a str, mut emit: impl FnMut(&'a str)) -> bool {
     }
     omitted
 }
+/// Whether a line carries a credential, judged by structure rather than by
+/// words in prose: a sensitive key given a value, or a value with a known
+/// secret shape. Each scan reads the line's bytes once or a bounded number
+/// of bytes per position, so the cost is linear in the line.
 fn credential(line: &str) -> bool {
-    let lower = line.to_ascii_lowercase();
-    [
-        "password",
-        "passwd",
-        "passphrase",
-        "secret",
-        "api_key",
-        "api-key",
-        "apikey",
-        "token",
-        "authorization",
-        "bearer ",
-        "ghp_",
-        "github_pat_",
-        "sk-ant-",
-        "sk-proj-",
-        "x-amz-credential",
-        "x-amz-signature",
-        "x-goog-signature",
-    ]
-    .iter()
-    .any(|marker| lower.contains(marker))
-        || lower.split_whitespace().any(|part| {
+    let bytes = line.as_bytes();
+    keyed_secret(bytes)
+        || (0..bytes.len()).any(|at| secret_shape(bytes, at))
+        || line.split_whitespace().any(|part| {
             part.split_once("://")
                 .is_some_and(|(_, rest)| rest.split('/').next().unwrap_or_default().contains('@'))
         })
-        || lower
-            .split(|c: char| c.is_whitespace() || "\"'=:,[]{}".contains(c))
-            .any(|part| part.starts_with("sk-") && part.len() >= 16)
+}
+fn alnum(b: u8) -> bool {
+    b.is_ascii_alphanumeric()
+}
+fn key_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.')
+}
+/// A sensitive key name followed by a separator and a value: `key=value`,
+/// `key: value`, `"key":"value"`, `key = 'value'`, a header or a query
+/// parameter. A key is a maximal run of letters, digits, `_`, `-` and `.`.
+fn keyed_secret(bytes: &[u8]) -> bool {
+    let mut at = 0;
+    while at < bytes.len() {
+        let end = bytes
+            .get(at..)
+            .and_then(|rest| rest.iter().position(|&b| !key_byte(b)))
+            .map_or(bytes.len(), |len| at + len);
+        if end == at {
+            at += 1;
+            continue;
+        }
+        if sensitive_key(bytes.get(at..end).unwrap_or_default())
+            && has_value(bytes.get(end..).unwrap_or_default())
+        {
+            return true;
+        }
+        at = end;
+    }
+    false
+}
+/// After a key: an optional closing quote, spaces, `=` or `:`, spaces, an
+/// optional opening quote, then at least one byte of value.
+fn has_value(rest: &[u8]) -> bool {
+    let mut rest = rest.iter().copied().peekable();
+    rest.next_if(|&b| matches!(b, b'"' | b'\''));
+    while rest.next_if(|&b| matches!(b, b' ' | b'\t')).is_some() {}
+    if rest.next_if(|&b| matches!(b, b'=' | b':')).is_none() {
+        return false;
+    }
+    while rest.next_if(|&b| matches!(b, b' ' | b'\t')).is_some() {}
+    rest.next_if(|&b| matches!(b, b'"' | b'\''));
+    rest.next().is_some_and(|b| {
+        !b.is_ascii_whitespace() && !matches!(b, b'"' | b'\'' | b',' | b'}' | b';' | b'&')
+    })
+}
+/// Words that make a key component sensitive when it ends with one.
+const KEY_SUFFIXES: &[&[u8]] = &[
+    b"password",
+    b"passwd",
+    b"passphrase",
+    b"secret",
+    b"token",
+    b"apikey",
+    b"privatekey",
+    b"credential",
+    b"credentials",
+    b"cookie",
+    b"signature",
+];
+/// Words that make a key component sensitive only when it is exactly one.
+const KEY_WORDS: &[&[u8]] = &[b"session", b"sessionid", b"authorization", b"auth"];
+/// A key whose name has a sensitive component. Components are split at `_`,
+/// `-`, `.` and a lower-case letter or digit followed by an upper-case one
+/// (`accessToken`); `api` or `private` followed by `key` counts as one.
+fn sensitive_key(key: &[u8]) -> bool {
+    let mut previous = Vec::new();
+    for word in key.split(|&b| matches!(b, b'_' | b'-' | b'.')) {
+        let mut start = 0;
+        for at in 1..=word.len() {
+            let camel = matches!(
+                (word.get(at - 1), word.get(at)),
+                (Some(a), Some(b))
+                    if (a.is_ascii_lowercase() || a.is_ascii_digit()) && b.is_ascii_uppercase()
+            );
+            if at < word.len() && !camel {
+                continue;
+            }
+            let part = word.get(start..at).unwrap_or_default().to_ascii_lowercase();
+            start = at;
+            if KEY_SUFFIXES.iter().any(|suffix| part.ends_with(suffix))
+                || KEY_WORDS.contains(&part.as_slice())
+                || (part == b"key" && matches!(previous.as_slice(), b"api" | b"private"))
+            {
+                return true;
+            }
+            previous = part;
+        }
+    }
+    false
+}
+/// Whether a known secret value starts at `at`. Every check reads at most a
+/// fixed number of bytes, except the JWT scan, which starts only where the
+/// previous byte cannot belong to a JWT and so never rereads one.
+fn secret_shape(bytes: &[u8], at: usize) -> bool {
+    let previous = at.checked_sub(1).and_then(|p| bytes.get(p)).copied();
+    if previous.is_some_and(|b| b.is_ascii_alphanumeric()) {
+        return false;
+    }
+    let rest = bytes.get(at..).unwrap_or_default();
+    let run = |from: usize, len: usize, allowed: fn(u8) -> bool| {
+        rest.get(from..from + len)
+            .is_some_and(|run| run.iter().all(|&b| allowed(b)))
+    };
+    let after = |len: usize| rest.get(len).is_none_or(|b| !b.is_ascii_alphanumeric());
+    // AWS access key id: AKIA or ASIA and 16 upper-case letters or digits.
+    if (rest.starts_with(b"AKIA") || rest.starts_with(b"ASIA"))
+        && run(4, 16, |b| b.is_ascii_uppercase() || b.is_ascii_digit())
+        && after(20)
+    {
+        return true;
+    }
+    // GitHub tokens.
+    if [b"ghp_", b"gho_", b"ghs_", b"ghu_", b"ghr_"]
+        .iter()
+        .any(|prefix| rest.starts_with(*prefix))
+        && run(4, 20, alnum)
+    {
+        return true;
+    }
+    if rest.starts_with(b"github_pat_") && run(11, 20, |b| alnum(b) || b == b'_') {
+        return true;
+    }
+    // Slack tokens: xoxb-, xoxa-, xoxp-, xoxr-, xoxs-.
+    if rest.starts_with(b"xox")
+        && rest.get(3).is_some_and(|b| b"baprs".contains(b))
+        && rest.get(4) == Some(&b'-')
+        && run(5, 10, |b| alnum(b) || b == b'-')
+    {
+        return true;
+    }
+    // API keys in the sk- form (OpenAI, Anthropic): 20 or more key bytes
+    // with a digit among the first 64, so `sk-learn-compatible` survives.
+    if rest.starts_with(b"sk-") {
+        let key = rest
+            .get(3..)
+            .unwrap_or_default()
+            .iter()
+            .take(64)
+            .take_while(|&&b| alnum(b) || matches!(b, b'_' | b'-'));
+        let (len, digit) = key.fold((0, false), |(len, digit), b| {
+            (len + 1, digit || b.is_ascii_digit())
+        });
+        if len >= 20 && digit {
+            return true;
+        }
+    }
+    // Bearer credentials: the scheme, spaces, then 8 or more token68 bytes.
+    if rest
+        .get(..6)
+        .is_some_and(|word| word.eq_ignore_ascii_case(b"bearer"))
+    {
+        let spaces = rest
+            .get(6..)
+            .unwrap_or_default()
+            .iter()
+            .take(16)
+            .take_while(|&&b| matches!(b, b' ' | b'\t'))
+            .count();
+        let token68 =
+            |b: u8| alnum(b) || matches!(b, b'-' | b'.' | b'_' | b'~' | b'+' | b'/' | b'=');
+        if spaces > 0 && run(6 + spaces, 8, token68) {
+            return true;
+        }
+    }
+    // JWT: base64url header starting `eyJ`, a dot, a non-empty payload and a
+    // second dot (the signature may be empty).
+    let jwt = |b: u8| alnum(b) || matches!(b, b'_' | b'-');
+    if rest.starts_with(b"eyJ") && !previous.is_some_and(|b| jwt(b) || b == b'.') {
+        let header = rest.iter().take_while(|&&b| jwt(b)).count();
+        let payload = rest
+            .get(header + 1..)
+            .unwrap_or_default()
+            .iter()
+            .take_while(|&&b| jwt(b))
+            .count();
+        if rest.get(header) == Some(&b'.')
+            && payload > 0
+            && rest.get(header + 1 + payload) == Some(&b'.')
+        {
+            return true;
+        }
+    }
+    false
 }
 
 fn strip_controls(value: &str) -> String {
@@ -589,6 +758,219 @@ mod tests {
         let value = decode_all(&frame(1, raw.as_bytes()), false).unwrap();
         assert_eq!(value.text, format!("before\n{LONG_LINE}after\n"));
         assert!(value.truncated);
+    }
+    /// `line` after an ordinary leading line, so the leading key-body rule
+    /// never applies: what the credential filter alone makes of it.
+    fn filtered(line: &str) -> String {
+        let raw = format!("start\n{line}\n");
+        let value = decode_all(raw.as_bytes(), true).unwrap();
+        value.text.strip_prefix("start\n").unwrap().to_owned()
+    }
+    const JWT: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+    /// Secrets recognised by shape alone, wherever they appear.
+    const SHAPES: &[&str] = &[
+        "Bearer abcDEF123456",
+        "bearer abc.DEF-123_456~+/==",
+        "BEARER Zm9vYmFyYmF6cXV4",
+        JWT,
+        "eyJhbGciOiJub25lIn0.eyJzdWIiOiIxIn0.",
+        "AKIAIOSFODNN7EXAMPLE",
+        "ASIAY34FZKBOKMUTVV7A",
+        "ghp_16C7e42F292c6912E7710c838347Ae178B4a",
+        "gho_16C7e42F292c6912E7710c838347Ae178B4a",
+        "ghs_16C7e42F292c6912E7710c838347Ae178B4a",
+        "github_pat_11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyz",
+        "xoxb-123456789012-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx",
+        "xoxp-123456789012-123456789012-abcdef0123456789",
+        "xoxa-2-123456789012-abcdef",
+        "sk-ant-api03-abcdefghijklmnop0123456789",
+        "sk-proj-abcdefghijklmnopqrstuvwxyz012345",
+        "https://user:hunter2@example.com/repo.git",
+        "postgres://app:s3cret@db:5432/app",
+        "https://x-access-token:abc123@github.com/o/r",
+    ];
+    /// Surroundings a shape is redacted in.
+    const CONTEXTS: &[&str] = &[
+        "{}",
+        "INFO using {} for upstream",
+        "\"{}\"",
+        "header={}",
+        r#"{"msg":"auth","value":"{}","n":1}"#,
+        "GET /cb?q=1&v={}&next=/ HTTP/1.1",
+        "(credential {})",
+        "got {}.",
+        "2026-11-19T00:00:00.000000001Z {}",
+    ];
+    #[test]
+    fn secret_shapes_are_redacted_in_every_context() {
+        for shape in SHAPES {
+            for context in CONTEXTS {
+                let line = context.replace("{}", shape);
+                assert_eq!(filtered(&line), CREDENTIAL_REDACTED, "{line:?}");
+            }
+        }
+    }
+    /// Key names whose value is a secret, written as applications do.
+    const KEYS: &[&str] = &[
+        "token",
+        "access_token",
+        "refresh-token",
+        "X-Auth-Token",
+        "accessToken",
+        "csrftoken",
+        "secret",
+        "client_secret",
+        "AWS_SECRET_ACCESS_KEY",
+        "password",
+        "db_password",
+        "PGPASSWORD",
+        "MYSQL_ROOT_PASSWORD",
+        "passwd",
+        "passphrase",
+        "api_key",
+        "api-key",
+        "apikey",
+        "X-Api-Key",
+        "apiKey",
+        "APIKey",
+        "authorization",
+        "Authorization",
+        "cookie",
+        "Cookie",
+        "set-cookie",
+        "Set-Cookie",
+        "session",
+        "session_id",
+        "sessionId",
+        "SESSION",
+        "private_key",
+        "credentials",
+        "X-Amz-Credential",
+        "X-Amz-Signature",
+        "X-Goog-Signature",
+        "--password",
+        "config.auth.token",
+    ];
+    /// The ways a key and its value are written.
+    const FORMS: &[&str] = &[
+        "{}=v4lue",
+        "{}: v4lue",
+        "{} = \"v4lue\"",
+        r#"{"user":"bob","{}":"v4lue"}"#,
+        r#"{"{}" : "v4lue"}"#,
+        "'{}': 'v4lue'",
+        "level=info {}=v4lue user=bob",
+        "GET /login?user=bob&{}=v4lue HTTP/1.1",
+        "{}:v4lue; Path=/",
+        "export {}=v4lue",
+    ];
+    #[test]
+    fn sensitive_keys_are_redacted_in_every_form() {
+        for key in KEYS {
+            for form in FORMS {
+                let line = form.replace("{}", key);
+                assert_eq!(filtered(&line), CREDENTIAL_REDACTED, "{line:?}");
+            }
+        }
+    }
+    #[test]
+    fn ordinary_lines_that_only_mention_a_sensitive_word_survive() {
+        let digest = "a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4";
+        for line in [
+            "processed 4096 tokens".to_owned(),
+            "session started".to_owned(),
+            "secretary".to_owned(),
+            "the token bucket refilled".to_owned(),
+            "id=550e8400-e29b-41d4-a716-446655440000 ready".to_owned(),
+            format!("pulling docker.io/library/nginx@sha256:{digest}"),
+            format!("image=nginx@sha256:{digest}"),
+            "password reset email sent to user".to_owned(),
+            "tokenizer loaded".to_owned(),
+            "max_tokens=4096 prompt_tokens: 12".to_owned(),
+            r#"{"usage":{"prompt_tokens":12,"completion_tokens":40}}"#.to_owned(),
+            r#"{"event":"token_refreshed","user":"bob"}"#.to_owned(),
+            r#"{"type":"session","id":5}"#.to_owned(),
+            "msg=\"login failed for bob: password mismatch\"".to_owned(),
+            "authorization failed for user bob".to_owned(),
+            "the bearer of bad news".to_owned(),
+            "Bearer token required".to_owned(),
+            "secrets are mounted read-only".to_owned(),
+            "active_sessions=5".to_owned(),
+            "connected to postgres://db:5432/app".to_owned(),
+            "risk-free reconciliation done in 12ms".to_owned(),
+            "skipped 3 jobs".to_owned(),
+            "2026-11-19T00:00:00.000000001Z GET /health 200".to_owned(),
+            "Ünïcödé session 😀 started".to_owned(),
+        ] {
+            assert_eq!(filtered(&line), format!("{line}\n"), "{line:?}");
+        }
+    }
+    #[test]
+    fn redaction_never_panics_and_stays_bounded_on_arbitrary_input() {
+        let pieces: &[&str] = &[
+            "eyJ",
+            ".",
+            "AKIA",
+            "ASIA",
+            "ghp_",
+            "github_pat_",
+            "xoxb-",
+            "sk-",
+            "Bearer ",
+            "://",
+            "@",
+            ":",
+            "=",
+            "\"",
+            "'",
+            "token",
+            "Cookie",
+            "api",
+            "_",
+            "-",
+            "key",
+            " ",
+            "\t",
+            "\n",
+            "é",
+            "😀",
+            "\u{1b}[",
+            "A1",
+            "zz",
+            "-----BEGIN",
+            "PRIVATE KEY-----",
+            "-----END",
+            "&",
+            ";",
+        ];
+        let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = |bound: usize| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state % bound as u64) as usize
+        };
+        for _ in 0..2000 {
+            let mut text = String::new();
+            for _ in 0..next(80) {
+                text.push_str(pieces[next(pieces.len())]);
+            }
+            let value = decode_all(text.as_bytes(), true).unwrap();
+            assert!(value.text.len() <= CONTAINER_LOG_BYTES);
+            let mut bytes = text.into_bytes();
+            if !bytes.is_empty() {
+                let at = next(bytes.len());
+                bytes[at] = 0xff;
+            }
+            decode_all(&bytes, true).unwrap();
+        }
+        // Long runs of near-matches finish and are judged once each.
+        for unit in [
+            "eyJ_", "eyJ.", "sk-", "ghp_", "AKIA", "a=", "token", "bearer ", "x://",
+        ] {
+            let line = unit.repeat(CONTAINER_LOG_BYTES / unit.len() - 1);
+            decode_all(line.as_bytes(), true).unwrap();
+        }
     }
     #[test]
     fn private_key_blocks_on_one_or_many_lines_redact_only_the_block() {
