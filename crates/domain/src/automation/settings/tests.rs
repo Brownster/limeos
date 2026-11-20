@@ -1,10 +1,8 @@
 use super::*;
-#[cfg(feature = "deferred")]
 use crate::automation::{
     AlertEventKind, AlertSignal, IncidentState, Severity, SignalStatus, fold_alert,
 };
-#[cfg(feature = "deferred")]
-use serde_json::json;
+use serde_json::{Value, json};
 
 #[cfg(feature = "deferred")]
 const CREATED: &str = "2026-10-20T12:00:00+00:00";
@@ -16,7 +14,6 @@ fn plan(body: &str) -> Result<PlannedHealthSettings> {
         CREATED,
     )
 }
-#[cfg(feature = "deferred")]
 fn fixture() -> Vec<Value> {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../../../../tests/fixtures/automation/frozen-notification-settings.json"
@@ -204,17 +201,32 @@ fn frozen_policy_file_precedence_keeps_empty_separate_from_missing() {
     assert_eq!(cases, 7);
 }
 
-#[cfg(feature = "deferred")]
-#[test]
-fn frozen_exclusive_expiry_and_real_fold_do_not_erase_muted_incidents() {
-    let candidate = with_silence(silence_value()).unwrap();
-    let mut policy = candidate.alert_policy();
-    policy.fail_threshold = 1;
-    let expiry = candidate.silences()[0]
-        .expires_at
-        .as_ref()
+/// The runtime form of `silence_value()` with a threshold of one.
+fn expiring_policy() -> (AlertPolicy, i64) {
+    let expiry = timestamp::parse("2026-10-20T13:00:00+00:00")
         .unwrap()
         .unix_seconds();
+    let policy = AlertPolicy {
+        fail_threshold: 1,
+        disabled: vec![],
+        silences: vec![Silence {
+            kind: AlertKind::Mount,
+            key: "mount:/mnt/Media".into(),
+            expires_at: Some(expiry),
+        }],
+    };
+    (policy, expiry)
+}
+#[cfg(feature = "deferred")]
+#[test]
+fn planned_silence_has_the_runtime_expiry() {
+    let mut planned = with_silence(silence_value()).unwrap().alert_policy();
+    planned.fail_threshold = 1;
+    assert_eq!(planned, expiring_policy().0);
+}
+#[test]
+fn frozen_exclusive_expiry_and_real_fold_do_not_erase_muted_incidents() {
+    let (policy, expiry) = expiring_policy();
     let signal = AlertSignal {
         key: "mount:/mnt/Media".into(),
         kind: AlertKind::Mount,

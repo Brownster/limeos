@@ -499,9 +499,8 @@ fn frozen_long_running_container_rules_ignore_one_shots() {
         SignalStatus::Healthy
     );
 }
-#[cfg(feature = "deferred")]
 #[test]
-fn collector_gaps_are_unavailable_and_mount_paths_remain_literal() {
+fn container_collector_gaps_are_unavailable() {
     assert_eq!(
         container_signal(
             "media",
@@ -514,6 +513,10 @@ fn collector_gaps_are_unavailable_and_mount_paths_remain_literal() {
         .status,
         SignalStatus::Unavailable
     );
+}
+#[cfg(feature = "deferred")]
+#[test]
+fn collector_gaps_are_unavailable_and_mount_paths_remain_literal() {
     assert_eq!(
         smart_signal("/dev/sda", None, None).unwrap().status,
         SignalStatus::Unavailable
