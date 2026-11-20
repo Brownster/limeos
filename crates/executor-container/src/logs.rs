@@ -2,10 +2,33 @@
 //! stripped, private keys and credential-bearing lines redacted.
 //!
 //! Redaction is line based. A line is credential-bearing by structure, not
-//! because a word such as "token" appears in prose: a sensitive key given a
-//! value (`password=`, `"api_key":`, `Cookie:`), or a value of a known secret
-//! shape (a bearer credential, a JWT, cloud and service key prefixes, URL
-//! userinfo). Key blocks with their BEGIN/END markers are
+//! because a word such as "token" appears in prose:
+//! - a sensitive key (a key one of whose components is, or for some words
+//!   ends with, a credential word: `password`, `db_password`, `accessToken`,
+//!   `X-Api-Key`, `Cookie`, `session`) followed, after an optional closing
+//!   quote or bracket (also backslash-escaped, as in JSON inside a JSON
+//!   string), by a non-empty value through one of these separators: `=`,
+//!   `=>`, `:` or `:=` with optional spaces (`password=x`, `"api_key": "x"`,
+//!   `\"token\":\"x\"`, `user[password]=x`); spaces alone, when the value is
+//!   quoted (`PASSWORD 'x'`) or the key is a command-line option
+//!   (`--password x`); or a `"value":` sibling after a quoted key
+//!   (`{"name":"DB_PASSWORD","value":"x"}`). A quoted value is non-empty
+//!   when anything but its own closing quote follows the opening one, even a
+//!   space or a delimiter (`password=";a&b"`);
+//! - a value of a known secret shape anywhere in the line, after any amount
+//!   of whitespace: a bearer credential, a JWT, cloud and service key
+//!   prefixes, URL userinfo.
+//!
+//! A word that only names a credential (`password reset`, `the token bucket`,
+//! `processed 4096 tokens`) is not redacted. Known limits, besides the ones
+//! below: a secret on the line after its key (YAML block style `password: |`,
+//! or `- name: DB_PASSWORD` then `value: x`); a key written with look-alike
+//! Unicode letters; a value wrapped in base64 or another encoding (a basic
+//! auth header is caught by its key, not its value); a secret stated in
+//! prose (`the password is hunter2`) or passed positionally
+//! (`htpasswd -b file bob hunter2`, `mysql -phunter2`).
+//!
+//! Key blocks with their BEGIN/END markers are
 //! reliable; a key body without markers (its BEGIN dropped by the Engine's
 //! tail or our window, its END never written) is caught only best effort, by
 //! withholding leading lines that look like one. A known limit: the Engine
@@ -276,8 +299,10 @@ fn key_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.')
 }
 /// A sensitive key name followed by a separator and a value: `key=value`,
-/// `key: value`, `"key":"value"`, `key = 'value'`, a header or a query
-/// parameter. A key is a maximal run of letters, digits, `_`, `-` and `.`.
+/// `key: value`, `"key":"value"`, `key = 'value'`, a header, a query
+/// parameter, escaped JSON, `--key value`, `KEY 'value'` and a
+/// `"name":"KEY","value":...` pair. A key is a maximal run of letters,
+/// digits, `_`, `-` and `.`; the rule is in the module documentation.
 fn keyed_secret(bytes: &[u8]) -> bool {
     let mut at = 0;
     while at < bytes.len() {
@@ -289,29 +314,87 @@ fn keyed_secret(bytes: &[u8]) -> bool {
             at += 1;
             continue;
         }
-        if sensitive_key(bytes.get(at..end).unwrap_or_default())
-            && has_value(bytes.get(end..).unwrap_or_default())
-        {
+        let key = bytes.get(at..end).unwrap_or_default();
+        if sensitive_key(key) && has_value(key, bytes.get(end..).unwrap_or_default(), true) {
             return true;
         }
         at = end;
     }
     false
 }
-/// After a key: an optional closing quote, spaces, `=` or `:`, spaces, an
-/// optional opening quote, then at least one byte of value.
-fn has_value(rest: &[u8]) -> bool {
-    let mut rest = rest.iter().copied().peekable();
-    rest.next_if(|&b| matches!(b, b'"' | b'\''));
-    while rest.next_if(|&b| matches!(b, b' ' | b'\t')).is_some() {}
-    if rest.next_if(|&b| matches!(b, b'=' | b':')).is_none() {
+fn quote(b: u8) -> bool {
+    matches!(b, b'"' | b'\'' | b'`')
+}
+/// The count of spaces and tabs at the start of `rest`.
+fn spaces(rest: &[u8]) -> usize {
+    rest.iter()
+        .take_while(|&&b| matches!(b, b' ' | b'\t'))
+        .count()
+}
+/// What follows a sensitive `key` gives it a value: after at most four
+/// closing bytes (a quote, an escaped quote `\"` or `\\\"`, a bracket `]`)
+/// and optional spaces, either `=`, `=>`, `:` or `:=` and then a value; or,
+/// with `sibling` and a quoted key, `,` and a `"value":` key and its value;
+/// or spaces alone and then a quoted value, or any value when the key is a
+/// command-line option (`--password x`). A quoted value counts unless the
+/// same quote, at the same escape depth, closes it at once; an unquoted one
+/// unless it starts with a space or a delimiter. Every scan moves forward
+/// over bytes it reads once, except the spaces after the key, read at most
+/// twice, so the cost stays linear in the line.
+fn has_value(key: &[u8], rest: &[u8], sibling: bool) -> bool {
+    let closing = rest
+        .iter()
+        .take(4)
+        .take_while(|&&b| b == b'\\' || b == b']' || quote(b))
+        .count();
+    let quoted = rest
+        .get(..closing)
+        .is_some_and(|c| c.iter().any(|&b| quote(b)));
+    let rest = rest.get(closing..).unwrap_or_default();
+    let gap = spaces(rest);
+    let after = rest.get(gap..).unwrap_or_default();
+    let separator = match after {
+        [b'=', b'>', ..] | [b':', b'=', ..] => 2,
+        [b'=' | b':', ..] => 1,
+        [b',', tail @ ..] if sibling && quoted => return value_sibling(tail),
+        // Spaces alone: a quoted value, or an option's value.
+        _ if gap > 0 => return value(after, !key.starts_with(b"-")),
+        _ => return false,
+    };
+    let after = after.get(separator..).unwrap_or_default();
+    value(after.get(spaces(after)..).unwrap_or_default(), false)
+}
+/// After a key's `,`: a quoted `value` key (any case, escapes allowed) that
+/// itself has a value, as in `{"name":"DB_PASSWORD","value":"x"}`.
+fn value_sibling(rest: &[u8]) -> bool {
+    let rest = rest.get(spaces(rest)..).unwrap_or_default();
+    let escapes = rest.iter().take(4).take_while(|&&b| b == b'\\').count();
+    if !rest.get(escapes).copied().is_some_and(quote) {
         return false;
     }
-    while rest.next_if(|&b| matches!(b, b' ' | b'\t')).is_some() {}
-    rest.next_if(|&b| matches!(b, b'"' | b'\''));
-    rest.next().is_some_and(|b| {
-        !b.is_ascii_whitespace() && !matches!(b, b'"' | b'\'' | b',' | b'}' | b';' | b'&')
-    })
+    let rest = rest.get(escapes + 1..).unwrap_or_default();
+    let word = rest.iter().take_while(|&&b| key_byte(b)).count();
+    rest.get(..word)
+        .is_some_and(|w| w.eq_ignore_ascii_case(b"value"))
+        && has_value(b"value", rest.get(word..).unwrap_or_default(), false)
+}
+/// A non-empty value starts `rest`; with `quoted_only`, only a quoted one.
+fn value(rest: &[u8], quoted_only: bool) -> bool {
+    let escapes = rest.iter().take(4).take_while(|&&b| b == b'\\').count();
+    match rest.get(escapes).copied() {
+        Some(q) if quote(q) && escapes < 4 => {
+            let inner = rest.get(escapes + 1..).unwrap_or_default();
+            let closes = inner
+                .get(..escapes)
+                .is_some_and(|e| e.iter().all(|&b| b == b'\\'))
+                && inner.get(escapes) == Some(&q);
+            !inner.is_empty() && !closes && !matches!(inner.first(), Some(b'\n' | b'\r'))
+        }
+        _ if quoted_only => false,
+        _ => rest.first().is_some_and(|&b| {
+            !b.is_ascii_whitespace() && !matches!(b, b',' | b'}' | b']' | b';' | b'&')
+        }),
+    }
 }
 /// Words that make a key component sensitive when it ends with one.
 const KEY_SUFFIXES: &[&[u8]] = &[
@@ -414,18 +497,13 @@ fn secret_shape(bytes: &[u8], at: usize) -> bool {
             return true;
         }
     }
-    // Bearer credentials: the scheme, spaces, then 8 or more token68 bytes.
+    // Bearer credentials: the scheme, any spaces, then 8 or more token68
+    // bytes. Each run of spaces follows one scheme word, so it is read once.
     if rest
         .get(..6)
         .is_some_and(|word| word.eq_ignore_ascii_case(b"bearer"))
     {
-        let spaces = rest
-            .get(6..)
-            .unwrap_or_default()
-            .iter()
-            .take(16)
-            .take_while(|&&b| matches!(b, b' ' | b'\t'))
-            .count();
+        let spaces = spaces(rest.get(6..).unwrap_or_default());
         let token68 =
             |b: u8| alnum(b) || matches!(b, b'-' | b'.' | b'_' | b'~' | b'+' | b'/' | b'=');
         if spaces > 0 && run(6 + spaces, 8, token68) {
@@ -942,6 +1020,13 @@ mod tests {
             "-----END",
             "&",
             ";",
+            "\\",
+            "]",
+            ",",
+            "value",
+            "--",
+            "password",
+            "`",
         ];
         let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
         let mut next = |bound: usize| {
@@ -966,10 +1051,287 @@ mod tests {
         }
         // Long runs of near-matches finish and are judged once each.
         for unit in [
-            "eyJ_", "eyJ.", "sk-", "ghp_", "AKIA", "a=", "token", "bearer ", "x://",
+            "eyJ_",
+            "eyJ.",
+            "sk-",
+            "ghp_",
+            "AKIA",
+            "a=",
+            "token",
+            "bearer ",
+            "x://",
+            "token ",
+            "--token ",
+            "bearer      ",
+            "\"token\",",
+            "\\\"token\\\":",
+            "[token]",
         ] {
             let line = unit.repeat(CONTAINER_LOG_BYTES / unit.len() - 1);
             decode_all(line.as_bytes(), true).unwrap();
+        }
+    }
+    /// Lines the reviewers found the structural rule emitting while the
+    /// substring rule it replaced redacted them.
+    const REPRODUCTIONS: &[&str] = &[
+        r#""body":"{\"user\":\"bob\",\"password\":\"hunter2\"}""#,
+        r#"{"level":"info","body":"{\"user\":\"bob\",\"password\":\"hunter2\"}"}"#,
+        r#"{"log":"{\\\"token\\\":\\\"s3cr3t\\\"}"}"#,
+        "ALTER ROLE app PASSWORD 'x'",
+        "--password x",
+        r#"{"name":"DB_PASSWORD","value":"x"}"#,
+        "user[password]=x",
+        r#"password=";a&b""#,
+        r#"{"password":" hello"}"#,
+        "Authorization: Bearer                     abcDEF123456",
+        "token=Bearer                                      abcDEF123456",
+        "Bearer                                            abcDEF123456",
+    ];
+    #[test]
+    fn reported_misses_are_redacted() {
+        for line in REPRODUCTIONS {
+            assert_eq!(filtered(line), CREDENTIAL_REDACTED, "{line:?}");
+        }
+    }
+    /// The decision of the substring rule this module replaced (as of
+    /// 9249bb7), kept only as an oracle for the no-regression corpus.
+    fn substring_rule(line: &str) -> bool {
+        let lower = line.to_ascii_lowercase();
+        [
+            "password",
+            "passwd",
+            "passphrase",
+            "secret",
+            "api_key",
+            "api-key",
+            "apikey",
+            "token",
+            "authorization",
+            "bearer ",
+            "ghp_",
+            "github_pat_",
+            "sk-ant-",
+            "sk-proj-",
+            "x-amz-credential",
+            "x-amz-signature",
+            "x-goog-signature",
+        ]
+        .iter()
+        .any(|marker| lower.contains(marker))
+            || lower.split_whitespace().any(|part| {
+                part.split_once("://").is_some_and(|(_, rest)| {
+                    rest.split('/').next().unwrap_or_default().contains('@')
+                })
+            })
+            || lower
+                .split(|c: char| c.is_whitespace() || "\"'=:,[]{}".contains(c))
+                .any(|part| part.starts_with("sk-") && part.len() >= 16)
+    }
+    /// Realistic credential-bearing lines, written as programs and tools
+    /// write them.
+    const CREDENTIAL_LINES: &[&str] = &[
+        // Environment dumps.
+        "DB_PASSWORD=hunter2",
+        "PGPASSWORD=hunter2",
+        "MYSQL_ROOT_PASSWORD=hunter2",
+        "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE",
+        "GITHUB_TOKEN=ghp_16C7e42F292c6912E7710c838347Ae178B4a",
+        "SECRET_KEY_BASE=8f3c0d6e1b2a",
+        "JWT_SECRET=change-me",
+        "export API_KEY=abc123",
+        "declare -x REDIS_PASSWORD=\"hunter2\"",
+        "NEXTAUTH_SECRET=Zm9vYmFy",
+        "DJANGO_SECRET_KEY='django-insecure-abc'",
+        "OAUTH_CLIENT_SECRET=abc",
+        "SMTP_PASSWORD=hunter2",
+        "TOKEN=abc",
+        "2026-11-19T00:00:00.000000001Z env: POSTGRES_PASSWORD=hunter2",
+        // Connection strings.
+        "postgres://app:hunter2@db:5432/app",
+        "postgresql://app:hunter2@db/app?sslmode=disable",
+        "mysql://root:hunter2@127.0.0.1:3306/db",
+        "mongodb+srv://u:p@cluster0.example.net/db",
+        "redis://:hunter2@redis:6379/0",
+        "amqp://guest:guest@rabbit:5672/",
+        "Server=db;Database=app;User Id=sa;Password=hunter2;",
+        "Host=db;Username=app;Password=hunter2",
+        "jdbc:postgresql://db:5432/app?user=app&password=hunter2",
+        "DATABASE_URL=postgres://app:hunter2@db/app",
+        "connecting to mongodb://admin:hunter2@mongo:27017",
+        // HTTP header dumps.
+        "Authorization: Basic dXNlcjpodW50ZXIy",
+        "authorization: Bearer abc.def.ghi",
+        "> Authorization: token ghp_16C7e42F292c6912E7710c838347Ae178B4a",
+        "Cookie: session=abc123; theme=dark",
+        "Set-Cookie: sid=abc123; HttpOnly",
+        "< set-cookie: __Host-limeos=abc; Path=/",
+        "X-Api-Key: abc123",
+        "Proxy-Authorization: Basic dXNlcjpodW50ZXIy",
+        "X-Auth-Token: abc",
+        "x-amz-security-token: FQoGZXIvYXdzEJr",
+        r#""headers":{"authorization":"Bearer abc"}"#,
+        "headers={'Authorization': 'Bearer abc'}",
+        "Authorization:\t\t\tBearer\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tabcDEF123456",
+        // Docker inspect environment arrays.
+        r#""Env": ["PATH=/usr/local/sbin", "POSTGRES_PASSWORD=hunter2"]"#,
+        r#""Env":["MYSQL_ROOT_PASSWORD=hunter2","MYSQL_DATABASE=app"]"#,
+        r#"            "GF_SECURITY_ADMIN_PASSWORD=hunter2","#,
+        r#""Env": [ "TOKEN=abc" ],"#,
+        r#"{"Env":[\"DB_PASSWORD=hunter2\"]}"#,
+        // Kubernetes and ECS environment entries.
+        r#"{"name":"DB_PASSWORD","value":"x"}"#,
+        r#"{"name": "POSTGRES_PASSWORD", "value": "hunter2"}"#,
+        r#"env: [{"name":"API_TOKEN","value":"abc"},{"name":"PORT","value":"8080"}]"#,
+        r#"{"Name":"GITHUB_TOKEN","Value":"ghp_x"}"#,
+        r#"{\"name\":\"DB_PASSWORD\",\"value\":\"x\"}"#,
+        // YAML.
+        "password: hunter2",
+        "  db_password: \"hunter2\"",
+        "api_key: 'abc'",
+        "secretKey: abc",
+        "- PASSWORD=hunter2",
+        "    MYSQL_PASSWORD: hunter2",
+        "client_secret: abc",
+        "token: abc",
+        // Command lines.
+        "mysql -u root --password=hunter2 app",
+        "mysqldump --user=root --password hunter2 app",
+        "exec: /usr/bin/app --token s3cr3t --verbose",
+        "/usr/bin/app --token=s3cr3t",
+        "app --api-key abc",
+        "app --secret=abc",
+        "kubectl create secret generic db --from-literal=password=hunter2",
+        "curl -H \"Authorization: Bearer abc\" https://example.com",
+        "psql \"postgresql://app:hunter2@db/app\"",
+        // SQL.
+        "ALTER ROLE app PASSWORD 'x'",
+        "ALTER ROLE app WITH LOGIN PASSWORD 'hunter2';",
+        "CREATE USER app WITH PASSWORD 'hunter2'",
+        "statement: ALTER USER postgres PASSWORD 'md5abc'",
+        "CREATE USER app WITH PASSWORD \"hunter2\"",
+        // Escaped JSON inside JSON.
+        r#""body":"{\"user\":\"bob\",\"password\":\"hunter2\"}""#,
+        r#"{"msg":"request","payload":"{\"api_key\":\"abc123\"}"}"#,
+        r#"{"log":"{\\\"token\\\":\\\"s3cr3t\\\"}"}"#,
+        r#"{"log":"{\"client_secret\": \"abc\"}\n"}"#,
+        // Form and query parameters.
+        "user[password]=x",
+        "POST /users user[name]=bob&user[password]=hunter2",
+        r#"params: {"user"=>{"email"=>"a@b", "password"=>"[FILTERED]"}}"#,
+        "GET /cb?code=1&access_token=abc HTTP/1.1",
+        "['password'] = 'x'",
+        // Quoted values that start with whitespace or punctuation.
+        r#"password=";a&b""#,
+        r#"{"password":" hello"}"#,
+        r#"{"password":"&x"}"#,
+        r#"{"token":",abc"}"#,
+        "secret=' leading space'",
+        // Shapes after any whitespace.
+        "Bearer                                            abcDEF123456",
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+        "sk-proj-abcdefghijklmnopqrstuvwxyz012345",
+        "using key sk-ant-api03-abcdefghijklmnop0123456789",
+    ];
+    /// Lines with no credential, as the ordinary-lines test and container
+    /// logs have them; some name a sensitive word in prose.
+    const PROSE_LINES: &[&str] = &[
+        "processed 4096 tokens",
+        "session started",
+        "secretary",
+        "the token bucket refilled",
+        "password reset email sent to user",
+        "tokenizer loaded",
+        "max_tokens=4096 prompt_tokens: 12",
+        r#"{"usage":{"prompt_tokens":12,"completion_tokens":40}}"#,
+        r#"{"event":"token_refreshed","user":"bob"}"#,
+        r#"{"type":"session","id":5}"#,
+        "msg=\"login failed for bob: password mismatch\"",
+        "authorization failed for user bob",
+        "the bearer of bad news",
+        "Bearer token required",
+        "secrets are mounted read-only",
+        "active_sessions=5",
+        "connected to postgres://db:5432/app",
+        "risk-free reconciliation done in 12ms",
+        "skipped 3 jobs",
+        "GET /health 200",
+        "Starting server on port 8080",
+        "token refresh failed: upstream returned 401",
+        "Secret rotation scheduled",
+        "invalid password for user bob",
+        "the Authorization header is missing",
+    ];
+    /// Lines the substring rule redacted that are intentionally emitted now.
+    /// Reviewed: each names a sensitive word without giving it a value.
+    const NO_LONGER_REDACTED: &[&str] = &[
+        "processed 4096 tokens",
+        "secretary",
+        "the token bucket refilled",
+        "password reset email sent to user",
+        "tokenizer loaded",
+        "max_tokens=4096 prompt_tokens: 12",
+        r#"{"usage":{"prompt_tokens":12,"completion_tokens":40}}"#,
+        r#"{"event":"token_refreshed","user":"bob"}"#,
+        "msg=\"login failed for bob: password mismatch\"",
+        "authorization failed for user bob",
+        "the bearer of bad news",
+        "Bearer token required",
+        "secrets are mounted read-only",
+        "token refresh failed: upstream returned 401",
+        "Secret rotation scheduled",
+        "invalid password for user bob",
+        "the Authorization header is missing",
+    ];
+    /// The corpus: every credential line, each in a few surroundings, and the
+    /// prose lines.
+    fn corpus() -> Vec<String> {
+        let mut lines = Vec::new();
+        for line in CREDENTIAL_LINES.iter().chain(REPRODUCTIONS) {
+            lines.push((*line).to_owned());
+            lines.push(format!("2026-11-19T00:00:00.000000001Z {line}"));
+            lines.push(format!("app[1]: {line}"));
+            lines.push(format!("{line} (retrying)"));
+        }
+        // The reported forms with other key names.
+        for key in ["password", "passwd", "token", "secret", "api_key", "apikey"] {
+            let upper = key.to_ascii_uppercase();
+            lines.extend([
+                format!(r#""body":"{{\"user\":\"bob\",\"{key}\":\"hunter2\"}}""#),
+                format!(r#"{{"m":"{{\"{key}\" : \"hunter2\"}}"}}"#),
+                format!("SET {upper} 'x'"),
+                format!("--{key} x"),
+                format!("--{key}\tx"),
+                format!(r#"{{"name":"DB_{upper}","value":"x"}}"#),
+                format!(r#"{{"name":"{upper}", "value": "x"}}"#),
+                format!("user[{key}]=x"),
+                format!(r#"{key}=";a&b""#),
+                format!(r#"{{"{key}":" hello"}}"#),
+                format!("{upper}={key}-value"),
+                format!("{key}: \"{key}\""),
+            ]);
+        }
+        lines.extend(PROSE_LINES.iter().map(|line| (*line).to_owned()));
+        lines
+    }
+    fn redacted(line: &str) -> bool {
+        filtered(line) == CREDENTIAL_REDACTED
+    }
+    #[test]
+    fn every_corpus_line_the_substring_rule_redacted_is_still_redacted() {
+        let corpus = corpus();
+        assert!(corpus.len() >= 450, "{}", corpus.len());
+        let emitted: Vec<_> = corpus
+            .iter()
+            .filter(|line| substring_rule(line) && !redacted(line))
+            .map(String::as_str)
+            .collect();
+        assert_eq!(emitted, NO_LONGER_REDACTED);
+        for line in CREDENTIAL_LINES {
+            assert!(redacted(line), "{line:?}");
+        }
+        for line in PROSE_LINES {
+            assert!(!redacted(line), "{line:?}");
         }
     }
     #[test]
