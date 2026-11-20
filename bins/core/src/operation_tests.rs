@@ -1205,3 +1205,23 @@ async fn a_claim_that_commits_after_core_gave_up_is_executed_once_on_the_next_pa
     drop(fixture);
     task.abort();
 }
+
+/// Health's signed-in check, as core answers it, reads beside a stuck
+/// writer: a live session is recognised and a made-up one refused at once,
+/// and neither puts anything in the writer's queue.
+#[tokio::test]
+async fn health_checks_a_session_beside_a_stuck_writer_without_queueing() {
+    let (_dir, core, token, _, _, _, _, task) = fixture().await;
+    let release = stall_writer(&core.db).await;
+    let asked = std::time::Instant::now();
+    assert!(Backend::signed_in(&core, token).await);
+    assert!(!Backend::signed_in(&core, "m".repeat(64)).await);
+    assert!(
+        asked.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        asked.elapsed()
+    );
+    assert_eq!(core.db.writer_activity().queued, 0);
+    release.send(()).unwrap();
+    task.abort();
+}

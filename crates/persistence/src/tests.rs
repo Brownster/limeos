@@ -1319,3 +1319,52 @@ async fn an_unanswered_call_reports_whether_its_work_may_still_commit() {
     assert_eq!(db.call(|_| Ok(4)).await, Ok(4));
     assert!(!ran.load(Ordering::SeqCst));
 }
+
+/// Health's signed-in check reads the query-only connection: it answers
+/// promptly while the writer is stuck and puts nothing in its queue, so a
+/// made-up cookie costs the store nothing.
+#[tokio::test]
+async fn a_session_is_checked_beside_a_stuck_writer_without_queueing() {
+    let d = tempfile::tempdir().unwrap();
+    let db = Database::open(&d.path().join("core.sqlite")).unwrap();
+    let digest = limeos_identity::digest(&"a".repeat(64));
+    let issued = digest.clone();
+    db.call(move |s| {
+        s.issue_bootstrap("bootstrap", 100)?;
+        s.enroll("bootstrap", "admin", "$argon2id$fixture", 101)?;
+        let record = s.login_record("admin")?.unwrap();
+        s.create_session(&record, None, &issued, &"c".repeat(64), 102)
+    })
+    .await
+    .unwrap();
+    let (release, stuck) = std::sync::mpsc::channel::<()>();
+    let (entered, started) = std::sync::mpsc::channel::<()>();
+    let blocker = db.clone();
+    let blocked = tokio::spawn(async move {
+        blocker
+            .call(move |_| {
+                entered.send(()).unwrap();
+                let _ = stuck.recv();
+                Ok(())
+            })
+            .await
+    });
+    tokio::task::spawn_blocking(move || started.recv().unwrap())
+        .await
+        .unwrap();
+    let bound = Duration::from_secs(2);
+    let asked = Instant::now();
+    assert!(db.session_live(digest, 103, bound).await);
+    assert!(
+        !db.session_live(limeos_identity::digest(&"m".repeat(64)), 103, bound)
+            .await
+    );
+    assert!(
+        asked.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        asked.elapsed()
+    );
+    assert_eq!(db.writer_activity().queued, 0);
+    release.send(()).unwrap();
+    blocked.await.unwrap().unwrap();
+}

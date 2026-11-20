@@ -547,6 +547,14 @@ impl Backend for Core {
             expires_at,
         })
     }
+    /// On the store's query-only connection, never the writer's queue, so
+    /// an anonymous caller with a made-up cookie adds no store work and a
+    /// stuck writer cannot hold the health check.
+    async fn signed_in(&self, token: String) -> bool {
+        self.db
+            .session_live(limeos_identity::digest(&token), now(), SIGNED_IN_BOUND)
+            .await
+    }
     async fn logout(&self, token: String, csrf: String) -> Result<()> {
         // One call on the revocation lane checks the session and its CSRF and
         // removes it, so logout works with the queue, disk or audit table full.
@@ -1112,6 +1120,8 @@ const STORE_STALL: Duration = Duration::from_secs(10);
 /// How long health waits for the writer to answer a probe; it never waits
 /// out the full call deadline.
 const STORE_PROBE: Duration = Duration::from_secs(2);
+/// How long health's signed-in check may take on the query-only connection.
+const SIGNED_IN_BOUND: Duration = Duration::from_millis(250);
 impl Core {
     /// The store as a degraded subsystem, if its writer is stuck. Read from
     /// the writer's activity, which needs no queue, and from a probe bounded

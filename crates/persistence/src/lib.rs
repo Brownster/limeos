@@ -340,6 +340,22 @@ impl Database {
             .map_err(|_| Error(ErrorCode::Unavailable))?
             .map_err(|_| Error(ErrorCode::Unavailable))?
     }
+    /// Whether `digest` names a live session, read on the query-only
+    /// connection, so it puts nothing on either lane: for health to decide
+    /// how much it shows while the writer may be stuck. Never waits for the
+    /// connection (in use, the answer is no) nor past `bound`; false when
+    /// unsure.
+    pub async fn session_live(&self, digest: String, now: i64, bound: Duration) -> bool {
+        let reader = self.reader.clone();
+        let lookup = tokio::task::spawn_blocking(move || {
+            let Ok(conn) = reader.try_lock() else {
+                return false;
+            };
+            conn.as_ref()
+                .is_some_and(|conn| identity_store::authenticate(conn, &digest, None, now).is_ok())
+        });
+        matches!(tokio::time::timeout(bound, lookup).await, Ok(Ok(true)))
+    }
     /// Runs `f` on the writer thread, as [`Database::try_call`], reporting
     /// an unanswered call as an error: `Overloaded` (never queued),
     /// `Unavailable` (never ran and never will) or `StateNotDurable` (may
