@@ -41,20 +41,37 @@ def summarise(output):
     return passed, failed, names
 
 
-def test_filters(cargo_args):
-    """(filters, exact) passed to the test binary after the `--` in cargo arguments."""
-    if "--" not in cargo_args:
-        return [], False
-    arguments = cargo_args[cargo_args.index("--") + 1 :]
-    filters, skip_value = [], False
+# cargo test options that take a separate value, so the value is no test name.
+CARGO_VALUE_OPTIONS = {"-p", "--package", "--exclude", "-F", "--features", "--manifest-path",
+                       "--test", "--bin", "--example", "--bench", "--target", "--target-dir",
+                       "--profile", "-j", "--jobs", "--config", "-Z", "--color",
+                       "--message-format", "--lockfile-path"}
+
+
+def _positionals(arguments, value_options):
+    found, skip_value = [], False
     for argument in arguments:
         if skip_value:
             skip_value = False
-        elif argument in VALUE_OPTIONS:
+        elif argument in value_options:
             skip_value = True
         elif not argument.startswith("-"):
-            filters.append(argument)
-    return filters, "--exact" in arguments
+            found.append(argument)
+    return found
+
+
+def test_filters(cargo_args):
+    """(filters, exact) that reach the test binary from cargo arguments.
+
+    cargo forwards its own positional TESTNAME (before the `--`) as a filter too, so it
+    is checked like the ones after it. A value of a cargo option this list does not know
+    is taken for a filter and then fails for matching no test: the safe direction.
+    """
+    split = cargo_args.index("--") if "--" in cargo_args else len(cargo_args)
+    binary = cargo_args[split + 1 :]
+    filters = _positionals(cargo_args[:split], CARGO_VALUE_OPTIONS)
+    filters += _positionals(binary, VALUE_OPTIONS)
+    return filters, "--exact" in binary
 
 
 def verdict(returncode, output, expected, filters=(), exact=False):

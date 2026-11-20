@@ -152,6 +152,15 @@ class RunnerTests(unittest.TestCase):
         self.assertIsNone(runner.verdict(
             0, MEDIA_ONLY, [], filters=["deployment::media::tests::plans"], exact=True))
 
+    def test_cargo_positional_test_name_is_a_filter_too(self):
+        filters, exact = runner.test_filters(
+            ["-p", "limeos-domain", "--features", "deferred", "--lib",
+             "deployment::activity_typo", "--", "deployment::media"])
+        self.assertEqual(filters, ["deployment::activity_typo", "deployment::media"])
+        self.assertFalse(exact)
+        self.assertEqual(runner.test_filters(["-p", "limeos-domain", "--lib"]), ([], False))
+        self.assertEqual(runner.test_filters(["--lib", "only::this"]), (["only::this"], False))
+
     def test_every_harness_filters_each_group(self):
         """Each harness group names filters, so the per-filter rule covers it."""
         fixtures = SCRIPT.parent
