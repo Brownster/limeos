@@ -15,15 +15,20 @@ the same run:
 
 1. Must not get worse: each unit scores no higher than the same unit file at the
    base revision (by default the merge base with the default branch, for a pull
-   request and a push alike, or the previous commit when HEAD is on it), plus
-   the unit's recorded ALLOWANCE if it has one. A unit new since the base has
-   only check 2.
+   request and a push alike), plus the unit's recorded ALLOWANCE if it has one.
+   A unit new since the base has only check 2.
 2. Backstop: each unit scores no higher than its recorded ceiling plus MARGIN.
 
-The base is never a push's previous tip: a worsening pushed once (its red run
-ignored) would then be the baseline the next push is compared with. A unit
-that is deliberately looser than on the default branch gets an explicit,
-commented ALLOWANCE instead, and the gate says when one is no longer needed.
+On the default branch itself (HEAD is its own merge base with it) there is
+nothing to compare with, so the gate judges by check 2 alone: the recorded
+ceilings, with no relative comparison. It never compares with HEAD's parent or
+a push's previous tip: a worsening pushed once (its red run ignored) would then
+be the baseline the next push is compared with. The ceilings, unlike a parent,
+change only in a reviewed edit of this file. ALLOWANCES are relative to a base,
+so they do not apply there; a ceiling records the score with any accepted
+loosening already in it. A unit that is deliberately looser than on the default
+branch gets an explicit, commented ALLOWANCE, and the gate says when one is no
+longer needed.
 
 A unit without a recorded ceiling fails, so a new unit is scored deliberately.
 Ceilings are tenths of systemd's 0-10 exposure level (its --threshold scale).
@@ -147,11 +152,17 @@ def git(*args: str) -> subprocess.CompletedProcess:
     )
 
 
+# resolve_base's answer when HEAD is on the default branch: no base exists, so
+# the recorded ceilings alone apply.
+ON_DEFAULT = "the default branch"
+
+
 def resolve_base(explicit: str | None) -> str | None:
     """The base revision: `explicit`, else the merge base of HEAD with the pull
     request's target (GITHUB_BASE_REF) or the default branch (DEFAULT_BRANCH,
-    else main; its origin copy first), or HEAD's parent when HEAD is already
-    on that branch. None when none can be found."""
+    else main; its origin copy first). ON_DEFAULT when that merge base is HEAD
+    itself (HEAD is on the default branch: nothing to compare with). None when
+    no merge base can be found."""
     if explicit:
         return explicit
     target = os.environ.get("GITHUB_BASE_REF")
@@ -163,10 +174,7 @@ def resolve_base(explicit: str | None) -> str | None:
         if found.returncode != 0:
             continue
         merge_base = found.stdout.strip()
-        if merge_base != head:
-            return merge_base
-        parent = git("rev-parse", "--verify", "--quiet", "HEAD^")
-        return parent.stdout.strip() if parent.returncode == 0 else None
+        return ON_DEFAULT if merge_base == head else merge_base
     return None
 
 
@@ -205,13 +213,20 @@ def main() -> int:
                     file=sys.stderr,
                 )
                 return 1
-            print(f"Comparing with {revision}.")
-            base = base_units(revision, Path(directory))
+            if revision is ON_DEFAULT:
+                print(
+                    "HEAD is on the default branch: judging by the recorded ceilings "
+                    "alone, with no relative comparison."
+                )
+            else:
+                print(f"Comparing with {revision}.")
+                base = base_units(revision, Path(directory))
         problems = check(args.units, CEILINGS, base, allowances=ALLOWANCES)
     for problem in problems:
         print(problem, file=sys.stderr)
     if not problems:
-        print("Unit exposure scores are no worse than the base and within their ceilings.")
+        compared = "no worse than the base and " if base is not None else ""
+        print(f"Unit exposure scores are {compared}within their ceilings.")
     return 1 if problems else 0
 
 

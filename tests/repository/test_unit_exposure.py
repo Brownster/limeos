@@ -339,6 +339,44 @@ class ExposureGate(unittest.TestCase):
             self.assertEqual(gate.resolve_base(None), "base")
         self.assertIn(("merge-base", "HEAD", "origin/trunk"), calls)
 
+    def test_on_the_default_branch_the_ceilings_alone_apply_with_no_relative_comparison(self):
+        # HEAD is its own merge base with the default branch: there is nothing
+        # to compare with, and HEAD's parent must not become a baseline.
+        calls = []
+
+        def fake_git(*args):
+            calls.append(args)
+            return subprocess.CompletedProcess(args, 0, "head\n", "")
+
+        with mock.patch.object(gate, "git", fake_git), mock.patch.dict(
+            os.environ, {"DEFAULT_BRANCH": "trunk"}, clear=False
+        ):
+            os.environ.pop("GITHUB_BASE_REF", None)
+            self.assertIs(gate.resolve_base(None), gate.ON_DEFAULT)
+        self.assertFalse([c for c in calls if any("HEAD^" in a for a in c)], calls)
+        # main() then scores the units against their ceilings, with no base.
+        seen = []
+
+        def fake_check(units, ceilings, base, **kwargs):
+            seen.append(base)
+            return []
+
+        output = io.StringIO()
+        with mock.patch.object(gate, "resolve_base", lambda explicit: gate.ON_DEFAULT), \
+                mock.patch.object(gate, "check", fake_check), \
+                mock.patch.object(gate.sys, "argv", ["check_unit_exposure.py"]), \
+                contextlib.redirect_stdout(output):
+            self.assertEqual(gate.main(), 0)
+        self.assertEqual(seen, [None])
+        self.assertIn("recorded ceilings alone", output.getvalue())
+        # Judged that way, a worsening inside the ceiling passes and one above
+        # the ceiling plus the margin fails, whatever HEAD's parent scored.
+        self.units("base", a="1.0")
+        self.units("now", a="2.0")
+        self.assertEqual(self.check({"a.service": 20}, base=False), [])
+        self.units("now", a="2.4")
+        self.assertIn("above its ceiling 2.0", self.check({"a.service": 20}, base=False)[0])
+
     def test_a_ceiling_for_a_missing_unit_fails(self):
         problems = self.check({"gone.service": 10})
         self.assertEqual(problems, ["gone.service: ceiling recorded for a unit that does not exist"])

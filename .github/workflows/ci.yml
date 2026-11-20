@@ -58,10 +58,12 @@ jobs:
       # score no worse than at the merge base, under this same systemd-analyze,
       # and within its recorded ceiling plus a small margin.
       # Base: the merge base with a pull request's target (GITHUB_BASE_REF)
-      # or, for a push, with the default branch; never a push's previous tip,
-      # which would make a worsening pushed once the next push's baseline. A
-      # unit deliberately looser than on the default branch has a commented
-      # allowance in the script instead.
+      # or, for a push, with the default branch. A push to the default branch
+      # has no merge base to compare with, so there the recorded ceilings
+      # alone apply; never a push's previous tip or HEAD^, which would make a
+      # worsening pushed once the next push's baseline. A unit deliberately
+      # looser than on the default branch has a commented allowance in the
+      # script instead.
       - name: Unit exposure ceilings
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
