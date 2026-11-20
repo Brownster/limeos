@@ -6,49 +6,57 @@
 //! take after its name (assignments, records, options, keywords) keeps
 //! missing forms, and a missed secret is worse than a hidden line.
 //!
-//! A *key* is a maximal run of ASCII letters, digits, `_`, `-` and `.`. Its
-//! *components* are its runs of letters, split where a lower-case letter
-//! meets an upper-case one; digits, `_`, `-` and `.` separate them. A
-//! component is a *sensitive word* when, with or without one plural `s`, it
-//! ends with `password`, `passwd`, `passphrase`, `secret`, `token`,
-//! `apikey`, `privatekey`, `credential(s)`, `cookie` or `signature`, is
-//! exactly `session`, `sessionid`, `authorization`, `auth` or `identified`
-//! (SQL's `IDENTIFIED BY 'x'`), or is `key` after `api` or `private`:
-//! `db_password`, `accessToken`, `X-Api-Key`, `Set-Cookie`, `tokens`,
-//! `PASSWORD2`. One inside a longer run of letters, with no boundary after
-//! it, does not count (`secretary`, `tokenizer`). A line is redacted when:
+//! A *key* is a maximal run of ASCII letters, digits, `_`, `-` and `.`. A
+//! key is a *sensitive word* when it contains, in any case, one of the
+//! substring rule's markers this rule replaced — `password`, `passwd`,
+//! `passphrase`, `secret`, `api_key`, `api-key`, `apikey`, `token`,
+//! `authorization`, `bearer`, `ghp_`, `github_pat_`, `sk-ant-`, `sk-proj-`,
+//! `x-amz-credential`, `x-amz-signature`, `x-goog-signature` — or one of
+//! `credential`, `cookie`, `signature`, `session`, `auth` and `identified`
+//! (SQL's `IDENTIFIED BY 'x'`), or holds `key` after `api` or `private`
+//! with only digits, `_`, `-` or `.` between (`privatekey`, `API__KEY`).
+//! Detection is a plain substring test, so it finds every word the
+//! substring rule found and more: `db_password`, `SECRETKEY`,
+//! `mysecretvalue`, `tokenfile`, `Set-Cookie`, but also `secretary`,
+//! `tokenizer` and `author`, which the prose test below then shows. A line
+//! is redacted when:
 //! - (a) **it names a sensitive word and is not plain prose there**. Plain
 //!   prose means both of:
-//!   - the key that holds each sensitive word is one plain word: letters,
+//!   - each sensitive word is one plain word: at most 15 ASCII letters,
 //!     upper case only first, before any sentence-ending dots (`Password`,
-//!     `tokens`, `token.`). In `--password`, `DB_PASSWORD`, `PASSWORD`,
-//!     `accessToken` or `token2` the word is part of a name, never prose;
-//!   - for every sensitive word, the text from its end (after the plural
-//!     `s`) to the next sensitive word or the line's end holds only spaces,
-//!     words of at most 15 lower-case ASCII letters, and `.`, `,`, `;`, `!`
-//!     or `?` each followed by a space or the line's end. Anything else
-//!     there (a digit, an upper-case letter, a quote, `=`, `:`, `-`, `_`,
-//!     `/`, `\`, `@`, `%`, `+`, a bracket or brace, a tab, a non-ASCII byte,
-//!     a longer word) could be or introduce a value.
+//!     `tokens`, `token.`, `secretary`). In `--password`, `DB_PASSWORD`,
+//!     `PASSWORD`, `SECRETKEY`, `accessToken`, `token2` or a compound of 16
+//!     letters or more the term is part of a name, never prose;
+//!   - for every sensitive word, the text from its last letter to the next
+//!     sensitive word or the line's end holds only spaces, words of at most
+//!     15 lower-case ASCII letters, and `.`, `,`, `;`, `!` or `?` each
+//!     followed by a space or the line's end. Anything else there (a digit,
+//!     an upper-case letter, a quote, `=`, `:`, `-`, `_`, `/`, `\`, `@`,
+//!     `%`, `+`, a bracket or brace, a tab, a non-ASCII byte, a longer word)
+//!     could be or introduce a value.
 //!
-//!   What precedes the first sensitive word's key does not matter;
+//!   What precedes the first sensitive word does not matter;
 //! - (b) **it holds a value of a known secret shape** anywhere, after any
 //!   amount of whitespace: a bearer credential, a JWT, cloud and service key
 //!   prefixes, URL userinfo.
 //!
 //! Kept: `processed 4096 tokens`, `session started`, `password reset email
 //! sent to user`, `invalid password for user bob`, `the token bucket
-//! refilled`. Redacted though harmless, by design: `--token-ttl 3600`,
-//! `Secret "db-creds" not found`, `{"metric":"session","value":42}`,
-//! `max_tokens=4096`, `token refresh failed: upstream returned 401`,
-//! `secrets are mounted read-only` (the hyphen), `SECRET_KEY not set`, a
-//! sensitive word before non-ASCII text, `limeos_core::session: started`.
+//! refilled`, `tokenizer loaded`. Redacted though harmless, by design:
+//! `--token-ttl 3600`, `Secret "db-creds" not found`,
+//! `{"metric":"session","value":42}`, `max_tokens=4096`, `token refresh
+//! failed: upstream returned 401`, `secrets are mounted read-only` (the
+//! hyphen), `SECRET_KEY not set`, `Author: bob`, a sensitive word before
+//! non-ASCII text, `limeos_core::session: started`.
 //!
-//! Bounds: one forward pass finds the keys and reads each once to find its
-//! sensitive words and check it is a plain word; each sensitive word closes
-//! the span after the previous one, and the spans do not overlap, so each
-//! is read once; the shape checks read a bounded number of bytes from each
-//! position. The cost is linear in the line and no input can make it panic.
+//! Bounds: one forward pass finds the keys; each key is tested for every
+//! term at each of its positions (a fixed number of bytes per position; the
+//! digits and separators between `api` or `private` and `key` follow one
+//! letter each and are read once) and checked to be a plain word; each
+//! sensitive word closes the span after the previous one, and the spans do
+//! not overlap, so each is read once; the shape checks read a bounded number
+//! of bytes from each position. The cost is linear in the line and no input
+//! can make it panic.
 //!
 //! Known limits. A line is kept when every sensitive word on it is a plain
 //! word followed by lower-case prose, so it shows a secret made of
@@ -342,13 +350,13 @@ fn spaces(rest: &[u8]) -> usize {
 /// The longest word of lower-case letters plain prose may contain.
 const MAX_WORD: usize = 15;
 /// Whether `bytes` names a sensitive word and is not plain prose there:
-/// the key holding a sensitive word is not a plain word, or the text after a
-/// sensitive word, up to the next one or the line's end, is not prose. One
-/// forward pass over the line's keys (maximal runs of letters, digits, `_`,
-/// `-` and `.`); each sensitive word closes the span after the previous one,
-/// which `prose` reads once, so every byte is read a bounded number of times.
+/// a sensitive word is not a plain word, or the text after one, up to the
+/// next or the line's end, is not prose. One forward pass over the line's
+/// keys (maximal runs of letters, digits, `_`, `-` and `.`); each sensitive
+/// word closes the span after the previous one, which `prose` reads once, so
+/// every byte is read a bounded number of times.
 fn named_without_prose(bytes: &[u8]) -> bool {
-    // The end of the last sensitive word so far.
+    // Where the span after the last sensitive word so far starts.
     let mut after = None;
     let mut at = 0;
     while at < bytes.len() {
@@ -363,30 +371,32 @@ fn named_without_prose(bytes: &[u8]) -> bool {
             continue;
         }
         let key = bytes.get(at..at + len).unwrap_or_default();
-        let (mut named, mut leak) = (false, false);
-        sensitive_words(key, |start, end| {
-            named = true;
-            if let Some(from) = after {
-                leak |= !prose(bytes, from, at + start);
+        if sensitive_word(key) {
+            let Some(letters) = plain_word(key) else {
+                return true;
+            };
+            if after.is_some_and(|from| !prose(bytes, from, at)) {
+                return true;
             }
-            after = Some(at + end);
-        });
-        if leak || (named && !plain_word(key)) {
-            return true;
+            after = Some(at + letters);
         }
         at += len;
     }
     after.is_some_and(|from| !prose(bytes, from, bytes.len()))
 }
-/// A key that is one plain word: ASCII letters, upper case only first
-/// (`Password`, `tokens`), before any sentence-ending dots.
-fn plain_word(key: &[u8]) -> bool {
-    let mut letters = key.iter().take(
-        key.iter()
-            .rposition(|&b| b != b'.')
-            .map_or(0, |last| last + 1),
-    );
-    letters.next().is_some_and(u8::is_ascii_alphabetic) && letters.all(u8::is_ascii_lowercase)
+/// If `key` is one plain word — at most `MAX_WORD` ASCII letters, upper
+/// case only first (`Password`, `tokens`), before any sentence-ending dots —
+/// the count of its letters. The dots are left to the prose test.
+fn plain_word(key: &[u8]) -> Option<usize> {
+    let end = key
+        .iter()
+        .rposition(|&b| b != b'.')
+        .map_or(0, |last| last + 1);
+    let mut letters = key.get(..end).unwrap_or_default().iter();
+    (end <= MAX_WORD
+        && letters.next().is_some_and(u8::is_ascii_alphabetic)
+        && letters.all(u8::is_ascii_lowercase))
+    .then_some(end)
 }
 /// Whether `line[from..to]` is plain prose: spaces, words of at most
 /// `MAX_WORD` lower-case ASCII letters, and `.`, `,`, `;`, `!` or `?` each
@@ -407,88 +417,62 @@ fn prose(line: &[u8], from: usize, to: usize) -> bool {
     }
     true
 }
-/// Words that make a key component sensitive when it ends with one.
-const KEY_SUFFIXES: &[&[u8]] = &[
+/// Terms that make a key a sensitive word when it contains one, in any case.
+/// First the markers of the substring rule this module replaced (as of
+/// 9249bb7, `bearer ` without its space), which a test keeps in step with
+/// that rule, then the words this rule adds. `identified` is SQL's
+/// `IDENTIFIED BY 'x'`, a password with no other word naming it.
+const SENSITIVE_TERMS: &[&[u8]] = &[
     b"password",
     b"passwd",
     b"passphrase",
     b"secret",
-    b"token",
+    b"api_key",
+    b"api-key",
     b"apikey",
-    b"privatekey",
+    b"token",
+    b"authorization",
+    b"bearer",
+    b"ghp_",
+    b"github_pat_",
+    b"sk-ant-",
+    b"sk-proj-",
+    b"x-amz-credential",
+    b"x-amz-signature",
+    b"x-goog-signature",
     b"credential",
-    b"credentials",
     b"cookie",
     b"signature",
-];
-/// Words that make a key component sensitive only when it is exactly one.
-/// `identified` is SQL's `IDENTIFIED BY 'x'`, a password with no other word
-/// naming it.
-const KEY_WORDS: &[&[u8]] = &[
     b"session",
-    b"sessionid",
-    b"authorization",
     b"auth",
     b"identified",
 ];
-/// Calls `each` with the range, within `key`, of each sensitive word in it,
-/// in order. Components are the runs of ASCII letters, split where a
-/// lower-case letter meets an upper-case one (`accessToken`); digits, `_`,
-/// `-` and `.` separate them. A component is sensitive when it, or it
-/// without one plural `s`, ends with a word of `KEY_SUFFIXES`, is one of
-/// `KEY_WORDS`, or is `key` after `api` or `private`. The range is that word
-/// with its `s`: a component's leading letters (`csrf` in `csrftoken`) stay
-/// outside it, in the text the prose test reads.
-fn sensitive_words(key: &[u8], mut each: impl FnMut(usize, usize)) {
-    let mut previous: &[u8] = &[];
-    let mut start = 0;
-    for at in 1..=key.len() {
-        let (a, b) = (key.get(at - 1).copied(), key.get(at).copied());
-        let joined = matches!((a, b), (Some(a), Some(b))
-            if a.is_ascii_alphabetic()
-                && b.is_ascii_alphabetic()
-                && !(a.is_ascii_lowercase() && b.is_ascii_uppercase()));
-        if joined {
-            continue;
-        }
-        let part = key.get(start..at).unwrap_or_default();
-        let from = start;
-        start = at;
-        if !part.iter().all(u8::is_ascii_alphabetic) {
-            continue;
-        }
-        let stem = match part.split_last() {
-            Some((s, stem)) if s.eq_ignore_ascii_case(&b's') => stem,
-            _ => part,
-        };
-        let found = sensitive(part, previous)
-            .map(|len| part.len() - len)
-            .or_else(|| sensitive(stem, previous).map(|len| stem.len() - len));
-        if let Some(lead) = found {
-            each(from + lead, at);
-        }
-        previous = part;
-    }
-}
-/// The length of the sensitive word `part` ends with, after a component
-/// `previous`, if it is sensitive.
-fn sensitive(part: &[u8], previous: &[u8]) -> Option<usize> {
-    let ends = |word: &[u8]| {
-        part.len()
-            .checked_sub(word.len())
-            .and_then(|from| part.get(from..))
-            .is_some_and(|tail| tail.eq_ignore_ascii_case(word))
+/// Whether `key` is a sensitive word: it contains a term of
+/// `SENSITIVE_TERMS`, or `key` after `api` or `private` with only digits,
+/// `_`, `-` or `.` between (`privatekey`, `private.key`, `API__KEY`), in any
+/// case. Each position is compared with a fixed number of bytes, and the run
+/// between `api` or `private` and `key` follows a letter, so no run is read
+/// twice.
+fn sensitive_word(key: &[u8]) -> bool {
+    let starts = |at: usize, word: &[u8]| {
+        key.get(at..at + word.len())
+            .is_some_and(|here| here.eq_ignore_ascii_case(word))
     };
-    if let Some(word) = KEY_SUFFIXES.iter().find(|word| ends(word)) {
-        return Some(word.len());
-    }
-    let is = |word: &[u8]| part.eq_ignore_ascii_case(word);
-    (KEY_WORDS.iter().any(|word| is(word))
-        || (is(b"key")
-            && [&b"api"[..], b"private"]
-                .iter()
-                .any(|w| previous.eq_ignore_ascii_case(w))))
-    .then_some(part.len())
+    (0..key.len()).any(|at| {
+        SENSITIVE_TERMS.iter().any(|term| starts(at, term))
+            || [&b"api"[..], b"private"].iter().any(|word| {
+                let after = at + word.len();
+                starts(at, word) && {
+                    let gap = key
+                        .get(after..)
+                        .unwrap_or_default()
+                        .iter()
+                        .take_while(|&&b| b.is_ascii_digit() || matches!(b, b'_' | b'-' | b'.'))
+                        .count();
+                    starts(after + gap, b"key")
+                }
+            })
+    })
 }
 /// Whether a known secret value starts at `at`. Every check reads at most a
 /// fixed number of bytes, except the JWT scan, which starts only where the
@@ -1055,6 +1039,9 @@ mod tests {
             "BY",
             "WITH",
             "\\\\\\\"",
+            "SECRETKEY",
+            "private",
+            "secretary",
         ];
         let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
         let mut next = |bound: usize| {
@@ -1111,6 +1098,11 @@ mod tests {
             "csrftoken",
             "tokens",
             "Session, ",
+            "api_",
+            "private.",
+            "api__key",
+            "SECRETKEY=",
+            "secretary ",
         ] {
             let line = unit.repeat(CONTAINER_LOG_BYTES / unit.len() - 1);
             decode_all(line.as_bytes(), true).unwrap();
@@ -1173,8 +1165,9 @@ mod tests {
         ("the user was identified by email", false),
         ("session started for the token.", false),
         ("Password expired; Tokens revoked.", false),
-        // Kept: no sensitive word.
         ("the bearer of bad news", false),
+        ("the author replied", false),
+        // Kept: no sensitive word.
         ("id=550e8400-e29b-41d4-a716-446655440000 ready", false),
         ("connected to postgres://db:5432/app", false),
         ("risk-free reconciliation done in 12ms", false),
@@ -1203,6 +1196,17 @@ mod tests {
         ("value=hunter2, name=PASSWORD", true),
         ("password SECRET", true),
         ("accessToken expired", true),
+        // Redacted: a term inside a compound name, which only a substring
+        // test finds, or inside a word of 16 letters or more.
+        ("SECRETKEY=HuNter2!", true),
+        ("PASSWORDFILE=/run/x", true),
+        ("mysecretvalue=abc", true),
+        ("tokenfile: abc123", true),
+        ("sessionkey=abc", true),
+        ("Secretkey=hunter", true),
+        ("API__KEY=abc", true),
+        ("passwordmanagement enabled", true),
+        ("the obsessionwithtokens grew", true),
         // Redacted though harmless: the accepted cost.
         ("secrets are mounted read-only", true),
         ("--token-ttl 3600", true),
@@ -1223,6 +1227,7 @@ mod tests {
         ("limeos_core::session: started", true),
         ("Ünïcödé session 😀 started", true),
         ("SECRET_KEY not set", true),
+        ("Author: bob", true),
     ];
     #[test]
     fn listed_lines_have_their_listed_outcome() {
@@ -1741,6 +1746,65 @@ mod tests {
                 }
             }
         }
+        lines.extend(compounds());
+        lines
+    }
+    /// `word` in lower case, upper case, with a capital first letter, and in
+    /// alternating case.
+    fn cased(word: &str) -> [String; 4] {
+        let mut capital = word.to_owned();
+        if let Some(first) = capital.get_mut(..1) {
+            first.make_ascii_uppercase();
+        }
+        let alternating = word
+            .chars()
+            .enumerate()
+            .map(|(i, c)| {
+                if i % 2 == 0 {
+                    c.to_ascii_uppercase()
+                } else {
+                    c
+                }
+            })
+            .collect();
+        [
+            word.to_owned(),
+            word.to_ascii_uppercase(),
+            capital,
+            alternating,
+        ]
+    }
+    /// Every sensitive term inside a compound name, which only a substring
+    /// test finds: at its start, middle and end, in each case, in
+    /// assignment, option and record forms. Each line carries a credential.
+    fn compounds() -> Vec<String> {
+        let mut lines = Vec::new();
+        for term in SENSITIVE_TERMS {
+            let term = std::str::from_utf8(term).unwrap();
+            for compound in [
+                format!("{term}file"),
+                format!("my{term}value"),
+                format!("db{term}"),
+            ] {
+                for key in cased(&compound) {
+                    for form in [
+                        "{}=HuNter2!",
+                        "{}=/run/x",
+                        "{}: abc123",
+                        "\"{}\":\"hunter2\"",
+                        "export {}='x'",
+                        "--{} hunter2",
+                        "--{}=x",
+                        "-{} 'x'",
+                        r#"{"name":"{}","value":"x"}"#,
+                        r#"{"value":"x","name":"{}"}"#,
+                        "name: {}, value: x",
+                    ] {
+                        lines.push(form.replace("{}", &key));
+                    }
+                }
+            }
+        }
         lines
     }
     #[test]
@@ -1804,15 +1868,82 @@ mod tests {
                 .all(|b| b.is_ascii_lowercase() || b" .,;!?".contains(&b))
         })
     }
+    /// The plain-prose definition of the module documentation, written
+    /// independently of the scan: `None` when the line names no sensitive
+    /// word, otherwise whether every sensitive word is a plain word followed
+    /// by prose up to the next one or the line's end.
+    fn prose_definition(line: &str) -> Option<bool> {
+        let bytes = line.as_bytes();
+        let key_byte = |b: u8| b.is_ascii_alphanumeric() || b"_-.".contains(&b);
+        let mut keys = Vec::new();
+        let mut at = 0;
+        while at < bytes.len() {
+            let start = at;
+            while at < bytes.len() && key_byte(bytes[at]) {
+                at += 1;
+            }
+            if at > start {
+                keys.push((start, at));
+            } else {
+                at += 1;
+            }
+        }
+        let sensitive: Vec<_> = keys
+            .into_iter()
+            .filter(|&(start, end)| {
+                let key = line[start..end].to_ascii_lowercase();
+                let term = SENSITIVE_TERMS
+                    .iter()
+                    .any(|term| key.contains(std::str::from_utf8(term).unwrap()));
+                let api_key = ["api", "private"].iter().any(|word| {
+                    key.match_indices(word).any(|(at, _)| {
+                        key[at + word.len()..]
+                            .trim_start_matches(|c: char| c.is_ascii_digit() || "_-.".contains(c))
+                            .starts_with("key")
+                    })
+                });
+                term || api_key
+            })
+            .collect();
+        if sensitive.is_empty() {
+            return None;
+        }
+        Some(sensitive.iter().enumerate().all(|(n, &(start, end))| {
+            let word = line[start..end].trim_end_matches('.');
+            let plain = (1..=15).contains(&word.len())
+                && word.bytes().all(|b| b.is_ascii_alphabetic())
+                && word.bytes().skip(1).all(|b| b.is_ascii_lowercase());
+            let to = sensitive.get(n + 1).map_or(line.len(), |&(next, _)| next);
+            let span = &line[start + word.len()..to];
+            // Words of at most 15 lower-case letters, each with at most one
+            // punctuation mark after it, which a space or the line's end
+            // follows.
+            let tokens: Vec<_> = span.split(' ').collect();
+            plain
+                && tokens.iter().enumerate().all(|(i, token)| {
+                    let (letters, mark) = match token.strip_suffix(['.', ',', ';', '!', '?']) {
+                        Some(letters) => (letters, true),
+                        None => (*token, false),
+                    };
+                    letters.len() <= 15
+                        && letters.bytes().all(|b| b.is_ascii_lowercase())
+                        && !(mark && i + 1 == tokens.len() && to != line.len())
+                })
+        }))
+    }
     #[test]
     fn every_corpus_line_the_substring_rule_redacted_is_still_redacted_unless_plain_prose() {
         let corpus = corpus();
-        assert!(corpus.len() >= 6000, "{}", corpus.len());
+        assert!(corpus.len() >= 8000, "{}", corpus.len());
         let emitted: Vec<_> = corpus
             .iter()
             .filter(|line| substring_rule(line) && !redacted(line))
             .map(String::as_str)
             .collect();
+        for line in &emitted {
+            assert_eq!(prose_definition(line), Some(true), "{line:?}");
+            assert!(NO_LONGER_REDACTED.contains(line), "{line:?}");
+        }
         assert_eq!(emitted, NO_LONGER_REDACTED);
         for line in NO_LONGER_REDACTED {
             assert!(prose_after_marker(line), "{line:?}");
@@ -1820,6 +1951,114 @@ mod tests {
         for line in CREDENTIAL_LINES {
             assert!(redacted(line), "{line:?}");
         }
+    }
+    #[test]
+    fn every_compound_name_is_redacted() {
+        let lines = compounds();
+        assert_eq!(lines.len(), SENSITIVE_TERMS.len() * 3 * 4 * 11);
+        let missed: Vec<_> = lines.iter().filter(|line| !redacted(line)).collect();
+        assert!(missed.is_empty(), "{} missed: {missed:#?}", missed.len());
+    }
+    #[test]
+    fn detection_holds_every_marker_of_the_substring_rule() {
+        for marker in ORACLE_MARKERS {
+            let term = marker.trim_end().as_bytes();
+            assert!(SENSITIVE_TERMS.contains(&term), "{marker:?}");
+        }
+        for term in SENSITIVE_TERMS {
+            assert!(sensitive_word(term));
+        }
+    }
+    #[test]
+    fn arbitrary_lines_the_substring_rule_redacts_are_redacted_unless_plain_prose() {
+        let words: Vec<String> = SENSITIVE_TERMS
+            .iter()
+            .map(|term| std::str::from_utf8(term).unwrap())
+            .chain(["api__key", "private.key", "API2KEY", "Bearer"])
+            .flat_map(|term| {
+                ["", "my", "db", "obsession"]
+                    .into_iter()
+                    .flat_map(move |lead| {
+                        ["", "s", "file", "value", "izer", "ary", "managementx"]
+                            .into_iter()
+                            .flat_map(move |tail| cased(&format!("{lead}{term}{tail}")))
+                    })
+            })
+            .collect();
+        // No piece makes a `sk-` part on its own: the oracle's value shape,
+        // which the shape rule deliberately narrows (`sk-learn-compatible`).
+        let pieces: &[&str] = &[
+            "alpha",
+            "bravo",
+            "the",
+            "is",
+            "a",
+            "user",
+            "bob",
+            "Bob",
+            "BOB",
+            "42",
+            "x9",
+            ".",
+            ",",
+            ";",
+            "!",
+            "?",
+            "=",
+            ":",
+            "-",
+            "_",
+            "\"",
+            "'",
+            "/",
+            "@",
+            "://",
+            "{",
+            "}",
+            "(",
+            ")",
+            "[",
+            "]",
+            "\t",
+            "é",
+            "😀",
+            "%3D",
+            "abcdefghijklmnop",
+            "hunter2",
+            "HuNter2!",
+        ];
+        let mut next = generator(0x5851_f42d_4c95_7f2d);
+        let (mut shown, mut hidden) = (0, 0);
+        for _ in 0..20_000 {
+            let mut line = String::new();
+            for _ in 0..1 + next(12) {
+                if !line.is_empty() && next(3) != 0 {
+                    line.push(' ');
+                }
+                if next(3) == 0 {
+                    line.push_str(&words[next(words.len())]);
+                } else {
+                    line.push_str(pieces[next(pieces.len())]);
+                }
+            }
+            let prose = prose_definition(&line);
+            // The scan decides exactly as the definition does.
+            assert_eq!(
+                named_without_prose(line.as_bytes()),
+                prose == Some(false),
+                "{line:?}"
+            );
+            if substring_rule(&line) {
+                if redacted(&line) {
+                    hidden += 1;
+                } else {
+                    assert_eq!(prose, Some(true), "{line:?}");
+                    shown += 1;
+                }
+            }
+        }
+        // Both outcomes occur often, so neither half is vacuous.
+        assert!(shown >= 100 && hidden >= 1000, "{shown} {hidden}");
     }
     #[test]
     fn private_key_blocks_on_one_or_many_lines_redact_only_the_block() {
