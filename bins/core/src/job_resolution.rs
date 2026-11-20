@@ -98,19 +98,22 @@ impl Core {
     /// Fresh, read-only measurement of exactly the job's targets. A container
     /// the Engine no longer has is evidence too; any other failure is not.
     async fn gather_evidence(&self, subject: &ResolutionSubject) -> Result<ResolutionEvidence> {
-        let mut current = Vec::with_capacity(subject.targets.len());
-        for target in &subject.targets {
+        self.measure(subject.operation, &subject.targets).await
+    }
+    async fn measure(
+        &self,
+        operation: limeos_domain::ContainerAction,
+        targets: &[limeos_domain::ContainerSnapshot],
+    ) -> Result<ResolutionEvidence> {
+        let mut current = Vec::with_capacity(targets.len());
+        for target in targets {
             current.push(match self.inspect(&target.resource).await {
                 Ok(snapshot) => Some(snapshot),
                 Err(Error(ErrorCode::NotFound)) => None,
                 Err(e) => return Err(e),
             });
         }
-        ResolutionEvidence::observe(
-            subject.operation,
-            &subject.targets.iter().collect::<Vec<_>>(),
-            &current,
-        )
+        ResolutionEvidence::observe(operation, &targets.iter().collect::<Vec<_>>(), &current)
     }
 
     /// Evidence and any existing record for one job. Administrator only; the
@@ -219,7 +222,7 @@ impl Core {
             // Withdrawn, so a new decision is possible: show what changed.
             Finish::Refused(ErrorCode::Conflict) => Ok(ResolveJobResponse {
                 status: ResolveStatus::StaleEvidence,
-                message: "The executor measured something different. Nothing was changed; review the evidence and decide again.".into(),
+                message: "A fresh measurement no longer matches the evidence you approved. Nothing was changed; review the evidence and decide again.".into(),
                 resolution: None,
                 view: self.resolution_view(principal, job).await.ok(),
                 blocking: Vec::new(),
@@ -295,15 +298,30 @@ impl Core {
                     };
                 }
                 match receipt.absence {
-                    // The executor holds no row, so it holds no lock to free, and
-                    // the administrator decided on core's fresh evidence. Core
-                    // records the confirmation itself. A never-recorded plan is
-                    // left until it has expired, after which no delayed request
-                    // can still be accepted for it.
+                    // The executor holds no row, so it holds no lock to free.
+                    // Core records the confirmation itself. A never-recorded
+                    // plan is left until it has expired, after which no delayed
+                    // request can still be accepted for it.
                     Some(ReceiptAbsence::NoLongerHeld) => {}
                     Some(ReceiptAbsence::NeverRecorded) if now() >= pending.expires_at => {}
                     // An answer without a confirmation settles nothing.
                     _ => return Finish::Pending(ErrorCode::Unavailable),
+                }
+                // No executor re-measured anything, and the decision may be
+                // hours old (a crash before completion). Measure again now and
+                // complete only on exactly the evidence the administrator
+                // approved; otherwise they decide again.
+                match self.measure(pending.operation, &pending.targets).await {
+                    Ok(now) if now.digest().ok().as_deref() == Some(&request.evidence_digest) => {}
+                    Ok(_) => {
+                        return match withdraw().await {
+                            Ok(()) | Err(Error(ErrorCode::NotFound)) => {
+                                Finish::Refused(ErrorCode::Conflict)
+                            }
+                            Err(e) => Finish::Pending(e.0),
+                        };
+                    }
+                    Err(e) => return Finish::Pending(e.0),
                 }
                 complete(ResolveReceipt {
                     kind: pending.kind,

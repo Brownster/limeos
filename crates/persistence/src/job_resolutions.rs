@@ -43,6 +43,9 @@ pub struct PendingResolution {
     pub plan_digest: String,
     /// The plan's expiry, sent with `ResolveAction`.
     pub expires_at: i64,
+    /// The plan's operation and targets, to measure the evidence again.
+    pub operation: ContainerAction,
+    pub targets: Vec<ContainerSnapshot>,
 }
 
 fn subject_of(id: &str, state: &str, intent: &str) -> Result<ResolutionSubject> {
@@ -382,6 +385,8 @@ impl Store {
                         kind: subject.kind,
                         plan_digest: subject.plan_digest,
                         expires_at: subject.expires_at,
+                        operation: subject.operation,
+                        targets: subject.targets,
                     })
                 } else {
                     Err(Error(ErrorCode::Conflict))
@@ -413,6 +418,8 @@ impl Store {
                 kind: subject.kind,
                 plan_digest: subject.plan_digest,
                 expires_at: subject.expires_at,
+                operation: subject.operation,
+                targets: subject.targets,
             })
         })
     }
@@ -481,6 +488,8 @@ impl Store {
                     kind: subject.kind,
                     plan_digest: subject.plan_digest,
                     expires_at: subject.expires_at,
+                    operation: subject.operation,
+                    targets: subject.targets,
                 })
             })
             .collect()

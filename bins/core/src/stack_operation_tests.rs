@@ -1445,6 +1445,101 @@ async fn a_declaration_the_executors_recorded_outcome_contradicts_is_refused_wit
 }
 
 #[tokio::test]
+async fn a_retried_resolution_without_an_executor_receipt_measures_again_before_it_unlocks() {
+    use limeos_domain::{DeclaredOutcome, ResolutionEvidence};
+    let f = admin().await;
+    let job = claimed_before_retention(&f, "retry-pruned").await;
+    for member in &mut f.engine.lock().unwrap().members {
+        apply(ContainerAction::Restart, member);
+    }
+    {
+        let mut engine = f.engine.lock().unwrap();
+        engine.resolve_missing = true;
+        engine.watermark = job.plan.expires_at;
+    }
+    let current = f.current(&job).await;
+    f.core
+        .dispatch_stack(f.principal().await, current)
+        .await
+        .unwrap();
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    // The administrator decides "verified done" and core records it, then
+    // crashes before the executor step and completion.
+    let operator = f.principal().await;
+    let view = f
+        .core
+        .resolution_view(operator.clone(), job.id.clone())
+        .await
+        .unwrap();
+    let evidence = ResolutionEvidence {
+        targets: view.targets.iter().map(|t| t.measured.clone()).collect(),
+    };
+    let (p, id, digest) = (
+        operator.clone(),
+        job.id.clone(),
+        view.evidence_digest.unwrap(),
+    );
+    f.core
+        .db
+        .call(move |s| {
+            s.request_resolution(
+                &p,
+                &id,
+                DeclaredOutcome::VerifiedDone,
+                "Both members restarted.",
+                &evidence,
+                &digest,
+                now() - 3600,
+            )
+        })
+        .await
+        .unwrap();
+    // Hours later a member has stopped; the retry must not unlock on the
+    // evidence approved back then.
+    f.engine.lock().unwrap().members[0].running = false;
+    f.core
+        .complete_pending_resolutions(&mut Default::default(), 0)
+        .await;
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    assert!(
+        f.core
+            .db
+            .call(|s| s.pending_resolutions())
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        f.core
+            .db
+            .call(|s| s.stack_candidates())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    // Withdrawn, so the administrator decides again on fresh evidence.
+    let view = f
+        .core
+        .resolution_view(operator.clone(), job.id.clone())
+        .await
+        .unwrap();
+    let done = f
+        .core
+        .resolve_as(
+            operator,
+            job.id.clone(),
+            DeclaredOutcome::AcceptedDivergence,
+            "One member stopped again after its restart.".into(),
+            view.evidence_digest.unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(done.status, limeos_contracts::ResolveStatus::Resolved);
+    f.task.abort();
+}
+
+#[tokio::test]
 async fn an_old_never_sent_stack_is_released_without_waiting_for_any_window() {
     // Claimed long ago; the executor never wrote a row and never pruned one
     // for a plan this late, so nothing was sent, however old the plan is.

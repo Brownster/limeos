@@ -83,7 +83,7 @@ Headers: `Origin`, `X-CSRF-Token`, `Content-Type: application/json`. Body, no ot
 | --- | --- | --- |
 | 200 | `resolved` | Executor and core are both released. `resolution` is the record. |
 | 202 | `pending` | Recorded and held: the executor was unreachable or its answer was lost. Core retries on its own; repeating the identical POST is safe and idempotent. The job stays locked until it completes. |
-| 409 | `stale_evidence` | The state changed since the evidence was shown, or the executor measured something different (the request is then withdrawn). `view` is fresh evidence; show it and let the administrator decide again. |
+| 409 | `stale_evidence` | The state changed since the evidence was shown, or a fresh measurement at completion differs from the approved evidence (the executor's, or core's own when the executor holds no receipt); the request is then withdrawn. `view` is fresh evidence; show it and let the administrator decide again. |
 | 409 | `unsupported_declaration` | The evidence does not support `declared`. `blocking` lists the container IDs that differ; `view` has the per-target plan-vs-measured detail. Nothing is recorded. Also returned, with empty `blocking`, when the executor's terminal receipt contradicts `declared` (see above); that request is withdrawn. |
 | 409 | (`ErrorEnvelope`, `conflict`) | Another request is open for the job, the job is not awaiting resolution, or it is already resolved. GET to see `pending` or `resolution`. |
 | 400 | (`ErrorEnvelope`) | Bad body, reason rules, job ID. |
