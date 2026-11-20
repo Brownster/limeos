@@ -47,11 +47,12 @@ packages = {
             "tower",
             "http-body-util",
         ],
-        f"include!({json.dumps(str(root / 'crates/api/src/lib.rs'))});\n"
-        + module("automation", "crates/api/src/automation.rs")
-        + module("deployment", "crates/api/src/deployment.rs")
-        + "pub fn proposed_routes<B: deployment::DeploymentBackend + automation::AutomationBackend>(backend: B, origin: String) -> Router {\n"
-        "deployment::routes().merge(automation::routes()).with_state(App { backend, origin: origin.into(), limiter: Arc::new(Mutex::new(Limiter::default())), readers: Arc::new(Semaphore::new(2)) })\n}\n",
+        # lib.rs declares `automation` and `deployment` behind `deferred`,
+        # which this leaf enables by default. It ends with its test module, so
+        # the proposed router comes first.
+        "pub fn proposed_routes<B: deployment::DeploymentBackend + automation::AutomationBackend>(backend: B, origin: String) -> Router {\n"
+        "deployment::routes().merge(automation::routes()).with_state(App { backend, origin: origin.into(), limiter: Arc::new(Mutex::new(Limiter::default())), readers: Arc::new(Semaphore::new(2)) })\n}\n"
+        + f"include!({json.dumps(str(root / 'crates/api/src/lib.rs'))});\n",
     ),
     "runner": (
         [],
@@ -67,7 +68,7 @@ for name, (deps, source) in packages.items():
     package.mkdir(exist_ok=True)
     manifest = (
         f'[package]\nname = "limeos-stream-b-{name}-leaf"\nversion = "0.0.0"\n'
-        'edition = "2024"\npublish = false\n[dependencies]\n'
+        'edition = "2024"\npublish = false\n[features]\ndefault = ["deferred"]\ndeferred = []\n[dependencies]\n'
     )
     for dep in deps:
         value = dependencies[dep]
@@ -93,3 +94,5 @@ for name, (deps, source) in packages.items():
     )
     (package / "lib.rs").write_text(source)
 print(f"Prepared {destination}; shared production registrations unchanged")
+# Run through the runner: it fails when no test ran, unlike bare cargo test.
+print(f"Run: python3 tests/fixtures/leaf_runner.py {destination / 'Cargo.toml'}")

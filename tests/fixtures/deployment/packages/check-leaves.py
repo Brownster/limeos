@@ -1,42 +1,25 @@
-#!/usr/bin/env -S uv run --offline
-# /// script
-# dependencies = []
-# ///
-"""Prepare isolated package domain/parser checks without shared root changes."""
+#!/usr/bin/env python3
+"""Run the package baseline planner and dpkg projection tests in place.
 
-import json
-import tomllib
+This harness once copied the modules into a separate wrapper crate because
+they were not declared in the workspace. They are now declared behind the
+`deferred` feature (docs/deferred-code.md), so it runs their tests in the
+workspace with that feature, through leaf_runner, which fails when no test ran.
+Earlier evidence that names this script reproduces only at its recorded source.
+
+Usage: python3 tests/fixtures/deployment/packages/check-leaves.py
+"""
+
+import sys
 from pathlib import Path
 
-root = Path(__file__).resolve().parents[4]
-destination = root / ".cache/package-leaf"
-dependencies = tomllib.loads((root / "Cargo.toml").read_text())["workspace"][
-    "dependencies"
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from leaf_runner import run_deferred  # noqa: E402
+
+GROUPS = [
+    ('limeos-domain', ['--lib'], ['deployment::packages']),
+    ('limeos-executor', ['--lib'], ['updates::packages']),
 ]
-for name in ["domain", "adapter"]:
-    (destination / name).mkdir(parents=True, exist_ok=True)
-(destination / "Cargo.toml").write_text(
-    '[workspace]\nmembers = ["domain", "adapter"]\nresolver = "2"\n'
-)
-(destination / "domain/Cargo.toml").write_text(
-    '[package]\nname = "limeos-package-domain-leaf"\nversion = "0.0.0"\nedition = "2024"\npublish = false\n'
-    "[dependencies]\n"
-    f'original-domain = {{ package = "limeos-domain", path = {json.dumps(str(root / "crates/domain"))} }}\n'
-    f'serde = {{ version = "{dependencies["serde"]["version"]}", features = ["derive"] }}\n'
-    f'serde_json = "{dependencies["serde_json"]}"\n'
-    '[lib]\npath = "lib.rs"\n[lints.rust]\nunsafe_code = "forbid"\n'
-)
-(destination / "domain/lib.rs").write_text(
-    "pub use original_domain::*;\n"
-    f"#[path = {json.dumps(str(root / 'crates/domain/src/deployment/mod.rs'))}]\npub mod deployment;\n"
-)
-(destination / "adapter/Cargo.toml").write_text(
-    '[package]\nname = "limeos-package-adapter-leaf"\nversion = "0.0.0"\nedition = "2024"\npublish = false\n'
-    "[dependencies]\n"
-    'limeos-domain = { package = "limeos-package-domain-leaf", path = "../domain" }\n'
-    '[lib]\npath = "lib.rs"\n[lints.rust]\nunsafe_code = "forbid"\n'
-)
-(destination / "adapter/lib.rs").write_text(
-    f"pub mod updates {{ #[path = {json.dumps(str(root / 'bins/executor/src/updates'))}] pub mod leaves {{ pub mod packages; }} }}\n"
-)
-print(f"Prepared {destination}; shared roots unchanged")
+
+if __name__ == "__main__":
+    sys.exit(run_deferred(GROUPS))

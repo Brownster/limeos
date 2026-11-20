@@ -25,7 +25,8 @@ read workers, routes, service and package inputs remain as on the base.
 The [source-bound packet](rewrite-evidence/p04/2026-10-18-a-assistance-integration/README.md)
 records the actual combined source, inputs and results:
 
-- `cargo test --offline --locked -p limeos-domain -p limeos-backup-archive`:
+- `cargo test --offline --locked -p limeos-domain -p limeos-backup-archive`
+  (add `--features deferred` since PR-40; see `docs/deferred-code.md`):
   **331 checks passed**. This is 178 domain unit tests, 143 archive
   unit/integration tests and ten compile-fail doctests. No filtered or ignored
   cases are credited, and child process output/repeated runs add no cases.

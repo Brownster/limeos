@@ -24,6 +24,9 @@ Use Rust 1.88.0 and the checked-in lockfile for development checks. The workspac
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
+# Deferred code (docs/deferred-code.md) is checked separately:
+cargo clippy --workspace --all-targets --locked --features deferred -- -D warnings
+cargo test --workspace --locked --features deferred
 cargo deny check
 cargo audit
 shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh

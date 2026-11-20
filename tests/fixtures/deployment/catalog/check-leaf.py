@@ -1,29 +1,24 @@
-#!/usr/bin/env -S uv run --offline
-# /// script
-# dependencies = []
-# ///
-"""Prepare a bounded catalog planner harness without shared crate-root edits."""
+#!/usr/bin/env python3
+"""Run the catalog planner tests in place.
 
-import json
-import tomllib
+This harness once copied the modules into a separate wrapper crate because
+they were not declared in the workspace. They are now declared behind the
+`deferred` feature (docs/deferred-code.md), so it runs their tests in the
+workspace with that feature, through leaf_runner, which fails when no test ran.
+Earlier evidence that names this script reproduces only at its recorded source.
+
+Usage: python3 tests/fixtures/deployment/catalog/check-leaf.py
+"""
+
+import sys
 from pathlib import Path
 
-root = Path(__file__).resolve().parents[4]
-destination = root / ".cache/catalog-leaf"
-destination.mkdir(parents=True, exist_ok=True)
-dependencies = tomllib.loads((root / "Cargo.toml").read_text())["workspace"][
-    "dependencies"
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from leaf_runner import run_deferred  # noqa: E402
+
+GROUPS = [
+    ('limeos-domain', ['--lib'], ['deployment::catalog']),
 ]
-(destination / "Cargo.toml").write_text(
-    '[package]\nname = "limeos-catalog-leaf-check"\nversion = "0.0.0"\nedition = "2024"\npublish = false\n'
-    "[workspace]\n[dependencies]\n"
-    f'original-domain = {{ package = "limeos-domain", path = {json.dumps(str(root / "crates/domain"))} }}\n'
-    f'serde = {{ version = "{dependencies["serde"]["version"]}", features = ["derive"] }}\n'
-    f'serde_json = "{dependencies["serde_json"]}"\n'
-    '[lib]\npath = "lib.rs"\n[lints.rust]\nunsafe_code = "forbid"\n'
-)
-(destination / "lib.rs").write_text(
-    "pub use original_domain::*;\n"
-    f"#[path = {json.dumps(str(root / 'crates/domain/src/deployment/mod.rs'))}]\npub mod deployment;\n"
-)
-print(f"Prepared {destination}; shared manifests and exports unchanged")
+
+if __name__ == "__main__":
+    sys.exit(run_deferred(GROUPS))
