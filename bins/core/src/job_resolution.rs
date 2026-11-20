@@ -12,7 +12,7 @@ use limeos_contracts::{
 };
 use limeos_domain::{
     DeclaredOutcome, JobResolution, JobState, Principal, ReceiptAbsence, ResolutionEvidence,
-    ResolveReceipt, validate_reason,
+    ResolveReceipt, execution_closed, validate_reason,
 };
 use limeos_executor_protocol::Request;
 use limeos_persistence::{PendingResolution, ResolutionSubject};
@@ -31,6 +31,11 @@ enum Finish {
     Disagrees(limeos_domain::ResolveRefusal),
     /// Nothing was settled. The request stays recorded and held.
     Pending(ErrorCode),
+    /// The executor holds no receipt, but the plan expiring at this time is
+    /// still valid: a request sent for it could still run. The request stays
+    /// recorded and held, and the retry loop completes it once the plan has
+    /// expired.
+    AwaitingExpiry(i64),
 }
 
 fn awaiting(state: JobState) -> bool {
@@ -40,6 +45,17 @@ fn awaiting(state: JobState) -> bool {
     )
 }
 const PENDING_MESSAGE: &str = "The request is recorded and the job stays held. The executor could not confirm; core retries automatically. Repeat the same request or check again shortly.";
+
+/// Why a resolution without an executor receipt waits for the plan's expiry.
+fn awaiting_expiry(expires_at: i64, now: i64) -> String {
+    let wait = expires_at
+        .saturating_add(limeos_domain::EXPIRY_SETTLE_MARGIN)
+        .saturating_sub(now)
+        .max(1);
+    format!(
+        "The request is recorded and the job stays held. The executor holds no receipt for this job, but its approved plan has not expired, so a request already sent for it could still run. Core completes the decision automatically about {wait} seconds from now, once the plan has expired and a fresh measurement still matches the evidence you approved."
+    )
+}
 
 fn view_of(
     subject: &ResolutionSubject,
@@ -235,6 +251,13 @@ impl Core {
                 blocking: Vec::new(),
             }),
             Finish::Refused(_) => Err(Error(ErrorCode::Conflict)),
+            Finish::AwaitingExpiry(expires_at) => Ok(ResolveJobResponse {
+                status: ResolveStatus::Pending,
+                message: awaiting_expiry(expires_at, now()),
+                resolution: None,
+                view: None,
+                blocking: Vec::new(),
+            }),
             Finish::Pending(_) => Ok(ResolveJobResponse {
                 status: ResolveStatus::Pending,
                 message: PENDING_MESSAGE.into(),
@@ -250,6 +273,8 @@ impl Core {
     async fn finish_resolution(&self, pending: &PendingResolution, actor: &Principal) -> Finish {
         let request = &pending.request;
         let budget = Duration::from_secs(10 + 3 * request.evidence.targets.len() as u64);
+        // Read before the request: the executor's answer is no older than this.
+        let asked_at = now();
         let confirmation = self
             .executor(
                 Request::ResolveAction {
@@ -298,14 +323,20 @@ impl Core {
                     };
                 }
                 match receipt.absence {
-                    // The executor holds no row, so it holds no lock to free.
-                    // Core records the confirmation itself. A never-recorded
-                    // plan is left until it has expired, after which no delayed
-                    // request can still be accepted for it.
-                    Some(ReceiptAbsence::NoLongerHeld) => {}
-                    Some(ReceiptAbsence::NeverRecorded) if now() >= pending.expires_at => {}
+                    // The executor holds no row, so it holds no lock to free,
+                    // and core records the confirmation itself. Whatever the
+                    // kind of absence, only once the plan has expired: until
+                    // then an execute request already sent may not yet have
+                    // reached the receipt store, and would run after core
+                    // released its locks. `no_longer_held` is no exception; a
+                    // store upgraded from schema 6 gives it for any plan.
+                    Some(ReceiptAbsence::NeverRecorded | ReceiptAbsence::NoLongerHeld) => {
+                        if !execution_closed(pending.expires_at, asked_at) {
+                            return Finish::AwaitingExpiry(pending.expires_at);
+                        }
+                    }
                     // An answer without a confirmation settles nothing.
-                    _ => return Finish::Pending(ErrorCode::Unavailable),
+                    None => return Finish::Pending(ErrorCode::Unavailable),
                 }
                 // No executor re-measured anything, and the decision may be
                 // hours old (a crash before completion). Measure again now and
@@ -396,6 +427,9 @@ impl Core {
                 Finish::Pending(code) => {
                     tracing::warn!(?code, "job resolution stays pending")
                 }
+                Finish::AwaitingExpiry(_) => tracing::info!(
+                    "job resolution without an executor receipt waits for its plan to expire"
+                ),
             }
         }
     }

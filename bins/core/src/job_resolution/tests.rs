@@ -1,6 +1,6 @@
 use super::*;
 use limeos_contracts::{Enrollment, Login};
-use limeos_domain::{ContainerSnapshot, ResolveKind, ResolveReceipt};
+use limeos_domain::{ContainerAction, ContainerSnapshot, ResolveKind, ResolveReceipt};
 use limeos_executor_protocol::Receipt;
 use std::sync::Mutex;
 
@@ -17,6 +17,8 @@ enum Mode {
     Lost,
     /// A definite error code.
     Refuse(ErrorCode),
+    /// The store holds no row for the action and answers with this absence.
+    Absent(limeos_domain::ReceiptAbsence),
 }
 struct Executor {
     /// `None`: the Engine no longer has the container.
@@ -99,6 +101,7 @@ fn answer(exec: &mut Executor, request: Request) -> Option<Receipt> {
                     return None;
                 }
                 Mode::Refuse(code) => refuse(&mut response, code),
+                Mode::Absent(absence) => response.absence = Some(absence),
             }
         }
         _ => exec.effects += 1,
@@ -137,6 +140,11 @@ async fn login(core: &Core) -> limeos_api::IssuedSession {
 /// An administrator, a restart job claimed and then left `needs_intervention`,
 /// and an executor that still sees the container as planned.
 async fn fixture() -> Fixture {
+    fixture_at(None).await
+}
+/// As `fixture`, with the job planned, approved, queued and claimed at
+/// `planned` instead of now, so its plan may already have expired.
+async fn fixture_at(planned: Option<i64>) -> Fixture {
     let dir = tempfile::tempdir().unwrap();
     let db = Database::open(&dir.path().join("core.sqlite")).unwrap();
     let path = dir.path().join("executor.sock");
@@ -177,44 +185,70 @@ async fn fixture() -> Fixture {
     .unwrap();
     let session = login(&core).await;
     let (token, csrf) = (session.token.clone(), session.view.csrf_token.clone());
-    let resource = engine_state(T0, true).resource;
-    let proposal = core
-        .plan_restart(
-            token.clone(),
-            csrf.clone(),
-            limeos_contracts::RestartInput { resource },
-        )
-        .await
-        .unwrap();
-    let approval = core
-        .approve_container(
-            token.clone(),
-            csrf.clone(),
-            proposal.plan.id.clone(),
-            proposal.digest.clone(),
-        )
-        .await
-        .unwrap();
-    let job = core
-        .queue_container(
-            token.clone(),
-            csrf,
-            limeos_contracts::QueueRestartInput {
-                proposal,
-                approval: approval.token,
-                idempotency_key: "stuck".into(),
-            },
-        )
-        .await
-        .unwrap();
-    let (p, id) = (session.view.principal.clone(), job.id.clone());
-    core.db
-        .call(move |s| {
-            s.claim_container(&p, &id, &engine_state(T0, true), now())?;
-            s.transition(&id, JobState::Running, JobState::NeedsIntervention, now())
-        })
-        .await
-        .unwrap();
+    let job = match planned {
+        None => {
+            let resource = engine_state(T0, true).resource;
+            let proposal = core
+                .plan_restart(
+                    token.clone(),
+                    csrf.clone(),
+                    limeos_contracts::RestartInput { resource },
+                )
+                .await
+                .unwrap();
+            let approval = core
+                .approve_container(
+                    token.clone(),
+                    csrf.clone(),
+                    proposal.plan.id.clone(),
+                    proposal.digest.clone(),
+                )
+                .await
+                .unwrap();
+            let job = core
+                .queue_container(
+                    token.clone(),
+                    csrf,
+                    limeos_contracts::QueueRestartInput {
+                        proposal,
+                        approval: approval.token,
+                        idempotency_key: "stuck".into(),
+                    },
+                )
+                .await
+                .unwrap();
+            let (p, id) = (session.view.principal.clone(), job.id.clone());
+            core.db
+                .call(move |s| {
+                    s.claim_container(&p, &id, &engine_state(T0, true), now())?;
+                    s.transition(&id, JobState::Running, JobState::NeedsIntervention, now())
+                })
+                .await
+                .unwrap();
+            job
+        }
+        Some(t0) => {
+            let p = session.view.principal.clone();
+            core.db
+                .call(move |s| {
+                    let snapshot = engine_state(T0, true);
+                    let plan = s.plan_container(&p, ContainerAction::Restart, &snapshot, t0)?;
+                    let approval = s.approve_container(&p, &plan.plan.id, &plan.digest, t0)?;
+                    let queued =
+                        s.queue_container(&p, "stuck", &plan, &approval.token, &snapshot, t0)?;
+                    let job = s.claim_container(&p, &queued.id, &snapshot, t0)?;
+                    s.transition(
+                        &job.id,
+                        JobState::Running,
+                        JobState::NeedsIntervention,
+                        now(),
+                    )?;
+                    Ok(job)
+                })
+                .await
+                .unwrap()
+        }
+    };
     let job = job.id;
     // Planning inspected once; the tests count from here.
     exec.lock().unwrap().inspects = 0;
@@ -560,6 +594,46 @@ async fn the_retry_loop_completes_withdraws_throttles_and_waits_for_young_reques
     assert_eq!(f.state().await, JobState::Resolved);
     f.retry(&mut retry).await;
     assert!(retry.is_empty());
+}
+
+#[tokio::test]
+async fn without_an_executor_receipt_a_resolution_completes_only_once_the_plan_has_expired() {
+    use limeos_domain::{EXPIRY_SETTLE_MARGIN, PLAN_TTL_SECONDS, ReceiptAbsence};
+    for absence in [ReceiptAbsence::NeverRecorded, ReceiptAbsence::NoLongerHeld] {
+        // The plan is still valid: an execute request sent for it may not yet
+        // have reached the receipt store and could still run after core frees
+        // its locks. A store upgraded from schema 6 answers `no_longer_held`
+        // even for a plan it never saw, so the kind of absence cannot decide.
+        let f = fixture().await;
+        f.set(Mode::Absent(absence));
+        let pending = f.resolve(DeclaredOutcome::NotDone).await.unwrap();
+        assert_eq!(pending.status, ResolveStatus::Pending, "{absence:?}");
+        assert!(
+            pending.message.contains("plan") && pending.message.contains("expire"),
+            "{}",
+            pending.message
+        );
+        assert_eq!(f.state().await, JobState::NeedsIntervention, "{absence:?}");
+        assert!(f.view().await.pending.is_some(), "{absence:?}");
+        // The retry loop asks again and still waits.
+        f.retry(&mut HashMap::new()).await;
+        assert_eq!(f.state().await, JobState::NeedsIntervention, "{absence:?}");
+        assert!(f.view().await.pending.is_some(), "{absence:?}");
+        // Expired, but within the margin for the executor's own check.
+        let f = fixture_at(Some(now() - PLAN_TTL_SECONDS)).await;
+        f.set(Mode::Absent(absence));
+        let pending = f.resolve(DeclaredOutcome::NotDone).await.unwrap();
+        assert_eq!(pending.status, ResolveStatus::Pending, "{absence:?}");
+        assert_eq!(f.state().await, JobState::NeedsIntervention, "{absence:?}");
+        // Past expiry and margin: nothing can still run, so it completes on
+        // core's fresh measurement of exactly the approved evidence.
+        let f = fixture_at(Some(now() - PLAN_TTL_SECONDS - EXPIRY_SETTLE_MARGIN - 5)).await;
+        f.set(Mode::Absent(absence));
+        let done = f.resolve(DeclaredOutcome::NotDone).await.unwrap();
+        assert_eq!(done.status, ResolveStatus::Resolved, "{absence:?}");
+        assert_eq!(f.state().await, JobState::Resolved, "{absence:?}");
+        assert_eq!(f.counts().2, 0);
+    }
 }
 
 #[tokio::test]

@@ -1699,6 +1699,62 @@ async fn a_never_recorded_plan_is_resolved_only_once_it_has_expired() {
 }
 
 #[tokio::test]
+async fn a_no_longer_held_answer_never_resolves_a_stack_whose_plan_is_still_valid() {
+    use limeos_domain::DeclaredOutcome;
+    // A store upgraded from schema 6 starts its watermark at the maximum, so
+    // even a just-approved stack it never saw is answered `no_longer_held`.
+    let f = admin().await;
+    {
+        let mut engine = f.engine.lock().unwrap();
+        engine.execute_error = Some(ErrorCode::Unavailable);
+        engine.resolve_missing = true;
+        engine.watermark = i64::MAX;
+    }
+    let job = f.queued(ContainerAction::Restart, "upgraded").await;
+    f.core
+        .dispatch_stack(f.principal().await, job.clone())
+        .await
+        .unwrap();
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    let operator = f.principal().await;
+    let view = f
+        .core
+        .resolution_view(operator.clone(), job.id.clone())
+        .await
+        .unwrap();
+    // The ExecuteStack may still be on its way to the receipt store: the
+    // request stays recorded and the job keeps every lock.
+    let pending = f
+        .core
+        .resolve_as(
+            operator,
+            job.id.clone(),
+            DeclaredOutcome::NotDone,
+            "Nothing happened.".into(),
+            view.evidence_digest.unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(pending.status, limeos_contracts::ResolveStatus::Pending);
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    f.core
+        .complete_pending_resolutions(&mut Default::default(), 0)
+        .await;
+    assert_eq!(f.state(&job).await, JobState::NeedsIntervention);
+    assert_eq!(
+        f.core
+            .db
+            .call(|s| s.pending_resolutions())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(!member_claimable(&f, "after").await);
+    f.task.abort();
+}
+
+#[tokio::test]
 async fn a_hidden_overlapping_project_or_an_unattributed_container_refuses_planning() {
     let overlapping = ProjectIdentity {
         name: "other".into(),
