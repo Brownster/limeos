@@ -2,6 +2,13 @@
 //! ending core. Only startup errors (configuration, store, bind) stop the
 //! process; a task that fails later is reported in `Health::degraded` until a
 //! successful pass clears it.
+//!
+//! What this contains is a task that returns: an error, or an unexpected
+//! `Ok`. It does not contain a panic. Release builds use `panic = "abort"`,
+//! so a panic anywhere, in a supervised task or not, aborts the whole
+//! daemon at once, with no unwinding and nothing here running; systemd then
+//! restarts core (`Restart=on-failure`). A task that hangs without returning
+//! is not seen here either.
 use limeos_contracts::{DegradedDetail, DegradedSubsystem, Subsystem};
 use limeos_domain::{Error, ErrorCode, Result};
 use std::{
@@ -126,6 +133,7 @@ impl Health {
 
 /// Runs `start` again after each failure, forever. A run that returns, with an
 /// error or without one, is a failure: these tasks are meant never to end.
+/// A panic is not a return: it aborts the process (`panic = "abort"`).
 pub(crate) async fn supervise<F, Fut>(
     subsystem: Subsystem,
     health: Health,
