@@ -1,5 +1,4 @@
 pub mod config;
-use fs2::FileExt;
 use limeos_domain::{
     Error, ErrorCode, EventKind, Intent, JobState, Operation, Principal, Result, Role, Scope,
 };
@@ -55,7 +54,7 @@ impl Database {
 
 pub struct Store {
     conn: Connection,
-    _lock: File,
+    _lock: instance_lock::InstanceLock,
     directory: PathBuf,
     pub generation: i64,
     observation_leases: std::collections::HashMap<String, automation::ActiveObservation>,
@@ -106,17 +105,7 @@ impl Store {
         if std::fs::symlink_metadata(path).is_ok_and(|m| !m.is_file()) {
             return Err(Error(ErrorCode::StateNotDurable));
         }
-        let lock = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .mode(0o600)
-            .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
-            .open(path.with_extension("lock"))
-            .map_err(|_| Error(ErrorCode::StateNotDurable))?;
-        lock.try_lock_exclusive()
-            .map_err(|_| Error(ErrorCode::Conflict))?;
+        let lock = instance_lock::InstanceLock::acquire(&path.with_extension("lock"))?;
         let mut conn = Connection::open(path).map_err(durable)?;
         std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
@@ -287,6 +276,7 @@ mod budgets;
 mod compose;
 mod identity_enablement;
 mod identity_store;
+mod instance_lock;
 mod job_resolutions;
 mod jobs;
 mod plans;
