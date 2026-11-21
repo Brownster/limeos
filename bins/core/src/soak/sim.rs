@@ -233,6 +233,9 @@ pub struct Stats {
     /// Peak rows of core's `events` table seen at any retention pass.
     pub peak_events: i64,
     pub retention_removed: BTreeMap<&'static str, i64>,
+    /// Events job-row retention removed with the jobs (counted apart from
+    /// the events rules').
+    pub job_events: i64,
     /// The largest batch each rule removed in one transaction.
     pub largest_batch: BTreeMap<&'static str, i64>,
     pub dispatcher_passes: u64,
@@ -358,6 +361,11 @@ pub struct Sim {
     pub receipt_creation: i64,
     /// Authority events at the last checkpoint: they never decrease.
     pub authority_seen: i64,
+    /// Jobs the writer thread's job-row retention reported removing.
+    pub pruned: std::collections::BTreeSet<String>,
+    /// Each job's state when the invariants last read it: what a job that
+    /// retention removed since is judged by.
+    pub last_state: BTreeMap<String, String>,
     /// Jobs core held (dispatched, unsettled) when the executor's receipt
     /// store changed (any executor start draws a new epoch; a replaced store
     /// has also lost receipts): none may be released on a closure alone.
@@ -470,6 +478,8 @@ impl Sim {
             last_watermark: i64::MIN,
             receipt_creation: START + limeos_domain::PLAN_TTL_SECONDS,
             authority_seen: 0,
+            pruned: Default::default(),
+            last_state: Default::default(),
             exposed: Default::default(),
             replacements: Vec::new(),
             held: None,
@@ -791,6 +801,10 @@ impl Sim {
                 }
                 total += rows;
             }
+            self.stats.job_events += pass.job_events;
+            events += pass.job_events;
+            total += pass.job_events;
+            self.pruned.extend(pass.pruned_jobs);
             self.stats.peak_events = self.stats.peak_events.max(events);
         }
         total

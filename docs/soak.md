@@ -69,8 +69,8 @@ rusqlite's `trace`. Three things keep them out of shipped binaries:
 | Test | What | Run time (debug, x86-64) |
 |---|---|---|
 | `soak_smoke` | Three simulated days of the household, both receipt-store replacements and two crash images included; every `cargo test` | 9 s |
-| `soak_ninety_days` | The acceptance run: 90 days; core restarts (nightly and at awkward moments) only in the first 30, then 60 days on one open store, so `Store::open` never recomputes a drifting counter; startup measured nightly on copies and every fifth day on crash images | 297 s alone, 448 s beside the others |
-| `soak_ninety_days_restarts` | Alongside it, the recovery coverage: the same household with another seed, both daemons restarting every night and at every awkward moment for all 90 days | 288 s alone, 444 s beside the others |
+| `soak_ninety_days` | The acceptance run: 90 days; core restarts (nightly and at awkward moments) only in the first 30, then 60 days on one open store, so `Store::open` never recomputes a drifting counter; startup measured nightly on copies and every fifth day on crash images | about 480 s alone (297 s before job-row retention) |
+| `soak_ninety_days_restarts` | Alongside it, the recovery coverage: the same household with another seed, both daemons restarting every night and at every awkward moment for all 90 days | about 480 s alone (288 s before) |
 | `soak_core_store_at_its_audit_cap` | The core store at, half-way into and at the end of the reserve past its 64 MiB audit cap, with and without prunable history, with and without a running job needing a recovery event (12 cases) | 15 s |
 | `soak_core_retention_works_off_a_backlog` | Retention suspended during a burst of real logins, then resumed: twelve batches of backlog; every `cargo test` | 1 s |
 | `soak_receipt_store_at_its_caps` | The receipt store at its row cap and its page cap (`limits`), with prunable and unprunable rows, and past its file check; executes sent by core's own `exchange`; every `cargo test` | 1 s |
@@ -84,11 +84,13 @@ rusqlite's `trace`. Three things keep them out of shipped binaries:
 The ordinary `cargo test` runs the smoke, the backlog, receipt-cap and writer
 tests, the bytecode reader's and the generator's own tests: 11 to 14 s together (the smoke about 9 s
 of it). Every other `soak_*` test is ignored there and run by CI's own `soak`
-job, on both native architectures, under a 25-minute limit: 6 min 41 s for all
-of them on this machine (8 cores, tmpfs) with the test binary built, the two
-90-day runs taking 390 to 450 s each (13 minutes with four of them at once);
-one at a time (`--test-threads=1`) they take 11 min 16 s, the 90-day runs
-about 290 s each.
+job, on both native architectures, under a 25-minute limit. One at a time
+(`--test-threads=1`) they took 17 min 45 s on this machine (8 cores, tmpfs)
+with the test binary built, the two 90-day runs about 480 s each: job-row
+retention's passes add about 3 minutes to each (237 and 215 s of retention
+passes), mostly the candidate query and the floor walks of a pass after day
+30 in a debug build. Before it, all of them took 6 min 41 s side by side and
+11 min 16 s one at a time; side by side was not measured again this round.
 The job builds the test binary itself (the workflow keeps no build cache to
 share). The packages and the probe are published (uploaded under their final
 names, which the VM job downloads) only by the `publish` job, which needs both
@@ -261,42 +263,62 @@ pruned, and the soak never takes one (its events stay at their budget, half
 the cap). A test (`a_crash_image_must_keep_every_committed_event_unchanged`)
 holds the check to a dropped, a changed and an added event.
 
-On the last night of the main run the open executed 50 statements: 82,213
+On the last night of the main run the open executed 50 statements: 14,316
 page reads, 16 of them outside every statement (the same 16 on every copy of
-every run: the schema's pages). The largest are the storage-mount proof
-check (57,135), `quick_check` (13,703), the foreign-key check (4,938, with
-871,762 VM steps, the second most after `quick_check`'s 1.5 million) and the
-audit reconciliation's indexed count (988). Their VM steps came to 2,565,818
-but the proof check's, 18.2 per retained row (141,339 rows).
+every run: the schema's pages). The largest are `quick_check` (9,830), the
+foreign-key check (3,064, with 794,941 VM steps, the second most after
+`quick_check`'s 1.2 million), the audit reconciliation's indexed count (970)
+and the lock and resource invariants (243 in the open, 3,307 cold); the
+storage-mount proof check read 0.004 files' worth at most. Their VM steps
+came to 2,089,697, 16.0 per retained row (131,007 rows). Before job-row
+retention and the proof check's fix the same night read 82,213 pages, 57,135
+of them the proof check's.
 
 ## Results
 
-Measured on 20 November 2026 (debug build, x86-64, tmpfs, both scenarios side
-by side; three runs each with the same binary, the figures of the first).
-Within a scenario the three runs ran the same jobs (2,058 and 1,697) and the
-same faults; page counts differed by a few percent.
+Measured on 20 November 2026 (debug build, x86-64, tmpfs, one run of the
+long profile, one test at a time), with job-row retention and the proof
+check's fix. The workload is unchanged, and so are the jobs and faults (the
+counts below are this run's; the round before measured the same jobs, 2,058
+and 1,697).
 
 | Over 90 days | `soak_ninety_days` | `soak_ninety_days_restarts` |
 |---|---|---|
-| Jobs | 2,058 | 1,697 |
-| Events pruned by the writer thread, peak | 26,789 pruned in 126,952 passes; peak 131,319 against the 131,072 budget; largest batch 247 | 24,523; peak 131,316; largest batch 244 |
-| Executor | 1,483 container and 473 stack executes; 1,777 action and 256 stack rows kept; 24,276 receipt lookups, 5,791 answered with a closure | 1,172 and 417; 1,814 and 256 kept; 23,183 lookups, 8,779 closures |
+| Jobs | 2,058; 1,612 removed by job-row retention, 446 kept at the end | 1,697; 1,284 removed, 413 kept |
+| Events pruned by the writer thread, peak | 23,849 by the events rule, peak 131,319 against the 131,072 budget, largest batch 247; besides, the job events removed with their jobs | 21,646; largest batch 244 |
+| Jobs removed | at most 5 a batch, from day 55 (the storm's jobs, 30 days on); every one settled when last read, none seen again | at most 6 a batch |
+| Executor | 1,483 container and 473 stack executes; 1,782 action and 256 stack rows kept; 24,276 receipt lookups, 5,791 answered with a closure | 1,172 and 417; 1,815 and 256 kept; 23,183 lookups, 8,779 closures |
 | Faults | 14 executor deaths with an execute unread, 7 inside the Engine call, 7 between epoch and execute, 33 execute answers lost and 12 more with the first recovery lookup's, 28 Engine errors, 23 core crashes at awkward moments and 2 interrupting a resolution (2 detached resolution tasks ended with them), 2 receipt stores replaced by an empty one and 4 by an older copy, the held-open resolution (and 188 container restarts outside LimeOS) | 14, 6, 9, 29 and 13, 13, 23 and 5 (5), 2 and 4, the same (and 182) |
 | Crashes | 25 core crashes reopened from their crash image, every one with committed WAL frames to replay | 28, likewise |
 | Lost answers | 73 execute answers never written, each logged once as `Unavailable` at the execute site; 12 recovery-lookup answers lost, each logged once in its pass | 69; 13 |
 | Receipt-store changes | 20 jobs held across an executor start or replacement answered with a closure by the new store; none released on it | 20 |
 | Held-open resolution | the job settled with its request open; nothing prunable older than its history, the 3 events pruned after it were others'; its history kept | the same |
 | Restarts | core: 30 nightly and 25 at awkward moments, all before day 30; executor every night | core and executor every night, and 28 core crashes |
-| Accounting | the counter equal to its definition at every checkpoint and restart; events never below their budget once reached | the same |
+| Accounting | the counter equal to its definition at every checkpoint and restart; events never below their budget once reached, but for what job-row retention removed with its jobs (the table then refills: 127,410 on day 63, 128,527 on day 89) | the same (128,676; 129,782) |
 | Idle hours | 12 scheduled, 12 measured, no store file written | the same |
 
 | Day | core.sqlite (WAL) | events | jobs | receipts.sqlite | core open on a copy: page reads | receipts open |
 |---:|---:|---:|---:|---:|---:|---:|
 | 9 | 1.1 MiB (1.1) | 738 | 97 | 0.09 MiB | 286 | 33 |
-| 27 | 30.7 MiB (1.0) | 131,072 | 1,423 | 2.28 MiB | 19,904 | 719 |
-| 54 | 32.4 MiB (1.1) | 131,072 | 1,696 | 2.31 MiB | 24,016 | 748 |
-| 63 | 32.8 MiB (1.1) | 131,072 | 1,777 | 2.34 MiB | 71,375 (the proof check from day 57) | 752 |
-| 89 | 34.4 MiB (1.1) | 131,072 | 2,047 | 2.34 MiB | 82,213 (321 MiB read, 9.3 times the file) | 697 |
+| 27 | 30.6 MiB (1.1) | 131,072 | 1,423 | 2.28 MiB | 18,966 | 723 |
+| 54 | 31.2 MiB (1.1) | 131,072 | 1,453 | 2.32 MiB | 19,340 | 757 |
+| 63 | 31.2 MiB (1.2) | 127,410 | 419 | 2.36 MiB | 13,937 | 761 |
+| 89 | 31.2 MiB (1.2) | 128,527 | 444 | 2.36 MiB | 14,316 (55.9 MiB read, 1.8 times the file) | 704 |
+
+In the restart scenario core.sqlite holds at 29.0 MiB from day 54 to 89, the
+jobs go from 1,093 to 396 between days 54 and 63 and end at 415, and the open
+reads 17,128 pages on day 54 and 14,137 on day 89 (it read 82,213 and about
+as many the round before, the proof check most of it).
+
+Over the last third: the per-job tables grow 2.6 KiB a day (3.3 in the
+restart scenario), core.sqlite would reach 80 MiB in 52 (43) years at that
+rate; what still grows are the jobs an authority event keeps (resolved
+jobs: 49 and 37 completed resolutions at the end), bounded by the authority
+rule's budget. Core startup reads grow 16 pages a night, 3.2 (2.6) per page
+the history tables gain: the events table refilling to its budget after the
+storm's jobs took their history with them, which stops at the budget; at
+that rate the bound is 10 years away. The proof check reads at most 0.004
+files' worth on any copy.
 
 Startup on crash images: 20 per scenario, each replaying 7 to 262 committed
 WAL frames (up to 1.1 MiB of WAL), every one opened and kept every committed
@@ -304,8 +326,10 @@ job and event (counted then; held to identity and content since); recovery read 
 16 outside every statement of a clean open, and the opens read no more than
 their statements did cold on a consistent copy plus that.
 
-Every bounded table stayed flat over the last third. The cap, backlog,
-occurrence and metrics tests are unchanged since last round, which measured:
+Every table stayed flat over the last third, the per-job tables with them,
+and no settled job was kept a day past job-row retention's horizon and
+floor. The cap, backlog, occurrence and metrics tests passed again in the
+same run, with the same figures as last round, which measured:
 the core store opens, recovers, keeps revocation and prunes back to its
 budget in all 12 cap cases (the one documented refusal leaves the store
 unchanged); a 12-batch backlog goes in 12 passes of exactly 1,024, by
@@ -317,42 +341,48 @@ backlog of 3,001 goes in 6 passes of at most 512; `metrics.sqlite` holds
 retention boundary) in 0.78 MiB, answers every view with the averages of what
 was written, and writes about 113 KiB an hour, flat.
 
-### Defect: core.sqlite has no size bound
+### Fixed: core.sqlite had no size bound
 
-The events table is flat at its budget, but the per-job tables (`jobs`,
-`job_resources`, `container_plans`, `container_results`, `stack_plans`,
-`stack_results`, `job_resolutions`) are never pruned: 4.5 to 4.8 KiB per job,
-46 to 49 KiB a day at household rates; core.sqlite passes its 80 MiB bound in
-2.7 to 2.8 years. Startup grows with them: every new per-job page is read by
-`quick_check` and the foreign-key check, and six startup statements scan the
-whole jobs table, which is now larger than SQLite's 2 MiB page cache, so the
-startup statements read 5.1 to 5.4 pages more for every page the per-job
-tables gain (57 to 64 a night), reaching the startup bound of a store at its
-file bound in 2.1 to 2.3 years. The bytecode shows the walks: `quick_check`
-walks every table, the foreign-key check every table with a foreign key
-(the events table and the seven per-job tables among them; neither makes
-full-scan steps), and seven statements walk `jobs` (and two of them
-`job_resources` or `job_resolutions`) with one full-scan step per row, 2,046
-to 6,085 steps each on the last night. No refusal follows (no cap counts
-these rows), but neither size nor startup is bounded.
+Pinned last round: the per-job tables (`jobs`, `job_resources`,
+`container_plans`, `container_results`, `stack_plans`, `stack_results`,
+`job_resolutions`) were never pruned, 4.5 to 4.8 KiB per job, 46 to 49 KiB a
+day at household rates, core.sqlite past its 80 MiB bound in 2.7 to 2.8
+years; and startup grew with them (`quick_check` and the foreign-key check
+read every page, seven statements walk `jobs`), 57 to 64 page reads a night,
+the startup bound in 2.1 to 2.3 years.
 
-### Defect: the storage-mount proof check reads the events table once per job
+Job-row retention (`crates/persistence/src/retention/jobs.rs`, schema 19)
+removes a settled container, stack or health-probe job 30 days after it last
+changed (its plan's expiry, events, result and resolution all older), with
+its remaining events, resources, plan, result and completed resolution, at
+most 64 jobs and 2,048 rows a batch. It keeps the newest 128 settled jobs of
+each family, every unsettled job, every job with an open resolution request
+or an authority event, and every job of another operation. With it the
+per-job tables hold 444 jobs on the last night of the main run (0.8 MiB of
+`jobs`, 2.7 MiB in all) instead of 2,047 and still growing, the file stays at
+31.2 MiB from day 54, and startup reads 14,316 pages on the last night
+instead of 82,213. Both pins are gone, and the checks they pinned pass
+(`slow growth leaves at least five years`, `core startup work leaves at
+least five years`). The flatness check now holds the per-job tables flat
+with every other table, and the budget check counts any settled job kept a
+day past the rule (none).
 
-`storage_mounts::check`'s proof query (the startup statement that reads
-`storage_mount_results`, found in the trace by that text) is planned as a
-multi-index OR over `jobs_state`, and for every `precondition_changed` job
-evaluates its subquery before the storage-mount filter, with the events looked
-up by kind (`SEARCH e USING INDEX events_kind`) instead of by job
-(`events_job`): every `job_transition` event, once per such job, on a store
-with no storage mount at all. While that index range fits in the page cache it
-costs little; once retention has replaced the burst's session events with job
-history it does not. Measured in the open on the last night: 57,135 page reads
-of 82,213 (3.2 million VM steps, against 2.6 million for every other startup
-statement together), 6.5 files' worth cold (5.8 in the restart scenario),
-from day 57 in the main scenario and day 89 in the other (days 72 and 72 to
-81 last round). Needs the subquery to search `events_job` (or the
-operation filtered first). Pinned as an expected failure by that statement's
-plan and cost.
+### Fixed: the storage-mount proof check read the events table once per job
+
+Pinned last round: `storage_mounts::check`'s proof query was planned as a
+multi-index OR over `jobs_state` that evaluated its subquery for every
+`precondition_changed` job, of any operation, with the events looked up by
+kind (`events_kind`): every `job_transition` event once per such job, on a
+store with no storage mount at all; 57,135 page reads of 82,213 on the last
+night, 6.5 files' worth cold. The query now starts from the mount plans
+(every mount job has its plan naming it, checked just before), reaches each
+mount job by its key and looks its `running` transition up among its own
+events (`events_job`); a unit test reads its plan (`events_job`, never
+`events_kind`, no scan of `events`) and holds its VM steps equal while the
+other jobs grow fivefold and their events a hundredfold. Its pin is gone;
+the check is tighter: no lookup by kind, and at most 64 pages cold on every
+copy (`PROOF_READS`), where it measured at most 0.004 files' worth (about
+30 pages).
 
 ### Fixed: a lost executor answer read as the caller's bad input
 
@@ -395,21 +425,21 @@ CI (not re-measured this round).
 | no job dispatched before a receipt-store change is released on a closure alone | every job core held when the executor started (a new store epoch; with a replaced store, receipts lost) and that the new store answered with a closure ends in any state but `precondition_changed`; the replacements happened and such jobs were seen |
 | a job's history stays while its resolution request is open | the held-open job, settled with its request open, keeps its `job_queued` event while retention prunes every older prunable event and once more; the window must be decisive (nothing prunable older than the job left, something pruned) |
 | provoked refusals observed | an approval after expiry and a session used after expiry, each refused as such |
-| audit counter and retained rows match what retention promises | at every checkpoint and before every restart: `meta.audit_bytes` is exactly `EVENT_BYTES` per event row; once the run has written as many events as the events rule keeps, at least that many remain; standalone and stack receipts never fall below what retention keeps once reached; the prune watermark never decreases and never passes the youngest expiry retention may prune |
+| audit counter and retained rows match what retention promises | at every checkpoint and before every restart: `meta.audit_bytes` is exactly `EVENT_BYTES` per event row; once the run has written as many events as the events rule keeps, at least that many remain, less what the authority rule and job-row retention (with its jobs) removed; standalone and stack receipts never fall below what retention keeps once reached; the prune watermark never decreases and never passes the youngest expiry retention may prune |
 | every retention batch within its rule's limit | every batch the writer thread reports, one transaction, removes at most its rule's limit |
 | database files under their bounds | core file 80 MiB and WAL 8 MiB; receipt file half its page cap and WAL 2 MiB, every checkpoint |
-| every table within its budget | every table in both stores, found by walking `sqlite_master`; the events budget from the production rule, the receipt budgets from `limits` |
-| sizes and bounded tables flat across the last third | the bounded tables' bytes and rows, and the file size beyond what per-job tables added, over days 60 to 90 |
-| slow growth leaves at least five years | the per-job tables' growth, projected to the core file bound (expected failure, pinned) |
-| startup under its bounds | every open's wall time (5 s core, 2 s receipts: the catastrophic only); on every copy and crash image, the cold page reads of core's startup statements but the proof check at most 3.2 per page of file and WAL, the receipt store's open at most 2.0; every crash image opens and keeps every committed job and event unchanged (ids, and each event's cursor, principal, job, kind and time), adding only one recovery event per interrupted job |
-| core startup reads nothing its checks do not explain | on every copy and crash image, from every statement's bytecode and counters: every statement's program read, nested ones included; no statement walks the events table itself (only `quick_check` and the foreign-key check may); only the statements in `SCAN_ALLOWANCES` walk a table growing with history (`events` or a per-job table, or an index of one), each only its listed tables, with a reason; each statement's full-scan steps at most its listed tables' rows times its steps per row (0 or 1), plus its walks of bounded tables (their rows, once per run), plus 16; the counters measured (some VM and full-scan steps once a table walked one step a row holds 64 rows); the open's VM steps but the proof check's at most 64 per retained row plus 200,000; at most 32 page reads outside every statement (measured 16) plus 2 per WAL frame replayed; the open reads at most what its statements read cold, plus 3%, 256 pages and 2 per WAL frame replayed |
-| the storage-mount proof check reads little without storage mounts | the statement that reads `storage_mount_results`: its plan does not look events up by kind, and it reads at most an eighth of the file cold (expected failure, pinned) |
-| core startup work grows only with the per-job tables | over the last third, the statements' cold reads (but the proof check's) grow by at most 10 per page the per-job tables gain |
-| core / receipt-store startup work leaves at least five years | the nightly page reads, projected to the bound of a store at its file bound (core: expected failure, pinned); the receipt store's no further than the reads of a store with every table at its budget |
+| every table within its budget | every table in both stores, found by walking `sqlite_master`; the events budget from the production rule, the receipt budgets from `limits`; the per-job tables at most 20 rows a job, and no settled container or stack job kept a day past job-row retention's horizon and floor with nothing that keeps it (no open request, no authority event, nothing newer), counted by the soak's own query |
+| sizes and bounded tables flat across the last third | every table's bytes (the per-job tables with the rest), each row-budgeted table's rows, and the file, over days 60 to 90: growth under 2% (or 256 KiB; the file 1 MiB) beyond what tables under their row budget regained toward it at their bytes a row (the events table refills to its budget after job-row retention removed history with its jobs) |
+| slow growth leaves at least five years | the per-job tables' growth, projected to the core file bound |
+| startup under its bounds | every open's wall time (5 s core, 2 s receipts: the catastrophic only); on every copy and crash image, the cold page reads of core's startup statements (but a proof check that looks events up by kind, which its own check fails) at most 3.2 per page of file and WAL, the receipt store's open at most 2.0; every crash image opens and keeps every committed job and event unchanged (ids, and each event's cursor, principal, job, kind and time), adding only one recovery event per interrupted job |
+| core startup reads nothing its checks do not explain | on every copy and crash image, from every statement's bytecode and counters: every statement's program read, nested ones included; no statement walks the events table itself (only `quick_check` and the foreign-key check may); only the statements in `SCAN_ALLOWANCES` walk a table growing with history (`events` or a per-job table, or an index of one), each only its listed tables, with a reason; each statement's full-scan steps at most its listed tables' rows times its steps per row (0 or 1), plus its walks of bounded tables (their rows, once per run), plus 16; the counters measured (some VM and full-scan steps once a table walked one step a row holds 64 rows); the open's VM steps (but such a proof check's) at most 64 per retained row plus 200,000; at most 32 page reads outside every statement (measured 16) plus 2 per WAL frame replayed; the open reads at most what its statements read cold, plus 3%, 256 pages and 2 per WAL frame replayed |
+| the storage-mount proof check reads little without storage mounts | the statement that reads `storage_mount_results`: its plan does not look events up by kind, and it reads at most 64 pages cold (`PROOF_READS`) on every copy, whatever the jobs and events |
+| core startup work grows only with the history tables (events and per-job) | over the last third, the statements' cold reads grow by at most 10 per page the history tables gain (the per-job tables, and the events table while it refills to its budget) |
+| core / receipt-store startup work leaves at least five years | the nightly page reads, projected to the bound of a store at its file bound; the receipt store's no further than the reads of a store with every table at its budget |
 | an idle hour writes nothing | once retention has nothing left, an hour of dispatcher ticks and the writer's own passes changes no file of either store (database or WAL); every scheduled idle hour is measured or skipped for a recorded reason, and at least three in four are measured |
-| locks, ledger and retained history consistent after every restart | locks match job states; every job the workload queued exists and no other does; unsettled and contested jobs keep their history; the executor holds no lock for a job core has released |
-| every job settled; none lost, duplicated or stranded | after a drain, every job is terminal and no resolution request is open |
-| every Engine effect ran at most once and matches its job | per action, counted by the executor |
+| locks, ledger and retained history consistent after every restart | locks match job states; every job the workload queued exists, but those the writer thread's passes reported removing (each settled when last read, and never seen again), and no other does; unsettled and contested jobs keep their history; the executor holds no lock for a job core has released |
+| every job settled; none lost, duplicated or stranded | after a drain, every job is terminal (a job retention removed, as last read) and no resolution request is open |
+| every Engine effect ran at most once and matches its job | per action, counted by the executor, against the job's final state (a removed job's as last read) |
 | authority events all kept | retention never removed one, and their count never went down between checkpoints |
 | recovery closes every absent action it asks about | every receipt lookup core sends asks to close an absent action, and every absence the executor answers is closed |
 
@@ -417,36 +447,13 @@ CI (not re-measured this round).
 
 `EXPECTED_FAILURES` in `checks.rs` lists each known failure with the measures
 it must show; a failure with any measure outside its range fails the run, and
-so does a listed check that passes.
+so does a listed check that passes. Each pin is the range a measure took
+over the runs of each 90-day scenario, widened by that range on each side.
 
-Each pin is the range a measure took over three runs of each 90-day
-scenario with the same binary (six values), widened by that range on each
-side: a small multiple of the run-to-run spread, so a defect that grows
-faster or slower than today's fails as not the known one. Doubled per-job
-growth (about 95 KiB a day) is outside its pin; so is a startup series
-growing 75 pages a night.
-
-| Check | Pinned to | Measured, three runs (main; restarts) |
-|---|---|---|
-| slow growth leaves at least five years | per-job growth 42 to 53 KiB a day; 4.1 to 5.2 KiB per job; 2.6 to 2.9 years to the file bound | 47.2, 45.8, 46.5; 49.4, 49.0, 49.0 KiB a day (range 3.6); 4.59, 4.46, 4.52; 4.81, 4.77, 4.77 KiB; 2.71, 2.80, 2.76; 2.74, 2.74, 2.76 years (last round 48.0 / 48.7; 4.7 / 4.8; 2.77 / 2.75; before it 25 to 100, 2.5 to 10, 1.25 to 5) |
-| core startup work leaves at least five years | the startup statements but the proof check grow 50 to 72 page reads a night; 1.9 to 2.45 years to the bound | 57.7, 57.5, 57.3; 63.5, 64.5, 63.6 a night (range 7.2); 2.24, 2.25, 2.26; 2.14, 2.10, 2.14 years (before: 32 to 128, 1 to 4.5) |
-| the storage-mount proof check reads little without storage mounts | the statement reading `storage_mount_results` looks events up by kind on every copy; its largest cold read 4.5 to 8 files' worth | by kind on every copy; 6.49, 6.51, 6.51; 5.82, 5.75, 5.83 files' worth (before: 0 to 15) |
-
-After the merge of the security batch (PR-32 to PR-35) and the bytecode
-reader's fixes, one more run of each scenario, one at a time, ran the same
-jobs (2,058 and 1,697) and measured 46.2 / 49.2 KiB a day, 4.50 / 4.79 KiB
-a job, 2.77 / 2.74 years; 59.0 / 65.1 page reads a night, 2.19 / 2.09
-years; 6.49 / 5.81 files' worth: all inside their pins, every other check
-passing.
-
-The proof check's pin is the measured range widened by itself (5.0 to 7.3)
-and up to 8: its read jumps once retention has replaced the burst's session
-events with job history, here on day 57 in one scenario and day 89 in the
-other, and the largest of any earlier run was 7.3. One development run with
-another schedule of receipt-store replacements had not reached the jump by
-day 90 (0.27); with this schedule all six runs had, but a change to the
-workload that delays it past day 90 fails this pin, and the pin must then be
-measured again. The lost-answer pin is gone with its defect.
+The list is empty. Last round's three pins (the per-job tables' growth, the
+startup reads it drove, and the storage-mount proof check) went with their
+defects (see "Fixed" above); each pinned check now passes in both 90-day
+scenarios. The mechanism stays, for the next defect found.
 
 ## Mutation checks
 
@@ -476,6 +483,9 @@ again:
 | The executor skips the closure on an absent receipt (its request handling) | `container_requests::answer` passes `false` for `close_if_absent` to both receipt lookups | `soak_smoke`, recovery closes every absent action it asks about: "the lookup for job 753c9591dbb3 answered Some(NeverRecorded) without closing the action" (393 lookups) |
 | Core records no executor epoch before acting on an answer (the epoch the dispatcher asks for before each claim) | `exchange` no longer calls `observe_executor_epoch` | `soak_smoke`, no job dispatched before a receipt-store change is released on a closure alone: "job b29be7ba8243 was held when the receipt store changed, and released on a closure from the new store" (3 jobs); every Engine effect: "job b29be7ba8243 (Container Restart, fault Some(ReceiptStoreLost { older: true })) is precondition_changed after 1 Engine effects for 1 targets" |
 | Retention forgets open resolution requests | `retention::SETTLED` loses `AND NOT EXISTS(… job_resolutions … confirmation IS NULL)` | `soak_ninety_days`, a job's history stays while its resolution request is open: "day 21 10:01:30: the job settled (succeeded) with its resolution request open lost its history: retention pruned 3 events in 1 passes" |
+| Per-job tables never pruned (job-row retention removed) | `retention::jobs::prune` returns at once | `soak_ninety_days` (310 s): every table within its budget, "day 32 04:00:00: core: 10 settled jobs kept a day past job-row retention's horizon and floor, with nothing that keeps them", rising to 204 by day 51; flat: "core: bounded tables grew 1.70 MiB over the last third" and "file grew 1.73 MiB"; "core opens read 58 more pages each night over the last third (25157 now): 72345, the bound at the file bound, in 2.2 years"; "per-job tables grow 47 KiB a day (4.6 KiB a job): core.sqlite reaches 80 MiB in 2.7 years" |
+| Job-row retention ignores an open resolution request | the candidate query loses `r.confirmation IS NULL OR` | `retention::jobs::tests::every_reference_keeps_its_job`: the batch fails (the `jobs_delete` trigger refuses the job: `StateNotDurable`) |
+| Job-row retention ignores authority events | the candidate query's authority-kind clause made false | `retention::jobs::tests::every_reference_keeps_its_job`: 9 jobs removed where 8 may be (the job with a withdrawal and its authority event gone) |
 | A crash open that loses a committed event (the harness's own check) | `core_crash` deletes one committed event from the image before the child opens it | `soak_smoke`, startup under its bounds: "day 1 06:05:00: a crash image of the core store lost committed work in its open (18 WAL frames to replay): 1285 events through cursor 1286 digest to 74746d82… (committed: 1286 events, d09ef811…)", on both crash images |
 
 The stack-proposal shim and its mutation are gone with the shim: stack

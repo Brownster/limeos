@@ -31,7 +31,8 @@ pub const BATCHES: &str = "every retention batch within its rule's limit";
 pub const ACCOUNTING: &str = "audit counter and retained rows match what retention promises";
 pub const EXPLAINED: &str = "core startup reads nothing its checks do not explain";
 pub const MOUNT_PROOF: &str = "the storage-mount proof check reads little without storage mounts";
-pub const STARTUP_PER_JOB: &str = "core startup work grows only with the per-job tables";
+pub const STARTUP_PER_JOB: &str =
+    "core startup work grows only with the history tables (events and per-job)";
 pub const CLOSURES: &str = "recovery closes every absent action it asks about";
 pub const LOST_ANSWERS: &str = "every lost executor answer is logged once, as unavailable";
 pub const LOGS: &str = "core logs only the warnings it is expected to";
@@ -138,50 +139,15 @@ pub struct Known {
     pub pins: &'static [(&'static str, f64, f64)],
 }
 
-/// The defects the soak has found, pinned to their cause.
-pub const EXPECTED_FAILURES: &[Known] = &[
-    Known {
-        check: PROJECTION,
-        why: "core's per-job tables (jobs, job_resources, container_plans, container_results, \
-              stack_plans, stack_results, job_resolutions) are never pruned, while every other table \
-              is flat (asserted by the flatness check without exemption): 4.5 to 4.8 KiB per \
-              job, 46 to 49 KiB a day at the household rate; core.sqlite passes its 80 MiB bound \
-              in 2.7 to 2.8 years. Needs job-row retention (with their plans, results, resources \
-              and completed resolutions). Pins: the range measured over three runs of each \
-              90-day scenario, widened by that range on each side",
-        pins: &[
-            (PER_JOB_DAY, 42.0, 53.0),
-            (PER_JOB_JOB, 4.1, 5.2),
-            (PER_JOB_YEARS, 2.6, 2.9),
-        ],
-    },
-    Known {
-        check: STARTUP_TREND_CORE,
-        why: "the same per-job growth, at startup: every per-job page is read by quick_check \
-              and the foreign-key check, and six startup statements scan the whole jobs table \
-              (now larger than SQLite's page cache), so `Store::open` reads several pages more \
-              for every page the per-job tables gain; the growth of everything else is asserted \
-              flat (`core startup work grows only with the per-job tables`): 57 to 64 page reads \
-              a night, the startup bound in 2.1 to 2.3 years. Pins as above",
-        pins: &[(STARTUP_DAY, 50.0, 72.0), (STARTUP_YEARS, 1.9, 2.45)],
-    },
-    Known {
-        check: MOUNT_PROOF,
-        why: "`storage_mounts::check`'s proof query is planned with the job's events looked up \
-              by kind (`events_kind`) instead of by job (`events_job`), and evaluates that \
-              lookup for every `precondition_changed` job before its storage-mount filter: on a \
-              store with no storage mount at all it reads every `job_transition` event once per \
-              such job. While that index range fits in SQLite's 2 MiB page cache it costs \
-              little; once retention has replaced the bulk session events with job history it \
-              does not: by day 90 it reads 5.7 to 6.5 times the file cold. Needs the subquery \
-              to search `events_job` (or the operation filtered first). Pinned to that range \
-              widened by itself on each side, and up to 8: the largest read of any earlier run \
-              was 7.3 files' worth (one run with another schedule of receipt-store replacements \
-              stayed below 0.3 to day 90, its blow-up not yet reached, and would fail this pin); \
-              read only in the 90-day runs: the 3-day smoke never reaches the jump",
-        pins: &[(PROOF_BY_KIND, 1.0, 1.0), (PROOF_FILES, 4.5, 8.0)],
-    },
-];
+/// The defects the soak has found, pinned to their cause. None now: the
+/// per-job tables' growth (and the startup reads it drove) is bounded by
+/// job-row retention, and the storage-mount proof check reads a job's own
+/// events (`docs/soak.md`, "Fixed").
+pub const EXPECTED_FAILURES: &[Known] = &[];
+
+/// The most pages the storage-mount proof check may read cold on a copy of a
+/// store with no storage mount.
+pub const PROOF_READS: u64 = 64;
 
 /// Measures the pins read, recorded by the trend checks.
 pub const PER_JOB_DAY: &str = "per-job tables' growth over the last third, KiB a day";
@@ -240,14 +206,17 @@ pub const RECEIPT_OPEN_BOUND_MS: u128 = 2_000;
 pub enum Budget {
     /// At most this many rows, at every checkpoint.
     Rows(i64),
-    /// Meant to grow slowly with use, and why. Reported with its growth rate
-    /// and the time until the core file reaches its bound at that rate.
-    Grows(&'static str),
+    /// Bounded by job-row retention, by age and per-family floors rather than
+    /// a row count, and why: flat over the last third with every other
+    /// bounded table, no settled job kept a day past what the rule allows
+    /// (`checkpoint`), and their growth reported and projected to the file
+    /// bound.
+    Retained(&'static str),
 }
 
 const PER_JOB: &str = "one row per job (or per queued plan, result, resource or completed resolution): \
-     job rows and their plans and results are kept as the snapshot of each job when its event history \
-     is pruned (`retention.rs`: the job row itself is never removed)";
+     a settled job is removed with all of them 30 days after it last changed, but for the newest of \
+     each family and jobs an open request or an authority event keeps (`retention/jobs.rs`)";
 
 /// Every core table: walking `sqlite_master` makes a table added later fail
 /// the soak until it is given a budget here.
@@ -268,7 +237,7 @@ fn core_budget(table: &str) -> Option<Budget> {
         // One per locked resource: 18 containers and 4 stacks.
         "resource_locks" => Rows(22),
         "jobs" | "job_resources" | "container_plans" | "container_results" | "stack_plans"
-        | "stack_results" | "job_resolutions" => Grows(PER_JOB),
+        | "stack_results" | "job_resolutions" => Retained(PER_JOB),
         // Never written in the shipped scope (no producer, no task tokens,
         // no storage or compose effects, legacy tables migrated empty).
         "task_tokens"
@@ -450,7 +419,7 @@ pub fn checkpoint(sim: &mut Sim) {
                 )),
                 // A per-job table may hold at most a bounded number of rows
                 // per job: 1 + 2 stack and up to 16 member resources.
-                Some(Budget::Grows(_)) if table != "jobs" && *rows > 20 * jobs + 64 => problems
+                Some(Budget::Retained(_)) if table != "jobs" && *rows > 20 * jobs + 64 => problems
                     .push((
                         BUDGETS,
                         format!("{store}.{table}: {rows} rows for {jobs} jobs"),
@@ -458,6 +427,15 @@ pub fn checkpoint(sim: &mut Sim) {
                 _ => {}
             }
         }
+    }
+    let overdue = overdue_jobs(&reader(&sim.core_path).unwrap(), sample.at);
+    if overdue > 0 {
+        problems.push((
+            BUDGETS,
+            format!(
+                "core: {overdue} settled jobs kept a day past job-row retention's horizon and floor, with nothing that keeps them"
+            ),
+        ));
     }
     let unqueued: i64 = reader(&sim.core_path)
         .unwrap()
@@ -493,12 +471,47 @@ pub fn checkpoint(sim: &mut Sim) {
     receipt_accounting(sim, "daily checkpoint");
 }
 
+/// Settled container and stack jobs that job-row retention should have
+/// removed a day ago (`retention/jobs.rs`, rules 1 to 6, read independently
+/// of its query): unchanged since a day before the horizon, past the newest
+/// `JOB_FLOOR` of their family, with no open resolution request and no
+/// authority event. A day is 1,440 passes of up to 64 jobs.
+fn overdue_jobs(conn: &Connection, now: i64) -> i64 {
+    let cutoff = now - limeos_persistence::test_support::JOB_HORIZON - DAY;
+    let floor = limeos_persistence::test_support::JOB_FLOOR;
+    let mut overdue = 0;
+    for family in [
+        "('container_restart','container_start','container_stop')",
+        "('stack_restart','stack_start','stack_stop')",
+    ] {
+        let settled = format!(
+            "j.state IN ('succeeded','failed','canceled','precondition_changed','resolved') AND json_extract(j.intent,'$.operation') IN {family}"
+        );
+        overdue += conn
+            .query_row(
+                &format!(
+                    "WITH kept AS (SELECT j.id FROM jobs j WHERE {settled} ORDER BY j.rowid DESC LIMIT ?2) \
+                     SELECT count(*) FROM jobs j WHERE {settled} AND j.id NOT IN kept AND j.deadline<?1 \
+                     AND NOT EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND (e.created>=?1 OR json_extract(e.kind,'$.kind') GLOB 'job_resolution_*')) \
+                     AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND (r.confirmation IS NULL OR r.completed>=?1)) \
+                     AND NOT EXISTS(SELECT 1 FROM container_results x WHERE x.job=j.id AND x.recorded>=?1) \
+                     AND NOT EXISTS(SELECT 1 FROM stack_results x WHERE x.job=j.id AND x.recorded>=?1)"
+                ),
+                rusqlite::params![cutoff, floor],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap();
+    }
+    overdue
+}
+
 /// The core store's audit accounting, read on a side connection: before
 /// every restart (where `Store::open` would recompute the counter and hide
 /// a drift) and at every checkpoint. The counter is exactly `EVENT_BYTES`
 /// per event row, and retention never takes the table below what it keeps:
 /// once the run has written as many events as the events rule keeps, at
-/// least that many remain (less only what the authority rule removed).
+/// least that many remain (less only what the authority rule removed and
+/// what job-row retention removed with its jobs).
 pub fn core_accounting(sim: &mut Sim, when: &str) {
     let (bytes, rows): (i64, i64) = reader(&sim.core_path)
         .unwrap()
@@ -519,8 +532,9 @@ pub fn core_accounting(sim: &mut Sim, when: &str) {
     }
     let removed = |rule: &str| sim.stats.retention_removed.get(rule).copied().unwrap_or(0);
     let (budget, _) = super::sim::rule_limits("events");
-    let written = rows + removed("events") + removed("authority events");
-    let floor = budget.min(written) - removed("authority events");
+    let jobs = sim.stats.job_events;
+    let written = rows + removed("events") + removed("authority events") + jobs;
+    let floor = budget.min(written) - removed("authority events") - jobs;
     if rows < floor {
         problems.push(format!(
             "{when}: {rows} events kept of {written} written, below the {budget} the events rule keeps: retention over-pruned by {}",
@@ -611,6 +625,13 @@ pub fn after_restart(sim: &mut Sim, reason: &'static str) {
 }
 
 const HELD: &str = "('running','verifying','outcome_unknown','needs_intervention')";
+const SETTLED_STATES: [&str; 5] = [
+    "succeeded",
+    "failed",
+    "canceled",
+    "precondition_changed",
+    "resolved",
+];
 const ACTIVE: &str = "('prepared','effect_accepted','outcome_unknown')";
 
 /// Locks agree with job states; every job core holds is one the workload
@@ -656,13 +677,29 @@ fn invariants(sim: &mut Sim, when: &'static str) {
     let lost = sim
         .ledger
         .keys()
-        .filter(|id| !states.contains_key(*id))
+        .filter(|id| !states.contains_key(*id) && !sim.pruned.contains(*id))
         .count();
     if unknown + lost > 0 {
         problems.push(format!(
-            "{lost} queued jobs missing from the store, {unknown} jobs nobody queued"
+            "{lost} queued jobs missing from the store (and not removed by retention), {unknown} jobs nobody queued"
         ));
     }
+    // A job retention removed is gone for good, and was settled when last
+    // read (every checkpoint and restart reads every job; the horizon is 30
+    // days).
+    for id in &sim.pruned {
+        let last = sim.last_state.get(id).map(String::as_str);
+        if states.contains_key(id) || !last.is_some_and(|s| SETTLED_STATES.contains(&s)) {
+            problems.push(format!(
+                "retention removed job {} ({:?} when last read), and the store has it as {:?}",
+                &id[..12],
+                last,
+                states.get(id)
+            ));
+        }
+    }
+    sim.last_state
+        .extend(states.iter().map(|(id, state)| (id.clone(), state.clone())));
     if let Ok(receipts) = reader(&receipts_path(sim)) {
         let active = |sql: String| -> Vec<String> {
             receipts
@@ -837,7 +874,17 @@ fn final_state(sim: &mut Sim) {
     let unclosed = sim.exec.faults().unclosed.clone();
     problems.extend(unclosed.into_iter().map(|line| (CLOSURES, line)));
     for (id, record) in &sim.ledger {
-        let state = states.get(id).map(String::as_str).unwrap_or("missing");
+        // A job retention removed, as the invariants last read it.
+        let state = states
+            .get(id)
+            .or_else(|| {
+                sim.pruned
+                    .contains(id)
+                    .then(|| sim.last_state.get(id))
+                    .flatten()
+            })
+            .map(String::as_str)
+            .unwrap_or("missing");
         let effects = effects.get(id).copied().unwrap_or(0) as usize;
         if !matches!(
             state,
@@ -1086,36 +1133,46 @@ fn trends(sim: &mut Sim) {
         let last = &samples[samples.len() * 2 / 3..];
         let span = day(last.last().unwrap()) - day(&last[0]);
         let tables: Vec<String> = pick(last.last().unwrap()).tables.keys().cloned().collect();
-        let (mut bounded, mut growing) = (Vec::new(), Vec::new());
-        for s in last {
-            let (mut b, mut g) = (0.0, 0.0);
-            for (table, (_, bytes)) in &pick(s).tables {
-                match budget(table) {
-                    Some(Budget::Grows(_)) => g += *bytes as f64,
-                    _ => b += *bytes as f64,
-                }
-            }
-            bounded.push((day(s), b));
-            growing.push((day(s), g));
-        }
+        // Every table: the per-job tables, bounded by job-row retention,
+        // with the rest.
+        let bounded: Vec<(f64, f64)> = last
+            .iter()
+            .map(|s| {
+                let bytes = pick(s).tables.values().map(|(_, b)| *b as f64).sum();
+                (day(s), bytes)
+            })
+            .collect();
+        // Rows a table under its row budget regained, at its bytes a row:
+        // the events table refills to its budget once job-row retention has
+        // removed settled jobs' history with them, and stops there.
+        let refill = refilled(pick(&last[0]), pick(last.last().unwrap()), budget);
         // Bounded content must be flat: its fitted growth over the last
-        // third under 2% of its size (or 256 KiB).
+        // third under 2% of its size (or 256 KiB), beyond that refill.
         let grown = slope(&bounded) * span;
-        if grown > (mean(&bounded) * 0.02).max(256.0 * 1024.0) {
+        if grown > (mean(&bounded) * 0.02).max(256.0 * 1024.0) + refill {
             problems.push((
                 FLAT,
                 format!(
-                    "{store}: bounded tables grew {:.2} MiB over the last third",
-                    grown / 1048576.0
+                    "{store}: bounded tables grew {:.2} MiB over the last third, {:.2} MiB of it tables refilling to their row budgets",
+                    grown / 1048576.0,
+                    refill / 1048576.0
                 ),
             ));
         }
-        // The file may grow only by what the allowlisted tables added.
+        // The file may grow by at most 1 MiB over the last third beyond that
+        // refill: every table is bounded.
         let file: Vec<(f64, f64)> = last.iter().map(|s| (day(s), pick(s).file as f64)).collect();
         let file_grown = file.last().unwrap().1 - file[0].1;
-        let allowed = (growing.last().unwrap().1 - growing[0].1).max(0.0) + 1024.0 * 1024.0;
+        let allowed = 1024.0 * 1024.0 + refill;
         if file_grown > allowed {
-            problems.push((FLAT, format!("{store}: file grew {:.2} MiB over the last third, {:.2} MiB explained by per-job tables", file_grown / 1048576.0, allowed / 1048576.0)));
+            problems.push((
+                FLAT,
+                format!(
+                    "{store}: file grew {:.2} MiB over the last third, more than {:.2} MiB",
+                    file_grown / 1048576.0,
+                    allowed / 1048576.0
+                ),
+            ));
         }
         // Every bounded table by name: rows flat within 10% of its budget.
         for table in tables {
@@ -1157,8 +1214,10 @@ fn trends(sim: &mut Sim) {
     // Core startup on the nightly copies: the cold page reads of its known
     // statements but the proof check (a defect of its own, `MOUNT_PROOF`,
     // whose cache eviction would otherwise blur this series; the open is
-    // tied to the sum by `EXPLAINED`), against the per-job tables' growth on
-    // the same nights, over the last third. Growth is taken between the
+    // tied to the sum by `EXPLAINED`), against the history tables' growth on
+    // the same nights (the per-job tables, and the events table refilling to
+    // its budget after job-row retention removed history with its jobs), over
+    // the last third. Growth is taken between the
     // medians of the two halves of the last third.
     let nights: Vec<(f64, f64, f64)> = sim
         .core_starts
@@ -1169,15 +1228,15 @@ fn trends(sim: &mut Sim) {
             Some((
                 (c.at - START) as f64 / DAY as f64,
                 trace.cold_but_defect() as f64,
-                per_job_bytes(sample) / PAGE as f64,
+                history_bytes(sample) / PAGE as f64,
             ))
         })
         .collect();
     let tail = &nights[nights.len() * 2 / 3..];
     let reads: Vec<(f64, f64)> = tail.iter().map(|n| (n.0, n.1)).collect();
-    let per_job_pages: Vec<(f64, f64)> = tail.iter().map(|n| (n.0, n.2)).collect();
+    let history_pages: Vec<(f64, f64)> = tail.iter().map(|n| (n.0, n.2)).collect();
     let startup_per_day = half_slope(&reads);
-    let per_job_per_day = half_slope(&per_job_pages);
+    let history_per_day = half_slope(&history_pages);
     let cap = startup_page_bound("core", CORE_FILE_BOUND + CORE_WAL_BOUND) as f64;
     let now = reads.last().map_or(0.0, |p| p.1);
     let startup_years = years_until(cap - now, startup_per_day);
@@ -1193,14 +1252,14 @@ fn trends(sim: &mut Sim) {
             ),
         ));
     }
-    if per_job_per_day > 0.0 {
-        let ratio = startup_per_day / per_job_per_day;
+    if history_per_day > 0.0 {
+        let ratio = startup_per_day / history_per_day;
         sim.measures.insert(STARTUP_RATIO, ratio);
         if ratio > STARTUP_PER_JOB_MAX {
             problems.push((
                 STARTUP_PER_JOB,
                 format!(
-                    "core opens read {startup_per_day:.0} more pages a night while the per-job tables gain {per_job_per_day:.1}: {ratio:.1} reads per page, more than the {STARTUP_PER_JOB_MAX} the per-job component explains"
+                    "core opens read {startup_per_day:.0} more pages a night while the history tables gain {history_per_day:.1}: {ratio:.1} reads per page, more than the {STARTUP_PER_JOB_MAX} their growth explains"
                 ),
             ));
         }
@@ -1251,12 +1310,35 @@ fn trends(sim: &mut Sim) {
     }
 }
 
+/// Bytes the tables of `to` with a row budget gained over `from` by rows
+/// they regained while still within that budget (the budget check holds
+/// them to it at every checkpoint), at their bytes a row in `to`.
+fn refilled(from: &StoreStat, to: &StoreStat, budget: fn(&str) -> Option<Budget>) -> f64 {
+    to.tables
+        .iter()
+        .filter_map(|(table, (rows, bytes))| {
+            let Some(Budget::Rows(limit)) = budget(table) else {
+                return None;
+            };
+            let gained = rows - from.rows(table);
+            (gained > 0 && *rows <= limit && *rows > 0)
+                .then(|| gained as f64 * *bytes as f64 / *rows as f64)
+        })
+        .sum()
+}
+
+/// Bytes of core's history tables in a sample: the events table (bounded
+/// by its row budget) and the per-job tables (by job-row retention).
+fn history_bytes(s: &Sample) -> f64 {
+    per_job_bytes(s) + s.core.tables.get("events").map_or(0, |t| t.1) as f64
+}
+
 /// Bytes of core's per-job tables in a sample.
 fn per_job_bytes(s: &Sample) -> f64 {
     s.core
         .tables
         .iter()
-        .filter(|(t, _)| matches!(core_budget(t), Some(Budget::Grows(_))))
+        .filter(|(t, _)| matches!(core_budget(t), Some(Budget::Retained(_))))
         .map(|(_, (_, b))| *b as f64)
         .sum()
 }
@@ -1288,12 +1370,13 @@ fn half_slope(points: &[(f64, f64)]) -> f64 {
     }
 }
 
-/// Startup page reads per page the per-job tables gain, at most: measured
-/// about 5 (quick_check and the foreign-key check read each new page, and
-/// six statements scan the jobs table); twice that is still the per-job
-/// component, more is growth from something else.
+/// Startup page reads per page the history tables gain, at most: measured
+/// about 5 for per-job pages (quick_check and the foreign-key check read
+/// each new page, and six statements scan the jobs table), fewer for events
+/// pages; twice that is still the history component, more is growth from
+/// something else.
 pub const STARTUP_PER_JOB_MAX: f64 = 10.0;
-pub const STARTUP_RATIO: &str = "core startup page reads per per-job page gained";
+pub const STARTUP_RATIO: &str = "core startup page reads per history-table page gained";
 pub const RECEIPTS_FULL: &str = "receipt-store open page reads with every table at its budget";
 
 /// Every measured open within bounds. On each copy of core's store, from the
@@ -1367,9 +1450,14 @@ fn startup_bounds(sim: &mut Sim) {
                     ),
                 ));
             }
+            // The household has no storage mount: the proof check, driven
+            // from the mount plans, reads a few pages, whatever the jobs
+            // and events (it read 6.5 files' worth while it looked events
+            // up by kind for every job, and up to an eighth of the file
+            // while it visited every settled job).
             for proof in trace.statements.iter().filter(|s| s.proof()) {
                 let reads = proof.cold.unwrap_or(proof.reads);
-                if proof.events_by_kind() || reads > file_pages / 8 + 64 {
+                if proof.events_by_kind() || reads > PROOF_READS {
                     problems.push((
                         MOUNT_PROOF,
                         format!(
@@ -1415,7 +1503,7 @@ fn startup_bounds(sim: &mut Sim) {
 /// Tables whose rows grow with history: the events table (bounded by
 /// retention, but the store's largest) and every per-job table.
 pub fn history_table(table: &str) -> bool {
-    table == "events" || matches!(core_budget(table), Some(Budget::Grows(_)))
+    table == "events" || matches!(core_budget(table), Some(Budget::Retained(_)))
 }
 
 /// A startup statement allowed to walk tables that grow with history whole,
@@ -1959,10 +2047,10 @@ fn report(sim: &Sim, profile: &Profile) {
     if let Some(last) = sim.samples.last() {
         let _ = writeln!(p, "per-job tables at the end (rows, MiB):");
         for (table, (rows, bytes)) in &last.core.tables {
-            if let Some(Budget::Grows(why)) = core_budget(table) {
+            if let Some(Budget::Retained(why)) = core_budget(table) {
                 let _ = writeln!(p, "  {table}: {rows}, {:.2}", mib(*bytes as u64));
                 if table == "jobs" {
-                    let _ = writeln!(p, "    why they grow: {why}");
+                    let _ = writeln!(p, "    kept: {why}");
                 }
             }
         }
