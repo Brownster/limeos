@@ -24,6 +24,7 @@ BEGIN SELECT RAISE(ABORT,'completed resolution is retained'); END;
 -- query, held by the schema too.
 CREATE TRIGGER jobs_delete BEFORE DELETE ON jobs
 WHEN OLD.state NOT IN ('succeeded','failed','canceled','precondition_changed','resolved')
+    OR json_extract(OLD.intent,'$.operation') IS NULL
     OR json_extract(OLD.intent,'$.operation') NOT IN ('container_restart','container_start','container_stop','stack_restart','stack_start','stack_stop','health_probe')
     OR EXISTS (SELECT 1 FROM job_resolutions r WHERE r.job=OLD.id AND r.confirmation IS NULL)
 BEGIN SELECT RAISE(ABORT,'retained job'); END;

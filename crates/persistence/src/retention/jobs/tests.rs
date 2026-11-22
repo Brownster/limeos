@@ -577,6 +577,24 @@ fn the_schema_holds_the_rule() {
     };
     assert!(!delete(&mut store, &queued, &DEPENDENTS));
     assert!(exists(&store, &queued));
+    // A settled job whose intent names no operation (or is no JSON object
+    // at all): `NOT IN` alone is NULL there, which would let it go.
+    for (n, intent) in [r#"{"resource":"x"}"#, "[]", "1"].into_iter().enumerate() {
+        let id = format!("{n:064x}");
+        store
+            .conn
+            .execute(
+                "INSERT INTO jobs VALUES(?,?,?,?,?,'fixture:x','queued',1,1,?)",
+                params![id, actor.id, id, intent, "d".repeat(64), T0 + TTL],
+            )
+            .unwrap();
+        store
+            .conn
+            .execute("UPDATE jobs SET state='canceled' WHERE id=?", [&id])
+            .unwrap();
+        assert!(!delete(&mut store, &id, &DEPENDENTS), "{intent}");
+        assert!(exists(&store, &id));
+    }
     // Its events left behind: the commit refuses.
     assert!(!delete(&mut store, &settled_probe, &["job_resources"]));
     assert!(exists(&store, &settled_probe));
