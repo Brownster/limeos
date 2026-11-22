@@ -1440,8 +1440,7 @@ pub const STARTUP_EVENT_PAGES: &str = "events table's pages gained a night over 
 /// third, net of the jobs completed resolutions keep: 64 KiB, two KiB a day
 /// over 30 days, a dozen jobs' worth.
 pub const PER_JOB_FLAT: f64 = 64.0 * 1024.0;
-pub const PER_JOB_NET: &str =
-    "per-job tables' fitted growth from their lowest point in the last third, net of resolved jobs, KiB";
+pub const PER_JOB_NET: &str = "per-job tables' fitted growth from their lowest point in the last third, net of resolved jobs, KiB";
 pub const RECEIPTS_FULL: &str = "receipt-store open page reads with every table at its budget";
 
 /// Every measured open within bounds. On each copy of core's store, from the
