@@ -38,6 +38,14 @@ WHEN NEW.settled IS NULL
     AND NEW.state IN ('succeeded','failed','canceled','precondition_changed','resolved')
 BEGIN UPDATE jobs SET settled=unixepoch() WHERE id=NEW.id; END;
 
+-- Settled jobs by retention's family (`retention::jobs::family`, the same
+-- expression: the planner matches it to use this index) and settlement:
+-- each family's floor and its candidates, in order. Another operation's jobs
+-- have no entry.
+CREATE INDEX jobs_retention ON jobs(CASE WHEN json_extract(intent,'$.operation') IN ('container_restart','container_start','container_stop') THEN 0 WHEN json_extract(intent,'$.operation') IN ('stack_restart','stack_start','stack_stop') THEN 1 WHEN json_extract(intent,'$.operation') IN ('health_probe') THEN 2 END,settled)
+    WHERE settled IS NOT NULL AND CASE WHEN json_extract(intent,'$.operation') IN ('container_restart','container_start','container_stop') THEN 0 WHEN json_extract(intent,'$.operation') IN ('stack_restart','stack_start','stack_stop') THEN 1 WHEN json_extract(intent,'$.operation') IN ('health_probe') THEN 2 END IS NOT NULL;
+
+
 -- Only a settled job of an operation retention knows may be deleted, never
 -- one with an open resolution request: the same rule as retention's own
 -- query, held by the schema too. Its age is not: a trigger has no clock but

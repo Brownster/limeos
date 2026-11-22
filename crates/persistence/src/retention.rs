@@ -213,8 +213,9 @@ struct Rule {
     batch: i64,
     rows: fn(&Connection) -> Result<i64>,
     /// One batch of at most the limit given, at the time given (seconds since
-    /// the Unix epoch; only job-row retention reads it).
-    prune: fn(&Transaction<'_>, i64, i64) -> Result<Removed>,
+    /// the Unix epoch), resuming the scan given (only job-row retention reads
+    /// either).
+    prune: fn(&Transaction<'_>, i64, i64, &mut jobs::Scan) -> Result<Removed>,
     /// Whether the rows it removes count against the audit cap, so startup
     /// may run it to make room for recovery ([`make_room`]).
     audited: bool,
@@ -248,9 +249,9 @@ const RULES: [Rule; 4] = [
     // horizon, so it cannot be counted on to make room at startup.
     Rule {
         table: "jobs",
-        budget: jobs::FLOOR,
+        budget: 0,
         batch: jobs::BATCH,
-        rows: jobs::settled,
+        rows: jobs::past_floor,
         prune: jobs::prune,
         audited: false,
     },
@@ -315,7 +316,13 @@ pub(super) fn make_room(tx: &Transaction<'_>, interrupted: i64) -> Result<()> {
             }
             let excess = (rule.rows)(tx)?.saturating_sub(rule.budget);
             if excess <= 0
-                || (rule.prune)(tx, excess.min(rule.batch), crate::writer_clock::unix_now())?.rows
+                || (rule.prune)(
+                    tx,
+                    excess.min(rule.batch),
+                    crate::writer_clock::unix_now(),
+                    &mut jobs::Scan::default(),
+                )?
+                .rows
                     == 0
             {
                 break;
@@ -326,9 +333,9 @@ pub(super) fn make_room(tx: &Transaction<'_>, interrupted: i64) -> Result<()> {
 }
 
 /// One batch of `rule` if its table is over budget, in its own transaction,
-/// at `now` (seconds since the Unix epoch). A batch that removes nothing
-/// rolls back.
-fn run(conn: &mut Connection, rule: &Rule, now: i64) -> Result<Removed> {
+/// at `now` (seconds since the Unix epoch), resuming `scan`. A batch that
+/// removes nothing rolls back.
+fn run(conn: &mut Connection, rule: &Rule, now: i64, scan: &mut jobs::Scan) -> Result<Removed> {
     let excess = (rule.rows)(conn)?.saturating_sub(rule.budget);
     if excess <= 0 {
         return Ok(Removed::default());
@@ -336,7 +343,7 @@ fn run(conn: &mut Connection, rule: &Rule, now: i64) -> Result<Removed> {
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(durable)?;
-    let removed = (rule.prune)(&tx, excess.min(rule.batch), now)?;
+    let removed = (rule.prune)(&tx, excess.min(rule.batch), now, scan)?;
     if removed.any() {
         tx.commit().map_err(durable)?;
     }
@@ -406,7 +413,7 @@ fn authority_candidates() -> String {
 /// history is longer is finished by later passes (see [`RETAINED_HISTORY`]).
 /// The cost of a pass follows the settled jobs and the prunable rows, not
 /// the pinned history in front of them.
-fn prune_events(tx: &Transaction<'_>, limit: i64, _: i64) -> Result<Removed> {
+fn prune_events(tx: &Transaction<'_>, limit: i64, _: i64, _: &mut jobs::Scan) -> Result<Removed> {
     let select = |sql: String| -> Result<Vec<i64>> {
         let mut stmt = tx.prepare(&sql).map_err(durable)?;
         stmt.query_map([limit], |r| r.get(0))
@@ -451,7 +458,12 @@ fn prune_events(tx: &Transaction<'_>, limit: i64, _: i64) -> Result<Removed> {
 /// Removes the oldest `limit` prunable authority events; only ever called
 /// with `limit` at most the prunable count above [`AUTHORITY_BUDGET`], so the
 /// newest [`AUTHORITY_BUDGET`] prunable ones always stay.
-fn prune_authority(tx: &Transaction<'_>, limit: i64, _: i64) -> Result<Removed> {
+fn prune_authority(
+    tx: &Transaction<'_>,
+    limit: i64,
+    _: i64,
+    _: &mut jobs::Scan,
+) -> Result<Removed> {
     let cursors: Vec<i64> = tx
         .prepare(&authority_candidates())
         .map_err(durable)?
@@ -475,7 +487,12 @@ fn prune_authority(tx: &Transaction<'_>, limit: i64, _: i64) -> Result<Removed> 
 
 /// Removes the oldest `limit` occurrences the delete trigger permits, keeping
 /// each schedule's newest one.
-fn prune_occurrences(tx: &Transaction<'_>, limit: i64, _: i64) -> Result<Removed> {
+fn prune_occurrences(
+    tx: &Transaction<'_>,
+    limit: i64,
+    _: i64,
+    _: &mut jobs::Scan,
+) -> Result<Removed> {
     let mut stmt = tx
         .prepare("SELECT o.schedule,o.revision,o.due FROM automation_occurrences o JOIN automation_schedules s ON s.id=o.schedule LEFT JOIN jobs j ON j.id=o.job WHERE (o.job IS NULL OR j.state IN ('succeeded','failed','canceled','precondition_changed')) AND (o.revision<s.revision OR (o.revision=s.revision AND o.due<s.settled_through)) AND EXISTS(SELECT 1 FROM automation_occurrences n WHERE n.schedule=o.schedule AND (n.revision,n.due)>(o.revision,o.due)) ORDER BY o.created,o.schedule,o.revision,o.due LIMIT ?")
         .map_err(durable)?;
@@ -591,7 +608,10 @@ impl Store {
                 if self.failing_rule == Some(rule.table) {
                     return (rule.table, Err(Error(ErrorCode::StateNotDurable)));
                 }
-                (rule.table, run(&mut self.conn, rule, wall))
+                (
+                    rule.table,
+                    run(&mut self.conn, rule, wall, &mut self.job_scan),
+                )
             })
             .collect()
     }
@@ -732,5 +752,6 @@ pub struct RetentionFailure {
 }
 
 mod jobs;
+pub(crate) use jobs::Scan as JobScan;
 #[cfg(test)]
 mod tests;

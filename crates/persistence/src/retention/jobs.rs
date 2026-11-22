@@ -48,10 +48,23 @@
 //!    a probe's outcome or an execute never sent leaves no other dated row,
 //!    so a job queued long ago and settled now would otherwise go at once.
 //! 6. It is not among the [`FLOOR`] newest settled jobs of its family
-//!    (container actions, stack actions, health probes, by insertion order),
-//!    so a quiet household's job history is never emptied: each listing
-//!    (`container_jobs`, `stack_jobs`) shows an administrator's 32 newest,
-//!    and the floor keeps four such pages of each family.
+//!    (container actions, stack actions, health probes, by settlement time,
+//!    then insertion), so a quiet household's job history is never emptied.
+//!    The floor is per family across every user, not per administrator: each
+//!    listing (`container_jobs`, `stack_jobs`) shows one administrator's 32
+//!    newest, and the floor keeps four such pages of the family as a whole,
+//!    so an administrator whose jobs all settled before 128 newer ones of
+//!    other administrators can find their listing empty once the horizon
+//!    has passed.
+//!
+//! The rule reads the writer's wall clock. A clock set back keeps jobs
+//! longer, which is safe. A clock set far forward makes every settled job
+//! past the floor look past the horizon, and the next passes remove them
+//! early (the floor still stays). Nothing guards against it: the store has
+//! no trusted time to compare with (no other retention rule ages rows by
+//! time, so none has such a guard), and refusing to prune while the clock is
+//! far beyond the newest stored time would hold only until the first event
+//! written under the forward clock, a minute at most.
 //!
 //! What goes with it, in one transaction: the job row, its events (its own
 //! settled history: the events rule would remove them anyway, oldest first,
@@ -75,8 +88,9 @@
 //!
 //! # Batches
 //!
-//! The writer thread runs one batch a pass (at most once a minute) when more
-//! than [`FLOOR`] jobs are settled, oldest plan expiry first. A batch removes
+//! The writer thread runs one batch a pass (at most once a minute) while
+//! some family has a settled job past its floor ([`past_floor`]; jobs of
+//! other operations never count), oldest settlement first. A batch removes
 //! at most [`BATCH`] jobs and at most [`ROWS`] rows in all (events, resources,
 //! plans, results, resolutions and job rows), the scale of the events rule's
 //! 1,024-row batch, so no batch stalls the writer longer than an events
@@ -87,6 +101,18 @@
 //! and the rest go in the batch where they fit. Each batch commits on its
 //! own: a crash leaves the store as the last committed batch did, which the
 //! startup checks accept.
+//!
+//! Selection is bounded too, whatever the store holds: the count reads at
+//! most `FLOOR + BATCH` entries of `jobs_retention` per family, the floor
+//! `FLOOR`, and a batch's candidates at most [`SCAN`] per family, from where
+//! that family's last batch stopped ([`Scan`]), so a job a reference keeps
+//! is read once per [`RESCAN`] (an hour), not every minute. Each window job
+//! costs a dozen key lookups and a walk of its own events (`events_job`), as
+//! the events rule's own check does. So a pass costs at most about
+//! `3 * (FLOOR + BATCH + FLOOR + SCAN)` index entries (2,688), `3 * SCAN`
+//! (768) jobs' protection checks and the deletion of `ROWS` rows: the scale
+//! of an events batch. Nothing in it grows with jobs of other operations,
+//! with kept jobs beyond the window, or with the table.
 //!
 //! The schema holds the same line (`migration-v19.sql`): `jobs_delete`
 //! refuses to delete an unsettled job, one of another operation or one with
@@ -104,8 +130,8 @@ use super::*;
 /// 5 MiB for 30 days, beside the events table's 40 MiB at its budget.
 pub(super) const HORIZON: i64 = 30 * 24 * 3600;
 /// Settled jobs of each family kept whatever their age: four listing pages
-/// of 32. Also the rule's budget: no batch runs while no more jobs than this
-/// are settled in all.
+/// of 32 (of the family as a whole, across every user). No batch runs while
+/// no family has more settled jobs than this.
 pub(super) const FLOOR: i64 = 128;
 /// Most jobs one batch removes.
 pub(super) const BATCH: i64 = 64;
@@ -145,147 +171,210 @@ pub(super) const PROTECTING: [&str; 9] = [
     "backup_preparation_plans",
 ];
 
-/// Settled jobs of every operation: the rule's row count. Read through
-/// `jobs_state`.
-pub(super) fn settled(conn: &Connection) -> Result<i64> {
-    conn.query_row(
-        &format!("SELECT count(*) FROM jobs WHERE state IN {SETTLED_STATES}"),
-        [],
-        |r| r.get(0),
-    )
-    .map_err(durable)
-}
+/// Settled jobs examined at most per family in one batch: the candidate
+/// window, from where the family's last batch stopped.
+const SCAN: i64 = 4 * BATCH;
+/// How often each family's scan starts again from its oldest settled job
+/// (seconds), so a job a reference kept is looked at again once that
+/// reference is gone: an hour, well inside the soak's one-day allowance.
+const RESCAN: i64 = 3600;
 
-/// The oldest removable jobs (rules 1 to 6), with their events, resources
-/// and family. Parameters: the horizon's cutoff, each family's floor (the
-/// rowid of its `FLOOR`th newest settled job, NULL while it has no more, or
-/// the largest rowid while it is not read yet), the limit.
-/// Settled jobs past the cutoff are found through `jobs_state`; each one's
-/// events through `events_job`, everything else by its primary or unique key.
-fn candidates() -> String {
-    let families = FAMILIES
+/// A job's family, as an expression over `jobs.intent`: 0, 1 or 2 by
+/// [`FAMILIES`], NULL for every other operation. Exactly the expression of
+/// the `jobs_retention` index (`migration-v19.sql`), which the planner
+/// matches by it.
+pub(super) fn family() -> String {
+    let cases: String = FAMILIES
         .iter()
         .enumerate()
         .map(|(n, operations)| {
-            format!(
-                "(json_extract(j.intent,'$.operation') IN {operations} AND j.rowid<?{})",
-                n + 2
-            )
+            format!(" WHEN json_extract(intent,'$.operation') IN {operations} THEN {n}")
         })
-        .collect::<Vec<_>>()
-        .join(" OR ");
-    let family = format!(
-        "CASE {} END",
-        FAMILIES
-            .iter()
-            .enumerate()
-            .map(|(n, operations)| format!(
-                " WHEN json_extract(j.intent,'$.operation') IN {operations} THEN {n}"
-            ))
-            .collect::<String>()
-    );
+        .collect();
+    format!("CASE{cases} END")
+}
+
+/// Where each family's scan resumes: the settlement time and rowid of the
+/// last job a batch looked at and left (a reference kept it) or removed,
+/// and when every family starts again from its oldest. Held by the writer's
+/// store, in memory: a restart starts again from the oldest.
+#[derive(Debug, Default)]
+pub(crate) struct Scan {
+    after: [Option<(i64, i64)>; FAMILIES.len()],
+    restart: Option<i64>,
+}
+
+/// The rule's row count: settled jobs past their family's floor, at most
+/// [`BATCH`] counted per family, never another operation's jobs. Each family
+/// is read through `jobs_retention`, newest first, at most `FLOOR + BATCH`
+/// entries. Its budget is 0: a batch runs only while some family has a job
+/// past its floor.
+pub(super) fn past_floor(conn: &Connection) -> Result<i64> {
+    let mut statement = conn.prepare_cached(&past_floor_query()).map_err(durable)?;
+    let mut total = 0;
+    for n in 0..FAMILIES.len() {
+        let past: i64 = statement
+            .query_row(params![n as i64, BATCH, FLOOR], |r| r.get(0))
+            .map_err(durable)?;
+        total += past;
+    }
+    Ok(total)
+}
+
+/// The count [`past_floor`] reads, per family (`?1`): `LIMIT ?2 OFFSET ?3`.
+pub(super) fn past_floor_query() -> String {
+    format!(
+        "SELECT count(*) FROM (SELECT 1 FROM jobs WHERE {}=?1 AND settled IS NOT NULL ORDER BY settled DESC,rowid DESC LIMIT ?2 OFFSET ?3)",
+        family()
+    )
+}
+
+/// A family's floor: the settlement time and rowid of its `FLOOR`th newest
+/// settled job (by settlement), or `None` while it has no more than `FLOOR`.
+/// `FLOOR` entries of `jobs_retention`.
+fn floor(tx: &Transaction<'_>, n: usize) -> Result<Option<(i64, i64)>> {
+    tx.prepare_cached(&floor_query())
+        .map_err(durable)?
+        .query_row(params![n as i64, FLOOR - 1], |r| Ok((r.get(0)?, r.get(1)?)))
+        .optional()
+        .map_err(durable)
+}
+
+/// The floor of family `?1`: `OFFSET ?2`.
+pub(super) fn floor_query() -> String {
+    format!(
+        "SELECT settled,rowid FROM jobs WHERE {}=?1 AND settled IS NOT NULL ORDER BY settled DESC,rowid DESC LIMIT 1 OFFSET ?2",
+        family()
+    )
+}
+
+/// One family's candidate window: its settled jobs past the horizon
+/// (`settled<?2`), after where its scan resumes and before its floor (`?5`,
+/// `?6`), oldest settlement first, at most `?7` of them, each with its
+/// settlement time, rowid, ID and whether rules 1 to 5 let it go. In two
+/// parts, since the planner bounds an index range by `settled` alone, not by
+/// a row value with the rowid: the rest of the resumed settlement time
+/// (`tie`: `settled=?3 AND rowid>?4`), then every later one (`settled>?3`).
+/// Many jobs share a settlement time only after the upgrade (every job
+/// already settled took the upgrade's), and each part is a range that
+/// starts exactly where the scan resumed. Read through `jobs_retention`
+/// (the family, the settlement time, then the rowid), each job's events
+/// through `events_job` and everything else by its primary or unique key:
+/// its cost is the window's jobs, never the family's or the table's.
+pub(super) fn window(tie: bool) -> String {
     let protecting = PROTECTING
         .iter()
         .map(|table| format!(" AND NOT EXISTS(SELECT 1 FROM {table} x WHERE x.job=j.id)"))
         .collect::<String>();
-    let limit = FAMILIES.len() + 2;
     format!(
-        "SELECT j.id,(SELECT count(*) FROM events e INDEXED BY events_job WHERE e.job=j.id),(SELECT count(*) FROM job_resources r WHERE r.job=j.id),{family} FROM jobs j WHERE j.state IN {SETTLED_STATES} AND j.settled<?1 AND j.deadline<?1 AND ({families}) AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND (r.confirmation IS NULL OR r.completed>=?1)) AND NOT EXISTS(SELECT 1 FROM events e INDEXED BY events_job WHERE e.job=j.id AND (e.created>=?1 OR json_extract(e.kind,'$.kind') IN ({}))) AND NOT EXISTS(SELECT 1 FROM container_results x WHERE x.job=j.id AND x.recorded>=?1) AND NOT EXISTS(SELECT 1 FROM stack_results x WHERE x.job=j.id AND x.recorded>=?1){protecting} ORDER BY j.deadline,j.rowid LIMIT ?{limit}",
-        quoted(&AUTHORITY_KINDS)
+        "SELECT j.settled,j.rowid,j.id,j.state IN {SETTLED_STATES} AND j.deadline<?2 AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND (r.confirmation IS NULL OR r.completed>=?2)) AND NOT EXISTS(SELECT 1 FROM events e INDEXED BY events_job WHERE e.job=j.id AND (e.created>=?2 OR json_extract(e.kind,'$.kind') IN ({}))) AND NOT EXISTS(SELECT 1 FROM container_results x WHERE x.job=j.id AND x.recorded>=?2) AND NOT EXISTS(SELECT 1 FROM stack_results x WHERE x.job=j.id AND x.recorded>=?2){protecting} FROM jobs j WHERE {}=?1 AND j.settled<?2 AND {} AND (j.settled,j.rowid)<(?5,?6) ORDER BY j.settled,j.rowid LIMIT ?7",
+        quoted(&AUTHORITY_KINDS),
+        family(),
+        if tie {
+            "j.settled=?3 AND j.rowid>?4"
+        } else {
+            "j.settled>?3 AND ?4 IS NOT NULL"
+        }
     )
-}
-
-/// The rowid below which a family's settled jobs are past the floor: that of
-/// its `FLOOR`th newest, or `None` while it has no more than `FLOOR`.
-fn floor(tx: &Transaction<'_>, operations: &str) -> Result<Option<i64>> {
-    tx.query_row(
-        &format!(
-            "SELECT rowid FROM jobs WHERE state IN {SETTLED_STATES} AND json_extract(intent,'$.operation') IN {operations} ORDER BY rowid DESC LIMIT 1 OFFSET ?"
-        ),
-        [FLOOR - 1],
-        |r| r.get(0),
-    )
-    .optional()
-    .map_err(durable)
 }
 
 /// One batch at `now`: at most `limit` (and [`BATCH`]) jobs, at most [`ROWS`]
 /// rows, or the oldest events of one job too long for a batch.
 ///
-/// A family's floor is read (a walk of `jobs` from its newest row until the
-/// floor's worth of that family) only once that family has a job past the
-/// horizon: the candidates are read with no floor for a family whose floor
-/// is not known yet, then again with the floor of every family among them,
-/// until no new family appears (at most once per family more). Every job
-/// returned in the end is past its family's floor; a pass with nothing past
-/// the horizon reads no floor at all.
-pub(super) fn prune(tx: &Transaction<'_>, limit: i64, now: i64) -> Result<Removed> {
+/// Each family with more than `FLOOR` settled jobs has its floor read and
+/// its window (at most [`SCAN`] jobs from where its scan resumes); the
+/// windows are taken together, oldest settlement first. A job rules 1 to 5
+/// let go is removed while the batch has room; a job a reference keeps is
+/// passed over, and its family's scan resumes after it, so a later batch
+/// does not read it again until the scan starts over, every [`RESCAN`]
+/// seconds (or when the clock has gone back past the last start). A job past
+/// the horizon but inside the floor, or not yet past the horizon, sorts after
+/// every job a window can hold, so nothing is passed over that a later batch
+/// should remove. A batch that rolls back after passing over jobs only
+/// delays them to the next start.
+pub(super) fn prune(
+    tx: &Transaction<'_>,
+    limit: i64,
+    now: i64,
+    scan: &mut Scan,
+) -> Result<Removed> {
     let cutoff = now.saturating_sub(HORIZON);
-    let sql = candidates();
-    let mut statement = tx.prepare_cached(&sql).map_err(durable)?;
-    // Per family: not read yet (`None`), or its floor (`Some(None)` while it
-    // has no more than `FLOOR` settled jobs, so none of them goes).
-    let mut floors: [Option<Option<i64>>; FAMILIES.len()] = [None; FAMILIES.len()];
-    let found = loop {
-        let mut values: Vec<rusqlite::types::Value> = vec![cutoff.into()];
-        values.extend(floors.iter().map(|floor| match floor {
-            None => i64::MAX.into(),
-            Some(floor) => rusqlite::types::Value::from(*floor),
-        }));
-        values.push(limit.min(BATCH).into());
-        let found: Vec<(String, i64, i64, usize)> = statement
-            .query_map(rusqlite::params_from_iter(values), |r| {
-                let family: i64 = r.get(3)?;
-                Ok((
-                    r.get(0)?,
-                    r.get(1)?,
-                    r.get(2)?,
-                    usize::try_from(family).unwrap_or(usize::MAX),
-                ))
-            })
-            .map_err(durable)?
-            .collect::<std::result::Result<_, _>>()
-            .map_err(durable)?;
-        let mut unread = false;
-        for (_, _, _, family) in &found {
-            if floors
-                .get(*family)
-                .ok_or(Error(ErrorCode::StateNotDurable))?
-                .is_none()
-            {
-                floors[*family] = Some(floor(tx, FAMILIES[*family])?);
-                unread = true;
-            }
+    if scan
+        .restart
+        .is_none_or(|at| now >= at || now < at.saturating_sub(RESCAN))
+    {
+        *scan = Scan {
+            restart: Some(now.saturating_add(RESCAN)),
+            ..Scan::default()
+        };
+    }
+    let mut found: Vec<((i64, i64), String, bool, usize)> = Vec::new();
+    for n in 0..FAMILIES.len() {
+        let Some(floor) = floor(tx, n)? else {
+            continue;
+        };
+        let after = scan.after[n].unwrap_or((i64::MIN, i64::MIN));
+        let mut taken = 0;
+        for tie in [true, false] {
+            let rows = tx
+                .prepare_cached(&window(tie))
+                .map_err(durable)?
+                .query_map(
+                    params![
+                        n as i64,
+                        cutoff,
+                        after.0,
+                        after.1,
+                        floor.0,
+                        floor.1,
+                        SCAN - taken
+                    ],
+                    |r| Ok(((r.get(0)?, r.get(1)?), r.get(2)?, r.get(3)?, n)),
+                )
+                .map_err(durable)?
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(durable)?;
+            taken += rows.len() as i64;
+            found.extend(rows);
         }
-        if !unread {
-            break found;
-        }
-    };
+    }
+    found.sort_by_key(|(key, ..)| *key);
+    let mut cost = tx
+        .prepare_cached("SELECT (SELECT count(*) FROM events INDEXED BY events_job WHERE job=?1),(SELECT count(*) FROM job_resources WHERE job=?1)")
+        .map_err(durable)?;
     let mut removed = Removed::default();
     let mut rows = 0;
     let mut whole = Vec::new();
-    for (id, events, resources, _) in found {
-        // The job row, its plan, result and resolution, at most one each.
-        let cost = events + resources + 4;
-        if rows + cost <= ROWS {
-            rows += cost;
-            whole.push(id);
-        } else {
-            if whole.is_empty() {
-                // Too long for any batch: its oldest events, `job_queued`
-                // first, and the rest on later passes.
-                let gone = tx
-                    .execute(
-                        "DELETE FROM events WHERE cursor IN (SELECT cursor FROM events INDEXED BY events_job WHERE job=? ORDER BY cursor LIMIT ?)",
-                        params![id, EVENT_BATCH],
-                    )
-                    .map_err(durable)?;
-                let gone = i64::try_from(gone).map_err(|_| Error(ErrorCode::StateNotDurable))?;
-                account(tx, -gone)?;
-                removed.events = gone;
+    for (key, id, removable, n) in found {
+        if removable {
+            let (events, resources): (i64, i64) = cost
+                .query_row([&id], |r| Ok((r.get(0)?, r.get(1)?)))
+                .map_err(durable)?;
+            // The job row, its plan, result and resolution, at most one each.
+            let cost = events + resources + 4;
+            if (whole.len() as i64) < limit.min(BATCH) && rows + cost <= ROWS {
+                rows += cost;
+                whole.push(id);
+            } else {
+                if whole.is_empty() {
+                    // Too long for any batch: its oldest events, `job_queued`
+                    // first, and the rest on later passes.
+                    let gone = tx
+                        .execute(
+                            "DELETE FROM events WHERE cursor IN (SELECT cursor FROM events INDEXED BY events_job WHERE job=? ORDER BY cursor LIMIT ?)",
+                            params![id, EVENT_BATCH],
+                        )
+                        .map_err(durable)?;
+                    let gone =
+                        i64::try_from(gone).map_err(|_| Error(ErrorCode::StateNotDurable))?;
+                    account(tx, -gone)?;
+                    removed.events = gone;
+                }
+                // Not passed over: the next batch starts with it.
+                break;
             }
-            break;
         }
+        scan.after[n] = Some(key);
     }
     if whole.is_empty() {
         return Ok(removed);

@@ -520,6 +520,8 @@ pub struct Store {
     observation_leases: std::collections::HashMap<String, automation::ActiveObservation>,
     observation_watermarks: std::collections::HashMap<String, automation::PollWatermark>,
     retained_at: Option<Instant>,
+    /// Where job-row retention's scan resumes (`retention/jobs.rs`).
+    job_scan: retention::JobScan,
     #[cfg(test)]
     free_bytes: Option<u64>,
     /// Tests: this rule's batches fail.
@@ -960,6 +962,7 @@ impl Store {
             observation_leases: std::collections::HashMap::new(),
             observation_watermarks: std::collections::HashMap::new(),
             retained_at: None,
+            job_scan: retention::JobScan::default(),
             #[cfg(test)]
             free_bytes: None,
             #[cfg(test)]

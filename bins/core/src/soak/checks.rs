@@ -474,8 +474,9 @@ pub fn checkpoint(sim: &mut Sim) {
 /// Settled container and stack jobs that job-row retention should have
 /// removed a day ago (`retention/jobs.rs`, rules 1 to 6, read independently
 /// of its query): settled, and unchanged since, a day before the horizon, past the newest
-/// `JOB_FLOOR` of their family, with no open resolution request and no
-/// authority event. A day is 1,440 passes of up to 64 jobs.
+/// `JOB_FLOOR` of their family (by settlement), with no open resolution
+/// request and no authority event. A day is 1,440 passes of up to 64 jobs,
+/// and 24 starts of the rule's scan over the jobs a reference kept.
 fn overdue_jobs(conn: &Connection, now: i64) -> i64 {
     let cutoff = now - limeos_persistence::test_support::JOB_HORIZON - DAY;
     let floor = limeos_persistence::test_support::JOB_FLOOR;
@@ -490,7 +491,7 @@ fn overdue_jobs(conn: &Connection, now: i64) -> i64 {
         overdue += conn
             .query_row(
                 &format!(
-                    "WITH kept AS (SELECT j.id FROM jobs j WHERE {settled} ORDER BY j.rowid DESC LIMIT ?2) \
+                    "WITH kept AS (SELECT j.id FROM jobs j WHERE {settled} ORDER BY j.settled DESC,j.rowid DESC LIMIT ?2) \
                      SELECT count(*) FROM jobs j WHERE {settled} AND j.id NOT IN kept AND j.settled<?1 AND j.deadline<?1 \
                      AND NOT EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND (e.created>=?1 OR json_extract(e.kind,'$.kind') GLOB 'job_resolution_*')) \
                      AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND (r.confirmation IS NULL OR r.completed>=?1)) \

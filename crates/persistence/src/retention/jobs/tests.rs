@@ -108,12 +108,13 @@ fn checks_clean(store: &Store) {
 /// Job-row batches at `now` until one removes nothing; the jobs removed.
 fn drain_jobs(store: &mut Store, now: i64) -> i64 {
     let mut total = 0;
+    let mut scan = Scan::default();
     loop {
         let tx = store
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .unwrap();
-        let removed = prune(&tx, BATCH, now).unwrap();
+        let removed = prune(&tx, BATCH, now, &mut scan).unwrap();
         tx.commit().unwrap();
         if !removed.any() {
             return total;
@@ -223,7 +224,10 @@ fn every_reference_keeps_its_job() {
     ).unwrap();
     store
         .conn
-        .execute("UPDATE jobs SET state='failed' WHERE id=?", [&open])
+        .execute(
+            "UPDATE jobs SET state='failed',settled=? WHERE id=?",
+            params![T0, open],
+        )
         .unwrap();
     // Settled, with an authority event (an operator's declaration).
     let declared = probe(&mut store, &actor, "declared", T0);
@@ -406,7 +410,14 @@ fn a_late_settlement_keeps_its_job_for_the_horizon() {
             .approve_container(&actor, &plan.plan.id, &plan.digest, T0)
             .unwrap();
         store
-            .queue_container(&actor, &format!("c{n}"), &plan, &approval.token, &before, T0)
+            .queue_container(
+                &actor,
+                &format!("c{n}"),
+                &plan,
+                &approval.token,
+                &before,
+                T0,
+            )
             .unwrap()
             .id
     };
@@ -441,7 +452,7 @@ fn a_late_settlement_keeps_its_job_for_the_horizon() {
         .conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .unwrap();
-    super::super::prune_events(&tx, i64::MAX, late).unwrap();
+    super::super::prune_events(&tx, i64::MAX, late, &mut Scan::default()).unwrap();
     tx.commit().unwrap();
     for id in kept {
         assert_eq!(rows(&store, "events", id), 0);
@@ -451,7 +462,10 @@ fn a_late_settlement_keeps_its_job_for_the_horizon() {
         assert!(exists(&store, id), "{id} was removed as soon as it settled");
     }
     assert_eq!(drain_jobs(&mut store, late + HORIZON), 0);
-    assert_eq!(drain_jobs(&mut store, late + HORIZON + 1), kept.len() as i64);
+    assert_eq!(
+        drain_jobs(&mut store, late + HORIZON + 1),
+        kept.len() as i64
+    );
     for id in kept {
         assert!(!exists(&store, id));
     }
@@ -503,7 +517,10 @@ fn the_settlement_time_is_set_once_and_kept() {
         .execute("UPDATE jobs SET state='canceled' WHERE id=?", [&queued])
         .unwrap();
     let at = settled_of(&store, &queued).unwrap();
-    assert!(at >= before && at <= crate::writer_clock::unix_now(), "{at}");
+    assert!(
+        at >= before && at <= crate::writer_clock::unix_now(),
+        "{at}"
+    );
 }
 
 /// The upgrade to schema 19 takes every settled job already stored as
@@ -515,10 +532,7 @@ fn an_upgraded_store_keeps_its_settled_jobs_for_the_horizon() {
     let path = dir.path().join("core.sqlite");
     let old = probes(&mut store, &actor, "p", FLOOR as usize + 2, T0);
     crate::remove_v19_schema(&store.conn);
-    store
-        .conn
-        .execute_batch("PRAGMA user_version=18")
-        .unwrap();
+    store.conn.execute_batch("PRAGMA user_version=18").unwrap();
     drop(store);
     let before = crate::writer_clock::unix_now();
     let mut store = Store::open(&path).unwrap();
@@ -551,7 +565,7 @@ fn the_floor_keeps_the_newest_of_each_family() {
     assert!(exists(&store, &container_job));
     // At the floor exactly, nothing more goes, at any time.
     assert_eq!(drain_jobs(&mut store, PAST + 10 * HORIZON), 0);
-    assert_eq!(settled(&store.conn).unwrap(), FLOOR + 1);
+    assert_eq!(past_floor(&store.conn).unwrap(), 0);
 }
 
 /// A batch removes at most `BATCH` jobs and `ROWS` rows; a job whose history
@@ -588,7 +602,7 @@ fn batches_are_bounded_and_a_long_history_goes_over_several() {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .unwrap();
-        let removed = prune(&tx, BATCH, PAST).unwrap();
+        let removed = prune(&tx, BATCH, PAST, &mut Scan::default()).unwrap();
         tx.commit().unwrap();
         let changed = changes(&store) - before;
         if !removed.any() {
@@ -799,35 +813,208 @@ fn the_schema_holds_the_rule() {
     checks_clean(&store);
 }
 
-/// The candidate query reads settled jobs through `jobs_state` and each
-/// one's events through `events_job`, and scans neither table.
-#[test]
-fn the_candidate_query_uses_the_indexes() {
-    let (_dir, store, _) = setup();
-    let plan: Vec<String> = store
+fn plan(store: &Store, sql: &str, values: &[i64]) -> Vec<String> {
+    store
         .conn
-        .prepare(&format!("EXPLAIN QUERY PLAN {}", candidates()))
+        .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
         .unwrap()
-        .query_map(params![PAST, 1, 1, 1, BATCH], |r| r.get::<_, String>(3))
+        .query_map(rusqlite::params_from_iter(values), |r| {
+            r.get::<_, String>(3)
+        })
         .unwrap()
         .collect::<std::result::Result<_, _>>()
-        .unwrap();
-    assert!(
-        plan.iter()
-            .any(|s| s.starts_with("SEARCH j USING INDEX jobs_state")),
-        "{plan:?}"
-    );
-    assert!(
-        plan.iter()
-            .any(|s| s.starts_with("SEARCH e USING") && s.contains("events_job")),
-        "{plan:?}"
-    );
-    for step in &plan {
+        .unwrap()
+}
+/// VM steps of one run of `sql` with `values`, reading every row.
+fn steps(store: &Store, sql: &str, values: &[i64]) -> i32 {
+    let mut statement = store.conn.prepare(sql).unwrap();
+    let mut rows = statement.query(rusqlite::params_from_iter(values)).unwrap();
+    while rows.next().unwrap().is_some() {}
+    drop(rows);
+    statement.get_status(rusqlite::StatementStatus::VmStep)
+}
+
+/// The floor, the count and the window read a family through
+/// `jobs_retention` (its family, then its settlement range, in order, no
+/// sort), each window job's events through `events_job`, and scan neither
+/// `jobs` nor `events`.
+#[test]
+fn the_selection_queries_use_the_index() {
+    let (_dir, store, _) = setup();
+    for (tie, range) in [
+        (true, "(<expr>=? AND settled=? AND rowid>?)"),
+        (false, "(<expr>=? AND settled>? AND settled<?)"),
+    ] {
+        let window = plan(&store, &window(tie), &[2, PAST, 0, 0, PAST, 0, SCAN]);
         assert!(
-            !step.starts_with("SCAN j") && !step.starts_with("SCAN e"),
+            window
+                .iter()
+                .any(|s| *s == format!("SEARCH j USING INDEX jobs_retention {range}")),
+            "{window:?}"
+        );
+        assert!(
+            window
+                .iter()
+                .any(|s| s.starts_with("SEARCH e USING") && s.contains("events_job")),
+            "{window:?}"
+        );
+        for step in &window {
+            assert!(
+                !step.starts_with("SCAN j")
+                    && !step.starts_with("SCAN e")
+                    && !step.contains("TEMP B-TREE"),
+                "{window:?}"
+            );
+        }
+    }
+    for (sql, values) in [
+        (floor_query(), vec![2, FLOOR - 1]),
+        (past_floor_query(), vec![2, BATCH, FLOOR]),
+    ] {
+        let plan = plan(&store, &sql, &values);
+        assert!(
+            plan.iter()
+                .any(|s| s.starts_with("SEARCH jobs USING COVERING INDEX jobs_retention (<expr>=?")),
             "{plan:?}"
         );
+        assert!(plan.iter().all(|s| !s.contains("TEMP B-TREE")), "{plan:?}");
     }
+}
+
+/// Settled jobs of an operation the rule never removes, `n` of them,
+/// settled at `T0`.
+fn others(store: &mut Store, actor: &Principal, prefix: &str, n: usize) {
+    for i in 0..n {
+        let id = limeos_identity::digest(&format!("{prefix}{i}"));
+        store
+            .conn
+            .execute(
+                "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES(?,?,?,?,?,'storage:configuration','queued',1,1,?)",
+                params![id, actor.id, id, r#"{"operation":"storage_prepare_targets"}"#, "d".repeat(64), T0 + TTL],
+            )
+            .unwrap();
+        store
+            .conn
+            .execute(
+                "UPDATE jobs SET state='canceled',settled=? WHERE id=?",
+                params![T0, id],
+            )
+            .unwrap();
+    }
+}
+/// Probes settled at `T0` that an authority event keeps.
+fn declared(store: &mut Store, actor: &Principal, prefix: &str, n: usize) {
+    for id in probes(store, actor, prefix, n, T0) {
+        store
+            .write(|tx| {
+                event(
+                    tx,
+                    Some(&actor.id),
+                    Some(&id),
+                    EventKind::JobResolutionWithdrawn,
+                    T0,
+                )
+            })
+            .unwrap();
+    }
+}
+
+/// The work of selection does not grow with jobs the rule never removes or
+/// with old jobs a reference keeps: the count and the floor read the same
+/// steps whatever the other operations hold, and a window reads at most
+/// `SCAN` kept jobs however many there are.
+#[test]
+fn selection_work_does_not_grow_with_other_or_kept_jobs() {
+    let (_dir, mut store, actor) = setup();
+    declared(&mut store, &actor, "kept", SCAN as usize + 8);
+    probes(&mut store, &actor, "floor", FLOOR as usize, T0 + 1);
+    let floor_key: (i64, i64) = store
+        .conn
+        .query_row(&floor_query(), params![2, FLOOR - 1], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+        .unwrap();
+    let measure = |store: &Store| -> (i32, i32, i32) {
+        (
+            (0..3)
+                .map(|n| steps(store, &past_floor_query(), &[n, BATCH, FLOOR]))
+                .sum(),
+            steps(store, &floor_query(), &[2, FLOOR - 1]),
+            steps(
+                store,
+                &window(false),
+                &[
+                    2,
+                    PAST - HORIZON,
+                    i64::MIN,
+                    0,
+                    floor_key.0,
+                    floor_key.1,
+                    SCAN,
+                ],
+            ),
+        )
+    };
+    let before = measure(&store);
+    others(&mut store, &actor, "other", 2000);
+    declared(&mut store, &actor, "more", 600);
+    // The new kept probes settled at T0 too, before the floor and inside
+    // the window's range, behind the first ones.
+    let after = measure(&store);
+    assert_eq!(before, after);
+    // And no work at all for a family with nothing settled.
+    assert!(steps(&store, &floor_query(), &[0, FLOOR - 1]) < 20);
+}
+
+/// A pass that found only kept jobs does not read them again on the next
+/// pass: each family's scan resumes after them, so later passes read only
+/// what has newly passed the horizon, and the scan starts over from the
+/// oldest only every `RESCAN` seconds.
+#[test]
+fn a_pass_over_kept_jobs_does_not_read_them_again() {
+    let (_dir, mut store, actor) = setup();
+    declared(&mut store, &actor, "kept", 2 * SCAN as usize + 8);
+    // Settled after every other probe here: the floor stays theirs.
+    probes(&mut store, &actor, "floor", FLOOR as usize, T0 + 10);
+    let window_steps = |store: &Store| -> i32 {
+        [true, false]
+            .into_iter()
+            .map(|tie| {
+                store
+                    .conn
+                    .prepare_cached(&window(tie))
+                    .unwrap()
+                    .get_status(rusqlite::StatementStatus::VmStep)
+            })
+            .sum()
+    };
+    let mut last = 0;
+    let mut pass = |store: &mut Store, at: i64| -> (Vec<(&'static str, i64)>, i32) {
+        let removed = store.prune_at(at).unwrap();
+        let now = window_steps(store);
+        let steps = now - last;
+        last = now;
+        (removed, steps)
+    };
+    // Three passes read the kept probes, a window each; none is removed.
+    let (removed, first) = pass(&mut store, PAST);
+    assert!(removed.is_empty());
+    assert!(pass(&mut store, PAST + 60).0.is_empty());
+    assert!(pass(&mut store, PAST + 120).0.is_empty());
+    // Then nothing is left to read until the scan starts over but the
+    // floor's own entries, where the window's range ends.
+    let (removed, idle) = pass(&mut store, PAST + 180);
+    assert!(removed.is_empty());
+    assert!(idle * 10 < first, "{idle} steps idle, {first} for a window");
+    // A job newly past the horizon is found without reading them again.
+    let late = probe(&mut store, &actor, "late", T0 + 2);
+    let (removed, steps) = pass(&mut store, PAST + 240);
+    assert_eq!(removed, vec![("jobs", 1)]);
+    assert!(!exists(&store, &late));
+    assert!(steps * 10 < first, "{steps} steps, {first} for a window");
+    // An hour on, the scan starts over and reads the kept probes again.
+    let (_, again) = pass(&mut store, PAST + 180 + RESCAN);
+    assert!(again * 2 > first, "{again} steps after the restart");
 }
 
 /// Through the writer's own entry point: a pass with settled jobs at the
