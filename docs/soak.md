@@ -312,7 +312,11 @@ as many the round before, the proof check most of it).
 
 Over the last third: the per-job tables grow 2.6 KiB a day (3.3 in the
 restart scenario), core.sqlite would reach 80 MiB in 52 (43) years at that
-rate; what still grows are the jobs an authority event keeps (resolved
+rate (after the settlement-time and bounded-selection round, 22 November,
+`soak_ninety_days` alone: 1.9 KiB a day, 71 years; 27.6 KiB net of the
+resolved jobs from the third's lowest point, against 64; startup 15.4 reads
+a night against 24.4 explained by 0.73 per-job and 4.27 events pages a
+night; 421 s, 161 s of it clock and retention passes); what still grows are the jobs an authority event keeps (resolved
 jobs: 49 and 37 completed resolutions at the end), bounded by the authority
 rule's budget. Core startup reads grow 16 pages a night, 3.2 (2.6) per page
 the history tables gain: the events table refilling to its budget after the
@@ -352,12 +356,20 @@ read every page, seven statements walk `jobs`), 57 to 64 page reads a night,
 the startup bound in 2.1 to 2.3 years.
 
 Job-row retention (`crates/persistence/src/retention/jobs.rs`, schema 19)
-removes a settled container, stack or health-probe job 30 days after it last
-changed (its plan's expiry, events, result and resolution all older), with
-its remaining events, resources, plan, result and completed resolution, at
-most 64 jobs and 2,048 rows a batch. It keeps the newest 128 settled jobs of
-each family, every unsettled job, every job with an open resolution request
-or an authority event, and every job of another operation. With it the
+removes a settled container, stack or health-probe job 30 days after it
+settled (`jobs.settled`, set with the state that settles it; its plan's
+expiry, events, result and resolution all older too), with its remaining
+events, resources, plan, result and completed resolution, at most 64 jobs
+and 2,048 rows a batch. It keeps the newest 128 settled jobs of each family,
+every unsettled job, every job with an open resolution request or an
+authority event, and every job of another operation. The floor is per family
+across every user, not per administrator: an administrator whose jobs all
+settled before 128 newer ones of the others can find their listing empty
+once the horizon has passed. The rule reads the writer's wall clock: a clock
+set back keeps jobs longer, but one set far forward removes every settled
+job past the floor early (no other retention rule ages rows by time, so
+there is no guard to match, and refusing while the clock is far past the
+newest stored time would last only until the first event written under it). With it the
 per-job tables hold 444 jobs on the last night of the main run (0.8 MiB of
 `jobs`, 2.7 MiB in all) instead of 2,047 and still growing, the file stays at
 31.2 MiB from day 54, and startup reads 14,316 pages on the last night
@@ -428,13 +440,13 @@ CI (not re-measured this round).
 | audit counter and retained rows match what retention promises | at every checkpoint and before every restart: `meta.audit_bytes` is exactly `EVENT_BYTES` per event row; once the run has written as many events as the events rule keeps, at least that many remain, less what the authority rule and job-row retention (with its jobs) removed; standalone and stack receipts never fall below what retention keeps once reached; the prune watermark never decreases and never passes the youngest expiry retention may prune |
 | every retention batch within its rule's limit | every batch the writer thread reports, one transaction, removes at most its rule's limit |
 | database files under their bounds | core file 80 MiB and WAL 8 MiB; receipt file half its page cap and WAL 2 MiB, every checkpoint |
-| every table within its budget | every table in both stores, found by walking `sqlite_master`; the events budget from the production rule, the receipt budgets from `limits`; the per-job tables at most 20 rows a job, and no settled container or stack job kept a day past job-row retention's horizon and floor with nothing that keeps it (no open request, no authority event, nothing newer), counted by the soak's own query |
-| sizes and bounded tables flat across the last third | every table's bytes (the per-job tables with the rest), each row-budgeted table's rows, and the file, over days 60 to 90: growth under 2% (or 256 KiB; the file 1 MiB) beyond what tables under their row budget regained toward it at their bytes a row (the events table refills to its budget after job-row retention removed history with its jobs) |
+| every table within its budget | every table in both stores, found by walking `sqlite_master`; the events budget from the production rule, the receipt budgets from `limits`; the per-job tables at most 20 rows a job, and no settled container or stack job kept a day past job-row retention's horizon and floor (the newest 128 by settlement) with nothing that keeps it (no open request, no authority event, nothing newer, its settlement time included), counted by the soak's own query |
+| sizes and bounded tables flat across the last third | every table's bytes (the per-job tables with the rest), each row-budgeted table's rows, and the file, over days 60 to 90: the fitted growth of every table's bytes, less what the events table had regained toward its budget by each checkpoint at its bytes a row (it refills after job-row retention removed history with its jobs), under 2% (or 256 KiB); the file's growth under 1 MiB beyond that refill between the third's ends; and the per-job tables on their own, from their lowest point in the third and net of the jobs completed resolutions keep, fitted growth under 64 KiB |
 | slow growth leaves at least five years | the per-job tables' growth, projected to the core file bound |
 | startup under its bounds | every open's wall time (5 s core, 2 s receipts: the catastrophic only); on every copy and crash image, the cold page reads of core's startup statements (but a proof check that looks events up by kind, which its own check fails) at most 3.2 per page of file and WAL, the receipt store's open at most 2.0; every crash image opens and keeps every committed job and event unchanged (ids, and each event's cursor, principal, job, kind and time), adding only one recovery event per interrupted job |
 | core startup reads nothing its checks do not explain | on every copy and crash image, from every statement's bytecode and counters: every statement's program read, nested ones included; no statement walks the events table itself (only `quick_check` and the foreign-key check may); only the statements in `SCAN_ALLOWANCES` walk a table growing with history (`events` or a per-job table, or an index of one), each only its listed tables, with a reason; each statement's full-scan steps at most its listed tables' rows times its steps per row (0 or 1), plus its walks of bounded tables (their rows, once per run), plus 16; the counters measured (some VM and full-scan steps once a table walked one step a row holds 64 rows); the open's VM steps (but such a proof check's) at most 64 per retained row plus 200,000; at most 32 page reads outside every statement (measured 16) plus 2 per WAL frame replayed; the open reads at most what its statements read cold, plus 3%, 256 pages and 2 per WAL frame replayed |
 | the storage-mount proof check reads little without storage mounts | the statement that reads `storage_mount_results`: its plan does not look events up by kind, and it reads at most 64 pages cold (`PROOF_READS`) on every copy, whatever the jobs and events |
-| core startup work grows only with the history tables (events and per-job) | over the last third, the statements' cold reads grow by at most 10 per page the history tables gain (the per-job tables, and the events table while it refills to its budget) |
+| core startup work grows only with the history tables (events and per-job) | over the last third, the statements' cold reads grow by at most 10 per page the per-job tables gain plus 4 per page the events table gains (while it refills to its budget), plus 4 a night |
 | core / receipt-store startup work leaves at least five years | the nightly page reads, projected to the bound of a store at its file bound; the receipt store's no further than the reads of a store with every table at its budget |
 | an idle hour writes nothing | once retention has nothing left, an hour of dispatcher ticks and the writer's own passes changes no file of either store (database or WAL); every scheduled idle hour is measured or skipped for a recorded reason, and at least three in four are measured |
 | locks, ledger and retained history consistent after every restart | locks match job states; every job the workload queued exists, but those the writer thread's passes reported removing (each settled when last read, and never seen again), and no other does; unsettled and contested jobs keep their history; the executor holds no lock for a job core has released |
@@ -484,6 +496,7 @@ again:
 | Core records no executor epoch before acting on an answer (the epoch the dispatcher asks for before each claim) | `exchange` no longer calls `observe_executor_epoch` | `soak_smoke`, no job dispatched before a receipt-store change is released on a closure alone: "job b29be7ba8243 was held when the receipt store changed, and released on a closure from the new store" (3 jobs); every Engine effect: "job b29be7ba8243 (Container Restart, fault Some(ReceiptStoreLost { older: true })) is precondition_changed after 1 Engine effects for 1 targets" |
 | Retention forgets open resolution requests | `retention::SETTLED` loses `AND NOT EXISTS(… job_resolutions … confirmation IS NULL)` | `soak_ninety_days`, a job's history stays while its resolution request is open: "day 21 10:01:30: the job settled (succeeded) with its resolution request open lost its history: retention pruned 3 events in 1 passes" |
 | Per-job tables never pruned (job-row retention removed) | `retention::jobs::prune` returns at once | `soak_ninety_days` (310 s): every table within its budget, "day 32 04:00:00: core: 10 settled jobs kept a day past job-row retention's horizon and floor, with nothing that keeps them", rising to 204 by day 51; flat: "core: bounded tables grew 1.70 MiB over the last third" and "file grew 1.73 MiB"; "core opens read 58 more pages each night over the last third (25157 now): 72345, the bound at the file bound, in 2.2 years"; "per-job tables grow 47 KiB a day (4.6 KiB a job): core.sqlite reaches 80 MiB in 2.7 years" |
+| Per-job tables leak slowly (a few KiB a day) | job-row retention's window treats every job whose ID starts with `0` or `1` as kept (`j.id NOT GLOB '[01]*' AND …`): an eighth of the jobs stay | `soak_ninety_days` (433 s), flat: "day 90 00:00:00: core: per-job tables grew 201 KiB from day 60 to 89 beyond the jobs completed resolutions keep (at most 64 KiB)" (8.1 KiB a day against 1.9 unmutated; the whole store's 2% and the five-year projection both pass it); and every table within its budget, from "day 32 04:00:00: core: 2 settled jobs kept a day past job-row retention's horizon and floor" |
 | Job-row retention ignores an open resolution request | the candidate query loses `r.confirmation IS NULL OR` | `retention::jobs::tests::every_reference_keeps_its_job`: the batch fails (the `jobs_delete` trigger refuses the job: `StateNotDurable`) |
 | Job-row retention ignores authority events | the candidate query's authority-kind clause made false | `retention::jobs::tests::every_reference_keeps_its_job`: 9 jobs removed where 8 may be (the job with a withdrawal and its authority event gone) |
 | A crash open that loses a committed event (the harness's own check) | `core_crash` deletes one committed event from the image before the child opens it | `soak_smoke`, startup under its bounds: "day 1 06:05:00: a crash image of the core store lost committed work in its open (18 WAL frames to replay): 1285 events through cursor 1286 digest to 74746d82… (committed: 1286 events, d09ef811…)", on both crash images |

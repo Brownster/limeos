@@ -1135,33 +1135,35 @@ fn trends(sim: &mut Sim) {
         let span = day(last.last().unwrap()) - day(&last[0]);
         let tables: Vec<String> = pick(last.last().unwrap()).tables.keys().cloned().collect();
         // Every table: the per-job tables, bounded by job-row retention,
-        // with the rest.
+        // with the rest, less what the events table regained by each
+        // checkpoint (`refilled`): it refills to its budget once job-row
+        // retention has removed settled jobs' history with them, and stops
+        // there. Taken off each sample before the fit, so a refill late in
+        // the third excuses only what it added, and when.
         let bounded: Vec<(f64, f64)> = last
             .iter()
             .map(|s| {
-                let bytes = pick(s).tables.values().map(|(_, b)| *b as f64).sum();
-                (day(s), bytes)
+                let bytes: f64 = pick(s).tables.values().map(|(_, b)| *b as f64).sum();
+                (day(s), bytes - refilled(pick(&last[0]), pick(s), budget))
             })
             .collect();
-        // Rows a table under its row budget regained, at its bytes a row:
-        // the events table refills to its budget once job-row retention has
-        // removed settled jobs' history with them, and stops there.
         let refill = refilled(pick(&last[0]), pick(last.last().unwrap()), budget);
         // Bounded content must be flat: its fitted growth over the last
-        // third under 2% of its size (or 256 KiB), beyond that refill.
+        // third under 2% of its size (or 256 KiB).
         let grown = slope(&bounded) * span;
-        if grown > (mean(&bounded) * 0.02).max(256.0 * 1024.0) + refill {
+        if grown > (mean(&bounded) * 0.02).max(256.0 * 1024.0) {
             problems.push((
                 FLAT,
                 format!(
-                    "{store}: bounded tables grew {:.2} MiB over the last third, {:.2} MiB of it tables refilling to their row budgets",
+                    "{store}: bounded tables grew {:.2} MiB over the last third, beyond {:.2} MiB the events table regained toward its budget",
                     grown / 1048576.0,
                     refill / 1048576.0
                 ),
             ));
         }
         // The file may grow by at most 1 MiB over the last third beyond that
-        // refill: every table is bounded.
+        // refill (both taken between the third's ends): every table is
+        // bounded.
         let file: Vec<(f64, f64)> = last.iter().map(|s| (day(s), pick(s).file as f64)).collect();
         let file_grown = file.last().unwrap().1 - file[0].1;
         let allowed = 1024.0 * 1024.0 + refill;
@@ -1212,6 +1214,45 @@ fn trends(sim: &mut Sim) {
     if years < 5.0 {
         problems.push((PROJECTION, format!("per-job tables grow {:.0} KiB a day ({:.1} KiB a job): core.sqlite reaches {:.0} MiB in {years:.1} years", per_day / 1024.0, per_job / 1024.0, mib(CORE_FILE_BOUND))));
     }
+    // The per-job tables on their own, beside the whole store's flatness
+    // (whose 2% of 30 MiB would hide a slow leak): from their lowest point
+    // in the last third (job-row retention works off the action storm's
+    // jobs in its first days), net of the jobs completed resolutions keep
+    // (their authority events keep them, bounded by the authority rule's
+    // budget), each at the sample's bytes a job, their fitted growth stays
+    // under `PER_JOB_FLAT`.
+    let resolved = |s: &Sample| s.core.rows("job_resolutions") as f64;
+    let net: Vec<(f64, f64)> = last
+        .iter()
+        .map(|s| {
+            let per_job = per_job_bytes(s) / (s.core.rows("jobs") as f64).max(1.0);
+            (
+                day(s),
+                per_job_bytes(s) - (resolved(s) - resolved(first)) * per_job,
+            )
+        })
+        .collect();
+    let lowest = net
+        .iter()
+        .enumerate()
+        .min_by(|a, b| a.1.1.total_cmp(&b.1.1))
+        .map_or(0, |(i, _)| i)
+        .min(net.len().saturating_sub(8));
+    let tail = &net[lowest..];
+    let net_grown = slope(tail) * (tail.last().unwrap().0 - tail[0].0);
+    sim.measures.insert(PER_JOB_NET, net_grown / 1024.0);
+    if net_grown > PER_JOB_FLAT {
+        problems.push((
+            FLAT,
+            format!(
+                "core: per-job tables grew {:.0} KiB from day {:.0} to {:.0} beyond the jobs completed resolutions keep (at most {:.0} KiB)",
+                net_grown / 1024.0,
+                tail[0].0,
+                tail.last().unwrap().0,
+                PER_JOB_FLAT / 1024.0
+            ),
+        ));
+    }
     // Core startup on the nightly copies: the cold page reads of its known
     // statements but the proof check (a defect of its own, `MOUNT_PROOF`,
     // whose cache eviction would otherwise blur this series; the open is
@@ -1220,7 +1261,7 @@ fn trends(sim: &mut Sim) {
     // its budget after job-row retention removed history with its jobs), over
     // the last third. Growth is taken between the
     // medians of the two halves of the last third.
-    let nights: Vec<(f64, f64, f64)> = sim
+    let nights: Vec<(f64, f64, f64, f64)> = sim
         .core_starts
         .iter()
         .filter_map(|c| {
@@ -1229,15 +1270,18 @@ fn trends(sim: &mut Sim) {
             Some((
                 (c.at - START) as f64 / DAY as f64,
                 trace.cold_but_defect() as f64,
-                history_bytes(sample) / PAGE as f64,
+                per_job_bytes(sample) / PAGE as f64,
+                events_bytes(sample) / PAGE as f64,
             ))
         })
         .collect();
     let tail = &nights[nights.len() * 2 / 3..];
     let reads: Vec<(f64, f64)> = tail.iter().map(|n| (n.0, n.1)).collect();
-    let history_pages: Vec<(f64, f64)> = tail.iter().map(|n| (n.0, n.2)).collect();
+    let per_job_pages: Vec<(f64, f64)> = tail.iter().map(|n| (n.0, n.2)).collect();
+    let events_pages: Vec<(f64, f64)> = tail.iter().map(|n| (n.0, n.3)).collect();
     let startup_per_day = half_slope(&reads);
-    let history_per_day = half_slope(&history_pages);
+    let per_job_per_day = half_slope(&per_job_pages);
+    let events_per_day = half_slope(&events_pages);
     let cap = startup_page_bound("core", CORE_FILE_BOUND + CORE_WAL_BOUND) as f64;
     let now = reads.last().map_or(0.0, |p| p.1);
     let startup_years = years_until(cap - now, startup_per_day);
@@ -1253,17 +1297,21 @@ fn trends(sim: &mut Sim) {
             ),
         ));
     }
-    if history_per_day > 0.0 {
-        let ratio = startup_per_day / history_per_day;
-        sim.measures.insert(STARTUP_RATIO, ratio);
-        if ratio > STARTUP_PER_JOB_MAX {
-            problems.push((
-                STARTUP_PER_JOB,
-                format!(
-                    "core opens read {startup_per_day:.0} more pages a night while the history tables gain {history_per_day:.1}: {ratio:.1} reads per page, more than the {STARTUP_PER_JOB_MAX} their growth explains"
-                ),
-            ));
-        }
+    // Each history table's growth explains reads at its own rate: the
+    // per-job tables', `STARTUP_PER_JOB_MAX` a page, and the events
+    // table's (refilling to its budget), `STARTUP_PER_EVENT_MAX`; growth
+    // beyond both (and `STARTUP_SLACK`) is something else.
+    let explained = STARTUP_PER_JOB_MAX * per_job_per_day.max(0.0)
+        + STARTUP_PER_EVENT_MAX * events_per_day.max(0.0);
+    sim.measures.insert(STARTUP_PER_JOB_PAGES, per_job_per_day);
+    sim.measures.insert(STARTUP_EVENT_PAGES, events_per_day);
+    if startup_per_day > explained + STARTUP_SLACK {
+        problems.push((
+            STARTUP_PER_JOB,
+            format!(
+                "core opens read {startup_per_day:.0} more pages a night while the per-job tables gain {per_job_per_day:.1} pages and the events table {events_per_day:.1}: their growth explains {explained:.0} ({STARTUP_PER_JOB_MAX} and {STARTUP_PER_EVENT_MAX} reads a page) and {STARTUP_SLACK} more"
+            ),
+        ));
     }
     // The receipt store's opens. Every one of its tables is bounded by a row
     // budget (asserted at every checkpoint), so its reads can grow only
@@ -1311,12 +1359,15 @@ fn trends(sim: &mut Sim) {
     }
 }
 
-/// Bytes the tables of `to` with a row budget gained over `from` by rows
-/// they regained while still within that budget (the budget check holds
-/// them to it at every checkpoint), at their bytes a row in `to`.
+/// Bytes the events table of `to` gained over `from` by rows it regained
+/// while still within its row budget (the budget check holds it to that at
+/// every checkpoint), at its bytes a row in `to`: the refill after job-row
+/// retention removed settled jobs' history with them. No other table's
+/// growth is excused.
 fn refilled(from: &StoreStat, to: &StoreStat, budget: fn(&str) -> Option<Budget>) -> f64 {
     to.tables
         .iter()
+        .filter(|(table, _)| *table == "events")
         .filter_map(|(table, (rows, bytes))| {
             let Some(Budget::Rows(limit)) = budget(table) else {
                 return None;
@@ -1328,10 +1379,9 @@ fn refilled(from: &StoreStat, to: &StoreStat, budget: fn(&str) -> Option<Budget>
         .sum()
 }
 
-/// Bytes of core's history tables in a sample: the events table (bounded
-/// by its row budget) and the per-job tables (by job-row retention).
-fn history_bytes(s: &Sample) -> f64 {
-    per_job_bytes(s) + s.core.tables.get("events").map_or(0, |t| t.1) as f64
+/// Bytes of core's events table (with its indexes) in a sample.
+fn events_bytes(s: &Sample) -> f64 {
+    s.core.tables.get("events").map_or(0, |t| t.1) as f64
 }
 
 /// Bytes of core's per-job tables in a sample.
@@ -1377,7 +1427,21 @@ fn half_slope(points: &[(f64, f64)]) -> f64 {
 /// pages; twice that is still the history component, more is growth from
 /// something else.
 pub const STARTUP_PER_JOB_MAX: f64 = 10.0;
-pub const STARTUP_RATIO: &str = "core startup page reads per history-table page gained";
+/// Startup page reads per page the events table (with its indexes) gains,
+/// at most: `quick_check` and the foreign-key check read each new page
+/// once, and no other startup statement walks it (`EXPLAINED`); twice that.
+pub const STARTUP_PER_EVENT_MAX: f64 = 4.0;
+/// Reads a night beyond what the history tables explain that are taken as
+/// noise between the medians of the two halves.
+pub const STARTUP_SLACK: f64 = 4.0;
+pub const STARTUP_PER_JOB_PAGES: &str = "per-job tables' pages gained a night over the last third";
+pub const STARTUP_EVENT_PAGES: &str = "events table's pages gained a night over the last third";
+/// The most the per-job tables may grow from their lowest point in the last
+/// third, net of the jobs completed resolutions keep: 64 KiB, two KiB a day
+/// over 30 days, a dozen jobs' worth.
+pub const PER_JOB_FLAT: f64 = 64.0 * 1024.0;
+pub const PER_JOB_NET: &str =
+    "per-job tables' fitted growth from their lowest point in the last third, net of resolved jobs, KiB";
 pub const RECEIPTS_FULL: &str = "receipt-store open page reads with every table at its budget";
 
 /// Every measured open within bounds. On each copy of core's store, from the
