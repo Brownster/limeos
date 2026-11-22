@@ -16,7 +16,7 @@ Supply `--probe DIR` with these three regular files: `manifest.json`, the unchan
 {
   "contract": 1,
   "source_commit": "<40 lowercase hex>",
-  "source_sha256": "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c",
+  "source_sha256": "2384a492b6b6c856d02dc99c6ff43ef376bfd0d1197719537fca1155765fbc6f",
   "binary": "combined_read_probe",
   "binary_sha256": "<64 lowercase hex>",
   "toolchain": "1.88.0",

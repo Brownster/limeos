@@ -408,16 +408,16 @@ async fn run(config: &Config<'_>, output: &mut impl Write) -> io::Result<()> {
             serde_json::json!(error),
         );
     }
-    if config.case != Case::Engine {
-        if let Err(error) = engine.revalidate().await {
-            return refusal(
-                output,
-                config.case,
-                "engine.after_revalidate",
-                "engine",
-                serde_json::json!(error.0),
-            );
-        }
+    if config.case != Case::Engine
+        && let Err(error) = engine.revalidate().await
+    {
+        return refusal(
+            output,
+            config.case,
+            "engine.after_revalidate",
+            "engine",
+            serde_json::json!(error.0),
+        );
     }
     emit(
         output,

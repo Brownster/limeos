@@ -16,7 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PROBE = Path("bins/executor/tests/combined_read_probe.rs")
-SOURCE_SHA256 = "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c"
+SOURCE_SHA256 = "2384a492b6b6c856d02dc99c6ff43ef376bfd0d1197719537fca1155765fbc6f"
 PACKAGE_NAMES = (
     "limeos_0.4.4_amd64.deb",
     "limeos_0.4.4+ci.1_amd64.deb",
