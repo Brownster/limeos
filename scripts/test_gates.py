@@ -159,7 +159,7 @@ def main():
             "needs to be updated",
         )
         vulnerable = lock.replace(
-            'name = "libsqlite3-sys"\nversion = "0.38.2"',
+            'name = "libsqlite3-sys"\nversion = "0.39.1"',
             'name = "libsqlite3-sys"\nversion = "0.24.1"',
         )
         assert vulnerable != lock

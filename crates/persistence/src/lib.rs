@@ -776,7 +776,7 @@ impl Store {
         )
         .map_err(durable)?;
         #[cfg(feature = "test-support")]
-        retention::test_support::opened(&conn);
+        retention::test_support::opened(&mut conn);
         std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
         if rusqlite::version_number() < 3_051_003 {

@@ -118,7 +118,7 @@ Only core owns the SQLite authority database. Task tokens store digests and bind
 
 ## Persistence and recovery
 
-Contracts and the authority schema are version 1. The schema is generated under `contracts/generated`; Rust types are authoritative. SQLite 3.53.2 is bundled; startup refuses versions older than 3.51.3. One bounded worker serializes transactions and holds the single-core file lock. WAL uses FULL synchronization. Job intent and its event commit together. Reusing an idempotency key with changed intent fails. Resource locks survive ambiguous interruption.
+Contracts and the authority schema are version 1. The schema is generated under `contracts/generated`; Rust types are authoritative. SQLite 3.54.1 is bundled; startup refuses versions older than 3.51.3. One bounded worker serializes transactions and holds the single-core file lock. WAL uses FULL synchronization. Job intent and its event commit together. Reusing an idempotency key with changed intent fails. Resource locks survive ambiguous interruption.
 
 At startup, running/verifying jobs become `needs_intervention`. Core never retries them automatically. Receipt-based reconciliation arrives with executor effects in P03. Unknown provider usage keeps the maximum reservation; settlement is unique and cannot exceed it. Cost units are integers, not floating-point currency.
 

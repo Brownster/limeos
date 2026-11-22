@@ -55,7 +55,7 @@ use std::{
 /// `target`.
 pub fn copy(source: &Path, target: &Path) {
     let from = super::checks::reader(source).expect("side connection");
-    from.backup(MAIN_DB, target, None)
+    from.backup(MAIN_DB, target, None::<fn(rusqlite::backup::Progress)>)
         .expect("online backup of the store");
     drop(from);
     // Both stores refuse a file other users could read.
@@ -712,11 +712,12 @@ fn traced(event: TraceEvent<'_>) {
         }
     });
 }
-fn hook(conn: &rusqlite::Connection) {
+fn hook(conn: &mut rusqlite::Connection) {
     conn.trace_v2(
         TraceEventCodes::SQLITE_TRACE_STMT | TraceEventCodes::SQLITE_TRACE_PROFILE,
         Some(traced),
-    );
+    )
+    .expect("statement trace on the store's connection");
 }
 
 /// Every b-tree `sql`'s program walks whole (`Scan`), read from its bytecode
