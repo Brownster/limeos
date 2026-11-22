@@ -41,11 +41,82 @@ mod storage_targets;
 mod supervision;
 
 fn now() -> i64 {
+    #[cfg(test)]
+    if let Some(now) = test_clock::now() {
+        return now;
+    }
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
         .min(i64::MAX as u64) as i64
+}
+/// The monotonic time core paces recovery lookups by (`operations::Rotation`).
+fn monotonic() -> std::time::Instant {
+    #[cfg(test)]
+    if let Some(at) = test_clock::instant() {
+        return at;
+    }
+    std::time::Instant::now()
+}
+/// Unit tests only: a thread may read a simulated clock instead of the system
+/// clocks (`now`, `monotonic`). The soak installs one on its own thread and on
+/// its store's writer thread, so core's own code runs on simulated time while
+/// every other test, on its own threads, keeps the system clock.
+#[cfg(test)]
+mod test_clock {
+    use limeos_persistence::test_support::SimClock;
+    use std::{cell::RefCell, sync::Arc};
+    thread_local! {
+        static CLOCK: RefCell<Option<Arc<SimClock>>> = const { RefCell::new(None) };
+    }
+    /// This thread reads `clock` from now on (`None`: the system clocks).
+    pub(crate) fn install(clock: Option<Arc<SimClock>>) {
+        CLOCK.with(|c| *c.borrow_mut() = clock);
+    }
+    pub(super) fn now() -> Option<i64> {
+        CLOCK.with(|c| c.borrow().as_ref().map(|c| c.now()))
+    }
+    pub(super) fn instant() -> Option<std::time::Instant> {
+        CLOCK.with(|c| c.borrow().as_ref().map(|c| c.instant()))
+    }
+    thread_local! {
+        static DETACHED: RefCell<Vec<tokio::task::AbortHandle>> = const { RefCell::new(Vec::new()) };
+    }
+    pub(super) fn detached(task: tokio::task::AbortHandle) {
+        DETACHED.with(|d| {
+            let mut tasks = d.borrow_mut();
+            tasks.retain(|t| !t.is_finished());
+            tasks.push(task);
+        });
+    }
+    /// Aborts every task core detached on this thread (`detach`) that is
+    /// still running: the soak's simulated crash, which a real process's
+    /// death does to every task it had. Returns how many were running.
+    pub(crate) fn abort_detached() -> usize {
+        DETACHED.with(|d| {
+            let tasks = std::mem::take(&mut *d.borrow_mut());
+            let running = tasks.iter().filter(|t| !t.is_finished()).count();
+            for task in tasks {
+                task.abort();
+            }
+            running
+        })
+    }
+}
+/// Spawns work that must finish even if its caller stops waiting (a
+/// request's deadline drops the caller's future). Unit tests record it on
+/// the calling thread, so a simulated crash can abort it as a real one ends
+/// it (`test_clock::abort_detached`).
+fn detach<F>(work: F) -> tokio::task::JoinHandle<F::Output>
+where
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    let task = tokio::spawn(work);
+    #[cfg(test)]
+    test_clock::detached(task.abort_handle());
+    task
 }
 /// Work for a password worker. A verification carries the request's attempt
 /// handle, so it cannot be issued without marking when its comparison starts.
@@ -1164,6 +1235,8 @@ impl Core {
 }
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
+    // A shipped process never runs on the soak's simulated clock or hook.
+    limeos_persistence::refuse_test_support();
     tracing_subscriber::fmt().json().with_target(false).init();
     if let Err(error) = run().await {
         tracing::error!(code=?error.0,message=error.message(),"core stopped");
@@ -1299,6 +1372,8 @@ async fn services(
 mod compose_tests;
 #[cfg(test)]
 mod operation_tests;
+#[cfg(test)]
+mod soak;
 #[cfg(test)]
 mod stack_operation_tests;
 #[cfg(test)]

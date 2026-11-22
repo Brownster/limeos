@@ -785,6 +785,8 @@ dependencies = [
  "limeos-backup-archive",
  "limeos-contracts",
  "limeos-domain",
+ "limeos-executor",
+ "limeos-executor-container",
  "limeos-executor-protocol",
  "limeos-identity",
  "limeos-observations",

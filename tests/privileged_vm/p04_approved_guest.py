@@ -476,7 +476,7 @@ def main(package_version="0.4.4", qualify_upgrade=True, authority_schema=None):
             ensure_ascii=False,
         )
         db.execute(
-            "INSERT INTO jobs VALUES(?,?,?,?,?,?,'queued',?,?,?)",
+            "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES(?,?,?,?,?,?,'queued',?,?,?)",
             (
                 action_missing,
                 owner,

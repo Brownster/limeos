@@ -536,9 +536,10 @@ impl Core {
             jobs.iter()
                 .filter(|(_, job)| job.state != JobState::Queued)
                 .map(|(_, job)| job.id.as_str()),
+            monotonic(),
         );
         for (principal, job) in jobs {
-            if job.state != JobState::Queued && !recovery.due(&job.id) {
+            if job.state != JobState::Queued && !recovery.due(&job.id, monotonic()) {
                 continue;
             }
             let id = job.id.clone();

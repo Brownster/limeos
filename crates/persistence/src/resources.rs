@@ -25,7 +25,8 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             include_str!("migration-v15.sql"),
             include_str!("migration-v16.sql"),
             include_str!("migration-v17.sql"),
-            include_str!("migration-v18.sql")
+            include_str!("migration-v18.sql"),
+            include_str!("migration-v19.sql")
         ))
         .map_err(durable)?;
     let mut stmt = reference
@@ -86,7 +87,12 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
         }
     }
     // Startup and retention cost depend on these indexes, not only correctness.
-    for name in ["events_job", "events_kind", "events_notification"] {
+    for name in [
+        "events_job",
+        "events_kind",
+        "events_notification",
+        "jobs_retention",
+    ] {
         let expected: String = reference
             .query_row(
                 "SELECT sql FROM sqlite_schema WHERE type='index' AND name=?",

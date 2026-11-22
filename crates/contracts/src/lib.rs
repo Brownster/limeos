@@ -292,13 +292,22 @@ pub enum CoreResponse {
     Error(ErrorEnvelope),
 }
 
+/// Reads one frame: a big-endian `u32` length, then that many bytes of JSON.
+///
+/// A connection that ends or fails before the whole frame arrived (the peer
+/// closed it, crashed or restarted, or gave up at its deadline, whether
+/// before the first byte or part-way through the length or the body) is a
+/// transport failure: `Unavailable`, which callers may retry and which never
+/// proves the request was refused. A frame that did arrive but is malformed
+/// (a zero or oversized length, refused before its body is read, or a body
+/// that is not the expected JSON) is `InvalidInput`.
 pub async fn read_frame<T: serde::de::DeserializeOwned>(
     reader: &mut (impl AsyncRead + Unpin),
 ) -> limeos_domain::Result<T> {
     let len = reader
         .read_u32()
         .await
-        .map_err(|_| Error(ErrorCode::InvalidInput))? as usize;
+        .map_err(|_| Error(ErrorCode::Unavailable))? as usize;
     if len == 0 || len > FRAME_LIMIT {
         return Err(Error(ErrorCode::InvalidInput));
     }
@@ -306,7 +315,7 @@ pub async fn read_frame<T: serde::de::DeserializeOwned>(
     reader
         .read_exact(&mut bytes)
         .await
-        .map_err(|_| Error(ErrorCode::InvalidInput))?;
+        .map_err(|_| Error(ErrorCode::Unavailable))?;
     serde_json::from_slice(&bytes).map_err(|_| Error(ErrorCode::InvalidInput))
 }
 pub async fn write_frame<T: Serialize>(
@@ -330,6 +339,73 @@ pub async fn write_frame<T: Serialize>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// What `read_frame` makes of `bytes` followed by the end of the stream.
+    async fn read(bytes: &[u8]) -> limeos_domain::Result<Health> {
+        let (mut a, mut b) = tokio::io::duplex(FRAME_LIMIT + 8);
+        a.write_all(bytes).await.unwrap();
+        drop(a);
+        read_frame::<Health>(&mut b).await
+    }
+    fn frame(body: &[u8]) -> Vec<u8> {
+        let mut bytes = (body.len() as u32).to_be_bytes().to_vec();
+        bytes.extend_from_slice(body);
+        bytes
+    }
+    fn health() -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({
+            "version": VERSION,
+            "generation": 7,
+            "schema_version": 17,
+            "ready": true,
+            "degraded": [],
+        }))
+        .unwrap()
+    }
+    #[tokio::test]
+    async fn a_connection_that_ends_before_the_whole_frame_is_unavailable() {
+        let body = health();
+        let whole = frame(&body);
+        // Nothing at all, part of the length, the length alone, part of the
+        // body: the peer went away, which is no fault of the caller's input.
+        for cut in [0, 1, 3, 4, 4 + body.len() / 2, whole.len() - 1] {
+            assert_eq!(
+                read(&whole[..cut]).await.err(),
+                Some(Error(ErrorCode::Unavailable)),
+                "a stream cut after {cut} of {} bytes",
+                whole.len()
+            );
+        }
+    }
+    #[tokio::test]
+    async fn a_frame_that_arrived_malformed_is_invalid_input() {
+        let oversized = ((FRAME_LIMIT + 1) as u32).to_be_bytes();
+        for (what, bytes) in [
+            ("a zero length", 0u32.to_be_bytes().to_vec()),
+            (
+                "an oversized length, refused before its body",
+                oversized.to_vec(),
+            ),
+            ("a body that is not JSON", frame(b"not json")),
+            ("JSON of another shape", frame(br#"{"unexpected":true}"#)),
+        ] {
+            assert_eq!(
+                read(&bytes).await.err(),
+                Some(Error(ErrorCode::InvalidInput)),
+                "{what}"
+            );
+        }
+    }
+    #[tokio::test]
+    async fn a_whole_frame_is_read_and_a_written_frame_reads_back() {
+        let health = read(&frame(&health())).await.expect("a whole frame");
+        let (mut a, mut b) = tokio::io::duplex(FRAME_LIMIT + 8);
+        write_frame(&mut a, &health).await.unwrap();
+        let again: Health = read_frame(&mut b).await.unwrap();
+        assert_eq!(
+            serde_json::to_value(&again).unwrap(),
+            serde_json::to_value(&health).unwrap()
+        );
+    }
     #[tokio::test]
     async fn oversized_frame_rejected_before_body_and_forged_actor_rejected() {
         let (mut a, mut b) = tokio::io::duplex(8);

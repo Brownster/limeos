@@ -28,11 +28,55 @@ fn sample(at: i64) -> DiscoveryCohort {
     .unwrap()
 }
 fn cache(at: Instant) -> Cache {
-    Cache(Arc::new(RwLock::new(State {
-        catalog: Source::new(at),
-        engine: Source::new(at),
-        wall_high_water: 100,
-    })))
+    Cache(
+        Arc::new(RwLock::new(State {
+            catalog: Source::new(at),
+            engine: Source::new(at),
+            wall_high_water: 100,
+        })),
+        system_clock,
+    )
+}
+thread_local! {
+    /// A test clock: (seconds since the epoch, seconds past `ORIGIN`).
+    static TEST_CLOCK: std::cell::Cell<(i64, u64)> = const { std::cell::Cell::new((0, 0)) };
+}
+static ORIGIN: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+fn test_clock() -> (i64, Instant) {
+    let (wall, elapsed) = TEST_CLOCK.with(std::cell::Cell::get);
+    let origin = *ORIGIN.get_or_init(Instant::now);
+    (wall, origin + Duration::from_secs(elapsed))
+}
+/// A cache on an injected clock judges freshness, the sample's age and the
+/// monotonic deadline alike, by that clock and never by the system's: a
+/// cohort sampled years ago by the system clock is fresh while the injected
+/// clock says it is, and stale once it has moved past `MAX_AGE_SECONDS`.
+#[test]
+fn a_cache_on_an_injected_clock_judges_freshness_by_that_clock_alone() {
+    let start = 1_000_000_000;
+    TEST_CLOCK.with(|c| c.set((start, 0)));
+    let c = Cache::with_clock(test_clock);
+    c.update(&sample(start)).unwrap();
+    for elapsed in [0, 45, 90, 91] {
+        TEST_CLOCK.with(|c| c.set((start + elapsed, elapsed as u64)));
+        let view = c.snapshot().unwrap();
+        assert_eq!(view.catalog.sampled_at, Some(start));
+        assert_eq!(
+            view.catalog.state,
+            if elapsed <= MAX_AGE_SECONDS {
+                SourceState::Fresh
+            } else {
+                SourceState::Stale
+            },
+            "{elapsed} s after the sample"
+        );
+    }
+    // A sample from the injected clock's past is refused as a step back.
+    TEST_CLOCK.with(|c| c.set((start + 100, 100)));
+    c.update(&sample(start + 100)).unwrap();
+    assert_eq!(c.snapshot().unwrap().catalog.state, SourceState::Fresh);
+    TEST_CLOCK.with(|c| c.set((start + 50, 101)));
+    assert_eq!(c.snapshot().unwrap().catalog.state, SourceState::Stale);
 }
 #[test]
 fn repeated_reads_and_same_cohort_cannot_refresh_the_monotonic_deadline() {

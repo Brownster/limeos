@@ -6,6 +6,8 @@ mod job;
 mod migrate;
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    // A shipped process never runs on the soak's simulated clock or hook.
+    limeos_persistence::refuse_test_support();
     if let Err(e) = run().await {
         eprintln!("{e}");
         // 2: malformed command line, nothing done; 1: refused or failed.

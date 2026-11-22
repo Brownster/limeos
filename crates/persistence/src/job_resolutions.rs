@@ -704,8 +704,8 @@ impl Store {
             // lock set; the guard rejects any state but an uncertain one.
             if tx
                 .execute(
-                    "UPDATE jobs SET state='resolved' WHERE id=? AND state IN ('running','verifying','needs_intervention')",
-                    [job],
+                    "UPDATE jobs SET state='resolved',settled=? WHERE id=? AND state IN ('running','verifying','needs_intervention')",
+                    params![now, job],
                 )
                 .map_err(|_| Error(ErrorCode::Conflict))?
                 != 1

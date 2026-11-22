@@ -9,6 +9,11 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+# The soak harness's retention seam (`retention::test_support`); enabled only
+# from dev-dependencies, so no shipped binary contains it.
+test-support = []
+
 [dependencies]
 rusqlite.workspace = true
 tokio.workspace = true

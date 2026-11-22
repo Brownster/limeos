@@ -31,6 +31,8 @@ jobs:
           cargo install --locked cargo-audit --version 0.22.2
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # Runs the soak's quick tests (the 3-day smoke, the backlog, cap and
+      # writer tests); its long ones are ignored here and run by the soak job.
       - run: cargo test --workspace --locked
       # Reads the process-wide write counter, so it must run with no other test.
       - name: Idle observation passes write nothing
@@ -41,11 +43,14 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked --features deferred -- -D warnings
       - name: Tests with deferred code
         run: cargo test --workspace --locked --features deferred
+      # Neither deferred code nor the soak's seams (persistence's
+      # test-support, rusqlite's statement trace) in a shipped binary's
+      # dependency graph; the release build below checks its own features.
       - name: Shipped binaries exclude deferred code
         run: |
           set -Eeuo pipefail
-          enabled=$(cargo tree --locked -e normal,build --prefix none -f '{p}|{f}' -p limeos-core -p limeos-executor -p limeosctl | awk -F'|' '$2 ~ /(^|,)deferred(,|$)/' | sort -u)
-          if [[ -n "$enabled" ]]; then printf 'Deferred feature enabled in a shipped binary:\n%s\n' "$enabled" >&2; exit 1; fi
+          enabled=$(cargo tree --locked -e normal,build --prefix none -f '{p}|{f}' -p limeos-core -p limeos-executor -p limeosctl | awk -F'|' '$2 ~ /(^|,)(deferred|test-support|trace)(,|$)/' | sort -u)
+          if [[ -n "$enabled" ]]; then printf 'Deferred or test-only feature enabled in a shipped binary:\n%s\n' "$enabled" >&2; exit 1; fi
       - run: cargo deny check
       - run: cargo audit
       - run: shellcheck packaging/debian/postinst packaging/debian/prerm packaging/debian/postrm packaging/repository.sh tests/fixtures/backup-archives/generate.sh
@@ -92,7 +97,26 @@ jobs:
           set -Eeuo pipefail
           docker build -t limeos-builder -f packaging/Containerfile .
           build_image_id=$(docker image inspect limeos-builder --format '{{.Id}}')
-          docker run --rm -v "$PWD:/build" "$build_image_id" cargo build --locked --release -p limeos-core -p limeos-executor -p limeosctl
+          mkdir -p dist
+          docker run --rm -v "$PWD:/build" "$build_image_id" cargo build --locked --release -p limeos-core -p limeos-executor -p limeosctl --message-format=json-render-diagnostics > dist/shipped-build.jsonl
+          # The features this very build resolved: the soak's seams
+          # (persistence's test-support, rusqlite's trace) are not among them.
+          python3 - dist/shipped-build.jsonl <<'CHECK'
+          import json, sys
+          forbidden = {"limeos_persistence": "test-support", "rusqlite": "trace"}
+          seen = set()
+          for line in open(sys.argv[1]):
+              message = json.loads(line)
+              if message.get("reason") != "compiler-artifact":
+                  continue
+              name = message["target"]["name"]
+              if name in forbidden:
+                  seen.add(name)
+                  if forbidden[name] in message["features"]:
+                      sys.exit(f"{name} built with {forbidden[name]} for a shipped binary: {message['features']}")
+          if seen != set(forbidden):
+              sys.exit(f"the shipped build did not report {sorted(set(forbidden) - seen)}")
+          CHECK
           arch=$(dpkg --print-architecture)
           # Both revision labels use this source; they are not historical builds.
           for package_version in 0.4.4 0.4.4+ci.1; do
@@ -125,15 +149,17 @@ jobs:
           /tmp/limeos-browser-check/bin/python tests/frontend/stacks.py --output docs/rewrite-evidence/p04/ci-stack-browser
       - name: Deliberate release-gate rejection probes
         run: python3 scripts/test_gates.py
+      # Candidates: published by the publish job once the soak passed too.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: debian-${{ matrix.runner }}
+          name: candidate-debian-${{ matrix.runner }}
           path: dist/*.deb
-      - name: Supply the Debian-compatible public-library probe
+          if-no-files-found: error
+      - name: Keep the Debian-compatible public-library probe candidate
         if: matrix.runner == 'ubuntu-24.04'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: rw040-public-library-probe
+          name: candidate-rw040-public-library-probe
           path: dist/rw040-public-library-probe/
           if-no-files-found: error
       - name: Preserve probe build diagnostics
@@ -143,8 +169,68 @@ jobs:
           name: rw040-probe-build-evidence
           path: dist/rw040-probe-build-evidence/
 
+  # PR-41 (docs/soak.md): 90 simulated days of jobs, logins, polls, faults,
+  # crashes and restarts through core's own code against the real stores and
+  # the executor's own request handling, in two scenarios side by side, with
+  # the cap, backlog, occurrence and metrics tests: every ignored test named
+  # soak_* (a unit-test module of the core binary, so it can call core). Its
+  # own job on both native architectures: under 7 minutes on an 8-core
+  # machine once built, more on the arm64 runner, with nothing else to wait
+  # for. The stores go on /dev/shm when it has room (a GitHub-hosted runner)
+  # and in the temp directory otherwise (a container's 64 MiB /dev/shm); the
+  # checks count work, not time. No build cache to reuse: the workflow keeps
+  # none.
+  soak:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: rustup toolchain install 1.88.0 --profile minimal
+      - name: Long-uptime soak (90 simulated days)
+        run: cargo test -p limeos-core --bin limeos-core --locked -- --ignored soak_ --nocapture
+
+  # Packages and the probe are published only once every gate passed: the
+  # check job's and the soak's.
+  publish:
+    needs: [check, soak]
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: candidate-debian-${{ matrix.runner }}
+          path: dist
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: debian-${{ matrix.runner }}
+          path: dist/*.deb
+          if-no-files-found: error
+      - if: matrix.runner == 'ubuntu-24.04'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: candidate-rw040-public-library-probe
+          path: dist/rw040-public-library-probe
+      - name: Supply the Debian-compatible public-library probe
+        if: matrix.runner == 'ubuntu-24.04'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: rw040-public-library-probe
+          path: dist/rw040-public-library-probe/
+          if-no-files-found: error
+
   debian-vm:
-    needs: check
+    needs: publish
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:

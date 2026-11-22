@@ -676,10 +676,10 @@ fn recovery_rotation_lists_every_held_job_and_pauses_each() {
         if pass == 3 {
             assert_eq!(page.first().copied(), held.first().map(String::as_str));
         }
-        rotation.advance(page.iter().copied());
+        rotation.advance(page.iter().copied(), monotonic());
         for id in page {
             seen.insert(id.to_owned());
-            if rotation.due(id) {
+            if rotation.due(id, monotonic()) {
                 polled += 1;
             }
         }
@@ -687,6 +687,26 @@ fn recovery_rotation_lists_every_held_job_and_pauses_each() {
     assert_eq!(seen.len(), held.len());
     // Each is looked up once per pause, however often it is listed.
     assert_eq!(polled, held.len());
+}
+
+/// The test-only clock override: a thread that installs a simulated clock
+/// reads it in `now` and `monotonic`; every other thread keeps the system
+/// clocks, and so does this one once it is removed.
+#[test]
+fn an_installed_clock_is_read_on_its_thread_only() {
+    let start = 1_767_225_600;
+    let clock = limeos_persistence::test_support::SimClock::new(start);
+    test_clock::install(Some(clock.clone()));
+    clock.set(start + 90);
+    assert_eq!(now(), start + 90);
+    assert_eq!(monotonic(), clock.instant());
+    let elsewhere = std::thread::spawn(now).join().unwrap();
+    assert!(
+        elsewhere > start + 300 * 86_400,
+        "another thread read the simulated clock"
+    );
+    test_clock::install(None);
+    assert!(now() > start + 300 * 86_400);
 }
 
 fn record_events(
@@ -936,6 +956,65 @@ async fn a_written_execute_whose_answer_is_lost_is_held_until_recovery_closes_it
         Some(limeos_domain::ReceiptAbsence::NeverRecorded)
     );
     task.abort();
+}
+
+/// An executor that reads a request and then closes the connection, crashing
+/// or restarting before or part-way through its answer, is unreachable, not a
+/// refusal of core's input: `Unavailable` (retryable), and sent, so whatever
+/// was asked may have happened. A frame that arrives whole but malformed is
+/// still `InvalidInput`.
+#[tokio::test]
+async fn an_executor_that_closes_mid_answer_is_unavailable_and_counts_as_sent() {
+    use tokio::io::AsyncWriteExt;
+    let (dir, core, _, _, _, _, _, task) = fixture().await;
+    task.abort();
+    let _ = task.await;
+    let path = dir.path().join("executor.sock");
+    std::fs::remove_file(&path).unwrap();
+    let listener = UnixListener::bind(&path).unwrap();
+    let answer = serde_json::to_vec(&Receipt::empty()).unwrap();
+    let mut whole = (answer.len() as u32).to_be_bytes().to_vec();
+    whole.extend_from_slice(&answer);
+    let cases: Vec<(&str, Vec<u8>, ErrorCode)> = vec![
+        ("no answer at all", Vec::new(), ErrorCode::Unavailable),
+        (
+            "part of the length",
+            whole[..2].to_vec(),
+            ErrorCode::Unavailable,
+        ),
+        (
+            "part of the answer",
+            whole[..whole.len() / 2].to_vec(),
+            ErrorCode::Unavailable,
+        ),
+        (
+            "a whole frame that is not an answer",
+            [&5u32.to_be_bytes()[..], b"nope!"].concat(),
+            ErrorCode::InvalidInput,
+        ),
+    ];
+    let written: Vec<Vec<u8>> = cases.iter().map(|case| case.1.clone()).collect();
+    let server = tokio::spawn(async move {
+        for bytes in written {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let _: Request = limeos_contracts::read_frame(&mut stream).await.unwrap();
+            stream.write_all(&bytes).await.unwrap();
+            // Dropped here: the connection closes after what was written.
+        }
+    });
+    for (what, _, code) in cases {
+        let failure = core
+            .exchange(
+                Request::ReceiptEpoch { version: VERSION },
+                limeos_contracts::RPC_DEADLINE,
+            )
+            .await
+            .err()
+            .unwrap_or_else(|| panic!("{what}: answered"));
+        assert_eq!(failure.error, Error(code), "{what}");
+        assert!(failure.sent, "{what}: the request was written");
+    }
+    server.await.unwrap();
 }
 
 /// A job held across an executor restart whose execute did reach the store:

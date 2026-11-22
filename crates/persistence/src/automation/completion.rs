@@ -319,8 +319,12 @@ fn save_result(
 fn finish_job(tx: &Transaction<'_>, ctx: &Context, receipt: &ObservationResult) -> Result<()> {
     if tx
         .execute(
-            "UPDATE jobs SET state=? WHERE id=? AND state='queued'",
-            params![receipt.state.as_str(), receipt.job],
+            "UPDATE jobs SET state=?,settled=? WHERE id=? AND state='queued'",
+            params![
+                receipt.state.as_str(),
+                crate::jobs::settled_at(receipt.state, receipt.recorded),
+                receipt.job
+            ],
         )
         .map_err(durable)?
         != 1

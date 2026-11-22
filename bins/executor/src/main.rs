@@ -1,5 +1,5 @@
 use limeos_executor::{storage_mount_admission, storage_mount_supervision};
-use limeos_executor_container::{Answer, Engine, ReceiptStore, RestartCeiling, docker::Docker};
+use limeos_executor_container::{ReceiptStore, RestartCeiling, docker::Docker};
 use limeos_executor_protocol::{Ceiling, Request};
 use std::{os::unix::fs::MetadataExt, path::Path, sync::Arc};
 use tokio::{
@@ -247,7 +247,13 @@ async fn run() -> std::io::Result<()> {
     } else {
         (None, None)
     };
-    let engine = Docker::new("/var/run/docker.sock".into());
+    let containers = Arc::new(limeos_executor::container_requests::ContainerRole {
+        engine: Docker::new("/var/run/docker.sock".into()),
+        receipts,
+        epoch,
+        ceiling: restart_ceiling,
+        docker: source == limeos_contracts::Source::Docker,
+    });
     // An independent ceiling can disable collection entirely.
     let observations = match source {
         limeos_contracts::Source::Host if ceiling.allow_host_read => {
@@ -314,10 +320,7 @@ async fn run() -> std::io::Result<()> {
         let inventory_reads = inventory_reads.clone();
         let ceiling = ceiling.clone();
         let observations = observations.clone();
-        let receipts = receipts.clone();
-        let epoch = epoch.clone();
-        let restart_ceiling = restart_ceiling.clone();
-        let engine = engine.clone();
+        let containers = containers.clone();
         let storage_permit = storage_permit.clone();
         let read_supervisor = read_supervisor.clone();
         let stacks = stacks.clone();
@@ -365,7 +368,8 @@ async fn run() -> std::io::Result<()> {
                             .request(limeos_executor::read_gate::INTERACTIVE_WAIT)
                             .await
                             .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Overloaded))?;
-                        receipt.container_storage = Some(engine.storage_inventory().await?);
+                        receipt.container_storage =
+                            Some(containers.engine.storage_inventory().await?);
                     }
                     Request::StorageInventory { .. } if storage_reader => {
                         let _single_flight = storage_permit
@@ -413,250 +417,33 @@ async fn run() -> std::io::Result<()> {
                             sources: value.sources,
                         });
                     }
-                    Request::Inspect { resource, .. }
-                        if source == limeos_contracts::Source::Docker =>
-                    {
-                        receipt.inspection = Some(
-                            tokio::time::timeout(
-                                std::time::Duration::from_secs(5),
-                                engine.inspect(&resource[10..]),
-                            )
-                            .await
-                            .map_err(|_| {
-                                limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
-                            })??,
-                        );
-                    }
                     Request::ContainerLogs {
                         resource, options, ..
                     } if source == limeos_contracts::Source::Docker => {
-                        receipt.logs = Some(engine.logs(&resource, options).await?);
-                    }
-                    Request::Restart { request, .. }
-                    | Request::ExecuteContainer { request, .. }
-                        if source == limeos_contracts::Source::Docker =>
-                    {
-                        let store = receipts
-                            .as_ref()
-                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
-                        // Do not wait behind another effect with an expiring plan.
-                        let mut store = store.try_lock().map_err(|_| {
-                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
-                        })?;
-                        receipt.restart = Some(
-                            store
-                                .execute(&engine, &restart_ceiling, peer.uid(), &request, clock)
-                                .await
-                                .inspect_err(note_refusal)?,
-                        );
-                        receipt.epoch = Some(store.epoch().to_owned());
-                    }
-                    Request::RestartReceipt {
-                        action,
-                        digest,
-                        plan,
-                        close_if_absent,
-                        ..
-                    } => {
-                        let store = receipts
-                            .as_ref()
-                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
-                        // The same lock every execute takes: a closure and an
-                        // execute for one action never interleave. Contention
-                        // is `Overloaded`, which the caller retries.
-                        let mut store = store.try_lock().map_err(|_| {
-                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
-                        })?;
-                        // The plan must be the one `digest` names, row or not.
-                        let lookup = store.lookup(
-                            &restart_ceiling,
-                            peer.uid(),
-                            &action,
-                            &digest,
-                            &plan,
-                            close_if_absent,
-                            clock(),
-                        )?;
-                        answer(&mut receipt, Answer::restart_lookup(lookup));
-                        receipt.epoch = Some(store.epoch().to_owned());
-                    }
-                    Request::VerifyRestart {
-                        action,
-                        digest,
-                        after,
-                        ..
-                    } => {
-                        let store = receipts
-                            .as_ref()
-                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
-                        let mut store = store.try_lock().map_err(|_| {
-                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
-                        })?;
-                        receipt.restart = Some(
-                            store
-                                .verify(
-                                    &engine,
-                                    &restart_ceiling,
-                                    peer.uid(),
-                                    &action,
-                                    &digest,
-                                    &after,
-                                )
-                                .await?,
-                        );
-                        receipt.epoch = Some(store.epoch().to_owned());
-                    }
-                    Request::InspectStack { project, .. }
-                        if source == limeos_contracts::Source::Docker =>
-                    {
-                        let members = tokio::time::timeout(
-                            std::time::Duration::from_secs(5),
-                            engine.project_members(&project),
-                        )
-                        .await
-                        .map_err(|_| {
-                            limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
-                        })??;
-                        receipt.stack_members =
-                            Some(limeos_domain::StackSnapshot::new(&project, members)?);
-                    }
-                    Request::ExecuteStack { request, .. }
-                        if source == limeos_contracts::Source::Docker =>
-                    {
-                        let store = receipts
-                            .as_ref()
-                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
-                        // Do not wait behind another effect with an expiring plan.
-                        let mut store = store.try_lock().map_err(|_| {
-                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
-                        })?;
-                        receipt.stack = Some(
-                            store
-                                .execute_stack(
-                                    &engine,
-                                    &restart_ceiling,
-                                    peer.uid(),
-                                    &request,
-                                    clock,
-                                )
-                                .await
-                                .inspect_err(note_refusal)?,
-                        );
-                        receipt.epoch = Some(store.epoch().to_owned());
-                    }
-                    Request::StackReceipt {
-                        action,
-                        digest,
-                        plan,
-                        close_if_absent,
-                        ..
-                    } => {
-                        let store = receipts
-                            .as_ref()
-                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
-                        // As for `RestartReceipt`: the execute path's lock.
-                        let mut store = store.try_lock().map_err(|_| {
-                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
-                        })?;
-                        let lookup = store.lookup_stack(
-                            &restart_ceiling,
-                            peer.uid(),
-                            &action,
-                            &digest,
-                            &plan,
-                            close_if_absent,
-                            clock(),
-                        )?;
-                        answer(&mut receipt, Answer::stack_lookup(lookup));
-                        receipt.epoch = Some(store.epoch().to_owned());
-                    }
-                    Request::VerifyStack {
-                        action,
-                        digest,
-                        after,
-                        ..
-                    } => {
-                        let store = receipts
-                            .as_ref()
-                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
-                        let mut store = store.try_lock().map_err(|_| {
-                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
-                        })?;
-                        receipt.stack = Some(
-                            store
-                                .verify_stack(
-                                    &engine,
-                                    &restart_ceiling,
-                                    peer.uid(),
-                                    &action,
-                                    &digest,
-                                    &after,
-                                )
-                                .await?,
-                        );
-                        receipt.epoch = Some(store.epoch().to_owned());
-                    }
-                    Request::ResolveAction {
-                        kind,
-                        action,
-                        digest,
-                        evidence_digest,
-                        declared,
-                        resolved_by,
-                        plan,
-                        disputed,
-                        ..
-                    } if source == limeos_contracts::Source::Docker => {
-                        let store = receipts
-                            .as_ref()
-                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
-                        let mut store = store.try_lock().map_err(|_| {
-                            limeos_domain::Error(limeos_domain::ErrorCode::Overloaded)
-                        })?;
-                        // Read-only re-verification; this arm never reaches an Engine effect.
-                        let outcome = store
-                            .resolve_action(
-                                &engine,
-                                &restart_ceiling,
-                                peer.uid(),
-                                kind,
-                                &action,
-                                &digest,
-                                &evidence_digest,
-                                declared,
-                                &resolved_by,
-                                &plan,
-                                disputed,
-                                clock(),
-                            )
-                            .await?;
-                        answer(&mut receipt, Answer::resolve(outcome));
-                        receipt.epoch = Some(store.epoch().to_owned());
+                        receipt.logs = Some(containers.engine.logs(&resource, options).await?);
                     }
                     Request::Health { .. } => {
                         if storage_reader {
                             limeos_executor::service::health_answer(&mut receipt, &inventory_reads);
                         }
                     }
-                    Request::ReceiptEpoch { .. } => {
-                        receipt.epoch = Some(
-                            epoch
-                                .as_deref()
-                                .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?
-                                .to_owned(),
-                        );
+                    // Inspection, the receipt epoch and every receipt-store
+                    // request; anything else is refused there.
+                    request => {
+                        limeos_executor::container_requests::answer(
+                            &containers,
+                            peer.uid(),
+                            request,
+                            &mut receipt,
+                            &clock,
+                        )
+                        .await?
                     }
-                    _ => return Err(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden)),
                 }
                 Ok::<_, limeos_domain::Error>(receipt)
             }
             .await;
-            let receipt = result.unwrap_or_else(|e| {
-                let mut value = limeos_executor_protocol::Receipt::empty();
-                value.ready = false;
-                value.error = Some(e.0);
-                value
-            });
+            let receipt = result.unwrap_or_else(limeos_executor::container_requests::refusal);
             // Responses are bounded even if the caller stops reading.
             let _ = tokio::time::timeout(
                 limeos_contracts::RPC_DEADLINE,
@@ -678,35 +465,6 @@ fn note_inventory_refusal(refusal: limeos_executor::blocking_read::Refusal) {
             "storage inventory refused: an earlier read is still stuck in the kernel; inventories stay refused until it returns, and core reports the storage reader degraded"
         ),
         Refusal::Unavailable => tracing::warn!("storage inventory could not start"),
-    }
-}
-/// Copies a receipt-store answer into the response, field by same-named
-/// field; which fields an answer sets is decided (and tested) in
-/// `limeos_executor_container::Answer`.
-fn answer(receipt: &mut limeos_executor_protocol::Receipt, answer: Answer) {
-    let Answer {
-        restart,
-        stack,
-        resolution,
-        resolution_refusal,
-        absence,
-        closed,
-    } = answer;
-    receipt.restart = restart;
-    receipt.stack = stack;
-    receipt.resolution = resolution;
-    receipt.resolution_refusal = resolution_refusal;
-    receipt.absence = absence;
-    receipt.closed = closed;
-}
-/// An execute refused by the receipt store's clock-free barrier: its plan
-/// expires at or below the prune watermark (`retention`). Logged, because
-/// every such refusal after a backward clock step looks alike to core.
-fn note_refusal(error: &limeos_domain::Error) {
-    if error.0 == limeos_domain::ErrorCode::BeyondReceiptHistory {
-        tracing::warn!(
-            "execute refused: the plan expires at or below the receipt store's prune watermark, so whether the action already ran can no longer be told; the system clock has probably stepped back, and plans are refused until it passes the watermark again"
-        );
     }
 }
 fn clock() -> i64 {

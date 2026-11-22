@@ -15,7 +15,7 @@ use limeos_domain::{
 
 const ACTIVE: &str = "('prepared','effect_accepted','outcome_unknown')";
 /// Last-resort cap; retention keeps normal operation far below it.
-const MAX_STACK_ROWS: u32 = 8192;
+pub(crate) const MAX_STACK_ROWS: u32 = 8192;
 
 /// The first write of a stack receipt: its plan's expiry and the validating
 /// clock. With `close`, the row is a closure (`closure`).

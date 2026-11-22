@@ -146,7 +146,7 @@ impl Store {
         self.write(|tx| {
             let approved: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM backup_preparation_plans WHERE id=? AND principal=? AND approval_digest=? AND canceled=0 AND job IS NULL)",params![proposal.plan.id,principal.id,limeos_identity::digest(approval)],|r|r.get(0)).map_err(durable)?;
             if !approved { return Err(Error(ErrorCode::Forbidden)); }
-            tx.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,'queued',?,?,?)", params![id,principal.id,key,body,limeos_identity::digest(&body),BACKUP_PREPARATION_RESOURCE,generation,principal.grant_revision,proposal.plan.expires_at]).map_err(durable)?;
+            tx.execute("INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES(?,?,?,?,?,?,'queued',?,?,?)", params![id,principal.id,key,body,limeos_identity::digest(&body),BACKUP_PREPARATION_RESOURCE,generation,principal.grant_revision,proposal.plan.expires_at]).map_err(durable)?;
             for resource in proposal.plan.binding.resources() {
                 if resource != BACKUP_PREPARATION_RESOURCE {
                     tx.execute("INSERT INTO job_resources VALUES(?,?)",params![id,resource]).map_err(durable)?;

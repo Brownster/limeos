@@ -55,25 +55,27 @@ impl Rotation {
     pub(super) fn cursor(&self) -> &str {
         &self.cursor
     }
-    /// Move past this pass's held jobs (`held`, in listing order).
-    pub(super) fn advance<'a>(&mut self, held: impl IntoIterator<Item = &'a str>) {
+    /// Move past this pass's held jobs (`held`, in listing order), at `now`.
+    pub(super) fn advance<'a>(&mut self, held: impl IntoIterator<Item = &'a str>, now: Instant) {
         let held: Vec<&str> = held.into_iter().collect();
         self.cursor = match held.last() {
             Some(last) if held.len() >= limeos_persistence::RECOVERY_BATCH => (*last).to_owned(),
             _ => String::new(),
         };
-        self.polled.retain(|_, at| at.elapsed() < RECOVERY_PAUSE);
+        self.polled
+            .retain(|_, at| now.saturating_duration_since(*at) < RECOVERY_PAUSE);
     }
-    /// Whether to look up this held job now; if so, the lookup is recorded.
-    pub(super) fn due(&mut self, id: &str) -> bool {
+    /// Whether to look up this held job at `now`; if so, the lookup is
+    /// recorded.
+    pub(super) fn due(&mut self, id: &str, now: Instant) -> bool {
         if self
             .polled
             .get(id)
-            .is_some_and(|at| at.elapsed() < RECOVERY_PAUSE)
+            .is_some_and(|at| now.saturating_duration_since(*at) < RECOVERY_PAUSE)
         {
             return false;
         }
-        self.polled.insert(id.to_owned(), Instant::now());
+        self.polled.insert(id.to_owned(), now);
         true
     }
 }
@@ -698,105 +700,141 @@ impl Core {
     pub(super) async fn dispatcher(&self) {
         let mut tick = tokio::time::interval(Duration::from_secs(2));
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        // Bound recovery traffic and memory. Uncertain receipts are never retried
-        // as mutations, even after their original plan has expired.
-        let mut recovery = Rotation::default();
-        let mut target_recovery = std::collections::HashMap::<String, Instant>::new();
-        let mut mount_recovery = std::collections::HashMap::<String, Instant>::new();
-        let mut stack_recovery = Rotation::default();
-        let mut resolution_retry = Rotation::default();
-        let mut audit = limeos_persistence::AuditLevel::Normal;
-        let mut retention_failures = 0;
-        let mut store_stalled = false;
-        let mut target_failures = Repeats::default();
-        let mut mount_failures = Repeats::default();
+        let mut state = Dispatcher::default();
         loop {
             // The first tick is immediate, which completes startup leftovers.
             tick.tick().await;
-            // A stuck writer makes this loop's own store calls fail at their
-            // deadline, so this runs at least every `CALL_DEADLINE` or so.
-            store_stalled = report_store(store_stalled, self.db.writer_activity());
-            audit = report_audit(audit, self.db.audit_usage());
-            retention_failures = report_retention(retention_failures, self.db.retention_failure());
-            self.complete_pending_resolutions(&mut resolution_retry, 5)
-                .await;
-            self.dispatch_stack_candidates(&mut stack_recovery).await;
-            if let Ok(jobs) = self.db.call(|s| s.storage_target_candidates()).await {
-                target_recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));
-                target_failures.retain(|id| jobs.iter().any(|(_, job)| job.id == id));
-                for (principal, job) in jobs {
-                    if job.state != JobState::Queued {
-                        if target_recovery
-                            .get(&job.id)
-                            .is_some_and(|at| at.elapsed() < Duration::from_secs(30))
-                        {
-                            continue;
-                        }
-                        target_recovery.insert(job.id.clone(), Instant::now());
-                    }
-                    let id = job.id.clone();
-                    match self.dispatch_target(principal, job).await {
-                        Ok(()) => target_failures.passed(&id),
-                        Err(e) => {
-                            if let Some(failures) = target_failures.failed(&id) {
-                                tracing::warn!(code=?e.0, failures, "storage target job remains pending or requires reconciliation");
-                            }
-                        }
-                    }
-                }
-            }
-
-            if let Ok(jobs) = self.db.call(|store| store.storage_mount_candidates()).await {
-                mount_recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));
-                mount_failures.retain(|id| jobs.iter().any(|(_, job)| job.id == id));
-                for (principal, job) in jobs {
-                    if job.state != JobState::Queued {
-                        if mount_recovery
-                            .get(&job.id)
-                            .is_some_and(|at| at.elapsed() < Duration::from_secs(30))
-                        {
-                            continue;
-                        }
-                        mount_recovery.insert(job.id.clone(), Instant::now());
-                    }
-                    let id = job.id.clone();
-                    match self.dispatch_mount(principal, job).await {
-                        Ok(()) => mount_failures.passed(&id),
-                        Err(error) => {
-                            if let Some(failures) = mount_failures.failed(&id) {
-                                tracing::warn!(code=?error.0, failures, "storage mount job remains pending or requires reconciliation");
-                            }
-                        }
-                    }
-                }
-            }
-            let cursor = recovery.cursor().to_owned();
-            let Ok(jobs) = self
-                .db
-                .call(move |s| s.container_candidates_after(&cursor))
-                .await
-            else {
-                continue;
-            };
-            recovery.advance(
-                jobs.iter()
-                    .filter(|(_, job)| job.state != JobState::Queued)
-                    .map(|(_, job)| job.id.as_str()),
-            );
+            self.dispatcher_pass(&mut state).await;
+        }
+    }
+    /// One tick of the dispatcher: reports, resolution retries, stack jobs,
+    /// storage target and mount jobs, then container jobs.
+    pub(super) async fn dispatcher_pass(&self, state: &mut Dispatcher) {
+        let Dispatcher {
+            recovery,
+            target_recovery,
+            mount_recovery,
+            stack_recovery,
+            resolution_retry,
+            audit,
+            retention_failures,
+            store_stalled,
+            target_failures,
+            mount_failures,
+        } = state;
+        // A stuck writer makes this loop's own store calls fail at their
+        // deadline, so this runs at least every `CALL_DEADLINE` or so.
+        *store_stalled = report_store(*store_stalled, self.db.writer_activity());
+        *audit = report_audit(*audit, self.db.audit_usage());
+        *retention_failures = report_retention(*retention_failures, self.db.retention_failure());
+        self.complete_pending_resolutions(resolution_retry, 5).await;
+        self.dispatch_stack_candidates(stack_recovery).await;
+        if let Ok(jobs) = self.db.call(|s| s.storage_target_candidates()).await {
+            target_recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));
+            target_failures.retain(|id| jobs.iter().any(|(_, job)| job.id == id));
             for (principal, job) in jobs {
-                if job.state != JobState::Queued && !recovery.due(&job.id) {
-                    continue;
+                if job.state != JobState::Queued {
+                    if target_recovery.get(&job.id).is_some_and(|at| {
+                        monotonic().saturating_duration_since(*at) < Duration::from_secs(30)
+                    }) {
+                        continue;
+                    }
+                    target_recovery.insert(job.id.clone(), monotonic());
                 }
                 let id = job.id.clone();
-                match self.dispatch_one(principal, job).await {
-                    Ok(()) => recovery.failures.passed(&id),
+                match self.dispatch_target(principal, job).await {
+                    Ok(()) => target_failures.passed(&id),
                     Err(e) => {
-                        if let Some(failures) = recovery.failures.failed(&id) {
-                            tracing::warn!(code=?e.0, failures, "container job remains pending or requires reconciliation");
+                        if let Some(failures) = target_failures.failed(&id) {
+                            tracing::warn!(code=?e.0, failures, "storage target job remains pending or requires reconciliation");
                         }
                     }
                 }
             }
+        }
+
+        if let Ok(jobs) = self.db.call(|store| store.storage_mount_candidates()).await {
+            mount_recovery.retain(|id, _| jobs.iter().any(|(_, job)| &job.id == id));
+            mount_failures.retain(|id| jobs.iter().any(|(_, job)| job.id == id));
+            for (principal, job) in jobs {
+                if job.state != JobState::Queued {
+                    if mount_recovery.get(&job.id).is_some_and(|at| {
+                        monotonic().saturating_duration_since(*at) < Duration::from_secs(30)
+                    }) {
+                        continue;
+                    }
+                    mount_recovery.insert(job.id.clone(), monotonic());
+                }
+                let id = job.id.clone();
+                match self.dispatch_mount(principal, job).await {
+                    Ok(()) => mount_failures.passed(&id),
+                    Err(error) => {
+                        if let Some(failures) = mount_failures.failed(&id) {
+                            tracing::warn!(code=?error.0, failures, "storage mount job remains pending or requires reconciliation");
+                        }
+                    }
+                }
+            }
+        }
+        let cursor = recovery.cursor().to_owned();
+        let Ok(jobs) = self
+            .db
+            .call(move |s| s.container_candidates_after(&cursor))
+            .await
+        else {
+            return;
+        };
+        recovery.advance(
+            jobs.iter()
+                .filter(|(_, job)| job.state != JobState::Queued)
+                .map(|(_, job)| job.id.as_str()),
+            monotonic(),
+        );
+        for (principal, job) in jobs {
+            if job.state != JobState::Queued && !recovery.due(&job.id, monotonic()) {
+                continue;
+            }
+            let id = job.id.clone();
+            match self.dispatch_one(principal, job).await {
+                Ok(()) => recovery.failures.passed(&id),
+                Err(e) => {
+                    if let Some(failures) = recovery.failures.failed(&id) {
+                        tracing::warn!(code=?e.0, failures, "container job remains pending or requires reconciliation");
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// What the dispatcher keeps between ticks. Bounds recovery traffic and
+/// memory: uncertain receipts are never retried as mutations, even after
+/// their original plan has expired.
+pub(super) struct Dispatcher {
+    recovery: Rotation,
+    target_recovery: std::collections::HashMap<String, Instant>,
+    mount_recovery: std::collections::HashMap<String, Instant>,
+    stack_recovery: Rotation,
+    resolution_retry: Rotation,
+    audit: limeos_persistence::AuditLevel,
+    retention_failures: u64,
+    store_stalled: bool,
+    target_failures: Repeats,
+    mount_failures: Repeats,
+}
+impl Default for Dispatcher {
+    fn default() -> Self {
+        Self {
+            recovery: Rotation::default(),
+            target_recovery: Default::default(),
+            mount_recovery: Default::default(),
+            stack_recovery: Rotation::default(),
+            resolution_retry: Rotation::default(),
+            audit: limeos_persistence::AuditLevel::Normal,
+            retention_failures: 0,
+            store_stalled: false,
+            target_failures: Repeats::default(),
+            mount_failures: Repeats::default(),
         }
     }
 }

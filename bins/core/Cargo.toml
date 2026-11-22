@@ -35,8 +35,18 @@ tracing-subscriber.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-rusqlite.workspace = true
+# `backup`: the soak copies the live stores consistently to measure startup;
+# `trace`: it attributes the startup page reads to the statements that made
+# them.
+rusqlite = { workspace = true, features = ["backup", "trace"] }
+# The soak (src/soak) runs the store's writer thread on its simulated clock;
+# dev-only, so the shipped binary never has the seam.
+limeos-persistence = { path = "../../crates/persistence", version = "=0.2.0", features = ["test-support"] }
 limeos-backup-archive = { path = "../../crates/backup-archive", version = "=0.2.0" }
+# The soak drives the real receipt store through the container executor's own
+# request handling (`limeos_executor::container_requests`); test-only.
+limeos-executor-container = { path = "../../crates/executor-container", version = "=0.2.0" }
+limeos-executor = { path = "../executor", version = "=0.2.0" }
 
 [[test]]
 name = "backup_preparation_binding"

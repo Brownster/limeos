@@ -16,7 +16,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 18;
+pub const SCHEMA_VERSION: u32 = 19;
 /// The schema whose upgrade builds the event indexes (`migration-v17.sql`):
 /// an upgrade from below it needs the free space `IndexBuild` measures.
 const INDEXED_SCHEMA: u32 = 17;
@@ -194,6 +194,11 @@ pub struct Database {
 }
 impl Database {
     pub fn open(path: &Path) -> Result<Self> {
+        Self::open_with(path, writer_clock::Clock::System)
+    }
+    /// `open`, with the writer thread on `clock` (the system clock, except
+    /// for the soak's `test_support::open`).
+    fn open_with(path: &Path, clock: writer_clock::Clock) -> Result<Self> {
         let mut store = Store::open(path)?;
         let generation = store.generation;
         let audit = Arc::new(AtomicI64::new(store.audit_usage()?.bytes));
@@ -211,13 +216,17 @@ impl Database {
         let doorbell = bell.clone();
         let busy = Arc::new(Busy::new());
         let working = busy.clone();
+        let mut time = writer_clock::WriterTime::new(clock, doorbell);
         std::thread::Builder::new()
             .name("limeos-db".into())
             .spawn(move || {
-                let maintain = |store: &mut Store| {
-                    let Some(pass) = working.run(|| store.maintain(Instant::now())) else {
+                time.begin();
+                time.turn();
+                let maintain = |store: &mut Store, time: &writer_clock::WriterTime| {
+                    let Some(pass) = working.run(|| store.maintain(time.now(), time.wall())) else {
                         return;
                     };
+                    time.passed(&pass);
                     if let Some(usage) = pass.usage {
                         observed.store(usage.bytes, Ordering::SeqCst);
                     }
@@ -228,8 +237,9 @@ impl Database {
                         }
                     }
                 };
-                maintain(&mut store);
+                maintain(&mut store, &time);
                 loop {
+                    time.turn();
                     // Up to a burst of revocations, then one ordinary item:
                     // revocations wait behind at most one ordinary item, and
                     // ordinary work gets at least one turn in five.
@@ -245,7 +255,7 @@ impl Database {
                         working.run(|| work(&mut store));
                         served = true;
                     }
-                    maintain(&mut store);
+                    maintain(&mut store, &time);
                     if !served {
                         if receiver.is_closed()
                             && urgent.is_closed()
@@ -256,7 +266,7 @@ impl Database {
                         }
                         // Idle: sleep until a send rings, and at least once a
                         // retention interval so an idle store is maintained.
-                        doorbell.wait(retention::INTERVAL);
+                        time.idle(retention::INTERVAL);
                     }
                 }
                 // Shutdown, in order: the reader closes first (without a
@@ -269,6 +279,10 @@ impl Database {
                         .take(),
                 );
                 let _ = store.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)");
+                // The store (and with it the core lock) goes before the clock
+                // learns the writer has stopped.
+                drop(store);
+                drop(time);
             })
             .map_err(|_| Error(ErrorCode::Unavailable))?;
         Ok(Self {
@@ -506,6 +520,8 @@ pub struct Store {
     observation_leases: std::collections::HashMap<String, automation::ActiveObservation>,
     observation_watermarks: std::collections::HashMap<String, automation::PollWatermark>,
     retained_at: Option<Instant>,
+    /// Where job-row retention's scan resumes (`retention/jobs.rs`).
+    job_scan: retention::JobScan,
     #[cfg(test)]
     free_bytes: Option<u64>,
     /// Tests: this rule's batches fail.
@@ -759,6 +775,8 @@ impl Store {
             rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW,
         )
         .map_err(durable)?;
+        #[cfg(feature = "test-support")]
+        retention::test_support::opened(&conn);
         std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
         if rusqlite::version_number() < 3_051_003 {
@@ -796,7 +814,7 @@ impl Store {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(durable)?;
         match version {
-            0..=17 => {
+            0..=18 => {
                 if version < INDEXED_SCHEMA {
                     if version < 1 {
                         tx.execute_batch(include_str!("schema.sql"))
@@ -879,7 +897,11 @@ impl Store {
                     tx.execute_batch(include_str!("migration-v17.sql"))
                         .map_err(|error| upgrade_failed(path, version, available, build, error))?;
                 }
-                tx.execute_batch(include_str!("migration-v18.sql"))
+                if version < 18 {
+                    tx.execute_batch(include_str!("migration-v18.sql"))
+                        .map_err(durable)?;
+                }
+                tx.execute_batch(include_str!("migration-v19.sql"))
                     .map_err(durable)?;
             }
             SCHEMA_VERSION => {}
@@ -940,6 +962,7 @@ impl Store {
             observation_leases: std::collections::HashMap::new(),
             observation_watermarks: std::collections::HashMap::new(),
             retained_at: None,
+            job_scan: retention::JobScan::default(),
             #[cfg(test)]
             free_bytes: None,
             #[cfg(test)]
@@ -1015,11 +1038,40 @@ mod stack_plans;
 mod storage;
 mod storage_mounts;
 mod storage_targets;
+mod writer_clock;
 pub use compose::{
     AuthenticatedComposePreview, ComposeAuthorityKind, ComposeAuthorityObservation, compose_scopes,
 };
 pub use identity_store::Revocation;
 pub use job_resolutions::{PendingResolution, ResolutionSubject};
+#[cfg(feature = "test-support")]
+pub use retention::test_support;
+
+/// Set by every shipped binary's `main` before anything else
+/// ([`refuse_test_support`]).
+static TEST_SUPPORT_REFUSED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+/// Called first thing by the `main` of every binary that links this crate
+/// (core, limeosctl): from then on, the soak's seams (`test_support::open`'s
+/// simulated writer clock and `test_support::on_open`'s connection hook)
+/// cannot be selected in this process, even in a build where feature
+/// unification compiled them in (`cargo build --workspace --all-targets`
+/// enables the `test-support` feature that limeos-core's dev-dependencies
+/// ask for). A unit test's process never runs a binary's `main` (the test
+/// harness brings its own), so the soak can still select them there. Without
+/// the feature it only sets the flag.
+pub fn refuse_test_support() {
+    TEST_SUPPORT_REFUSED.store(true, Ordering::SeqCst);
+}
+/// Panics if this process's `main` refused the test seams: reached only by
+/// selecting one, which no shipped code does.
+#[cfg(feature = "test-support")]
+pub(crate) fn assert_test_support_allowed(seam: &str) {
+    assert!(
+        !TEST_SUPPORT_REFUSED.load(Ordering::SeqCst),
+        "{seam} selected in a process whose main refused the test seams: test-support is for unit tests only"
+    );
+}
 pub use retention::{AuditLevel, AuditUsage, RetentionFailure};
 pub use storage::storage_scope;
 
@@ -1030,7 +1082,27 @@ fn remove_v10_schema(conn: &Connection) {
 }
 
 #[cfg(test)]
+fn remove_v19_schema(conn: &Connection) {
+    // Back to the version-7 and version-16 delete guards, no job delete
+    // guard and no settlement time.
+    conn.execute_batch(
+        "DROP TRIGGER IF EXISTS jobs_delete; DROP TRIGGER IF EXISTS job_resources_delete; DROP TRIGGER IF EXISTS job_resolutions_delete;
+DROP TRIGGER IF EXISTS jobs_settled; DROP TRIGGER IF EXISTS jobs_settled_now; DROP INDEX IF EXISTS jobs_retention;
+ALTER TABLE jobs DROP COLUMN settled;
+CREATE TRIGGER job_resources_delete BEFORE DELETE ON job_resources
+WHEN (SELECT state FROM jobs WHERE id=OLD.job) IS NOT 'queued'
+    OR OLD.resource=(SELECT resource FROM jobs WHERE id=OLD.job)
+BEGIN SELECT RAISE(ABORT,'immutable resource'); END;
+CREATE TRIGGER job_resolutions_delete BEFORE DELETE ON job_resolutions
+WHEN OLD.confirmation IS NOT NULL
+BEGIN SELECT RAISE(ABORT,'completed resolution is retained'); END;",
+    )
+    .unwrap();
+}
+
+#[cfg(test)]
 fn remove_v18_schema(conn: &Connection) {
+    remove_v19_schema(conn);
     conn.execute_batch("ALTER TABLE meta DROP COLUMN executor_epoch;")
         .unwrap();
 }
