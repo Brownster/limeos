@@ -70,10 +70,10 @@ pub fn applications(bytes: &[u8]) -> Result<Vec<Application>> {
                 anime_categories = ids(field.value)?;
             }
         }
-        if let Some(s) = &wire.sync_level {
-            if s.len() > 128 || s.chars().any(char::is_control) {
-                return Err(unavailable());
-            }
+        if let Some(s) = &wire.sync_level
+            && (s.len() > 128 || s.chars().any(char::is_control))
+        {
+            return Err(unavailable());
         }
         let sync_level = match wire.sync_level.as_deref() {
             Some("disabled") => Some(SyncLevel::Disabled),

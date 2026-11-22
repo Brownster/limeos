@@ -16,10 +16,10 @@ Supply `--probe DIR` with these three regular files: `manifest.json`, the unchan
 {
   "contract": 1,
   "source_commit": "<40 lowercase hex>",
-  "source_sha256": "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c",
+  "source_sha256": "2384a492b6b6c856d02dc99c6ff43ef376bfd0d1197719537fca1155765fbc6f",
   "binary": "combined_read_probe",
   "binary_sha256": "<64 lowercase hex>",
-  "toolchain": "1.88.0",
+  "toolchain": "1.89.0",
   "profile": "release",
   "library_source": "<exact source of the installed package artifacts>"
 }
@@ -53,7 +53,7 @@ agreed interface is implemented on both sides.
 | Item | Purpose |
 |---|---|
 | Probe source commit and the SHA-256 of `combined_read_probe.rs` | Source attribution; the harness records it and never edits it |
-| Built probe executable for Debian 12 amd64, with its SHA-256 | Built the same way as the packages, in the `rust:1.88.0-bookworm` build image. It uses only `bins/executor`'s existing dependencies and production public APIs. |
+| Built probe executable for Debian 12 amd64, with its SHA-256 | Built the same way as the packages, in the `rust:1.89.0-bookworm` build image. It uses only `bins/executor`'s existing dependencies and production public APIs. |
 | `manifest.json` | The fields below, verified by hash before boot |
 
 ```json

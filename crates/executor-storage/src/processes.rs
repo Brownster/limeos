@@ -1162,10 +1162,10 @@ fn parse_status(text: &str, pid: u32) -> Result<([u32; 4], [u32; 4])> {
             if uids.replace(parse_ids(value)?).is_some() {
                 return Err(Failure::Unavailable);
             }
-        } else if let Some(value) = line.strip_prefix("Gid:") {
-            if gids.replace(parse_ids(value)?).is_some() {
-                return Err(Failure::Unavailable);
-            }
+        } else if let Some(value) = line.strip_prefix("Gid:")
+            && gids.replace(parse_ids(value)?).is_some()
+        {
+            return Err(Failure::Unavailable);
         }
     }
     if tgid != Some(u64::from(pid)) || reported_pid != tgid {

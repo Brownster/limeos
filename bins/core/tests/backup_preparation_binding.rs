@@ -444,12 +444,11 @@ impl OwnedChild {
     fn kill_at(&mut self, scene: &Fixture, stage: &str) {
         let start = Instant::now();
         loop {
-            if let Ok(bytes) = fs::read(scene.path("barrier.json")) {
-                if let Ok(value) = serde_json::from_slice::<Value>(&bytes) {
-                    if value["stage"] == stage {
-                        break;
-                    }
-                }
+            if let Ok(bytes) = fs::read(scene.path("barrier.json"))
+                && let Ok(value) = serde_json::from_slice::<Value>(&bytes)
+                && value["stage"] == stage
+            {
+                break;
             }
             assert!(
                 self.child.try_wait().unwrap().is_none(),

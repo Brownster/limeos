@@ -187,10 +187,9 @@ pub fn start_core(
                             .sources
                             .iter()
                             .find(|s| s.source == Source::Host && s.state == Availability::Fresh),
-                    ) {
-                        if let Some(at) = source.sampled_at {
-                            let _ = t.record(at, m.clone());
-                        }
+                    ) && let Some(at) = source.sampled_at
+                    {
+                        let _ = t.record(at, m.clone());
                     }
                     c.update(batch);
                 }

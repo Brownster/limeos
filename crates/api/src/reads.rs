@@ -138,10 +138,10 @@ pub(super) async fn stream<B: Backend>(State(app): State<App<B>>, headers: Heade
     {
         return failure(Error(ErrorCode::Forbidden));
     }
-    if headers.get("origin").is_some() {
-        if let Err(e) = origin(&app, &headers) {
-            return failure(e);
-        }
+    if headers.get("origin").is_some()
+        && let Err(e) = origin(&app, &headers)
+    {
+        return failure(e);
     }
     if headers
         .get("last-event-id")

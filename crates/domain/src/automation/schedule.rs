@@ -117,14 +117,13 @@ impl Schedule {
         if !identifier(&self.id) || !(1..=MAX_REVISION).contains(&self.revision) {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        if let Some(last) = self.settled_through {
-            if !valid_time(last)
+        if let Some(last) = self.settled_through
+            && (!valid_time(last)
                 || last < self.definition.anchor
                 || (last - self.definition.anchor) % i64::from(self.definition.interval_seconds)
-                    != 0
-            {
-                return Err(Error(ErrorCode::StateNotDurable));
-            }
+                    != 0)
+        {
+            return Err(Error(ErrorCode::StateNotDurable));
         }
         Ok(())
     }

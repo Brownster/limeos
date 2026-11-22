@@ -15,10 +15,10 @@ fn lift_definitions(
                     }
                 }
             }
-            if let Some(serde_json::Value::String(reference)) = object.get_mut("$ref") {
-                if let Some(name) = reference.strip_prefix("#/$defs/") {
-                    *reference = format!("#/components/schemas/{name}");
-                }
+            if let Some(serde_json::Value::String(reference)) = object.get_mut("$ref")
+                && let Some(name) = reference.strip_prefix("#/$defs/")
+            {
+                *reference = format!("#/components/schemas/{name}");
             }
             for child in object.values_mut() {
                 lift_definitions(child, definitions);

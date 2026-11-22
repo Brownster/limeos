@@ -250,10 +250,9 @@ impl ObservationRuntime {
                             .bridge
                             .settle_unavailable_adapter(schedule, deadline)
                             .await
+                            && !recoverable(&error)
                         {
-                            if !recoverable(&error) {
-                                return Err(error);
-                            }
+                            return Err(error);
                         }
                         continue;
                     }

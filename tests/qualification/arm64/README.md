@@ -43,7 +43,7 @@ the older bundles too.
 | `native_vm.py` | Workstation | Explicit host, checked image, bounded guest resources, synthetic disks, platform/pressure capture, SSH copy/exec and teardown |
 | `make_bundle.py` | Workstation | Archive frozen runtime and separate fixture commits; build/test UI against archived source; hash all inputs |
 | `prepare_ci.py` | Workstation | Validate retained native CI provenance, compare complete candidate payloads with the frozen builder and prepare offline inputs for an existing signed test repository |
-| `build_guest.py` | Native build guest | Verify inputs and Rust 1.88.0 native toolchain; locked tests, strict Clippy, contracts, dependency checks, release binaries, standard/shadow packages and signed repository |
+| `build_guest.py` | Native build guest | Verify inputs and Rust 1.89.0 native toolchain; locked tests, strict Clippy, contracts, dependency checks, release binaries, standard/shadow packages and signed repository |
 | `install_guest.py` | Fresh guest | Signed install, schema/identity, dormant units, ownership/capabilities, imported hashes, bounded workers, durable sessions, shadow refusals and footprint |
 | `approved_guest.py` | Fresh storage/container guests | Reuse current approved-operation suites with original assertions; actual apt replacement/removal on storage guest |
 | `upgrade_guest.py` | Fresh upgrade guest | Genuine recorded schema 6/7/8 artifact upgrade, sessions, pending approval, receipts, active locks/claims and replay |

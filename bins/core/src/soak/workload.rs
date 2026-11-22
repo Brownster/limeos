@@ -897,17 +897,17 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
         }
         Step::Queue(flow) => queue(sim, agenda, flow).await,
         Step::CancelPlan(flow) => {
-            if let Some(Flow { user, planned, .. }) = sim.flows.remove(&flow) {
-                if let Some((token, csrf)) = session(sim, user, "cancel plan: session").await {
-                    let core = sim.core();
-                    let result = match planned {
-                        Planned::Container(p) => {
-                            core.cancel_restart(token, csrf, p.plan.id, true).await
-                        }
-                        Planned::Stack(p) => core.cancel_stack(token, csrf, p.plan.id, true).await,
-                    };
-                    sim.judge("cancel plan", result, &[]);
-                }
+            if let Some(Flow { user, planned, .. }) = sim.flows.remove(&flow)
+                && let Some((token, csrf)) = session(sim, user, "cancel plan: session").await
+            {
+                let core = sim.core();
+                let result = match planned {
+                    Planned::Container(p) => {
+                        core.cancel_restart(token, csrf, p.plan.id, true).await
+                    }
+                    Planned::Stack(p) => core.cancel_stack(token, csrf, p.plan.id, true).await,
+                };
+                sim.judge("cancel plan", result, &[]);
             }
         }
         Step::OperatorReview => operator_review(sim).await,

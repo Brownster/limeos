@@ -503,10 +503,10 @@ impl CaptureIo for Fault {
             let (_, path, bytes) = self.mutate.take().unwrap();
             fs::write(path, bytes).unwrap();
         }
-        if let Some((at, cancelled)) = &self.cancel {
-            if *at == point {
-                cancelled.set(true);
-            }
+        if let Some((at, cancelled)) = &self.cancel
+            && *at == point
+        {
+            cancelled.set(true);
         }
         Ok(())
     }

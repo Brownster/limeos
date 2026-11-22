@@ -196,10 +196,10 @@ async fn fixture(config: Config) -> Fixture {
             let value = if request.contains("/version ") {
                 json!({"ApiVersion":"1.41","MinAPIVersion":"1.24"})
             } else if request.contains("/info ") {
-                if nth.is_multiple_of(2) {
-                    if let Some((clock, value)) = &config.clock_on_final_info {
-                        clock.store(*value, Ordering::Relaxed);
-                    }
+                if nth.is_multiple_of(2)
+                    && let Some((clock, value)) = &config.clock_on_final_info
+                {
+                    clock.store(*value, Ordering::Relaxed);
                 }
                 json!({"ID": if matches!(config.changed, Some(Change::Engine)) && nth > 1 {
                     "replacement-engine".to_owned()

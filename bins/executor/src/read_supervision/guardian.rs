@@ -258,10 +258,10 @@ fn cleanup() {
                     continue;
                 }
                 // Signal the pinned task, not a potentially reused numeric PID.
-                if let Ok(fd) = process::pidfd_open(pid, PidfdFlags::empty()) {
-                    if own_child(pid) == Ok(true) {
-                        let _ = process::pidfd_send_signal(&fd, Signal::KILL);
-                    }
+                if let Ok(fd) = process::pidfd_open(pid, PidfdFlags::empty())
+                    && own_child(pid) == Ok(true)
+                {
+                    let _ = process::pidfd_send_signal(&fd, Signal::KILL);
                 }
             }
         }

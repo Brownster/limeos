@@ -289,13 +289,11 @@ pub(super) fn conflicting(members: &[ComposeContainerMembership]) -> Vec<&str> {
             if let ComposeOwnership::Compose {
                 project: previous, ..
             } = &other.ownership
+                && previous.name == project.name
+                && previous != project
+                && !names.contains(&project.name.as_str())
             {
-                if previous.name == project.name
-                    && previous != project
-                    && !names.contains(&project.name.as_str())
-                {
-                    names.push(&project.name);
-                }
+                names.push(&project.name);
             }
         }
     }

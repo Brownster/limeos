@@ -281,10 +281,10 @@ pub async fn verify(plan: &StorageMountWaitPlan) -> Result<Verification> {
         {
             return Err(Failure::IdentityMismatch);
         }
-        if let Some(fs) = probe(&fd).await? {
-            if identities.insert(fs.uuid.clone(), (*number, fs)).is_some() {
-                return Err(Failure::AmbiguousIdentity);
-            }
+        if let Some(fs) = probe(&fd).await?
+            && identities.insert(fs.uuid.clone(), (*number, fs)).is_some()
+        {
+            return Err(Failure::AmbiguousIdentity);
         }
         handles.insert(*number, fd);
     }

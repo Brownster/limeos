@@ -6,7 +6,7 @@ import time
 
 PREFIX = b"LIMEOS_RW040_PROBE_JSON="
 ARGV = ["--exact", "qualification_probe", "--nocapture", "--test-threads=1"]
-SOURCE_SHA256 = "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c"
+SOURCE_SHA256 = "2384a492b6b6c856d02dc99c6ff43ef376bfd0d1197719537fca1155765fbc6f"
 CASES = {
     "contract",
     "engine",

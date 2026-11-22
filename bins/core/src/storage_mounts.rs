@@ -352,8 +352,8 @@ impl Core {
                 &serde_json::to_string(&job.plan.effect)
                     .map_err(|_| Error(ErrorCode::StateNotDurable))?,
             );
-            if limeos_identity::constant_eq(&receipt.digest, &digest) {
-                if let Ok(value) = self
+            if limeos_identity::constant_eq(&receipt.digest, &digest)
+                && let Ok(value) = self
                     .mount_executor(
                         Request::ReconcileStorageMount {
                             version: VERSION,
@@ -363,11 +363,9 @@ impl Core {
                         limeos_contracts::RPC_DEADLINE,
                     )
                     .await
-                {
-                    if let Some(refined) = value.storage_mount {
-                        receipt = refined;
-                    }
-                }
+                && let Some(refined) = value.storage_mount
+            {
+                receipt = refined;
             }
         }
         let after = if receipt.state == MountExecutionState::Verified {

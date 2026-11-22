@@ -970,12 +970,11 @@ fn cleanup() {
     loop {
         if let Ok(children) = children() {
             for pid in children {
-                if own_child(pid) == Ok(true) {
-                    if let Ok(fd) = process::pidfd_open(pid, PidfdFlags::empty()) {
-                        if own_child(pid) == Ok(true) {
-                            let _ = process::pidfd_send_signal(&fd, Signal::KILL);
-                        }
-                    }
+                if own_child(pid) == Ok(true)
+                    && let Ok(fd) = process::pidfd_open(pid, PidfdFlags::empty())
+                    && own_child(pid) == Ok(true)
+                {
+                    let _ = process::pidfd_send_signal(&fd, Signal::KILL);
                 }
             }
         }

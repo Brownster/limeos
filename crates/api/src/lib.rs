@@ -559,12 +559,12 @@ impl Limiter {
         })
     }
     fn refund(&mut self, ticket: Ticket) {
-        if let Some((window, count)) = self.budgets.get_mut(&ticket.key) {
-            if *window == ticket.window {
-                *count = count.saturating_sub(1);
-                if *count == 0 {
-                    self.budgets.remove(&ticket.key);
-                }
+        if let Some((window, count)) = self.budgets.get_mut(&ticket.key)
+            && *window == ticket.window
+        {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                self.budgets.remove(&ticket.key);
             }
         }
     }
@@ -617,10 +617,10 @@ struct Charge<'a> {
 }
 impl Charge<'_> {
     fn settle(mut self, refund: bool) {
-        if let Some(ticket) = self.ticket.take() {
-            if refund {
-                self.refund(ticket);
-            }
+        if let Some(ticket) = self.ticket.take()
+            && refund
+        {
+            self.refund(ticket);
         }
     }
     fn refund(&self, ticket: Ticket) {
@@ -631,10 +631,10 @@ impl Charge<'_> {
 }
 impl Drop for Charge<'_> {
     fn drop(&mut self) {
-        if let Some(ticket) = self.ticket.take() {
-            if !self.attempt.comparison_started() {
-                self.refund(ticket);
-            }
+        if let Some(ticket) = self.ticket.take()
+            && !self.attempt.comparison_started()
+        {
+            self.refund(ticket);
         }
     }
 }

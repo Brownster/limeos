@@ -237,8 +237,8 @@ fn status(text: &str) -> Result<(usize, usize)> {
             {
                 return Err(Refusal::Unavailable);
             }
-        } else if let Some(value) = line.strip_prefix("Threads:") {
-            if threads
+        } else if let Some(value) = line.strip_prefix("Threads:")
+            && threads
                 .replace(
                     value
                         .trim()
@@ -246,9 +246,8 @@ fn status(text: &str) -> Result<(usize, usize)> {
                         .map_err(|_| Refusal::Unavailable)?,
                 )
                 .is_some()
-            {
-                return Err(Refusal::Unavailable);
-            }
+        {
+            return Err(Refusal::Unavailable);
         }
     }
     Ok((

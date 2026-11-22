@@ -711,18 +711,18 @@ pub mod test_support {
         pub pruned_jobs: Vec<String>,
     }
     thread_local! {
-        static OPEN_HOOK: std::cell::Cell<Option<fn(&rusqlite::Connection)>> =
+        static OPEN_HOOK: std::cell::Cell<Option<fn(&mut rusqlite::Connection)>> =
             const { std::cell::Cell::new(None) };
     }
     /// Every `Store::open` on this thread from now on hands its connection
     /// to `hook` as soon as it exists, before any statement of startup runs:
     /// the soak installs a statement trace there, so it measures what the
     /// open itself executes.
-    pub fn on_open(hook: Option<fn(&rusqlite::Connection)>) {
+    pub fn on_open(hook: Option<fn(&mut rusqlite::Connection)>) {
         crate::assert_test_support_allowed("the open hook");
         OPEN_HOOK.with(|h| h.set(hook));
     }
-    pub(crate) fn opened(conn: &rusqlite::Connection) {
+    pub(crate) fn opened(conn: &mut rusqlite::Connection) {
         if let Some(hook) = OPEN_HOOK.with(std::cell::Cell::get) {
             hook(conn);
         }

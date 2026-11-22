@@ -224,8 +224,16 @@ fn related_member_devices_do_not_import_their_direct_consumers_or_other_pools() 
     let mut smb = shares();
     smb.shares.push(share("other", "/mnt/disk2/Other"));
     let selected = target(&c, "d1");
-    let result =
-        configured_storage_impact(&c, &p, &s, &docker, &smb, &[selected.clone()], 100).unwrap();
+    let result = configured_storage_impact(
+        &c,
+        &p,
+        &s,
+        &docker,
+        &smb,
+        std::slice::from_ref(&selected),
+        100,
+    )
+    .unwrap();
     assert_eq!(result.related_devices, vec!["d1", "d2", "p1", "p2"]);
     let values = labels(&result);
     assert!(values.contains(&"container:a".into()));

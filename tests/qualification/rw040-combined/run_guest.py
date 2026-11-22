@@ -170,12 +170,12 @@ def verify_probe(directory: Path, library_source: str) -> dict:
         or record["contract"] != 1
         or record["binary"] != "combined_read_probe"
         or record["profile"] != "release"
-        or record["toolchain"] != "1.88.0"
+        or record["toolchain"] != "1.89.0"
         or record["library_source"] != library_source
         or not re.fullmatch(r"[0-9a-f]{40}", record["source_commit"])
         or not re.fullmatch(r"[0-9a-f]{64}", record["binary_sha256"])
         or record["source_sha256"]
-        != "3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c"
+        != "2384a492b6b6c856d02dc99c6ff43ef376bfd0d1197719537fca1155765fbc6f"
     ):
         raise ValueError("probe provenance or fixed build contract differs")
     for name, expected in (
