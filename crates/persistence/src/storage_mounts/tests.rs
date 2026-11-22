@@ -757,7 +757,7 @@ fn the_proof_check_reads_events_by_job_and_its_cost_stays_flat() {
             store
                 .conn
                 .execute(
-                    "INSERT INTO jobs VALUES(?,?,?,?,?,?,'queued',1,1,300)",
+                    "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES(?,?,?,?,?,?,'queued',1,1,300)",
                     params![
                         id,
                         principal.id,

@@ -162,7 +162,7 @@ impl Store {
         self.write(|tx| {
             let consumed: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM storage_mount_plans WHERE id=? AND principal=? AND approval_digest=? AND canceled=0 AND job IS NULL)",params![proposal.plan.id,principal.id,limeos_identity::digest(approval)],|r|r.get(0)).map_err(durable)?;
             if !consumed { return Err(Error(ErrorCode::Forbidden)); }
-            tx.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,'queued',?,?,?)",params![id,principal.id,key,body,limeos_identity::digest(&body),"storage:configuration",generation,principal.grant_revision,proposal.plan.effect.expires_at]).map_err(durable)?;
+            tx.execute("INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES(?,?,?,?,?,?,'queued',?,?,?)",params![id,principal.id,key,body,limeos_identity::digest(&body),"storage:configuration",generation,principal.grant_revision,proposal.plan.effect.expires_at]).map_err(durable)?;
             for resource in proposal.plan.effect.resources() {
                 if resource != "storage:configuration" {
                     tx.execute("INSERT INTO job_resources VALUES(?,?)",params![id,resource]).map_err(durable)?;
@@ -339,7 +339,7 @@ impl Store {
             if !matches!(state.as_str(),"running"|"verifying"|"outcome_unknown"|"needs_intervention") { return Err(Error(ErrorCode::Conflict)); }
             tx.execute("INSERT INTO storage_mount_results VALUES(?,?,?,?) ON CONFLICT(job) DO UPDATE SET receipt=excluded.receipt,verification=excluded.verification,recorded=excluded.recorded",params![job.id,body,verification,now]).map_err(durable)?;
             if state != next.as_str() {
-                tx.execute("UPDATE jobs SET state=? WHERE id=?",params![next.as_str(),job.id]).map_err(durable)?;
+                tx.execute("UPDATE jobs SET state=?,settled=? WHERE id=?",params![next.as_str(),super::jobs::settled_at(next,now),job.id]).map_err(durable)?;
                 event(tx,Some(&job.plan.principal),Some(&job.id),EventKind::JobTransition { state:next },now)?;
             }
             Ok(())

@@ -67,7 +67,7 @@
 //! own and the startup check reads no settled job's history. The job row,
 //! with its final state, serves as the snapshot when its history is gone,
 //! until job-row retention ([`jobs`]) removes it, with what history it still
-//! has and every row that names it, 30 days after it last changed.
+//! has and every row that names it, 30 days after it settled.
 //!
 //! Job rows (`jobs`, the last rule; see that module for the rule and why):
 //! a settled container, stack or health-probe job with no open resolution
@@ -667,7 +667,7 @@ pub mod test_support {
     pub const EVENT_BYTES: i64 = super::EVENT_BYTES;
     /// How far past the audit cap revocations and startup recovery may write.
     pub const AUDIT_RESERVE: i64 = super::AUDIT_RESERVE;
-    /// How long a settled job is kept after it last changed, in seconds, and
+    /// How long a settled job is kept after it settled, in seconds, and
     /// how many of the newest settled jobs of each family are kept whatever
     /// their age (`retention/jobs.rs`).
     pub const JOB_HORIZON: i64 = super::jobs::HORIZON;

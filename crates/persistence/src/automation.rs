@@ -353,8 +353,8 @@ fn pause_schedule(
     for job in jobs {
         if tx
             .execute(
-                "UPDATE jobs SET state='canceled' WHERE id=? AND state='queued'",
-                [&job],
+                "UPDATE jobs SET state='canceled',settled=? WHERE id=? AND state='queued'",
+                params![now, job],
             )
             .map_err(durable)?
             != 1
@@ -658,7 +658,7 @@ fn reserve_admitted_occurrence(
             occurrence: key.clone(),
         })?;
         tx.execute(
-            "INSERT INTO jobs VALUES(?,?,?,?,?,?,'queued',?,?,?)",
+            "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES(?,?,?,?,?,?,'queued',?,?,?)",
             params![
                 id,
                 actor.id,

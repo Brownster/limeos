@@ -91,7 +91,7 @@ impl Store {
             if !matches!(state.as_str(), "running"|"verifying"|"outcome_unknown"|"needs_intervention") { return Err(Error(ErrorCode::Conflict)); }
             tx.execute("INSERT INTO container_results VALUES(?,?,?,?) ON CONFLICT(job) DO UPDATE SET receipt=excluded.receipt,verification=excluded.verification,recorded=excluded.recorded", params![job.id,body,verification,now]).map_err(durable)?;
             if state == next.as_str() {return Ok(());}
-            tx.execute("UPDATE jobs SET state=? WHERE id=?", params![next.as_str(),job.id]).map_err(durable)?;
+            tx.execute("UPDATE jobs SET state=?,settled=? WHERE id=?", params![next.as_str(),super::jobs::settled_at(next,now),job.id]).map_err(durable)?;
             event(tx, Some(&job.plan.principal), Some(&job.id), EventKind::JobTransition {state:next}, now)
         })?;
         Ok(next)
@@ -286,7 +286,7 @@ impl Store {
             }
             stored.plan.check_current(current, now)?;
             tx.execute(
-                "INSERT INTO jobs VALUES(?,?,?,?,?,?,'queued',?,?,?)",
+                "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES(?,?,?,?,?,?,'queued',?,?,?)",
                 params![
                     id,
                     principal.id,

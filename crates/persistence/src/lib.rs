@@ -1080,10 +1080,12 @@ fn remove_v10_schema(conn: &Connection) {
 
 #[cfg(test)]
 fn remove_v19_schema(conn: &Connection) {
-    // Back to the version-7 and version-16 delete guards, and no job delete
-    // guard.
+    // Back to the version-7 and version-16 delete guards, no job delete
+    // guard and no settlement time.
     conn.execute_batch(
         "DROP TRIGGER IF EXISTS jobs_delete; DROP TRIGGER IF EXISTS job_resources_delete; DROP TRIGGER IF EXISTS job_resolutions_delete;
+DROP TRIGGER IF EXISTS jobs_settled; DROP TRIGGER IF EXISTS jobs_settled_now; DROP INDEX IF EXISTS jobs_retention;
+ALTER TABLE jobs DROP COLUMN settled;
 CREATE TRIGGER job_resources_delete BEFORE DELETE ON job_resources
 WHEN (SELECT state FROM jobs WHERE id=OLD.job) IS NOT 'queued'
     OR OLD.resource=(SELECT resource FROM jobs WHERE id=OLD.job)

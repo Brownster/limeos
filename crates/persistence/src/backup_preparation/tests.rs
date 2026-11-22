@@ -389,7 +389,7 @@ fn genuine_compiled_schema8_upgrade_is_additive_and_failures_roll_back() {
             include_str!("../migration-v8.sql")
         ))
         .unwrap();
-        c.execute_batch("INSERT INTO users VALUES('alice','alice','hash','\"administrator\"',1); INSERT INTO sessions VALUES('session','alice','csrf',1,999,100); INSERT INTO jobs VALUES('legacy','alice','legacy','{\"operation\":\"health_probe\",\"resource\":\"fixture:legacy\"}','digest','fixture:legacy','queued',0,1,999); UPDATE jobs SET state='running' WHERE id='legacy'; INSERT INTO container_plans VALUES('plan','alice','plan-bytes','plan-digest',1,999,'approval','legacy',0);").unwrap();
+        c.execute_batch("INSERT INTO users VALUES('alice','alice','hash','\"administrator\"',1); INSERT INTO sessions VALUES('session','alice','csrf',1,999,100); INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES('legacy','alice','legacy','{\"operation\":\"health_probe\",\"resource\":\"fixture:legacy\"}','digest','fixture:legacy','queued',0,1,999); UPDATE jobs SET state='running' WHERE id='legacy'; INSERT INTO container_plans VALUES('plan','alice','plan-bytes','plan-digest',1,999,'approval','legacy',0);").unwrap();
         let fixtures: serde_json::Value = serde_json::from_str(include_str!(
             "../../../../tests/fixtures/storage-contracts.json"
         ))
@@ -446,7 +446,7 @@ fn genuine_compiled_schema8_upgrade_is_additive_and_failures_roll_back() {
         })
         .unwrap();
         c.execute(
-            "INSERT INTO jobs VALUES(?,'alice','target',?,?,?,'queued',0,1,500)",
+            "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES(?,'alice','target',?,?,?,'queued',0,1,500)",
             params![
                 target.preparation.action,
                 intent,

@@ -215,7 +215,7 @@ pub enum Budget {
 }
 
 const PER_JOB: &str = "one row per job (or per queued plan, result, resource or completed resolution): \
-     a settled job is removed with all of them 30 days after it last changed, but for the newest of \
+     a settled job is removed with all of them 30 days after it settled, but for the newest of \
      each family and jobs an open request or an authority event keeps (`retention/jobs.rs`)";
 
 /// Every core table: walking `sqlite_master` makes a table added later fail
@@ -473,7 +473,7 @@ pub fn checkpoint(sim: &mut Sim) {
 
 /// Settled container and stack jobs that job-row retention should have
 /// removed a day ago (`retention/jobs.rs`, rules 1 to 6, read independently
-/// of its query): unchanged since a day before the horizon, past the newest
+/// of its query): settled, and unchanged since, a day before the horizon, past the newest
 /// `JOB_FLOOR` of their family, with no open resolution request and no
 /// authority event. A day is 1,440 passes of up to 64 jobs.
 fn overdue_jobs(conn: &Connection, now: i64) -> i64 {
@@ -491,7 +491,7 @@ fn overdue_jobs(conn: &Connection, now: i64) -> i64 {
             .query_row(
                 &format!(
                     "WITH kept AS (SELECT j.id FROM jobs j WHERE {settled} ORDER BY j.rowid DESC LIMIT ?2) \
-                     SELECT count(*) FROM jobs j WHERE {settled} AND j.id NOT IN kept AND j.deadline<?1 \
+                     SELECT count(*) FROM jobs j WHERE {settled} AND j.id NOT IN kept AND j.settled<?1 AND j.deadline<?1 \
                      AND NOT EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND (e.created>=?1 OR json_extract(e.kind,'$.kind') GLOB 'job_resolution_*')) \
                      AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND (r.confirmation IS NULL OR r.completed>=?1)) \
                      AND NOT EXISTS(SELECT 1 FROM container_results x WHERE x.job=j.id AND x.recorded>=?1) \

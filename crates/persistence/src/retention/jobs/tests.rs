@@ -301,7 +301,7 @@ fn every_reference_keeps_its_job() {
     store
         .conn
         .execute(
-            "INSERT INTO jobs VALUES(?,?,'other',?,?,'storage:configuration','queued',1,1,?)",
+            "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES(?,?,'other',?,?,'storage:configuration','queued',1,1,?)",
             params![
                 other,
                 actor.id,
@@ -341,6 +341,199 @@ fn every_reference_keeps_its_job() {
         assert!(!exists(&store, id));
     }
     audit_agrees(&store);
+}
+
+/// Every way a container, stack or probe job settles without a dated row of
+/// its own outside its events: the generic transition (a cancellation, a
+/// probe's failure, success or changed precondition) and an execute that
+/// was never sent. A job queued long ago and settled only now is kept for
+/// the whole horizon after it settled, even once the events rule has taken
+/// every event it had (it removes a settled job's events whatever their
+/// age, oldest first, under pressure), and goes once that horizon is past.
+/// A result or a completed resolution is a dated row of its own.
+#[test]
+fn a_late_settlement_keeps_its_job_for_the_horizon() {
+    let (_dir, mut store, actor) = setup();
+    // Long after every fixture's plan expired.
+    let late = T0 + 10 * HORIZON;
+    let queue = |store: &mut Store, key: &str| -> String {
+        store
+            .queue_job(
+                &actor,
+                key,
+                &Intent::HealthProbe {
+                    resource: key.into(),
+                },
+                T0 + TTL,
+                T0,
+            )
+            .unwrap()
+    };
+    let canceled = queue(&mut store, "canceled");
+    store
+        .transition(&canceled, JobState::Queued, JobState::Canceled, late)
+        .unwrap();
+    let changed = queue(&mut store, "changed");
+    store
+        .transition(
+            &changed,
+            JobState::Queued,
+            JobState::PreconditionChanged,
+            late,
+        )
+        .unwrap();
+    let failed = queue(&mut store, "failed");
+    store
+        .transition(&failed, JobState::Queued, JobState::Running, T0)
+        .unwrap();
+    store
+        .transition(&failed, JobState::Running, JobState::Failed, late)
+        .unwrap();
+    let succeeded = queue(&mut store, "succeeded");
+    store
+        .transition(&succeeded, JobState::Queued, JobState::Running, T0)
+        .unwrap();
+    store
+        .transition(&succeeded, JobState::Running, JobState::Verifying, T0)
+        .unwrap();
+    store
+        .transition(&succeeded, JobState::Verifying, JobState::Succeeded, late)
+        .unwrap();
+    let queue_container = |store: &mut Store, n: usize| -> String {
+        let before = snapshot(n);
+        let plan = store.plan_restart(&actor, &before, T0).unwrap();
+        let approval = store
+            .approve_container(&actor, &plan.plan.id, &plan.digest, T0)
+            .unwrap();
+        store
+            .queue_container(&actor, &format!("c{n}"), &plan, &approval.token, &before, T0)
+            .unwrap()
+            .id
+    };
+    let container_canceled = queue_container(&mut store, 0);
+    store
+        .cancel_container_job(&actor, &container_canceled, late)
+        .unwrap();
+    let unsent = queue_container(&mut store, 1);
+    store
+        .claim_container(&actor, &unsent, &snapshot(1), &"1".repeat(64), T0)
+        .unwrap();
+    store.record_unsent_execute(&unsent, late).unwrap();
+    // Newer than all of them in both families, settled just after them.
+    for n in 0..FLOOR as usize {
+        let id = queue(&mut store, &format!("floor{n}"));
+        store
+            .transition(&id, JobState::Queued, JobState::Canceled, late)
+            .unwrap();
+        let id = queue_container(&mut store, 2 + n);
+        store.cancel_container_job(&actor, &id, late).unwrap();
+    }
+    let kept = [
+        &canceled,
+        &changed,
+        &failed,
+        &succeeded,
+        &container_canceled,
+        &unsent,
+    ];
+    // The events rule under pressure: every event it may remove, gone.
+    let tx = store
+        .conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .unwrap();
+    super::super::prune_events(&tx, i64::MAX, late).unwrap();
+    tx.commit().unwrap();
+    for id in kept {
+        assert_eq!(rows(&store, "events", id), 0);
+    }
+    assert_eq!(drain_jobs(&mut store, late + 1), 0);
+    for id in kept {
+        assert!(exists(&store, id), "{id} was removed as soon as it settled");
+    }
+    assert_eq!(drain_jobs(&mut store, late + HORIZON), 0);
+    assert_eq!(drain_jobs(&mut store, late + HORIZON + 1), kept.len() as i64);
+    for id in kept {
+        assert!(!exists(&store, id));
+    }
+    checks_clean(&store);
+    audit_agrees(&store);
+}
+
+/// The settlement time is set with the state that settles a job and never
+/// changes; an unsettled job has none; a state change that does not set it
+/// takes the system clock, so no settled job is ever without one.
+#[test]
+fn the_settlement_time_is_set_once_and_kept() {
+    let (_dir, mut store, actor) = setup();
+    let settled_of = |store: &Store, id: &str| -> Option<i64> {
+        store
+            .conn
+            .query_row("SELECT settled FROM jobs WHERE id=?", [id], |r| r.get(0))
+            .unwrap()
+    };
+    let id = probe(&mut store, &actor, "p", T0);
+    assert_eq!(settled_of(&store, &id), Some(T0));
+    assert!(
+        store
+            .conn
+            .execute("UPDATE jobs SET settled=? WHERE id=?", params![PAST, id])
+            .is_err()
+    );
+    let queued = store
+        .queue_job(
+            &actor,
+            "q",
+            &Intent::HealthProbe {
+                resource: "q".into(),
+            },
+            T0 + TTL,
+            T0,
+        )
+        .unwrap();
+    assert_eq!(settled_of(&store, &queued), None);
+    assert!(
+        store
+            .conn
+            .execute("UPDATE jobs SET settled=? WHERE id=?", params![T0, queued])
+            .is_err()
+    );
+    let before = crate::writer_clock::unix_now();
+    store
+        .conn
+        .execute("UPDATE jobs SET state='canceled' WHERE id=?", [&queued])
+        .unwrap();
+    let at = settled_of(&store, &queued).unwrap();
+    assert!(at >= before && at <= crate::writer_clock::unix_now(), "{at}");
+}
+
+/// The upgrade to schema 19 takes every settled job already stored as
+/// settled at the upgrade, whatever its history says: none goes for the
+/// whole horizon after it.
+#[test]
+fn an_upgraded_store_keeps_its_settled_jobs_for_the_horizon() {
+    let (dir, mut store, actor) = setup();
+    let path = dir.path().join("core.sqlite");
+    let old = probes(&mut store, &actor, "p", FLOOR as usize + 2, T0);
+    crate::remove_v19_schema(&store.conn);
+    store
+        .conn
+        .execute_batch("PRAGMA user_version=18")
+        .unwrap();
+    drop(store);
+    let before = crate::writer_clock::unix_now();
+    let mut store = Store::open(&path).unwrap();
+    let after = crate::writer_clock::unix_now();
+    let (low, high): (i64, i64) = store
+        .conn
+        .query_row("SELECT min(settled),max(settled) FROM jobs", [], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+        .unwrap();
+    assert!(low >= before && high <= after, "{low}..{high}");
+    assert_eq!(drain_jobs(&mut store, before + HORIZON), 0);
+    assert_eq!(drain_jobs(&mut store, after + HORIZON + 1), 2);
+    assert!(!exists(&store, &old[0]) && !exists(&store, &old[1]));
+    checks_clean(&store);
 }
 
 /// Only settled jobs past the newest `FLOOR` of their family go, and the
@@ -489,7 +682,10 @@ fn a_pruned_job_is_unknown_and_nothing_names_it() {
         .unwrap();
     store
         .conn
-        .execute("UPDATE jobs SET state='resolved' WHERE id=?", [&resolved])
+        .execute(
+            "UPDATE jobs SET state='resolved',settled=? WHERE id=?",
+            params![T0, resolved],
+        )
         .unwrap();
     // While the job exists its resolution and primary resource are immutable.
     assert!(
@@ -584,7 +780,7 @@ fn the_schema_holds_the_rule() {
         store
             .conn
             .execute(
-                "INSERT INTO jobs VALUES(?,?,?,?,?,'fixture:x','queued',1,1,?)",
+                "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES(?,?,?,?,?,'fixture:x','queued',1,1,?)",
                 params![id, actor.id, id, intent, "d".repeat(64), T0 + TTL],
             )
             .unwrap();

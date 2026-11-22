@@ -68,7 +68,7 @@ def fixture_job(db, owner, key, initial="queued", resources=()):
     ).fetchone()[0]
     schema = db.execute("PRAGMA user_version").fetchone()[0]
     db.execute(
-        "INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES(?,?,?,?,?,?,?,?,?,?)",
         (
             job,
             owner,

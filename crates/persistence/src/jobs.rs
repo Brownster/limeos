@@ -3,6 +3,22 @@ use super::*;
 /// The operations whose jobs the container executor's receipts settle.
 const EXECUTOR_OPERATIONS: &str = "('container_restart','container_start','container_stop','stack_restart','stack_start','stack_stop')";
 
+/// `jobs.settled` for a job moving into `state` at `now`: `now` when the
+/// state is settled, else none. Every statement that moves a job into a
+/// settled state sets it, in that transaction (migration 19), and job-row
+/// retention ages the job by it.
+pub(crate) fn settled_at(state: JobState, now: i64) -> Option<i64> {
+    matches!(
+        state,
+        JobState::Succeeded
+            | JobState::Failed
+            | JobState::Canceled
+            | JobState::PreconditionChanged
+            | JobState::Resolved
+    )
+    .then_some(now)
+}
+
 /// One recovery candidate row: id, intent, state, owner id, role, revision.
 pub(crate) type CandidateRow = (String, String, String, String, String, i64);
 
@@ -108,7 +124,7 @@ impl Store {
                 };
             }
             tx.execute(
-                "INSERT INTO jobs VALUES (?,?,?,?,?,?,'queued',?,?,?)",
+                "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES(?,?,?,?,?,?,'queued',?,?,?)",
                 params![
                     id,
                     principal.id,
@@ -187,7 +203,7 @@ impl Store {
             let principal:String=tx.query_row("SELECT principal FROM jobs WHERE id=?",[id],|r|r.get(0)).optional().map_err(durable)?.ok_or(Error(ErrorCode::NotFound))?;
             let changed = if to == JobState::Running {
                 tx.execute("UPDATE jobs SET state=? WHERE id=? AND state=? AND deadline>? AND revision=(SELECT grant_revision FROM users WHERE id=jobs.principal)",params![to.as_str(),id,from.as_str(),now]).map_err(|_|Error(ErrorCode::Conflict))?
-            } else { tx.execute("UPDATE jobs SET state=? WHERE id=? AND state=?",params![to.as_str(),id,from.as_str()]).map_err(durable)? };
+            } else { tx.execute("UPDATE jobs SET state=?,settled=? WHERE id=? AND state=?",params![to.as_str(),settled_at(to,now),id,from.as_str()]).map_err(durable)? };
             if changed!=1 { return Err(Error(ErrorCode::Conflict)); }
             event(tx,Some(&principal),Some(id),EventKind::JobTransition { state: to },now)
         })
@@ -251,8 +267,8 @@ impl Store {
             }
             if tx
                 .execute(
-                    "UPDATE jobs SET state='precondition_changed' WHERE id=? AND state='running'",
-                    [id],
+                    "UPDATE jobs SET state='precondition_changed',settled=? WHERE id=? AND state='running'",
+                    params![now, id],
                 )
                 .map_err(durable)?
                 != 1

@@ -38,11 +38,15 @@
 //!    while the job's history lasts. The job stays until the events rule has
 //!    taken its history and the authority rule those events; until then it
 //!    is a snapshot like any other job whose history is gone.
-//! 5. It last changed more than [`HORIZON`] ago: its plan's expiry
-//!    (`deadline`), every event it still has, its result's recording and its
-//!    resolution's completion are all older. `jobs` holds no settlement time
-//!    of its own; these are every time stored with a job, and a job settles
-//!    with an event, so the newest of them is when it settled, or later.
+//! 5. It settled more than [`HORIZON`] ago (`jobs.settled`, set by the
+//!    statement that settled it and never changed after), and every other
+//!    time stored with it is older too: its plan's expiry (`deadline`), every
+//!    event it still has, its result's recording and its resolution's
+//!    completion. The settlement time is what holds the promise: a job's
+//!    events cannot, since the events rule removes a settled job's events
+//!    whatever their age (oldest first, under pressure), and a cancellation,
+//!    a probe's outcome or an execute never sent leaves no other dated row,
+//!    so a job queued long ago and settled now would otherwise go at once.
 //! 6. It is not among the [`FLOOR`] newest settled jobs of its family
 //!    (container actions, stack actions, health probes, by insertion order),
 //!    so a quiet household's job history is never emptied: each listing
@@ -92,7 +96,7 @@
 //! commit fails if anything still names a deleted job.
 use super::*;
 
-/// How long a settled job is kept after it last changed: 30 days. The same
+/// How long a settled job is kept after it settled: 30 days. The same
 /// span as `metrics.sqlite`'s 31-day history, so a job stays beside the
 /// observations around it for as long as those exist. At household rates
 /// (about 10 jobs a day) that is about 300 jobs, 1.4 MiB; a day of scripted
@@ -186,7 +190,7 @@ fn candidates() -> String {
         .collect::<String>();
     let limit = FAMILIES.len() + 2;
     format!(
-        "SELECT j.id,(SELECT count(*) FROM events e INDEXED BY events_job WHERE e.job=j.id),(SELECT count(*) FROM job_resources r WHERE r.job=j.id),{family} FROM jobs j WHERE j.state IN {SETTLED_STATES} AND j.deadline<?1 AND ({families}) AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND (r.confirmation IS NULL OR r.completed>=?1)) AND NOT EXISTS(SELECT 1 FROM events e INDEXED BY events_job WHERE e.job=j.id AND (e.created>=?1 OR json_extract(e.kind,'$.kind') IN ({}))) AND NOT EXISTS(SELECT 1 FROM container_results x WHERE x.job=j.id AND x.recorded>=?1) AND NOT EXISTS(SELECT 1 FROM stack_results x WHERE x.job=j.id AND x.recorded>=?1){protecting} ORDER BY j.deadline,j.rowid LIMIT ?{limit}",
+        "SELECT j.id,(SELECT count(*) FROM events e INDEXED BY events_job WHERE e.job=j.id),(SELECT count(*) FROM job_resources r WHERE r.job=j.id),{family} FROM jobs j WHERE j.state IN {SETTLED_STATES} AND j.settled<?1 AND j.deadline<?1 AND ({families}) AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND (r.confirmation IS NULL OR r.completed>=?1)) AND NOT EXISTS(SELECT 1 FROM events e INDEXED BY events_job WHERE e.job=j.id AND (e.created>=?1 OR json_extract(e.kind,'$.kind') IN ({}))) AND NOT EXISTS(SELECT 1 FROM container_results x WHERE x.job=j.id AND x.recorded>=?1) AND NOT EXISTS(SELECT 1 FROM stack_results x WHERE x.job=j.id AND x.recorded>=?1){protecting} ORDER BY j.deadline,j.rowid LIMIT ?{limit}",
         quoted(&AUTHORITY_KINDS)
     )
 }

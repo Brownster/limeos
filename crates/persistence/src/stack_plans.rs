@@ -131,8 +131,8 @@ impl Store {
                 return Ok(());
             }
             tx.execute(
-                "UPDATE jobs SET state=? WHERE id=?",
-                params![next.as_str(), job.id],
+                "UPDATE jobs SET state=?,settled=? WHERE id=?",
+                params![next.as_str(), super::jobs::settled_at(next, now), job.id],
             )
             .map_err(durable)?;
             event(
@@ -349,7 +349,7 @@ impl Store {
             }
             stored.plan.check_current(current, now)?;
             tx.execute(
-                "INSERT INTO jobs VALUES(?,?,?,?,?,?,'queued',?,?,?)",
+                "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline) VALUES(?,?,?,?,?,?,'queued',?,?,?)",
                 params![
                     id,
                     principal.id,
