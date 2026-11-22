@@ -563,8 +563,10 @@ fn write_bytes() -> u64 {
         })
         .unwrap()
 }
-#[tokio::test]
-async fn stable_real_runtime_passes_leave_database_wal_and_process_write_bytes_unchanged() {
+/// Runs 32 idle passes and returns the growth of the process-wide
+/// `write_bytes` counter, after asserting that the store's rows, database file
+/// and WAL are byte-for-byte unchanged.
+async fn idle_passes_write_bytes_delta() -> u64 {
     let f = fixture(1, 1).await;
     let status = Status::default();
     let _running = status.enter().unwrap();
@@ -588,10 +590,23 @@ async fn stable_real_runtime_passes_leave_database_wal_and_process_write_bytes_u
         file_bytes(f.dir.path().join("core.sqlite-wal")) == wal,
         "WAL changed"
     );
-    assert_eq!(after_io, io);
+    after_io - io
+}
+#[tokio::test]
+async fn stable_real_runtime_passes_leave_database_and_wal_unchanged() {
+    idle_passes_write_bytes_delta().await;
+}
+/// `/proc/self/io` counts every thread of the test process, so this holds only
+/// when no other test is writing to a disk-backed directory at the same time.
+/// CI runs it alone; in the parallel run it failed wherever the temporary
+/// directory is on disk and passed only where it is memory-backed.
+#[tokio::test]
+#[ignore = "process-wide write counter: run alone with --ignored --exact --test-threads=1"]
+async fn stable_real_runtime_passes_leave_process_write_bytes_unchanged() {
+    let delta = idle_passes_write_bytes_delta().await;
+    assert_eq!(delta, 0);
     println!(
-        "LIMEOS_OBSERVATION_RUNTIME_IDLE passes=32 unchanged_database=true unchanged_wal=true write_bytes_delta={} simulated_seconds=960 installed_soak=false",
-        after_io - io
+        "LIMEOS_OBSERVATION_RUNTIME_IDLE passes=32 unchanged_database=true unchanged_wal=true write_bytes_delta={delta} simulated_seconds=960 installed_soak=false"
     );
 }
 

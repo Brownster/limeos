@@ -32,6 +32,9 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
+      # Reads the process-wide write counter, so it must run with no other test.
+      - name: Idle observation passes write nothing
+        run: cargo test -p limeos-core --bin limeos-core --locked -- --ignored --exact automation_runtime::tests::stable_real_runtime_passes_leave_process_write_bytes_unchanged --test-threads=1
       # Deferred code (docs/deferred-code.md) is compiled and tested here only.
       # --workspace enables the feature on every member that declares it.
       - name: Clippy with deferred code
