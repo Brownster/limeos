@@ -289,7 +289,7 @@ def main():
         "build": {
             "host": "disposable Debian 12 KVM guest",
             "architecture": "amd64",
-            "rust_toolchain": "1.88.0",
+            "rust_toolchain": "1.89.0",
             "cargo": "locked offline release",
             "bundle_sha256": sha(args.bundle),
             "bundle_bytes": args.bundle.stat().st_size,

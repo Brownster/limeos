@@ -8,7 +8,7 @@ This is an experiment, not an authenticated production core or an executor. It b
 
 ## Build and check locally
 
-Rust 1.88.0 is pinned. `Cargo.lock` fixes dependencies. The release profile uses optimization, thin LTO, one codegen unit, symbol stripping, and abort-on-panic. SQLite is bundled; Rustls uses the dependency's selected crypto backend, without OpenSSL.
+Rust 1.89.0 is pinned. `Cargo.lock` fixes dependencies. The release profile uses optimization, thin LTO, one codegen unit, symbol stripping, and abort-on-panic. SQLite is bundled; Rustls uses the dependency's selected crypto backend, without OpenSSL.
 
 ```bash
 cargo build --locked --release -p limeos-footprint

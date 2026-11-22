@@ -109,7 +109,7 @@ def main():
         "sh",
         "-c",
         "curl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal "
-        "--default-toolchain 1.88.0 -c clippy -c rustfmt --no-modify-path",
+        "--default-toolchain 1.89.0 -c clippy -c rustfmt --no-modify-path",
         cwd=WORK,
     )
     toolchain = subprocess.run(
@@ -158,11 +158,11 @@ def main():
         "meminfo": Path("/proc/meminfo").read_text(),
     }
     if (
-        "release: 1.88.0\n" not in toolchain
+        "release: 1.89.0\n" not in toolchain
         or "host: aarch64-unknown-linux-gnu\n" not in toolchain
     ):
         write(steps)
-        raise SystemExit("Rust 1.88.0 with native aarch64 host required")
+        raise SystemExit("Rust 1.89.0 with native aarch64 host required")
     write(steps)
     step("fetch", "cargo", "fetch", "--locked")
     step("fmt", "cargo", "fmt", "--all", "--", "--check")

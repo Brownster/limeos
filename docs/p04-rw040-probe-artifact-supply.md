@@ -1,10 +1,10 @@
 # Debian-compatible public-library probe supply
 
-The native AMD64 CI job builds the existing public-library integration test in the same resolved `rust:1.88.0-bookworm` builder image as the packaged executables. The test source is unchanged since its supply except for one Rust 1.89 Clippy `collapsible_if` rewrite of its revalidation guard (same behaviour), SHA-256 `2384a492b6b6c856d02dc99c6ff43ef376bfd0d1197719537fca1155765fbc6f` (supplied as `3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c`). This avoids supplying an Ubuntu-linked test executable to the Debian 12 qualification guest. It does not execute a privileged probe or start a guest.
+The native AMD64 CI job builds the existing public-library integration test in the same resolved `rust:1.89.0-bookworm` builder image as the packaged executables. The test source is unchanged since its supply except for one Rust 1.89 Clippy `collapsible_if` rewrite of its revalidation guard (same behaviour), SHA-256 `2384a492b6b6c856d02dc99c6ff43ef376bfd0d1197719537fca1155765fbc6f` (supplied as `3929400eb457937923311206201e4ef8ce2b935afc685ec7e81b27e557699b9c`). This avoids supplying an Ubuntu-linked test executable to the Debian 12 qualification guest. It does not execute a privileged probe or start a guest.
 
 Each native CI architecture also runs eight producer and workflow regressions and the corrected console harness's unit guard suite. These exercise parser, source identity, lifecycle and delivery regressions; they do not launch a QEMU guest or qualify the probe under confinement. The producer workflow is integrated together with the reviewed harness, whose source is required by that guard step. Package and probe production require the clean exact source; browser and deliberate rejection gates then write fresh tracked evidence before any package or probe upload. A disposable Git regression checks this ordering without weakening the source guard.
 
-`scripts/build_rw040_probe_artifact.py` consumes the complete Cargo JSON output from the locked release `--no-run` build. It requires one successful build and one correctly named integration-test executable with the exact target/package source and release path/profile. Before publication it verifies a clean exact workflow source, source-file hash, native AMD64 ELF, executable mode, Rust 1.88.0, build libc 2.36, the GNU ELF interpreter, GLIBC requirements no newer than 2.36, and dynamic libraries supplied by Debian's libc6/libgcc-s1 packages. It refuses absent, duplicate, malformed or incompatible artifacts. It verifies all three selected package identities and hashes and binds their tested source to the same workflow head.
+`scripts/build_rw040_probe_artifact.py` consumes the complete Cargo JSON output from the locked release `--no-run` build. It requires one successful build and one correctly named integration-test executable with the exact target/package source and release path/profile. Before publication it verifies a clean exact workflow source, source-file hash, native AMD64 ELF, executable mode, Rust 1.89.0, build libc 2.36, the GNU ELF interpreter, GLIBC requirements no newer than 2.36, and dynamic libraries supplied by Debian's libc6/libgcc-s1 packages. It refuses absent, duplicate, malformed or incompatible artifacts. It verifies all three selected package identities and hashes and binds their tested source to the same workflow head.
 
 The `rw040-public-library-probe` artifact has three files:
 
@@ -19,7 +19,7 @@ The `rw040-public-library-probe` artifact has three files:
   "source_sha256": "2384a492b6b6c856d02dc99c6ff43ef376bfd0d1197719537fca1155765fbc6f",
   "binary": "combined_read_probe",
   "binary_sha256": "<SHA-256 of the executable>",
-  "toolchain": "1.88.0",
+  "toolchain": "1.89.0",
   "profile": "release",
   "library_source": "<same exact workflow head as the selected packages>"
 }

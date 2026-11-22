@@ -132,7 +132,7 @@ def supply_manifest(source: str, source_bytes: bytes, binary: bytes) -> dict:
         "source_sha256": SOURCE_SHA256,
         "binary": "combined_read_probe",
         "binary_sha256": sha(binary),
-        "toolchain": "1.88.0",
+        "toolchain": "1.89.0",
         "profile": "release",
         "library_source": source,
     }
@@ -175,10 +175,10 @@ def main() -> None:
         raise ValueError("probe artifact has no executable permission")
     manifest = supply_manifest(args.source, source_bytes, binary)
     rustc = command("rustc", "-Vv")
-    if not re.search(r"^release: 1\.88\.0$", rustc, re.MULTILINE) or not re.search(
+    if not re.search(r"^release: 1\.89\.0$", rustc, re.MULTILINE) or not re.search(
         r"^host: x86_64-unknown-linux-gnu$", rustc, re.MULTILINE
     ):
-        raise ValueError("require Rust 1.88.0 native AMD64")
+        raise ValueError("require Rust 1.89.0 native AMD64")
     libc = command("getconf", "GNU_LIBC_VERSION").strip()
     if libc != "glibc 2.36":
         raise ValueError("probe must be built in the Debian 12 libc environment")

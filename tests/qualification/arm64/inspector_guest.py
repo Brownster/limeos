@@ -84,7 +84,7 @@ def main():
     )
     step(
         "rustup",
-        "curl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.88.0 --no-modify-path",
+        "curl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.89.0 --no-modify-path",
     )
     # Since PR-40 the crate builds only with its `deferred` feature; frozen
     # sources from before then have no such feature and need no flag.

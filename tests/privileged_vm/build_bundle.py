@@ -20,7 +20,7 @@ def main():
     parser.add_argument(
         "--toolchain",
         type=Path,
-        default=Path.home() / ".rustup/toolchains/1.88.0-x86_64-unknown-linux-gnu",
+        default=Path.home() / ".rustup/toolchains/1.89.0-x86_64-unknown-linux-gnu",
     )
     parser.add_argument(
         "--registry", type=Path, default=Path.home() / ".cargo/registry"

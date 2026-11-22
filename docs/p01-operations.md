@@ -18,7 +18,7 @@ python3 packaging/build.py --arch amd64 --binaries target/release
 python3 packaging/build.py --arch arm64 --binaries target/aarch64-unknown-linux-gnu/release
 ```
 
-Use Rust 1.88.0 and the checked-in lockfile for development checks. The workspace forbids unsafe code in first-party Rust. Development builds optimize the password algorithms so real authentication deadlines remain testable.
+Use Rust 1.89.0 and the checked-in lockfile for development checks. The workspace forbids unsafe code in first-party Rust. Development builds optimize the password algorithms so real authentication deadlines remain testable.
 
 ```sh
 cargo fmt --all -- --check
