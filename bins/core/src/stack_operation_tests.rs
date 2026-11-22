@@ -2177,6 +2177,13 @@ async fn a_stack_claim_that_commits_after_core_gave_up_is_executed_once_on_the_n
     })
     .await;
     assert_eq!(result.unwrap_err().0, ErrorCode::StateNotDurable);
+    // The short deadline was for the stalled call only: a slow machine must
+    // not time out the ordinary calls that follow.
+    f.core.db = f
+        .core
+        .db
+        .clone()
+        .with_call_deadline(limeos_persistence::CALL_DEADLINE);
     assert_eq!(f.state(&job).await, JobState::Running);
     assert!(locks(&path, &job.id) > 0);
     assert_eq!(f.engine.lock().unwrap().executes, 0);

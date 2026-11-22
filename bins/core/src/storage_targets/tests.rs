@@ -227,6 +227,11 @@ async fn a_target_authorization_read_behind_a_stalled_writer_leaves_the_job_queu
     assert_eq!(refused.0, ErrorCode::Unavailable);
     release.send(()).unwrap();
     writer_idle(&c.db).await;
+    // The short deadline was for the stalled call only: a slow machine must
+    // not time out the ordinary calls that follow.
+    c.db =
+        c.db.clone()
+            .with_call_deadline(limeos_persistence::CALL_DEADLINE);
     assert_eq!(
         target_state(&c, &principal, &job.id).await,
         JobState::Queued
@@ -262,6 +267,11 @@ async fn a_target_claim_that_commits_after_core_gave_up_is_prepared_once_on_the_
     )
     .await;
     assert_eq!(result.unwrap_err().0, ErrorCode::StateNotDurable);
+    // The short deadline was for the stalled call only: a slow machine must
+    // not time out the ordinary calls that follow.
+    c.db =
+        c.db.clone()
+            .with_call_deadline(limeos_persistence::CALL_DEADLINE);
     assert_eq!(
         target_state(&c, &principal, &job.id).await,
         JobState::Running

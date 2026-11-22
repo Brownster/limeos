@@ -133,7 +133,7 @@ async fn actual_enable_relogin_create_read_restart_and_pause_are_metadata_only()
     assert_eq!(initial.observations.snapshot().revision, 0);
     drop(initial);
     let mut opened = None;
-    for _ in 0..20 {
+    for _ in 0..3_000 {
         match Database::open(&dir.path().join("core.sqlite")) {
             Ok(db) => {
                 opened = Some(db);

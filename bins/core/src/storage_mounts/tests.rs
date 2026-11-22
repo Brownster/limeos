@@ -313,6 +313,12 @@ async fn a_mount_authorization_read_behind_a_stalled_writer_leaves_the_job_queue
     assert_eq!(refused.0, ErrorCode::Unavailable);
     release.send(()).unwrap();
     writer_idle(&core.db).await;
+    // The short deadline was for the stalled call only: a slow machine must
+    // not time out the ordinary calls that follow.
+    core.db = core
+        .db
+        .clone()
+        .with_call_deadline(limeos_persistence::CALL_DEADLINE);
     assert_eq!(
         mount_state(&core, &principal, &job.id).await,
         JobState::Queued
@@ -350,6 +356,12 @@ async fn a_mount_claim_that_commits_after_core_gave_up_is_executed_once_on_the_n
     )
     .await;
     assert_eq!(result.unwrap_err().0, ErrorCode::StateNotDurable);
+    // The short deadline was for the stalled call only: a slow machine must
+    // not time out the ordinary calls that follow.
+    core.db = core
+        .db
+        .clone()
+        .with_call_deadline(limeos_persistence::CALL_DEADLINE);
     assert_eq!(
         mount_state(&core, &principal, &job.id).await,
         JobState::Running

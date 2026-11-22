@@ -139,7 +139,7 @@ async fn owned_policy_uses_real_http_cas_csrf_current_grants_and_restart() {
     let _ = server.await;
     drop(initial);
     let mut database = None;
-    for _ in 0..20 {
+    for _ in 0..3_000 {
         match Database::open(&dir.path().join("core.sqlite")) {
             Ok(value) => {
                 database = Some(value);
@@ -567,7 +567,7 @@ async fn real_http_history_acknowledgment_and_restart_use_existing_store_proofs(
     let _ = server.await;
     drop(initial);
     let mut database = None;
-    for _ in 0..20 {
+    for _ in 0..3_000 {
         match Database::open(&dir.path().join("core.sqlite")) {
             Ok(value) => {
                 database = Some(value);

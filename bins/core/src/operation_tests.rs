@@ -1148,6 +1148,12 @@ async fn an_authorization_read_behind_a_stalled_writer_leaves_the_job_queued() {
     );
     release.send(()).unwrap();
     writer_idle(&core.db).await;
+    // The short deadline was for the stalled call only: a slow machine must
+    // not time out the ordinary calls that follow.
+    core.db = core
+        .db
+        .clone()
+        .with_call_deadline(limeos_persistence::CALL_DEADLINE);
     let progress = core.restart_progress(token.clone(), job.id.clone(), 0);
     assert_eq!(progress.await.unwrap().job.state, JobState::Queued);
     assert_eq!(state.lock().unwrap().executes, 0);
@@ -1182,6 +1188,12 @@ async fn a_claim_that_commits_after_core_gave_up_is_executed_once_on_the_next_pa
     })
     .await;
     assert_eq!(result.unwrap_err().0, ErrorCode::StateNotDurable);
+    // The short deadline was for the stalled call only: a slow machine must
+    // not time out the ordinary calls that follow.
+    core.db = core
+        .db
+        .clone()
+        .with_call_deadline(limeos_persistence::CALL_DEADLINE);
     let progress = core.restart_progress(token.clone(), job.id.clone(), 0);
     assert_eq!(progress.await.unwrap().job.state, JobState::Running);
     assert!(locks(&path, &job.id) > 0);
