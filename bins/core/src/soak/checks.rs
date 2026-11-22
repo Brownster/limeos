@@ -313,6 +313,10 @@ pub struct Sample {
     pub at: i64,
     pub core: StoreStat,
     pub receipts: StoreStat,
+    /// Settled container and stack jobs job-row retention may remove at
+    /// this moment, by the soak's own query (`overdue_jobs` with no day's
+    /// allowance): every other job is one the rule keeps.
+    pub removable: i64,
 }
 
 /// A read-only side connection: it can neither write nor checkpoint.
@@ -368,10 +372,12 @@ fn receipts_path(sim: &Sim) -> std::path::PathBuf {
 /// The daily checkpoint (04:00, the house asleep): sizes, row counts against
 /// budgets, and the invariants. Both daemons then restart, measured.
 pub fn checkpoint(sim: &mut Sim) {
+    let at = sim.now();
     let sample = Sample {
-        at: sim.now(),
+        at,
         core: stat(&sim.core_path),
         receipts: stat(&receipts_path(sim)),
+        removable: overdue_jobs(&reader(&sim.core_path).unwrap(), at, 0),
     };
     let mut problems = Vec::new();
     for (name, stat, file_bound, wal_bound) in [
@@ -428,7 +434,7 @@ pub fn checkpoint(sim: &mut Sim) {
             }
         }
     }
-    let overdue = overdue_jobs(&reader(&sim.core_path).unwrap(), sample.at);
+    let overdue = overdue_jobs(&reader(&sim.core_path).unwrap(), sample.at, DAY);
     if overdue > 0 {
         problems.push((
             BUDGETS,
@@ -476,9 +482,10 @@ pub fn checkpoint(sim: &mut Sim) {
 /// of its query): settled, and unchanged since, a day before the horizon, past the newest
 /// `JOB_FLOOR` of their family (by settlement), with no open resolution
 /// request and no authority event. A day is 1,440 passes of up to 64 jobs,
-/// and 24 starts of the rule's scan over the jobs a reference kept.
-fn overdue_jobs(conn: &Connection, now: i64) -> i64 {
-    let cutoff = now - limeos_persistence::test_support::JOB_HORIZON - DAY;
+/// and 24 starts of the rule's scan over the jobs a reference kept. With
+/// `allowance` 0, the jobs the rule may remove right now.
+fn overdue_jobs(conn: &Connection, now: i64, allowance: i64) -> i64 {
+    let cutoff = now - limeos_persistence::test_support::JOB_HORIZON - allowance;
     let floor = limeos_persistence::test_support::JOB_FLOOR;
     let mut overdue = 0;
     for family in [
@@ -1215,37 +1222,38 @@ fn trends(sim: &mut Sim) {
         problems.push((PROJECTION, format!("per-job tables grow {:.0} KiB a day ({:.1} KiB a job): core.sqlite reaches {:.0} MiB in {years:.1} years", per_day / 1024.0, per_job / 1024.0, mib(CORE_FILE_BOUND))));
     }
     // The per-job tables on their own, beside the whole store's flatness
-    // (whose 2% of 30 MiB would hide a slow leak): from their lowest point
-    // in the last third (job-row retention works off the action storm's
-    // jobs in its first days), net of the jobs completed resolutions keep
-    // (their authority events keep them, bounded by the authority rule's
-    // budget), each at the sample's bytes a job, their fitted growth stays
-    // under `PER_JOB_FLAT`.
-    let resolved = |s: &Sample| s.core.rows("job_resolutions") as f64;
-    let net: Vec<(f64, f64)> = last
+    // (whose 2% of 30 MiB would hide a slow leak), net of the jobs the rule
+    // keeps: every job but those it may remove at that moment (counted by
+    // the soak's own query), each at the sample's bytes a job, so jobs kept
+    // for their age, an unsettled state, an open request or an authority
+    // event explain their bytes, and neither a removable job kept nor bytes
+    // that no job explains do. From the first checkpoint of the last third
+    // with at most a tenth more jobs than the last (job-row retention works
+    // off the action storm's jobs, of another size, in its first days),
+    // their fitted growth stays under `PER_JOB_FLAT`.
+    let kept = |s: &Sample| (s.core.rows("jobs") - s.removable) as f64;
+    let settled_in = last
+        .iter()
+        .position(|s| s.core.rows("jobs") * 10 <= final_.core.rows("jobs") * 11)
+        .unwrap_or(0)
+        .min(last.len().saturating_sub(8));
+    let tail: Vec<(f64, f64)> = last[settled_in..]
         .iter()
         .map(|s| {
             let per_job = per_job_bytes(s) / (s.core.rows("jobs") as f64).max(1.0);
             (
                 day(s),
-                per_job_bytes(s) - (resolved(s) - resolved(first)) * per_job,
+                per_job_bytes(s) - (kept(s) - kept(&last[settled_in])) * per_job,
             )
         })
         .collect();
-    let lowest = net
-        .iter()
-        .enumerate()
-        .min_by(|a, b| a.1.1.total_cmp(&b.1.1))
-        .map_or(0, |(i, _)| i)
-        .min(net.len().saturating_sub(8));
-    let tail = &net[lowest..];
-    let net_grown = slope(tail) * (tail.last().unwrap().0 - tail[0].0);
+    let net_grown = slope(&tail) * (tail.last().unwrap().0 - tail[0].0);
     sim.measures.insert(PER_JOB_NET, net_grown / 1024.0);
     if net_grown > PER_JOB_FLAT {
         problems.push((
             FLAT,
             format!(
-                "core: per-job tables grew {:.0} KiB from day {:.0} to {:.0} beyond the jobs completed resolutions keep (at most {:.0} KiB)",
+                "core: per-job tables grew {:.0} KiB from day {:.0} to {:.0} beyond the jobs job-row retention keeps (at most {:.0} KiB)",
                 net_grown / 1024.0,
                 tail[0].0,
                 tail.last().unwrap().0,
@@ -1436,11 +1444,12 @@ pub const STARTUP_PER_EVENT_MAX: f64 = 4.0;
 pub const STARTUP_SLACK: f64 = 4.0;
 pub const STARTUP_PER_JOB_PAGES: &str = "per-job tables' pages gained a night over the last third";
 pub const STARTUP_EVENT_PAGES: &str = "events table's pages gained a night over the last third";
-/// The most the per-job tables may grow from their lowest point in the last
-/// third, net of the jobs completed resolutions keep: 64 KiB, two KiB a day
-/// over 30 days, a dozen jobs' worth.
+/// The most the per-job tables may grow over the last third (once the storm's
+/// jobs are gone) beyond the jobs job-row retention keeps: 64 KiB, two KiB a
+/// day over 30 days, a dozen jobs' worth.
 pub const PER_JOB_FLAT: f64 = 64.0 * 1024.0;
-pub const PER_JOB_NET: &str = "per-job tables' fitted growth from their lowest point in the last third, net of resolved jobs, KiB";
+pub const PER_JOB_NET: &str =
+    "per-job tables' fitted growth over the last third beyond the jobs retention keeps, KiB";
 pub const RECEIPTS_FULL: &str = "receipt-store open page reads with every table at its budget";
 
 /// Every measured open within bounds. On each copy of core's store, from the
