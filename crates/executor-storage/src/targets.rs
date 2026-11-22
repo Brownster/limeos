@@ -212,8 +212,9 @@ pub async fn target_plan(contract: &StorageContract) -> Result<TargetPreparation
 }
 
 struct Journal {
+    // Declared before `_lock`, which unlocks on drop (`ProcessLock`).
     conn: Connection,
-    _lock: OwnedFd,
+    _lock: crate::effects::ProcessLock,
     directory: OwnedFd,
 }
 fn durable(_: rusqlite::Error) -> Failure {
@@ -249,8 +250,8 @@ impl Journal {
         )
         .map_err(|_| Failure::StateNotDurable)?;
         private_file(&lock, 0)?;
-        rustix::fs::flock(&lock, FlockOperation::NonBlockingLockShared)
-            .map_err(|_| Failure::Conflict)?;
+        let lock =
+            crate::effects::ProcessLock::acquire(lock, FlockOperation::NonBlockingLockShared)?;
         for name in ["targets.sqlite", "targets.sqlite-wal", "targets.sqlite-shm"] {
             match rustix::fs::openat(
                 &directory,
@@ -302,8 +303,8 @@ impl Journal {
         )
         .map_err(|_| Failure::StateNotDurable)?;
         private_file(&lock, owner)?;
-        rustix::fs::flock(&lock, FlockOperation::NonBlockingLockExclusive)
-            .map_err(|_| Failure::Conflict)?;
+        let lock =
+            crate::effects::ProcessLock::acquire(lock, FlockOperation::NonBlockingLockExclusive)?;
         for name in [
             "targets.sqlite",
             "targets.sqlite-wal",
