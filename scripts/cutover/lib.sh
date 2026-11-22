@@ -339,7 +339,7 @@ fct_hash_one() {
     case "${path}" in *.db|*.sqlite|*.sqlite3|*-wal|*-shm|*.db-journal) flag=V ;; esac
     if [[ ! -e "${file}" && ! -L "${file}" ]]; then printf '%s ABSENT\n' "${flag}"; return 0; fi
     if [[ -L "${file}" || ! -f "${file}" ]]; then fct_warn "state path is not a regular file: ${path}"; return 1; fi
-    out="$(sha256sum <"${file}")" && [[ "${out%% *}" =~ ^[0-9a-f]{64}$ ]] || { fct_warn "cannot hash ${path}"; return 1; }
+    if ! out="$(sha256sum <"${file}")" || [[ ! "${out%% *}" =~ ^[0-9a-f]{64}$ ]]; then fct_warn "cannot hash ${path}"; return 1; fi
     printf '%s %s\n' "${flag}" "${out%% *}"
 }
 
@@ -347,7 +347,7 @@ fct_hash_one() {
 # (read them back with fct_parse_record). Paths the new package owns are skipped. Fails
 # when any path cannot be hashed (the group runs in a subshell, so exit leaves only it);
 # with "tolerant", prints "! <path>" for such a path instead and carries on.
-fct_state_hashes() { # [tolerant]
+fct_state_hashes() { # strict|tolerant
     local path dir found record tolerant=0
     [[ "${1:-}" != tolerant ]] || tolerant=1
     {

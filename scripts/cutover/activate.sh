@@ -499,7 +499,7 @@ fct_main() {
     for unit in "${FROZEN_UNITS[@]}"; do fct_do systemctl disable "${unit}"; done
     if (( ! DRY_RUN )); then
         # A hash failure here ends the script under set -e; the EXIT trap rolls back.
-        fct_state_hashes >"${SNAP}/state.poststop.sha256"
+        fct_state_hashes strict >"${SNAP}/state.poststop.sha256"
         local record
         while IFS= read -r record || [[ -n "${record}" ]]; do
             fct_parse_record "${record}" || fct_abort "malformed state record: ${record}"

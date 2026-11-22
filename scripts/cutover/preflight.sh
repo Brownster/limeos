@@ -165,7 +165,7 @@ fct_main() {
     while IFS= read -r requirement; do
         refusals+=("requirement: ${requirement}")
     done < <(fct_missing_requirements "$(( ! no_playback_check ))" 1)
-    fct_state_hashes >"${out}/state.sha256" || { hashed=0; refusals+=('state files could not all be hashed (named above); fix the state list or the files'); }
+    fct_state_hashes strict >"${out}/state.sha256" || { hashed=0; refusals+=('state files could not all be hashed (named above); fix the state list or the files'); }
 
     local mem_line swap_line available swap_total swap_used
     # A free that fails leaves no Mem: line, which is refused below by name.
