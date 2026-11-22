@@ -891,7 +891,11 @@ mod tests {
         "gho_16C7e42F292c6912E7710c838347Ae178B4a",
         "ghs_16C7e42F292c6912E7710c838347Ae178B4a",
         "github_pat_11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyz",
-        "xoxb-123456789012-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx",
+        // Split so that secret scanners do not take this fixture for a live token.
+        concat!(
+            "xo",
+            "xb-123456789012-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx"
+        ),
         "xoxp-123456789012-123456789012-abcdef0123456789",
         "xoxa-2-123456789012-abcdef",
         "sk-ant-api03-abcdefghijklmnop0123456789",
