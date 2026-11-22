@@ -30,6 +30,76 @@ def git(root, *argv):
     subprocess.run(["git", *argv], cwd=root, check=True, capture_output=True)
 
 
+def open_fds():
+    return set(os.listdir("/proc/self/fd"))
+
+
+def held_open(identity):
+    """Whether a descriptor of this process keeps the inode with identity alive."""
+    for name in os.listdir("/proc/self/fd"):
+        try:
+            status = os.fstat(int(name))
+        except OSError:
+            continue
+        if (status.st_dev, status.st_ino) == identity:
+            return True
+    return False
+
+
+class Reused:
+    """A stat result that reports another inode number."""
+
+    def __init__(self, status, inode):
+        self._status, self.st_ino = status, inode
+
+    def __getattr__(self, name):
+        return getattr(self._status, name)
+
+
+class InodeReuse:
+    """Act like a filesystem (ext4, say) that gives a freed inode number away again.
+
+    replace(path, data) unlinks path, which was its only link, and writes a new
+    file there. While active, os.stat then reports the new file with the old
+    file's inode number whenever that number is free, that is, whenever no
+    descriptor of this process holds the old inode. ext4 may do exactly this;
+    btrfs and tmpfs do not, so without the simulation the collision only
+    showed on CI.
+    """
+
+    def __init__(self):
+        self.real_stat = os.stat
+        self.swaps = {}
+        self.consulted = self.reused = 0
+
+    def replace(self, path, data):
+        path = Path(path)
+        before = self.real_stat(path, follow_symlinks=False)
+        path.unlink()
+        path.write_bytes(data)
+        after = self.real_stat(path, follow_symlinks=False)
+        self.swaps[(after.st_dev, after.st_ino)] = (before.st_dev, before.st_ino)
+
+    def stat(self, *args, **kwargs):
+        status = self.real_stat(*args, **kwargs)
+        original = self.swaps.get((status.st_dev, status.st_ino))
+        if original is None:
+            return status
+        self.consulted += 1
+        if held_open(original):
+            return status
+        self.reused += 1
+        return Reused(status, original[1])
+
+    def __enter__(self):
+        self.patch = patch.object(os, "stat", self.stat)
+        self.patch.start()
+        return self
+
+    def __exit__(self, *_):
+        self.patch.stop()
+
+
 class Tree(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -527,24 +597,25 @@ class RollbackTests(Tree):
         self.assertFalse((self.root / RUN / "deep").exists(), "untouched paths undone")
 
     def test_rollback_skips_a_file_replaced_after_it_was_written(self):
+        """Even when the replacement inherits the written file's inode number."""
         original = bundles.write_file
         calls = []
+        reuse = InodeReuse()
 
         def replacing(*args):
             calls.append(args[1])
             if len(calls) == 3:
-                guest = self.root / RUN / "logs/guest.log"
-                guest.unlink()
-                guest.write_bytes(b"someone else's\n")
+                reuse.replace(self.root / RUN / "logs/guest.log", b"someone else's\n")
                 raise OSError("simulated failure")
             return original(*args)
 
-        with patch.object(bundles, "write_file", replacing):
+        with reuse, patch.object(bundles, "write_file", replacing):
             code, _out, _err = self.restore()
         self.assertEqual(code, 1)
         self.assertEqual(
             (self.root / RUN / "logs/guest.log").read_bytes(), b"someone else's\n"
         )
+        self.assertGreater(reuse.consulted, 0, "undo looked at the replacement")
 
     def test_leftovers_from_an_interrupted_run_stop_restore_untouched(self):
         self.assertEqual(self.restore()[0], 0)
@@ -581,12 +652,12 @@ class RollbackTests(Tree):
         original_entry_id = bundles.entry_id
         original_write = bundles.write_file
         swapped, calls = [], []
+        reuse = InodeReuse()
 
         def swapping_entry_id(directory, name):
             if name == "guest.log" and not swapped:
                 swapped.append(True)
-                guest.unlink()
-                guest.write_bytes(b"someone else's\n")
+                reuse.replace(guest, b"someone else's\n")
             return original_entry_id(directory, name)
 
         def failing(*args):
@@ -596,6 +667,7 @@ class RollbackTests(Tree):
             return original_write(*args)
 
         with (
+            reuse,
             patch.object(bundles, "entry_id", swapping_entry_id),
             patch.object(bundles, "write_file", failing),
         ):
@@ -604,6 +676,7 @@ class RollbackTests(Tree):
         self.assertTrue(swapped)
         self.assertEqual(guest.read_bytes(), b"someone else's\n")
         self.assertIn("logs/guest.log", err)
+        self.assertGreater(reuse.consulted, 0, "undo looked at the replacement")
 
     def test_every_undo_is_attempted_and_each_failure_reported(self):
         original_unlink = os.unlink
@@ -731,19 +804,225 @@ class PartialBuildTests(Tree):
         self.assertEqual(code, 1)
         self.assertFalse(self.partial().exists())
 
+        reuse = InodeReuse()
+
         def swapping(manifest, path):
             if str(path).endswith(".partial"):
-                Path(path).unlink()
-                Path(path).write_bytes(b"replaced meanwhile")
+                reuse.replace(path, b"replaced meanwhile")
                 raise bundles.EvidenceError("simulated verification failure")
             return original(manifest, path)
 
-        with patch.object(bundles, "read_bundle", swapping):
+        # The replacement may inherit the partial's inode number (ext4 does).
+        with reuse, patch.object(bundles, "read_bundle", swapping):
             code, _out, _err = self.cli(
                 "build", "--release", "t", "--out", str(self.out), str(self.root / RUN)
             )
         self.assertEqual(code, 1)
         self.assertEqual(self.partial().read_bytes(), b"replaced meanwhile")
+        self.assertGreater(reuse.consulted, 0, "cleanup looked at the replacement")
+
+
+class InodeReuseTests(Tree):
+    def test_the_simulation_gives_a_free_number_away_and_never_a_held_one(self):
+        path = self.outside / "file"
+        path.write_bytes(b"first")
+        first = os.stat(path).st_ino
+        reuse = InodeReuse()
+        with reuse:
+            reuse.replace(path, b"second")
+            self.assertEqual(os.stat(path).st_ino, first, "freed number reused")
+        path.write_bytes(b"first")
+        held = os.open(path, os.O_RDONLY)
+        try:
+            with reuse:
+                reuse.replace(path, b"second")
+                self.assertNotEqual(os.stat(path).st_ino, os.fstat(held).st_ino)
+        finally:
+            os.close(held)
+
+    def test_identity_is_compared_against_the_held_descriptor(self):
+        """A real unlink and re-create: only the held inode counts as ours."""
+        path = self.outside / "file"
+        path.write_bytes(b"ours")
+        held = os.open(path, os.O_RDONLY)
+        try:
+            self.assertTrue(bundles.same_inode(bundles.entry_id(None, path), held))
+            with InodeReuse() as reuse:
+                reuse.replace(path, b"theirs")
+                self.assertFalse(
+                    bundles.same_inode(bundles.entry_id(None, path), held)
+                )
+            self.assertFalse(bundles.same_inode(bundles.entry_id(None, path), held))
+            self.assertFalse(bundles.same_inode(None, held))
+        finally:
+            os.close(held)
+
+    def test_a_backup_swapped_before_it_is_dropped_is_kept(self):
+        self.build()
+        self.assertEqual(self.restore()[0], 0)
+        write(self.root, f"{RUN}/logs/guest.log", b"local edit\n")
+        original = bundles.drop_backups
+        reuse = InodeReuse()
+
+        def swapping(root, records):
+            (backup,) = (self.root / RUN / "logs").glob(".guest.log.evidence-backup-*")
+            reuse.replace(backup, b"someone else's\n")
+            return original(root, records)
+
+        with reuse, patch.object(bundles, "drop_backups", swapping):
+            code, _out, err = self.restore("--force")
+        self.assertEqual(code, 1)
+        self.assertIn("backups remain", err)
+        (backup,) = (self.root / RUN / "logs").glob(".guest.log.evidence-backup-*")
+        self.assertEqual(backup.read_bytes(), b"someone else's\n")
+
+    def test_a_backup_swapped_before_undo_is_not_put_back(self):
+        self.build()
+        self.assertEqual(self.restore()[0], 0)
+        write(self.root, f"{RUN}/logs/guest.log", b"local edit\n")
+        write(self.root, f"{RUN}/record.json.gz", b"local edit\n")
+        original = bundles.write_file
+        calls = []
+        reuse = InodeReuse()
+
+        def failing(*args):
+            calls.append(args[1])
+            if len(calls) == 2:
+                (backup,) = (self.root / RUN / "logs").glob(
+                    ".guest.log.evidence-backup-*"
+                )
+                reuse.replace(backup, b"someone else's\n")
+                raise OSError("simulated failure")
+            return original(*args)
+
+        with reuse, patch.object(bundles, "write_file", failing):
+            code, _out, err = self.restore("--force")
+        self.assertEqual(code, 1)
+        self.assertIn("backup", err)
+        self.assertEqual(
+            (self.root / RUN / "logs/guest.log").read_bytes(), b"booted\n"
+        )
+        (backup,) = (self.root / RUN / "logs").glob(".guest.log.evidence-backup-*")
+        self.assertEqual(backup.read_bytes(), b"someone else's\n")
+
+
+class DescriptorTests(Tree):
+    """Every descriptor a build or restore opens is closed, whatever happens."""
+
+    def assert_no_leak(self, action):
+        before = open_fds()
+        result = action()
+        self.assertEqual(open_fds(), before)
+        return result
+
+    def failing_write(self, error):
+        original = bundles.write_file
+        calls = []
+
+        def failing(*args):
+            calls.append(args[1])
+            if len(calls) == 3:
+                raise error
+            return original(*args)
+
+        return patch.object(bundles, "write_file", failing)
+
+    def test_build_and_restores_close_every_descriptor(self):
+        self.assert_no_leak(self.build)
+        self.assertEqual(self.assert_no_leak(self.restore)[0], 0)
+        self.assertEqual(self.assert_no_leak(self.restore)[0], 0, "all in place")
+        write(self.root, f"{RUN}/logs/guest.log", b"local edit\n")
+        code, _out, err = self.assert_no_leak(lambda: self.restore("--force"))
+        self.assertEqual(code, 0, err)
+
+    def test_a_failed_build_closes_every_descriptor(self):
+        def failing(manifest, path):
+            raise bundles.EvidenceError("simulated verification failure")
+
+        with patch.object(bundles, "read_bundle", failing):
+            code, _out, _err = self.assert_no_leak(
+                lambda: self.cli("build", "--release", "t", "--out", str(self.out))
+            )
+        self.assertEqual(code, 1)
+
+    def test_rollback_closes_every_descriptor(self):
+        self.build()
+        for error in [OSError("simulated failure"), KeyboardInterrupt()]:
+            with self.subTest(type(error).__name__), self.failing_write(error):
+                code, _out, err = self.assert_no_leak(self.restore)
+                self.assertEqual(code, 1)
+                self.assertIn("restore undone", err)
+        self.assertEqual(self.restore()[0], 0)
+        write(self.root, f"{RUN}/logs/guest.log", b"edit one\n")
+        write(self.root, f"{RUN}/record.json.gz", b"edit two\n")
+        write(self.root, f"{RUN}/tools/run.sh", b"edit three\n")
+        with self.failing_write(OSError("simulated failure")):
+            code, _out, _err = self.assert_no_leak(lambda: self.restore("--force"))
+        self.assertEqual(code, 1)
+
+    def test_a_rollback_that_cannot_undo_closes_every_descriptor(self):
+        self.build()
+        original_unlink = os.unlink
+
+        def stubborn_unlink(path, *args, **kwargs):
+            if path == "guest.log":
+                raise PermissionError("simulated unlink failure")
+            return original_unlink(path, *args, **kwargs)
+
+        with (
+            patch.object(bundles.os, "unlink", stubborn_unlink),
+            self.failing_write(KeyboardInterrupt()),
+        ):
+            code, _out, err = self.assert_no_leak(self.restore)
+        self.assertEqual(code, 1)
+        self.assertIn("not undone", err)
+
+    def test_the_pinned_count_is_files_replacements_and_directories(self):
+        self.build()
+        plan = [(name, b"", 0o644, "create") for name in self.restored_names()]
+        # 5 files; docs, docs/rewrite-evidence, p09, the run, logs, deep,
+        # deep/nested and tools.
+        self.assertEqual(bundles.pinned_count(plan), 5 + 8)
+        plan = [
+            (f"{RUN}/logs/guest.log", b"", 0o644, "differs"),
+            (f"{RUN}/result.json", b"", 0o644, "same"),
+        ]
+        self.assertEqual(bundles.pinned_count(plan), 1 + 1 + 5)
+
+    def restored_names(self):
+        names = []
+        for path in bundles.existing_manifests(self.root):
+            manifest = json.loads(path.read_text())
+            names += [f"{manifest['unit']}/{e['path']}" for e in manifest["files"]]
+        return names
+
+    def test_restore_raises_a_low_soft_limit_and_puts_it_back(self):
+        import resource
+
+        self.build()
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        low = len(open_fds()) + 4
+        resource.setrlimit(resource.RLIMIT_NOFILE, (low, hard))
+        try:
+            code, _out, err = self.restore()
+            self.assertEqual(
+                resource.getrlimit(resource.RLIMIT_NOFILE), (low, hard), "put back"
+            )
+        finally:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))
+        self.assertEqual(code, 0, err)
+
+    def test_a_restore_beyond_the_hard_limit_is_refused_before_any_write(self):
+        self.build()
+        built = snapshot(self.root)
+        low = len(open_fds()) + 4
+        with patch.object(bundles.resource, "getrlimit", lambda _: (low, low)):
+            code, _out, err = self.assert_no_leak(self.restore)
+        self.assertEqual(code, 1)
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        self.assertIn("keeps 13 files and directories open", err)
+        self.assertIn("restore fewer units at a time", err)
+        self.assertEqual(snapshot(self.root), built)
 
 
 class LockTests(Tree):

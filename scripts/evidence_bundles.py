@@ -22,6 +22,7 @@ import io
 import json
 import os
 import re
+import resource
 import secrets
 import stat
 import subprocess
@@ -442,21 +443,20 @@ def build(root, units, out, release, remove=True):
                 f"{partial} already exists, probably from an interrupted build; "
                 "inspect or delete it, then run build again"
             ) from None
-        status = os.fstat(handle)
-        identity = (status.st_dev, status.st_ino)
+        # The descriptor stays open until the partial is renamed or removed, so
+        # its inode number cannot pass to a file put in its place meanwhile.
         try:
-            with os.fdopen(handle, "wb") as stream:
-                stream.write(compressed)
-            read_bundle(manifest, partial)
-            os.replace(partial, target)
-        except BaseException:
             try:
-                current = os.stat(partial, follow_symlinks=False)
-                if (current.st_dev, current.st_ino) == identity:
+                with os.fdopen(handle, "wb", closefd=False) as stream:
+                    stream.write(compressed)
+                read_bundle(manifest, partial)
+                os.replace(partial, target)
+            except BaseException:
+                if same_inode(entry_id(None, partial), handle):
                     partial.unlink()
-            except FileNotFoundError:
-                pass
-            raise
+                raise
+        finally:
+            os.close(handle)
         read_bundle(manifest, target)
         built.append((unit, raw, manifest))
     for unit, raw, manifest in built:
@@ -653,15 +653,70 @@ def leftovers(root, units):
     return sorted(found)
 
 
-def open_directory(root, parts, expected=None, create=False, created=None):
+def identity(status):
+    return (status.st_dev, status.st_ino)
+
+
+def same_inode(found, handle):
+    """Whether found, a (device, inode) pair read from a path, is handle's inode.
+
+    Every ownership check goes through here. An inode number is only given to a
+    new file once the old inode is freed, and an inode is not freed while a
+    descriptor to it is open. So while handle stays open, a path with its
+    (device, inode) is that very inode, not a later file that inherited the
+    number; a pair remembered after its descriptor was closed proves nothing.
+    """
+    return found is not None and found == identity(os.fstat(handle))
+
+
+class Pins:
+    """Descriptors that keep this run's files and directories from being freed.
+
+    Each descriptor is closed exactly once, by close(), on success, failure
+    and interruption alike. Directories are shared: while a directory's
+    descriptor is open no other directory can have its (device, inode), so
+    that pair is a sound key for it.
+    """
+
+    def __init__(self):
+        self.handles = []
+        self.directories = {}
+
+    def keep(self, handle):
+        self.handles.append(handle)
+        return handle
+
+    def directory(self, handle):
+        """A held descriptor for the directory open at handle (left to the caller)."""
+        key = identity(os.fstat(handle))
+        if key not in self.directories:
+            self.directories[key] = self.keep(os.dup(handle))
+        return self.directories[key]
+
+    def close(self):
+        handles, self.handles, self.directories = self.handles, [], {}
+        for handle in handles:
+            with contextlib.suppress(OSError):
+                os.close(handle)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+
+def open_directory(root, parts, expected=None, create=False, created=None, pins=None):
     """Open root/parts one component at a time, never following a link.
 
-    Returns (fd, ids) with the (device, inode) of each directory walked. With
-    expected, every directory must still be the one recorded; with create,
-    missing directories are made and appended to created as (parts, ids).
+    Returns (fd, held): fd is the last directory, for the caller to close, and
+    held has a pinned descriptor (from pins) for each directory walked. With
+    expected, a list of such descriptors, every directory must still be the
+    one pinned; with create, missing directories are made and appended to
+    created as (parts, held).
     """
     directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
-    ids = []
+    held = []
     try:
         for index, part in enumerate(parts):
             made = False
@@ -676,47 +731,63 @@ def open_directory(root, parts, expected=None, create=False, created=None):
             )
             os.close(directory)
             directory = child
-            status = os.fstat(directory)
-            ids.append((status.st_dev, status.st_ino))
-            if expected is not None and ids[-1] != expected[index]:
-                raise EvidenceError(f"{'/'.join(parts[: index + 1])} was replaced")
+            if expected is not None:
+                if not same_inode(identity(os.fstat(directory)), expected[index]):
+                    raise EvidenceError(f"{'/'.join(parts[: index + 1])} was replaced")
+            else:
+                held.append(pins.directory(directory))
             if made:
-                created.append((parts[: index + 1], list(ids)))
-        return directory, ids
+                created.append((parts[: index + 1], list(held)))
+        return directory, held
     except BaseException:
         os.close(directory)
         raise
 
 
 def entry_id(directory, name):
-    """(device, inode) of a regular file in an open directory, without following."""
+    """(device, inode) of a regular file, without following; None when absent.
+
+    name is looked up in the open directory, or as a path when directory is
+    None. Compare the result only through same_inode.
+    """
     try:
         status = os.stat(name, dir_fd=directory, follow_symlinks=False)
     except FileNotFoundError:
         return None
-    return (status.st_dev, status.st_ino) if stat.S_ISREG(status.st_mode) else None
+    return identity(status) if stat.S_ISREG(status.st_mode) else None
 
 
-def write_file(root, name, data, mode, replace, created_dirs):
+def write_file(root, name, data, mode, replace, created_dirs, pins):
     """Write one file below root without following links; return an undo record.
 
     A new file is created exclusively. With replace, the data goes to a unique
     temporary file, the old file is kept as a hard-linked backup, and the
-    temporary file is renamed over it.
+    temporary file is renamed over it. The new file, the replaced file and
+    every directory on the way stay open in pins, so later checks of what this
+    run owns compare against inodes that cannot have been reused.
     """
     parts = PurePosixPath(name).parts
-    directory, ids = open_directory(root, parts[:-1], create=True, created=created_dirs)
+    directory, held = open_directory(
+        root, parts[:-1], create=True, created=created_dirs, pins=pins
+    )
     leaf = parts[-1]
     token = secrets.token_hex(8)
     target = f".{leaf}.evidence-restore-{token}" if replace else leaf
-    backup = None
-    identity = None
+    backup = original = handle = None
     try:
+        if replace:
+            original = pins.keep(
+                os.open(
+                    leaf,
+                    os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                    dir_fd=directory,
+                )
+            )
+            if not stat.S_ISREG(os.fstat(original).st_mode):
+                raise EvidenceError(f"{name} is no longer a regular file")
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
-        handle = os.open(target, flags, 0o600, dir_fd=directory)
-        with os.fdopen(handle, "wb") as stream:
-            status = os.fstat(stream.fileno())
-            identity = (status.st_dev, status.st_ino)
+        handle = pins.keep(os.open(target, flags, 0o600, dir_fd=directory))
+        with os.fdopen(handle, "wb", closefd=False) as stream:
             stream.write(data)
             os.fchmod(stream.fileno(), mode)
         if replace:
@@ -728,12 +799,32 @@ def write_file(root, name, data, mode, replace, created_dirs):
                 dst_dir_fd=directory,
                 follow_symlinks=False,
             )
+            if not same_inode(entry_id(directory, backup), original):
+                raise EvidenceError(f"{name} changed while it was being replaced")
             os.replace(target, leaf, src_dir_fd=directory, dst_dir_fd=directory)
-        return {"parts": parts, "dirs": ids, "file": identity, "backup": backup}
+        return {
+            "parts": parts,
+            "dirs": held,
+            "file": handle,
+            "original": original,
+            "backup": backup,
+        }
     except BaseException:
-        if identity and entry_id(directory, target) == identity:
-            os.unlink(target, dir_fd=directory)
-        if backup and entry_id(directory, backup) == entry_id(directory, leaf):
+        if handle is not None:
+            if same_inode(entry_id(directory, target), handle):
+                os.unlink(target, dir_fd=directory)
+            elif (
+                backup
+                and same_inode(entry_id(directory, leaf), handle)
+                and same_inode(entry_id(directory, backup), original)
+            ):
+                # Interrupted after the rename: put the old file back.
+                os.replace(backup, leaf, src_dir_fd=directory, dst_dir_fd=directory)
+        if (
+            backup
+            and same_inode(entry_id(directory, backup), original)
+            and same_inode(entry_id(directory, leaf), original)
+        ):
             os.unlink(backup, dir_fd=directory)
         raise
     finally:
@@ -744,7 +835,8 @@ def undo(root, records, created_dirs):
     """Reverse what restore wrote, through directory handles, attempting every entry.
 
     A file is removed (or its backup put back) only while the entry is still
-    the inode this run created. Returns a description of every entry not undone.
+    the inode this run created, checked against the descriptor that pins it.
+    Returns a description of every entry not undone.
     """
     failures = []
     for record in reversed(records):
@@ -755,14 +847,16 @@ def undo(root, records, created_dirs):
             )
             try:
                 leaf = record["parts"][-1]
-                if entry_id(directory, leaf) != record["file"]:
+                backup = record["backup"]
+                if not same_inode(entry_id(directory, leaf), record["file"]):
                     failures.append(f"{name}: changed since it was written")
-                elif record["backup"]:
+                elif backup and not same_inode(
+                    entry_id(directory, backup), record["original"]
+                ):
+                    failures.append(f"{name}: backup {backup} changed; left in place")
+                elif backup:
                     os.replace(
-                        record["backup"],
-                        leaf,
-                        src_dir_fd=directory,
-                        dst_dir_fd=directory,
+                        backup, leaf, src_dir_fd=directory, dst_dir_fd=directory
                     )
                 else:
                     os.unlink(leaf, dir_fd=directory)
@@ -770,12 +864,12 @@ def undo(root, records, created_dirs):
                 os.close(directory)
         except (OSError, EvidenceError) as error:
             failures.append(f"{name}: {error}")
-    for parts, ids in reversed(created_dirs):
+    for parts, held in reversed(created_dirs):
         try:
-            directory, _ = open_directory(root, parts[:-1], expected=ids[:-1])
+            directory, _ = open_directory(root, parts[:-1], expected=held[:-1])
             try:
                 status = os.stat(parts[-1], dir_fd=directory, follow_symlinks=False)
-                if (status.st_dev, status.st_ino) == ids[-1]:
+                if same_inode(identity(status), held[-1]):
                     os.rmdir(parts[-1], dir_fd=directory)
             finally:
                 os.close(directory)
@@ -791,26 +885,86 @@ def drop_backups(root, records):
     """Remove this run's backups after success; return those that could not go."""
     failures = []
     for record in records:
-        if not record["backup"]:
+        backup = record["backup"]
+        if not backup:
             continue
         try:
             directory, _ = open_directory(
                 root, record["parts"][:-1], expected=record["dirs"]
             )
             try:
-                os.unlink(record["backup"], dir_fd=directory)
+                if not same_inode(entry_id(directory, backup), record["original"]):
+                    raise EvidenceError("changed since it was made")
+                os.unlink(backup, dir_fd=directory)
             finally:
                 os.close(directory)
         except (OSError, EvidenceError) as error:
-            failures.append(f"{record['backup']}: {error}")
+            failures.append(f"{backup}: {error}")
     return failures
+
+
+# Descriptors a restore opens besides the pinned ones: the lock, a directory
+# walk (two at once), a file being read, and slack for the interpreter.
+SPARE_DESCRIPTORS = 16
+
+
+def pinned_count(plan):
+    """Descriptors a restore of plan keeps open at once until it has finished.
+
+    One per file written, one per file replaced, and one per directory on the
+    way to a written file.
+    """
+    written = [(name, state) for name, _, _, state in plan if state != "same"]
+    directories = {
+        parent
+        for name, _ in written
+        for parent in PurePosixPath(name).parents
+        if parent != PurePosixPath(".")
+    }
+    replaced = sum(state == "differs" for _, state in written)
+    return len(written) + replaced + len(directories)
+
+
+def open_descriptors():
+    """How many descriptors this process has open now."""
+    for listing in ("/proc/self/fd", "/dev/fd"):
+        with contextlib.suppress(OSError):
+            return len(os.listdir(listing))
+    return 0
+
+
+@contextlib.contextmanager
+def descriptor_room(count):
+    """Make room for count more open descriptors, or refuse before any write.
+
+    The soft limit is raised as far as the hard limit allows for the duration
+    and put back afterwards.
+    """
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    need = open_descriptors() + count + SPARE_DESCRIPTORS
+    if hard != resource.RLIM_INFINITY and need > hard:
+        raise EvidenceError(
+            f"this restore keeps {count} files and directories open until it "
+            f"finishes, so it needs {need} descriptors but the hard limit is "
+            f"{hard}; restore fewer units at a time"
+        )
+    raised = soft != resource.RLIM_INFINITY and need > soft
+    if raised:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (need, hard))
+    try:
+        yield
+    finally:
+        if raised:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))
 
 
 def restore_all(root, manifest_paths, bundles, force=False):
     """Restore bundles into root: check everything first, write, undo on failure.
 
     Returns (files, written, replaced names). A failure part-way removes the
-    files this run created and puts replaced files back.
+    files this run created and puts replaced files back. Every file written or
+    replaced stays open until the run ends, so that undo can tell this run's
+    files from ones put in their place; see descriptor_room for the bound.
     """
     root = Path(root).resolve()
     actions = {}
@@ -837,18 +991,27 @@ def restore_all(root, manifest_paths, bundles, force=False):
             )
         plan.append((name, data, mode, state))
     records, created_dirs = [], []
-    try:
-        for name, data, mode, state in plan:
-            if state != "same":
-                records.append(
-                    write_file(root, name, data, mode, state == "differs", created_dirs)
-                )
-    except BaseException as error:  # noqa: BLE001 - reported as EvidenceError
-        failures = undo(root, records, created_dirs)
-        note = f"; not undone: {failures}" if failures else ""
-        reason = str(error) or type(error).__name__
-        raise EvidenceError(f"{reason}; restore undone{note}") from None
-    failures = drop_backups(root, records)
+    with descriptor_room(pinned_count(plan)), Pins() as pins:
+        try:
+            for name, data, mode, state in plan:
+                if state != "same":
+                    records.append(
+                        write_file(
+                            root,
+                            name,
+                            data,
+                            mode,
+                            state == "differs",
+                            created_dirs,
+                            pins,
+                        )
+                    )
+        except BaseException as error:  # noqa: BLE001 - reported as EvidenceError
+            failures = undo(root, records, created_dirs)
+            note = f"; not undone: {failures}" if failures else ""
+            reason = str(error) or type(error).__name__
+            raise EvidenceError(f"{reason}; restore undone{note}") from None
+        failures = drop_backups(root, records)
     if failures:
         raise EvidenceError(f"restored, but these backups remain: {failures}")
     replaced = [name for name, _, _, state in plan if state == "differs"]
