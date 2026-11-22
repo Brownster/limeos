@@ -484,8 +484,9 @@ impl Core {
                         ExecutionState::EffectAccepted | ExecutionState::OutcomeUnknown
                     )
                 });
-                if unresolved && !proofs.is_empty() {
-                    if let Ok(value) = self
+                if unresolved
+                    && !proofs.is_empty()
+                    && let Ok(value) = self
                         .executor(
                             Request::VerifyStack {
                                 version: VERSION,
@@ -496,18 +497,14 @@ impl Core {
                             limeos_contracts::RPC_DEADLINE,
                         )
                         .await
-                    {
-                        if let Some(verified) = value.stack {
-                            if verified.validate().is_ok()
-                                && verified.action == receipt.action
-                                && verified.plan_digest == receipt.plan_digest
-                                && verified.before == receipt.before
-                                && verified.operation == receipt.operation
-                            {
-                                receipt = verified;
-                            }
-                        }
-                    }
+                    && let Some(verified) = value.stack
+                    && verified.validate().is_ok()
+                    && verified.action == receipt.action
+                    && verified.plan_digest == receipt.plan_digest
+                    && verified.before == receipt.before
+                    && verified.operation == receipt.operation
+                {
+                    receipt = verified;
                 }
                 afters = Some(seen);
             }

@@ -821,7 +821,10 @@ fn an_administrator_sees_every_principals_stuck_jobs_and_others_keep_their_own()
     assert_eq!(other.operation, ContainerAction::Restart);
     assert_eq!(other.state, JobState::NeedsIntervention);
     assert_eq!(other.resource, theirs.plan.expected.resource);
-    assert_eq!(other.targets, [theirs.plan.expected.resource.clone()]);
+    assert_eq!(
+        other.targets,
+        std::slice::from_ref(&theirs.plan.expected.resource)
+    );
     assert!(other.created_at > 0);
     assert!(seen.iter().all(|j| j.job != live.id));
     // The operator is refused the listing and sees only their own jobs.
@@ -851,7 +854,7 @@ fn an_administrator_sees_every_principals_stuck_jobs_and_others_keep_their_own()
     assert!(s.needs_attention_jobs(&stale).is_err());
     // An administrator can read and decide another principal's job.
     let subject = s.resolution_subject(&alice, &theirs.id).unwrap();
-    assert_eq!(subject.targets, [theirs.plan.expected.clone()]);
+    assert_eq!(subject.targets, std::slice::from_ref(&theirs.plan.expected));
     let e = evidence(&theirs, &theirs.plan.expected);
     let pending = request(
         &mut s,

@@ -950,10 +950,10 @@ async fn collect(
                 }
                 Err(refusal) => return Err(refusal.strict()),
             };
-            if pid != 0 {
-                if let Some(scope) = &mut scope {
-                    scope.charge(32)?;
-                }
+            if pid != 0
+                && let Some(scope) = &mut scope
+            {
+                scope.charge(32)?;
             }
             if pid != 0 && !running_pids.insert(pid) {
                 if !tolerant {

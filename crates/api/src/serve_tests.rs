@@ -492,10 +492,10 @@ async fn a_response_read_slowly_through_a_small_pipe_is_sent_in_full() {
             }
             if received.ends_with(&[b'x'; 64]) && received.len() >= LARGE {
                 let text = String::from_utf8_lossy(&received);
-                if let Some((_, body)) = text.split_once("\r\n\r\n") {
-                    if body.len() >= LARGE {
-                        break;
-                    }
+                if let Some((_, body)) = text.split_once("\r\n\r\n")
+                    && body.len() >= LARGE
+                {
+                    break;
                 }
             }
         }

@@ -74,12 +74,12 @@ impl Docker {
             if bytes.len() + data.len() > limit {
                 return Err(Error(ErrorCode::Unavailable));
             }
-            if let Some((_, budget)) = authenticated {
-                if budget.constrained() {
-                    bytes
-                        .try_reserve_exact(data.len())
-                        .map_err(|_| Error(ErrorCode::Unavailable))?;
-                }
+            if let Some((_, budget)) = authenticated
+                && budget.constrained()
+            {
+                bytes
+                    .try_reserve_exact(data.len())
+                    .map_err(|_| Error(ErrorCode::Unavailable))?;
             }
             bytes.extend_from_slice(&data);
         }

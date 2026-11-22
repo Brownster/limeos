@@ -143,7 +143,10 @@ fn pool_paths_expand_to_every_data_member_and_never_parity() {
                 pool_id: "pool1".into()
             }
         );
-        assert_eq!(d.pools[0].branches, [d.expected.mountpoint.clone()]);
+        assert_eq!(
+            d.pools[0].branches,
+            std::slice::from_ref(&d.expected.mountpoint)
+        );
     }
 }
 

@@ -666,30 +666,27 @@ impl Core {
                 self.mark(&job, JobState::Verifying).await?;
                 job.state = JobState::Verifying;
             }
-            if let Ok(current) = self.inspect(&job.plan.expected.resource).await {
-                if limeos_domain::verify_container(receipt.operation, &receipt.before, &current)
+            if let Ok(current) = self.inspect(&job.plan.expected.resource).await
+                && limeos_domain::verify_container(receipt.operation, &receipt.before, &current)
                     .is_ok()
+            {
+                if receipt.state == ExecutionState::EffectAccepted
+                    && let Ok(value) = self
+                        .executor(
+                            Request::VerifyRestart {
+                                version: VERSION,
+                                action: job.id.clone(),
+                                digest,
+                                after: current.clone(),
+                            },
+                            limeos_contracts::RPC_DEADLINE,
+                        )
+                        .await
+                    && let Some(verified) = value.restart
                 {
-                    if receipt.state == ExecutionState::EffectAccepted {
-                        if let Ok(value) = self
-                            .executor(
-                                Request::VerifyRestart {
-                                    version: VERSION,
-                                    action: job.id.clone(),
-                                    digest,
-                                    after: current.clone(),
-                                },
-                                limeos_contracts::RPC_DEADLINE,
-                            )
-                            .await
-                        {
-                            if let Some(verified) = value.restart {
-                                receipt = verified;
-                            }
-                        }
-                    }
-                    after = Some(current);
+                    receipt = verified;
                 }
+                after = Some(current);
             }
         }
         self.db

@@ -338,17 +338,16 @@ pub(crate) fn prune(tx: &Transaction<'_>, now: i64) -> Result<u32> {
             &mut highest,
         )?);
     }
-    if let Some(highest) = highest {
-        if tx
+    if let Some(highest) = highest
+        && tx
             .execute(
                 "UPDATE retention SET watermark=max(watermark,?1) WHERE id=1",
                 [highest],
             )
             .map_err(durable)?
             != 1
-        {
-            return Err(Error(ErrorCode::StateNotDurable));
-        }
+    {
+        return Err(Error(ErrorCode::StateNotDurable));
     }
     Ok(removed)
 }

@@ -167,15 +167,13 @@ impl Cache {
                 .sources
                 .iter_mut()
                 .find(|s| s.source == removed.source)
-            {
-                if !source.warnings.iter().any(|w| {
+                && !source.warnings.iter().any(|w| {
                     w == "Inventory exceeds the snapshot byte limit; some records are omitted"
-                }) {
-                    source.warnings.push(
-                        "Inventory exceeds the snapshot byte limit; some records are omitted"
-                            .into(),
-                    );
-                }
+                })
+            {
+                source.warnings.push(
+                    "Inventory exceeds the snapshot byte limit; some records are omitted".into(),
+                );
             }
         }
         value.revision += 1;

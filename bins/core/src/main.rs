@@ -1216,10 +1216,10 @@ impl Core {
     async fn store_health(&self) -> Result<Option<limeos_contracts::DegradedSubsystem>> {
         let activity = self.db.writer_activity();
         let stalled = activity.busy_for.filter(|busy| *busy >= STORE_STALL);
-        if stalled.is_none() {
-            if let Ok(answer) = tokio::time::timeout(STORE_PROBE, self.db.call(|_| Ok(()))).await {
-                return answer.map(|()| None);
-            }
+        if stalled.is_none()
+            && let Ok(answer) = tokio::time::timeout(STORE_PROBE, self.db.call(|_| Ok(()))).await
+        {
+            return answer.map(|()| None);
         }
         let activity = self.db.writer_activity();
         let busy = activity.busy_for.unwrap_or(STORE_PROBE);

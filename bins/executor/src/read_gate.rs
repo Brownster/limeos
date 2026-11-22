@@ -54,10 +54,10 @@ impl Gate {
     pub async fn periodic(&self, wait: Duration) -> Option<OwnedMutexGuard<()>> {
         let until = tokio::time::Instant::now() + wait;
         loop {
-            if self.waiting.load(Ordering::SeqCst) == 0 {
-                if let Ok(guard) = self.lock.clone().try_lock_owned() {
-                    return Some(guard);
-                }
+            if self.waiting.load(Ordering::SeqCst) == 0
+                && let Ok(guard) = self.lock.clone().try_lock_owned()
+            {
+                return Some(guard);
             }
             if tokio::time::Instant::now() >= until {
                 return None;

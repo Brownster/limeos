@@ -988,7 +988,7 @@ fn walks_are_read_from_bytecode_under_any_alias() {
     let events = ("events".to_owned(), "events".to_owned(), false);
     assert_eq!(
         walks("SELECT sum(e.created) FROM events e NOT INDEXED"),
-        [events.clone()]
+        std::slice::from_ref(&events)
     );
     assert_eq!(
         walks(
