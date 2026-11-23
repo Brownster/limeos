@@ -851,21 +851,31 @@ pub(super) fn note_epoch(dispatched: &str, answered: Option<&str>) {
 /// Whether an execute refusal proves the executor recorded nothing for the
 /// action: `BeyondReceiptHistory` is returned by its clock-free barrier only
 /// when the store holds no row for the action, before it reads a clock,
-/// contacts the Engine or writes anything (`ReceiptStore::admit`). Core sends
-/// one execute per job, so with that refusal nothing ran or can run.
+/// contacts the Engine or writes anything (`ReceiptStore::admit`);
+/// `RateLimited` by its effect budget, after a replay would have been
+/// answered from its receipt and before prepare writes a receipt or the
+/// Engine is asked to act (`limit::within_budget`). Core sends one execute
+/// per job, so with either refusal nothing ran or can run.
 pub(super) fn refused_before_any_row(error: Error) -> bool {
-    error.0 == ErrorCode::BeyondReceiptHistory
+    matches!(
+        error.0,
+        ErrorCode::BeyondReceiptHistory | ErrorCode::RateLimited
+    )
 }
 
 /// Logs a failed execute call. One that was never sent, or refused before
 /// any row (`refused_before_any_row`), releases the job as refused; any
 /// other leaves it held for reconciliation. The clock-free barrier gets its
 /// own message, since after a backward clock step every new action is
-/// refused the same way.
+/// refused the same way, and so does the executor's effect budget.
 pub(super) fn note_execute_failure(failure: Failure) {
     if !failure.sent {
         tracing::warn!(
             "the container executor could not be reached; the execute request was never sent, and the job is released without effect"
+        );
+    } else if failure.error.0 == ErrorCode::RateLimited {
+        tracing::warn!(
+            "executor refused the action: a container it would act on has spent its executor action budget (at most 10 effects in ten minutes and 60 a day); nothing was recorded or run, and the job is settled as refused; try again later, and read the executor's action log if no one here asked for that many"
         );
     } else if refused_before_any_row(failure.error) {
         tracing::warn!(

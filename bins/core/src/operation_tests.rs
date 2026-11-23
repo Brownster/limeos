@@ -1054,6 +1054,64 @@ async fn a_job_held_across_a_store_epoch_change_reconciles_from_an_intact_receip
     task.abort();
 }
 
+/// The executor refuses the execute with `rate_limited`: the container has
+/// spent its effect budget. The executor refuses before it prepares a
+/// receipt or calls the Engine, and core sends one execute per job, so the
+/// job is settled as refused at once, without a lookup or an operator, and
+/// the container is free for a later job.
+#[tokio::test]
+async fn an_execute_refused_by_the_effect_budget_settles_the_job_as_refused() {
+    let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
+    let snapshot = state.lock().unwrap().current.clone();
+    state.lock().unwrap().execute_error = Some(ErrorCode::RateLimited);
+    let (job, _) = queued(&core, &token, &csrf, snapshot.resource.clone()).await;
+    let principal = principal_of(&core, &token).await;
+    core.dispatch_one(principal.clone(), job.clone())
+        .await
+        .unwrap();
+    let progress = settled(&core, &token, &job.id).await;
+    assert_eq!(progress.job.state, JobState::PreconditionChanged);
+    assert_eq!(missing_events(&progress), 0);
+    {
+        let fixture = state.lock().unwrap();
+        assert_eq!(
+            (fixture.executes, fixture.posts, fixture.lookups),
+            (1, 0, 0)
+        );
+        assert!(fixture.closed.is_none());
+    }
+    assert!(
+        core.db
+            .call(|s| s.container_candidates())
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    // The container's lock is released: a later job can claim it.
+    core.db
+        .call(move |s| {
+            let plan = s.plan_container(
+                &principal,
+                limeos_domain::ContainerAction::Restart,
+                &snapshot,
+                now(),
+            )?;
+            let approval = s.approve_container(&principal, &plan.plan.id, &plan.digest, now())?;
+            let queued = s.queue_container(
+                &principal,
+                "later",
+                &plan,
+                &approval.token,
+                &snapshot,
+                now(),
+            )?;
+            s.claim_container(&principal, &queued.id, &snapshot, &"1".repeat(64), now())
+        })
+        .await
+        .unwrap();
+    task.abort();
+}
+
 /// The executor refuses the execute with `beyond_receipt_history` (its plan
 /// expires within pruned receipt history, as after a backward clock step).
 /// The refusal comes before anything is recorded for the action, and core
