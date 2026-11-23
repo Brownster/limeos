@@ -379,6 +379,9 @@ pub struct Sim {
     /// open (`workload::release_held`), once armed.
     pub held: Option<String>,
     pub held_open: Option<(i64, i64)>,
+    /// Until when the storm's script ignores job histories and keeps
+    /// hammering containers the effect budget refused (`workload::busy`).
+    pub careless_until: i64,
     side: Option<rusqlite::Connection>,
 }
 
@@ -487,6 +490,7 @@ impl Sim {
             replacements: Vec::new(),
             held: None,
             held_open: None,
+            careless_until: i64::MIN,
             side: None,
         }
     }
