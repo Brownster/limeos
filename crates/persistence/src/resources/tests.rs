@@ -716,17 +716,21 @@ fn v16_store(long: bool, rows: i64) -> (tempfile::TempDir, std::path::PathBuf) {
     drop(s);
     (dir, path)
 }
-/// Bytes of the database and its WAL.
+/// Bytes of the database, its WAL and its pre-upgrade snapshot.
 fn on_disk(path: &std::path::Path) -> u64 {
-    [path.to_path_buf(), path.with_extension("sqlite-wal")]
-        .iter()
-        .map(|file| std::fs::metadata(file).map_or(0, |m| m.len()))
-        .sum()
+    [
+        path.to_path_buf(),
+        path.with_extension("sqlite-wal"),
+        crate::migrations::snapshot_path(path, 16).unwrap(),
+    ]
+    .iter()
+    .map(|file| std::fs::metadata(file).map_or(0, |m| m.len()))
+    .sum()
 }
 
 /// The upgrade's estimate follows the data: admitted with exactly the space
-/// it asks for, the index build (new database pages, and the same pages in
-/// the WAL) leaves the 8 MiB write reserve free, with long job ids and with
+/// it asks for, the snapshot and the index build (new database pages, and
+/// the same pages in the WAL) leave the 8 MiB write reserve free, with long job ids and with
 /// job-less rows; and it asks for no more than three times what it uses.
 #[test]
 fn v16_upgrade_space_estimate_covers_the_index_build_and_the_reserve() {

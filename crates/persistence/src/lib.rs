@@ -16,7 +16,9 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-pub const SCHEMA_VERSION: u32 = 19;
+/// The schema version a store has once `Store::open` has run: the last entry
+/// of the migration table (`migrations::MIGRATIONS`).
+pub const SCHEMA_VERSION: u32 = migrations::MIGRATIONS[migrations::MIGRATIONS.len() - 1].version;
 /// The schema whose upgrade builds the event indexes (`migration-v17.sql`):
 /// an upgrade from below it needs the free space `IndexBuild` measures.
 const INDEXED_SCHEMA: u32 = 17;
@@ -510,6 +512,23 @@ fn open_reader(path: &Path) -> Result<Connection> {
     Ok(reader)
 }
 
+/// Puts the store's connection in WAL mode and fails unless SQLite reports
+/// that it is: `PRAGMA journal_mode=WAL` does not fail when it cannot switch
+/// (a VFS without shared memory, a database it cannot hold in WAL); it
+/// answers with the mode it kept. The writer, the query-only reader beside
+/// it and the snapshot before an upgrade all rely on WAL. There is no
+/// exception: `Store::open` only ever opens a database file, never an
+/// in-memory one (whose mode is `memory`).
+fn require_wal(conn: &Connection) -> Result<()> {
+    let mode: String = conn
+        .pragma_update_and_check(None, "journal_mode", "WAL", |r| r.get(0))
+        .map_err(durable)?;
+    if !mode.eq_ignore_ascii_case("wal") {
+        return Err(Error(ErrorCode::StateNotDurable));
+    }
+    Ok(())
+}
+
 pub struct Store {
     // Declared before `_lock`: fields drop in order, so the connection is closed
     // (and its WAL checkpointed) before the lock is released for another core.
@@ -660,6 +679,19 @@ pub struct UpgradeSpace {
     pub needed: u64,
     pub available: u64,
 }
+impl UpgradeSpace {
+    /// Free space an upgrade from `from` needs before it starts: the
+    /// pre-migration snapshot, then the schema-17 index build `build` when
+    /// the upgrade crosses it, and the write reserve after both.
+    fn needed(conn: &Connection, from: u32, build: IndexBuild) -> Result<u64> {
+        let after = if (1..INDEXED_SCHEMA).contains(&from) {
+            build.needed()
+        } else {
+            MIN_FREE_BYTES
+        };
+        Ok(migrations::snapshot_bytes(conn)?.saturating_add(after))
+    }
+}
 /// An index build that ran out of space although the check passed, noted by
 /// `Store::open` for [`upgrade_space`]: the database path and the shortfall.
 static UPGRADE_SHORT: std::sync::Mutex<Option<(PathBuf, UpgradeSpace)>> =
@@ -707,10 +739,15 @@ pub fn upgrade_space(path: &Path) -> Option<UpgradeSpace> {
     let from: u32 = conn
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .ok()?;
-    if !(1..INDEXED_SCHEMA).contains(&from) {
+    if !(1..SCHEMA_VERSION).contains(&from) {
         return None;
     }
-    let needed = IndexBuild::measure(&conn).ok()?.needed();
+    let build = if from < INDEXED_SCHEMA {
+        IndexBuild::measure(&conn).ok()?
+    } else {
+        IndexBuild::default()
+    };
+    let needed = UpgradeSpace::needed(&conn, from, build).ok()?;
     let available = available_space(path.parent()?).ok()?;
     (available < needed).then_some(UpgradeSpace {
         from,
@@ -751,6 +788,15 @@ fn event(
 }
 impl Store {
     pub fn open(path: &Path) -> Result<Self> {
+        Self::open_migrating(path, migrations::MIGRATIONS)
+    }
+    /// `open`, applying and checking `migrations` (the migration table, or
+    /// in tests that table with more entries after it).
+    fn open_migrating(path: &Path, migrations: &[migrations::Migration]) -> Result<Self> {
+        let target = migrations
+            .last()
+            .ok_or(Error(ErrorCode::Unavailable))?
+            .version;
         let directory = path
             .parent()
             .ok_or(Error(ErrorCode::InvalidInput))?
@@ -784,7 +830,10 @@ impl Store {
         }
         conn.busy_timeout(Duration::from_millis(500))
             .map_err(durable)?;
-        conn.execute_batch("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA wal_autocheckpoint=256; PRAGMA journal_size_limit=4194304; PRAGMA trusted_schema=OFF;").map_err(durable)?;
+        conn.execute_batch("PRAGMA foreign_keys=ON;")
+            .map_err(durable)?;
+        require_wal(&conn)?;
+        conn.execute_batch("PRAGMA synchronous=FULL; PRAGMA wal_autocheckpoint=256; PRAGMA journal_size_limit=4194304; PRAGMA trusted_schema=OFF;").map_err(durable)?;
         // Below the free-space reserve, the only space this store can give back
         // without a VACUUM (which needs more free space, not less) is a WAL left
         // by a crash: checkpoint and truncate it before the check decides.
@@ -796,6 +845,9 @@ impl Store {
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(durable)?;
+        if version > target {
+            return Err(Error(ErrorCode::Conflict));
+        }
         // Measured before the transaction: `temp_store` cannot change inside
         // one, and no earlier migration touches `events`.
         let upgrading = (1..INDEXED_SCHEMA).contains(&version);
@@ -804,6 +856,18 @@ impl Store {
         } else {
             IndexBuild::default()
         };
+        // An existing store about to be migrated is first copied beside
+        // itself, for an operator to restore; a new store has nothing to
+        // keep. Refused, writing nothing, unless the copy and then the
+        // upgrade fit above the free-space reserve (`upgrade_space` reports
+        // the same figure).
+        if (1..target).contains(&version) {
+            let needed = UpgradeSpace::needed(&conn, version, build)?;
+            if available_space(&directory)? < needed {
+                return Err(Error(ErrorCode::StateNotDurable));
+            }
+            migrations::snapshot(&conn, path, version)?;
+        }
         let mut available = 0;
         if upgrading {
             let store = if build.in_memory() { "MEMORY" } else { "FILE" };
@@ -813,99 +877,31 @@ impl Store {
         let tx = conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(durable)?;
-        match version {
-            0..=18 => {
-                if version < INDEXED_SCHEMA {
-                    if version < 1 {
-                        tx.execute_batch(include_str!("schema.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 2 {
-                        tx.execute_batch(include_str!("migration-v2.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 3 {
-                        tx.execute_batch(include_str!("migration-v3.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 4 {
-                        tx.execute_batch(include_str!("migration-v4.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 5 {
-                        tx.execute_batch(include_str!("migration-v5.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 6 {
-                        tx.execute_batch(include_str!("migration-v6.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 7 {
-                        tx.execute_batch(include_str!("migration-v7.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 8 {
-                        tx.execute_batch(include_str!("migration-v8.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 9 {
-                        tx.execute_batch(include_str!("migration-v9.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 10 {
-                        tx.execute_batch(include_str!("migration-v10.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 11 {
-                        tx.execute_batch(include_str!("migration-v11.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 12 {
-                        tx.execute_batch(include_str!("migration-v12.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 13 {
-                        tx.execute_batch(include_str!("migration-v13.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 14 {
-                        tx.execute_batch(include_str!("migration-v14.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 15 {
-                        tx.execute_batch(include_str!("migration-v15.sql"))
-                            .map_err(durable)?;
-                    }
-                    if version < 16 {
-                        tx.execute_batch(include_str!("migration-v16.sql"))
-                            .map_err(durable)?;
-                    }
-                    // Version 17 builds three indexes over `events` inside this
-                    // transaction. Refuse before building them, writing nothing,
-                    // when they would not fit above the free-space reserve; core
-                    // then logs the space needed (`upgrade_space`), and also when
-                    // the build or the commit runs out of space all the same.
-                    available = available_space(&directory)?;
-                    if available < build.needed() {
-                        return Err(Error(ErrorCode::StateNotDurable));
-                    }
-                    #[cfg(test)]
-                    if let Some(pages) = UPGRADE_MAX_PAGES.get() {
-                        tx.pragma_update(None, "max_page_count", pages)
-                            .map_err(durable)?;
-                    }
-                    tx.execute_batch(include_str!("migration-v17.sql"))
-                        .map_err(|error| upgrade_failed(path, version, available, build, error))?;
-                }
-                if version < 18 {
-                    tx.execute_batch(include_str!("migration-v18.sql"))
-                        .map_err(durable)?;
-                }
-                tx.execute_batch(include_str!("migration-v19.sql"))
+        for (index, migration) in migrations.iter().enumerate() {
+            if migration.version <= version {
+                continue;
+            }
+            if migration.version != INDEXED_SCHEMA {
+                migrations::apply(&tx, migrations, index)?;
+                continue;
+            }
+            // Version 17 builds three indexes over `events` inside this
+            // transaction. Refuse before building them, writing nothing,
+            // when they would not fit above the free-space reserve; core
+            // then logs the space needed (`upgrade_space`), and also when
+            // the build or the commit runs out of space all the same.
+            available = available_space(&directory)?;
+            if available < build.needed() {
+                return Err(Error(ErrorCode::StateNotDurable));
+            }
+            #[cfg(test)]
+            if let Some(pages) = UPGRADE_MAX_PAGES.get() {
+                tx.pragma_update(None, "max_page_count", pages)
                     .map_err(durable)?;
             }
-            SCHEMA_VERSION => {}
-            _ => return Err(Error(ErrorCode::Conflict)),
+            tx.execute_batch(migration.sql)
+                .map_err(|error| upgrade_failed(path, version, available, build, error))?;
+            migrations::verify(&tx, migrations, index)?;
         }
         let check: String = tx
             .query_row("PRAGMA quick_check", [], |r| r.get(0))
@@ -913,7 +909,7 @@ impl Store {
         if check != "ok" {
             return Err(Error(ErrorCode::StateNotDurable));
         }
-        resources::check(&tx)?;
+        resources::check_migrated(&tx, migrations)?;
         if available_space(&directory)? < MIN_FREE_BYTES {
             return Err(Error(ErrorCode::StateNotDurable));
         }
@@ -1031,6 +1027,7 @@ mod identity_enablement;
 mod identity_store;
 mod job_resolutions;
 mod jobs;
+mod migrations;
 mod plans;
 mod resources;
 mod retention;
