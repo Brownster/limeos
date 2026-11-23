@@ -180,34 +180,47 @@ against full tables:
 
 - Day 20, 06:00 to 16:00: a runaway client logs in and out twice a second (the
   two password workers cap logins near four a second on a Pi): 144,000 events.
-- Days 25 to 28, 08:00 to 20:00: a scripted client proposes a container
-  action every 40 s and a stack action every 45 s, on whatever the job list
-  does not show busy. One day of that is more than the container executor's
-  effect budget admits (10 effects per container in ten minutes, 60 a day, a
-  stack action charging each target; ADR 0013): a stack action every 45 s
-  over four stacks charges each stacked container about 25 effects an hour.
-  So the storm meets the budget on purpose: refused jobs are settled as
-  refused, and, like a person reading the job list, the script leaves a
-  refused container (and its stack) alone for a day. That is also why it
-  runs four days: one day within the budget no longer fills the receipt
-  store's 256 stack receipts. The run asserts that nothing else meets the
-  budget (`BUDGET`).
+- Day 25, 08:00 to 20:00: a scripted client proposes a container action
+  every 40 s and a stack action every 45 s, on whatever the job list does
+  not show locked. That is more than the container executor's effect budget
+  admits (10 effects per container in ten minutes, 60 a day, a stack action
+  charging each target; ADR 0013): a stack action every 45 s over four
+  stacks charges each stacked container about 25 effects an hour. The
+  script reads no job history, so it keeps hammering spent containers, and
+  those jobs are refused `RateLimited` and settled as refused: the case the
+  budget exists for (the run requires at least 100 such refusals). People do
+  read job histories: a container or stack whose history says its budget is
+  spent until a time still to come counts as busy for the household until
+  then (one time in twenty they act anyway, as they do on a lock). The
+  storm's single-container actions go to the three standalone services
+  only: on a stack member they would spend the budget its stack's actions
+  need, and the storm would no longer fill the receipt store's 256 stack
+  receipts in a day (with them spread over all 18 containers, 185 stack
+  receipts were kept at day 63 and the receipt tables were still filling in
+  the last third). A four-day storm that filled them by spreading out
+  (hammering on its first day, backing off as people do on the other three)
+  made 3,700 and 4,550 jobs, and while
+  retention kept them core's open read up to 3.45 pages per page of file
+  against the 3.2 its startup bound allows (in the restart scenario; a
+  property of core's startup scans at that job count, retained 30 days, not
+  of the budget, and left for core's own work). The run asserts that only
+  the storm and the day its charges still count meet the budget (`BUDGET`).
 
   Measured on 23 November with the budget (debug, x86-64, tmpfs, the
-  ignored set together in 10 min 25 s): the budget refused 68 executes in
-  the long profile and 59 with restarts, all during the storm; the stores
-  saturate by day 36 instead of 27; at the end core.sqlite is 35.2 MiB (33.1
-  with restarts; 31.4 before) and receipts.sqlite 3.51 MiB (3.54; 2.35
-  before; the action log's share was not measured separately), the receipt store's open
-  reads about 1,590 pages (697 before), 2,974 jobs and 2,789 executes (2,495
-  and 2,348; 2,058 and 1,928 before), `soak_ninety_days` takes 600 s alone
-  (437 s before), and the per-job tables grow 43 KiB beyond the jobs
-  retention keeps over the last third (-41 with restarts; -65 before) against
-  the 64 KiB bound. A first version, a one-day storm whose script kept
-  trying refused containers, was refused 790 times and failed that bound
-  (117 KiB): its many small refused jobs, kept by the per-family floor of
-  the rarer job kinds, were replaced through the last third by full-size
-  household jobs.
+  ignored set together in 8 min 59 s): the budget refused 815 executes in
+  the long profile (814 while the storm's script hammered, one household
+  job the next morning on a container the storm had spent) and 943 with
+  restarts; the stack receipts fill on day 25, as before. At the end
+  core.sqlite is 33.8 MiB (33.0 with restarts; 31.4 and 29.0 before),
+  receipts.sqlite 2.92 MiB (2.86; 2.35 before), the receipt store's open
+  reads about 1,250 pages (697 before), 1,623 jobs on day 54 (1,453 before)
+  and 2,133 executes (1,928 before), and each 90-day run takes 539 s alone
+  (437 s before). The per-job tables grow -37 KiB beyond the rows of the
+  jobs retention keeps over the last third (-96 with restarts) against the
+  64 KiB bound; counted by jobs alone they read +42 and +100 KiB, while the
+  settled jobs without a result in the tables went from 63 to 24 (86 to 29)
+  over the same days: the storm's refused jobs leaving the stack family's
+  floor of 128, replaced by full-size household jobs.
 
 ## Measuring startup
 
@@ -584,7 +597,7 @@ CI (not re-measured this round).
 | every retention batch within its rule's limit | every batch the writer thread reports, one transaction, removes at most its rule's limit |
 | database files under their bounds | core file 80 MiB and WAL 8 MiB; receipt file half its page cap and WAL 2 MiB, every checkpoint |
 | every table within its budget | every table in both stores, found by walking `sqlite_master`; the events budget from the production rule, the receipt budgets from `limits`; the per-job tables at most 20 rows a job, and no settled container or stack job kept a day past job-row retention's horizon and floor (the newest 128 by settlement) with nothing that keeps it (no open request, no authority event, nothing newer, its settlement time included), counted by the soak's own query |
-| sizes and bounded tables flat across the last third | over days 60 to 90, every b-tree on its own (each table's and each index's bytes) and each row-budgeted table's rows: every b-tree outside the events table, fitted growth under 2% of its size or its floor (192 KiB for the per-job tables', 32 KiB for core's others, 256 KiB for the receipt store's); each events b-tree, fitted growth under the leaf cells of the rows appended to it (counted from the rows) at 90% fill for the table and 75% for an index, plus 16 KiB; the cells of a row appended in the third's second half at most 1.2 times the first half's; while the events table regains rows (no events or authority rule removal in the third, fitted rows up by 256 or more), every other b-tree at the end with the events table at its row budget at the bytes it gained per row kept (or its average, if more) within the 80 MiB file bound; the file's growth under 1 MiB beyond the events b-trees' ceilings (see "Fixed: the flatness check mis-modelled the events refill" for what this catches and what not); and the per-job tables on their own, from the first checkpoint of the third with at most a tenth more jobs than the last (the storm's jobs gone), net of the jobs the rule keeps (every job but those the soak's own query finds removable at that moment) at the sample's bytes a job, fitted growth under 64 KiB |
+| sizes and bounded tables flat across the last third | over days 60 to 90, every b-tree on its own (each table's and each index's bytes) and each row-budgeted table's rows: every b-tree outside the events table, fitted growth under 2% of its size or its floor (192 KiB for the per-job tables', 32 KiB for core's others, 256 KiB for the receipt store's); each events b-tree, fitted growth under the leaf cells of the rows appended to it (counted from the rows) at 90% fill for the table and 75% for an index, plus 16 KiB; the cells of a row appended in the third's second half at most 1.2 times the first half's; while the events table regains rows (no events or authority rule removal in the third, fitted rows up by 256 or more), every other b-tree at the end with the events table at its row budget at the bytes it gained per row kept (or its average, if more) within the 80 MiB file bound; the file's growth under 1 MiB beyond the events b-trees' ceilings (see "Fixed: the flatness check mis-modelled the events refill" for what this catches and what not); and the per-job tables on their own, from the first checkpoint of the third with at most a tenth more jobs than the last (the storm's jobs gone), each table net of its rows that belong to jobs the rule keeps (every row but those of the jobs the soak's own query finds removable at that moment) at that table's bytes a row, fitted growth under 64 KiB; jobs are not all one size (a job refused before any effect has no result row), and the per-family floor of 128 newest jobs keeps the storm's refused stack jobs into the last third, where household jobs replace them one for one; counted by jobs alone at the average size, that replacement read as 117 KiB of growth (`PER_JOB_NET_JOBS`, reported, with the settled jobs without a result at both ends of the tail) |
 | slow growth leaves at least five years | the per-job tables' growth, projected to the core file bound |
 | startup under its bounds | every open's wall time (5 s core, 2 s receipts: the catastrophic only); on every copy and crash image, the cold page reads of core's startup statements (but a proof check that looks events up by kind, which its own check fails) at most 3.2 per page of file and WAL, the receipt store's open at most 2.0; every crash image opens and keeps every committed job and event unchanged (ids, and each event's cursor, principal, job, kind and time), adding only one recovery event per interrupted job |
 | core startup reads nothing its checks do not explain | on every copy and crash image, from every statement's bytecode and counters: every statement's program read, nested ones included; no statement walks the events table itself (only `quick_check` and the foreign-key check may); only the statements in `SCAN_ALLOWANCES` walk a table growing with history (`events` or a per-job table, or an index of one), each only its listed tables, with a reason; each statement's full-scan steps at most its listed tables' rows times its steps per row (0 or 1), plus its walks of bounded tables (their rows, once per run), plus 16; the counters measured (some VM and full-scan steps once a table walked one step a row holds 64 rows); the open's VM steps (but such a proof check's) at most 64 per retained row plus 200,000; at most 32 page reads outside every statement (measured 16) plus 2 per WAL frame replayed; the open reads at most what its statements read cold, plus 3%, 256 pages and 2 per WAL frame replayed |
