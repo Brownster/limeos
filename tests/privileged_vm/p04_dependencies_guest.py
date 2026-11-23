@@ -276,6 +276,7 @@ def main(package_version="0.4.6", authority_schema=None):
 
     fixture.run("apt-get", "install", "-y", "limeos-shadow=" + package_version)
     shadow_policy_path = Path("/etc/limeos-shadow/system-policy/container.json")
+    shadow_original = shadow_policy_path.read_bytes()
     shadow_policy = json.loads(shadow_policy_path.read_text())
     shadow_policy.update(
         allow_restart=False,
@@ -296,6 +297,10 @@ def main(package_version="0.4.6", authority_schema=None):
     standard_pid = fixture.run(
         "systemctl", "show", "limeos-core", "-p", "MainPID", "--value"
     ).stdout
+    # Restore the package's ceiling before removing the package: remove keeps
+    # /etc, and a later install checks the kept file for the read-only shadow
+    # role (a write-enabled one is refused, and its executor is not started).
+    shadow_policy_path.write_bytes(shadow_original)
     fixture.run("apt-get", "remove", "-y", "limeos-shadow")
     assert (
         fixture.run(
