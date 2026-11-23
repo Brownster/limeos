@@ -35,7 +35,21 @@ pub(super) async fn run(args: &[String]) -> std::io::Result<()> {
             "mounts require the standard installed root service",
         ));
     }
-    policy().map_err(|_| std::io::Error::other("unsafe mount ceiling"))?;
+    // `policy()` rereads the ceiling on every connection and between the
+    // stages of an execute; this first read refuses to start, saying why.
+    let first: StorageMountCeiling =
+        limeos_executor_storage::read_protected_json(Path::new(POLICY)).map_err(|failure| {
+            std::io::Error::other(format!(
+                "unsafe or unreadable mount ceiling: {}",
+                failure.message()
+            ))
+        })?;
+    if first.core_uid == 0 {
+        return Err(std::io::Error::other(
+            "mount ceiling names core_uid 0; core runs as its own unprivileged user, so root is never accepted",
+        ));
+    }
+    policy().map_err(|_| std::io::Error::other("invalid mount ceiling"))?;
     for directory in ["/run", "/run/limeos-storage-mounts"] {
         let meta = std::fs::symlink_metadata(directory)?;
         if !meta.is_dir() || meta.uid() != 0 || meta.mode() & 0o022 != 0 {

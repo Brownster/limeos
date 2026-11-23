@@ -1,7 +1,7 @@
 use limeos_executor::{storage_mount_admission, storage_mount_supervision};
-use limeos_executor_container::{ReceiptStore, RestartCeiling, docker::Docker};
-use limeos_executor_protocol::{Ceiling, Request};
-use std::{os::unix::fs::MetadataExt, path::Path, sync::Arc};
+use limeos_executor_container::{ReceiptStore, docker::Docker};
+use limeos_executor_protocol::Request;
+use std::{path::Path, sync::Arc};
 use tokio::{
     net::UnixListener,
     sync::{Mutex, Semaphore},
@@ -48,8 +48,8 @@ async fn async_main() {
         return;
     }
     tracing_subscriber::fmt().json().with_target(false).init();
-    if run().await.is_err() {
-        tracing::error!("executor configuration or runtime failure");
+    if let Err(error) = run().await {
+        tracing::error!(%error, "executor configuration or runtime failure");
         std::process::exit(1);
     }
 }
@@ -183,56 +183,35 @@ async fn run() -> std::io::Result<()> {
             "usage: limeos-executor POLICY SOCKET host|container|storage [RECEIPT_DIRECTORY [read-only]]",
         ));
     }
-    let policy = Path::new(&args[1]);
-    let meta = std::fs::symlink_metadata(policy)?;
-    if !meta.is_file() || meta.uid() != 0 || meta.mode() & 0o022 != 0 || meta.len() > 65536 {
-        return Err(std::io::Error::other("unsafe ceiling"));
-    }
-    let ceiling: Ceiling =
-        serde_json::from_slice(&std::fs::read(policy)?).map_err(std::io::Error::other)?;
-    if !ceiling.configuration_valid()
-        || (args.len() == 6 && (args[5] != "read-only" || ceiling.can_write()))
-    {
-        return Err(std::io::Error::other("invalid or writable shadow ceiling"));
-    }
-    let ceiling = Arc::new(ceiling);
-    let source = match args[3].as_str() {
-        "host" | "storage" => limeos_contracts::Source::Host,
-        "container" => limeos_contracts::Source::Docker,
+    use limeos_executor::ceiling::{CeilingFile, Kind, Role};
+    let kind = match args[3].as_str() {
+        "host" => Kind::Host,
+        "container" => Kind::Container,
+        "storage" => Kind::StorageReader,
         _ => return Err(std::io::Error::other("invalid executor kind")),
     };
-    let storage_reader = args[3] == "storage";
-    if (storage_reader
-        && (!(ceiling.allow_storage_read
-            || ceiling.allow_stack_read
-            || ceiling.allow_container_health_read)
-            || args.len() != 4))
-        || (!storage_reader
-            && (ceiling.allow_storage_read
-                || ceiling.allow_stack_read
-                || ceiling.allow_container_health_read))
+    if (args.len() == 6 && args[5] != "read-only")
+        || (kind == Kind::StorageReader && args.len() != 4)
     {
         return Err(std::io::Error::other(
-            "storage reader requires a dedicated read-only ceiling",
+            "invalid executor arguments for this role",
         ));
     }
-    if source != limeos_contracts::Source::Docker
-        && (ceiling.can_write() || ceiling.allow_container_logs)
-    {
-        return Err(std::io::Error::other(
-            "host executor cannot mutate containers",
-        ));
-    }
-    let restart_ceiling = Arc::new(RestartCeiling {
-        version: ceiling.version,
-        core_uid: ceiling.core_uid,
-        allow_restart: ceiling.allow_restart,
-        allow_start: ceiling.allow_start,
-        allow_stop: ceiling.allow_stop,
-        allow_stack: ceiling.allow_stack,
-        managed_containers: ceiling.managed_containers.clone(),
-        managed_stacks: ceiling.managed_stacks.clone(),
-    });
+    let role = Role {
+        kind,
+        read_only: args.len() == 6,
+    };
+    // Read again for every request (`ceiling.rs`); this first read only
+    // decides what the process sets up, and refuses to start on a bad file.
+    let ceilings = Arc::new(CeilingFile::installed(Path::new(&args[1]), role));
+    let ceiling = ceilings
+        .load()
+        .map_err(|refusal| std::io::Error::other(format!("ceiling {}: {refusal}", args[1])))?;
+    let source = match kind {
+        Kind::Host | Kind::StorageReader => limeos_contracts::Source::Host,
+        Kind::Container => limeos_contracts::Source::Docker,
+    };
+    let storage_reader = kind == Kind::StorageReader;
     let (receipts, epoch) = if ceiling.can_write() {
         let directory = args
             .get(4)
@@ -251,7 +230,6 @@ async fn run() -> std::io::Result<()> {
         engine: Docker::new("/var/run/docker.sock".into()),
         receipts,
         epoch,
-        ceiling: restart_ceiling,
         docker: source == limeos_contracts::Source::Docker,
     });
     // An independent ceiling can disable collection entirely.
@@ -282,11 +260,18 @@ async fn run() -> std::io::Result<()> {
         let writer = stacks.clone();
         let gate = storage_permit.clone();
         let manager = read_supervisor.clone();
+        let ceilings = ceilings.clone();
         let selection = limeos_executor::read_launch::StackSelection::installed()
             .map_err(|_| std::io::Error::other("invalid stack configuration selection"))?;
         tokio::spawn(async move {
             use limeos_executor::read_gate;
             loop {
+                // A revoked or unreadable ceiling stops the root scan too,
+                // not only the answers.
+                if !ceilings.load().is_ok_and(|c| c.allow_stack_read) {
+                    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                    continue;
+                }
                 let manager = manager.clone();
                 let selection = selection.clone();
                 read_gate::refresh_stacks(&gate, read_gate::PERIODIC_WAIT, &writer, move |guard| {
@@ -318,7 +303,7 @@ async fn run() -> std::io::Result<()> {
             continue;
         };
         let inventory_reads = inventory_reads.clone();
-        let ceiling = ceiling.clone();
+        let ceilings = ceilings.clone();
         let observations = observations.clone();
         let containers = containers.clone();
         let storage_permit = storage_permit.clone();
@@ -330,10 +315,9 @@ async fn run() -> std::io::Result<()> {
                 let peer = stream
                     .peer_cred()
                     .map_err(|_| limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
-                // Reject unauthenticated peers before parsing or allocating a frame.
-                if peer.uid() != ceiling.core_uid {
-                    return Err(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden));
-                }
+                // The ceiling as the file says now; reject unauthenticated
+                // peers before parsing or allocating a frame.
+                let ceiling = ceilings.for_peer(peer.uid())?;
                 let request: Request = tokio::time::timeout(
                     limeos_contracts::RPC_DEADLINE,
                     limeos_contracts::read_frame(&mut stream),
@@ -432,6 +416,7 @@ async fn run() -> std::io::Result<()> {
                     request => {
                         limeos_executor::container_requests::answer(
                             &containers,
+                            &limeos_executor::ceiling::container_ceiling(&ceiling),
                             peer.uid(),
                             request,
                             &mut receipt,

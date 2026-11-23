@@ -21,17 +21,19 @@ pub struct ContainerRole<E> {
     /// The store's epoch for this open, answered to `ReceiptEpoch` without
     /// taking the store's lock.
     pub epoch: Option<Arc<str>>,
-    pub ceiling: Arc<RestartCeiling>,
     /// Whether this executor serves the Docker source: the Engine-facing
     /// requests are refused otherwise.
     pub docker: bool,
 }
 
 /// The container role's answer to `request` from peer `uid`, written into
-/// `receipt` (which the ceiling's `validate` returned); `clock` is the
-/// executor's clock. Any other request is `Forbidden`.
+/// `receipt` (which the ceiling's `validate` returned); `ceiling` is the
+/// container ceiling derived from the ceiling read for this request
+/// (`crate::ceiling`), and `clock` is the executor's clock. Any other
+/// request is `Forbidden`.
 pub async fn answer<E, C>(
     role: &ContainerRole<E>,
+    ceiling: &RestartCeiling,
     uid: u32,
     request: Request,
     receipt: &mut Receipt,
@@ -62,7 +64,7 @@ where
                 .map_err(|_| Error(ErrorCode::Overloaded))?;
             receipt.restart = Some(
                 store
-                    .execute(&role.engine, &role.ceiling, uid, &request, clock)
+                    .execute(&role.engine, ceiling, uid, &request, clock)
                     .await
                     .inspect_err(note_refusal)?,
             );
@@ -83,7 +85,7 @@ where
                 .map_err(|_| Error(ErrorCode::Overloaded))?;
             // The plan must be the one `digest` names, row or not.
             let lookup = store.lookup(
-                &role.ceiling,
+                ceiling,
                 uid,
                 &action,
                 &digest,
@@ -105,7 +107,7 @@ where
                 .map_err(|_| Error(ErrorCode::Overloaded))?;
             receipt.restart = Some(
                 store
-                    .verify(&role.engine, &role.ceiling, uid, &action, &digest, &after)
+                    .verify(&role.engine, ceiling, uid, &action, &digest, &after)
                     .await?,
             );
             receipt.epoch = Some(store.epoch().to_owned());
@@ -126,7 +128,7 @@ where
                 .map_err(|_| Error(ErrorCode::Overloaded))?;
             receipt.stack = Some(
                 store
-                    .execute_stack(&role.engine, &role.ceiling, uid, &request, clock)
+                    .execute_stack(&role.engine, ceiling, uid, &request, clock)
                     .await
                     .inspect_err(note_refusal)?,
             );
@@ -144,7 +146,7 @@ where
                 .try_lock()
                 .map_err(|_| Error(ErrorCode::Overloaded))?;
             let lookup = store.lookup_stack(
-                &role.ceiling,
+                ceiling,
                 uid,
                 &action,
                 &digest,
@@ -166,7 +168,7 @@ where
                 .map_err(|_| Error(ErrorCode::Overloaded))?;
             receipt.stack = Some(
                 store
-                    .verify_stack(&role.engine, &role.ceiling, uid, &action, &digest, &after)
+                    .verify_stack(&role.engine, ceiling, uid, &action, &digest, &after)
                     .await?,
             );
             receipt.epoch = Some(store.epoch().to_owned());
@@ -189,7 +191,7 @@ where
             let outcome = store
                 .resolve_action(
                     &role.engine,
-                    &role.ceiling,
+                    ceiling,
                     uid,
                     kind,
                     &action,

@@ -10,24 +10,22 @@ use std::{
 };
 use tokio::{net::UnixListener, sync::Semaphore};
 
+const POLICY: &str = "/etc/limeos/system-policy/storage-targets.json";
+
 pub(super) async fn run(args: &[String]) -> std::io::Result<()> {
     if args.len() != 4
         || !rustix::process::geteuid().is_root()
         || std::env::current_exe()? != Path::new("/usr/lib/limeos/limeos-executor")
-        || args[1] != "/etc/limeos/system-policy/storage-targets.json"
+        || args[1] != POLICY
         || args[2] != "/run/limeos-storage-targets/executor.sock"
     {
         return Err(std::io::Error::other(
             "target preparation requires the standard installed root service",
         ));
     }
-    let ceiling: StorageTargetCeiling =
-        limeos_executor_storage::read_protected_json(Path::new(&args[1]))
-            .map_err(|_| std::io::Error::other("unsafe target ceiling"))?;
-    if !ceiling.configuration_valid() {
-        return Err(std::io::Error::other("invalid target ceiling"));
-    }
-    let ceiling = Arc::new(ceiling);
+    // Read again for every request; this first read refuses to start on a
+    // bad file.
+    ceiling().map_err(|refusal| std::io::Error::other(format!("target ceiling: {refusal}")))?;
     let path = Path::new(&args[2]);
     if let Ok(meta) = std::fs::symlink_metadata(path) {
         if !meta.file_type().is_socket() || std::os::unix::net::UnixStream::connect(path).is_ok() {
@@ -49,7 +47,6 @@ pub(super) async fn run(args: &[String]) -> std::io::Result<()> {
         let Ok(connection) = connections.clone().try_acquire_owned() else {
             continue;
         };
-        let ceiling = ceiling.clone();
         let operation = operation.clone();
         tokio::spawn(async move {
             let _connection = connection;
@@ -58,6 +55,9 @@ pub(super) async fn run(args: &[String]) -> std::io::Result<()> {
                     .peer_cred()
                     .map_err(|_| Error(ErrorCode::Forbidden))?
                     .uid();
+                // The ceiling as the file says now, so a revoked target is
+                // refused without a restart; no earlier copy is kept.
+                let ceiling = ceiling().map_err(|refusal| refusal.error())?;
                 if uid != ceiling.core_uid {
                     return Err(Error(ErrorCode::Forbidden));
                 }
@@ -123,6 +123,45 @@ pub(super) async fn run(args: &[String]) -> std::io::Result<()> {
             let _ = tokio::time::timeout(RPC_DEADLINE, write_frame(&mut stream, &receipt)).await;
         });
     }
+}
+/// Why the target ceiling was refused.
+#[derive(Clone, Copy, Debug)]
+enum Refusal {
+    Unreadable(limeos_executor_storage::Failure),
+    RootCore,
+    Invalid,
+}
+impl Refusal {
+    fn error(self) -> Error {
+        match self {
+            Refusal::Unreadable(failure) => map_failure(failure),
+            Refusal::RootCore | Refusal::Invalid => Error(ErrorCode::Forbidden),
+        }
+    }
+}
+impl std::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Refusal::Unreadable(failure) => write!(f, "unsafe or unreadable: {}", failure.message()),
+            Refusal::RootCore => f.write_str(
+                "names core_uid 0; core runs as its own unprivileged user, so root is never accepted",
+            ),
+            Refusal::Invalid => f.write_str("fails validation"),
+        }
+    }
+}
+/// The root-owned target ceiling, read through the no-follow walk.
+fn ceiling() -> std::result::Result<StorageTargetCeiling, Refusal> {
+    let ceiling: StorageTargetCeiling =
+        limeos_executor_storage::read_protected_json(Path::new(POLICY))
+            .map_err(Refusal::Unreadable)?;
+    if ceiling.core_uid == 0 {
+        return Err(Refusal::RootCore);
+    }
+    if !ceiling.configuration_valid() {
+        return Err(Refusal::Invalid);
+    }
+    Ok(ceiling)
 }
 fn map_failure(f: limeos_executor_storage::Failure) -> Error {
     use limeos_executor_storage::Failure;
