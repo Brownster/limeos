@@ -1196,3 +1196,220 @@ fn a_schema_six_store_that_may_have_pruned_without_a_watermark_never_claims_neve
         ReceiptAbsence::NoLongerHeld
     );
 }
+
+/// 64 lower-case hex digits, as action ids, digests and container ids are,
+/// spread like random ones (splitmix64), so index updates land on scattered
+/// pages rather than one end of each B-tree.
+fn hex64(seed: u64) -> String {
+    let mut state = seed.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+    (0..4)
+        .map(|_| {
+            state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+            format!("{:016x}", z ^ (z >> 31))
+        })
+        .collect()
+}
+
+/// A receipt store at its retained capacity and past it: `RETAINED_ACTIONS`
+/// plus a batch of standalone receipts and `RETAINED_STACKS` plus four
+/// stacks of `MAX_STACK_MEMBERS` members, every row settled, expired and
+/// legacy (so pruning also writes a tombstone for each), with random ids and
+/// receipts the size of real ones: about 450 bytes a container receipt and
+/// 6.5 KiB a full stack receipt (16 members' snapshots and states).
+fn full_receipt_store() -> (tempfile::TempDir, ReceiptStore) {
+    let dir = private_dir();
+    let store = ReceiptStore::open(dir.path()).unwrap();
+    let member = format!("{{\"receipt\":\"{}\"}}", "m".repeat(430));
+    let stack = format!("{{\"receipt\":\"{}\"}}", "s".repeat(6600));
+    let mut seed = 0u64;
+    let mut next = || {
+        seed += 1;
+        hex64(seed)
+    };
+    let tx = store.conn.unchecked_transaction().unwrap();
+    for _ in 0..RETAINED_ACTIONS + PRUNE_BATCH {
+        tx.execute(
+            "INSERT INTO actions(action,digest,resource,state,receipt,operation,expires_at,legacy) VALUES(?,?,?,'verified',?,'restart',0,1)",
+            params![next(), next(), format!("container:{}", next()), member],
+        )
+        .unwrap();
+    }
+    for _ in 0..RETAINED_STACKS + 4 {
+        let digest = next();
+        tx.execute(
+            "INSERT INTO stack_actions(action,digest,resource,state,receipt,operation,expires_at,legacy) VALUES(?,?,?,'verified',?,'restart',0,1)",
+            params![next(), digest, format!("stack:{}", &next()[..12]), stack],
+        )
+        .unwrap();
+        for _ in 0..limeos_domain::MAX_STACK_MEMBERS {
+            tx.execute(
+                "INSERT INTO actions(action,digest,resource,state,receipt,operation,expires_at,legacy) VALUES(?,?,?,'verified',?,'restart',0,1)",
+                params![next(), digest, format!("container:{}", next()), member],
+            )
+            .unwrap();
+        }
+    }
+    tx.commit().unwrap();
+    (dir, store)
+}
+
+/// The receipt store's largest transaction: a stack's first write, which
+/// prunes a full batch and then inserts the stack row and its sixteen member
+/// rows (`stack::write_stack`), at `cache_kib`. Returns the frames committed,
+/// the WAL bytes on disk before the commit (a spill; see the persistence
+/// crate's `measured`) and the rows pruned.
+fn largest_transaction(
+    store: &mut ReceiptStore,
+    directory: &std::path::Path,
+    cache_kib: u32,
+) -> (u64, u64, u32) {
+    let wal = directory.join("receipts.sqlite-wal");
+    store
+        .conn
+        .execute_batch(&format!(
+            "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA wal_autocheckpoint=0; PRAGMA cache_size=-{cache_kib}; PRAGMA shrink_memory;"
+        ))
+        .unwrap();
+    assert_eq!(std::fs::metadata(&wal).map(|m| m.len()).unwrap_or(0), 0);
+    let member = format!("{{\"receipt\":\"{}\"}}", "m".repeat(430));
+    let stack = format!("{{\"receipt\":\"{}\"}}", "s".repeat(6600));
+    let tx = store.conn.transaction().unwrap();
+    let removed = prune(&tx, 100_000).unwrap();
+    let digest = hex64(1 << 40);
+    tx.execute(
+        "INSERT INTO stack_actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?,?,'stack:new','prepared',?,'restart',200000)",
+        params![hex64((1 << 40) + 1), digest, stack],
+    )
+    .unwrap();
+    for i in 0..limeos_domain::MAX_STACK_MEMBERS as u64 {
+        tx.execute(
+            "INSERT INTO actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?,?,?,'prepared',?,'restart',200000)",
+            params![hex64((1 << 41) + i), digest, format!("container:{}", hex64((1 << 42) + i)), member],
+        )
+        .unwrap();
+    }
+    let spilled = std::fs::metadata(&wal).map(|m| m.len()).unwrap_or(0);
+    tx.commit().unwrap();
+    let total = std::fs::metadata(&wal).unwrap().len();
+    ((total - 32) / (4096 + 24), spilled, removed)
+}
+
+#[test]
+#[ignore = "measurement: run with --ignored --nocapture"]
+fn measure_the_largest_receipt_transaction_at_each_cache_size() {
+    for kib in [128u32, 256, 384, 512, 768, 2000] {
+        let (dir, mut store) = full_receipt_store();
+        let (pages, spilled, removed) = largest_transaction(&mut store, dir.path(), kib);
+        eprintln!(
+            "receipt store, prune and stack insert: {kib} KiB cache: {removed} pruned, {pages} pages, {spilled} bytes spilled"
+        );
+    }
+}
+
+#[test]
+#[ignore = "measurement: run with --ignored --nocapture"]
+fn measure_the_open_reads_of_a_full_store() {
+    let (dir, store) = full_receipt_store();
+    store
+        .conn
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .unwrap();
+    drop(store);
+    let io = || -> (u64, u64) {
+        let text = std::fs::read_to_string("/proc/thread-self/io").unwrap();
+        let field = |name: &str| -> u64 {
+            text.lines()
+                .find_map(|l| l.strip_prefix(name)?.strip_prefix(": "))
+                .unwrap()
+                .trim()
+                .parse()
+                .unwrap()
+        };
+        (field("syscr"), field("rchar"))
+    };
+    let file = std::fs::metadata(dir.path().join("receipts.sqlite"))
+        .unwrap()
+        .len();
+    for _ in 0..3 {
+        let before = io();
+        let opened = ReceiptStore::open(dir.path()).map(drop);
+        let after = io();
+        assert!(opened.is_ok());
+        eprintln!(
+            "open at {} KiB cache: {} read calls, {} KiB read, file {} KiB",
+            crate::CACHE_KIB,
+            after.0 - before.0,
+            (after.1 - before.1) / 1024,
+            file / 1024
+        );
+    }
+}
+
+/// The store's largest transaction (a stack's first write: a full prune
+/// batch, tombstones for legacy rows, then the stack and sixteen member rows,
+/// with random ids and real receipt sizes) fits its cache without spilling.
+/// Every other transaction the store runs writes one receipt or less than a
+/// full batch, so this one covers them; none is left out.
+#[test]
+fn the_largest_receipt_transaction_does_not_spill() {
+    let (dir, mut store) = full_receipt_store();
+    let (pages, spilled, removed) = largest_transaction(&mut store, dir.path(), crate::CACHE_KIB);
+    assert_eq!(removed, PRUNE_BATCH);
+    assert_eq!(spilled, 0, "{pages} pages spilled {spilled} bytes");
+    eprintln!(
+        "prune and stack insert: {pages} pages; cache {} pages",
+        crate::CACHE_KIB / 4
+    );
+}
+
+#[test]
+fn the_receipt_connection_has_its_cache_size() {
+    let dir = private_dir();
+    let store = ReceiptStore::open(dir.path()).unwrap();
+    let cache: i64 = store
+        .conn
+        .pragma_query_value(None, "cache_size", |r| r.get(0))
+        .unwrap();
+    assert_eq!(cache, -(crate::CACHE_KIB as i64));
+    drop(store);
+    // Reopened: no migration runs, the size is the same.
+    let store = ReceiptStore::open(dir.path()).unwrap();
+    let cache: i64 = store
+        .conn
+        .pragma_query_value(None, "cache_size", |r| r.get(0))
+        .unwrap();
+    assert_eq!(cache, -(crate::CACHE_KIB as i64));
+    // The store is this crate's only SQLite connection outside its tests; a
+    // new one fails here until it has a cache size too.
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sites = Vec::new();
+    let mut stack = vec![src.clone()];
+    while let Some(directory) = stack.pop() {
+        for entry in std::fs::read_dir(directory).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            let name = path
+                .strip_prefix(&src)
+                .unwrap()
+                .to_string_lossy()
+                .into_owned();
+            if name.ends_with("tests.rs") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let text = text.split("#[cfg(test)]\nmod tests").next().unwrap();
+            sites.extend(text.matches("Connection::open").map(|_| name.clone()));
+        }
+    }
+    assert_eq!(
+        sites,
+        ["lib.rs"],
+        "a new SQLite connection: give it a cache size and list it here"
+    );
+}

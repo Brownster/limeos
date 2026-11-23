@@ -190,9 +190,19 @@ pub const PAGE: u64 = 4096;
 /// in thousandths, and a fixed allowance: see `startup_page_bound`. Core
 /// measured about 2.4 (quick_check 1.55, the foreign-key check 0.55, six
 /// scans of the jobs table, the audit count) beyond its proof check, and up
-/// to 2.8 while that check evicts the cache; the receipt store about 1.0.
+/// to 2.8 while that check evicts the cache; with the writer's 1536 KiB
+/// cache (`limeos_persistence`'s `cache`) the opens measured up to 2.71.
+///
+/// The receipt store checks through a cache much smaller than a grown store
+/// (768 KiB), so `quick_check` reads what no cache keeps: one walk of every
+/// B-tree page, for the structure, and a second of every table's pages, for
+/// its NOT NULL and CHECK constraints. That is at most 2 reads per page, 1.0
+/// plus the share of the file in tables (about 0.86 measured, receipts being
+/// most of it); the open's other statements (schema, watermark, counts) read
+/// a few pages more. 2.2 holds that with room for new tables, and fails a
+/// further full pass over the store (1.87 plus 1.0).
 pub const CORE_PAGE_FACTOR: u64 = 3200;
-pub const RECEIPT_PAGE_FACTOR: u64 = 2000;
+pub const RECEIPT_PAGE_FACTOR: u64 = 2200;
 pub const PAGE_SLACK: u64 = 256;
 /// The page reads an open may make beyond what its known statements read
 /// cold (see `startup::KNOWN`): its own small statements, schema reads and

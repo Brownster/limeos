@@ -1136,3 +1136,356 @@ fn thirty_days_at_the_minimum_interval() {
     let store = Store::open(&dir.path().join("core.sqlite")).unwrap();
     assert_eq!(audit(&store), events(&store) * EVENT_BYTES);
 }
+
+/// One transaction on the writer's connection with its cache at `cache_kib`,
+/// from an empty WAL with automatic checkpoints off: the frames it commits
+/// and the WAL bytes on disk just before its commit. SQLite writes a
+/// transaction's pages to the WAL at commit, unless its cache cannot hold
+/// them: then it spills dirty pages into the WAL early, and a page changed
+/// again after its spill is written again. Any WAL bytes before the commit
+/// are such a spill.
+fn measured<T>(
+    store: &mut Store,
+    cache_kib: u32,
+    work: impl FnOnce(&Transaction<'_>) -> T,
+) -> (u64, u64, T) {
+    let wal = store.directory.join("core.sqlite-wal");
+    store
+        .conn
+        .execute_batch(&format!(
+            "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA wal_autocheckpoint=0; PRAGMA cache_size=-{cache_kib}; PRAGMA shrink_memory;"
+        ))
+        .unwrap();
+    let page: i64 = store
+        .conn
+        .pragma_query_value(None, "page_size", |r| r.get(0))
+        .unwrap();
+    let page = page as u64;
+    assert_eq!(page, 4096);
+    assert_eq!(std::fs::metadata(&wal).map(|m| m.len()).unwrap_or(0), 0);
+    let tx = store
+        .conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .unwrap();
+    let value = work(&tx);
+    let spilled = std::fs::metadata(&wal).map(|m| m.len()).unwrap_or(0);
+    tx.commit().unwrap();
+    let total = std::fs::metadata(&wal).unwrap().len();
+    ((total.saturating_sub(32)) / (page + 24), spilled, value)
+}
+
+/// `rows` events, one job-less session event (prunable) then `pinned` events
+/// of the open job `job` (kept), repeating, through the audit accounting but
+/// not the write gate, so it can fill past the cap.
+fn interleaved(store: &mut Store, actor: &Principal, job: &str, rows: i64, pinned: i64, now: i64) {
+    let loose = json(&EventKind::SessionCreated).unwrap();
+    let held = json(&EventKind::JobTransition {
+        state: JobState::Running,
+    })
+    .unwrap();
+    let mut written = 0;
+    while written < rows {
+        let chunk = (rows - written).min(8192);
+        let tx = store.conn.transaction().unwrap();
+        let added = tx.execute(
+            "WITH RECURSIVE c(x) AS (SELECT ? UNION ALL SELECT x+1 FROM c WHERE x<?) \
+             INSERT INTO events(principal,job,kind,created) \
+             SELECT ?, CASE WHEN x%?=0 THEN NULL ELSE ? END, CASE WHEN x%?=0 THEN ? ELSE ? END, ? FROM c",
+            params![written, written + chunk - 1, actor.id, pinned + 1, job, pinned + 1, loose, held, now],
+        )
+        .unwrap();
+        account(&tx, added as i64).unwrap();
+        tx.commit().unwrap();
+        written += chunk;
+    }
+}
+
+/// A store at its event budget plus one batch, prunable events one in
+/// `pinned + 1` among an open job's history, then reopened by path.
+fn sparse_store(pinned: i64) -> (tempfile::TempDir, Store) {
+    let (dir, mut store, actor) = setup();
+    let base = 1_000_000;
+    let held = probe(&mut store, &actor, "held", "held", base);
+    store
+        .transition(&held, JobState::Queued, JobState::Running, base)
+        .unwrap();
+    interleaved(
+        &mut store,
+        &actor,
+        &held,
+        BUDGET_ROWS + EVENT_BATCH,
+        pinned,
+        base,
+    );
+    (dir, store)
+}
+
+/// A full event batch: pages committed and bytes spilled at `cache_kib`.
+fn event_batch(store: &mut Store, cache_kib: u32) -> (u64, u64, i64) {
+    let (pages, spilled, removed) = measured(store, cache_kib, |tx| {
+        prune_events(tx, EVENT_BATCH, 0, &mut jobs::Scan::default())
+            .unwrap()
+            .rows
+    });
+    (pages, spilled, removed)
+}
+
+/// `jobs::FLOOR + jobs_past_floor` settled health-probe jobs (four events
+/// each), each with `extra_events` more interleaved with the others' and
+/// with prunable session events, so a job-row batch deletes from scattered
+/// pages. Returns the time past their horizon.
+fn job_store(jobs_past_floor: i64, extra_events: usize) -> (tempfile::TempDir, Store, i64) {
+    let (dir, mut store, actor) = setup();
+    let base = 1_000_000;
+    let mut ids = Vec::new();
+    for i in 0..(jobs::FLOOR + jobs_past_floor) {
+        let job = probe(
+            &mut store,
+            &actor,
+            &format!("job{i}"),
+            &format!("r{i}"),
+            base,
+        );
+        for (from, to) in [
+            (JobState::Queued, JobState::Running),
+            (JobState::Running, JobState::Verifying),
+            (JobState::Verifying, JobState::Succeeded),
+        ] {
+            store.transition(&job, from, to, base).unwrap();
+        }
+        ids.push(job);
+    }
+    let transition = json(&EventKind::JobTransition {
+        state: JobState::Verifying,
+    })
+    .unwrap();
+    let loose = json(&EventKind::SessionCreated).unwrap();
+    let tx = store.conn.transaction().unwrap();
+    let mut added = 0;
+    for _ in 0..extra_events {
+        for job in &ids {
+            tx.execute(
+                "INSERT INTO events(principal,job,kind,created) VALUES(?,?,?,?)",
+                params![actor.id, job, transition, base],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO events(principal,job,kind,created) VALUES(?,NULL,?,?)",
+                params![actor.id, loose, base],
+            )
+            .unwrap();
+            added += 2;
+        }
+    }
+    account(&tx, added).unwrap();
+    tx.commit().unwrap();
+    (dir, store, base + jobs::HORIZON + 86_400)
+}
+
+/// A store just under the audit cap plus the revocation reserve, prunable
+/// events one in two among the history of a job held for an operator: an
+/// open that finds three interrupted jobs must make room for their recovery
+/// events inside its own transaction (`make_room`, given the count).
+fn capped_store() -> (tempfile::TempDir, Store) {
+    let (dir, mut store, actor) = setup();
+    let base = 1_000_000;
+    let held = probe(&mut store, &actor, "held", "held", base);
+    store
+        .transition(&held, JobState::Queued, JobState::Running, base)
+        .unwrap();
+    store
+        .transition(&held, JobState::Running, JobState::NeedsIntervention, base)
+        .unwrap();
+    let rows = (AUDIT_LIMIT + AUDIT_RESERVE) / EVENT_BYTES - events(&store) - 2;
+    interleaved(&mut store, &actor, &held, rows, 1, base);
+    (dir, store)
+}
+
+/// `store`'s file, checkpointed, copied to a new directory and opened there,
+/// so each cache size starts from the same bytes.
+fn copied(store: Store, dir: &tempfile::TempDir) -> impl Fn() -> (tempfile::TempDir, Store) {
+    store
+        .conn
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .unwrap();
+    drop(store);
+    let path = dir.path().join("core.sqlite");
+    move || {
+        let copy = tempfile::tempdir().unwrap();
+        std::fs::copy(&path, copy.path().join("core.sqlite")).unwrap();
+        let store = Store::open(&copy.path().join("core.sqlite")).unwrap();
+        (copy, store)
+    }
+}
+
+#[test]
+#[ignore = "measurement: run with --ignored --nocapture"]
+fn measure_writer_transactions_at_each_cache_size() {
+    let sizes = [512u32, 1024, 1536, 2000];
+    {
+        let (dir, store, now) = job_store(jobs::BATCH, 30);
+        let open = copied(store, &dir);
+        for kib in sizes {
+            let (_copy, mut store) = open();
+            let (pages, spilled, removed) = measured(&mut store, kib, |tx| {
+                jobs::prune(tx, jobs::BATCH, now, &mut jobs::Scan::default()).unwrap()
+            });
+            eprintln!(
+                "job batch: {kib} KiB cache: {} jobs, {} rows removed, {pages} pages, {spilled} bytes spilled",
+                removed.jobs.len(),
+                removed.rows
+            );
+        }
+    }
+    {
+        let (dir, store) = capped_store();
+        let open = copied(store, &dir);
+        for kib in sizes {
+            let (_copy, mut store) = open();
+            let (pages, spilled, ()) = measured(&mut store, kib, |tx| {
+                make_room(tx, 3, 2_000_000).unwrap();
+            });
+            eprintln!(
+                "make_room at the cap, 1 prunable in 2: {kib} KiB cache: {pages} pages, {spilled} bytes spilled"
+            );
+        }
+    }
+    let sizes = [256u32, 512, 768, 1024, 1536, 2000];
+    for pinned in [0i64, 1, 3, 7] {
+        let (dir, store) = sparse_store(pinned);
+        let path = dir.path().join("core.sqlite");
+        store
+            .conn
+            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+            .unwrap();
+        drop(store);
+        for kib in sizes {
+            let copy = tempfile::tempdir().unwrap();
+            std::fs::copy(&path, copy.path().join("core.sqlite")).unwrap();
+            let mut store = Store::open(&copy.path().join("core.sqlite")).unwrap();
+            let (pages, spilled, removed) = event_batch(&mut store, kib);
+            eprintln!(
+                "event batch, 1 prunable in {}: {kib} KiB cache: {removed} removed, {pages} pages, {spilled} bytes spilled",
+                pinned + 1
+            );
+        }
+    }
+}
+
+/// The writer's cache holds the largest transactions retention runs in normal
+/// operation without spilling. Covered: a full event batch, densely packed
+/// and with one prunable event in four among pinned history; a day's job-row
+/// batch (ten jobs past the floor, six events each, interleaved); startup's
+/// `make_room` at the cap (one prunable in two). Deliberately not covered,
+/// because they spill at this size and at SQLite's 2000 KiB default alike: a
+/// backlog job-row batch (64 jobs, up to 2,048 rows scattered) and an event
+/// batch with one prunable event in eight. Their volumes and when they occur
+/// are in the plan's Phase 4 section; `measure_writer_transactions_at_each_cache_size`
+/// measures every shape at each size.
+#[test]
+fn the_writers_normal_transactions_do_not_spill() {
+    let kib = crate::cache::WRITER_KIB;
+    for pinned in [0, 3] {
+        let (_dir, mut store) = sparse_store(pinned);
+        let (pages, spilled, removed) = event_batch(&mut store, kib);
+        assert_eq!(removed, EVENT_BATCH);
+        assert_eq!(
+            spilled,
+            0,
+            "event batch, 1 prunable in {}: {pages} pages spilled {spilled} bytes",
+            pinned + 1
+        );
+        eprintln!("event batch, 1 prunable in {}: {pages} pages", pinned + 1);
+    }
+    let (_dir, mut store, now) = job_store(10, 2);
+    let (pages, spilled, removed) = measured(&mut store, kib, |tx| {
+        jobs::prune(tx, jobs::BATCH, now, &mut jobs::Scan::default()).unwrap()
+    });
+    assert_eq!(removed.jobs.len(), 10);
+    assert_eq!(
+        spilled, 0,
+        "a day's job batch: {pages} pages spilled {spilled} bytes"
+    );
+    eprintln!("a day's job batch: {pages} pages");
+    let (_dir, mut store) = capped_store();
+    let (pages, spilled, ()) = measured(&mut store, kib, |tx| {
+        make_room(tx, 3, 2_000_000).unwrap();
+    });
+    assert!(pages > 0);
+    assert_eq!(
+        spilled, 0,
+        "make_room at the cap: {pages} pages spilled {spilled} bytes"
+    );
+    eprintln!("make_room at the cap: {pages} pages");
+}
+
+#[test]
+fn every_store_connection_has_its_cache_size() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("core.sqlite");
+    let cache = |conn: &Connection| -> i64 {
+        conn.pragma_query_value(None, "cache_size", |r| r.get(0))
+            .unwrap()
+    };
+    // Created (a migration from nothing), then reopened (no migration).
+    let store = Store::open(&path).unwrap();
+    assert_eq!(cache(&store.conn), -(crate::cache::WRITER_KIB as i64));
+    drop(store);
+    let store = Store::open(&path).unwrap();
+    assert_eq!(cache(&store.conn), -(crate::cache::WRITER_KIB as i64));
+    let reader = crate::open_reader(&path).unwrap();
+    assert_eq!(cache(&reader), -(crate::cache::READER_KIB as i64));
+    drop((store, reader));
+    // Every SQLite connection this crate opens outside its tests is one of
+    // these, each named with its cache; a new one fails here until it has one.
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sites = Vec::new();
+    let mut stack = vec![src.clone()];
+    while let Some(directory) = stack.pop() {
+        for entry in std::fs::read_dir(directory).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            let name = path
+                .strip_prefix(&src)
+                .unwrap()
+                .to_string_lossy()
+                .into_owned();
+            if name.ends_with("tests.rs") || name == "scale.rs" || name.contains("tests/") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            // Production code ends where the file's test module starts.
+            let text = text.split("#[cfg(test)]\nmod tests").next().unwrap();
+            for _ in text.matches("Connection::open") {
+                sites.push(name.clone());
+            }
+        }
+    }
+    sites.sort();
+    assert_eq!(
+        sites,
+        [
+            // `connect`, three spellings of one open (a test VFS or not), used
+            // for the writer, which `open_migrating_at` sizes
+            // (`cache::WRITER_KIB`) once any upgrade is over, and for the
+            // upgrade's own exclusive connection, which keeps SQLite's default
+            // for the upgrade (a migration rewrites whole tables) and is
+            // closed when it ends; the reader (`cache::READER_KIB`); and
+            // `upgrade_space`'s read-only look at a store before it is opened,
+            // closed before it returns.
+            "lib.rs",
+            "lib.rs",
+            "lib.rs",
+            "lib.rs",
+            "lib.rs",
+            // `migrations`' in-memory reference schema.
+            "migrations.rs",
+            // The snapshot's verification of its copy, closed straight away.
+            "migrations/snapshot.rs",
+        ],
+        "a new SQLite connection: give it a cache size (see `cache`) or name it here"
+    );
+}
