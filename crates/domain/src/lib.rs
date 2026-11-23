@@ -60,6 +60,11 @@ pub enum ErrorCode {
     /// effect. Fresh plans meet it only after the clock stepped back by more
     /// than the receipt retention period, until the clock catches up.
     BeyondReceiptHistory,
+    /// The container executor refused an execute request because a container
+    /// it would act on has spent its effect budget (ADR 0013): refused before
+    /// the store writes any receipt for the action, so nothing ran or can run
+    /// for it. Settled as refused, never retried as an effect.
+    RateLimited,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -86,6 +91,9 @@ impl Error {
             ErrorCode::NotFound => "The resource was not found.",
             ErrorCode::BeyondReceiptHistory => {
                 "The executor can no longer prove this action has not already run. Check the system clock; plans approved after it is correct are accepted."
+            }
+            ErrorCode::RateLimited => {
+                "The executor's action budget for this container is spent. Nothing was run; try again later."
             }
         }
     }

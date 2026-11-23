@@ -220,7 +220,7 @@ async fn v2_receipt_migration_retains_the_prepared_barrier_without_replay() {
     let mut store = ReceiptStore::open(directory.path()).unwrap();
     let req = request();
     store
-        .prepare(
+        .insert_action(
             &ContainerReceipt {
                 action: req.action.clone(),
                 plan_digest: req.plan_digest.clone(),
@@ -231,11 +231,12 @@ async fn v2_receipt_migration_retains_the_prepared_barrier_without_replay() {
             },
             req.plan.expires_at,
             201,
+            false,
         )
         .unwrap();
     store
         .conn
-        .execute_batch("DROP TABLE retention; DROP TABLE pruned_legacy; DROP INDEX actions_digest; ALTER TABLE actions DROP COLUMN expires_at; DROP TABLE stack_actions; ALTER TABLE actions DROP COLUMN operation; PRAGMA user_version=2;")
+        .execute_batch("DROP TABLE effect_log; DROP TABLE effect_days; DROP TABLE retention; DROP TABLE pruned_legacy; DROP INDEX actions_digest; ALTER TABLE actions DROP COLUMN expires_at; DROP TABLE stack_actions; ALTER TABLE actions DROP COLUMN operation; PRAGMA user_version=2;")
         .unwrap();
     drop(store);
     let mut store = ReceiptStore::open(directory.path()).unwrap();

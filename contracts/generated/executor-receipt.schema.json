@@ -812,6 +812,11 @@
           "description": "The container executor refused an execute request for an action it\nholds no receipt for, because the plan expires at or below its prune\nwatermark: a receipt for it may have been pruned, so the executor can\nno longer tell whether the action already ran. Never retried as an\neffect. Fresh plans meet it only after the clock stepped back by more\nthan the receipt retention period, until the clock catches up.",
           "type": "string",
           "const": "beyond_receipt_history"
+        },
+        {
+          "description": "The container executor refused an execute request because a container\nit would act on has spent its effect budget (ADR 0013): refused before\nthe store writes any receipt for the action, so nothing ran or can run\nfor it. Settled as refused, never retried as an effect.",
+          "type": "string",
+          "const": "rate_limited"
         }
       ]
     },

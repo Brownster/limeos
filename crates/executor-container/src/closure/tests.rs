@@ -306,7 +306,7 @@ async fn an_execute_that_prepared_first_is_reported_and_a_closure_first_is_retur
         error: None,
     };
     store
-        .prepare(&prepared, single.plan.expires_at, STEPPED_BACK)
+        .insert_action(&prepared, single.plan.expires_at, STEPPED_BACK, false)
         .unwrap();
     assert_eq!(
         close(&mut store, &single, ASKED),
@@ -986,7 +986,7 @@ fn schema_seven_upgrade_adds_the_closure_column_and_keeps_every_row() {
     store
         .conn
         .execute_batch(
-            "ALTER TABLE actions DROP COLUMN closed; ALTER TABLE stack_actions DROP COLUMN closed; PRAGMA user_version=7;",
+            "DROP TABLE effect_log; DROP TABLE effect_days; ALTER TABLE actions DROP COLUMN closed; ALTER TABLE stack_actions DROP COLUMN closed; PRAGMA user_version=7;",
         )
         .unwrap();
     drop(store);

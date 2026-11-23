@@ -7,7 +7,7 @@
 //! long-uptime soak (`bins/core/src/soak`) calls the same function with a
 //! simulated Engine and clock.
 use limeos_domain::{Error, ErrorCode, Result};
-use limeos_executor_container::{Answer, Engine, ReceiptStore, RestartCeiling};
+use limeos_executor_container::{ActionRecord, Answer, Engine, ReceiptStore, RestartCeiling};
 use limeos_executor_protocol::{Receipt, Request};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -65,12 +65,11 @@ where
             let mut store = store()?
                 .try_lock()
                 .map_err(|_| Error(ErrorCode::Overloaded))?;
-            receipt.restart = Some(
-                store
-                    .execute(&role.engine, ceiling, uid, &request, clock)
-                    .await
-                    .inspect_err(note_refusal)?,
-            );
+            let executed = store
+                .execute(&role.engine, ceiling, uid, &request, clock)
+                .await;
+            journal(&mut store);
+            receipt.restart = Some(executed.inspect_err(note_refusal)?);
             receipt.epoch = Some(store.epoch().to_owned());
         }
         Request::RestartReceipt {
@@ -129,12 +128,11 @@ where
             let mut store = store()?
                 .try_lock()
                 .map_err(|_| Error(ErrorCode::Overloaded))?;
-            receipt.stack = Some(
-                store
-                    .execute_stack(&role.engine, ceiling, uid, &request, clock)
-                    .await
-                    .inspect_err(note_refusal)?,
-            );
+            let executed = store
+                .execute_stack(&role.engine, ceiling, uid, &request, clock)
+                .await;
+            journal(&mut store);
+            receipt.stack = Some(executed.inspect_err(note_refusal)?);
             receipt.epoch = Some(store.epoch().to_owned());
         }
         Request::StackReceipt {
@@ -260,6 +258,68 @@ fn note_refusal(error: &Error) {
     if error.0 == ErrorCode::BeyondReceiptHistory {
         tracing::warn!(
             "execute refused: the plan expires at or below the receipt store's prune watermark, so whether the action already ran can no longer be told; the system clock has probably stepped back, and plans are refused until it passes the watermark again"
+        );
+    }
+}
+
+/// The message of the journal line for each effect in the action log.
+pub const EFFECT_LINE: &str = "action log: effect";
+/// The message of the journal line for each refusal row in the action log.
+pub const REFUSAL_LINE: &str = "action log: effect refused, the container's executor action budget is spent; core's later refusals for it within the hour are counted into its next record";
+
+/// One journal line per action-log row the request wrote (`limit`): the
+/// receipt store's table is the record core cannot touch; these lines are
+/// the operator's quick view (`journalctl -u limeos-containerd`), which a
+/// flood of other journal writers can rotate away.
+fn journal(store: &mut ReceiptStore) {
+    for record in store.take_journal() {
+        line(&record);
+    }
+}
+
+fn line(record: &ActionRecord) {
+    let ActionRecord {
+        seq,
+        at,
+        kind,
+        resource,
+        operation,
+        stack,
+        action,
+        peer,
+        principal,
+        outcome,
+        refusals,
+    } = record;
+    let (operation, stack) = (operation.as_str(), stack.as_deref().unwrap_or(""));
+    if *kind == "refused" {
+        tracing::warn!(
+            action_log = kind,
+            seq,
+            at,
+            resource = resource.as_str(),
+            operation,
+            stack,
+            action = action.as_str(),
+            peer,
+            principal = principal.as_str(),
+            outcome,
+            refusals,
+            "{REFUSAL_LINE}"
+        );
+    } else {
+        tracing::info!(
+            action_log = kind,
+            seq,
+            at,
+            resource = resource.as_str(),
+            operation,
+            stack,
+            action = action.as_str(),
+            peer,
+            principal = principal.as_str(),
+            outcome,
+            "{EFFECT_LINE}"
         );
     }
 }

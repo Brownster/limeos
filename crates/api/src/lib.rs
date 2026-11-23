@@ -658,7 +658,7 @@ fn failure(error: Error) -> Response {
         ErrorCode::Forbidden | ErrorCode::Expired => StatusCode::FORBIDDEN,
         ErrorCode::Conflict => StatusCode::CONFLICT,
         ErrorCode::NotFound => StatusCode::NOT_FOUND,
-        ErrorCode::Overloaded => StatusCode::TOO_MANY_REQUESTS,
+        ErrorCode::Overloaded | ErrorCode::RateLimited => StatusCode::TOO_MANY_REQUESTS,
         ErrorCode::StorageMountLimit => StatusCode::CONFLICT,
         _ => StatusCode::SERVICE_UNAVAILABLE,
     };
