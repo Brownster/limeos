@@ -140,3 +140,12 @@ PR-30 written, PR-41 green, and one Pi night on that exact candidate.
 - PR-40: whether deferred code is feature-gated in place or moved out of the
   workspace.
 - PR-44: whether raw evidence may leave git.
+
+## Operator decisions recorded
+
+- 23 November: the approved-storage mount suite (`p04_approved_guest.py`) left the
+  gating `debian-vm` job. It covers the dormant mount path and had not passed on a
+  runner since 16 October. It runs in `storage-mount-vm`, which uploads its evidence
+  and does not gate the workflow. Before storage mounts ship, fix the suite's
+  failure (last seen at `await_terminal_receipt`, "mount job is uncertain/refused")
+  and move it back into the gating job.
