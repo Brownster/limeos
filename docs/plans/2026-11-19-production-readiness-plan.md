@@ -151,3 +151,23 @@ PR-30 written, PR-41 green, and one Pi night on that exact candidate.
   and does not gate the workflow. Before storage mounts ship, fix the suite's
   failure (last seen at `await_terminal_receipt`, "mount job is uncertain/refused")
   and move it back into the gating job.
+- 23 November: ceilings stay keyed as they are — full container IDs for containers,
+  Compose project names for stacks. Consequence to plan for: a container that is
+  recreated (an image update by watchtower, a `docker compose up` that replaces it)
+  gets a new ID and leaves the managed set until `limeosctl migrate propose-ceiling`
+  is run again and the ceiling reinstalled. Follow-up, after the first migration:
+  evaluate keying on names, or names with the ID as a recorded incarnation.
+- 23 November: lookup, verification and resolution of an existing receipt stay
+  subject to the managed-list check. Delisting a container freezes its open jobs;
+  the recovery procedure is in `docs/p03-operations.md`.
+- 23 November: `limeos-core.service` gets a start limit (ten starts in five
+  minutes) so a store that cannot be opened or upgraded stops being retried every
+  two seconds, which could otherwise write the SD card continuously. A reboot or
+  `systemctl reset-failed limeos-core && systemctl start limeos-core` tries again.
+- 23 November: `watchtower` stays in the cutover's default managed list (the
+  conservative choice: a watchtower restart or an update it applies during
+  activation rolls back). Choose a cutover window outside watchtower's schedule.
+- 23 November: idle CPU is accepted for the first migration at its measured figure
+  (0.15–0.20 % of a core against the 0.1 % target, most of it the stack reader's
+  30-second refresh). The gate is a regression ceiling; the target stays recorded
+  as not met, and the reader's refresh cost is a follow-up.
