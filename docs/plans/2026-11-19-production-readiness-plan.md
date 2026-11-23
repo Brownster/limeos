@@ -85,17 +85,22 @@ logged by name. `SCHEMA_VERSION` is the last entry. The version-17 space check a
 version-19 estimate stay keyed by version in `lib.rs`.
 `a_migration_added_to_the_table_alone_is_applied_and_checked` adds a test-only entry and
 nothing else. An upgrade runs on its own connection with `locking_mode=EXCLUSIVE`, taken by an empty
-write transaction as its first access (every other connection locked out), from the store's
+write transaction as its first access (every other connection locked out, in this process or
+another; a test reaches it from a second process; SQLite still keeps a `-shm` file), from the store's
 hash through the snapshot to the migration's commit, so all three see one state. It keeps
 `core.sqlite.v<from>.snapshot` (`VACUUM INTO`, synced, checked, mode 0600) with a record of the
 store's and the snapshot's digests; a repeated attempt on an unchanged store keeps it (cheap
 checks, then hashes) and writes no copy. Leftovers go before SQLite opens the store; other
 snapshots count by the blocks removing them frees, and go before the new one is written only
 when it would not fit otherwise. The estimate covers the snapshot, the v17 build, the v19
-rewrite bounded from the pages of `jobs`, and recovery bounded from b-tree depth; residual
+rewrite bounded from the pages of `jobs`, and recovery bounded from b-tree depth over the 14
+trees SQLite's plan opens (a test reads the count from the plan); residual
 risks (stated in `lib.rs`): retention's `make_room`, and the v19 bound's reliance on records
 growing by less than their size and SQLite rewriting a transaction's WAL frames in place.
-Running out of space anywhere in the upgrade is reported with figures. Open fails unless
+Running out of space anywhere in the upgrade is reported with figures, and a program holding
+`core.sqlite` open, which blocks the upgrade, is named as the reason in core's log.
+`limeos-core.service` stops retrying after ten starts in six hours (long enough to trip even for
+starts that fail late in a 31-minute start); postinst resets the count before it restarts core. Open fails unless
 `journal_mode` answers `wal`. The v16 hazard: its `replace` on the `jobs` text does nothing,
 silently, when the text is not exactly as expected, and the startup check never compared
 `jobs`; the store then reached v19 without the `resolved` state. `jobs` is now compared right
